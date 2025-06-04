@@ -1,0 +1,8 @@
+{
+  "/(evaluation)/(employee)/evaluation-input/page": "app/(evaluation)/(employee)/evaluation-input/page.js",
+  "/(evaluation)/(employee)/goal-input/page": "app/(evaluation)/(employee)/goal-input/page.js",
+  "/(evaluation)/(supervisor)/evaluation-feedback/page": "app/(evaluation)/(supervisor)/evaluation-feedback/page.js",
+  "/(evaluation)/(supervisor)/goal-approval/page": "app/(evaluation)/(supervisor)/goal-approval/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/page": "app/page.js"
+}
