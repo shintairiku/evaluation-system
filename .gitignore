@@ -14,8 +14,12 @@
 /coverage
 
 # next.js
-/.next/
+.next/
+node_modules/
 /out/
+
+# python
+__pycache__/
 
 # production
 /build

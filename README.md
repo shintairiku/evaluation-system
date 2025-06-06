@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 人事評価システム (HR Evaluation System)
 
-## Getting Started
+## 技術スタック
 
-First, run the development server:
+- **フロントエンド**: Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui
+- **バックエンド**: FastAPI, Python 3.12
+- **データベース**: PostgreSQL
+- **認証**: Clerk
+- **コンテナ化**: Docker
+
+## 開発環境のセットアップ
+
+### 前提条件
+
+- [Docker](https://www.docker.com/products/docker-desktop/) がシステムにインストールされ、実行中であること。
+
+### 1. リポジトリをクローンする
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/shintairiku/evaluation-system.git
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. 環境変数ファイルを作成する
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+プロジェクトのルートディレクトリに、サンプルをコピーして `.env` ファイルを作成。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cp .env.sample .env
+```
 
-## Learn More
+### 3. アプリケーションをビルドして実行する
 
-To learn more about Next.js, take a look at the following resources:
+Docker Composeを使用して、イメージをビルドし、バックグラウンドでサービスを起動
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+docker-compose up --build -d
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 5. サービスへのアクセス
 
-## Deploy on Vercel
+コンテナが起動したら、各サービスにアクセス可能
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **フロントエンド**: [http://localhost:3000](http://localhost:3000)
+- **バックエンド**: [http://localhost:8000](http://localhost:8000)
+- **データベース**: ローカルマシンのポート `5433` で接続
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 6. サービスを停止する
+
+サービスを停止するには、以下のコマンドを実行
+```bash
+docker-compose down
+```
