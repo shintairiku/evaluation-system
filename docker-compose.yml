@@ -22,7 +22,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/src:/app
+      - ./backend/app:/app
     environment:
       - DATABASE_URL=${DATABASE_URL}
     depends_on:
