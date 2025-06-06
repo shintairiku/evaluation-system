@@ -106,6 +106,50 @@
 
 ## 3. 一意性制約 (Uniqueness Constraints)
 
+### 3.1 `users` テーブル
+-   **ClerkユーザーIDの一意性 (`unique_clerk_user_id`)**: `clerk_user_id`
+-   **社員コードの一意性 (`unique_employee_code`)**: `employee_code` 
+-   **メールアドレスの一意性 (`unique_email`)**: `email` 
+
+### 3.2 `departments` テーブル
+-   **部門名の一意性 (`unique_department_name`)**: `name`
+
+### 3.3 `stages` テーブル
+-   **ステージ名の一意性 (`unique_stage_name`)**: `name`
+
+### 3.4 `competencies` テーブル
+-   **コンピテンシー名の一意性 (`unique_competency_name`)**: `name`
+
+### 3.5 `users_supervisors` テーブル
+-   **有効期間内の上司-部下関係の一意性 (`unique_active_supervisor_relationship`)**: `user_id` と `supervisor_id` の組み合わせで、`valid_to` がNULLまたは未来日のレコードは一意
+
+### 3.6 `roles` テーブル
+-   **役割名の一意性 (`unique_role_name`)**: `name`
+
+### 3.7 `user_roles` テーブル
+-   **ユーザーとロールの組み合わせの一意性 (`unique_user_role`)**: `user_id` と `role_id` の組み合わせがテーブル内で一意
+
+### 3.8 `evaluation_periods` テーブル
+-   **評価期間名の一意性 (`unique_evaluation_period_name`)**: `name`
+
+### 3.9 `goal_categories` テーブル
+-   **目標カテゴリ名の一意性 (`unique_goal_category_name`)**: `name`
+
+### 3.10 `goals` テーブル
+-   **ユーザー・期間・目標カテゴリごとの目標順序の一意性 (`unique_goal_order_per_user_period_category`)**: 同一ユーザー、同一期間、同一目標カテゴリ内での目標の順序や識別子が重複しないよう制御（実装方法はビジネス要件による）
+
+### 3.11 `self_assessments` テーブル
+-   **目標ごとの自己評価の一意性 (`unique_self_assessment_per_goal`)**: `goal_id` カラムの値はテーブル内で一意、一つの目標に対して複数の自己評価の作成を防ぐ
+
+### 3.12 `supervisor_feedback` テーブル
+-   **自己評価ごとの上司フィードバックの一意性 (`unique_supervisor_feedback_per_assessment`)**: `self_assessment_id` カラムの値はテーブル内で一意、一つの自己評価に対して複数の上司フィードバックが作成されることを防ぐ
+
+### 3.13 `supervisor_reviews` テーブル
+-   **目標・期間・上司ごとのレビューの一意性 (`unique_supervisor_review_per_goal_period`)**: `goal_id`、`period_id`、`supervisor_id` の組み合わせがテーブル内で一意
+
+### 3.14 `audit_logs` テーブル
+-   **監査ログの重複防止 (`unique_audit_log_entry`)**: `table_name`、`record_id`、`action`、`changed_by`、`changed_at` の組み合わせで、同一の変更操作が重複記録されることを防ぐ
+
 ---
 
 ## 4. 外部キー制約 (Foreign Key Constraints)
