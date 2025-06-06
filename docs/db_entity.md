@@ -44,9 +44,8 @@ erDiagram
     }
 
     users_supervisors {
-        uuid id PK
-        uuid user_id FK
-        uuid supervisor_id FK
+        uuid user_id FK "PK"
+        uuid supervisor_id FK "PK"
         date valid_from
         date valid_to
         timestamp created_at
@@ -228,9 +227,8 @@ erDiagram
 
 | **カラム名** | **型** | **備考** |
 | --- | --- | --- |
-| id | uuid | 主キー、自動生成 |
-| user_id | uuid | 部下のユーザーID、外部キー |
-| supervisor_id | uuid | 上司のユーザーID、外部キー |
+| user_id | uuid | 部下のユーザーID、外部キー、複合主キー |
+| supervisor_id | uuid | 上司のユーザーID、外部キー、複合主キー |
 | valid_from | date | 関係開始日（例：2024-01-01） |
 | valid_to | date | 関係終了日（nullの場合は現在も有効） |
 | created_at | timestamp | 作成日時 |
