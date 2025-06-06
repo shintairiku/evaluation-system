@@ -153,3 +153,42 @@
 ---
 
 ## 4. 外部キー制約 (Foreign Key Constraints)
+
+
+### 4.1 `users` テーブル
+-   `department_id` は `departments` テーブルの `id` カラムを参照
+-   `stage_id` は `stages` テーブルの `id` カラムを参照
+
+### 4.2 `competencies` テーブル
+-   `stage_id` は `stages` テーブルの `id` カラムを参照
+
+### 4.3 `users_supervisors` テーブル (上司-部下関係)
+-   `user_id` (部下) は `users` テーブルの `id` カラムを参照
+-   `supervisor_id` (上司) は `users` テーブルの `id` カラムを参照
+
+### 4.4 `user_roles` テーブル
+-   `user_id` は `users` テーブルの `id` カラムを参照
+-   `role_id` は `roles` テーブルの `id` カラムを参照
+
+### 4.5 `goals` テーブル
+-   `user_id` は `users` テーブルの `id` カラムを参照
+-   `period_id` は `evaluation_periods` テーブルの `id` カラムを参照
+-   `goal_category_id` は `goal_categories` テーブルの `id` カラムを参照
+-   `approved_by` (承認者) は `users` テーブルの `id` カラムを参照
+
+### 4.6 `supervisor_reviews` テーブル
+-   `goal_id` は `goals` テーブルの `id` カラムを参照
+-   `period_id` は `evaluation_periods` テーブルの `id` カラムを参照
+-   `supervisor_id` は `users` テーブルの `id` カラムを参照
+
+### 4.7 `self_assessments` テーブル
+-   `goal_id` は `goals` テーブルの `id` カラムを参照
+-   `period_id` は `evaluation_periods` テーブルの `id` カラムを参照
+
+### 4.8 `supervisor_feedback` テーブル
+-   `self_assessment_id` は `self_assessments` テーブルの `id` カラムを参照
+-   `period_id` は `evaluation_periods` テーブルの `id` カラムを参照
+-   `supervisor_id` は `users` テーブルの `id` カラムを参照
+
+### 4.9 `audit_logs` テーブル
+-   `changed_by` (変更者) は `users` テーブルの `id` カラムを参照
