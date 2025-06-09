@@ -96,6 +96,259 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     - `user.updated`: Clerk上でユーザー情報（メールアドレスなど）が更新されたときにトリガーされます。ハンドラは、`users`テーブルの対応するレコードを更新します。
     - `user.deleted`: Clerkからユーザーが削除されたときにトリガーされます。ハンドラは、`users`テーブルの対応するユーザーを非アクティブ化、または物理削除します。
 
+## 3. Users：ユーザー管理
+
+### 3.1 ユーザー一覧取得
+
+- **Path:** `GET /users`
+- **アクセス可能なロール:** `admin`, `manager`, `viewer`
+    - `admin`: 全てのユーザー情報を取得可能。
+    - `manager`: 自身の管理下にある部下のユーザー情報を取得可能。クエリパラメータで部下以外を検索しようとした場合は空の結果を返すかエラーとする。
+    - `viewer`: 自身に閲覧権限が付与されている部門のユーザー情報、または個別に閲覧権限が付与されているユーザー情報を取得可能。
+- **Query Parameters:**
+    - `page`: ページ番号（デフォルト: 1）
+    - `limit`: 1ページあたりの件数（デフォルト: 20、最大: 100）
+    - `search`: 検索キーワード（氏名、メール、社員コード）
+    - `departmentId`: 部門IDでフィルタ
+    - `employmentType`: 雇用形態でフィルタ（employee, parttime）
+    - `hasRole`: ロール名でフィルタ
+    - `status`: ステータスでフィルタ（active, inactive）
+    - `sortBy`: ソート項目（name, employeeCode, createdAt）
+    - `sortOrder`: ソート順（asc, desc）
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "users": [
+          {
+            "id": "uuid",
+            "clerkUserId": "user_2hJc6gC1fF9sE5tG8rA3bZ2dY4x",
+            "employeeCode": "EMP001",
+            "name": "山田 花子",
+            "email": "hanako.yamada@shintairiku.jp",
+            "employmentType": "employee",
+            "status": "active",
+            "department": {
+              "id": "uuid",
+              "name": "営業部"
+            },
+            "stage": {
+              "id": "uuid",
+              "name": "S2",
+              "description": "中堅社員"
+            },
+            "roles": ["employee"],
+            "supervisor": {
+              "id": "uuid",
+              "name": "田中 部長"
+            },
+            "lastLoginAt": "2024-01-27T10:30:00Z",
+            "createdAt": "2024-01-15T09:00:00Z"
+          }
+        ],
+        "statistics": {
+          "total": 147,
+          "active": 142,
+          "inactive": 5,
+          "employee": 122,
+          "parttime": 25,
+          "newThisMonth": 8
+        }
+      },
+      "meta": {
+        "page": 1,
+        "limit": 20,
+        "total": 147,
+        "totalPages": 8
+      }
+    }
+    ```
+
+### 3.2 ユーザー作成・招待
+
+管理者が手動でユーザーを作成します。特に、会社のGoogle Workspaceアカウントを持たないパートタイム従業員などに使用します。この処理はClerkに招待状付きのユーザーを作成し、成功後に内部データベースにもユーザー情報を保存します。
+
+- **Path:** `POST /users`
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "employeeCode": "EMP002",
+      "name": "鈴木 一郎",
+      "email": "ichiro.suzuki@example.com",
+      "employmentType": "parttime",
+      "status": "active",
+      "departmentId": "uuid",
+      "stageId": "uuid",
+      "job_title": "アルバイト",
+      "roleNames": ["Parttime"],
+      "supervisorId": "uuid"
+    }
+    ```
+- **処理フロー:**
+    1. Clerk Backend APIを呼び出して、指定されたメールアドレスでユーザーを作成（招待）します。
+    2. Clerkから返された`user.id` (`clerk_user_id`) を取得します。
+    3. 受け取った`clerk_user_id`とリクエストのデータを使用して、`users`テーブルにレコードを作成します。
+    4. Clerk APIを再度呼び出し、ユーザーの`publicMetadata`にロール（例: `{ "roles": ["Parttime"] }`）を設定します。
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "550e8400-e29b-41d4-a716-446655440001",
+          "clerkUserId": "user_1yKc6gC1fA9sE5tG8rA3bZ2dY4z",
+          "employeeCode": "EMP002",
+          "name": "鈴木 一郎",
+          "email": "ichiro.suzuki@example.com",
+          "employmentType": "parttime",
+          "status": "active",
+          "job_title": "アルバイト",
+          "department": {
+            "id": "uuid",
+            "name": "開発部"
+          },
+          "stage": {
+            "id": "uuid",
+            "name": "P1",
+            "description": "パートタイム"
+          },
+          "roles": ["Parttime"],
+          "supervisor": {
+            "id": "uuid",
+            "name": "佐藤 部長"
+          },
+          "createdAt": "2024-01-28T09:00:00Z"
+        }
+      }
+    }
+    ```
+
+### 3.3 ユーザー情報取得
+
+- **Path:** `GET /users/{userId}`
+- **アクセス可能なロール:**
+    - `admin`: 指定した `userId` のユーザー情報を取得可能。
+    - `manager`: 指定した `userId` が自身の管理下の部下である場合、情報を取得可能。
+    - `viewer`: 指定した `userId` のユーザーに対して閲覧権限がある場合、情報を取得可能。
+    - `employee`: `userId` が自身のIDである場合のみ、情報を取得可能。(このエンドポイントまたは `/auth/me` で対応)
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "clerkUserId": "user_2hJc6gC1fF9sE5tG8rA3bZ2dY4x",
+          "employeeCode": "EMP001",
+          "name": "山田 花子",
+          "email": "hanako.yamada@shintairiku.jp",
+          "employmentType": "employee",
+          "status": "active",
+          "job_title": "主任",
+          "department": {
+            "id": "uuid",
+            "name": "営業部",
+            "description": "営業部門"
+          },
+          "stage": {
+            "id": "uuid",
+            "name": "S2",
+            "description": "中堅社員"
+          },
+          "roles": ["employee"],
+          "supervisor": {
+            "id": "uuid",
+            "name": "田中 部長",
+            "email": "tanaka@shintairiku.jp"
+          },
+          "lastLoginAt": "2024-01-27T10:30:00Z",
+          "createdAt": "2024-01-15T09:00:00Z",
+          "updatedAt": "2024-01-27T10:30:00Z"
+        }
+      }
+    }
+    ```
+
+### 3.4 ユーザー情報更新
+
+管理者がユーザー情報を更新します。Google Workspaceからの自動同期が完全でない場合や、アプリケーション固有の情報を更新するために使用します。
+
+- **Path:** `PUT /users/{userId}`
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "name": "山田 花子",
+      "email": "yamada.hanako@shintairiku.jp",
+      "employmentType": "employee",
+      "status": "active",
+      "departmentId": "uuid",
+      "stageId": "uuid",
+      "job_title": "主任",
+      "roleNames": ["employee", "manager"],
+      "supervisorId": "uuid"
+    }
+    ```
+- **処理フロー:**
+    1. データベース (`users`テーブル) の情報を更新します。
+    2. もし `email` や `name` など、Clerkと同期すべき情報が変更された場合、Clerk Backend APIを呼び出してClerk上のユーザー情報も更新します。
+    3. もし `roleNames` が変更された場合、Clerk APIを呼び出してユーザーの`publicMetadata`を更新します。
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "clerkUserId": "user_2hJc6gC1fF9sE5tG8rA3bZ2dY4x",
+          "employeeCode": "EMP001",
+          "name": "山田 花子",
+          "email": "yamada.hanako@shintairiku.jp",
+          "employmentType": "employee",
+          "status": "active",
+          "job_title": "主任",
+          "department": {
+            "id": "uuid",
+            "name": "営業部"
+          },
+          "stage": {
+            "id": "uuid",
+            "name": "S2",
+            "description": "中堅社員"
+          },
+          "roles": ["employee", "manager"],
+          "supervisor": {
+            "id": "uuid",
+            "name": "田中 部長"
+          },
+          "updatedAt": "2024-01-28T14:30:00Z"
+        }
+      }
+    }
+    ```
+
+### 3.5 ユーザー情報削除
+
+管理者がユーザーを削除します。
+
+- **Path:** `DELETE /users/{userId}`
+- **アクセス可能なロール:** `admin`
+- **処理フロー:**
+    1. Clerk Backend APIを呼び出して、Clerkからユーザーを削除します。
+    2. 内部データベースからユーザーレコードを削除、または非アクティブ化します。（Clerkの`user.deleted` Webhookに任せることも可能ですが、即時性を求めるならAPI側で直接処理する方が確実です）
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "message": "ユーザーが正常に削除されました",
+        "deletedUserId": "550e8400-e29b-41d4-a716-446655440000",
+        "deletedAt": "2024-01-28T15:00:00Z"
+      }
+    }
+    ```
 
 - **Path:** `GET /goals/me`
 - **説明:** ログイン中のユーザーが指定した評価期間に紐づく自身の目標一覧を取得します。
