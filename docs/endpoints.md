@@ -350,6 +350,38 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 
+### 3.6 ユーザーの同期 (管理者用)
+
+- **Path:** `POST /admin/users/sync-source`
+- **説明:** 信頼できる情報源（Google Workspaceなど）からユーザー情報を取得し、アプリケーションのデータベースと同期します。主に、Clerkの自動同期から漏れたユーザーや、システム導入時に既存の全ユーザーを一度に同期するために管理者が使用します。
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "source": "google_workspace"
+    }
+    ```
+- **処理フロー:**
+    1.  指定された`source`（Google Workspace）のAPIを呼び出し、ユーザーリストを取得します。
+    2.  取得した各ユーザーについて、メールアドレスをキーにしてアプリケーションの`users`テーブルに存在するか確認します。
+    3.  存在しないユーザーがいた場合、ClerkのBackend API (`clerk.users.create`) を使用してClerkにユーザーを作成します。
+    4.  Clerkでのユーザー作成が成功すると、`user.created` Webhookがトリガーされ、アプリケーションのデータベースにも自動的にユーザーが追加されます。
+    5.  処理結果（同期したユーザー数、失敗したユーザー数など）をレスポンスとして返します。
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "source": "google_workspace",
+        "status": "completed",
+        "newlyCreatedCount": 5,
+        "syncedCount": 150,
+        "failedCount": 0,
+        "details": "Synchronization completed successfully."
+      }
+    }
+    ```
+
 ## 4. Departments: 部門管理
 
 ### 4.1 部門一覧取得
