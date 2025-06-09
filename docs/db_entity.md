@@ -3,16 +3,16 @@ erDiagram
     %% ユーザー関連
     users {
         uuid id PK
-        string clerk_user_id UK
+        string clerk_user_id UK "ClerkのユーザーIDとの紐付け"
         string employee_code UK
         string name
         string email UK
         employment_type employment_type
         user_status status
-        string password
         uuid department_id FK
         uuid stage_id FK
         string job_title
+        string hashed_refresh_token
         timestamp created_at
         timestamp updated_at
         timestamp lastLoginAt
