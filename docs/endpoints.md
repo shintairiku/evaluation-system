@@ -1,6 +1,88 @@
 # API Endpoints
 
-(Note: このドキュメントは、従業員の目標設定・自己評価に関するエンドポイントを中心に記載しています。)
+## 1. Auth：認証・許可
+
+### 1.1 サインイン (Clerk連携)
+
+ユーザーがフロントエンドでClerkの認証に成功した後、Clerkが発行したJWTをこのエンドポイントに送信して、アプリケーションのセッションを確立します。バックエンドはJWTを検証し、対応するユーザーをデータベースで検索または作成（初回ログイン時）し、アプリケーション固有のアクセストークンを返します。
+
+- **Path:** `POST /auth/signin`
+- **Request Body:**
+    ```json
+    {
+      "clerkToken": "string"
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "uuid",
+          "employeeCode": "EMP001",
+          "name": "山田 花子",
+          "email": "hanako.yamada@shintairiku.jp",
+          "employmentType": "employee",
+          "department": {
+            "id": "uuid",
+            "name": "営業部"
+          },
+          "stage": {
+            "id": "uuid",
+            "name": "S2",
+            "description": "中堅社員"
+          },
+          "roles": ["employee", "manager"]
+        },
+        "accessToken": "string",
+        "refreshToken": "string"
+      }
+    }
+    ```
+
+### 1.2 ユーザー情報取得
+
+現在認証されているユーザーの詳細情報を取得します。
+
+- **Path:** `GET /auth/me`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "uuid",
+          "employeeCode": "EMP001",
+          "name": "山田 花子",
+          "email": "yamada@shintairiku.jp",
+          "employmentType": "employee",
+          "status": "active",
+          "department": {
+            "id": "uuid",
+            "name": "営業部",
+            "description": "営業部門"
+          },
+          "stage": {
+            "id": "uuid",
+            "name": "S2",
+            "description": "中堅社員"
+          },
+          "roles": ["employee"],
+          "permissions": ["create_goal", "submit_evaluation"],
+          "supervisor": {
+            "id": "uuid",
+            "name": "田中 部長"
+          }
+        }
+      }
+    }
+    ```
+
+### 1.3 ログアウト
+
+- **Path:** `POST /auth/logout`
+- **説明:** ユーザーセッションを終了します。バックエンドは、関連するアクセストークンまたはリフレッシュトークンを無効化します。
 
 ## 1. Goals (目標管理)
 
