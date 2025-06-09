@@ -350,6 +350,208 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 
+## 4. Departments: 部門管理
+
+### 4.1 部門一覧取得
+
+- **Path:** `GET /departments`
+- **アクセス可能なロール:**
+    - `admin`: 全ての部門情報を取得可能。
+    - `manager`: 自身の所属部門および管理下にある部門の情報を取得可能。
+    - `viewer`: 自身に閲覧権限が付与されている部門の情報を取得可能。
+    - `employee`: 自身の所属部門の情報を取得可能。
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "departments": [
+          {
+            "id": "uuid",
+            "name": "営業部",
+            "description": "営業部門",
+            "memberCount": 45,
+            "managerCount": 2,
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-01T00:00:00Z"
+          }
+        ]
+      }
+    }
+    ```
+
+### 4.2 部門作成
+
+- **Path:** `POST /departments`
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "name": "営業部",
+      "description": "営業部門",
+      "roleIds": [3, 5]
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "department": {
+          "id": "660e8400-e29b-41d4-a716-446655440000",
+          "name": "営業部",
+          "description": "営業部門",
+          "roles": [
+            {
+              "id": 3,
+              "name": "employee", 
+              "description": "正社員"
+            },
+            {
+              "id": 5,
+              "name": "viewer",
+              "description": "閲覧者"
+            }
+          ],
+          "memberCount": 0,
+          "createdAt": "2024-01-28T09:00:00Z",
+          "updatedAt": "2024-01-28T09:00:00Z"
+        }
+      }
+    }
+    ```
+
+### 4.3 各部門情報取得
+
+- **Path:** `GET /departments/{departmentId}`
+- **アクセス可能なロール:**
+    - `admin`: 指定した `departmentId` の部門情報を取得可能。
+    - `manager`: 指定した `departmentId` が自身の所属部門または管理下にある部門である場合、情報を取得可能。
+    - `viewer`: 指定した `departmentId` の部門に対して閲覧権限がある場合、情報を取得可能。
+    - `employee`: 指定した `departmentId` が自身の所属部門である場合、情報を取得可能。
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "department": {
+          "id": "660e8400-e29b-41d4-a716-446655440000",
+          "name": "営業部",
+          "description": "営業部門",
+          "roles": [
+            {
+              "id": 3,
+              "name": "employee",
+              "description": "正社員"
+            },
+            {
+              "id": 5,
+              "name": "viewer",
+              "description": "閲覧者"
+            }
+          ],
+          "memberCount": 45,
+          "managerCount": 2,
+          "managers": [
+            {
+              "id": "uuid",
+              "name": "田中 部長",
+              "employeeCode": "MGR001",
+              "email": "tanaka@shintairiku.jp"
+            },
+            {
+              "id": "uuid",
+              "name": "佐藤 副部長",
+              "employeeCode": "MGR002", 
+              "email": "sato@shintairiku.jp"
+            }
+          ],
+          "members": [
+            {
+              "id": "uuid",
+              "name": "山田 花子",
+              "employeeCode": "EMP001",
+              "employmentType": "employee"
+            },
+            {
+              "id": "uuid",
+              "name": "佐藤 太郎",
+              "employeeCode": "EMP002",
+              "employmentType": "employee"
+            }
+          ],
+          "createdAt": "2024-01-01T00:00:00Z",
+          "updatedAt": "2024-01-15T10:00:00Z"
+        }
+      }
+    }
+    ```
+
+### 4.4 部門情報更新
+
+- **Path:** `PUT /departments/{departmentId}`
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "name": "営業企画部",
+      "description": "営業企画・戦略立案部門",
+      "roleIds": [5]
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "department": {
+          "id": "660e8400-e29b-41d4-a716-446655440000",
+          "name": "営業企画部",
+          "description": "営業企画・戦略立案部門",
+          "roles": [
+            {
+              "id": 5,
+              "name": "viewer",
+              "description": "閲覧者"
+            }
+          ],
+          "memberCount": 45,
+          "updatedAt": "2024-01-28T14:30:00Z"
+        }
+      },
+      "meta": {
+        "operation": "updated",
+        "affectedRows": 1,
+        "departmentRoleChanges": {
+          "previousRoleIds": [3],
+          "newRoleIds": [3, 5],
+          "addedRoleIds": [5],
+          "removedRoleIds": [],
+          "affectedUsers": 45,
+          "message": "部門の全メンバーに正社員、閲覧者ロールが適用されました"
+        }
+      }
+    }
+    ```
+
+### 4.5 部門削除
+
+- **Path:** `DELETE /departments/{departmentId}`
+- **アクセス可能なロール:** `admin`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "message": "部門が正常に削除されました",
+        "deletedDepartmentId": "660e8400-e29b-41d4-a716-446655440000",
+        "deletedAt": "2024-01-28T15:00:00Z",
+        "transferredMembers": 45,
+        "transferredManagers": 2
+      }
+    }
+    ```
+
 - **Path:** `GET /goals/me`
 - **説明:** ログイン中のユーザーが指定した評価期間に紐づく自身の目標一覧を取得します。
 - **Query Parameters:**
