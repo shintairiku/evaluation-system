@@ -552,6 +552,115 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 
+## 5. Role: 役割
+
+### 5.1 役割一覧取得
+
+- **Path:** `GET /admin/roles`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "roles": [
+          {
+            "id": 1,
+            "name": "admin",
+            "description": "管理者"
+          }
+        ]
+      }
+    }
+    ```
+
+### 5.2 役割の作成
+
+- **Path:** `POST /admin/roles`
+- **Request Body:**
+    ```json
+    {
+      "name": "team_leader",
+      "description": "チームリーダー"
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "role": {
+          "id": 5,
+          "name": "team_leader",
+          "description": "チームリーダー",
+          "userCount": 0,
+          "createdAt": "2024-01-28T09:00:00Z"
+        }
+      }
+    }
+    ```
+
+### 5.3 特定の役割情報の取得
+
+- **Path:** `GET /admin/roles/{roleId}`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "role": {
+          "id": 1,
+          "name": "admin",
+          "description": "管理者",
+          "userCount": 5,
+          "createdAt": "2024-01-01T00:00:00Z",
+          "updatedAt": "2024-01-15T10:00:00Z"
+        }
+      }
+    }
+    ```
+
+### 5.4 役割の更新
+
+- **Path:** `PUT /admin/roles/{roleId}`
+- **Request Body:**
+    ```json
+    {
+      "name": "senior_team_leader",
+      "description": "シニアチームリーダー"
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "role": {
+          "id": 5,
+          "name": "senior_team_leader",
+          "description": "シニアチームリーダー",
+          "userCount": 0,
+          "updatedAt": "2024-01-28T14:30:00Z"
+        }
+      }
+    }
+    ```
+
+### 5.5 役割の削除
+
+- **Path:** `DELETE /admin/roles/{roleId}`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "message": "ロールが正常に削除されました",
+        "deletedRoleId": 5,
+        "deletedAt": "2024-01-28T15:00:00Z",
+        "affectedUsers": 0
+      }
+    }
+    ```
+
 - **Path:** `GET /goals/me`
 - **説明:** ログイン中のユーザーが指定した評価期間に紐づく自身の目標一覧を取得します。
 - **Query Parameters:**
