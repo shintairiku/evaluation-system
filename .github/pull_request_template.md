@@ -1,5 +1,5 @@
 ## Summary
-Brief description of the changes made in this PR (in Japanese).
+Brief description of the changes made in this PR.
 
 ## Related Issues
 Closes #[issue number]
@@ -15,6 +15,9 @@ Related to #[issue number]
 - [ ] Test coverage improvement
 
 ## Changes Made
+- 
+- 
+- 
 
 ## Testing Checklist
 - [ ] Feature works as expected in development environment
@@ -22,27 +25,6 @@ Related to #[issue number]
 - [ ] API endpoints respond correctly (if backend)
 - [ ] Database operations work correctly
 - [ ] Error handling works as expected
-
-## Screenshots/Videos
-<!-- If applicable, add screenshots or videos demonstrating the changes -->
-
-## Database Changes
-- [ ] No database changes
-- [ ] Database migration included
-- [ ] Database migration tested
-- [ ] Rollback plan documented
-
-## Environment Variables
-- [ ] No new environment variables
-- [ ] New environment variables documented
-- [ ] Example `.env` files updated
-
-## Documentation
-- [ ] Code is self-documenting
-- [ ] Comments added for complex logic
-- [ ] README updated (if applicable)
-- [ ] API documentation updated (if applicable)
-- [ ] User documentation updated (if applicable)
 
 ## Additional Notes
 <!-- Any additional context, considerations, or notes for reviewers --> 
