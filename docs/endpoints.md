@@ -33,7 +33,18 @@
             "name": "S2",
             "description": "中堅社員"
           },
-          "roles": ["employee", "manager"]
+          "roles": [
+            {
+              "id": 1,
+              "name": "employee",
+              "description": "一般従業員"
+            },
+            {
+              "id": 2,
+              "name": "manager",
+              "description": "管理者"
+            }
+          ]
         },
         "accessToken": "string",
         "refreshToken": "string"
@@ -68,7 +79,13 @@
             "name": "S2",
             "description": "中堅社員"
           },
-          "roles": ["employee"],
+          "roles": [
+            {
+              "id": 1,
+              "name": "employee",
+              "description": "一般従業員"
+            }
+          ],
           "permissions": ["create_goal", "submit_evaluation"],
           "supervisor": {
             "id": "uuid",
@@ -111,7 +128,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     - `search`: 検索キーワード（氏名、メール、社員コード）
     - `departmentId`: 部門IDでフィルタ
     - `employmentType`: 雇用形態でフィルタ（employee, parttime）
-    - `hasRole`: ロール名でフィルタ
+    - `roleId`: ロールIDでフィルタ（smallint）
     - `status`: ステータスでフィルタ（active, inactive）
     - `sortBy`: ソート項目（name, employeeCode, createdAt）
     - `sortOrder`: ソート順（asc, desc）
@@ -138,7 +155,13 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
               "name": "S2",
               "description": "中堅社員"
             },
-            "roles": ["employee"],
+            "roles": [
+              {
+                "id": 1,
+                "name": "employee",
+                "description": "一般従業員"
+              }
+            ],
             "supervisor": {
               "id": "uuid",
               "name": "田中 部長"
@@ -182,7 +205,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "departmentId": "uuid",
       "stageId": "uuid",
       "job_title": "アルバイト",
-      "roleNames": ["Parttime"],
+      "roleIds": [3],
       "supervisorId": "uuid"
     }
     ```
@@ -190,7 +213,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     1. Clerk Backend APIを呼び出して、指定されたメールアドレスでユーザーを作成（招待）します。
     2. Clerkから返された`user.id` (`clerk_user_id`) を取得します。
     3. 受け取った`clerk_user_id`とリクエストのデータを使用して、`users`テーブルにレコードを作成します。
-    4. Clerk APIを再度呼び出し、ユーザーの`publicMetadata`にロール（例: `{ "roles": ["Parttime"] }`）を設定します。
+    4. Clerk APIを再度呼び出し、ユーザーの`publicMetadata`にロール（例: `{ "roles": [3] }`）を設定します。
 - **Response Body:**
     ```json
     {
@@ -214,7 +237,13 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
             "name": "P1",
             "description": "パートタイム"
           },
-          "roles": ["Parttime"],
+          "roles": [
+            {
+              "id": 3,
+              "name": "parttime",
+              "description": "パートタイム従業員"
+            }
+          ],
           "supervisor": {
             "id": "uuid",
             "name": "佐藤 部長"
@@ -257,7 +286,13 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
             "name": "S2",
             "description": "中堅社員"
           },
-          "roles": ["employee"],
+          "roles": [
+            {
+              "id": 1,
+              "name": "employee",
+              "description": "一般従業員"
+            }
+          ],
           "supervisor": {
             "id": "uuid",
             "name": "田中 部長",
@@ -287,14 +322,14 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "departmentId": "uuid",
       "stageId": "uuid",
       "job_title": "主任",
-      "roleNames": ["employee", "manager"],
+      "roleIds": [1, 2],
       "supervisorId": "uuid"
     }
     ```
 - **処理フロー:**
     1. データベース (`users`テーブル) の情報を更新します。
     2. もし `email` や `name` など、Clerkと同期すべき情報が変更された場合、Clerk Backend APIを呼び出してClerk上のユーザー情報も更新します。
-    3. もし `roleNames` が変更された場合、Clerk APIを呼び出してユーザーの`publicMetadata`を更新します。
+    3. もし `roleIds` が変更された場合、Clerk APIを呼び出してユーザーの`publicMetadata`を更新します。
 - **Response Body:**
     ```json
     {
@@ -318,7 +353,18 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
             "name": "S2",
             "description": "中堅社員"
           },
-          "roles": ["employee", "manager"],
+          "roles": [
+            {
+              "id": 1,
+              "name": "employee",
+              "description": "一般従業員"
+            },
+            {
+              "id": 2,
+              "name": "manager",
+              "description": "管理者"
+            }
+          ],
           "supervisor": {
             "id": "uuid",
             "name": "田中 部長"
