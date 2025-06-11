@@ -14,8 +14,12 @@
 /coverage
 
 # next.js
-/.next/
+.next/
+node_modules/
 /out/
+
+# python
+__pycache__/
 
 # production
 /build
@@ -31,7 +35,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env
 
 # vercel
 .vercel
