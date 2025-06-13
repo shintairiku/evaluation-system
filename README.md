@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 人事評価システム (HR Evaluation System)
 
-## Getting Started
+## 技術スタック
 
-First, run the development server:
+- **フロントエンド**: Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui
+- **バックエンド**: FastAPI, Python 3.12
+- **データベース**: PostgreSQL
+- **認証**: Clerk
+- **コンテナ化**: Docker
+
+## 開発環境のセットアップ
+
+### 前提条件
+
+- [Docker](https://www.docker.com/products/docker-desktop/) がシステムにインストールされ、実行中であること。
+- [Node.js](https://nodejs.org/) (npm含む) がインストールされていること。
+
+### Claude Code のセットアップ
+
+開発効率を向上させるため、Claude Code をインストールすることを推奨します ([Docs](https://docs.anthropic.com/en/docs/claude-code/getting-started))。
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install -g @anthropic-ai/claude-code
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 1. リポジトリをクローンする
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+git clone https://github.com/shintairiku/evaluation-system.git
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. 環境変数ファイルを作成する
 
-## Learn More
+プロジェクトのルートディレクトリに、サンプルをコピーして `.env` ファイルを作成。
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cp .env.sample .env
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. アプリケーションをビルドして実行する
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Docker Composeを使用して、イメージをビルドし、バックグラウンドでサービスを起動
 
-## Deploy on Vercel
+```bash
+docker-compose up --build -d
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 5. サービスへのアクセス
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+コンテナが起動したら、各サービスにアクセス可能
+
+- **フロントエンド**: [http://localhost:3000](http://localhost:3000)
+- **バックエンド**: [http://localhost:8000](http://localhost:8000)
+- **データベース**: ローカルマシンのポート `5433` で接続
+
+### 6. サービスを停止する
+
+サービスを停止するには、以下のコマンドを実行
+```bash
+docker-compose down
+```
