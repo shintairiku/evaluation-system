@@ -825,3 +825,146 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Response Body:**
     - 更新後の自己評価オブジェクトを返します。
 
+## 8. Evaluation Periods (評価期間管理)
+
+### 8.1 評価期間一覧取得
+
+- **Path:** `GET /evaluation-periods`
+- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **Query Parameters:**
+    - `page`: ページ番号（デフォルト: 1）
+    - `limit`: 1ページあたりの件数（デフォルト: 20、最大: 100）
+    - `status`: ステータスでフィルタ（active, upcoming, completed）
+    - `sortBy`: ソート項目（startDate, endDate, createdAt）
+    - `sortOrder`: ソート順（asc, desc）
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "periods": [
+          {
+            "id": "uuid",
+            "name": "2024年度 第1四半期評価",
+            "description": "2024年度第1四半期の人事評価期間",
+            "startDate": "2024-04-01",
+            "endDate": "2024-06-30",
+            "status": "active",
+            "createdAt": "2024-03-15T09:00:00Z",
+            "updatedAt": "2024-04-01T09:00:00Z"
+          }
+        ]
+      },
+      "meta": {
+        "page": 1,
+        "limit": 20,
+        "total": 4,
+        "totalPages": 1
+      }
+    }
+    ```
+
+### 8.2 評価期間作成
+
+- **Path:** `POST /evaluation-periods`
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "name": "2024年度 第2四半期評価",
+      "description": "2024年度第2四半期の人事評価期間",
+      "startDate": "2024-07-01",
+      "endDate": "2024-09-30"
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "period": {
+          "id": "770e8400-e29b-41d4-a716-446655440000",
+          "name": "2024年度 第2四半期評価",
+          "description": "2024年度第2四半期の人事評価期間",
+          "startDate": "2024-07-01",
+          "endDate": "2024-09-30",
+          "status": "upcoming",
+          "createdAt": "2024-06-15T09:00:00Z",
+          "updatedAt": "2024-06-15T09:00:00Z"
+        }
+      }
+    }
+    ```
+
+### 8.3 評価期間詳細取得
+
+- **Path:** `GET /evaluation-periods/{periodId}`
+- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "period": {
+          "id": "770e8400-e29b-41d4-a716-446655440000",
+          "name": "2024年度 第1四半期評価",
+          "description": "2024年度第1四半期の人事評価期間",
+          "startDate": "2024-04-01",
+          "endDate": "2024-06-30",
+          "status": "active",
+          "createdAt": "2024-03-15T09:00:00Z",
+          "updatedAt": "2024-04-01T09:00:00Z"
+        }
+      }
+    }
+    ```
+
+### 8.4 評価期間更新
+
+- **Path:** `PUT /evaluation-periods/{periodId}`
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "name": "2024年度 第1四半期評価（更新）",
+      "description": "2024年度第1四半期の人事評価期間（更新版）",
+      "startDate": "2024-04-01",
+      "endDate": "2024-06-30",
+      "status": "active"
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "period": {
+          "id": "770e8400-e29b-41d4-a716-446655440000",
+          "name": "2024年度 第1四半期評価（更新）",
+          "description": "2024年度第1四半期の人事評価期間（更新版）",
+          "startDate": "2024-04-01",
+          "endDate": "2024-06-30",
+          "status": "active",
+          "createdAt": "2024-03-15T09:00:00Z",
+          "updatedAt": "2024-06-16T14:30:00Z"
+        }
+      }
+    }
+    ```
+
+### 8.5 評価期間削除
+
+- **Path:** `DELETE /evaluation-periods/{periodId}`
+- **アクセス可能なロール:** `admin`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "message": "評価期間が正常に削除されました",
+        "deletedPeriodId": "770e8400-e29b-41d4-a716-446655440000",
+        "deletedAt": "2024-06-16T15:00:00Z"
+      }
+    }
+    ```
+
