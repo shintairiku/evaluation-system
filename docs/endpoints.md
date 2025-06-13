@@ -118,9 +118,9 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 3.1 ユーザー一覧取得
 
 - **Path:** `GET /users`
-- **アクセス可能なロール:** `admin`, `manager`, `viewer`
+- **アクセス可能なロール:** `admin`, `supervisor`, `viewer`
     - `admin`: 全てのユーザー情報を取得可能。
-    - `manager`: 自身の管理下にある部下のユーザー情報を取得可能。クエリパラメータで部下以外を検索しようとした場合は空の結果を返すかエラーとする。
+    - `supervisor`: 自身の管理下にある部下のユーザー情報を取得可能。クエリパラメータで部下以外を検索しようとした場合は空の結果を返すかエラーとする。
     - `viewer`: 自身に閲覧権限が付与されている部門のユーザー情報、または個別に閲覧権限が付与されているユーザー情報を取得可能。
 - **Query Parameters:**
     - `page`: ページ番号（デフォルト: 1）
@@ -259,7 +259,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /users/{userId}`
 - **アクセス可能なロール:**
     - `admin`: 指定した `userId` のユーザー情報を取得可能。
-    - `manager`: 指定した `userId` が自身の管理下の部下である場合、情報を取得可能。
+    - `supervisor`: 指定した `userId` が自身の管理下の部下である場合、情報を取得可能。
     - `viewer`: 指定した `userId` のユーザーに対して閲覧権限がある場合、情報を取得可能。
     - `employee`: `userId` が自身のIDである場合のみ、情報を取得可能。(このエンドポイントまたは `/auth/me` で対応)
 - **Response Body:**
@@ -435,7 +435,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /departments`
 - **アクセス可能なロール:**
     - `admin`: 全ての部門情報を取得可能。
-    - `manager`: 自身の所属部門および管理下にある部門の情報を取得可能。
+    - `supervisor`: 自身の所属部門および管理下にある部門の情報を取得可能。
     - `viewer`: 自身に閲覧権限が付与されている部門の情報を取得可能。
     - `employee`: 自身の所属部門の情報を取得可能。
 - **Response Body:**
@@ -504,7 +504,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /departments/{departmentId}`
 - **アクセス可能なロール:**
     - `admin`: 指定した `departmentId` の部門情報を取得可能。
-    - `manager`: 指定した `departmentId` が自身の所属部門または管理下にある部門である場合、情報を取得可能。
+    - `supervisor`: 指定した `departmentId` が自身の所属部門または管理下にある部門である場合、情報を取得可能。
     - `viewer`: 指定した `departmentId` の部門に対して閲覧権限がある場合、情報を取得可能。
     - `employee`: 指定した `departmentId` が自身の所属部門である場合、情報を取得可能。
 - **Response Body:**
@@ -796,7 +796,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 7.1 目標カテゴリ一覧取得
 
 - **Path:** `GET /goal-categories`
-- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **アクセス可能なロール:** `admin`, `supervisor`, `viewer`, `employee`
 - **Response Body:**
     ```json
     {
@@ -911,7 +911,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /supervisor-reviews`
 - **アクセス可能なロール:**
     - `admin`: 全ての目標レビューを取得可能
-    - `manager`: 自身が上司として行ったレビュー、または自身の部下に関するレビューを取得可能
+    - `supervisor`: 自身が上司として行ったレビュー、または自身の部下に関するレビューを取得可能
     - `employee`: 自身の目標に対するレビューのみ取得可能
 - **Query Parameters:**
     - `goalId`: 特定の目標に対するレビューを取得
@@ -966,7 +966,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /supervisor-reviews/{reviewId}`
 - **アクセス可能なロール:**
     - `admin`: 全てのレビュー詳細を取得可能
-    - `manager`: 自身が作成したレビュー、または自身の部下に関するレビュー詳細を取得可能
+    - `supervisor`: 自身が作成したレビュー、または自身の部下に関するレビュー詳細を取得可能
     - `employee`: 自身の目標に対するレビュー詳細のみ取得可能
 - **Response Body:**
     ```json
@@ -1042,7 +1042,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 8.3 目標レビュー作成
 
 - **Path:** `POST /supervisor-reviews`
-- **アクセス可能なロール:** `admin`, `manager`
+- **アクセス可能なロール:** `admin`, `supervisor`
 - **Request Body:**
     ```json
     {
@@ -1078,7 +1078,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `PUT /supervisor-reviews/{reviewId}`
 - **アクセス可能なロール:**
     - `admin`: 全てのレビューを更新可能
-    - `manager`: 自身が作成したレビューのみ更新可能
+    - `supervisor`: 自身が作成したレビューのみ更新可能
 - **Request Body:**
     ```json
     {
@@ -1113,7 +1113,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `DELETE /supervisor-reviews/{reviewId}`
 - **アクセス可能なロール:**
     - `admin`: 全てのレビューを削除可能
-    - `manager`: 自身が作成したレビューのみ削除可能
+    - `supervisor`: 自身が作成したレビューのみ削除可能
 - **Response Body:**
     ```json
     {
@@ -1133,7 +1133,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /self-assessments`
 - **アクセス可能なロール:**
     - `admin`: 全ての自己評価を取得可能
-    - `manager`: 自身の部下の自己評価を取得可能
+    - `supervisor`: 自身の部下の自己評価を取得可能
     - `employee`: 自身の自己評価のみ取得可能
 - **Query Parameters:**
     - `goalId`: 特定の目標に対する自己評価を取得
@@ -1172,7 +1172,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /self-assessments/{assessmentId}`
 - **アクセス可能なロール:**
     - `admin`: 全ての自己評価詳細を取得可能
-    - `manager`: 自身の部下の自己評価詳細を取得可能
+    - `supervisor`: 自身の部下の自己評価詳細を取得可能
     - `employee`: 自身の自己評価詳細のみ取得可能
 - **Response Body:**
     ```json
@@ -1242,7 +1242,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 9.3 自己評価作成
 
 - **Path:** `POST /self-assessments`
-- **アクセス可能なロール:** `admin`, `manager`, `employee`
+- **アクセス可能なロール:** `admin`, `supervisor`, `employee`
 - **説明:** 特定の目標に対する自己評価を作成
 - **Request Body:**
     ```json
@@ -1335,7 +1335,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 10.1 評価期間一覧取得
 
 - **Path:** `GET /evaluation-periods`
-- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **アクセス可能なロール:** `admin`, `supervisor`, `viewer`, `employee`
 - **Query Parameters:**
     - `page`: ページ番号（デフォルト: 1）
     - `limit`: 1ページあたりの件数（デフォルト: 20、最大: 100）
@@ -1404,7 +1404,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 10.3 評価期間詳細取得
 
 - **Path:** `GET /evaluation-periods/{periodId}`
-- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **アクセス可能なロール:** `admin`, `supervisor`, `viewer`, `employee`
 - **Response Body:**
     ```json
     {
@@ -1480,7 +1480,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /supervisor-feedback`
 - **アクセス可能なロール:**
     - `admin`: 全ての上司フィードバックを取得可能
-    - `manager`: 自身が上司として与えたフィードバック、または自身の部下に関するフィードバックを取得可能
+    - `supervisor`: 自身が上司として与えたフィードバック、または自身の部下に関するフィードバックを取得可能
     - `employee`: 自身の自己評価に対するフィードバックのみ取得可能
 - **Query Parameters:**
     - `selfAssessmentId`: 特定の自己評価に対するフィードバックを取得
@@ -1537,7 +1537,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `GET /supervisor-feedback/{feedbackId}`
 - **アクセス可能なロール:**
     - `admin`: 全てのフィードバック詳細を取得可能
-    - `manager`: 自身が作成したフィードバック、または自身の部下に関するフィードバック詳細を取得可能
+    - `supervisor`: 自身が作成したフィードバック、または自身の部下に関するフィードバック詳細を取得可能
     - `employee`: 自身の自己評価に対するフィードバック詳細のみ取得可能
 - **Response Body:**
     ```json
@@ -1618,7 +1618,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 11.3 上司フィードバック作成
 
 - **Path:** `POST /supervisor-feedback`
-- **アクセス可能なロール:** `admin`, `manager`
+- **アクセス可能なロール:** `admin`, `supervisor`
 - **Request Body:**
     ```json
     {
@@ -1654,7 +1654,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `PUT /supervisor-feedback/{feedbackId}`
 - **アクセス可能なロール:**
     - `admin`: 全てのフィードバックを更新可能
-    - `manager`: 自身が作成したフィードバックのみ更新可能
+    - `supervisor`: 自身が作成したフィードバックのみ更新可能
 - **Request Body:**
     ```json
     {
@@ -1688,7 +1688,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Path:** `DELETE /supervisor-feedback/{feedbackId}`
 - **アクセス可能なロール:**
     - `admin`: 全てのフィードバックを削除可能
-    - `manager`: 自身が作成したフィードバックのみ削除可能
+    - `supervisor`: 自身が作成したフィードバックのみ削除可能
 - **Response Body:**
     ```json
     {
@@ -1706,7 +1706,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 12.1 ステージ一覧取得
 
 - **Path:** `GET /stages`
-- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **アクセス可能なロール:** `admin`, `supervisor`, `viewer`, `employee`
 - **Response Body:**
     ```json
     {
@@ -1773,7 +1773,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 12.3 ステージ詳細取得
 
 - **Path:** `GET /stages/{stageId}`
-- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **アクセス可能なロール:** `admin`, `supervisor`, `viewer`, `employee`
 - **Response Body:**
     ```json
     {
@@ -1864,7 +1864,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 13.1 コンピテンシー一覧取得
 
 - **Path:** `GET /competencies`
-- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **アクセス可能なロール:** `admin`, `supervisor`, `viewer`, `employee`
 - **Query Parameters:**
     - `stageId`: 特定のステージのコンピテンシーを取得
     - `page`: ページ番号（デフォルト: 1）
@@ -1949,7 +1949,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 ### 13.3 コンピテンシー詳細取得
 
 - **Path:** `GET /competencies/{competencyId}`
-- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **アクセス可能なロール:** `admin`, `supervisor`, `viewer`, `employee`
 - **説明:** `usersWithGoals`は、`goal_category_id = 2`かつ`target_data.competency_id`が指定されたコンピテンシーIDと一致するgoalsから、`user_id`と`period_id`を抽出して取得
 - **Response Body:**
     ```json
