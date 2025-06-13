@@ -1330,9 +1330,9 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 
-## 8. Evaluation Periods (評価期間管理)
+## 10. Evaluation Periods (評価期間管理)
 
-### 8.1 評価期間一覧取得
+### 10.1 評価期間一覧取得
 
 - **Path:** `GET /evaluation-periods`
 - **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
@@ -1369,7 +1369,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 
-### 8.2 評価期間作成
+### 10.2 評価期間作成
 
 - **Path:** `POST /evaluation-periods`
 - **アクセス可能なロール:** `admin`
@@ -1401,7 +1401,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 
-### 8.3 評価期間詳細取得
+### 10.3 評価期間詳細取得
 
 - **Path:** `GET /evaluation-periods/{periodId}`
 - **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
@@ -1424,7 +1424,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 
-### 8.4 評価期間更新
+### 10.4 評価期間更新
 
 - **Path:** `PUT /evaluation-periods/{periodId}`
 - **アクセス可能なロール:** `admin`
@@ -1457,7 +1457,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 
-### 8.5 評価期間削除
+### 10.5 評価期間削除
 
 - **Path:** `DELETE /evaluation-periods/{periodId}`
 - **アクセス可能なロール:** `admin`
