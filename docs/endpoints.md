@@ -791,7 +791,120 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Response Body:**
     - 削除成功のメッセージを返します。
 
-## 7. Self Assessments (自己評価)
+## 7. Goal Categories (目標カテゴリ管理)
+
+### 7.1 目標カテゴリ一覧取得
+
+- **Path:** `GET /goal-categories`
+- **アクセス可能なロール:** `admin`, `manager`, `viewer`, `employee`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "categories": [
+          {
+            "id": 1,
+            "name": "業績目標",
+            "description": "売上や成果に関する目標",
+            "displayOrder": 1,
+            "isActive": true,
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-01T00:00:00Z"
+          },
+          {
+            "id": 2,
+            "name": "能力開発目標",
+            "description": "スキルアップや研修に関する目標",
+            "displayOrder": 2,
+            "isActive": true,
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-01T00:00:00Z"
+          }
+        ]
+      }
+    }
+    ```
+
+### 7.2 目標カテゴリ作成
+
+- **Path:** `POST /goal-categories`
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "name": "チームワーク目標",
+      "description": "協調性やチームへの貢献に関する目標",
+      "displayOrder": 3,
+      "isActive": true
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "category": {
+          "id": 3,
+          "name": "チームワーク目標",
+          "description": "協調性やチームへの貢献に関する目標",
+          "displayOrder": 3,
+          "isActive": true,
+          "createdAt": "2024-06-16T09:00:00Z",
+          "updatedAt": "2024-06-16T09:00:00Z"
+        }
+      }
+    }
+    ```
+
+### 7.3 目標カテゴリ更新
+
+- **Path:** `PUT /goal-categories/{categoryId}`
+- **アクセス可能なロール:** `admin`
+- **Request Body:**
+    ```json
+    {
+      "name": "チームワーク・協調性目標",
+      "description": "協調性やチームへの貢献、リーダーシップに関する目標",
+      "displayOrder": 3,
+      "isActive": true
+    }
+    ```
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "category": {
+          "id": 3,
+          "name": "チームワーク・協調性目標",
+          "description": "協調性やチームへの貢献、リーダーシップに関する目標",
+          "displayOrder": 3,
+          "isActive": true,
+          "createdAt": "2024-06-16T09:00:00Z",
+          "updatedAt": "2024-06-16T14:30:00Z"
+        }
+      }
+    }
+    ```
+
+### 7.4 目標カテゴリ削除
+
+- **Path:** `DELETE /goal-categories/{categoryId}`
+- **アクセス可能なロール:** `admin`
+- **Response Body:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "message": "目標カテゴリが正常に削除されました",
+        "deletedCategoryId": 3,
+        "deletedAt": "2024-06-16T15:00:00Z"
+      }
+    }
+    ```
+
+## 8. Self Assessments (自己評価)
 
 ### 7.1 自己評価の作成（初回保存）
 
