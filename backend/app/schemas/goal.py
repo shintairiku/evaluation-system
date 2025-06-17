@@ -156,7 +156,15 @@ class GoalInDB(BaseModel):
 
 
 class Goal(BaseModel):
-    """Complete goal response schema for API - matches endpoints.md response format"""
+    """
+    Represents a goal in API responses, designed to be flexible for client-facing data.
+    This schema flattens the nested 'target_data' from the internal GoalInDB model
+    into a single-level structure for ease of use on the frontend.
+
+    It is the primary schema for API responses and can be extended with additional fields
+    (e.g., joined data from other tables) without altering the internal data model,
+    providing flexibility to tailor API responses based on UI requirements.
+    """
     id: UUID
     user_id: UUID = Field(..., alias="userId")
     period_id: UUID = Field(..., alias="periodId") 
@@ -201,15 +209,6 @@ class Goal(BaseModel):
     class Config:
         from_attributes = True
         populate_by_name = True
-
-
-class GoalResponse(Goal):
-    """Goal response wrapper. 
-    This is an alias for Goal, providing a distinct name for the response schema in OpenAPI.
-    It can be extended in the future without breaking clients expecting the Goal schema.
-    """
-    pass
-
 
 class GoalList(BaseModel):
     goals: List[Goal]
