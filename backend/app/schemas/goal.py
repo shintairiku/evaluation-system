@@ -45,7 +45,7 @@ class GoalCreateRequest(BaseModel):
     period_id: UUID = Field(..., alias="periodId")
     goal_category_id: int = Field(..., ge=1, le=3, alias="goalCategoryId")
     weight: float = Field(..., ge=0, le=100)
-    # status is automatically set by backend based on user action (save draft vs submit)
+    status: GoalStatus = Field(..., description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
     # Performance Goal fields (goal_category_id = 1)
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
@@ -90,7 +90,7 @@ class GoalCreate(BaseModel):
 class GoalUpdateRequest(BaseModel):
     """API request schema for updating a goal - matches endpoints.md"""
     weight: Optional[float] = Field(None, ge=0, le=100)
-    # status is automatically set by backend based on user action (save draft vs submit)
+    status: Optional[GoalStatus] = Field(None, description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
     # Performance Goal fields (goal_category_id = 1)
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
