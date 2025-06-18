@@ -3,19 +3,20 @@ erDiagram
     %% ユーザー関連
     users {
         uuid id PK
-        string clerk_user_id UK
+        string clerk_user_id UK "ClerkのユーザーIDとの紐付け"
         string employee_code UK
         string name
         string email UK
         employment_type employment_type
         user_status status
-        string password
         uuid department_id FK
         uuid stage_id FK
         string job_title
+        string password "Null許容, SSO非使用者"
+        string hashed_refresh_token "Null許容"
         timestamp created_at
         timestamp updated_at
-        timestamp lastLoginAt
+        timestamp last_login_at "Null許容"
     }
 
     departments {
@@ -68,6 +69,7 @@ erDiagram
     evaluation_periods {
         uuid id PK
         string name
+        string period_type
         date start_date
         date end_date
         date goal_submission_deadline
@@ -115,6 +117,7 @@ erDiagram
     self_assessments {
         uuid id PK
         uuid goal_id FK
+        uuid period_id FK
         numeric self_rating
         text self_comment
         text status
@@ -188,6 +191,7 @@ erDiagram
 | status | enum | ステータス（active: 有効、inactive: 無効） |
 | password | text | パスワード（ハッシュ化、Clerk使用時はNull許容） |
 | job_title | text | 役職 (例: 主任, スーパーバイザー) (Null許容) |
+| hashed_refresh_token | text | リフレッシュトークン（ハッシュ化、Null許容） |
 | last_login_at | timestamp | 最終ログイン日時 (Null許容) |
 | created_at | timestamp | 作成日時 |
 | updated_at | timestamp | 更新日時 |

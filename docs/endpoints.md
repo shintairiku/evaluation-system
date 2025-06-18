@@ -1243,6 +1243,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 
 - **Path:** `POST /self-assessments`
 - **アクセス可能なロール:** `admin`, `supervisor`, `employee`
+
 - **説明:** 特定の目標に対する自己評価を作成
 - **Request Body:**
     ```json
@@ -1282,6 +1283,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     - `employee`: 自身の自己評価のみ更新可能
 - **説明:** 自己評価の内容を更新します。**下書き保存**と**提出**にも使用
   - **下書き保存:** `status` に `draft` を指定
+
   - **提出:** `status` に `submitted` を指定
 - **Request Body:**
     ```json
