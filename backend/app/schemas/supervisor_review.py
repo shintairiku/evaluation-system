@@ -3,12 +3,7 @@ from uuid import UUID
 from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import datetime
-
-# Supervisor Review related schemas  
-class SupervisorReviewStatus(str, Enum):
-    DRAFT = "draft"
-    SUBMITTED = "submitted"
-
+from .common import SubmissionStatus
 
 class SupervisorAction(str, Enum):
     APPROVED = "approved"
@@ -25,13 +20,13 @@ class SupervisorReviewCreate(SupervisorReviewBase):
     """Request schema for creating a supervisor review, matches endpoints_v2.md."""
     goal_id: UUID = Field(..., alias="goalId")
     period_id: UUID = Field(..., alias="periodId")
-    status: SupervisorReviewStatus = Field(..., description="Review status based on button clicked: 'draft' or 'submitted'")
+    status: SubmissionStatus = Field(..., description="Review status based on button clicked: 'draft' or 'submitted'")
 
 
 class SupervisorReviewUpdate(BaseModel):
     action: Optional[SupervisorAction] = None
     comment: Optional[str] = None
-    status: Optional[SupervisorReviewStatus] = Field(None, description="Review status based on button clicked: 'draft' or 'submitted'")
+    status: Optional[SubmissionStatus] = Field(None, description="Review status based on button clicked: 'draft' or 'submitted'")
 
 
 class SupervisorReviewInDB(SupervisorReviewBase):
@@ -39,7 +34,7 @@ class SupervisorReviewInDB(SupervisorReviewBase):
     goal_id: UUID
     period_id: UUID
     supervisor_id: UUID
-    status: SupervisorReviewStatus = SupervisorReviewStatus.DRAFT
+    status: SubmissionStatus = SubmissionStatus.DRAFT
     reviewed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

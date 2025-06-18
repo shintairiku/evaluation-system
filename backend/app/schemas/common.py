@@ -1,8 +1,13 @@
 from typing import Generic, List, Optional, TypeVar
 from pydantic import BaseModel, Field
+from enum import Enum
 
 T = TypeVar('T')
 
+# Submission Statues (used in self-assessment, supervisor review, and supervisor feedback)
+class SubmissionStatus(str, Enum):
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
 
 class PaginationParams(BaseModel):
     page: int = Field(default=1, ge=1, description="Page number (1-based)")

@@ -3,11 +3,7 @@ from uuid import UUID
 from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import datetime
-
-# Self Assessment related schemas
-class SelfAssessmentStatus(str, Enum):
-    DRAFT = "draft"
-    SUBMITTED = "submitted"
+from .common import SubmissionStatus
 
 
 class SelfAssessmentBase(BaseModel):
@@ -19,7 +15,7 @@ class SelfAssessmentBase(BaseModel):
 class SelfAssessmentCreate(SelfAssessmentBase):
     period_id: UUID = Field(..., alias="periodId")
     goal_id: UUID = Field(..., alias="goalId")
-    status: SelfAssessmentStatus = Field(..., description="Assessment status based on button clicked: 'draft' or 'submitted'")
+    status: SubmissionStatus = Field(..., description="Assessment status based on button clicked: 'draft' or 'submitted'")
 
 
 class SelfAssessmentUpdate(BaseModel):
@@ -30,14 +26,14 @@ class SelfAssessmentUpdate(BaseModel):
     """
     self_rating: Optional[float] = Field(None, ge=0, le=100, alias="selfRating")
     self_comment: Optional[str] = Field(None, alias="selfComment")
-    status: Optional[SelfAssessmentStatus] = Field(None, description="Assessment status based on button clicked: 'draft' or 'submitted'")
+    status: Optional[SubmissionStatus] = Field(None, description="Assessment status based on button clicked: 'draft' or 'submitted'")
 
 
 class SelfAssessmentInDB(SelfAssessmentBase):
     id: UUID
     period_id: UUID
     goal_id: UUID
-    status: SelfAssessmentStatus = SelfAssessmentStatus.DRAFT
+    status: SubmissionStatus = SubmissionStatus.DRAFT
     submitted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
