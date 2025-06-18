@@ -323,7 +323,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     {
       "name": "山田 花子",
       "email": "yamada.hanako@shintairiku.jp",
-      "employee_code": "EMP001",
+      "employeeCode": "EMP001",
       "employmentType": "employee",
       "status": "active",
       "departmentId": "uuid",
