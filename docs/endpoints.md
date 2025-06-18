@@ -55,6 +55,8 @@
 ### 1.2 ユーザー情報取得
 
 現在認証されているユーザーの詳細情報を取得します。
+権限(`permissions`)リストは、バックエンド側で管理を行うことを想定。
+フロント側に権限リストを見せるために、このエンドポイントにて`permissions`を返す。
 
 - **Path:** `GET /auth/me`
 - **Response Body:**
@@ -86,7 +88,7 @@
               "description": "一般従業員"
             }
           ],
-          "permissions": ["create_goal", "submit_evaluation"],
+          "permissions": ["createGoal", "submitEvaluation"],
           "supervisor": {
             "id": "uuid",
             "name": "田中 部長"
