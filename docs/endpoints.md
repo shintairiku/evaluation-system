@@ -206,7 +206,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "status": "active",
       "departmentId": "uuid",
       "stageId": "uuid",
-      "job_title": "アルバイト",
+      "jobTitle": "アルバイト",
       "roleIds": [3],
       "supervisorId": "uuid"
     }
@@ -229,7 +229,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
           "email": "ichiro.suzuki@example.com",
           "employmentType": "parttime",
           "status": "active",
-          "job_title": "アルバイト",
+          "jobTitle": "アルバイト",
           "department": {
             "id": "uuid",
             "name": "開発部"
@@ -279,7 +279,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
           "email": "hanako.yamada@shintairiku.jp",
           "employmentType": "employee",
           "status": "active",
-          "job_title": "主任",
+          "jobTitle": "主任",
           "department": {
             "id": "uuid",
             "name": "営業部",
@@ -326,7 +326,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "status": "active",
       "departmentId": "uuid",
       "stageId": "uuid",
-      "job_title": "主任",
+      "jobTitle": "主任",
       "roleIds": [1, 2],
       "supervisorId": "uuid"
     }
@@ -348,7 +348,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
           "email": "yamada.hanako@shintairiku.jp",
           "employmentType": "employee",
           "status": "active",
-          "job_title": "主任",
+          "jobTitle": "主任",
           "department": {
             "id": "uuid",
             "name": "営業部"
@@ -409,7 +409,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Request Body:**
     ```json
     {
-      "source": "google_workspace"
+      "source": "googleWorkspace"
     }
     ```
 - **処理フロー:**
@@ -423,7 +423,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     {
       "success": true,
       "data": {
-        "source": "google_workspace",
+        "source": "googleWorkspace",
         "status": "completed",
         "newlyCreatedCount": 5,
         "syncedCount": 150,
@@ -662,7 +662,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Request Body:**
     ```json
     {
-      "name": "team_leader",
+      "name": "teamLeader",
       "description": "チームリーダー"
     }
     ```
@@ -673,7 +673,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "data": {
         "role": {
           "id": 5,
-          "name": "team_leader",
+          "name": "teamLeader",
           "description": "チームリーダー",
           "userCount": 0,
           "createdAt": "2024-01-28T09:00:00Z"
@@ -708,7 +708,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Request Body:**
     ```json
     {
-      "name": "senior_team_leader",
+      "name": "seniorTeamLeader",
       "description": "シニアチームリーダー"
     }
     ```
@@ -719,7 +719,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "data": {
         "role": {
           "id": 5,
-          "name": "senior_team_leader",
+          "name": "seniorTeamLeader",
           "description": "シニアチームリーダー",
           "userCount": 0,
           "updatedAt": "2024-01-28T14:30:00Z"
