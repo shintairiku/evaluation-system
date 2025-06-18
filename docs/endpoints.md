@@ -1124,10 +1124,10 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
               "id": "uuid",
               "goalCategoryId": 1,
               "targetData": {
-                "performance_goal_type": "quantitative",
-                "specific_goal_text": "新規顧客獲得数を前期比150%にする",
-                "achievement_criteria_text": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。",
-                "means_methods_text": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネルを試験導入。"
+                "performanceGoalType": "quantitative",
+                "specificGoalText": "新規顧客獲得数を前期比150%にする",
+                "achievementCriteriaText": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。",
+                "meansMethodsText": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネルを試験導入。"
               },
               "weight": 25,
               "category": {
@@ -1175,10 +1175,10 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
             "id": "uuid",
             "goalCategoryId": 1,
             "targetData": {
-              "performance_goal_type": "quantitative",
-              "specific_goal_text": "新規顧客獲得数を前期比150%にする",
-              "achievement_criteria_text": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。見込み客リストからの転換率も参考指標とする。",
-              "means_methods_text": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネル（例: SNS広告）を試験導入。既存顧客への紹介キャンペーンを展開。"
+              "performanceGoalType": "quantitative",
+              "specificGoalText": "新規顧客獲得数を前期比150%にする",
+              "achievementCriteriaText": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。見込み客リストからの転換率も参考指標とする。",
+              "meansMethodsText": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネル（例: SNS広告）を試験導入。既存顧客への紹介キャンペーンを展開。"
             },
             "weight": 25,
             "status": "approved",
@@ -1380,10 +1380,10 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
             "id": "uuid",
             "goalCategoryId": 1,
             "targetData": {
-              "performance_goal_type": "quantitative",
-              "specific_goal_text": "新規顧客獲得数を前期比150%にする",
-              "achievement_criteria_text": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。見込み客リストからの転換率も参考指標とする。",
-              "means_methods_text": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネル（例: SNS広告）を試験導入。既存顧客への紹介キャンペーンを展開。"
+              "performanceGoalType": "quantitative",
+              "specificGoalText": "新規顧客獲得数を前期比150%にする",
+              "achievementCriteriaText": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。見込み客リストからの転換率も参考指標とする。",
+              "meansMethodsText": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネル（例: SNS広告）を試験導入。既存顧客への紹介キャンペーンを展開。"
             },
             "weight": 25,
             "status": "approved",
@@ -1541,9 +1541,12 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
           {
             "id": "uuid",
             "name": "2024年度 第1四半期評価",
+            "periodType": "quarterly",
             "description": "2024年度第1四半期の人事評価期間",
             "startDate": "2024-04-01",
             "endDate": "2024-06-30",
+            "goalSubmissionDeadline": "2024-04-07",
+            "evaluationDeadline": "2024-06-30",
             "status": "active",
             "createdAt": "2024-03-15T09:00:00Z",
             "updatedAt": "2024-04-01T09:00:00Z"
@@ -1567,9 +1570,12 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     ```json
     {
       "name": "2024年度 第2四半期評価",
+      "periodType": "quarterly",
       "description": "2024年度第2四半期の人事評価期間",
       "startDate": "2024-07-01",
-      "endDate": "2024-09-30"
+      "endDate": "2024-09-30",
+      "goalSubmissionDeadline": "2024-07-07",
+      "evaluationDeadline": "2024-09-30"
     }
     ```
 - **Response Body:**
@@ -1580,9 +1586,12 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
         "period": {
           "id": "770e8400-e29b-41d4-a716-446655440000",
           "name": "2024年度 第2四半期評価",
+          "periodType": "quarterly",
           "description": "2024年度第2四半期の人事評価期間",
           "startDate": "2024-07-01",
           "endDate": "2024-09-30",
+          "goalSubmissionDeadline": "2024-07-07",
+          "evaluationDeadline": "2024-09-30",
           "status": "upcoming",
           "createdAt": "2024-06-15T09:00:00Z",
           "updatedAt": "2024-06-15T09:00:00Z"
@@ -1595,6 +1604,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 
 - **Path:** `GET /evaluation-periods/{periodId}`
 - **アクセス可能なロール:** `admin`, `supervisor`, `viewer`, `employee`
+- **補足:**他のテーブルとの連携を追う場合には、`period`の`id`を使用して、`GET /goals?periodId={periodId}`などで他のテーブルを取得可能。例えば、`Get goals?periodId={periodId},...`で目標のドラフト数、提出数、承認待ち数、承認数、差し戻し数なども取得可能。
 - **Response Body:**
     ```json
     {
@@ -1603,9 +1613,12 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
         "period": {
           "id": "770e8400-e29b-41d4-a716-446655440000",
           "name": "2024年度 第1四半期評価",
+          "periodType": "quarterly",
           "description": "2024年度第1四半期の人事評価期間",
           "startDate": "2024-04-01",
           "endDate": "2024-06-30",
+          "goalSubmissionDeadline": "2024-04-07",
+          "evaluationDeadline": "2024-06-30",
           "status": "active",
           "createdAt": "2024-03-15T09:00:00Z",
           "updatedAt": "2024-04-01T09:00:00Z"
@@ -1636,9 +1649,12 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
         "period": {
           "id": "770e8400-e29b-41d4-a716-446655440000",
           "name": "2024年度 第1四半期評価（更新）",
+          "periodType": "quarterly",
           "description": "2024年度第1四半期の人事評価期間（更新版）",
           "startDate": "2024-04-01",
           "endDate": "2024-06-30",
+          "goalSubmissionDeadline": "2024-04-07",
+          "evaluationDeadline": "2024-06-30",
           "status": "active",
           "createdAt": "2024-03-15T09:00:00Z",
           "updatedAt": "2024-06-16T14:30:00Z"
@@ -1694,10 +1710,10 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
                 "id": "uuid",
                 "goalCategoryId": 1,
                 "targetData": {
-                  "performance_goal_type": "quantitative",
-                  "specific_goal_text": "新規顧客獲得数を前期比150%にする",
-                  "achievement_criteria_text": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。見込み客リストからの転換率も参考指標とする。",
-                  "means_methods_text": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネル（例: SNS広告）を試験導入。既存顧客への紹介キャンペーンを展開。"
+                  "performanceGoalType": "quantitative",
+                  "specificGoalText": "新規顧客獲得数を前期比150%にする",
+                  "achievementCriteriaText": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。見込み客リストからの転換率も参考指標とする。",
+                  "meansMethodsText": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネル（例: SNS広告）を試験導入。既存顧客への紹介キャンペーンを展開。"
                 },
                 "weight": 25,
                 "status": "approved",
@@ -1752,10 +1768,10 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
               "id": "uuid",
               "goalCategoryId": 1,
               "targetData": {
-                "performance_goal_type": "quantitative",
-                "specific_goal_text": "新規顧客獲得数を前期比150%にする",
-                "achievement_criteria_text": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。見込み客リストからの転換率も参考指標とする。",
-                "means_methods_text": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネル（例: SNS広告）を試験導入。既存顧客への紹介キャンペーンを展開。"
+                "performanceGoalType": "quantitative",
+                "specificGoalText": "新規顧客獲得数を前期比150%にする",
+                "achievementCriteriaText": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。見込み客リストからの転換率も参考指標とする。",
+                "meansMethodsText": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネル（例: SNS広告）を試験導入。既存顧客への紹介キャンペーンを展開。"
               },
               "weight": 25,
               "status": "approved",
@@ -2265,4 +2281,3 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       }
     }
     ```
-
