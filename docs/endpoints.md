@@ -262,6 +262,8 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     - `supervisor`: 指定した `userId` が自身の管理下の部下である場合、情報を取得可能。
     - `viewer`: 指定した `userId` のユーザーに対して閲覧権限がある場合、情報を取得可能。
     - `employee`: `userId` が自身のIDである場合のみ、情報を取得可能。(このエンドポイントまたは `/auth/me` で対応)
+- **拡張性＆UIへの考慮:**
+    - ユーザーが登録されていた過去の評価期間のリストを取得。各評価期間のカードをクリックすることで、そのユーザーの評価期間中の目標、上司レビュー、自己評価、上司評価を表示する仕組みも導入可能。
 - **Response Body:**
     ```json
     {
@@ -317,6 +319,7 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     {
       "name": "山田 花子",
       "email": "yamada.hanako@shintairiku.jp",
+      "employee_code": "EMP001",
       "employmentType": "employee",
       "status": "active",
       "departmentId": "uuid",
