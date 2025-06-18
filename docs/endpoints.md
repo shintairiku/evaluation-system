@@ -755,7 +755,62 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
 - **Query Parameters:**
     - `periodId` (string, required): 評価期間のID。
 - **Response Body:**
-    - 指定された評価期間に紐づく目標オブジェクトの配列を返す。
+    ```json
+    {
+      "success": true,
+      "data": {
+        "goals": [
+          {
+            "id": "uuid",
+            "userId": "uuid",
+            "periodId": "uuid",
+            "goalCategoryId": 1,
+            "targetData": {
+              "performanceGoalType": "quantitative",
+              "specificGoalText": "新規顧客獲得数を前期比150%にする",
+              "achievementCriteriaText": "CRMシステム上で確認できる新規契約顧客数が、指定期間内に目標数を達成した場合。",
+              "meansMethodsText": "週次のターゲットリスト見直し会議を実施。新しいマーケティングチャネルを試験導入。"
+            },
+            "weight": 25,
+            "status": "draft",
+            "approvedBy": null,
+            "approvedAt": null,
+            "category": {
+              "id": 1,
+              "name": "業績目標"
+            },
+            "createdAt": "2024-01-15T09:00:00Z",
+            "updatedAt": "2024-01-15T09:00:00Z"
+          },
+          {
+            "id": "uuid",
+            "userId": "uuid",
+            "periodId": "uuid",
+            "goalCategoryId": 2,
+            "targetData": {
+              "competencyId": "aaaaaaaa-bbbb-cccc-dddd-111111111111",
+              "actionPlan": "チームメンバーとの1on1を月2回実施し、個別のキャリア開発支援を行う"
+            },
+            "weight": 100,
+            "status": "pending_approval",
+            "approvedBy": null,
+            "approvedAt": null,
+            "category": {
+              "id": 2,
+              "name": "コンピテンシー目標"
+            },
+            "competency": {
+              "id": "aaaaaaaa-bbbb-cccc-dddd-111111111111",
+              "name": "チームワーク・協調性",
+              "description": "チーム内での協調性と連携能力"
+            },
+            "createdAt": "2024-01-15T10:00:00Z",
+            "updatedAt": "2024-01-15T10:00:00Z"
+          }
+        ]
+      }
+    }
+    ```
 
 ### 6.2 目標作成
 
@@ -786,8 +841,72 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "actionPlan": "チームメンバーとの1on1を月2回実施し、個別のキャリア開発支援を行う"
     }
     ```
-- **Response Body:**
-    - 作成された目標オブジェクト
+- **Response Body (業績目標の場合):**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "goal": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "userId": "123e4567-e89b-12d3-a456-426614174000",
+          "periodId": "550e8400-e29b-41d4-a716-446655440000",
+          "goalCategoryId": 1,
+          "targetData": {
+            "performanceGoalType": "quantitative",
+            "specificGoalText": "第4四半期売上目標達成",
+            "achievementCriteriaText": "前年同期比110%の売上達成",
+            "meansMethodsText": "新規顧客開拓とアップセル施策の実行"
+          },
+          "weight": 30.0,
+          "status": "draft",
+          "approvedBy": null,
+          "approvedAt": null,
+          "category": {
+            "id": 1,
+            "name": "業績目標",
+            "description": "売上や成果に関する目標"
+          },
+          "createdAt": "2024-01-15T09:00:00Z",
+          "updatedAt": "2024-01-15T09:00:00Z"
+        }
+      }
+    }
+    ```
+- **Response Body (コンピテンシー目標の場合):**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "goal": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "userId": "123e4567-e89b-12d3-a456-426614174000",
+          "periodId": "550e8400-e29b-41d4-a716-446655440000",
+          "goalCategoryId": 2,
+          "targetData": {
+            "competencyId": "660e8400-e29b-41d4-a716-446655440001",
+            "actionPlan": "チームメンバーとの1on1を月2回実施し、個別のキャリア開発支援を行う"
+          },
+          "weight": 100.0,
+          "status": "pending_approval",
+          "approvedBy": null,
+          "approvedAt": null,
+          "category": {
+            "id": 2,
+            "name": "コンピテンシー目標",
+            "description": "能力開発・スキル向上に関する目標"
+          },
+          "competency": {
+            "id": "660e8400-e29b-41d4-a716-446655440001",
+            "name": "チームワーク・協調性",
+            "description": "チーム内での協調性と連携能力"
+          },
+          "createdAt": "2024-01-15T10:00:00Z",
+          "updatedAt": "2024-01-15T10:00:00Z"
+        }
+      }
+    }
+    ```
+
 
 ### 6.3 目標更新
 
@@ -814,14 +933,53 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     }
     ```
 - **Response Body:**
-    - 更新後の目標オブジェクトを返します。
+    ```json
+    {
+      "success": true,
+      "data": {
+        "goal": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "userId": "123e4567-e89b-12d3-a456-426614174000",
+          "periodId": "550e8400-e29b-41d4-a716-446655440000",
+          "goalCategoryId": 1,
+          "targetData": {
+            "performanceGoalType": "qualitative",
+            "specificGoalText": "顧客満足度向上プロジェクト完成",
+            "achievementCriteriaText": "顧客満足度スコア85%以上達成",
+            "meansMethodsText": "顧客フィードバック収集システムの導入と改善提案の実行"
+          },
+          "weight": 35.0,
+          "status": "pending_approval",
+          "approvedBy": null,
+          "approvedAt": null,
+          "category": {
+            "id": 1,
+            "name": "業績目標",
+            "description": "売上や成果に関する目標"
+          },
+          "createdAt": "2024-01-15T09:00:00Z",
+          "updatedAt": "2024-01-16T14:30:00Z"
+        }
+      }
+    }
+    ```
+
 
 ### 6.4 目標削除
 
 - **Path:** `DELETE /goals/{goalId}`
 - **説明:** 目標を削除する
 - **Response Body:**
-    - 削除成功のメッセージを返します。
+    ```json
+    {
+      "success": true,
+      "data": {
+        "message": "目標が正常に削除されました",
+        "deletedGoalId": "550e8400-e29b-41d4-a716-446655440000",
+        "deletedAt": "2024-01-16T15:00:00Z"
+      }
+    }
+    ```
 
 ## 7. Goal Categories (目標カテゴリ管理)
 
