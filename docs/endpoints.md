@@ -98,7 +98,27 @@
     }
     ```
 
-### 1.3 ログアウト
+### 1.3 トークン検証
+
+現在のJWTトークンが有効かどうかを検証し、ユーザー情報を返します。フロントエンドがトークンの有効性を確認するために使用します。
+
+- **Path:** `POST /auth/verify`
+- **Request:** Bearer トークン (Authorization ヘッダー)
+- **Response Body:**
+    ```json
+    {
+      "valid": true,
+      "user": {
+        "id": "uuid",
+        "email": "hanako.yamada@shintairiku.jp",
+        "first_name": "花子",
+        "last_name": "山田",
+        "role": "employee"
+      }
+    }
+    ```
+
+### 1.4 ログアウト
 
 - **Path:** `POST /auth/logout`
 - **説明:** ユーザーセッションを終了します。バックエンドは、関連するアクセストークンまたはリフレッシュトークンを無効化します。
