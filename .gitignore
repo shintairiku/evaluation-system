@@ -21,6 +21,10 @@ node_modules/
 # python
 __pycache__/
 
+# Python virtual environments
+venv/
+.venv/
+
 # production
 /build
 
