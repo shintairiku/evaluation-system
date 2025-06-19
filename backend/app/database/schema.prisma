@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+
+  users       User[]
+}
+
+model Stage {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+
+  users       User[]
+}
+
+model Role {
+  id          Int      @id
+  name        String
+  description String?
+
+  userRoles   UserRole[]
+}
+
+model User {
+  id                   String             @id @default(uuid())
+  department_id        String?
+  stage_id             String?
+  clerk_user_id        String?            @unique
+  name                 String
+  email                String             @unique
+  employee_code        String             @unique
+  employment_type      EmploymentType
+  status               UserStatus
+  password             String?
+  job_title            String?
+  hashed_refresh_token String?
+  last_login_at        DateTime?
+  created_at           DateTime           @default(now())
+  updated_at           DateTime           @default(now())
+
+  department           Department?        @relation(fields: [department_id], references: [id])
+  stage                Stage?             @relation(fields: [stage_id], references: [id])
+
+  userRoles            UserRole[]
+
+  supervisedBy         UsersSupervisors[] @relation("SupervisorRelation")
+  supervises           UsersSupervisors[] @relation("SubordinateRelation")
+}
+
+model UserRole {
+  user_id String
+  role_id Int
+
+  user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role    Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, role_id])
+}
+
+model UsersSupervisors {
+  user_id        String
+  supervisor_id  String
+  valid_from     DateTime
+  valid_to       DateTime?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now())
+
+  subordinate    User     @relation("SubordinateRelation", fields: [user_id], references: [id], onDelete: Cascade)
+  supervisor     User     @relation("SupervisorRelation", fields: [supervisor_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, supervisor_id])
+}
+
+enum EmploymentType {
+  auditor
+  supervisor
+  employee
+  parttime
+}
+
+enum UserStatus {
+  active
+  inactive
+}
