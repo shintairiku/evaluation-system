@@ -1,4 +1,6 @@
 fastapi
 uvicorn[standard]
 psycopg2-binary
-pydantic-settings 
+pydantic-settings
+asyncpg
+python-dotenv 
