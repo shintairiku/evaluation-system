@@ -52,7 +52,7 @@ async def run_migrations():
         applied_migrations = await get_applied_migrations(conn)
         
         # Find all migration files
-        migration_dir = Path("../migrations/User")
+        migration_dir = Path("../migrations")
         if not migration_dir.exists():
             print(f"❌ Migration directory not found: {migration_dir}")
             return False
