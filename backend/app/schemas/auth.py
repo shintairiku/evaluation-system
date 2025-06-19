@@ -2,8 +2,8 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 
-class UserResponse(BaseModel):
-    """Response model for user information."""
+class UserAuthResponse(BaseModel):
+    """Response model for authenticated user information."""
     id: str
     email: str
     first_name: Optional[str] = None
@@ -19,7 +19,7 @@ class TokenVerifyRequest(BaseModel):
 class TokenVerifyResponse(BaseModel):
     """Response model for token verification."""
     valid: bool
-    user: Optional[UserResponse] = None
+    user: Optional[UserAuthResponse] = None
     error: Optional[str] = None
 
 
@@ -33,7 +33,7 @@ class LoginResponse(BaseModel):
     """Response model for login."""
     access_token: str
     token_type: str = "bearer"
-    user: UserResponse
+    user: UserAuthResponse
 
 
 class LogoutResponse(BaseModel):
