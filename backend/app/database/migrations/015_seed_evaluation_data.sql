@@ -1,3 +1,4 @@
+/*
 -- Insert evaluation periods
 INSERT INTO evaluation_periods (id, name, period_type, start_date, end_date, goal_submission_deadline, evaluation_deadline, status, created_at, updated_at) VALUES
 ('a1b2c3d4-e5f6-7890-1234-56789abcdef0', '2024年第1四半期', 'quarterly', '2024-01-01', '2024-03-31', '2024-01-31', '2024-04-15', 'active', NOW(), NOW()),
@@ -17,3 +18,9 @@ INSERT INTO supervisor_feedback (id, self_assessment_id, period_id, supervisor_i
 ('sf-22222222-1111-1111-1111-111111111111', 'sa-22222222-1111-1111-1111-111111111111', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', '223e4567-e89b-12d3-a456-426614174001', 80, '売上目標達成に向けた努力は評価できます。予測精度の向上施策を継続し、より安定した成果を期待しています。顧客との関係構築も良好です。', 'submitted', '2024-02-03 11:30:00', NOW(), NOW()),
 ('sf-44444444-4444-4444-4444-444444444444', 'sa-44444444-4444-4444-4444-444444444444', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', '223e4567-e89b-12d3-a456-426614174001', 88, '問題解決能力の向上が顕著に見られます。体系的なアプローチと知見共有の取り組みは素晴らしく、他のメンバーにも良い影響を与えています。', 'submitted', '2024-02-04 09:45:00', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
+
+-- Insert sample performance goals
+INSERT INTO goals (id, user_id, period_id, goal_category_id, target_data, weight, status, created_at, updated_at) VALUES
+('11111111-1111-1111-1111-111111111111', '333e4567-e89b-12d3-a456-426614174002', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', 1, 
+'{"performance_goal_type": "quantitative", "specific_goal_text": "新規機能開発において、バグ発生率を前期比30%削減する", "achievement_criteria_text": "リリース後1ヶ月以内のバグ報告数が前期比30%以下。品質管理システムで測定。", "means_methods_text": "コードレビューの強化、ユニットテストカバレッジ90%以上の維持、テスト駆動開発の実践。"}', 
+30, 'approved', NOW(), NOW()),
