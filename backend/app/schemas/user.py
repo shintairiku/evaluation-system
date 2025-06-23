@@ -35,6 +35,24 @@ class Role(BaseModel):
     description: str
 
 
+class RoleDetail(BaseModel):
+    id: int
+    name: str
+    description: str
+    permissions: List[Permission]
+    user_count: Optional[int] = None
+
+
+class RoleCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    description: str = Field(..., min_length=1, max_length=200)
+
+
+class RoleUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    description: Optional[str] = Field(None, min_length=1, max_length=200)
+
+
 class UserBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
