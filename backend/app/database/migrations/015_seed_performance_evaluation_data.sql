@@ -1,5 +1,21 @@
-/*
--- Insert sample performance goals
+-- ===================================================
+-- SQL SEEDS - CORRECT INSERTION ORDER
+-- ===================================================
+
+-- 1. FIRST: Insert goal categories (no dependencies)
+INSERT INTO goal_categories (id, name) VALUES
+(1, 'performance'),
+(2, 'competency'),
+(3, 'core_value')
+ON CONFLICT (id) DO NOTHING;
+
+-- 2. SECOND: Insert evaluation periods (no dependencies)
+INSERT INTO evaluation_periods (id, name, period_type, start_date, end_date, goal_submission_deadline, evaluation_deadline, status, created_at, updated_at) VALUES 
+('a1b2c3d4-e5f6-7890-1234-56789abcdef0', '2024年第1四半期', 'quarterly', '2024-01-01', '2024-03-31', '2024-01-31', '2024-04-15', 'active', NOW(), NOW()),
+('b2c3d4e5-f6a7-8901-2345-6789abcdef01', '2024年上半期', 'half-term', '2024-01-01', '2024-06-30', '2024-02-29', '2024-07-15', 'active', NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. THIRD: Insert sample performance goals (depends on: users, evaluation_periods, goal_categories)
 INSERT INTO goals (id, user_id, period_id, goal_category_id, target_data, weight, status, created_at, updated_at) VALUES
 ('11111111-1111-1111-1111-111111111111', '333e4567-e89b-12d3-a456-426614174002', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', 1, 
 '{"performance_goal_type": "quantitative", "specific_goal_text": "新規機能開発において、バグ発生率を前期比30%削減する", "achievement_criteria_text": "リリース後1ヶ月以内のバグ報告数が前期比30%以下。品質管理システムで測定。", "means_methods_text": "コードレビューの強化、ユニットテストカバレッジ90%以上の維持、テスト駆動開発の実践。"}', 
@@ -14,7 +30,7 @@ INSERT INTO goals (id, user_id, period_id, goal_category_id, target_data, weight
 30, 'approved', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample competency goals
+-- 4. FOURTH: Insert sample competency goals (depends on: users, evaluation_periods, goal_categories)
 INSERT INTO goals (id, user_id, period_id, goal_category_id, target_data, weight, status, created_at, updated_at) VALUES
 ('44444444-4444-4444-4444-444444444444', '333e4567-e89b-12d3-a456-426614174002', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', 2,
 '{"competency_id": "cccccccc-dddd-eeee-ffff-333333333333", "action_plan": "複雑な技術課題に対して、体系的なアプローチで解決策を導く能力を向上させる。週1回のテックトークで知見共有、月1回の技術勉強会を主催する。四半期ごとに問題解決事例をまとめ、チーム内で共有する。"}', 
@@ -29,7 +45,7 @@ INSERT INTO goals (id, user_id, period_id, goal_category_id, target_data, weight
 100, 'approved', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample core value goals
+-- 5. FIFTH: Insert sample core value goals (depends on: users, evaluation_periods, goal_categories)
 INSERT INTO goals (id, user_id, period_id, goal_category_id, target_data, weight, status, created_at, updated_at) VALUES
 ('77777777-7777-7777-7777-777777777777', '333e4567-e89b-12d3-a456-426614174002', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', 3,
 '{"core_value_theme": "誠実性と責任感", "action_plan": "プロジェクトにおいて約束した期限とクオリティを必ず守る。問題が発生した場合は迅速に報告し、解決策を提案する。チームメンバーとの約束も含め、すべてのコミットメントに対して責任を持って取り組む。"}', 
@@ -40,7 +56,7 @@ INSERT INTO goals (id, user_id, period_id, goal_category_id, target_data, weight
 100, 'approved', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample supervisor reviews
+-- 6. SIXTH: Insert sample supervisor reviews (depends on: goals, evaluation_periods, users)
 INSERT INTO supervisor_reviews (id, goal_id, period_id, supervisor_id, action, comment, status, reviewed_at, created_at, updated_at) VALUES
 ('sr-11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', '223e4567-e89b-12d3-a456-426614174001', 'APPROVED', '目標設定が具体的で測定可能です。バグ削減の取り組みは品質向上に直結する重要な目標であり、実行計画も適切です。', 'submitted', '2024-01-20 11:00:00', NOW(), NOW()),
 
@@ -48,3 +64,32 @@ INSERT INTO supervisor_reviews (id, goal_id, period_id, supervisor_id, action, c
 
 ('sr-55555555-5555-5555-5555-555555555555', '55555555-5555-5555-5555-555555555555', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', '850e8400-e29b-41d4-a716-446655440001', 'PENDING', 'リーダーシップ向上の取り組みは評価できますが、より具体的な成果指標を設定してください。1on1の頻度や効果測定方法を明確にしましょう。', 'submitted', '2024-01-22 14:15:00', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
+
+-- 7. SEVENTH: Insert sample self assessments (depends on: goals, evaluation_periods)
+INSERT INTO self_assessments (id, goal_id, period_id, self_rating, self_comment, status, submitted_at, created_at, updated_at) VALUES 
+('11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', 85, '新規機能の開発を計画通りに完了させ、品質も担保できた。チーム内での連携もスムーズに進み、予定より早く完成させることができました。', 'submitted', '2024-01-25 10:00:00', NOW(), NOW()),
+
+('22222222-1111-1111-1111-111111111111', '22222222-1111-1111-1111-111111111111', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', 75, '月次売上目標は概ね達成できていますが、月によってばらつきがありました。顧客別売上予測の精度向上に取り組んでおり、下半期はより安定した成果を目指します。', 'submitted', '2024-01-26 14:30:00', NOW(), NOW()),
+
+('44444444-4444-4444-4444-444444444444', '44444444-4444-4444-4444-444444444444', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', 85, '問題解決能力の向上に積極的に取り組みました。複雑な技術課題に対して体系的なアプローチで解決策を導くことができ、チーム内での知見共有も実践できました。', 'submitted', '2024-01-27 16:00:00', NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- 8. EIGHTH: Insert supervisor feedback (depends on: self_assessments, evaluation_periods, users)
+INSERT INTO supervisor_feedback (id, self_assessment_id, period_id, supervisor_id, rating, comment, status, submitted_at, created_at, updated_at) VALUES 
+('aaa11111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', '223e4567-e89b-12d3-a456-426614174001', 90, '期待を上回る成果を達成しました。特に、技術的課題への対応が見事で、チームメンバーのモチベーション向上にも貢献しています。今後も継続してください。', 'submitted', '2024-02-02 15:00:00', NOW(), NOW()),
+
+('bbb22222-1111-1111-1111-111111111111', '22222222-1111-1111-1111-111111111111', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', '223e4567-e89b-12d3-a456-426614174001', 80, '売上目標達成に向けた努力は評価できます。予測精度の向上施策を継続し、より安定した成果を期待しています。顧客との関係構築も良好です。', 'submitted', '2024-02-03 11:30:00', NOW(), NOW()),
+
+('ccc44444-4444-4444-4444-444444444444', '44444444-4444-4444-4444-444444444444', 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', '223e4567-e89b-12d3-a456-426614174001', 88, '問題解決能力の向上が顕著に見られます。体系的なアプローチと知見共有の取り組みは素晴らしく、他のメンバーにも良い影響を与えています。', 'submitted', '2024-02-04 09:45:00', NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- ===================================================
+-- DEPENDENCY ORDER SUMMARY:
+-- ===================================================
+-- 1. goal_categories (independent)
+-- 2. evaluation_periods (independent)
+-- 3. goals (depends on: users, evaluation_periods, goal_categories)
+-- 4. supervisor_reviews (depends on: goals, evaluation_periods, users)
+-- 5. self_assessments (depends on: goals, evaluation_periods)
+-- 6. supervisor_feedback (depends on: self_assessments, evaluation_periods, users)
+-- ===================================================
