@@ -1,3 +1,4 @@
+-- Insert default roles (smallint id as per schema)
 INSERT INTO roles (id, name, description) VALUES 
 (1, 'admin', 'System administrator with full access'),
 (2, 'supervisor', 'Department supervisor with management rights'), 
@@ -5,40 +6,40 @@ INSERT INTO roles (id, name, description) VALUES
 (4, 'viewer', 'Read-only access for reports and viewing')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert default departments
+-- Insert default departments (uuid id as per schema)
 INSERT INTO departments (id, name, description) VALUES 
-('dept-001-sales', 'Sales', 'Sales and business development department'),
-('dept-002-engineering', 'Engineering', 'Software engineering and development'),
-('dept-003-hr', 'Human Resources', 'HR and people operations'),
-('dept-004-marketing', 'Marketing', 'Marketing and communications')
+('650e8400-e29b-41d4-a716-446655440001', 'Sales', 'Sales and business development department'),
+('650e8400-e29b-41d4-a716-446655440002', 'Engineering', 'Software engineering and development'),
+('650e8400-e29b-41d4-a716-446655440003', 'Human Resources', 'HR and people operations'),
+('650e8400-e29b-41d4-a716-446655440004', 'Marketing', 'Marketing and communications')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert default career stages
+-- Insert default career stages (uuid id as per schema)
 INSERT INTO stages (id, name, description) VALUES 
-('stage-001-newbie', 'S1 - New Employee', 'Newly hired employees (0-1 year)'),
-('stage-002-intermediate', 'S2 - Intermediate', 'Intermediate level employees (1-3 years)'),
-('stage-003-senior', 'S3 - Senior', 'Senior level employees (3-5 years)'),
-('stage-004-manager', 'S4 - Manager', 'Management level (5+ years)')
+('11111111-2222-3333-4444-555555555555', '新入社員', '入社1-2年目の社員'),
+('22222222-3333-4444-5555-666666666666', '中堅社員', '入社3-7年目の中核となる社員'),
+('33333333-4444-5555-6666-777777777777', '管理職', 'チームをマネジメントする管理職')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert sample users
+-- Insert sample users (uuid id as per schema)
+-- Note: Using correct employment_type_enum values
 INSERT INTO users (id, clerk_user_id, employee_code, name, email, employment_type, status, department_id, stage_id, job_title, created_at, updated_at) VALUES
-('user-001-admin', 'user_clerk_admin_1', 'ADM001', '佐藤 管理者', 'admin.sato@example.com', 'auditor', 'active', 'dept-003-hr', 'stage-004-manager', 'システム管理者', NOW(), NOW()),
-('user-002-supervisor', 'user_clerk_supervisor_1', 'EMP001', '山田 太郎', 'taro.yamada@example.com', 'supervisor', 'active', 'dept-002-engineering', 'stage-004-manager', '開発部長', NOW(), NOW()),
-('user-003-employee', 'user_clerk_employee_1', 'EMP002', '田中 花子', 'hanako.tanaka@example.com', 'employee', 'active', 'dept-002-engineering', 'stage-002-intermediate', 'ソフトウェアエンジニア', NOW(), NOW()),
-('user-004-employee', 'user_clerk_employee_2', 'EMP003', '鈴木 次郎', 'jiro.suzuki@example.com', 'employee', 'active', 'dept-001-sales', 'stage-003-senior', '営業担当', NOW(), NOW())
+('850e8400-e29b-41d4-a716-446655440001', 'user_clerk_admin_1', 'ADM001', '佐藤 管理者', 'admin.sato@example.com', 'auditor', 'active', '650e8400-e29b-41d4-a716-446655440003', '33333333-4444-5555-6666-777777777777', 'システム管理者', NOW(), NOW()),
+('123e4567-e89b-12d3-a456-426614174000', 'user_2abcdef1234567890abcdef', 'EMP001', '山田 太郎', 'yamada.taro@company.com', 'employee', 'active', '650e8400-e29b-41d4-a716-446655440001', '22222222-3333-4444-5555-666666666666', '主任', NOW(), NOW()),
+('223e4567-e89b-12d3-a456-426614174001', 'user_3bcdef234567890abcdef12', 'EMP002', '佐藤 花子', 'sato.hanako@company.com', 'supervisor', 'active', '650e8400-e29b-41d4-a716-446655440001', '33333333-4444-5555-6666-777777777777', 'マネージャー', NOW(), NOW()),
+('333e4567-e89b-12d3-a456-426614174002', 'user_4cdef34567890abcdef123', 'EMP003', '田中 一郎', 'tanaka.ichiro@company.com', 'employee', 'active', '650e8400-e29b-41d4-a716-446655440002', '11111111-2222-3333-4444-555555555555', NULL, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
--- Insert user roles
+-- Insert user roles (uuid user_id, smallint role_id as per schema)
 INSERT INTO user_roles (user_id, role_id) VALUES
-('user-001-admin', 1),
-('user-002-supervisor', 2),
-('user-003-employee', 3),
-('user-004-employee', 3)
+('850e8400-e29b-41d4-a716-446655440001', 1),
+('123e4567-e89b-12d3-a456-426614174000', 3),
+('223e4567-e89b-12d3-a456-426614174001', 2),
+('333e4567-e89b-12d3-a456-426614174002', 3)
 ON CONFLICT (user_id, role_id) DO NOTHING;
 
--- Insert supervisor relationships
+-- Insert supervisor relationships (uuid for both user_id and supervisor_id)
 INSERT INTO users_supervisors (user_id, supervisor_id, valid_from, created_at, updated_at) VALUES
-('user-003-employee', 'user-002-supervisor', '2024-01-01', NOW(), NOW()),
-('user-004-employee', 'user-002-supervisor', '2024-01-01', NOW(), NOW())
+('123e4567-e89b-12d3-a456-426614174000', '223e4567-e89b-12d3-a456-426614174001', '2024-01-01', NOW(), NOW()),
+('333e4567-e89b-12d3-a456-426614174002', '223e4567-e89b-12d3-a456-426614174001', '2024-01-01', NOW(), NOW())
 ON CONFLICT (user_id, supervisor_id) DO NOTHING;
