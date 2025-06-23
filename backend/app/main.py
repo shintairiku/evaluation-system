@@ -38,16 +38,17 @@ app.add_exception_handler(Exception, general_exception_handler)
 # Include API routers
 app.include_router(api_router)
 
-# Include webhooks at root level
-from .api.v1 import webhooks_router_root
-app.include_router(webhooks_router_root)
+# Include webhooks at root level (commented out until webhooks are implemented)
+# from .api.v1 import webhooks_router_root
+# app.include_router(webhooks_router_root)
 
 @app.get("/", response_model=HealthCheckResponse)
 async def root():
     """Root endpoint for health check."""
     return HealthCheckResponse(
         status="healthy",
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now().isoformat(),
+        version="1.0.0"
     )
 
 @app.get("/health", response_model=HealthCheckResponse)
@@ -55,5 +56,6 @@ async def health_check():
     """Health check endpoint."""
     return HealthCheckResponse(
         status="healthy",
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now().isoformat(),
+        version="1.0.0"
     ) 
