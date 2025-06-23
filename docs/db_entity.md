@@ -7,7 +7,6 @@ erDiagram
         string employee_code UK
         string name
         string email UK
-        employment_type employment_type
         user_status status
         uuid department_id FK
         uuid stage_id FK
