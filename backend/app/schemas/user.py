@@ -6,6 +6,8 @@ from uuid import UUID
 
 from .common import Permission, PaginatedResponse
 
+if TYPE_CHECKING:
+    from .competency import Competency
 
 class EmploymentType(str, Enum):
     ADMIN = "admin"
@@ -52,6 +54,29 @@ class Stage(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
+
+
+class StageDetail(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    # NOTE: below metadata is optional; not finalized yet. Refine metadata based on UI requirement.
+    user_count: Optional[int] = None
+    competency_count: Optional[int] = None
+    users: Optional[PaginatedResponse['UserProfile']] = None
+    competencies: Optional[List['Competency']] = None
+
+
+class StageCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+
+
+class StageUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
 
 
 class Role(BaseModel):
