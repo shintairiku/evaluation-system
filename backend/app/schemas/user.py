@@ -4,6 +4,8 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, EmailStr
 from uuid import UUID
 
+from .common import Permission, PaginatedResponse
+
 
 class EmploymentType(str, Enum):
     ADMIN = "admin"
@@ -21,6 +23,29 @@ class Department(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
+
+
+class DepartmentDetail(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    # NOTE: below metadata is optional; not finalized yet. Refine metadata based on UI requirement. 
+    user_count: Optional[int] = None
+    manager_id: Optional[UUID] = None
+    manager_name: Optional[str] = None
+    users: Optional[PaginatedResponse['UserProfile']] = None
+
+
+class DepartmentCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+
+
+class DepartmentUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
 
 
 class Stage(BaseModel):
