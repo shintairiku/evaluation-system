@@ -2,6 +2,8 @@ from fastapi import APIRouter
 
 from .auth import router as auth_router
 from .users import router as user_router
+from .roles import router as role_router
+
 from .goals import router as goal_router
 from .evaluations import router as evaluation_router
 # from .reports import router as reports_router  # Will be defined in the future
@@ -12,6 +14,7 @@ api_router = APIRouter(prefix="/api/v1")
 
 api_router.include_router(auth_router)
 api_router.include_router(user_router)
+api_router.include_router(role_router)
 api_router.include_router(goal_router)
 api_router.include_router(evaluation_router)
 # api_router.include_router(reports_router)
