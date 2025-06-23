@@ -1,9 +1,13 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from pydantic import BaseModel, Field, EmailStr
 from uuid import UUID
 
+from .common import Permission, PaginatedResponse
+
+if TYPE_CHECKING:
+    from .competency import Competency
 
 class EmploymentType(str, Enum):
     ADMIN = "admin"
@@ -23,16 +27,80 @@ class Department(BaseModel):
     description: Optional[str] = None
 
 
+class DepartmentDetail(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    # NOTE: below metadata is optional; not finalized yet. Refine metadata based on UI requirement. 
+    user_count: Optional[int] = None
+    manager_id: Optional[UUID] = None
+    manager_name: Optional[str] = None
+    users: Optional[PaginatedResponse['UserProfile']] = None
+
+
+class DepartmentCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+
+
+class DepartmentUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+
+
 class Stage(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
 
 
+class StageDetail(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    # NOTE: below metadata is optional; not finalized yet. Refine metadata based on UI requirement.
+    user_count: Optional[int] = None
+    competency_count: Optional[int] = None
+    users: Optional[PaginatedResponse['UserProfile']] = None
+    competencies: Optional[List['Competency']] = None
+
+
+class StageCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+
+
+class StageUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+
+
 class Role(BaseModel):
     id: int
     name: str
     description: str
+
+
+class RoleDetail(BaseModel):
+    id: int
+    name: str
+    description: str
+    permissions: List[Permission]
+    user_count: Optional[int] = None
+
+
+class RoleCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    description: str = Field(..., min_length=1, max_length=200)
+
+
+class RoleUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    description: Optional[str] = Field(None, min_length=1, max_length=200)
 
 
 class UserBase(BaseModel):

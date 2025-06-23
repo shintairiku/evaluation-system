@@ -9,6 +9,16 @@ class SubmissionStatus(str, Enum):
     DRAFT = "draft"
     SUBMITTED = "submitted"
 
+class Permission(BaseModel):
+    """
+    Permission for a role.
+    Check the following files:
+    - name: app/core/permissions.py
+    - description: To be decided later
+    """
+    name: str
+    description: str
+
 class PaginationParams(BaseModel):
     page: int = Field(default=1, ge=1, description="Page number (1-based)")
     limit: int = Field(default=20, ge=1, le=100, description="Items per page")
