@@ -1,21 +1,30 @@
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup - can optionally run migrations here for production
-    # from app.database.scripts.run_migrations import run_migrations
-    # await run_migrations()  # Uncomment for automatic migrations
-    yield
-    # Shutdown
+from .api.v1 import api_router
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="HR Evaluation System API",
+    description="API for managing employee evaluations with Clerk authentication",
+    version="1.0.0"
+)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API routers
+app.include_router(api_router)
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {"message": "HR Evaluation System API with Clerk Authentication"}
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy"} 
+def health_check():
+    return {"status": "healthy"}
