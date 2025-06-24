@@ -1,8 +1,12 @@
 from datetime import datetime, date
 from enum import Enum
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from .user import UserProfile
+
 
 class EvaluationPeriodStatus(str, Enum):
     UPCOMING = "upcoming"
@@ -18,31 +22,39 @@ class EvaluationPeriodType(str, Enum):
     OTHER = "other"
 
 
+# === Base Schemas ===
+
 class EvaluationPeriodBase(BaseModel):
+    """Base schema with common evaluation period fields"""
     name: str = Field(..., min_length=1, max_length=200)
     period_type: EvaluationPeriodType
     start_date: date
     end_date: date
     goal_submission_deadline: date
     evaluation_deadline: date
+    description: Optional[str] = Field(None, max_length=500)
 
+
+# === Input Schemas (API Request) ===
 
 class EvaluationPeriodCreate(EvaluationPeriodBase):
-    """Schema for creating evaluation period via API"""
-    description: Optional[str] = Field(None, max_length=500)
-    
+    """Schema for creating evaluation period via API; same format as EvaluationPeriodBase"""
+    pass
 
 
 class EvaluationPeriodUpdate(BaseModel):
     """Schema for updating evaluation period via API"""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=500)
+    period_type: Optional[EvaluationPeriodType] = Field(None, alias="periodType")
     start_date: Optional[date] = Field(None, alias="startDate")
     end_date: Optional[date] = Field(None, alias="endDate")
     goal_submission_deadline: Optional[date] = Field(None, alias="goalSubmissionDeadline")
     evaluation_deadline: Optional[date] = Field(None, alias="evaluationDeadline")
     status: Optional[EvaluationPeriodStatus] = None
 
+
+# === Database Schema ===
 
 class EvaluationPeriodInDB(EvaluationPeriodBase):
     """Internal database representation of evaluation period"""
@@ -55,13 +67,76 @@ class EvaluationPeriodInDB(EvaluationPeriodBase):
         from_attributes = True
 
 
+# === Output Schemas (API Response) ===
+
 class EvaluationPeriod(EvaluationPeriodInDB):
     """
-    Represents evaluation period in API responses.
-    This schema defines the structure of an evaluation period object as it is sent to the client.
-    It inherits from EvaluationPeriodInDB and can be extended with additional fields
-    (e.g., joined data from other tables) without altering the core database schema.
-    This separation provides flexibility to tailor API responses independently of the
-    internal data model.
+    Basic evaluation period schema for API responses (list views, simple references).
+    Contains core information without expensive joins.
     """
-    pass
+    # Statistics for overview
+    total_users: Optional[int] = Field(None, description="Total number of users in this period")
+    total_goals: Optional[int] = Field(None, description="Total number of goals in this period")
+    completed_assessments: Optional[int] = Field(None, description="Number of completed self-assessments")
+    pending_assessments: Optional[int] = Field(None, description="Number of pending self-assessments")
+
+
+class EvaluationPeriodDetail(EvaluationPeriodInDB):
+    """
+    Detailed evaluation period schema for single item views.
+    Includes comprehensive information with related entities.
+    """
+    # Users involved in this evaluation period (via goals)
+    users: List['UserProfile'] = Field(default_factory=list, description="Users who have goals in this period")
+    
+    # Comprehensive statistics
+    statistics: Optional['EvaluationPeriodStatistics'] = None
+    
+    # Timeline information
+    is_active: bool = Field(description="Whether the period is currently active")
+    is_goal_submission_open: bool = Field(description="Whether goal submission is still open")
+    is_evaluation_open: bool = Field(description="Whether evaluation is still open")
+    days_remaining: Optional[int] = Field(None, description="Days remaining until period ends")
+
+
+class EvaluationPeriodStatistics(BaseModel):
+    """Statistics for evaluation period detail view"""
+    total_users: int = 0
+    total_goals: int = 0
+    
+    # Assessment statistics
+    total_assessments: int = 0
+    completed_assessments: int = 0
+    pending_assessments: int = 0
+    draft_assessments: int = 0
+    
+    # Feedback statistics
+    total_feedback_required: int = 0
+    completed_feedback: int = 0
+    pending_feedback: int = 0
+    
+    # Progress percentages
+    assessment_completion_rate: float = Field(0.0, ge=0.0, le=100.0, description="Percentage of completed assessments")
+    feedback_completion_rate: float = Field(0.0, ge=0.0, le=100.0, description="Percentage of completed feedback")
+    
+    # Department breakdown
+    department_progress: List['DepartmentProgress'] = Field(default_factory=list)
+
+
+class DepartmentProgress(BaseModel):
+    """Progress statistics by department within an evaluation period"""
+    department_id: UUID
+    department_name: str
+    user_count: int
+    goals_count: int
+    completed_assessments: int
+    pending_assessments: int
+    completion_rate: float = Field(ge=0.0, le=100.0)
+
+
+# === List Response Schema ===
+
+class EvaluationPeriodList(BaseModel):
+    """Schema for paginated evaluation period list responses"""
+    periods: List[EvaluationPeriod]
+    total: int
