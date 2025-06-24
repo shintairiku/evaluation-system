@@ -4,6 +4,8 @@ from typing import Optional, List, Dict, Any, Union, TYPE_CHECKING
 from pydantic import BaseModel, Field, validator, model_validator
 from uuid import UUID
 
+from .common import PaginatedResponse
+
 if TYPE_CHECKING:
     from .evaluation_period import EvaluationPeriod
     from .self_assessment import SelfAssessment
@@ -42,6 +44,63 @@ class CoreValueGoalTargetData(BaseModel):
 
 
 TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData]
+
+
+# === Goal Category Schemas ===
+
+class GoalCategoryBase(BaseModel):
+    """Base schema for goal categories"""
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class GoalCategoryCreate(GoalCategoryBase):
+    """Schema for creating a goal category via API"""
+    pass
+
+
+class GoalCategoryUpdate(BaseModel):
+    """Schema for updating a goal category via API"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+
+
+class GoalCategoryInDB(GoalCategoryBase):
+    """Internal database representation of goal category"""
+    id: int  # smallint in database
+
+    class Config:
+        from_attributes = True
+
+
+class GoalCategory(GoalCategoryInDB):
+    """Goal category schema for API responses"""
+    # Additional computed fields for API convenience
+    goal_count: Optional[int] = Field(None, alias="goalCount", description="Number of goals in this category")
+    description: Optional[str] = Field(None, description="Human-readable description")
+    required_fields: List[str] = Field(default_factory=list, alias="requiredFields", description="Required fields for this category")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class GoalCategoryDetail(GoalCategory):
+    """Detailed goal category schema with paginated goals list"""
+    # Paginated goals list using common pagination
+    goals: PaginatedResponse['Goal'] = Field(description="Paginated goals in this category")
+    
+    # Usage statistics (summary)
+    active_goals_count: Optional[int] = Field(None, alias="activeGoalsCount", description="Number of active goals")
+    draft_goals_count: Optional[int] = Field(None, alias="draftGoalsCount", description="Number of draft goals")
+    approved_goals_count: Optional[int] = Field(None, alias="approvedGoalsCount", description="Number of approved goals")
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class GoalCategoryList(PaginatedResponse[GoalCategory]):
+    """Schema for paginated goal category list responses"""
+    pass
 
 
 class GoalCreate(BaseModel):
@@ -278,6 +337,6 @@ class GoalDetail(Goal):
         populate_by_name = True
 
 
-class GoalList(BaseModel):
-    goals: List[Goal]
-    total: int
+class GoalList(PaginatedResponse[Goal]):
+    """Schema for paginated goal list responses"""
+    pass
