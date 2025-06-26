@@ -186,7 +186,6 @@ erDiagram
 | name | text | 氏名（例：山田 花子） |
 | email | text | メールアドレス（例：[yamada@company.com](https://replit.com/@yamashita98syot/PerformancePortal)）、ユニーク |
 | employee_code | text | 社員コード（例：EMP001、PT001）、ユニーク |
-| employment_type | enum | 雇用形態（admin: 管理者、supervisor: 上司、employee: 正社員、parttime: パート, etc.） |
 | status | enum | ステータス（active: 有効、inactive: 無効） |
 | password | text | パスワード（ハッシュ化、Clerk使用時はNull許容） |
 | job_title | text | 役職 (例: 主任, スーパーバイザー) (Null許容) |
