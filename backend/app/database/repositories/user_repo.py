@@ -189,6 +189,11 @@ class UserRepository:
             params.append(user_data.employee_code)
             param_count += 1
         
+        if user_data.job_title is not None:
+            update_fields.append(f"job_title = ${param_count}")
+            params.append(user_data.job_title)
+            param_count += 1
+        
         if user_data.status is not None:
             update_fields.append(f"status = ${param_count}")
             params.append(user_data.status.value)
@@ -204,21 +209,55 @@ class UserRepository:
             params.append(user_data.stage_id)
             param_count += 1
         
-        if not update_fields:
-            return existing_user  # No changes
-        
-        update_fields.append(f"updated_at = NOW()")
-        params.append(user_id)
-        
-        query = f"""
-            UPDATE users 
-            SET {', '.join(update_fields)}
-            WHERE id = ${param_count}
-            RETURNING *
-        """
-        
-        row = await self.db.fetchrow(query, *params)
-        return UserBase(**dict(row)) if row else None
+        # Use transaction for complex updates
+        conn = await self.db.get_connection()
+        try:
+            async with conn.transaction():
+                # Update user fields if any
+                if update_fields:
+                    update_fields.append(f"updated_at = NOW()")
+                    params.append(user_id)
+                    
+                    query = f"""
+                        UPDATE users 
+                        SET {', '.join(update_fields)}
+                        WHERE id = ${param_count}
+                        RETURNING *
+                    """
+                    
+                    user_row = await conn.fetchrow(query, *params)
+                    if not user_row:
+                        return None
+                else:
+                    user_row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+                
+                # Update roles if provided
+                if user_data.role_ids is not None:
+                    # Remove existing roles
+                    await conn.execute("DELETE FROM user_roles WHERE user_id = $1", user_id)
+                    
+                    # Add new roles
+                    if user_data.role_ids:
+                        role_query = "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)"
+                        for role_id in user_data.role_ids:
+                            await conn.execute(role_query, user_id, role_id)
+                
+                # Update supervisor if provided
+                if user_data.supervisor_id is not None:
+                    # Remove existing supervisor relationships
+                    await conn.execute("DELETE FROM users_supervisors WHERE user_id = $1", user_id)
+                    
+                    # Add new supervisor relationship
+                    if user_data.supervisor_id:
+                        supervisor_query = """
+                            INSERT INTO users_supervisors (user_id, supervisor_id, valid_from)
+                            VALUES ($1, $2, NOW())
+                        """
+                        await conn.execute(supervisor_query, user_id, user_data.supervisor_id)
+                
+                return UserBase(**dict(user_row))
+        finally:
+            await conn.close()
     
     async def delete_user(self, user_id: UUID) -> bool:
         """Delete user with business rule enforcement"""
