@@ -2,5 +2,12 @@ fastapi
 uvicorn[standard]
 psycopg2-binary
 pydantic-settings
+passlib[bcrypt]
 asyncpg
-python-dotenv 
+python-jose[cryptography]
+python-multipart
+python-dotenv
+clerk-backend-sdk
+pydantic[email]
+pytest
+pytest-asyncio 

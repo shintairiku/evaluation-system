@@ -35,7 +35,7 @@
 
 ### 2.1 `users` テーブル
 
--   **ClerkユーザーIDフォーマットチェック (`check_clerk_user_id_format`)**
+-   **ClerkユーザーIDフォーマットチェック (`check_clerk_user_id`)**
     -   条件: `clerk_user_id` カラムの値は、Clerk指定のフォーマット（`user_xxx` または `usr_xxx` で始まり、その後に24文字以上の英数字が続く文字列）であるか、NULLである必要
     -   目的: Clerkシステムとの連携において、IDの形式的な正しさを保証
 
