@@ -29,7 +29,7 @@ class UserRepository:
         """Get user by email address for uniqueness validation"""
         query = """
             SELECT * FROM users 
-            WHERE email = $1 AND status != 'deleted'
+            WHERE email = $1 AND status IN ('active', 'inactive')
         """
         row = await self.db.fetchrow(query, email)
         return UserBase(**dict(row)) if row else None
@@ -38,7 +38,7 @@ class UserRepository:
         """Get user by employee code for uniqueness validation"""
         query = """
             SELECT * FROM users 
-            WHERE employee_code = $1 AND status != 'deleted'
+            WHERE employee_code = $1 AND status IN ('active', 'inactive')
         """
         row = await self.db.fetchrow(query, employee_code)
         return UserBase(**dict(row)) if row else None
@@ -259,8 +259,8 @@ class UserRepository:
         finally:
             await conn.close()
     
-    async def delete_user(self, user_id: UUID) -> bool:
-        """Delete user with business rule enforcement"""
+    async def inactivate_user(self, user_id: UUID) -> bool:
+        """Inactivate user with business rule enforcement"""
         
         # Check if user exists
         existing_user = await self.get_by_id(user_id)
@@ -270,7 +270,7 @@ class UserRepository:
         # Check if user has subordinates (business rule)
         subordinates = await self.get_subordinates(user_id)
         if subordinates:
-            raise ValidationError(f"Cannot delete user with {len(subordinates)} subordinates")
+            raise ValidationError(f"Cannot inactivate user with {len(subordinates)} subordinates")
         
         # Soft delete by setting status to inactive
         query = """
