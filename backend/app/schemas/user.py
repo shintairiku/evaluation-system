@@ -9,13 +9,6 @@ from .common import Permission, PaginatedResponse
 if TYPE_CHECKING:
     from .competency import Competency
 
-class EmploymentType(str, Enum):
-    ADMIN = "admin"
-    SUPERVISOR = "supervisor" 
-    EMPLOYEE = "employee"
-    PARTTIME = "parttime"
-
-
 class UserStatus(str, Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -107,7 +100,6 @@ class UserBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
     employee_code: str = Field(..., min_length=1, max_length=20)
-    employment_type: EmploymentType
     job_title: Optional[str] = Field(None, max_length=100)
 
 
@@ -123,7 +115,6 @@ class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     email: Optional[EmailStr] = None
     employee_code: Optional[str] = Field(None, min_length=1, max_length=20)
-    employment_type: Optional[EmploymentType] = None
     job_title: Optional[str] = Field(None, max_length=100)
     department_id: Optional[UUID] = None
     stage_id: Optional[UUID] = None
@@ -158,7 +149,6 @@ class UserProfile(BaseModel):
     employee_code: str
     name: str
     email: EmailStr
-    employment_type: EmploymentType
     status: UserStatus
     job_title: Optional[str] = None
     department: Department
