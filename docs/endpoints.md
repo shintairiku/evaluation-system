@@ -193,8 +193,6 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
           "total": 147,
           "active": 142,
           "inactive": 5,
-          "employee": 122,
-          "parttime": 25,
           "newThisMonth": 8
         }
       },
@@ -219,7 +217,6 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "employeeCode": "EMP002",
       "name": "鈴木 一郎",
       "email": "ichiro.suzuki@example.com",
-      "employmentType": "parttime",
       "status": "active",
       "departmentId": "uuid",
       "stageId": "uuid",
@@ -244,7 +241,6 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
           "employeeCode": "EMP002",
           "name": "鈴木 一郎",
           "email": "ichiro.suzuki@example.com",
-          "employmentType": "parttime",
           "status": "active",
           "jobTitle": "アルバイト",
           "department": {
@@ -295,7 +291,6 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
           "employeeCode": "EMP001",
           "name": "山田 花子",
           "email": "hanako.yamada@shintairiku.jp",
-          "employmentType": "employee",
           "status": "active",
           "jobTitle": "主任",
           "department": {
@@ -340,7 +335,6 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
       "name": "山田 花子",
       "email": "yamada.hanako@shintairiku.jp",
       "employeeCode": "EMP001",
-      "employmentType": "employee",
       "status": "active",
       "departmentId": "uuid",
       "stageId": "uuid",
@@ -364,7 +358,6 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
           "employeeCode": "EMP001",
           "name": "山田 花子",
           "email": "yamada.hanako@shintairiku.jp",
-          "employmentType": "employee",
           "status": "active",
           "jobTitle": "主任",
           "department": {
@@ -571,14 +564,12 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
             {
               "id": "uuid",
               "name": "山田 花子",
-              "employeeCode": "EMP001",
-              "employmentType": "employee"
+              "employeeCode": "EMP001"
             },
             {
               "id": "uuid",
               "name": "佐藤 太郎",
-              "employeeCode": "EMP002",
-              "employmentType": "employee"
+              "employeeCode": "EMP002"
             }
           ],
           "createdAt": "2024-01-01T00:00:00Z",
