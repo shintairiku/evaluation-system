@@ -31,7 +31,6 @@ async def get_current_user_info(current_user: Dict[str, Any] = Depends(get_curre
                 "employeeCode": "EMP001",
                 "name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
                 "email": current_user.get("email"),
-                "employmentType": "employee",
                 "status": "active",
                 "department": {
                     "id": "uuid",
