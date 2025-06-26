@@ -4,11 +4,6 @@
 
 ## 1. ENUM型定義 (ENUM Type Definitions)
 
--   **雇用形態 (employment_type)**
-    -   説明: 従業員の雇用形態
-    -   許容値: 'auditor' (監査役), 'supervisor' (管理職), 'employee' (正社員), 'parttime' (パート)
-    -   対象テーブル・カラム: `users.employment_type`
-
 -   **ユーザーステータス (user_status)**
     -   説明: ユーザーアカウントの状態
     -   許容値: 'active' (有効), 'inactive' (無効)

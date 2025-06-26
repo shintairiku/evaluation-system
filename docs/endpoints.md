@@ -23,7 +23,6 @@
           "employeeCode": "EMP001",
           "name": "山田 花子",
           "email": "hanako.yamada@shintairiku.jp",
-          "employmentType": "employee",
           "department": {
             "id": "uuid",
             "name": "営業部"
@@ -67,7 +66,6 @@
           "employeeCode": "EMP001",
           "name": "山田 花子",
           "email": "yamada@shintairiku.jp",
-          "employmentType": "employee",
           "status": "active",
           "department": {
             "id": "uuid",
@@ -127,7 +125,6 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
     - `limit`: 1ページあたりの件数（デフォルト: 20、最大: 100）
     - `search`: 検索キーワード（氏名、メール、社員コード）
     - `departmentId`: 部門IDでフィルタ
-    - `employmentType`: 雇用形態でフィルタ（employee, parttime）
     - `roleId`: ロールIDでフィルタ（smallint）
     - `status`: ステータスでフィルタ（active, inactive）
     - `sortBy`: ソート項目（name, employeeCode, createdAt）
@@ -144,7 +141,6 @@ ClerkからのWebhookを受け取り、ユーザーデータをデータベー�
             "employeeCode": "EMP001",
             "name": "山田 花子",
             "email": "hanako.yamada@shintairiku.jp",
-            "employmentType": "employee",
             "status": "active",
             "department": {
               "id": "uuid",
