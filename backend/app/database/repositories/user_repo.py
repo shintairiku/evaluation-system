@@ -16,11 +16,26 @@ class UserRepository:
     def __init__(self):
         self.db = db_session
     
+    async def _department_exists(self, department_id: UUID) -> bool:
+        """Check if department exists"""
+        query = "SELECT 1 FROM departments WHERE id = $1"
+        return await self.db.fetchval(query, department_id) is not None
+    
+    async def _stage_exists(self, stage_id: UUID) -> bool:
+        """Check if stage exists"""
+        query = "SELECT 1 FROM stages WHERE id = $1"
+        return await self.db.fetchval(query, stage_id) is not None
+    
+    async def _supervisor_exists(self, supervisor_id: UUID) -> bool:
+        """Check if supervisor exists and is active"""
+        query = "SELECT 1 FROM users WHERE id = $1 AND status = 'active'"
+        return await self.db.fetchval(query, supervisor_id) is not None
+    
     async def get_by_id(self, user_id: UUID) -> Optional[UserBase]:
         """Get user by ID"""
         query = """
             SELECT * FROM users 
-            WHERE id = $1 AND status != 'deleted'
+            WHERE id = $1 AND status IN ('active', 'inactive')
         """
         row = await self.db.fetchrow(query, user_id)
         return UserBase(**dict(row)) if row else None
@@ -47,7 +62,7 @@ class UserRepository:
         """Get user by Clerk user ID"""
         query = """
             SELECT * FROM users 
-            WHERE clerk_user_id = $1 AND status != 'deleted'
+            WHERE clerk_user_id = $1 AND status IN ('active', 'inactive')
         """
         row = await self.db.fetchrow(query, clerk_user_id)
         return UserBase(**dict(row)) if row else None
@@ -72,11 +87,13 @@ class UserRepository:
             WHERE department_id = $1 AND status = 'active'
             ORDER BY name
         """
+        params = [department_id]
         
         if pagination:
-            query += f" LIMIT {pagination.limit} OFFSET {pagination.offset}"
+            query += " LIMIT $2 OFFSET $3"
+            params.extend([pagination.limit, pagination.offset])
         
-        rows = await self.db.fetch(query, department_id)
+        rows = await self.db.fetch(query, *params)
         return [UserBase(**dict(row)) for row in rows]
     
     async def get_by_role(self, role_name: str, pagination: Optional[PaginationParams] = None) -> List[UserBase]:
@@ -88,15 +105,27 @@ class UserRepository:
             WHERE r.name = $1 AND u.status = 'active'
             ORDER BY u.name
         """
+        params = [role_name]
         
         if pagination:
-            query += f" LIMIT {pagination.limit} OFFSET {pagination.offset}"
+            query += " LIMIT $2 OFFSET $3"
+            params.extend([pagination.limit, pagination.offset])
         
-        rows = await self.db.fetch(query, role_name)
+        rows = await self.db.fetch(query, *params)
         return [UserBase(**dict(row)) for row in rows]
     
     async def create_user(self, user_data: UserCreate) -> UserBase:
         """Create new user with validation and conflict checking"""
+        
+        # Validate references exist
+        if not await self._department_exists(user_data.department_id):
+            raise ValidationError(f"Department {user_data.department_id} does not exist")
+        
+        if not await self._stage_exists(user_data.stage_id):
+            raise ValidationError(f"Stage {user_data.stage_id} does not exist")
+        
+        if user_data.supervisor_id and not await self._supervisor_exists(user_data.supervisor_id):
+            raise ValidationError(f"Supervisor {user_data.supervisor_id} does not exist or is not active")
         
         # Check for conflicts
         if await self.get_by_email(user_data.email):
@@ -159,6 +188,16 @@ class UserRepository:
         existing_user = await self.get_by_id(user_id)
         if not existing_user:
             raise NotFoundError(f"User with ID {user_id} not found")
+        
+        # Validate references if being updated
+        if user_data.department_id and not await self._department_exists(user_data.department_id):
+            raise ValidationError(f"Department {user_data.department_id} does not exist")
+        
+        if user_data.stage_id and not await self._stage_exists(user_data.stage_id):
+            raise ValidationError(f"Stage {user_data.stage_id} does not exist")
+        
+        if user_data.supervisor_id and not await self._supervisor_exists(user_data.supervisor_id):
+            raise ValidationError(f"Supervisor {user_data.supervisor_id} does not exist or is not active")
         
         # Check for conflicts if email/employee_code is being updated
         if user_data.email and user_data.email != existing_user.email:
@@ -294,8 +333,8 @@ class UserRepository:
         if search_term:
             query += f" AND (name ILIKE ${param_count} OR email ILIKE ${param_count} OR employee_code ILIKE ${param_count})"
             search_pattern = f"%{search_term}%"
-            params.extend([search_pattern, search_pattern, search_pattern])
-            param_count += 3
+            params.append(search_pattern)
+            param_count += 1
         
         # Add filters
         if filters:
@@ -313,7 +352,8 @@ class UserRepository:
         
         # Add pagination
         if pagination:
-            query += f" LIMIT {pagination.limit} OFFSET {pagination.offset}"
+            query += f" LIMIT ${param_count} OFFSET ${param_count + 1}"
+            params.extend([pagination.limit, pagination.offset])
         
         rows = await self.db.fetch(query, *params)
         return [UserBase(**dict(row)) for row in rows]
