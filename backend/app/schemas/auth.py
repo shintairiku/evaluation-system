@@ -1,9 +1,6 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 from pydantic import BaseModel, Field
 from uuid import UUID
-
-if TYPE_CHECKING:
-    from .user import UserDetailResponse
 
 
 class SignInRequest(BaseModel):
@@ -15,12 +12,6 @@ class TokenData(BaseModel):
     """Data model for the application's token."""
     access_token: str = Field(..., min_length=1, description="JWT access token")
     refresh_token: str = Field(..., min_length=1, description="JWT refresh token")
-
-
-class SignInResponse(BaseModel):
-    """Response model for login."""
-    user: UserDetailResponse
-    token: TokenData
 
 
 class UserAuthResponse(BaseModel):
