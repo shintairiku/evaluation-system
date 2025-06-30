@@ -15,6 +15,7 @@ from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, 
     PermissionDeniedError, BadRequestError
 )
+from ..core.permissions import PermissionManager, Permission
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class UserService:
         self.user_repo = UserRepository()
     
     async def get_users(
-        self, 
+        self,
         current_user: Dict[str, Any],
         search_term: str = "",
         filters: Optional[Dict[str, Any]] = None,
@@ -45,8 +46,12 @@ class UserService:
             user_role = current_user.get("role")
             user_id = current_user.get("sub")
             
-            # Apply role-based filtering
-            if user_role == "admin":
+            # Validate user_role is present
+            if not user_role:
+                raise PermissionDeniedError("User role not found in token")
+            
+            # Check permissions using PermissionManager
+            if PermissionManager.has_permission(user_role, Permission.USER_READ_ALL):
                 # Admin can see all users
                 users = await self.user_repo.search_users(
                     search_term=search_term,
@@ -54,7 +59,7 @@ class UserService:
                     pagination=pagination
                 )
                 total = await self.user_repo.count_users(filters=filters or {})
-            elif user_role in ["manager", "supervisor"]:
+            elif PermissionManager.has_permission(user_role, Permission.USER_READ_SUBORDINATES):
                 # Manager/Supervisor can only see subordinates
                 if not user_id:
                     raise PermissionDeniedError("User ID not found in token")
@@ -81,7 +86,7 @@ class UserService:
                     users = filtered_subordinates
                 
                 total = len(filtered_subordinates)
-            elif user_role == "viewer":
+            elif PermissionManager.has_permission(user_role, Permission.USER_READ_DEPARTMENT):
                 # Viewer can see users in their department
                 if not user_id:
                     raise PermissionDeniedError("User ID not found in token")
@@ -139,24 +144,29 @@ class UserService:
         - Viewer can view users in same department
         """
         try:
-            current_user_role = current_user.get("role")
+            user_role = current_user.get("role")
             current_user_clerk_id = current_user.get("sub")
+            
+            # Validate user_role is present
+            if not user_role:
+                raise PermissionDeniedError("User role not found in token")
             
             # Check if user exists
             user = await self.user_repo.get_by_id(user_id)
             if not user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Permission checks
+            # Permission checks using PermissionManager
             if current_user_clerk_id:
                 current_user_obj = await self.user_repo.get_by_clerk_id(current_user_clerk_id)
                 if current_user_obj and current_user_obj.id == user_id:
                     # User can always view their own profile
-                    pass
-                elif current_user_role == "admin":
+                    if not PermissionManager.has_permission(user_role, Permission.USER_READ_SELF):
+                        raise PermissionDeniedError("You don't have permission to view user profiles")
+                elif PermissionManager.has_permission(user_role, Permission.USER_READ_ALL):
                     # Admin can view any user
                     pass
-                elif current_user_role in ["manager", "supervisor"]:
+                elif PermissionManager.has_permission(user_role, Permission.USER_READ_SUBORDINATES):
                     # Check if user is a subordinate
                     if current_user_obj:
                         subordinates = await self.user_repo.get_subordinates(current_user_obj.id)
@@ -164,7 +174,7 @@ class UserService:
                             raise PermissionDeniedError("You can only view your own profile or subordinates")
                     else:
                         raise PermissionDeniedError("Current user not found in database")
-                elif current_user_role == "viewer":
+                elif PermissionManager.has_permission(user_role, Permission.USER_READ_DEPARTMENT):
                     # Check if user is in same department
                     if current_user_obj and current_user_obj.department_id != user.department_id:
                         raise PermissionDeniedError("You can only view users in your department")
@@ -196,8 +206,12 @@ class UserService:
         - Set default status to active
         """
         try:
-            # Permission check
-            if current_user.get("role") != "admin":
+            # Permission check using PermissionManager
+            user_role = current_user.get("role")
+            if not user_role:
+                raise PermissionDeniedError("User role not found in token")
+            
+            if not PermissionManager.has_permission(user_role, Permission.USER_CREATE):
                 raise PermissionDeniedError("Only administrators can create users")
             
             # Business validation
@@ -235,21 +249,26 @@ class UserService:
         - Check for conflicts
         """
         try:
-            current_user_role = current_user.get("role")
+            user_role = current_user.get("role")
             current_user_clerk_id = current_user.get("sub")
+            
+            # Validate user_role is present
+            if not user_role:
+                raise PermissionDeniedError("User role not found in token")
             
             # Check if user exists
             existing_user = await self.user_repo.get_by_id(user_id)
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Permission checks
+            # Permission checks using PermissionManager
             if current_user_clerk_id:
                 current_user_obj = await self.user_repo.get_by_clerk_id(current_user_clerk_id)
                 if current_user_obj and current_user_obj.id == user_id:
                     # User can update their own profile
-                    pass
-                elif current_user_role == "admin":
+                    if not PermissionManager.has_permission(user_role, Permission.USER_UPDATE):
+                        raise PermissionDeniedError("You don't have permission to update users")
+                elif PermissionManager.has_permission(user_role, Permission.USER_UPDATE):
                     # Admin can update any user
                     pass
                 else:
@@ -290,8 +309,12 @@ class UserService:
         - Check for active relationships (supervisor, evaluations)
         """
         try:
-            # Permission check
-            if current_user.get("role") != "admin":
+            # Permission check using PermissionManager
+            user_role = current_user.get("role")
+            if not user_role:
+                raise PermissionDeniedError("User role not found in token")
+            
+            if not PermissionManager.has_permission(user_role, Permission.USER_DELETE):
                 raise PermissionDeniedError("Only administrators can inactivate users")
             
             # Check if user exists

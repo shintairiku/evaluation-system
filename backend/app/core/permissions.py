@@ -343,6 +343,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
         permissions={
             # User Management - Self only
             Permission.USER_READ_SELF,
+            Permission.USER_UPDATE,
             
             # Department Management - Own department
             Permission.DEPARTMENT_READ_OWN,
