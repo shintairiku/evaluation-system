@@ -20,6 +20,7 @@ class UserBase(BaseModel):
     email: str
     employee_code: str
     status: UserStatus
+    supervisor_id: Optional[UUID] = None
     password: Optional[str] = None
     job_title: Optional[str] = None
     hashed_refresh_token: Optional[str] = None
