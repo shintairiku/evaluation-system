@@ -1,14 +1,34 @@
-from typing import Optional
-from pydantic import BaseModel, EmailStr
+from typing import Optional, TYPE_CHECKING
+from pydantic import BaseModel, Field
+from uuid import UUID
+
+if TYPE_CHECKING:
+    from .user import UserDetailResponse
+
+
+class SignInRequest(BaseModel):
+    """Request model for clerk signin."""
+    clerk_token: str = Field(..., min_length=1, description="Clerk authentication token")
+
+
+class TokenData(BaseModel):
+    """Data model for the application's token."""
+    access_token: str = Field(..., min_length=1, description="JWT access token")
+    refresh_token: str = Field(..., min_length=1, description="JWT refresh token")
+
+
+class SignInResponse(BaseModel):
+    """Response model for login."""
+    user: UserDetailResponse
+    token: TokenData
 
 
 class UserAuthResponse(BaseModel):
     """Response model for authenticated user information."""
-    id: str
+    id: UUID
     email: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    role: str = "employee"
+    name: str
+    clerk_user_id: str
 
 
 class TokenVerifyRequest(BaseModel):
@@ -23,19 +43,6 @@ class TokenVerifyResponse(BaseModel):
     error: Optional[str] = None
 
 
-class LoginRequest(BaseModel):
-    """Request model for login (handled by Clerk on frontend)."""
-    email: EmailStr
-    password: str
-
-
-class LoginResponse(BaseModel):
-    """Response model for login."""
-    access_token: str
-    token_type: str = "bearer"
-    user: UserAuthResponse
-
-
 class LogoutResponse(BaseModel):
     """Response model for logout."""
-    message: str = "Logout successful"
+    message: str = "Logout successful" 
