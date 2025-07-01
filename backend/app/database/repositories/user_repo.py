@@ -2,6 +2,9 @@ import asyncpg
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date, text
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
+from sqlalchemy.orm import relationship
 
 from ..session import db_session
 from ..models.user import UserBase, UserRole, UserSupervisor, UserStatus
@@ -48,6 +51,17 @@ class UserRepository:
         """
         row = await self.db.fetchrow(query, email)
         return UserBase(**dict(row)) if row else None
+    
+    async def get_user_by_email(self, email: str) -> Optional[UserBase]:
+        """Get user by email address."""
+        try:
+            result = await self.session.execute(
+                select(User).filter(User.email == email)
+            )
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user by email {email}: {e}")
+            raise
     
     async def get_by_employee_code(self, employee_code: str) -> Optional[UserBase]:
         """Get user by employee code for uniqueness validation"""
