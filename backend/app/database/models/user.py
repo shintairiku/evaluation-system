@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from uuid import UUID
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -19,7 +19,7 @@ user_roles = Table(
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     department_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("departments.id"))
     stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id"))
     clerk_user_id = Column(Text, unique=True, nullable=False)
@@ -69,7 +69,7 @@ class User(Base):
 class Department(Base):
     __tablename__ = "departments"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     name = Column(String(100), nullable=False)
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -82,7 +82,7 @@ class Department(Base):
 class Stage(Base):
     __tablename__ = "stages"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     name = Column(String(100), nullable=False)
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
