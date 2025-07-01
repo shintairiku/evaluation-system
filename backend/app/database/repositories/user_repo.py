@@ -22,9 +22,15 @@ class UserRepository:
         """Get user by Clerk user ID."""
         try:
             result = await self.session.execute(
-                select(User).filter(User.clerk_user_id == clerk_user_id)
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles)
+                )
+                .filter(User.clerk_user_id == clerk_user_id)
             )
-            return result.scalars().first()
+            return result.scalars().unique().first()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching user by clerk_id {clerk_user_id}: {e}")
             raise
@@ -85,4 +91,46 @@ class UserRepository:
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching users by status {status}: {e}")
+            raise
+
+    async def get_users_by_role_names(self, role_names: list[str]) -> list[User]:
+        """Get users who have any of the specified roles by name."""
+        try:
+            from ..models.user import Role, user_roles
+            
+            result = await self.session.execute(
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles)
+                )
+                .join(user_roles, User.id == user_roles.c.user_id)
+                .join(Role, user_roles.c.role_id == Role.id)
+                .filter(Role.name.in_([name.lower() for name in role_names]))
+                .filter(User.status == UserStatus.ACTIVE.value)
+                .distinct()
+                .order_by(User.name)
+            )
+            return result.scalars().unique().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching users by role names {role_names}: {e}")
+            raise
+
+    async def get_active_users(self) -> list[User]:
+        """Get all active users with full details."""
+        try:
+            result = await self.session.execute(
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles)
+                )
+                .filter(User.status == UserStatus.ACTIVE.value)
+                .order_by(User.name)
+            )
+            return result.scalars().unique().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching active users: {e}")
             raise
