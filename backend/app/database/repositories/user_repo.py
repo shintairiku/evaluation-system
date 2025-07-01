@@ -1,7 +1,8 @@
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, AsyncGenerator
 from uuid import UUID
 from datetime import datetime
+from enum import Enum
 from sqlalchemy import select, update, delete, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import (
@@ -14,24 +15,25 @@ from sqlalchemy.exc import (
 )
 from sqlalchemy.orm import selectinload, joinedload
 
-from ..sqlalchemy_session import sqlalchemy_session_manager
-from ..models.user_sqlalchemy import User, Role, Department, Stage, UserStatus
+from ..session import get_db_session
+from ..models.user import User, Role, Department, Stage, UserSupervisor
 from ...schemas.user import UserCreate, UserUpdate
 from ...schemas.common import PaginationParams
-from ...core.exceptions import NotFoundError, ConflictError, ValidationError, DatabaseError
+from ...core.exceptions import NotFoundError, ConflictError, ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+class UserStatus(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
 
 
 class UserRepository:
     """Repository for user-related database operations using SQLAlchemy"""
     
     def __init__(self):
-        self.session_manager = sqlalchemy_session_manager
-    
-    async def _get_session(self) -> AsyncSession:
-        """Get database session"""
-        return self.session_manager.async_session()
+        pass
     
     async def _validate_references(self, session: AsyncSession, department_id: UUID, 
                                   stage_id: UUID, supervisor_id: Optional[UUID] = None) -> None:
@@ -65,7 +67,7 @@ class UserRepository:
     
     async def get_by_id(self, user_id: UUID) -> Optional[User]:
         """Get user by ID"""
-        async with self._get_session() as session:
+        async for session in get_db_session():
             result = await session.execute(
                 select(User)
                 .options(selectinload(User.roles), selectinload(User.supervisors))
@@ -80,7 +82,7 @@ class UserRepository:
     
     async def get_by_email(self, email: str) -> Optional[User]:
         """Get user by email address for uniqueness validation"""
-        async with self._get_session() as session:
+        async for session in get_db_session():
             result = await session.execute(
                 select(User).where(
                     and_(
@@ -94,7 +96,7 @@ class UserRepository:
     
     async def get_by_employee_code(self, employee_code: str) -> Optional[User]:
         """Get user by employee code for uniqueness validation"""
-        async with self._get_session() as session:
+        async for session in get_db_session():
             result = await session.execute(
                 select(User).where(
                     and_(
@@ -107,7 +109,7 @@ class UserRepository:
     
     async def get_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
         """Get user by Clerk user ID"""
-        async with self._get_session() as session:
+        async for session in get_db_session():
             result = await session.execute(
                 select(User).where(
                     and_(
@@ -121,7 +123,7 @@ class UserRepository:
     async def get_subordinates(self, supervisor_id: UUID) -> List[User]:
         """Get all subordinates of a supervisor"""
         try:
-            async with self._get_session() as session:
+            async for session in get_db_session():
                 result = await session.execute(
                     select(User)
                     .options(selectinload(User.roles))
@@ -142,7 +144,7 @@ class UserRepository:
     async def get_by_department(self, department_id: UUID, pagination: Optional[PaginationParams] = None) -> List[User]:
         """Get all users in a specific department"""
         try:
-            async with self._get_session() as session:
+            async for session in get_db_session():
                 query = (
                     select(User)
                     .options(selectinload(User.roles))
@@ -167,7 +169,7 @@ class UserRepository:
     async def get_by_role(self, role_name: str, pagination: Optional[PaginationParams] = None) -> List[User]:
         """Get all users with a specific role"""
         try:
-            async with self._get_session() as session:
+            async for session in get_db_session():
                 query = (
                     select(User)
                     .options(selectinload(User.roles))
@@ -192,7 +194,7 @@ class UserRepository:
     
     async def create_user(self, user_data: UserCreate) -> User:
         """Create new user with validation and conflict checking"""
-        async with self._get_session() as session:
+        async for session in get_db_session():
                 # Validate references exist
                 await self._validate_references(
                     session, 
@@ -255,7 +257,7 @@ class UserRepository:
     
     async def update_user(self, user_id: UUID, user_data: UserUpdate) -> Optional[User]:
         """Update user with field validation"""
-        async with self._get_session() as session:
+        async for session in get_db_session():
                 # Get existing user
                 result = await session.execute(
                     select(User).where(User.id == user_id)
@@ -324,7 +326,7 @@ class UserRepository:
     
     async def inactivate_user(self, user_id: UUID) -> bool:
         """Inactivate user (soft delete)"""
-        async with self._get_session() as session:
+        async for session in get_db_session():
             result = await session.execute(
                 select(User).where(User.id == user_id)
             )
@@ -344,7 +346,7 @@ class UserRepository:
                           pagination: Optional[PaginationParams] = None) -> List[User]:
         """Search users with filters and pagination"""
         try:
-            async with self._get_session() as session:
+            async for session in get_db_session():
                 query = (
                     select(User)
                     .options(selectinload(User.roles), selectinload(User.supervisors))
@@ -386,7 +388,7 @@ class UserRepository:
     async def update_last_login(self, user_id: UUID) -> bool:
         """Update user's last login timestamp"""
         try:
-            async with self._get_session() as session:
+            async for session in get_db_session():
                 result = await session.execute(
                     update(User)
                     .where(User.id == user_id)
@@ -403,7 +405,7 @@ class UserRepository:
     async def get_user_roles(self, user_id: UUID) -> List[Role]:
         """Get all roles for a user"""
         try:
-            async with self._get_session() as session:
+            async for session in get_db_session():
                 result = await session.execute(
                     select(User)
                     .options(selectinload(User.roles))
@@ -418,7 +420,7 @@ class UserRepository:
     async def get_user_supervisors(self, user_id: UUID) -> List[User]:
         """Get all supervisors for a user"""
         try:
-            async with self._get_session() as session:
+            async for session in get_db_session():
                 result = await session.execute(
                     select(User)
                     .options(selectinload(User.supervisors))
@@ -433,7 +435,7 @@ class UserRepository:
     async def count_users(self, filters: Dict[str, Any] = None) -> int:
         """Count users with optional filters"""
         try:
-            async with self._get_session() as session:
+            async for session in get_db_session():
                 query = select(func.count(User.id)).where(
                     User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
                 )
