@@ -1,132 +1,185 @@
 import asyncpg
+import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.exc import (
+    IntegrityError, 
+    NoResultFound, 
+    MultipleResultsFound,
+    SQLAlchemyError,
+    OperationalError,
+    ProgrammingError
+)
 
 from ..session import db_session
 from ..models.user import UserBase, UserRole, UserSupervisor, UserStatus
 from ...schemas.user import UserCreate, UserUpdate
 from ...schemas.common import PaginationParams
-from ...core.exceptions import NotFoundError, ConflictError, ValidationError
+from ...core.exceptions import NotFoundError, ConflictError, ValidationError, DatabaseError
+
+logger = logging.getLogger(__name__)
 
 
 class UserRepository:
-    """Repository for user-related database operations"""
+    """Repository for user-related database operations with SQLAlchemy error handling"""
     
     def __init__(self):
         self.db = db_session
     
     async def _department_exists(self, department_id: UUID) -> bool:
         """Check if department exists"""
-        query = "SELECT 1 FROM departments WHERE id = $1"
-        return await self.db.fetchval(query, department_id) is not None
+        try:
+            query = "SELECT 1 FROM departments WHERE id = $1"
+            return await self.db.fetchval(query, department_id) is not None
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error checking department existence: {e}")
+            raise DatabaseError(f"Failed to check department existence: {str(e)}")
     
     async def _stage_exists(self, stage_id: UUID) -> bool:
         """Check if stage exists"""
-        query = "SELECT 1 FROM stages WHERE id = $1"
-        return await self.db.fetchval(query, stage_id) is not None
+        try:
+            query = "SELECT 1 FROM stages WHERE id = $1"
+            return await self.db.fetchval(query, stage_id) is not None
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error checking stage existence: {e}")
+            raise DatabaseError(f"Failed to check stage existence: {str(e)}")
     
     async def _supervisor_exists(self, supervisor_id: UUID) -> bool:
         """Check if supervisor exists and is active"""
-        query = "SELECT 1 FROM users WHERE id = $1 AND status = 'active'"
-        return await self.db.fetchval(query, supervisor_id) is not None
+        try:
+            query = "SELECT 1 FROM users WHERE id = $1 AND status = 'active'"
+            return await self.db.fetchval(query, supervisor_id) is not None
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error checking supervisor existence: {e}")
+            raise DatabaseError(f"Failed to check supervisor existence: {str(e)}")
     
     async def get_by_id(self, user_id: UUID) -> Optional[UserBase]:
         """Get user by ID"""
-        query = """
-            SELECT * FROM users 
-            WHERE id = $1 AND status IN ('active', 'inactive')
-        """
-        row = await self.db.fetchrow(query, user_id)
-        return UserBase(**dict(row)) if row else None
+        try:
+            query = """
+                SELECT * FROM users 
+                WHERE id = $1 AND status IN ('active', 'inactive')
+            """
+            row = await self.db.fetchrow(query, user_id)
+            return UserBase(**dict(row)) if row else None
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching user by ID {user_id}: {e}")
+            raise DatabaseError(f"Failed to fetch user: {str(e)}")
     
     async def get_by_email(self, email: str) -> Optional[UserBase]:
         """Get user by email address for uniqueness validation"""
-        query = """
-            SELECT * FROM users 
-            WHERE email = $1 AND status IN ('active', 'inactive')
-        """
-        row = await self.db.fetchrow(query, email)
-        return UserBase(**dict(row)) if row else None
+        try:
+            query = """
+                SELECT * FROM users 
+                WHERE email = $1 AND status IN ('active', 'inactive')
+            """
+            row = await self.db.fetchrow(query, email)
+            return UserBase(**dict(row)) if row else None
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching user by email {email}: {e}")
+            raise DatabaseError(f"Failed to fetch user by email: {str(e)}")
     
     async def get_user_by_email(self, email: str) -> Optional[UserBase]:
         """Get user by email address."""
         try:
-            result = await self.session.execute(
-                select(User).filter(User.email == email)
-            )
-            return result.scalars().first()
-        except SQLAlchemyError as e:
+            query = """
+                SELECT * FROM users 
+                WHERE email = $1 AND status IN ('active', 'inactive')
+            """
+            row = await self.db.fetchrow(query, email)
+            return UserBase(**dict(row)) if row else None
+        except asyncpg.PostgresError as e:
             logger.error(f"Error fetching user by email {email}: {e}")
-            raise
+            raise DatabaseError(f"Failed to fetch user by email: {str(e)}")
     
     async def get_by_employee_code(self, employee_code: str) -> Optional[UserBase]:
         """Get user by employee code for uniqueness validation"""
-        query = """
-            SELECT * FROM users 
-            WHERE employee_code = $1 AND status IN ('active', 'inactive')
-        """
-        row = await self.db.fetchrow(query, employee_code)
-        return UserBase(**dict(row)) if row else None
+        try:
+            query = """
+                SELECT * FROM users 
+                WHERE employee_code = $1 AND status IN ('active', 'inactive')
+            """
+            row = await self.db.fetchrow(query, employee_code)
+            return UserBase(**dict(row)) if row else None
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching user by employee code {employee_code}: {e}")
+            raise DatabaseError(f"Failed to fetch user by employee code: {str(e)}")
     
     async def get_by_clerk_id(self, clerk_user_id: str) -> Optional[UserBase]:
         """Get user by Clerk user ID"""
-        query = """
-            SELECT * FROM users 
-            WHERE clerk_user_id = $1 AND status IN ('active', 'inactive')
-        """
-        row = await self.db.fetchrow(query, clerk_user_id)
-        return UserBase(**dict(row)) if row else None
+        try:
+            query = """
+                SELECT * FROM users 
+                WHERE clerk_user_id = $1 AND status IN ('active', 'inactive')
+            """
+            row = await self.db.fetchrow(query, clerk_user_id)
+            return UserBase(**dict(row)) if row else None
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching user by Clerk ID {clerk_user_id}: {e}")
+            raise DatabaseError(f"Failed to fetch user by Clerk ID: {str(e)}")
     
     async def get_subordinates(self, supervisor_id: UUID) -> List[UserBase]:
         """Get all subordinates of a supervisor"""
-        query = """
-            SELECT u.* FROM users u
-            INNER JOIN users_supervisors us ON u.id = us.user_id
-            WHERE us.supervisor_id = $1 
-            AND (us.valid_to IS NULL OR us.valid_to > NOW())
-            AND u.status = 'active'
-            ORDER BY u.name
-        """
-        rows = await self.db.fetch(query, supervisor_id)
-        return [UserBase(**dict(row)) for row in rows]
+        try:
+            query = """
+                SELECT u.* FROM users u
+                INNER JOIN users_supervisors us ON u.id = us.user_id
+                WHERE us.supervisor_id = $1 
+                AND (us.valid_to IS NULL OR us.valid_to > NOW())
+                AND u.status = 'active'
+                ORDER BY u.name
+            """
+            rows = await self.db.fetch(query, supervisor_id)
+            return [UserBase(**dict(row)) for row in rows]
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching subordinates for supervisor {supervisor_id}: {e}")
+            raise DatabaseError(f"Failed to fetch subordinates: {str(e)}")
     
     async def get_by_department(self, department_id: UUID, pagination: Optional[PaginationParams] = None) -> List[UserBase]:
         """Get all users in a specific department"""
-        query = """
-            SELECT * FROM users 
-            WHERE department_id = $1 AND status = 'active'
-            ORDER BY name
-        """
-        params = [department_id]
-        
-        if pagination:
-            query += " LIMIT $2 OFFSET $3"
-            params.extend([pagination.limit, pagination.offset])
-        
-        rows = await self.db.fetch(query, *params)
-        return [UserBase(**dict(row)) for row in rows]
+        try:
+            query = """
+                SELECT * FROM users 
+                WHERE department_id = $1 AND status = 'active'
+                ORDER BY name
+            """
+            params = [department_id]
+            
+            if pagination:
+                query += " LIMIT $2 OFFSET $3"
+                params.extend([pagination.limit, pagination.offset])
+            
+            rows = await self.db.fetch(query, *params)
+            return [UserBase(**dict(row)) for row in rows]
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching users by department {department_id}: {e}")
+            raise DatabaseError(f"Failed to fetch users by department: {str(e)}")
     
     async def get_by_role(self, role_name: str, pagination: Optional[PaginationParams] = None) -> List[UserBase]:
         """Get all users with a specific role"""
-        query = """
-            SELECT u.* FROM users u
-            INNER JOIN user_roles ur ON u.id = ur.user_id
-            INNER JOIN roles r ON ur.role_id = r.id
-            WHERE r.name = $1 AND u.status = 'active'
-            ORDER BY u.name
-        """
-        params = [role_name]
-        
-        if pagination:
-            query += " LIMIT $2 OFFSET $3"
-            params.extend([pagination.limit, pagination.offset])
-        
-        rows = await self.db.fetch(query, *params)
-        return [UserBase(**dict(row)) for row in rows]
+        try:
+            query = """
+                SELECT u.* FROM users u
+                INNER JOIN user_roles ur ON u.id = ur.user_id
+                INNER JOIN roles r ON ur.role_id = r.id
+                WHERE r.name = $1 AND u.status = 'active'
+                ORDER BY u.name
+            """
+            params = [role_name]
+            
+            if pagination:
+                query += " LIMIT $2 OFFSET $3"
+                params.extend([pagination.limit, pagination.offset])
+            
+            rows = await self.db.fetch(query, *params)
+            return [UserBase(**dict(row)) for row in rows]
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching users by role {role_name}: {e}")
+            raise DatabaseError(f"Failed to fetch users by role: {str(e)}")
     
     async def create_user(self, user_data: UserCreate) -> UserBase:
         """Create new user with validation and conflict checking"""
@@ -192,6 +245,23 @@ class UserRepository:
                     await conn.execute(supervisor_query, user.id, user_data.supervisor_id)
                 
                 return user
+        except asyncpg.UniqueViolationError as e:
+            await conn.rollback()
+            if "users_email_key" in str(e):
+                raise ConflictError(f"User with email {user_data.email} already exists")
+            elif "users_employee_code_key" in str(e):
+                raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
+            elif "users_clerk_user_id_key" in str(e):
+                raise ConflictError(f"User with Clerk ID {user_data.clerk_user_id} already exists")
+            else:
+                raise ConflictError("User with conflicting unique constraint already exists")
+        except asyncpg.ForeignKeyViolationError as e:
+            await conn.rollback()
+            raise ValidationError("Referenced department, stage, or supervisor does not exist")
+        except asyncpg.PostgresError as e:
+            await conn.rollback()
+            logger.error(f"Error creating user: {e}")
+            raise DatabaseError(f"Failed to create user: {str(e)}")
         finally:
             await conn.close()
     
@@ -309,6 +379,21 @@ class UserRepository:
                         await conn.execute(supervisor_query, user_id, user_data.supervisor_id)
                 
                 return UserBase(**dict(user_row))
+        except asyncpg.UniqueViolationError as e:
+            await conn.rollback()
+            if "users_email_key" in str(e):
+                raise ConflictError(f"User with email {user_data.email} already exists")
+            elif "users_employee_code_key" in str(e):
+                raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
+            else:
+                raise ConflictError("User with conflicting unique constraint already exists")
+        except asyncpg.ForeignKeyViolationError as e:
+            await conn.rollback()
+            raise ValidationError("Referenced department, stage, or supervisor does not exist")
+        except asyncpg.PostgresError as e:
+            await conn.rollback()
+            logger.error(f"Error updating user {user_id}: {e}")
+            raise DatabaseError(f"Failed to update user: {str(e)}")
         finally:
             await conn.close()
     
@@ -326,97 +411,120 @@ class UserRepository:
             raise ValidationError(f"Cannot inactivate user with {len(subordinates)} subordinates")
         
         # Soft delete by setting status to inactive
-        query = """
-            UPDATE users 
-            SET status = 'inactive', updated_at = NOW()
-            WHERE id = $1
-        """
-        
-        result = await self.db.execute(query, user_id)
-        return result == "UPDATE 1"
+        try:
+            query = """
+                UPDATE users 
+                SET status = 'inactive', updated_at = NOW()
+                WHERE id = $1
+            """
+            
+            result = await self.db.execute(query, user_id)
+            return result == "UPDATE 1"
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error inactivating user {user_id}: {e}")
+            raise DatabaseError(f"Failed to inactivate user: {str(e)}")
     
     async def search_users(self, search_term: str = "", filters: Dict[str, Any] = None, 
                           pagination: Optional[PaginationParams] = None) -> List[UserBase]:
         """Advanced search with filtering and pagination"""
-        
-        query = "SELECT * FROM users WHERE status = 'active'"
-        params = []
-        param_count = 1
-        
-        # Add search term
-        if search_term:
-            query += f" AND (name ILIKE ${param_count} OR email ILIKE ${param_count} OR employee_code ILIKE ${param_count})"
-            search_pattern = f"%{search_term}%"
-            params.append(search_pattern)
-            param_count += 1
-        
-        # Add filters
-        if filters:
-            if 'department_id' in filters:
-                query += f" AND department_id = ${param_count}"
-                params.append(filters['department_id'])
+        try:
+            query = "SELECT * FROM users WHERE status = 'active'"
+            params = []
+            param_count = 1
+            
+            # Add search term
+            if search_term:
+                query += f" AND (name ILIKE ${param_count} OR email ILIKE ${param_count} OR employee_code ILIKE ${param_count})"
+                search_pattern = f"%{search_term}%"
+                params.append(search_pattern)
                 param_count += 1
             
-            if 'status' in filters:
-                query += f" AND status = ${param_count}"
-                params.append(filters['status'])
-                param_count += 1
-        
-        query += " ORDER BY name"
-        
-        # Add pagination
-        if pagination:
-            query += f" LIMIT ${param_count} OFFSET ${param_count + 1}"
-            params.extend([pagination.limit, pagination.offset])
-        
-        rows = await self.db.fetch(query, *params)
-        return [UserBase(**dict(row)) for row in rows]
+            # Add filters
+            if filters:
+                if 'department_id' in filters:
+                    query += f" AND department_id = ${param_count}"
+                    params.append(filters['department_id'])
+                    param_count += 1
+                
+                if 'status' in filters:
+                    query += f" AND status = ${param_count}"
+                    params.append(filters['status'])
+                    param_count += 1
+            
+            query += " ORDER BY name"
+            
+            # Add pagination
+            if pagination:
+                query += f" LIMIT ${param_count} OFFSET ${param_count + 1}"
+                params.extend([pagination.limit, pagination.offset])
+            
+            rows = await self.db.fetch(query, *params)
+            return [UserBase(**dict(row)) for row in rows]
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error searching users: {e}")
+            raise DatabaseError(f"Failed to search users: {str(e)}")
     
     async def update_last_login(self, user_id: UUID) -> bool:
         """Update user's last login timestamp"""
-        query = """
-            UPDATE users 
-            SET last_login_at = NOW(), updated_at = NOW()
-            WHERE id = $1
-        """
-        
-        result = await self.db.execute(query, user_id)
-        return result == "UPDATE 1"
+        try:
+            query = """
+                UPDATE users 
+                SET last_login_at = NOW(), updated_at = NOW()
+                WHERE id = $1
+            """
+            
+            result = await self.db.execute(query, user_id)
+            return result == "UPDATE 1"
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error updating last login for user {user_id}: {e}")
+            raise DatabaseError(f"Failed to update last login: {str(e)}")
     
     async def get_user_roles(self, user_id: UUID) -> List[UserRole]:
         """Get roles for a specific user"""
-        query = """
-            SELECT ur.* FROM user_roles ur
-            INNER JOIN users u ON ur.user_id = u.id
-            WHERE ur.user_id = $1 AND u.status = 'active'
-        """
-        rows = await self.db.fetch(query, user_id)
-        return [UserRole(**dict(row)) for row in rows]
+        try:
+            query = """
+                SELECT ur.* FROM user_roles ur
+                INNER JOIN users u ON ur.user_id = u.id
+                WHERE ur.user_id = $1 AND u.status = 'active'
+            """
+            rows = await self.db.fetch(query, user_id)
+            return [UserRole(**dict(row)) for row in rows]
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching roles for user {user_id}: {e}")
+            raise DatabaseError(f"Failed to fetch user roles: {str(e)}")
     
     async def get_user_supervisors(self, user_id: UUID) -> List[UserSupervisor]:
         """Get supervisors for a specific user"""
-        query = """
-            SELECT * FROM users_supervisors
-            WHERE user_id = $1 
-            AND (valid_to IS NULL OR valid_to > NOW())
-            ORDER BY valid_from DESC
-        """
-        rows = await self.db.fetch(query, user_id)
-        return [UserSupervisor(**dict(row)) for row in rows]
+        try:
+            query = """
+                SELECT * FROM users_supervisors
+                WHERE user_id = $1 
+                AND (valid_to IS NULL OR valid_to > NOW())
+                ORDER BY valid_from DESC
+            """
+            rows = await self.db.fetch(query, user_id)
+            return [UserSupervisor(**dict(row)) for row in rows]
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error fetching supervisors for user {user_id}: {e}")
+            raise DatabaseError(f"Failed to fetch user supervisors: {str(e)}")
     
     async def count_users(self, filters: Dict[str, Any] = None) -> int:
         """Count total users with optional filters"""
-        query = "SELECT COUNT(*) FROM users WHERE status = 'active'"
-        params = []
-        param_count = 1
-        
-        if filters:
-            if 'department_id' in filters:
-                query += f" AND department_id = ${param_count}"
-                params.append(filters['department_id'])
-                param_count += 1
-        
-        return await self.db.fetchval(query, *params)
+        try:
+            query = "SELECT COUNT(*) FROM users WHERE status = 'active'"
+            params = []
+            param_count = 1
+            
+            if filters:
+                if 'department_id' in filters:
+                    query += f" AND department_id = ${param_count}"
+                    params.append(filters['department_id'])
+                    param_count += 1
+            
+            return await self.db.fetchval(query, *params)
+        except asyncpg.PostgresError as e:
+            logger.error(f"Error counting users: {e}")
+            raise DatabaseError(f"Failed to count users: {str(e)}")
 
 
 # Global repository instance
