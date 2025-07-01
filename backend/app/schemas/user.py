@@ -10,11 +10,19 @@ if TYPE_CHECKING:
     from .competency import Competency
 
 
+# ========================================
+# ENUMS
+# ========================================
+
 class UserStatus(str, Enum):
     PENDING_APPROVAL = "pending_approval"
     ACTIVE = "active"
     INACTIVE = "inactive"
 
+
+# ========================================
+# DEPARTMENT SCHEMAS
+# ========================================
 
 class Department(BaseModel):
     id: UUID
@@ -45,6 +53,10 @@ class DepartmentUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
 
 
+# ========================================
+# STAGE SCHEMAS
+# ========================================
+
 class Stage(BaseModel):
     id: UUID
     name: str
@@ -74,6 +86,10 @@ class StageUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
 
 
+# ========================================
+# ROLE SCHEMAS
+# ========================================
+
 class Role(BaseModel):
     id: int
     name: str
@@ -98,6 +114,10 @@ class RoleUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=1, max_length=200)
 
 
+# ========================================
+# USER BASE SCHEMAS
+# ========================================
+
 class UserBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
@@ -107,10 +127,11 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     clerk_user_id: str = Field(..., min_length=1)
-    department_id: UUID
-    stage_id: UUID
+    department_id: Optional[UUID] = None
+    stage_id: Optional[UUID] = None
     role_ids: List[int] = []
     supervisor_id: Optional[UUID] = None
+    subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = UserStatus.PENDING_APPROVAL
 
 
@@ -138,6 +159,10 @@ class UserInDB(UserBase):
         from_attributes = True
 
 
+# ========================================
+# USER RESPONSE SCHEMAS
+# ========================================
+
 class User(UserInDB):
     department: Department
     stage: Stage
@@ -153,10 +178,11 @@ class UserDetailResponse(BaseModel):
     email: EmailStr
     status: UserStatus
     job_title: Optional[str] = None
-    department: Department
-    stage: Stage
+    department: Optional[Department] = None
+    stage: Optional[Stage] = None
     roles: List[Role] = []
     supervisor: Optional["UserDetailResponse"] = None
+    subordinates: Optional[List["UserDetailResponse"]] = None
 
     class Config:
         from_attributes = True
@@ -164,3 +190,37 @@ class UserDetailResponse(BaseModel):
 
 class UserPaginatedResponse(PaginatedResponse):
     data: List[UserDetailResponse]
+
+
+# ========================================
+# SIGNUP SCHEMAS
+# ========================================
+
+class UserSignUpRequest(UserBase):
+    """Request for user signup with all profile options."""
+    clerk_user_id: str = Field(..., min_length=1)
+    department_id: Optional[UUID] = None
+    stage_id: Optional[UUID] = None
+    role_ids: List[int] = []
+    supervisor_id: Optional[UUID] = None
+    subordinate_ids: Optional[List[UUID]] = None
+
+
+class SignUpOptionsResponse(BaseModel):
+    """Response with all available options for signup."""
+    departments: List[Department]
+    stages: List[Stage]
+    roles: List[Role]
+    users: List[User]  # Conditional based on role selection
+
+
+# ========================================
+# FORWARD REFERENCES UPDATE
+# ========================================
+
+# Update forward references for self-referencing models (Pydantic v1)
+try:
+    UserDetailResponse.update_forward_refs()
+except Exception:
+    # Ignore forward reference errors for now
+    pass
