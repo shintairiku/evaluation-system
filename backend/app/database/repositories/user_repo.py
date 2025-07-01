@@ -33,128 +33,90 @@ class UserRepository:
         """Get database session"""
         return self.session_manager.async_session()
     
-    async def _department_exists(self, department_id: UUID) -> bool:
-        """Check if department exists"""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(Department).where(Department.id == department_id)
-                )
-                return result.scalar_one_or_none() is not None
-        except SQLAlchemyError as e:
-            logger.error(f"Error checking department existence: {e}")
-            raise
-    
-    async def _stage_exists(self, stage_id: UUID) -> bool:
-        """Check if stage exists"""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(Stage).where(Stage.id == stage_id)
-                )
-                return result.scalar_one_or_none() is not None
-        except SQLAlchemyError as e:
-            logger.error(f"Error checking stage existence: {e}")
-            raise
-    
-    async def _supervisor_exists(self, supervisor_id: UUID) -> bool:
-        """Check if supervisor exists and is active"""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(User).where(
-                        and_(
-                            User.id == supervisor_id,
-                            User.status == UserStatus.ACTIVE
-                        )
+    async def _validate_references(self, session: AsyncSession, department_id: UUID, 
+                                  stage_id: UUID, supervisor_id: Optional[UUID] = None) -> None:
+        """Validate that all referenced entities exist"""
+        # Check department exists
+        dept_result = await session.execute(
+            select(Department.id).where(Department.id == department_id)
+        )
+        if not dept_result.scalar_one_or_none():
+            raise ValidationError(f"Department {department_id} does not exist")
+        
+        # Check stage exists
+        stage_result = await session.execute(
+            select(Stage.id).where(Stage.id == stage_id)
+        )
+        if not stage_result.scalar_one_or_none():
+            raise ValidationError(f"Stage {stage_id} does not exist")
+        
+        # Check supervisor if provided
+        if supervisor_id:
+            supervisor_result = await session.execute(
+                select(User.id).where(
+                    and_(
+                        User.id == supervisor_id,
+                        User.status == UserStatus.ACTIVE
                     )
                 )
-                return result.scalar_one_or_none() is not None
-        except SQLAlchemyError as e:
-            logger.error(f"Error checking supervisor existence: {e}")
-            raise
+            )
+            if not supervisor_result.scalar_one_or_none():
+                raise ValidationError(f"Supervisor {supervisor_id} does not exist or is not active")
     
     async def get_by_id(self, user_id: UUID) -> Optional[User]:
         """Get user by ID"""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(User)
-                    .options(selectinload(User.roles), selectinload(User.supervisors))
-                    .where(
-                        and_(
-                            User.id == user_id,
-                            User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
-                        )
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(User)
+                .options(selectinload(User.roles), selectinload(User.supervisors))
+                .where(
+                    and_(
+                        User.id == user_id,
+                        User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
                     )
                 )
-                return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by ID {user_id}: {e}")
-            raise
+            )
+            return result.scalar_one_or_none()
     
     async def get_by_email(self, email: str) -> Optional[User]:
         """Get user by email address for uniqueness validation"""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(User).where(
-                        and_(
-                            User.email == email,
-                            User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
-                        )
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(User).where(
+                    and_(
+                        User.email == email,
+                        User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
                     )
                 )
-                return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by email {email}: {e}")
-            raise
+            )
+            return result.scalar_one_or_none()
     
-    async def get_user_by_email(self, email: str) -> Optional[User]:
-        """Get user by email address."""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(User).filter(User.email == email)
-                )
-                return result.scalars().first()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by email {email}: {e}")
-            raise
     
     async def get_by_employee_code(self, employee_code: str) -> Optional[User]:
         """Get user by employee code for uniqueness validation"""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(User).where(
-                        and_(
-                            User.employee_code == employee_code,
-                            User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
-                        )
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(User).where(
+                    and_(
+                        User.employee_code == employee_code,
+                        User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
                     )
                 )
-                return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by employee code {employee_code}: {e}")
-            raise
+            )
+            return result.scalar_one_or_none()
     
     async def get_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
         """Get user by Clerk user ID"""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(User).where(
-                        and_(
-                            User.clerk_user_id == clerk_user_id,
-                            User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
-                        )
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(User).where(
+                    and_(
+                        User.clerk_user_id == clerk_user_id,
+                        User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
                     )
                 )
-                return result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by Clerk ID {clerk_user_id}: {e}")
-            raise
+            )
+            return result.scalar_one_or_none()
     
     async def get_subordinates(self, supervisor_id: UUID) -> List[User]:
         """Get all subordinates of a supervisor"""
@@ -230,26 +192,32 @@ class UserRepository:
     
     async def create_user(self, user_data: UserCreate) -> User:
         """Create new user with validation and conflict checking"""
-        try:
-            async with self._get_session() as session:
+        async with self._get_session() as session:
                 # Validate references exist
-                if not await self._department_exists(user_data.department_id):
-                    raise ValidationError(f"Department {user_data.department_id} does not exist")
-                
-                if not await self._stage_exists(user_data.stage_id):
-                    raise ValidationError(f"Stage {user_data.stage_id} does not exist")
-                
-                if user_data.supervisor_id and not await self._supervisor_exists(user_data.supervisor_id):
-                    raise ValidationError(f"Supervisor {user_data.supervisor_id} does not exist or is not active")
+                await self._validate_references(
+                    session, 
+                    user_data.department_id, 
+                    user_data.stage_id, 
+                    user_data.supervisor_id
+                )
                 
                 # Check for conflicts
-                if await self.get_by_email(user_data.email):
+                existing_email = await session.execute(
+                    select(User.id).where(User.email == user_data.email)
+                )
+                if existing_email.scalar_one_or_none():
                     raise ConflictError(f"User with email {user_data.email} already exists")
                 
-                if await self.get_by_employee_code(user_data.employee_code):
+                existing_code = await session.execute(
+                    select(User.id).where(User.employee_code == user_data.employee_code)
+                )
+                if existing_code.scalar_one_or_none():
                     raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
                 
-                if await self.get_by_clerk_id(user_data.clerk_user_id):
+                existing_clerk = await session.execute(
+                    select(User.id).where(User.clerk_user_id == user_data.clerk_user_id)
+                )
+                if existing_clerk.scalar_one_or_none():
                     raise ConflictError(f"User with Clerk ID {user_data.clerk_user_id} already exists")
                 
                 # Create user
@@ -284,14 +252,10 @@ class UserRepository:
                 await session.commit()
                 await session.refresh(user)
                 return user
-        except SQLAlchemyError as e:
-            logger.error(f"Error creating user: {e}")
-            raise
     
     async def update_user(self, user_id: UUID, user_data: UserUpdate) -> Optional[User]:
         """Update user with field validation"""
-        try:
-            async with self._get_session() as session:
+        async with self._get_session() as session:
                 # Get existing user
                 result = await session.execute(
                     select(User).where(User.id == user_id)
@@ -302,29 +266,34 @@ class UserRepository:
                     raise NotFoundError(f"User {user_id} not found")
                 
                 # Validate references if being updated
-                if user_data.department_id and not await self._department_exists(user_data.department_id):
-                    raise ValidationError(f"Department {user_data.department_id} does not exist")
-                
-                if user_data.stage_id and not await self._stage_exists(user_data.stage_id):
-                    raise ValidationError(f"Stage {user_data.stage_id} does not exist")
-                
-                if user_data.supervisor_id and not await self._supervisor_exists(user_data.supervisor_id):
-                    raise ValidationError(f"Supervisor {user_data.supervisor_id} does not exist or is not active")
+                if user_data.department_id or user_data.stage_id or user_data.supervisor_id is not None:
+                    await self._validate_references(
+                        session,
+                        user_data.department_id or user.department_id,
+                        user_data.stage_id or user.stage_id,
+                        user_data.supervisor_id if user_data.supervisor_id is not None else (user.supervisors[0].id if user.supervisors else None)
+                    )
                 
                 # Check for conflicts if updating unique fields
                 if user_data.email and user_data.email != user.email:
-                    existing_user = await self.get_by_email(user_data.email)
-                    if existing_user and existing_user.id != user_id:
+                    existing_email = await session.execute(
+                        select(User.id).where(and_(User.email == user_data.email, User.id != user_id))
+                    )
+                    if existing_email.scalar_one_or_none():
                         raise ConflictError(f"User with email {user_data.email} already exists")
                 
                 if user_data.employee_code and user_data.employee_code != user.employee_code:
-                    existing_user = await self.get_by_employee_code(user_data.employee_code)
-                    if existing_user and existing_user.id != user_id:
+                    existing_code = await session.execute(
+                        select(User.id).where(and_(User.employee_code == user_data.employee_code, User.id != user_id))
+                    )
+                    if existing_code.scalar_one_or_none():
                         raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
                 
                 if user_data.clerk_user_id and user_data.clerk_user_id != user.clerk_user_id:
-                    existing_user = await self.get_by_clerk_id(user_data.clerk_user_id)
-                    if existing_user and existing_user.id != user_id:
+                    existing_clerk = await session.execute(
+                        select(User.id).where(and_(User.clerk_user_id == user_data.clerk_user_id, User.id != user_id))
+                    )
+                    if existing_clerk.scalar_one_or_none():
                         raise ConflictError(f"User with Clerk ID {user_data.clerk_user_id} already exists")
                 
                 # Update fields
@@ -352,31 +321,24 @@ class UserRepository:
                 await session.commit()
                 await session.refresh(user)
                 return user
-        except SQLAlchemyError as e:
-            logger.error(f"Error updating user {user_id}: {e}")
-            raise
     
     async def inactivate_user(self, user_id: UUID) -> bool:
         """Inactivate user (soft delete)"""
-        try:
-            async with self._get_session() as session:
-                result = await session.execute(
-                    select(User).where(User.id == user_id)
-                )
-                user = result.scalar_one_or_none()
-                
-                if not user:
-                    raise NotFoundError(f"User {user_id} not found")
-                
-                if user.status == UserStatus.INACTIVE:
-                    return False
-                
-                user.status = UserStatus.INACTIVE
-                await session.commit()
-                return True
-        except SQLAlchemyError as e:
-            logger.error(f"Error inactivating user {user_id}: {e}")
-            raise
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                raise NotFoundError(f"User {user_id} not found")
+            
+            if user.status == UserStatus.INACTIVE:
+                return False
+            
+            user.status = UserStatus.INACTIVE
+            await session.commit()
+            return True
     
     async def search_users(self, search_term: str = "", filters: Dict[str, Any] = None, 
                           pagination: Optional[PaginationParams] = None) -> List[User]:
