@@ -1,0 +1,2 @@
+2025-07-01 13:38:12,659 - root - INFO - setup_repository_test_logging:47 - ✅ Repository test logging setup complete for 'user'
+2025-07-01 13:38:12,659 - root - INFO - setup_repository_test_logging:48 - 📁 Log file: /Users/reiminagao/新大陸/evaluation-system/backend/tests/repositories/../../tests/repositories/logs/user_repo_test_20250701_133812.log

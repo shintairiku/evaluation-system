@@ -14,8 +14,8 @@ from typing import Dict, Any
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from app.database.repositories.user_repo import user_repository
-from app.schemas.user import UserCreate, UserUpdate, UserStatus
+from app.database.repositories.user_repo import user_repository, UserStatus
+from app.schemas.user import UserCreate, UserUpdate
 from app.schemas.common import PaginationParams
 from tests.repositories.test_logging_utils import (
     setup_repository_test_logging,
@@ -529,7 +529,6 @@ async def main():
     """Main function with command-line argument support"""
     parser = argparse.ArgumentParser(description="UserRepository Test Suite")
     parser.add_argument('test_name', nargs='?', help='Specific test to run')
-    parser.add_argument('--help', '-h', action='store_true', help='Show help')
     parser.add_argument('--list', '-l', action='store_true', help='List all tests')
     
     # Parse arguments
