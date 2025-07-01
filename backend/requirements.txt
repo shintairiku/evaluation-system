@@ -4,6 +4,7 @@ psycopg2-binary
 pydantic-settings
 passlib[bcrypt]
 asyncpg
+sqlalchemy[asyncio]
 python-jose[cryptography]
 python-multipart
 python-dotenv
