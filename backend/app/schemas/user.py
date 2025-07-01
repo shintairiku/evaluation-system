@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 
 class UserStatus(str, Enum):
+    PENDING_APPROVAL = "pending_approval"
     ACTIVE = "active"
     INACTIVE = "inactive"
 
@@ -31,7 +32,7 @@ class DepartmentDetail(BaseModel):
     user_count: Optional[int] = None
     manager_id: Optional[UUID] = None
     manager_name: Optional[str] = None
-    users: Optional[PaginatedResponse['UserProfile']] = None
+    users: Optional[PaginatedResponse['UserDetailResponse']] = None
 
 
 class DepartmentCreate(BaseModel):
@@ -59,7 +60,7 @@ class StageDetail(BaseModel):
     # NOTE: below metadata is optional; not finalized yet. Refine metadata based on UI requirement.
     user_count: Optional[int] = None
     competency_count: Optional[int] = None
-    users: Optional[PaginatedResponse['UserProfile']] = None
+    users: Optional[PaginatedResponse['UserDetailResponse']] = None
     competencies: Optional[List['Competency']] = None
 
 
@@ -110,6 +111,7 @@ class UserCreate(UserBase):
     stage_id: UUID
     role_ids: List[int] = []
     supervisor_id: Optional[UUID] = None
+    status: Optional[UserStatus] = UserStatus.PENDING_APPROVAL
 
 
 class UserUpdate(BaseModel):
@@ -131,7 +133,6 @@ class UserInDB(UserBase):
     stage_id: UUID
     created_at: datetime
     updated_at: datetime
-    last_login_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -141,10 +142,10 @@ class User(UserInDB):
     department: Department
     stage: Stage
     roles: List[Role] = []
-    supervisor: Optional['UserProfile'] = None
+    supervisor: Optional['UserDetailResponse'] = None
 
 
-class UserProfile(BaseModel):
+class UserDetailResponse(BaseModel):
     id: UUID
     clerk_user_id: str
     employee_code: str
@@ -155,8 +156,11 @@ class UserProfile(BaseModel):
     department: Department
     stage: Stage
     roles: List[Role] = []
+    supervisor: Optional["UserDetailResponse"] = None
+
+    class Config:
+        from_attributes = True
 
 
-class UserList(BaseModel):
-    users: List[UserProfile]
-    total: int
+class UserPaginatedResponse(PaginatedResponse):
+    data: List[UserDetailResponse]
