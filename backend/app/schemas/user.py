@@ -125,6 +125,15 @@ class UserBase(BaseModel):
     job_title: Optional[str] = Field(None, max_length=100)
 
 
+class UserProfileOption(UserBase):
+    """User schema for signup profile options - UserBase + Role information."""
+    id: UUID
+    roles: List[Role] = []
+    
+    class Config:
+        from_attributes = True
+
+
 class UserCreate(UserBase):
     clerk_user_id: str = Field(..., min_length=1)
     department_id: Optional[UUID] = None
