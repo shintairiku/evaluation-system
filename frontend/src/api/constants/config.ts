@@ -1,0 +1,147 @@
+export const API_CONFIG = {
+  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1',
+  TIMEOUT: 30000, // 30 seconds
+  RETRY_ATTEMPTS: 3,
+  RETRY_DELAY: 1000, // 1 second
+} as const;
+
+export const API_ENDPOINTS = {
+  // Auth endpoints
+  AUTH: {
+    SIGNIN: '/auth/signin',
+    SIGNOUT: '/auth/signout',
+    REFRESH: '/auth/refresh',
+    CURRENT_USER: '/auth/current-user',
+  },
+  
+  // User endpoints
+  USERS: {
+    LIST: '/users',
+    BY_ID: (id: string) => `/users/${id}`,
+    CREATE: '/users',
+    UPDATE: (id: string) => `/users/${id}`,
+    DELETE: (id: string) => `/users/${id}`,
+  },
+  
+  // Department endpoints
+  DEPARTMENTS: {
+    LIST: '/departments',
+    BY_ID: (id: string) => `/departments/${id}`,
+    CREATE: '/departments',
+    UPDATE: (id: string) => `/departments/${id}`,
+    DELETE: (id: string) => `/departments/${id}`,
+  },
+  
+  // Role endpoints
+  ROLES: {
+    LIST: '/roles',
+    BY_ID: (id: string) => `/roles/${id}`,
+    CREATE: '/roles',
+    UPDATE: (id: string) => `/roles/${id}`,
+    DELETE: (id: string) => `/roles/${id}`,
+  },
+  
+  // Stage endpoints
+  STAGES: {
+    LIST: '/stages',
+    BY_ID: (id: string) => `/stages/${id}`,
+    CREATE: '/stages',
+    UPDATE: (id: string) => `/stages/${id}`,
+    DELETE: (id: string) => `/stages/${id}`,
+  },
+  
+  // Evaluation Period endpoints
+  EVALUATION_PERIODS: {
+    LIST: '/evaluation-periods',
+    BY_ID: (id: string) => `/evaluation-periods/${id}`,
+    CREATE: '/evaluation-periods',
+    UPDATE: (id: string) => `/evaluation-periods/${id}`,
+    DELETE: (id: string) => `/evaluation-periods/${id}`,
+    CURRENT: '/evaluation-periods/current',
+  },
+  
+  // Goal endpoints
+  GOALS: {
+    LIST: '/goals',
+    BY_ID: (id: string) => `/goals/${id}`,
+    CREATE: '/goals',
+    UPDATE: (id: string) => `/goals/${id}`,
+    DELETE: (id: string) => `/goals/${id}`,
+    BY_USER: (userId: string) => `/goals/user/${userId}`,
+    BY_PERIOD: (periodId: string) => `/goals/period/${periodId}`,
+  },
+  
+  // Goal Category endpoints
+  GOAL_CATEGORIES: {
+    LIST: '/goal-categories',
+    BY_ID: (id: string) => `/goal-categories/${id}`,
+    CREATE: '/goal-categories',
+    UPDATE: (id: string) => `/goal-categories/${id}`,
+    DELETE: (id: string) => `/goal-categories/${id}`,
+  },
+  
+  // Competency endpoints
+  COMPETENCIES: {
+    LIST: '/competencies',
+    BY_ID: (id: string) => `/competencies/${id}`,
+    CREATE: '/competencies',
+    UPDATE: (id: string) => `/competencies/${id}`,
+    DELETE: (id: string) => `/competencies/${id}`,
+  },
+  
+  // Self Assessment endpoints
+  SELF_ASSESSMENTS: {
+    LIST: '/self-assessments',
+    BY_ID: (id: string) => `/self-assessments/${id}`,
+    CREATE: '/self-assessments',
+    UPDATE: (id: string) => `/self-assessments/${id}`,
+    DELETE: (id: string) => `/self-assessments/${id}`,
+    BY_USER: (userId: string) => `/self-assessments/user/${userId}`,
+    BY_PERIOD: (periodId: string) => `/self-assessments/period/${periodId}`,
+  },
+  
+  // Supervisor Review endpoints
+  SUPERVISOR_REVIEWS: {
+    LIST: '/supervisor-reviews',
+    BY_ID: (id: string) => `/supervisor-reviews/${id}`,
+    CREATE: '/supervisor-reviews',
+    UPDATE: (id: string) => `/supervisor-reviews/${id}`,
+    DELETE: (id: string) => `/supervisor-reviews/${id}`,
+    BY_SUPERVISOR: (supervisorId: string) => `/supervisor-reviews/supervisor/${supervisorId}`,
+    BY_EMPLOYEE: (employeeId: string) => `/supervisor-reviews/employee/${employeeId}`,
+  },
+  
+  // Supervisor Feedback endpoints
+  SUPERVISOR_FEEDBACKS: {
+    LIST: '/supervisor-feedbacks',
+    BY_ID: (id: string) => `/supervisor-feedbacks/${id}`,
+    CREATE: '/supervisor-feedbacks',
+    UPDATE: (id: string) => `/supervisor-feedbacks/${id}`,
+    DELETE: (id: string) => `/supervisor-feedbacks/${id}`,
+    BY_SUPERVISOR: (supervisorId: string) => `/supervisor-feedbacks/supervisor/${supervisorId}`,
+    BY_EMPLOYEE: (employeeId: string) => `/supervisor-feedbacks/employee/${employeeId}`,
+  },
+} as const;
+
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  NO_CONTENT: 204,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  UNPROCESSABLE_ENTITY: 422,
+  INTERNAL_SERVER_ERROR: 500,
+} as const;
+
+export const ERROR_MESSAGES = {
+  NETWORK_ERROR: 'Network error occurred. Please check your connection.',
+  UNAUTHORIZED: 'You are not authorized to access this resource.',
+  FORBIDDEN: 'Access denied. You do not have permission to perform this action.',
+  NOT_FOUND: 'The requested resource was not found.',
+  VALIDATION_ERROR: 'Please check your input and try again.',
+  INTERNAL_ERROR: 'An internal error occurred. Please try again later.',
+  TIMEOUT: 'Request timed out. Please try again.',
+} as const;

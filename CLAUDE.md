@@ -32,6 +32,12 @@ uvicorn app.main:app --reload
   - `/src/app` - App Router pages
   - `/src/components` - Reusable components
   - `/src/feature` - Feature-specific components
+  - `/src/api` - API integration layer
+    - `/client` - HTTP client with Clerk auth
+    - `/constants` - API endpoints & configuration
+    - `/endpoints` - 1:1 API endpoint functions
+    - `/server-actions` - Next.js server actions for SSR
+    - `/types` - TypeScript interfaces matching backend schemas
 - `/backend` - FastAPI application
   - `/app/api` - API endpoints
   - `/app/database` - Database models and repositories
@@ -43,6 +49,23 @@ uvicorn app.main:app --reload
 - Follow Python PEP 8 style for backend code
 - Components use shadcn/ui library
 - API endpoints follow RESTful conventions
+
+### Backend Logic Flow
+- Endpoints in /app/api must only call services.
+- Services in /app/services contain business logic and orchestrate calls to one or more repositories to fulfill a use case. For example, UserService would call both UserRepository and DepartmentRepository to build a detailed user response.
+- Repositories in /app/database are responsible only for database queries.
+
+### Frontend API Integration
+- **Server-Side First**: Prioritize server-side data fetching using server actions for SSR/SEO benefits
+- **1:1 Endpoint Mapping**: Each frontend API function corresponds directly to a backend endpoint
+- **Type Safety**: All API interactions use TypeScript interfaces matching backend Pydantic schemas
+- **Centralized Configuration**: API base URLs and endpoints defined in `/src/api/constants/`
+- **Consistent Error Handling**: Standardized `ApiResponse<T>` format across all API calls
+- **Authentication**: Automatic Clerk token injection via HTTP client
+- **Usage Patterns**:
+  - Use server actions (`/src/api/server-actions/`) for server components and SSR
+  - Use endpoint functions (`/src/api/endpoints/`) for client-side interactions when needed
+  - All API types are defined in `/src/api/types/` and exported from index
 
 ## Testing Commands
 ```bash
