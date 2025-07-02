@@ -198,6 +198,17 @@ class UserPaginatedResponse(PaginatedResponse):
     data: List[UserDetailResponse]
 
 
+class UserExistsResponse(BaseModel):
+    """Minimal user info for existence check during auth flow"""
+    exists: bool
+    user_id: Optional[UUID] = None
+    name: Optional[str] = None  
+    email: Optional[EmailStr] = None
+    status: Optional[UserStatus] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 
 # ========================================
 # FORWARD REFERENCES UPDATE
