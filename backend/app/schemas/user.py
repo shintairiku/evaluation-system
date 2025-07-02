@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, TYPE_CHECKING
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from uuid import UUID
 
 from .common import Permission, PaginatedResponse
@@ -130,8 +130,7 @@ class UserProfileOption(UserBase):
     id: UUID
     roles: List[Role] = []
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserCreate(UserBase):
@@ -164,20 +163,19 @@ class UserInDB(UserBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ========================================
 # USER RESPONSE SCHEMAS
 # ========================================
 
+
 class User(UserInDB):
     department: Department
     stage: Stage
     roles: List[Role] = []
     supervisor: Optional['UserDetailResponse'] = None
-
 
 class UserDetailResponse(BaseModel):
     id: UUID
@@ -193,43 +191,21 @@ class UserDetailResponse(BaseModel):
     supervisor: Optional["UserDetailResponse"] = None
     subordinates: Optional[List["UserDetailResponse"]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserPaginatedResponse(PaginatedResponse):
     data: List[UserDetailResponse]
 
 
-# ========================================
-# SIGNUP SCHEMAS
-# ========================================
-
-class UserSignUpRequest(UserBase):
-    """Request for user signup with all profile options."""
-    clerk_user_id: str = Field(..., min_length=1)
-    department_id: Optional[UUID] = None
-    stage_id: Optional[UUID] = None
-    role_ids: List[int] = []
-    supervisor_id: Optional[UUID] = None
-    subordinate_ids: Optional[List[UUID]] = None
-
-
-class SignUpOptionsResponse(BaseModel):
-    """Response with all available options for signup."""
-    departments: List[Department]
-    stages: List[Stage]
-    roles: List[Role]
-    users: List[User]  # Conditional based on role selection
-
 
 # ========================================
 # FORWARD REFERENCES UPDATE
 # ========================================
 
-# Update forward references for self-referencing models (Pydantic v1)
+# Update forward references for self-referencing models (Pydantic v2)
 try:
-    UserDetailResponse.update_forward_refs()
+    UserDetailResponse.model_rebuild()
 except Exception:
     # Ignore forward reference errors for now
     pass
