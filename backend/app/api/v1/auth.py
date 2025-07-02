@@ -1,21 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...dependencies.auth import get_current_user
-from ...schemas.auth import UserAuthResponse, TokenVerifyResponse
+from ...services.auth_service import AuthService
+from ...schemas.auth import SignUpOptionsResponse
+from ...database.session import get_db_session
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-@router.post("/signin")
-async def signin():
+@router.get("/signup/profile-options", response_model=SignUpOptionsResponse)
+async def get_profile_options(
+    session: AsyncSession = Depends(get_db_session)
+):
     """
-    Placeholder for Clerk integration signin endpoint.
-    Full implementation requires database integration (separate issue).
+    Get all available options for signup form.
+    Returns departments, stages, roles, and active users.
     """
-    raise HTTPException(
-        status_code=501, 
-        detail="Signin endpoint implementation requires database integration - tracked in separate issue"
-    )
+    try:
+        auth_service = AuthService(session=session)
+        return await auth_service.get_profile_options()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve profile options: {str(e)}"
+        )
 
 @router.get("/me")
 async def get_current_user_info(current_user: Dict[str, Any] = Depends(get_current_user)):
