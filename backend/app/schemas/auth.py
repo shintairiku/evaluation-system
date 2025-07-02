@@ -1,7 +1,30 @@
-from typing import Optional
+from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from uuid import UUID
 
+# Import base class and models for runtime use
+from .user import UserBase, User, Department, Stage, Role, UserProfileOption
+
+
+# ========================================
+# SIGNUP SCHEMAS
+# ========================================
+class UserSignUpRequest(UserBase):
+    """Request for user signup with all profile options."""
+    clerk_user_id: str = Field(..., min_length=1)
+    department_id: Optional[UUID] = None
+    stage_id: Optional[UUID] = None
+    role_ids: List[int] = []
+    supervisor_id: Optional[UUID] = None
+    subordinate_ids: Optional[List[UUID]] = None
+
+
+class SignUpOptionsResponse(BaseModel):
+    """Response with all available options for signup."""
+    departments: List[Department]
+    stages: List[Stage]
+    roles: List[Role]
+    users: List[UserProfileOption]  # Simple user options without complex relationships
 
 class SignInRequest(BaseModel):
     """Request model for clerk signin."""
