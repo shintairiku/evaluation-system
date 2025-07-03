@@ -14,7 +14,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.services.user_service import UserService
-from app.database.models.user import UserBase, UserStatus
+from app.database.models.user import User as UserModel
+from app.schemas.user import UserStatus
 from app.schemas.user import UserCreate, UserUpdate, Department, Stage, Role
 from app.core.exceptions import NotFoundError, PermissionDeniedError
 
