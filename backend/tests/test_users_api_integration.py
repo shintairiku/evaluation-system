@@ -4,7 +4,7 @@ Integration tests for Users API endpoints.
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 from app.main import app
 
@@ -20,11 +20,12 @@ class TestUsersAPIIntegration:
     @patch('app.dependencies.auth.get_current_user')
     def test_get_users_endpoint_exists(self, mock_get_current_user, client):
         """Test that the GET /users/ endpoint exists and is accessible"""
-        mock_get_current_user.return_value = {
+        # Mock the async function to return a value
+        mock_get_current_user.return_value = AsyncMock(return_value={
             "sub": "admin_123",
             "email": "admin@example.com",
             "role": "admin"
-        }
+        })
         
         with patch('app.services.user_service.UserService.get_users') as mock_get_users:
             mock_get_users.return_value = {
@@ -43,11 +44,12 @@ class TestUsersAPIIntegration:
     @patch('app.dependencies.auth.get_current_user')
     def test_get_users_with_filters(self, mock_get_current_user, client):
         """Test GET /users/ with filtering parameters"""
-        mock_get_current_user.return_value = {
+        # Mock the async function to return a value
+        mock_get_current_user.return_value = AsyncMock(return_value={
             "sub": "admin_123",
             "email": "admin@example.com",
             "role": "admin"
-        }
+        })
         
         with patch('app.services.user_service.UserService.get_users') as mock_get_users:
             mock_get_users.return_value = {

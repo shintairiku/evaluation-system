@@ -60,7 +60,7 @@ class StageDetail(BaseModel):
     user_count: Optional[int] = None
     competency_count: Optional[int] = None
     users: Optional[PaginatedResponse['UserProfile']] = None
-    competencies: Optional[List['Competency']] = None
+    # competencies: Optional[List['Competency']] = None  # Temporarily commented out until Competency is defined
 
 
 class StageCreate(BaseModel):
@@ -111,7 +111,7 @@ class UserCreate(UserBase):
     clerk_user_id: str = Field(..., min_length=1, max_length=50)
     department_id: UUID
     stage_id: UUID
-    role_ids: List[int] = Field(default=[], min_items=0, max_items=10)
+    role_ids: List[int] = Field(default=[], min_length=0, max_length=10)
     supervisor_id: Optional[UUID] = None
     
     @field_validator('role_ids')
@@ -137,7 +137,7 @@ class UserUpdate(BaseModel):
     job_title: Optional[str] = Field(None, max_length=100)
     department_id: Optional[UUID] = None
     stage_id: Optional[UUID] = None
-    role_ids: Optional[List[int]] = Field(None, min_items=0, max_items=10)
+    role_ids: Optional[List[int]] = Field(None, min_length=0, max_length=10)
     supervisor_id: Optional[UUID] = None
     status: Optional[UserStatus] = None
     
@@ -223,6 +223,7 @@ class UserInactivateResponse(BaseModel):
 User.model_rebuild()
 UserProfile.model_rebuild()
 DepartmentDetail.model_rebuild()
+StageDetail.model_rebuild()
 RoleDetail.model_rebuild()
 UserCreateResponse.model_rebuild()
 UserUpdateResponse.model_rebuild()
