@@ -20,6 +20,21 @@ class AuthService:
         self.stage_repo = StageRepository(session)
         self.role_repo = RoleRepository(session)
 
+    async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
+        """Check if user exists in database with minimal info."""
+        user_data = await self.user_repo.check_user_exists_by_clerk_id(clerk_user_id)
+        
+        if user_data:
+            return UserExistsResponse(
+                exists=True,
+                user_id=user_data["id"],
+                name=user_data["name"],
+                email=user_data["email"], 
+                status=user_data["status"]
+            )
+        else:
+            return UserExistsResponse(exists=False) 
+
     async def get_profile_options(self) -> SignUpOptionsResponse:
         """Get all available options for profile completion."""
         # Fetch raw data from repositories
