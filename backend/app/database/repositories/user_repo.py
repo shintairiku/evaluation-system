@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 
-from ..models.user import User, UserSupervisor
+from ..models.user import User, UserSupervisor, Role
 from ...schemas.user import UserStatus
 
 logger = logging.getLogger(__name__)
@@ -17,6 +17,22 @@ class UserRepository:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    # ========================================
+    # CREATE OPERATIONS
+    # ========================================
+    
+    def add(self, user: User) -> None:
+        """Add a user to the session (does not commit)."""
+        self.session.add(user)
+
+    def add_user_supervisor_relation(self, user_supervisor: UserSupervisor) -> None:
+        """Add a user-supervisor relationship to the session (does not commit)."""
+        self.session.add(user_supervisor)
+
+    # ========================================
+    # READ OPERATIONS
+    # ========================================
 
     async def get_user_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
         """Get user by Clerk user ID."""
@@ -157,4 +173,19 @@ class UserRepository:
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching active users: {e}")
+            raise
+
+    # ========================================
+    # HELPER METHODS
+    # ========================================
+
+    async def get_roles_by_ids(self, role_ids: list[int]) -> list[Role]:
+        """Get roles by their IDs."""
+        try:
+            result = await self.session.execute(
+                select(Role).filter(Role.id.in_(role_ids))
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching roles by IDs {role_ids}: {e}")
             raise
