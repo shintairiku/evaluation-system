@@ -373,6 +373,8 @@ class UserRepository:
                         query = query.where(User.status == filters['status'])
                     if filters.get('role_id'):
                         query = query.join(User.roles).where(Role.id == filters['role_id'])
+                    if filters.get('role_name'):
+                        query = query.join(User.roles).where(Role.name == filters['role_name'])
                 
                 query = query.order_by(User.name)
                 
@@ -449,6 +451,8 @@ class UserRepository:
                         query = query.where(User.status == filters['status'])
                     if filters.get('role_id'):
                         query = query.join(User.roles).where(Role.id == filters['role_id'])
+                    if filters.get('role_name'):
+                        query = query.join(User.roles).where(Role.name == filters['role_name'])
                 
                 result = await session.execute(query)
                 return result.scalar()
