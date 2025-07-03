@@ -40,30 +40,8 @@ class User(Base):
     supervisor_relations = relationship("UserSupervisor", foreign_keys="UserSupervisor.user_id", back_populates="user")
     subordinate_relations = relationship("UserSupervisor", foreign_keys="UserSupervisor.supervisor_id", back_populates="supervisor")
     
-    @property
-    def supervisor(self):
-        """Get current active supervisor"""
-        from datetime import date
-        current_date = date.today()
-        
-        for relation in self.supervisor_relations:
-            if (relation.valid_from <= current_date and 
-                (relation.valid_to is None or relation.valid_to >= current_date)):
-                return relation.supervisor
-        return None
-    
-    @property
-    def subordinates(self):
-        """Get current active subordinates"""
-        from datetime import date
-        current_date = date.today()
-        
-        subordinates = []
-        for relation in self.subordinate_relations:
-            if (relation.valid_from <= current_date and 
-                (relation.valid_to is None or relation.valid_to >= current_date)):
-                subordinates.append(relation.user)
-        return subordinates
+    # Note: supervisor and subordinates properties removed to avoid sync operations in async context
+    # Use async service methods to get current supervisor/subordinates instead
 
 
 class Department(Base):
