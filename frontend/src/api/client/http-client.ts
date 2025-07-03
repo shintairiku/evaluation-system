@@ -1,4 +1,5 @@
 import { auth } from '@clerk/nextjs/server';
+import { API_CONFIG } from '../constants/config';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -129,8 +130,7 @@ let httpClientInstance: HttpClient | null = null;
 
 export function getHttpClient(): HttpClient {
   if (!httpClientInstance) {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
-    httpClientInstance = new HttpClient(baseUrl);
+    httpClientInstance = new HttpClient(API_CONFIG.FULL_URL);
   }
   return httpClientInstance;
 }
