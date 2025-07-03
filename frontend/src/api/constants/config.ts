@@ -35,10 +35,9 @@ export const buildApiUrl = (endpoint: string, version?: string) => {
 export const API_ENDPOINTS = {
   // Auth endpoints
   AUTH: {
-    SIGNIN: '/auth/signin',
-    SIGNOUT: '/auth/signout',
-    REFRESH: '/auth/refresh',
-    CURRENT_USER: '/auth/current-user',
+    GET_USER_BY_CLERK_ID: (clerkId: string) => `/auth/user/${clerkId}`,
+    SIGNUP: '/auth/signup',
+    SIGNUP_PROFILE_OPTIONS: '/auth/signup/profile-options',
   },
   
   // User endpoints
