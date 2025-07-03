@@ -7,6 +7,18 @@ from .user import UserBase, User, Department, Stage, Role, UserProfileOption
 
 
 # ========================================
+# AUTH USER FROM TOKEN
+# ========================================
+class AuthUser(BaseModel):
+    """User information extracted from Clerk JWT token."""
+    user_id: str = Field(..., description="Clerk user ID")
+    email: str = Field(..., description="User email address")
+    first_name: Optional[str] = Field(None, description="User first name")
+    last_name: Optional[str] = Field(None, description="User last name")
+    role: Optional[str] = Field(None, description="User role")
+
+
+# ========================================
 # SIGNUP SCHEMAS
 # ========================================
 class UserSignUpRequest(UserBase):
