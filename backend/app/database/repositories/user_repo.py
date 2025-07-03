@@ -1,408 +1,460 @@
-import asyncpg
-from typing import Optional, List, Dict, Any
+import logging
+from typing import Optional, List, Dict, Any, AsyncGenerator
 from uuid import UUID
 from datetime import datetime
+from enum import Enum
+from sqlalchemy import select, update, delete, and_, or_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import (
+    IntegrityError, 
+    NoResultFound, 
+    MultipleResultsFound,
+    SQLAlchemyError,
+    OperationalError,
+    ProgrammingError
+)
+from sqlalchemy.orm import selectinload, joinedload
 
-from ..session import db_session
-from ..models.user import UserBase, UserRole, UserSupervisor, UserStatus
+from ..session import get_db_session
+from ..models.user import User, Role, Department, Stage, UserSupervisor
 from ...schemas.user import UserCreate, UserUpdate
 from ...schemas.common import PaginationParams
 from ...core.exceptions import NotFoundError, ConflictError, ValidationError
 
+logger = logging.getLogger(__name__)
+
+
+class UserStatus(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
 
 class UserRepository:
-    """Repository for user-related database operations"""
+    """Repository for user-related database operations using SQLAlchemy"""
     
     def __init__(self):
-        self.db = db_session
+        pass
     
-    async def _department_exists(self, department_id: UUID) -> bool:
-        """Check if department exists"""
-        query = "SELECT 1 FROM departments WHERE id = $1"
-        return await self.db.fetchval(query, department_id) is not None
-    
-    async def _stage_exists(self, stage_id: UUID) -> bool:
-        """Check if stage exists"""
-        query = "SELECT 1 FROM stages WHERE id = $1"
-        return await self.db.fetchval(query, stage_id) is not None
-    
-    async def _supervisor_exists(self, supervisor_id: UUID) -> bool:
-        """Check if supervisor exists and is active"""
-        query = "SELECT 1 FROM users WHERE id = $1 AND status = 'active'"
-        return await self.db.fetchval(query, supervisor_id) is not None
-    
-    async def get_by_id(self, user_id: UUID) -> Optional[UserBase]:
-        """Get user by ID"""
-        query = """
-            SELECT * FROM users 
-            WHERE id = $1 AND status IN ('active', 'inactive')
-        """
-        row = await self.db.fetchrow(query, user_id)
-        return UserBase(**dict(row)) if row else None
-    
-    async def get_by_email(self, email: str) -> Optional[UserBase]:
-        """Get user by email address for uniqueness validation"""
-        query = """
-            SELECT * FROM users 
-            WHERE email = $1 AND status IN ('active', 'inactive')
-        """
-        row = await self.db.fetchrow(query, email)
-        return UserBase(**dict(row)) if row else None
-    
-    async def get_by_employee_code(self, employee_code: str) -> Optional[UserBase]:
-        """Get user by employee code for uniqueness validation"""
-        query = """
-            SELECT * FROM users 
-            WHERE employee_code = $1 AND status IN ('active', 'inactive')
-        """
-        row = await self.db.fetchrow(query, employee_code)
-        return UserBase(**dict(row)) if row else None
-    
-    async def get_by_clerk_id(self, clerk_user_id: str) -> Optional[UserBase]:
-        """Get user by Clerk user ID"""
-        query = """
-            SELECT * FROM users 
-            WHERE clerk_user_id = $1 AND status IN ('active', 'inactive')
-        """
-        row = await self.db.fetchrow(query, clerk_user_id)
-        return UserBase(**dict(row)) if row else None
-    
-    async def get_subordinates(self, supervisor_id: UUID) -> List[UserBase]:
-        """Get all subordinates of a supervisor"""
-        query = """
-            SELECT u.* FROM users u
-            INNER JOIN users_supervisors us ON u.id = us.user_id
-            WHERE us.supervisor_id = $1 
-            AND (us.valid_to IS NULL OR us.valid_to > NOW())
-            AND u.status = 'active'
-            ORDER BY u.name
-        """
-        rows = await self.db.fetch(query, supervisor_id)
-        return [UserBase(**dict(row)) for row in rows]
-    
-    async def get_by_department(self, department_id: UUID, pagination: Optional[PaginationParams] = None) -> List[UserBase]:
-        """Get all users in a specific department"""
-        query = """
-            SELECT * FROM users 
-            WHERE department_id = $1 AND status = 'active'
-            ORDER BY name
-        """
-        params = [department_id]
+    async def _validate_references(self, session: AsyncSession, department_id: UUID, 
+                                  stage_id: UUID, supervisor_id: Optional[UUID] = None) -> None:
+        """Validate that all referenced entities exist"""
+        # Check department exists
+        dept_result = await session.execute(
+            select(Department.id).where(Department.id == department_id)
+        )
+        if not dept_result.scalar_one_or_none():
+            raise ValidationError(f"Department {department_id} does not exist")
         
-        if pagination:
-            query += " LIMIT $2 OFFSET $3"
-            params.extend([pagination.limit, pagination.offset])
+        # Check stage exists
+        stage_result = await session.execute(
+            select(Stage.id).where(Stage.id == stage_id)
+        )
+        if not stage_result.scalar_one_or_none():
+            raise ValidationError(f"Stage {stage_id} does not exist")
         
-        rows = await self.db.fetch(query, *params)
-        return [UserBase(**dict(row)) for row in rows]
-    
-    async def get_by_role(self, role_name: str, pagination: Optional[PaginationParams] = None) -> List[UserBase]:
-        """Get all users with a specific role"""
-        query = """
-            SELECT u.* FROM users u
-            INNER JOIN user_roles ur ON u.id = ur.user_id
-            INNER JOIN roles r ON ur.role_id = r.id
-            WHERE r.name = $1 AND u.status = 'active'
-            ORDER BY u.name
-        """
-        params = [role_name]
-        
-        if pagination:
-            query += " LIMIT $2 OFFSET $3"
-            params.extend([pagination.limit, pagination.offset])
-        
-        rows = await self.db.fetch(query, *params)
-        return [UserBase(**dict(row)) for row in rows]
-    
-    async def create_user(self, user_data: UserCreate) -> UserBase:
-        """Create new user with validation and conflict checking"""
-        
-        # Validate references exist
-        if not await self._department_exists(user_data.department_id):
-            raise ValidationError(f"Department {user_data.department_id} does not exist")
-        
-        if not await self._stage_exists(user_data.stage_id):
-            raise ValidationError(f"Stage {user_data.stage_id} does not exist")
-        
-        if user_data.supervisor_id and not await self._supervisor_exists(user_data.supervisor_id):
-            raise ValidationError(f"Supervisor {user_data.supervisor_id} does not exist or is not active")
-        
-        # Check for conflicts
-        if await self.get_by_email(user_data.email):
-            raise ConflictError(f"User with email {user_data.email} already exists")
-        
-        if await self.get_by_employee_code(user_data.employee_code):
-            raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
-        
-        if await self.get_by_clerk_id(user_data.clerk_user_id):
-            raise ConflictError(f"User with Clerk ID {user_data.clerk_user_id} already exists")
-        
-        # Insert user
-        user_query = """
-            INSERT INTO users (
-                id, department_id, stage_id, clerk_user_id, name, email, 
-                employee_code, status, job_title
-            ) VALUES (
-                gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', $7
-            ) RETURNING *
-        """
-        
-        conn = await self.db.get_connection()
-        try:
-            async with conn.transaction():
-                # Create user
-                user_row = await conn.fetchrow(
-                    user_query,
-                    user_data.department_id,
-                    user_data.stage_id,
-                    user_data.clerk_user_id,
-                    user_data.name,
-                    user_data.email,
-                    user_data.employee_code,
-                    user_data.job_title
+        # Check supervisor if provided
+        if supervisor_id:
+            supervisor_result = await session.execute(
+                select(User.id).where(
+                    and_(
+                        User.id == supervisor_id,
+                        User.status == UserStatus.ACTIVE
+                    )
                 )
-                user = UserBase(**dict(user_row))
+            )
+            if not supervisor_result.scalar_one_or_none():
+                raise ValidationError(f"Supervisor {supervisor_id} does not exist or is not active")
+    
+    async def get_by_id(self, user_id: UUID) -> Optional[User]:
+        """Get user by ID"""
+        async for session in get_db_session():
+            result = await session.execute(
+                select(User)
+                .options(selectinload(User.roles), selectinload(User.supervisors))
+                .where(
+                    and_(
+                        User.id == user_id,
+                        User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
+                    )
+                )
+            )
+            return result.scalar_one_or_none()
+    
+    async def get_by_email(self, email: str) -> Optional[User]:
+        """Get user by email address for uniqueness validation"""
+        async for session in get_db_session():
+            result = await session.execute(
+                select(User).where(
+                    and_(
+                        User.email == email,
+                        User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
+                    )
+                )
+            )
+            return result.scalar_one_or_none()
+    
+    
+    async def get_by_employee_code(self, employee_code: str) -> Optional[User]:
+        """Get user by employee code for uniqueness validation"""
+        async for session in get_db_session():
+            result = await session.execute(
+                select(User).where(
+                    and_(
+                        User.employee_code == employee_code,
+                        User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
+                    )
+                )
+            )
+            return result.scalar_one_or_none()
+    
+    async def get_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
+        """Get user by Clerk user ID"""
+        async for session in get_db_session():
+            result = await session.execute(
+                select(User).where(
+                    and_(
+                        User.clerk_user_id == clerk_user_id,
+                        User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
+                    )
+                )
+            )
+            return result.scalar_one_or_none()
+    
+    async def get_subordinates(self, supervisor_id: UUID) -> List[User]:
+        """Get all subordinates of a supervisor"""
+        try:
+            async for session in get_db_session():
+                result = await session.execute(
+                    select(User)
+                    .options(selectinload(User.roles))
+                    .join(User.supervisors)
+                    .where(
+                        and_(
+                            User.supervisors.any(id=supervisor_id),
+                            User.status == UserStatus.ACTIVE
+                        )
+                    )
+                    .order_by(User.name)
+                )
+                return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching subordinates for supervisor {supervisor_id}: {e}")
+            raise
+    
+    async def get_by_department(self, department_id: UUID, pagination: Optional[PaginationParams] = None) -> List[User]:
+        """Get all users in a specific department"""
+        try:
+            async for session in get_db_session():
+                query = (
+                    select(User)
+                    .options(selectinload(User.roles))
+                    .where(
+                        and_(
+                            User.department_id == department_id,
+                            User.status == UserStatus.ACTIVE
+                        )
+                    )
+                    .order_by(User.name)
+                )
+                
+                if pagination:
+                    query = query.limit(pagination.limit).offset(pagination.offset)
+                
+                result = await session.execute(query)
+                return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching users by department {department_id}: {e}")
+            raise
+    
+    async def get_by_role(self, role_name: str, pagination: Optional[PaginationParams] = None) -> List[User]:
+        """Get all users with a specific role"""
+        try:
+            async for session in get_db_session():
+                query = (
+                    select(User)
+                    .options(selectinload(User.roles))
+                    .join(User.roles)
+                    .where(
+                        and_(
+                            Role.name == role_name,
+                            User.status == UserStatus.ACTIVE
+                        )
+                    )
+                    .order_by(User.name)
+                )
+                
+                if pagination:
+                    query = query.limit(pagination.limit).offset(pagination.offset)
+                
+                result = await session.execute(query)
+                return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching users by role {role_name}: {e}")
+            raise
+    
+    async def create_user(self, user_data: UserCreate) -> User:
+        """Create new user with validation and conflict checking"""
+        async for session in get_db_session():
+                # Validate references exist
+                await self._validate_references(
+                    session, 
+                    user_data.department_id, 
+                    user_data.stage_id, 
+                    user_data.supervisor_id
+                )
+                
+                # Check for conflicts
+                existing_email = await session.execute(
+                    select(User.id).where(User.email == user_data.email)
+                )
+                if existing_email.scalar_one_or_none():
+                    raise ConflictError(f"User with email {user_data.email} already exists")
+                
+                existing_code = await session.execute(
+                    select(User.id).where(User.employee_code == user_data.employee_code)
+                )
+                if existing_code.scalar_one_or_none():
+                    raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
+                
+                existing_clerk = await session.execute(
+                    select(User.id).where(User.clerk_user_id == user_data.clerk_user_id)
+                )
+                if existing_clerk.scalar_one_or_none():
+                    raise ConflictError(f"User with Clerk ID {user_data.clerk_user_id} already exists")
+                
+                # Create user
+                user = User(
+                    department_id=user_data.department_id,
+                    stage_id=user_data.stage_id,
+                    clerk_user_id=user_data.clerk_user_id,
+                    name=user_data.name,
+                    email=user_data.email,
+                    employee_code=user_data.employee_code,
+                    job_title=user_data.job_title,
+                    status=UserStatus.ACTIVE
+                )
+                
+                session.add(user)
+                await session.flush()
                 
                 # Assign roles
                 if user_data.role_ids:
-                    role_query = "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)"
-                    for role_id in user_data.role_ids:
-                        await conn.execute(role_query, user.id, role_id)
+                    roles = await session.execute(
+                        select(Role).where(Role.id.in_(user_data.role_ids))
+                    )
+                    user.roles = roles.scalars().all()
                 
                 # Assign supervisor
                 if user_data.supervisor_id:
-                    supervisor_query = """
-                        INSERT INTO users_supervisors (user_id, supervisor_id, valid_from)
-                        VALUES ($1, $2, NOW())
-                    """
-                    await conn.execute(supervisor_query, user.id, user_data.supervisor_id)
+                    supervisor = await session.execute(
+                        select(User).where(User.id == user_data.supervisor_id)
+                    )
+                    user.supervisors = [supervisor.scalar_one()]
                 
+                await session.commit()
+                await session.refresh(user)
                 return user
-        finally:
-            await conn.close()
     
-    async def update_user(self, user_id: UUID, user_data: UserUpdate) -> Optional[UserBase]:
+    async def update_user(self, user_id: UUID, user_data: UserUpdate) -> Optional[User]:
         """Update user with field validation"""
-        
-        # Check if user exists
-        existing_user = await self.get_by_id(user_id)
-        if not existing_user:
-            raise NotFoundError(f"User with ID {user_id} not found")
-        
-        # Validate references if being updated
-        if user_data.department_id and not await self._department_exists(user_data.department_id):
-            raise ValidationError(f"Department {user_data.department_id} does not exist")
-        
-        if user_data.stage_id and not await self._stage_exists(user_data.stage_id):
-            raise ValidationError(f"Stage {user_data.stage_id} does not exist")
-        
-        if user_data.supervisor_id and not await self._supervisor_exists(user_data.supervisor_id):
-            raise ValidationError(f"Supervisor {user_data.supervisor_id} does not exist or is not active")
-        
-        # Check for conflicts if email/employee_code is being updated
-        if user_data.email and user_data.email != existing_user.email:
-            if await self.get_by_email(user_data.email):
-                raise ConflictError(f"User with email {user_data.email} already exists")
-        
-        if user_data.employee_code and user_data.employee_code != existing_user.employee_code:
-            if await self.get_by_employee_code(user_data.employee_code):
-                raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
-        
-        # Build update query dynamically
-        update_fields = []
-        params = []
-        param_count = 1
-        
-        if user_data.name is not None:
-            update_fields.append(f"name = ${param_count}")
-            params.append(user_data.name)
-            param_count += 1
-        
-        if user_data.email is not None:
-            update_fields.append(f"email = ${param_count}")
-            params.append(user_data.email)
-            param_count += 1
-        
-        if user_data.employee_code is not None:
-            update_fields.append(f"employee_code = ${param_count}")
-            params.append(user_data.employee_code)
-            param_count += 1
-        
-        if user_data.job_title is not None:
-            update_fields.append(f"job_title = ${param_count}")
-            params.append(user_data.job_title)
-            param_count += 1
-        
-        if user_data.status is not None:
-            update_fields.append(f"status = ${param_count}")
-            params.append(user_data.status.value)
-            param_count += 1
-        
-        if user_data.department_id is not None:
-            update_fields.append(f"department_id = ${param_count}")
-            params.append(user_data.department_id)
-            param_count += 1
-        
-        if user_data.stage_id is not None:
-            update_fields.append(f"stage_id = ${param_count}")
-            params.append(user_data.stage_id)
-            param_count += 1
-        
-        # Use transaction for complex updates
-        conn = await self.db.get_connection()
-        try:
-            async with conn.transaction():
-                # Update user fields if any
-                if update_fields:
-                    update_fields.append(f"updated_at = NOW()")
-                    params.append(user_id)
-                    
-                    query = f"""
-                        UPDATE users 
-                        SET {', '.join(update_fields)}
-                        WHERE id = ${param_count}
-                        RETURNING *
-                    """
-                    
-                    user_row = await conn.fetchrow(query, *params)
-                    if not user_row:
-                        return None
-                else:
-                    user_row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+        async for session in get_db_session():
+                # Get existing user
+                result = await session.execute(
+                    select(User).where(User.id == user_id)
+                )
+                user = result.scalar_one_or_none()
                 
-                # Update roles if provided
+                if not user:
+                    raise NotFoundError(f"User {user_id} not found")
+                
+                # Validate references if being updated
+                if user_data.department_id or user_data.stage_id or user_data.supervisor_id is not None:
+                    await self._validate_references(
+                        session,
+                        user_data.department_id or user.department_id,
+                        user_data.stage_id or user.stage_id,
+                        user_data.supervisor_id if user_data.supervisor_id is not None else (user.supervisors[0].id if user.supervisors else None)
+                    )
+                
+                # Check for conflicts if updating unique fields
+                if user_data.email and user_data.email != user.email:
+                    existing_email = await session.execute(
+                        select(User.id).where(and_(User.email == user_data.email, User.id != user_id))
+                    )
+                    if existing_email.scalar_one_or_none():
+                        raise ConflictError(f"User with email {user_data.email} already exists")
+                
+                if user_data.employee_code and user_data.employee_code != user.employee_code:
+                    existing_code = await session.execute(
+                        select(User.id).where(and_(User.employee_code == user_data.employee_code, User.id != user_id))
+                    )
+                    if existing_code.scalar_one_or_none():
+                        raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
+                
+                if user_data.clerk_user_id and user_data.clerk_user_id != user.clerk_user_id:
+                    existing_clerk = await session.execute(
+                        select(User.id).where(and_(User.clerk_user_id == user_data.clerk_user_id, User.id != user_id))
+                    )
+                    if existing_clerk.scalar_one_or_none():
+                        raise ConflictError(f"User with Clerk ID {user_data.clerk_user_id} already exists")
+                
+                # Update fields
+                update_data = user_data.dict(exclude_unset=True)
+                for field, value in update_data.items():
+                    if hasattr(user, field):
+                        setattr(user, field, value)
+                
+                # Update relationships if provided
                 if user_data.role_ids is not None:
-                    # Remove existing roles
-                    await conn.execute("DELETE FROM user_roles WHERE user_id = $1", user_id)
-                    
-                    # Add new roles
-                    if user_data.role_ids:
-                        role_query = "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)"
-                        for role_id in user_data.role_ids:
-                            await conn.execute(role_query, user_id, role_id)
+                    roles = await session.execute(
+                        select(Role).where(Role.id.in_(user_data.role_ids))
+                    )
+                    user.roles = roles.scalars().all()
                 
-                # Update supervisor if provided
                 if user_data.supervisor_id is not None:
-                    # Remove existing supervisor relationships
-                    await conn.execute("DELETE FROM users_supervisors WHERE user_id = $1", user_id)
-                    
-                    # Add new supervisor relationship
                     if user_data.supervisor_id:
-                        supervisor_query = """
-                            INSERT INTO users_supervisors (user_id, supervisor_id, valid_from)
-                            VALUES ($1, $2, NOW())
-                        """
-                        await conn.execute(supervisor_query, user_id, user_data.supervisor_id)
+                        supervisor = await session.execute(
+                            select(User).where(User.id == user_data.supervisor_id)
+                        )
+                        user.supervisors = [supervisor.scalar_one()]
+                    else:
+                        user.supervisors = []
                 
-                return UserBase(**dict(user_row))
-        finally:
-            await conn.close()
+                await session.commit()
+                await session.refresh(user)
+                return user
     
     async def inactivate_user(self, user_id: UUID) -> bool:
-        """Inactivate user with business rule enforcement"""
-        
-        # Check if user exists
-        existing_user = await self.get_by_id(user_id)
-        if not existing_user:
-            raise NotFoundError(f"User with ID {user_id} not found")
-        
-        # Check if user has subordinates (business rule)
-        subordinates = await self.get_subordinates(user_id)
-        if subordinates:
-            raise ValidationError(f"Cannot inactivate user with {len(subordinates)} subordinates")
-        
-        # Soft delete by setting status to inactive
-        query = """
-            UPDATE users 
-            SET status = 'inactive', updated_at = NOW()
-            WHERE id = $1
-        """
-        
-        result = await self.db.execute(query, user_id)
-        return result == "UPDATE 1"
+        """Inactivate user (soft delete)"""
+        async for session in get_db_session():
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                raise NotFoundError(f"User {user_id} not found")
+            
+            if user.status == UserStatus.INACTIVE:
+                return False
+            
+            user.status = UserStatus.INACTIVE
+            await session.commit()
+            return True
     
     async def search_users(self, search_term: str = "", filters: Dict[str, Any] = None, 
-                          pagination: Optional[PaginationParams] = None) -> List[UserBase]:
-        """Advanced search with filtering and pagination"""
-        
-        query = "SELECT * FROM users WHERE status = 'active'"
-        params = []
-        param_count = 1
-        
-        # Add search term
-        if search_term:
-            query += f" AND (name ILIKE ${param_count} OR email ILIKE ${param_count} OR employee_code ILIKE ${param_count})"
-            search_pattern = f"%{search_term}%"
-            params.append(search_pattern)
-            param_count += 1
-        
-        # Add filters
-        if filters:
-            if 'department_id' in filters:
-                query += f" AND department_id = ${param_count}"
-                params.append(filters['department_id'])
-                param_count += 1
-            
-            if 'status' in filters:
-                query += f" AND status = ${param_count}"
-                params.append(filters['status'])
-                param_count += 1
-        
-        query += " ORDER BY name"
-        
-        # Add pagination
-        if pagination:
-            query += f" LIMIT ${param_count} OFFSET ${param_count + 1}"
-            params.extend([pagination.limit, pagination.offset])
-        
-        rows = await self.db.fetch(query, *params)
-        return [UserBase(**dict(row)) for row in rows]
+                          pagination: Optional[PaginationParams] = None) -> List[User]:
+        """Search users with filters and pagination"""
+        try:
+            async for session in get_db_session():
+                query = (
+                    select(User)
+                    .options(selectinload(User.roles), selectinload(User.supervisors))
+                    .where(User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE]))
+                )
+                
+                # Add search term
+                if search_term:
+                    search_filter = or_(
+                        User.name.ilike(f"%{search_term}%"),
+                        User.email.ilike(f"%{search_term}%"),
+                        User.employee_code.ilike(f"%{search_term}%"),
+                        User.job_title.ilike(f"%{search_term}%")
+                    )
+                    query = query.where(search_filter)
+                
+                # Add filters
+                if filters:
+                    if filters.get('department_id'):
+                        query = query.where(User.department_id == filters['department_id'])
+                    if filters.get('stage_id'):
+                        query = query.where(User.stage_id == filters['stage_id'])
+                    if filters.get('status'):
+                        query = query.where(User.status == filters['status'])
+                    if filters.get('role_id'):
+                        query = query.join(User.roles).where(Role.id == filters['role_id'])
+                
+                query = query.order_by(User.name)
+                
+                if pagination:
+                    query = query.limit(pagination.limit).offset(pagination.offset)
+                
+                result = await session.execute(query)
+                return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error searching users: {e}")
+            raise
     
     async def update_last_login(self, user_id: UUID) -> bool:
         """Update user's last login timestamp"""
-        query = """
-            UPDATE users 
-            SET last_login_at = NOW(), updated_at = NOW()
-            WHERE id = $1
-        """
-        
-        result = await self.db.execute(query, user_id)
-        return result == "UPDATE 1"
+        try:
+            async for session in get_db_session():
+                result = await session.execute(
+                    update(User)
+                    .where(User.id == user_id)
+                    .values(last_login_at=datetime.utcnow())
+                    .returning(User.id)
+                )
+                updated = result.scalar_one_or_none()
+                await session.commit()
+                return updated is not None
+        except SQLAlchemyError as e:
+            logger.error(f"Error updating last login for user {user_id}: {e}")
+            raise
     
-    async def get_user_roles(self, user_id: UUID) -> List[UserRole]:
-        """Get roles for a specific user"""
-        query = """
-            SELECT ur.* FROM user_roles ur
-            INNER JOIN users u ON ur.user_id = u.id
-            WHERE ur.user_id = $1 AND u.status = 'active'
-        """
-        rows = await self.db.fetch(query, user_id)
-        return [UserRole(**dict(row)) for row in rows]
+    async def get_user_roles(self, user_id: UUID) -> List[Role]:
+        """Get all roles for a user"""
+        try:
+            async for session in get_db_session():
+                result = await session.execute(
+                    select(User)
+                    .options(selectinload(User.roles))
+                    .where(User.id == user_id)
+                )
+                user = result.scalar_one_or_none()
+                return user.roles if user else []
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching roles for user {user_id}: {e}")
+            raise
     
-    async def get_user_supervisors(self, user_id: UUID) -> List[UserSupervisor]:
-        """Get supervisors for a specific user"""
-        query = """
-            SELECT * FROM users_supervisors
-            WHERE user_id = $1 
-            AND (valid_to IS NULL OR valid_to > NOW())
-            ORDER BY valid_from DESC
-        """
-        rows = await self.db.fetch(query, user_id)
-        return [UserSupervisor(**dict(row)) for row in rows]
+    async def get_user_supervisors(self, user_id: UUID) -> List[User]:
+        """Get all supervisors for a user"""
+        try:
+            async for session in get_db_session():
+                result = await session.execute(
+                    select(User)
+                    .options(selectinload(User.supervisors))
+                    .where(User.id == user_id)
+                )
+                user = result.scalar_one_or_none()
+                return user.supervisors if user else []
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching supervisors for user {user_id}: {e}")
+            raise
     
     async def count_users(self, filters: Dict[str, Any] = None) -> int:
-        """Count total users with optional filters"""
-        query = "SELECT COUNT(*) FROM users WHERE status = 'active'"
-        params = []
-        param_count = 1
-        
-        if filters:
-            if 'department_id' in filters:
-                query += f" AND department_id = ${param_count}"
-                params.append(filters['department_id'])
-                param_count += 1
-        
-        return await self.db.fetchval(query, *params)
+        """Count users with optional filters"""
+        try:
+            async for session in get_db_session():
+                query = select(func.count(User.id)).where(
+                    User.status.in_([UserStatus.ACTIVE, UserStatus.INACTIVE])
+                )
+                
+                if filters:
+                    if filters.get('department_id'):
+                        query = query.where(User.department_id == filters['department_id'])
+                    if filters.get('stage_id'):
+                        query = query.where(User.stage_id == filters['stage_id'])
+                    if filters.get('status'):
+                        query = query.where(User.status == filters['status'])
+                    if filters.get('role_id'):
+                        query = query.join(User.roles).where(Role.id == filters['role_id'])
+                
+                result = await session.execute(query)
+                return result.scalar()
+        except SQLAlchemyError as e:
+            logger.error(f"Error counting users: {e}")
+            raise
 
 
 # Global repository instance
