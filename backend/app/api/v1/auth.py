@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...services.auth_service import AuthService
-from ...schemas.auth import SignUpOptionsResponse
+from ...schemas.auth import SignUpOptionsResponse, UserSignUpRequest
 from ...database.session import get_db_session
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -35,20 +35,48 @@ async def check_user_exists_by_clerk_id(
     auth_service = AuthService(session=session)
     return await auth_service.check_user_exists_by_clerk_id(clerk_user_id)
 
+@router.post("/signup")
+async def signup(
+    signup_data: UserSignUpRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Complete user signup with profile data.
+    
+    Frontend sends clerk_user_id + profile data.
+    Creates user in database with pending_approval status.
+    """
+    try:
+        auth_service = AuthService(session=session)
+        
+        # Create user with signup data (automatically sets PENDING_APPROVAL)
+        user_details = await auth_service.complete_signup(signup_data)
+        
+        return {
+            "success": True,
+            "message": "User registration successful. Account is pending approval.",
+            "user": user_details
+        }
+        
+    except ValueError as e:
+        # User already exists
+        raise HTTPException(
+            status_code=409,
+            detail=str(e)
         )
     except Exception as e:
-        return TokenVerifyResponse(
-            valid=False,
-            error=str(e)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Registration failed: {str(e)}"
         )
+
 
 @router.post("/logout") 
 async def logout():
     """
-    Placeholder for logout endpoint.
-    Full implementation requires session/token management (separate issue).
+    Logout endpoint - Clerk handles session management client-side.
     """
-    raise HTTPException(
-        status_code=501, 
-        detail="Logout endpoint implementation requires session management - tracked in separate issue"
-    )
+    return {
+        "success": True,
+        "message": "Logout successful. Please clear your client-side session."
+    }
