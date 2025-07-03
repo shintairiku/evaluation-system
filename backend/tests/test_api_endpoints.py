@@ -8,6 +8,7 @@ import json
 from app.main import app
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.exceptions import PermissionDeniedError, NotFoundError
+from app.dependencies.auth import get_current_user
 
 
 class TestUserAPIEndpoints:
@@ -82,26 +83,36 @@ class TestUserAPIEndpoints:
     
     # Test GET /api/v1/users/
     
-    @patch('app.dependencies.auth.get_current_user')
     @patch('app.services.user_service.UserService.get_users')
-    def test_get_users_admin_success(self, mock_get_users, mock_get_current_user, client, mock_admin_user):
+    def test_get_users_admin_success(self, mock_get_users, client, mock_admin_user):
         """Test admin can get all users"""
-        # Mock the authentication
-        mock_get_current_user.return_value = mock_admin_user
+        # Override the dependency
+        def override_get_current_user():
+            return mock_admin_user
         
-        # Mock the service response
-        mock_get_users.return_value = {
-            "items": [],
-            "total": 0,
-            "page": 1,
-            "size": 10,
-            "pages": 0
-        }
+        app.dependency_overrides[get_current_user] = override_get_current_user
         
-        response = client.get("/api/v1/users/")
-        
-        assert response.status_code == status.HTTP_200_OK
-        mock_get_users.assert_called_once()
+        try:
+            # Mock the service response with proper async mock
+            from app.schemas.common import PaginatedResponse
+            mock_response = PaginatedResponse(
+                items=[],
+                total=0,
+                page=1,
+                size=10,
+                pages=0,
+                limit=10,
+                offset=0
+            )
+            mock_get_users.return_value = mock_response
+            
+            response = client.get("/api/v1/users/")
+            
+            assert response.status_code == status.HTTP_200_OK
+            mock_get_users.assert_called_once()
+        finally:
+            # Clean up
+            app.dependency_overrides.clear()
     
     @patch('app.dependencies.auth.get_current_user')
     @patch('app.services.user_service.UserService.get_users')
@@ -119,7 +130,7 @@ class TestUserAPIEndpoints:
             "pages": 0
         }
         
-        response = client.get("/api/v1/users/")
+        response = client.get("/api/v1/users/", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         mock_get_users.assert_called_once()
@@ -134,7 +145,7 @@ class TestUserAPIEndpoints:
         # Mock the service to raise permission error
         mock_get_users.side_effect = PermissionDeniedError("Insufficient permissions to view users")
         
-        response = client.get("/api/v1/users/")
+        response = client.get("/api/v1/users/", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "Insufficient permissions" in response.json()["detail"]
@@ -145,7 +156,7 @@ class TestUserAPIEndpoints:
         # Mock authentication failure
         mock_get_current_user.side_effect = Exception("Invalid token")
         
-        response = client.get("/api/v1/users/")
+        response = client.get("/api/v1/users/", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
     
@@ -167,7 +178,7 @@ class TestUserAPIEndpoints:
             "email": "test@example.com"
         }
         
-        response = client.get(f"/api/v1/users/{user_id}")
+        response = client.get(f"/api/v1/users/{user_id}", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         mock_get_user.assert_called_once_with(uuid4(), mock_admin_user)
@@ -188,7 +199,7 @@ class TestUserAPIEndpoints:
             "email": "test@example.com"
         }
         
-        response = client.get(f"/api/v1/users/{user_id}")
+        response = client.get(f"/api/v1/users/{user_id}", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         mock_get_user.assert_called_once_with(uuid4(), mock_employee_user)
@@ -205,7 +216,7 @@ class TestUserAPIEndpoints:
         # Mock the service to raise permission error
         mock_get_user.side_effect = PermissionDeniedError("You can only view your own profile or subordinates")
         
-        response = client.get(f"/api/v1/users/{user_id}")
+        response = client.get(f"/api/v1/users/{user_id}", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "You can only view your own profile" in response.json()["detail"]
@@ -222,7 +233,7 @@ class TestUserAPIEndpoints:
         # Mock the service to raise not found error
         mock_get_user.side_effect = NotFoundError(f"User with ID {user_id} not found")
         
-        response = client.get(f"/api/v1/users/{user_id}")
+        response = client.get(f"/api/v1/users/{user_id}", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "not found" in response.json()["detail"]
@@ -245,7 +256,7 @@ class TestUserAPIEndpoints:
             }
         }
         
-        response = client.post("/api/v1/users/", json=sample_user_data)
+        response = client.post("/api/v1/users/", json=sample_user_data, headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         assert "User created successfully" in response.json()["message"]
@@ -261,7 +272,7 @@ class TestUserAPIEndpoints:
         # Mock the service to raise permission error
         mock_create_user.side_effect = PermissionDeniedError("Only administrators can create users")
         
-        response = client.post("/api/v1/users/", json=sample_user_data)
+        response = client.post("/api/v1/users/", json=sample_user_data, headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "Only administrators can create users" in response.json()["detail"]
@@ -279,7 +290,7 @@ class TestUserAPIEndpoints:
             "employee_code": "EMP999"
         }
         
-        response = client.post("/api/v1/users/", json=invalid_data)
+        response = client.post("/api/v1/users/", json=invalid_data, headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     
@@ -304,7 +315,7 @@ class TestUserAPIEndpoints:
             }
         }
         
-        response = client.put(f"/api/v1/users/{user_id}", json=update_data)
+        response = client.put(f"/api/v1/users/{user_id}", json=update_data, headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         assert "User updated successfully" in response.json()["message"]
@@ -329,7 +340,7 @@ class TestUserAPIEndpoints:
             }
         }
         
-        response = client.put(f"/api/v1/users/{user_id}", json=update_data)
+        response = client.put(f"/api/v1/users/{user_id}", json=update_data, headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         mock_update_user.assert_called_once()
@@ -347,7 +358,7 @@ class TestUserAPIEndpoints:
         # Mock the service to raise permission error
         mock_update_user.side_effect = PermissionDeniedError("You can only update your own profile")
         
-        response = client.put(f"/api/v1/users/{user_id}", json=update_data)
+        response = client.put(f"/api/v1/users/{user_id}", json=update_data, headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "You can only update your own profile" in response.json()["detail"]
@@ -369,7 +380,7 @@ class TestUserAPIEndpoints:
             "user_id": user_id
         }
         
-        response = client.delete(f"/api/v1/users/{user_id}")
+        response = client.delete(f"/api/v1/users/{user_id}", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         assert "User inactivated successfully" in response.json()["message"]
@@ -387,7 +398,7 @@ class TestUserAPIEndpoints:
         # Mock the service to raise permission error
         mock_inactivate_user.side_effect = PermissionDeniedError("Only administrators can delete users")
         
-        response = client.delete(f"/api/v1/users/{user_id}")
+        response = client.delete(f"/api/v1/users/{user_id}", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "Only administrators can delete users" in response.json()["detail"]
@@ -404,7 +415,7 @@ class TestUserAPIEndpoints:
         # Mock the service to raise bad request error
         mock_inactivate_user.side_effect = Exception("Cannot inactivate your own account")
         
-        response = client.delete(f"/api/v1/users/{user_id}")
+        response = client.delete(f"/api/v1/users/{user_id}", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
     
@@ -429,7 +440,7 @@ class TestUserAPIEndpoints:
             "roles": []
         }
         
-        response = client.get(f"/api/v1/users/{user_id}/profile")
+        response = client.get(f"/api/v1/users/{user_id}/profile", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         mock_get_profile.assert_called_once()
@@ -445,7 +456,7 @@ class TestAPIErrorHandling:
     
     def test_missing_authentication_header(self, client):
         """Test API endpoints without authentication header"""
-        response = client.get("/api/v1/users/")
+        response = client.get("/api/v1/users/", headers={"Authorization": "Bearer test_token"})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
     
     def test_invalid_authentication_header(self, client):
@@ -496,7 +507,7 @@ class TestAPIPagination:
             "pages": 0
         }
         
-        response = client.get("/api/v1/users/?page=2&size=5")
+        response = client.get("/api/v1/users/?page=2&size=5", headers={"Authorization": "Bearer test_token"})
         
         assert response.status_code == status.HTTP_200_OK
         mock_get_users.assert_called_once()
@@ -508,15 +519,15 @@ class TestAPIPagination:
         mock_get_current_user.return_value = mock_admin_user
         
         # Test negative page
-        response = client.get("/api/v1/users/?page=-1")
+        response = client.get("/api/v1/users/?page=-1", headers={"Authorization": "Bearer test_token"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         
         # Test zero page size
-        response = client.get("/api/v1/users/?size=0")
+        response = client.get("/api/v1/users/?size=0", headers={"Authorization": "Bearer test_token"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         
         # Test page size too large
-        response = client.get("/api/v1/users/?size=1000")
+        response = client.get("/api/v1/users/?size=1000", headers={"Authorization": "Bearer test_token"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 

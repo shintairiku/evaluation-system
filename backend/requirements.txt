@@ -11,4 +11,5 @@ python-dotenv
 clerk-backend-sdk
 pydantic[email]
 pytest
-pytest-asyncio 
+pytest-asyncio
+httpx 

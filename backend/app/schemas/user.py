@@ -217,3 +217,12 @@ class UserInactivateResponse(BaseModel):
 
 
 # UserList removed - use PaginatedResponse[UserProfile] instead
+
+# Rebuild models with forward references for Pydantic v2 compatibility
+# Note: StageDetail.model_rebuild() excluded due to undefined Competency annotation
+User.model_rebuild()
+UserProfile.model_rebuild()
+DepartmentDetail.model_rebuild()
+RoleDetail.model_rebuild()
+UserCreateResponse.model_rebuild()
+UserUpdateResponse.model_rebuild()
