@@ -4,7 +4,7 @@ from uuid import UUID
 from datetime import datetime
 
 from ..database.repositories.user_repo import UserRepository
-from ..database.models.user import UserBase
+from ..database.models.user import User as UserModel
 from ..schemas.user import (
     UserCreate, UserUpdate, UserProfile, User, UserInDB,
     UserCreateResponse, UserUpdateResponse, UserInactivateResponse,
@@ -385,7 +385,7 @@ class UserService:
         # Repository already handles most validation
         pass
     
-    async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserBase) -> None:
+    async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserModel) -> None:
         """Validate user update data"""
         # Check for conflicts if email or employee_code is being updated
         if user_data.email and user_data.email != existing_user.email:
@@ -407,7 +407,7 @@ class UserService:
         
         # Additional checks can be added here (e.g., active evaluations)
     
-    async def _enrich_user_data(self, user: UserBase) -> User:
+    async def _enrich_user_data(self, user: UserModel) -> User:
         """Enrich user data with relationships"""
         # Get department
         department = await self._get_department(user.department_id)
@@ -445,7 +445,7 @@ class UserService:
             supervisor=supervisor
         )
     
-    async def _enrich_user_profile(self, user: UserBase) -> UserProfile:
+    async def _enrich_user_profile(self, user: UserModel) -> UserProfile:
         """Enrich user data for profile display"""
         # Get department
         department = await self._get_department(user.department_id)
@@ -500,10 +500,10 @@ class UserService:
     
     def _filter_users_by_criteria(
         self, 
-        users: List[UserBase], 
+        users: List[UserModel], 
         search_term: str, 
         filters: Optional[Dict[str, Any]]
-    ) -> List[UserBase]:
+    ) -> List[UserModel]:
         """Filter users by search term and filters"""
         filtered_users = users
         
