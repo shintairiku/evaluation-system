@@ -35,6 +35,30 @@ class UserRepository:
             logger.error(f"Error fetching user by clerk_id {clerk_user_id}: {e}")
             raise
 
+    async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> Optional[dict]:
+        """
+        Lightweight check if user exists by clerk_id.
+        Returns minimal user info without expensive joins.
+        """
+        try:
+            result = await self.session.execute(
+                select(User.id, User.name, User.email, User.status)
+                .filter(User.clerk_user_id == clerk_user_id)
+            )
+            user_row = result.first()
+            
+            if user_row:
+                return {
+                    "id": user_row.id,
+                    "name": user_row.name, 
+                    "email": user_row.email,
+                    "status": user_row.status
+                }
+            return None
+        except SQLAlchemyError as e:
+            logger.error(f"Error checking user existence by clerk_id {clerk_user_id}: {e}")
+            raise
+
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email address."""
         try:
