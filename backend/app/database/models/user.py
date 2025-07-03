@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from uuid import UUID
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -19,7 +19,7 @@ user_roles = Table(
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     department_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("departments.id"))
     stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id"))
     clerk_user_id = Column(Text, unique=True, nullable=False)
@@ -40,36 +40,14 @@ class User(Base):
     supervisor_relations = relationship("UserSupervisor", foreign_keys="UserSupervisor.user_id", back_populates="user")
     subordinate_relations = relationship("UserSupervisor", foreign_keys="UserSupervisor.supervisor_id", back_populates="supervisor")
     
-    @property
-    def supervisor(self):
-        """Get current active supervisor"""
-        from datetime import date
-        current_date = date.today()
-        
-        for relation in self.supervisor_relations:
-            if (relation.valid_from <= current_date and 
-                (relation.valid_to is None or relation.valid_to >= current_date)):
-                return relation.supervisor
-        return None
-    
-    @property
-    def subordinates(self):
-        """Get current active subordinates"""
-        from datetime import date
-        current_date = date.today()
-        
-        subordinates = []
-        for relation in self.subordinate_relations:
-            if (relation.valid_from <= current_date and 
-                (relation.valid_to is None or relation.valid_to >= current_date)):
-                subordinates.append(relation.user)
-        return subordinates
+    # Note: supervisor and subordinates properties removed to avoid sync operations in async context
+    # Use async service methods to get current supervisor/subordinates instead
 
 
 class Department(Base):
     __tablename__ = "departments"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     name = Column(String(100), nullable=False)
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -82,7 +60,7 @@ class Department(Base):
 class Stage(Base):
     __tablename__ = "stages"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     name = Column(String(100), nullable=False)
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)

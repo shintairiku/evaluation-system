@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Dict, Any, Union, TYPE_CHECKING
-from pydantic import BaseModel, Field, validator, model_validator
+from pydantic import BaseModel, Field, validator, root_validator
 from uuid import UUID
 
 from .common import PaginatedResponse
@@ -123,22 +123,24 @@ class GoalCreate(BaseModel):
     # Core Value Goal fields (goal_category_id = 3) 
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
     
-    @model_validator(mode='after')
-    def validate_goal_category_fields(self):
+    @root_validator(skip_on_failure=True)
+    @classmethod
+    def validate_goal_category_fields(cls, values):
         """Validate that required fields are present based on goal_category_id"""
-        if self.goal_category_id == 1:  # Performance goal
-            required_fields = [self.performance_goal_type, self.specific_goal_text, 
-                             self.achievement_criteria_text, self.means_methods_text]
-            if any(field is None for field in required_fields):
+        goal_category_id = values.get('goal_category_id')
+        if goal_category_id == 1:  # Performance goal
+            required_fields = ['performance_goal_type', 'specific_goal_text', 
+                             'achievement_criteria_text', 'means_methods_text']
+            if any(values.get(field) is None for field in required_fields):
                 raise ValueError("Performance goals require: performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText")
-        elif self.goal_category_id == 2:  # Competency goal
-            if self.competency_id is None or self.action_plan is None:
+        elif goal_category_id == 2:  # Competency goal
+            if values.get('competency_id') is None or values.get('action_plan') is None:
                 raise ValueError("Competency goals require: competencyId, actionPlan")
         # NOTE: Core value goal should be automatically created by the system
-        elif self.goal_category_id == 3:  # Core value goal
-            if self.core_value_plan is None:
+        elif goal_category_id == 3:  # Core value goal
+            if values.get('core_value_plan') is None:
                 raise ValueError("Core value goals require: coreValuePlan")
-        return self
+        return values
 
 
 class GoalUpdate(BaseModel):
@@ -173,7 +175,7 @@ class GoalInDB(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @model_validator(mode='before')
+    @root_validator(pre=True)
     @classmethod
     def _validate_target_data(cls, data: Any) -> Any:
         if not isinstance(data, dict):
@@ -237,7 +239,7 @@ class Goal(BaseModel):
     # Core Value Goal fields (goal_category_id = 3)
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
-    @model_validator(mode='before')
+    @root_validator(pre=True)
     @classmethod
     def flatten_target_data(cls, data: Any) -> Any:
         """

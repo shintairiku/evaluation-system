@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, TYPE_CHECKING
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from uuid import UUID
 
 from .common import Permission, PaginatedResponse
@@ -10,11 +10,19 @@ if TYPE_CHECKING:
     from .competency import Competency
 
 
+# ========================================
+# ENUMS
+# ========================================
+
 class UserStatus(str, Enum):
     PENDING_APPROVAL = "pending_approval"
     ACTIVE = "active"
     INACTIVE = "inactive"
 
+
+# ========================================
+# DEPARTMENT SCHEMAS
+# ========================================
 
 class Department(BaseModel):
     id: UUID
@@ -45,6 +53,10 @@ class DepartmentUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
 
 
+# ========================================
+# STAGE SCHEMAS
+# ========================================
+
 class Stage(BaseModel):
     id: UUID
     name: str
@@ -74,6 +86,10 @@ class StageUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
 
 
+# ========================================
+# ROLE SCHEMAS
+# ========================================
+
 class Role(BaseModel):
     id: int
     name: str
@@ -98,6 +114,10 @@ class RoleUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=1, max_length=200)
 
 
+# ========================================
+# USER BASE SCHEMAS
+# ========================================
+
 class UserBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
@@ -105,12 +125,21 @@ class UserBase(BaseModel):
     job_title: Optional[str] = Field(None, max_length=100)
 
 
+class UserProfileOption(UserBase):
+    """User schema for signup profile options - UserBase + Role information."""
+    id: UUID
+    roles: List[Role] = []
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserCreate(UserBase):
     clerk_user_id: str = Field(..., min_length=1)
-    department_id: UUID
-    stage_id: UUID
+    department_id: Optional[UUID] = None
+    stage_id: Optional[UUID] = None
     role_ids: List[int] = []
     supervisor_id: Optional[UUID] = None
+    subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = UserStatus.PENDING_APPROVAL
 
 
@@ -134,8 +163,12 @@ class UserInDB(UserBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ========================================
+# USER RESPONSE SCHEMAS
+# ========================================
 
 
 class User(UserInDB):
@@ -143,7 +176,6 @@ class User(UserInDB):
     stage: Stage
     roles: List[Role] = []
     supervisor: Optional['UserDetailResponse'] = None
-
 
 class UserDetailResponse(BaseModel):
     id: UUID
@@ -153,14 +185,38 @@ class UserDetailResponse(BaseModel):
     email: EmailStr
     status: UserStatus
     job_title: Optional[str] = None
-    department: Department
-    stage: Stage
+    department: Optional[Department] = None
+    stage: Optional[Stage] = None
     roles: List[Role] = []
     supervisor: Optional["UserDetailResponse"] = None
+    subordinates: Optional[List["UserDetailResponse"]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserPaginatedResponse(PaginatedResponse):
     data: List[UserDetailResponse]
+
+
+class UserExistsResponse(BaseModel):
+    """Minimal user info for existence check during auth flow"""
+    exists: bool
+    user_id: Optional[UUID] = None
+    name: Optional[str] = None  
+    email: Optional[EmailStr] = None
+    status: Optional[UserStatus] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+
+# ========================================
+# FORWARD REFERENCES UPDATE
+# ========================================
+
+# Update forward references for self-referencing models (Pydantic v2)
+try:
+    UserDetailResponse.model_rebuild()
+except Exception:
+    # Ignore forward reference errors for now
+    pass
