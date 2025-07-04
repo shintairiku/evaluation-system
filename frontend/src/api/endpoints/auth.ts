@@ -5,6 +5,7 @@ import type {
   UserDetailResponse,
   SignUpRequest,
   SignUpProfileOptionsResponse,
+  UserExistsResponse,
 } from '../types';
 
 const httpClient = getHttpClient();
@@ -13,8 +14,8 @@ export const authApi = {
   /**
    * Get a user by Clerk ID
    */
-  getUserByClerkId: async (clerkId: string): Promise<ApiResponse<UserDetailResponse>> => {
-    return httpClient.get<UserDetailResponse>(API_ENDPOINTS.AUTH.GET_USER_BY_CLERK_ID(clerkId));
+  getUserByClerkId: async (clerkId: string): Promise<ApiResponse<UserExistsResponse>> => {
+    return httpClient.get<UserExistsResponse>(API_ENDPOINTS.AUTH.GET_USER_BY_CLERK_ID(clerkId));
   },
 
   /**

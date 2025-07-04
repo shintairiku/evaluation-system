@@ -4,7 +4,8 @@ import { authApi } from '../endpoints/auth';
 import type { 
   UserDetailResponse, 
   SignUpRequest, 
-  SignUpProfileOptionsResponse 
+  SignUpProfileOptionsResponse,
+  UserExistsResponse
 } from '../types';
 
 /**
@@ -13,7 +14,7 @@ import type {
  */
 export async function getUserByClerkIdAction(clerkId: string): Promise<{
   success: boolean;
-  data?: UserDetailResponse;
+  data?: UserExistsResponse;
   error?: string;
 }> {
   try {
@@ -48,24 +49,32 @@ export async function getSignupProfileOptionsAction(): Promise<{
   error?: string;
 }> {
   try {
+    console.log('Server action: Starting getSignupProfileOptionsAction');
     const response = await authApi.getSignupProfileOptions();
+    console.log('Server action: API response received:', response);
     
     if (!response.success || !response.data) {
+      console.log('Server action: API response failed:', response.error);
       return {
         success: false,
         error: response.error || 'Failed to fetch signup profile options',
       };
     }
     
+    console.log('Server action: Success, returning data');
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('Get signup profile options action error:', error);
+    console.error('Server action: Exception caught:', error);
+    console.error('Error type:', typeof error);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    
     return {
       success: false,
-      error: 'An unexpected error occurred while fetching profile options',
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching profile options',
     };
   }
 }
