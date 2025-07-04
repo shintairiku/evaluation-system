@@ -1,0 +1,23 @@
+import { SignInButton } from "@clerk/nextjs";
+
+export default function LandingPage() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="max-w-md w-full space-y-8 p-8">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            新大陸 人事システム
+          </h1>
+          <p className="text-lg text-gray-600 mb-8">
+            従業員評価管理システムへようこそ
+          </p>
+          <SignInButton mode="redirect">
+            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+              サインインして開始
+            </button>
+          </SignInButton>
+        </div>
+      </div>
+    </div>
+  );
+} 
