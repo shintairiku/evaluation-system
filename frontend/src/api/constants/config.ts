@@ -12,7 +12,10 @@ const getApiBaseUrl = () => {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('NEXT_PUBLIC_API_BASE_URL is not set for production environment');
     }
-    return 'http://localhost:8000';
+    // In Docker environment, use service name 'backend' instead of 'localhost'
+    // This can be detected by checking if we're in a containerized environment
+    // For now, we'll use 'backend' as the default for Docker networking
+    return 'http://backend:8000';
   }
   return baseUrl;
 };
