@@ -1,98 +1,187 @@
-#!/usr/bin/env python3
 """
-Centralized logging utilities for repository tests
-Provides consistent logging across all repository test files
+Centralized logging utility for repository tests.
+All repository tests should import and use this for consistent logging.
 """
-
-import os
-import sys
 import logging
+import os
 from datetime import datetime
-from pathlib import Path
 
-# Add backend to path for imports
-backend_path = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(backend_path))
 
 def setup_repository_test_logging(repo_name: str) -> str:
     """
-    Set up centralized logging for repository tests
+    Set up comprehensive logging for repository tests.
     
     Args:
-        repo_name: Name of the repository (e.g., 'user', 'department', 'evaluation')
+        repo_name (str): Name of the repository being tested (e.g., 'user', 'department', 'evaluation')
     
     Returns:
-        str: Path to the log file
+        str: Path to the generated log file
+    
+    Usage:
+        from tests.repositories.test_logging_utils import setup_repository_test_logging
+        TEST_LOG_FILE = setup_repository_test_logging('user')
     """
-    # Create logs directory if it doesn't exist
-    logs_dir = Path(__file__).parent / "logs"
-    logs_dir.mkdir(exist_ok=True)
+    # Ensure logs directory exists
+    log_dir = "tests/logs"
+    os.makedirs(log_dir, exist_ok=True)
     
-    # Generate timestamp for unique log file
+    # Generate timestamped log file name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"{repo_name}_repo_test_{timestamp}.log"
-    log_file_path = logs_dir / log_filename
+    log_file = f"{log_dir}/{repo_name}_repo_test_{timestamp}.log"
     
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file_path),
-            logging.StreamHandler(sys.stdout)
-        ]
+    # Clear any existing handlers to avoid duplicates
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Create formatter with detailed information
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
     )
     
-    # Log setup completion
-    logging.info(f"✅ Repository test logging setup complete for '{repo_name}'")
-    logging.info(f"📁 Log file: {log_file_path}")
+    # File handler for detailed logs
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
     
-    return str(log_file_path)
+    # Console handler for immediate feedback
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    
+    # Configure root logger
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    # Configure specific repository logger
+    repo_logger = logging.getLogger(f'app.database.repositories.{repo_name}_repo')
+    repo_logger.setLevel(logging.DEBUG)
+    
+    # Configure session logger
+    session_logger = logging.getLogger('app.database.session')
+    session_logger.setLevel(logging.DEBUG)
+    
+    # Configure SQLAlchemy engine logger for SQL query logging
+    sqlalchemy_logger = logging.getLogger('sqlalchemy.engine')
+    sqlalchemy_logger.setLevel(logging.INFO)
+    
+    # Log test session start
+    logging.info(f"=== {repo_name.title()} Repository Test Session Started ===")
+    logging.info(f"Log file: {log_file}")
+    logging.info(f"Testing Supabase connectivity and data fetching for {repo_name} repository")
+    
+    return log_file
 
-def log_test_start(test_name: str):
-    """Log the start of a test function"""
-    logging.info(f"🧪 Starting test: {test_name}")
-    logging.info("-" * 50)
 
-def log_data_verification(entity_type: str, data: dict):
-    """Log data verification details"""
-    logging.info(f"✅ Successfully fetched data from Supabase")
+def log_test_start(test_name: str) -> None:
+    """
+    Log the start of a specific test function.
+    
+    Args:
+        test_name (str): Name of the test function (e.g., 'get_user_by_clerk_id')
+    """
+    logging.info(f"{'='*60}")
+    logging.info(f"Testing: {test_name}")
+    logging.info(f"{'='*60}")
+
+
+def log_test_success(test_name: str, details: dict = None) -> None:
+    """
+    Log successful test completion with optional details.
+    
+    Args:
+        test_name (str): Name of the test function
+        details (dict, optional): Additional details to log
+    """
+    logging.info(f"✅ {test_name} - PASSED")
+    if details:
+        for key, value in details.items():
+            logging.info(f"   {key}: {value}")
+
+
+def log_test_failure(test_name: str, error: Exception) -> None:
+    """
+    Log test failure with error details.
+    
+    Args:
+        test_name (str): Name of the test function
+        error (Exception): The exception that occurred
+    """
+    logging.error(f"❌ {test_name} - FAILED: {str(error)}")
+    logging.error(f"   Error type: {type(error).__name__}")
+
+
+def log_database_operation(operation: str, details: dict = None) -> None:
+    """
+    Log database operation details.
+    
+    Args:
+        operation (str): Description of the database operation
+        details (dict, optional): Additional operation details
+    """
+    logging.info(f"🔄 Database Operation: {operation}")
+    if details:
+        for key, value in details.items():
+            logging.info(f"   {key}: {value}")
+
+
+def log_data_verification(entity_name: str, data: dict) -> None:
+    """
+    Log data verification details.
+    
+    Args:
+        entity_name (str): Name of the entity being verified
+        data (dict): Data fields to log
+    """
+    logging.info(f"✅ Successfully fetched {entity_name} from Supabase")
     for key, value in data.items():
         logging.info(f"   {key}: {value}")
 
-def log_assertion_success(message: str):
-    """Log successful assertion"""
+
+def log_assertion_success(message: str) -> None:
+    """
+    Log successful assertion.
+    
+    Args:
+        message (str): Success message
+    """
     logging.info(f"✅ {message}")
 
-def log_supabase_connectivity(record_count: int, table_name: str):
-    """Log Supabase connectivity success"""
-    logging.info(f"✅ Supabase connectivity verified")
-    logging.info(f"   Table: {table_name}")
-    logging.info(f"   Records found: {record_count}")
 
-def log_database_operation(operation: str, details: str = ""):
-    """Log database operation details"""
-    logging.info(f"🔍 Database operation: {operation}")
-    if details:
-        logging.info(f"   Details: {details}")
+def log_supabase_connectivity(record_count: int, table_name: str = "table") -> None:
+    """
+    Log Supabase connectivity verification.
+    
+    Args:
+        record_count (int): Number of records retrieved
+        table_name (str): Name of the table queried
+    """
+    logging.info(f"✅ Supabase connection successful")
+    logging.info(f"   Retrieved {record_count} records from {table_name}")
+    logging.info(f"   Database response time: measured in query execution")
 
-def log_test_summary(test_name: str, success: bool, details: str = ""):
-    """Log test summary"""
-    status = "✅ PASSED" if success else "❌ FAILED"
-    logging.info(f"📊 Test Summary: {test_name} - {status}")
-    if details:
-        logging.info(f"   Details: {details}")
-    logging.info("-" * 50)
 
-def log_error(error: Exception, context: str = ""):
-    """Log error details"""
-    logging.error(f"❌ Error in {context}: {str(error)}")
-    logging.error(f"   Error type: {type(error).__name__}")
-
-def log_warning(message: str):
-    """Log warning message"""
-    logging.warning(f"⚠️ {message}")
-
-def log_info(message: str):
-    """Log info message"""
-    logging.info(f"ℹ️ {message}") 
+def log_test_summary(total_tests: int, passed_tests: int, failed_tests: int, repo_name: str) -> None:
+    """
+    Log final test execution summary.
+    
+    Args:
+        total_tests (int): Total number of tests run
+        passed_tests (int): Number of tests that passed
+        failed_tests (int): Number of tests that failed
+        repo_name (str): Name of the repository tested
+    """
+    logging.info(f"\n{'='*60}")
+    logging.info(f"TEST EXECUTION SUMMARY - {repo_name.upper()} REPOSITORY")
+    logging.info(f"{'='*60}")
+    logging.info(f"Total tests: {total_tests}")
+    logging.info(f"Passed: {passed_tests}")
+    logging.info(f"Failed: {failed_tests}")
+    logging.info(f"Success rate: {(passed_tests/total_tests*100):.1f}%")
+    
+    if failed_tests == 0:
+        logging.info(f"🎉 All {repo_name} repository tests completed successfully!")
+        logging.info(f"✅ Supabase connectivity and data fetching verified for {repo_name} repository")
+    else:
+        logging.error(f"❌ {failed_tests} test(s) failed in {repo_name} repository")
