@@ -2,7 +2,8 @@ import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+
+from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -24,4 +25,4 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
         finally:
-            await session.close() 
+            await session.close()
