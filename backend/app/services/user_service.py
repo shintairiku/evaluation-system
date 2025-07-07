@@ -10,7 +10,7 @@ from ..schemas.user import (
     UserCreateResponse, UserUpdateResponse, UserInactivateResponse,
     Department, Stage, Role, UserStatus
 )
-from ..schemas.common import PaginationParams, PaginatedResponse
+from ..schemas.common import PaginationParams, PaginatedResponse, BaseResponse
 from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, 
     PermissionDeniedError, BadRequestError
@@ -276,52 +276,67 @@ class UserService:
             logger.error(f"Error updating user {user_id}: {str(e)}")
             raise
     
-    async def inactivate_user(
-        self, 
-        user_id: UUID, 
-        current_user: Dict[str, Any]
-    ) -> UserInactivateResponse:
+    async def delete_user(
+        self,
+        user_id: UUID,
+        current_user: Dict[str, Any],
+        mode: str = "soft"
+    ) -> BaseResponse:
         """
-        Inactivate a user (soft delete)
-        
+        Delete a user. Supports 'soft' and 'hard' delete modes.
+
+        - soft: Inactivates the user by changing their status. (default)
+        - hard: Permanently deletes the user and their related data.
+
         Business Logic:
-        - Only admin can inactivate users
-        - Cannot inactivate self
-        - Check for active relationships (supervisor, evaluations)
+        - Only admin can delete users.
+        - Cannot delete self.
+        - Soft delete checks for active supervisory roles.
         """
+        if mode not in ["soft", "hard"]:
+            raise BadRequestError("Invalid delete mode. Must be 'soft' or 'hard'.")
+
         try:
-            # Permission check
+            # Permission check: Only admins can delete
             if current_user.get("role") != "admin":
-                raise PermissionDeniedError("Only administrators can inactivate users")
-            
-            # Check if user exists
-            existing_user = await self.user_repo.get_by_id(user_id)
+                raise PermissionDeniedError("Only administrators can delete users.")
+
+            # Existence check
+            existing_user = await self.user_repo.get_user_by_id(user_id)
             if not existing_user:
-                raise NotFoundError(f"User with ID {user_id} not found")
-            
-            # Prevent self-inactivation
+                raise NotFoundError(f"User with ID {user_id} not found.")
+
+            # Prevent self-deletion
             current_user_clerk_id = current_user.get("sub")
             if current_user_clerk_id:
-                current_user_obj = await self.user_repo.get_by_clerk_id(current_user_clerk_id)
+                current_user_obj = await self.user_repo.get_user_by_clerk_id(current_user_clerk_id)
                 if current_user_obj and current_user_obj.id == user_id:
-                    raise BadRequestError("Cannot inactivate your own account")
-            
-            # Check for active relationships
-            await self._validate_user_inactivation(user_id)
-            
-            # Inactivate user through repository
-            success = await self.user_repo.inactivate_user(user_id)
+                    raise BadRequestError("Cannot delete your own account.")
+
+            if mode == "soft":
+                # Business logic for soft delete (inactivation)
+                await self._validate_user_inactivation(user_id)
+                
+                success = await self.user_repo.update_user_status(user_id, UserStatus.INACTIVE)
+                message = "User inactivated successfully."
+                log_message = f"User soft-deleted (inactivated) successfully: {user_id}"
+
+            else:  # mode == "hard"
+                success = await self.user_repo.hard_delete_user_by_id(user_id)
+                message = "User permanently deleted successfully."
+                log_message = f"User hard-deleted successfully: {user_id}"
+
             if not success:
-                raise NotFoundError(f"User with ID {user_id} not found")
-            
-            logger.info(f"User inactivated successfully: {user_id}")
-            return UserInactivateResponse(
-                success=True,
-                message="User inactivated successfully"
-            )
-            
+                raise NotFoundError(f"User with ID {user_id} not found or could not be deleted.")
+
+            logger.info(log_message)
+            return BaseResponse(success=True, message=message)
+
+        except (NotFoundError, BadRequestError, PermissionDeniedError) as e:
+            logger.warning(f"Failed to delete user {user_id} (mode: {mode}): {e}")
+            raise
         except Exception as e:
-            logger.error(f"Error inactivating user {user_id}: {str(e)}")
+            logger.error(f"Error deleting user {user_id} (mode: {mode}): {str(e)}")
             raise
     
     async def get_user_profile(
