@@ -47,6 +47,9 @@ backend/tests/
 └── integration/                 # Integration Layer Tests
     ├── README.md               # Integration testing guide
     ├── test_logging_utils.py   # Integration-specific logging utilities
+    ├── test_user_workflows.py  # User workflow integration tests
+    ├── test_department_workflows.py # Department workflow integration tests
+    ├── test_performance_evaluation_workflows.py # Performance evaluation workflow tests
     ├── __init__.py             # Integration tests package
     └── logs/                   # Integration test logs
 ```
@@ -80,7 +83,7 @@ backend/tests/
 ### 5. **Integration Layer** (`backend/tests/integration/`)
 - **Purpose**: Test end-to-end workflows, component integration, and system-wide operations
 - **Focus**: Complete user journeys, multi-component workflows, system integration
-- **Files**: Ready for implementation
+- **Files**: 3 test files with comprehensive workflow testing
 - **Logging**: Integration-specific utilities with workflow tracking
 
 ## 🔧 Key Features
@@ -109,6 +112,12 @@ backend/tests/
 - Standardized naming conventions
 - Clear separation of concerns
 - Scalable architecture for future growth
+
+### ✅ **Integration Testing Workflows**
+- **User Workflows**: Complete user lifecycle, department relationships, permissions management
+- **Department Workflows**: Creation, team management, budget management
+- **Performance Evaluation Workflows**: Evaluation cycles, multi-employee evaluations, feedback workflows
+- **End-to-End Journey Testing**: Real workflow simulation with detailed step-by-step logging
 
 ## 🚀 Running Tests
 
@@ -171,9 +180,9 @@ python -m pytest backend/tests/api/test_user_endpoints.py::TestUserEndpoints::te
 | Services | 3 | Business logic testing | Workflow validation, dependency mocking |
 | Security | 5 | Security validation | Auth/authz, RBAC, vulnerability testing |
 | Repositories | 3 | Data layer testing | Database operations, ORM testing |
-| Integration | 0* | End-to-end testing | Complete workflows, system integration |
+| Integration | 3 | End-to-end testing | Complete workflows, system integration |
 
-*Integration layer is set up and ready for implementation
+**Total: 18 test files** organized across 5 architectural layers
 
 ## 🛠️ Development Guidelines
 
