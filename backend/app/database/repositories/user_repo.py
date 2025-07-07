@@ -3,12 +3,12 @@ from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update, func, or_
+from sqlalchemy import select, update, func, or_, delete
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.user import User, UserSupervisor, Role
+from ..models.user import User, UserSupervisor, Role, user_roles
 from ...schemas.user import UserStatus
 
 logger = logging.getLogger(__name__)
@@ -357,7 +357,41 @@ class UserRepository:
     # ========================================
     # DELETE OPERATIONS
     # ========================================
-    # (No delete operations yet - placeholder for future use)
+
+    async def hard_delete_user_by_id(self, user_id: UUID) -> bool:
+        """
+        Permanently delete a user and their relationships from the database.
+        This includes roles and supervisor/subordinate links.
+        """
+        try:
+            # Delete from association tables first
+            await self.session.execute(
+                delete(user_roles).where(user_roles.c.user_id == user_id)
+            )
+            await self.session.execute(
+                delete(UserSupervisor).where(
+                    or_(
+                        UserSupervisor.user_id == user_id,
+                        UserSupervisor.supervisor_id == user_id
+                    )
+                )
+            )
+
+            # Then, delete the user
+            stmt = delete(User).where(User.id == user_id).returning(User.id)
+            result = await self.session.execute(stmt)
+            
+            deleted_id = result.scalar_one_or_none()
+            if deleted_id:
+                logger.info(f"Successfully hard deleted user {user_id}")
+                return True
+            
+            logger.warning(f"Attempted to hard delete non-existent user {user_id}")
+            return False
+
+        except SQLAlchemyError as e:
+            logger.error(f"Error during hard delete for user {user_id}: {e}")
+            raise
 
     # ========================================
     # HELPER METHODS

@@ -1,4 +1,3 @@
-import pytest
 import asyncio
 import logging
 from uuid import UUID, uuid4
@@ -8,9 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import pytest_asyncio
 
+from app.database.models.user import User, UserSupervisor, user_roles, Role
 from app.database.repositories.user_repo import UserRepository
 from app.schemas.user import UserStatus
-from app.database.session import get_db_session
+from app.database.session import get_db_session, AsyncSessionLocal
 from tests.repositories.test_logging_utils import (
     setup_repository_test_logging, 
     log_test_start, 
@@ -611,9 +611,54 @@ class TestUserRepository:
                 else:
                     logging.warning(f"Failed to clean up created user {created_user.id}")
 
+    @pytest.mark.asyncio
+    async def test_soft_delete_user(self, user_repo: UserRepository, session: AsyncSession):
+        """Create a temp user, soft-delete (inactivate) it, verify status change, then clean up."""
+        log_test_start("soft_delete_user")
+        unique_part = uuid4().hex
+        new_user = User(
+            clerk_user_id=f"clerk_soft_{unique_part}",
+            name="Soft Delete Temp",
+            email=f"soft.temp.{unique_part}@example.com",
+            employee_code=f"SOFT{unique_part[:4].upper()}",
+            status=UserStatus.ACTIVE.value,
+        )
+        await user_repo.create_user(new_user)
+        # Soft delete
+        await user_repo.update_user_status(new_user.id, UserStatus.INACTIVE)
+        await session.commit()
+        refreshed = await user_repo.get_user_by_id(new_user.id)
+        assert refreshed is not None and refreshed.status == UserStatus.INACTIVE.value
+        log_assertion_success("Soft delete verified (status set to INACTIVE)")
+        # Cleanup hard delete
+        await user_repo.hard_delete_user_by_id(new_user.id)
+        await session.commit()
+
+    @pytest.mark.asyncio
+    async def test_hard_delete_temp_user(self, user_repo: UserRepository, session: AsyncSession):
+        """Create a temp user, hard delete it, verify removal."""
+        log_test_start("hard_delete_temp_user")
+        unique_part = uuid4().hex
+        new_user = User(
+            clerk_user_id=f"clerk_hard_{unique_part}",
+            name="Hard Delete Temp",
+            email=f"hard.temp.{unique_part}@example.com",
+            employee_code=f"HARD{unique_part[:4].upper()}",
+            status=UserStatus.ACTIVE.value,
+        )
+        await user_repo.create_user(new_user)
+        # Hard delete
+        deleted = await user_repo.hard_delete_user_by_id(new_user.id)
+        await session.commit()
+        assert deleted is True
+        missing = await user_repo.get_user_by_id(new_user.id)
+        assert missing is None
+        log_assertion_success("Hard delete verified (user removed)")
+
 
 if __name__ == "__main__":
     import sys
+    import inspect
     
     # Enhanced direct test execution with selection capabilities
     async def run_tests(selected_test: str = None):
@@ -647,6 +692,8 @@ if __name__ == "__main__":
                 ("count_users_by_filters", "Count Users by Filters", test_instance.test_count_users_by_filters),
                 ("get_active_users", "Get Active Users", test_instance.test_get_active_users),
                 ("create_user", "Create User", test_instance.test_create_user),
+                ("soft_delete_user", "Soft Delete User", test_instance.test_soft_delete_user),
+                ("hard_delete_temp_user", "Hard Delete Temp User", test_instance.test_hard_delete_temp_user),
             ]
             
             # Filter tests if specific test requested
@@ -668,7 +715,11 @@ if __name__ == "__main__":
                     logging.info(f"Running: {test_name}")
                     logging.info(f"{'='*60}")
                     
-                    await test_func(repo)
+                    sig = inspect.signature(test_func)
+                    if 'session' in sig.parameters:
+                        await test_func(repo, session)
+                    else:
+                        await test_func(repo)
                     
                     passed_tests += 1
                     logging.info(f"✅ {test_name} - PASSED")
@@ -728,6 +779,8 @@ if __name__ == "__main__":
             ("count_users_by_filters", "Test counting users with filters"),
             ("get_active_users", "Test fetching all active users"),
             ("create_user", "Test creating a user"),
+            ("soft_delete_user", "Test soft deleting a user"),
+            ("hard_delete_temp_user", "Test hard deleting a temp user"),
         ]
         
         for test_key, description in tests:
