@@ -47,9 +47,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     return JSONResponse(
         status_code=exc.status_code,
         content={
-            "error": True,
-            "message": exc.detail,
-            "status_code": exc.status_code
+            "detail": exc.detail
         }
     )
 
