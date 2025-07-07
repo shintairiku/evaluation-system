@@ -1,13 +1,15 @@
+from __future__ import annotations
 import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
+import json
+from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
-from ..database.models.user import UserBase
+from ..database.models.user import User as UserModel
 from ..schemas.user import (
-    UserCreate, UserUpdate, UserProfile, User, UserInDB,
-    UserCreateResponse, UserUpdateResponse, UserInactivateResponse,
+    UserCreate, UserUpdate, User, UserDetailResponse,
     Department, Stage, Role, UserStatus
 )
 from ..schemas.common import PaginationParams, PaginatedResponse, BaseResponse
@@ -15,8 +17,12 @@ from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, 
     PermissionDeniedError, BadRequestError
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+# Cache for user search results (100 items, 5-minute TTL)
+user_search_cache = TTLCache(maxsize=100, ttl=300)
 
 
 class UserService:
