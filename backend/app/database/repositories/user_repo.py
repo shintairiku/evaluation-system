@@ -1,11 +1,12 @@
-from typing import Optional
-from uuid import UUID
 import logging
+from typing import Optional, Dict, Any
+from uuid import UUID
+from datetime import datetime, timezone
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select, update, func, or_
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.user import User, UserSupervisor, Role
 from ...schemas.user import UserStatus
@@ -33,6 +34,7 @@ class UserRepository:
     # ========================================
     # READ OPERATIONS
     # ========================================
+
 
     async def get_user_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
         """Get user by Clerk user ID."""
@@ -75,6 +77,23 @@ class UserRepository:
             logger.error(f"Error checking user existence by clerk_id {clerk_user_id}: {e}")
             raise
 
+    async def get_user_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
+        """Get user by Clerk user ID."""
+        try:
+            result = await self.session.execute(
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles)
+                )
+                .filter(User.clerk_user_id == clerk_user_id)
+            )
+            return result.scalars().unique().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user by clerk_id {clerk_user_id}: {e}")
+            raise
+
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email address."""
         try:
@@ -114,6 +133,18 @@ class UserRepository:
         except SQLAlchemyError as e:
             logger.error(f"Error fetching user details for ID {user_id}: {e}")
             raise
+
+    async def get_user_by_employee_code(self, employee_code: str) -> Optional[User]:
+        """Get user by employee code."""
+        try:
+            result = await self.session.execute(
+                select(User).filter(User.employee_code == employee_code)
+            )
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user by employee code {employee_code}: {e}")
+            raise
+
 
     async def get_users_by_status(self, status: UserStatus) -> list[User]:
         """Get all users with specific status."""
@@ -156,6 +187,71 @@ class UserRepository:
         except SQLAlchemyError as e:
             logger.error(f"Error fetching users by role names {role_names}: {e}")
             raise
+    
+    async def get_users_by_department(self, department_id: UUID) -> list[User]:
+        """Get all users in a specific department."""
+        try:
+            result = await self.session.execute(
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles)
+                )
+                .filter(User.department_id == department_id)
+                .filter(User.status == UserStatus.ACTIVE.value)
+                .order_by(User.name)
+            )
+            return result.scalars().unique().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching users by department {department_id}: {e}")
+            raise
+
+    async def get_user_roles(self, user_id: UUID) -> list[Role]:
+        """Get all roles for a specific user."""
+        try:
+            from ..models.user import user_roles
+            
+            result = await self.session.execute(
+                select(Role)
+                .join(user_roles, Role.id == user_roles.c.role_id)
+                .filter(user_roles.c.user_id == user_id)
+                .order_by(Role.name)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching roles for user {user_id}: {e}")
+            raise
+
+    async def get_user_supervisors(self, user_id: UUID) -> list[User]:
+        """Get all supervisors for a specific user."""
+        try:
+            result = await self.session.execute(
+                select(User)
+                .join(UserSupervisor, User.id == UserSupervisor.supervisor_id)
+                .filter(UserSupervisor.user_id == user_id)
+                .filter(User.status == UserStatus.ACTIVE.value)
+                .order_by(User.name)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching supervisors for user {user_id}: {e}")
+            raise
+
+    async def get_subordinates(self, supervisor_id: UUID) -> list[User]:
+        """Get all subordinates for a specific supervisor."""
+        try:
+            result = await self.session.execute(
+                select(User)
+                .join(UserSupervisor, User.id == UserSupervisor.user_id)
+                .filter(UserSupervisor.supervisor_id == supervisor_id)
+                .filter(User.status == UserStatus.ACTIVE.value)
+                .order_by(User.name)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching subordinates for supervisor {supervisor_id}: {e}")
+            raise
 
     async def get_active_users(self) -> list[User]:
         """Get all active users with full details."""
@@ -175,17 +271,95 @@ class UserRepository:
             logger.error(f"Error fetching active users: {e}")
             raise
 
+    async def search_users(self, search_term: str = "", filters: Dict[str, Any] = None) -> list[User]:
+        """Search users with optional filters."""
+        try:
+            query = (
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles)
+                )
+                .filter(User.status == UserStatus.ACTIVE.value)
+            )
+            
+            if search_term:
+                search_filter = or_(
+                    User.name.ilike(f"%{search_term}%"),
+                    User.email.ilike(f"%{search_term}%"),
+                    User.employee_code.ilike(f"%{search_term}%")
+                )
+                query = query.where(search_filter)
+            
+            if filters:
+                if filters.get('department_id'):
+                    query = query.where(User.department_id == filters['department_id'])
+                if filters.get('status'):
+                    query = query.where(User.status == filters['status'])
+            
+            query = query.order_by(User.name)
+            
+            result = await self.session.execute(query)
+            return result.scalars().unique().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error searching users: {e}")
+            raise
+
+    # ========================================
+    # UPDATE OPERATIONS
+    # ========================================
+
+    async def update_user_status(self, user_id: UUID, status: UserStatus) -> bool:
+        """Update user status."""
+        try:
+            result = await self.session.execute(
+                update(User)
+                .where(User.id == user_id)
+                .values(status=status.value)
+                .returning(User.id)
+            )
+            return result.scalar_one_or_none() is not None
+        except SQLAlchemyError as e:
+            logger.error(f"Error updating user status for {user_id}: {e}")
+            raise
+
+    async def update_last_login(self, user_id: UUID) -> bool:
+        """Update user's last login timestamp."""
+        try:
+            result = await self.session.execute(
+                update(User)
+                .where(User.id == user_id)
+                .values(last_login_at=datetime.now(timezone.utc))
+                .returning(User.id)
+            )
+            return result.scalar_one_or_none() is not None
+        except SQLAlchemyError as e:
+            logger.error(f"Error updating last login for user {user_id}: {e}")
+            raise
+
+    # ========================================
+    # DELETE OPERATIONS
+    # ========================================
+    # (No delete operations yet - placeholder for future use)
+
     # ========================================
     # HELPER METHODS
     # ========================================
 
-    async def get_roles_by_ids(self, role_ids: list[int]) -> list[Role]:
-        """Get roles by their IDs."""
+    async def count_users_by_filters(self, filters: Dict[str, Any] = None) -> int:
+        """Count users with optional filters."""
         try:
-            result = await self.session.execute(
-                select(Role).filter(Role.id.in_(role_ids))
-            )
-            return result.scalars().all()
+            query = select(func.count(User.id))
+            
+            if filters:
+                if filters.get('department_id'):
+                    query = query.where(User.department_id == filters['department_id'])
+                if filters.get('status'):
+                    query = query.where(User.status == filters['status'])
+            
+            result = await self.session.execute(query)
+            return result.scalar()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching roles by IDs {role_ids}: {e}")
+            logger.error(f"Error counting users: {e}")
             raise

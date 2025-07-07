@@ -103,19 +103,20 @@ log_supabase_connectivity(5, "departments")
 ```python
 class TestYourRepository:
     """Test YourRepository with actual Supabase data"""
-    
+
     @pytest_asyncio.fixture
     async def session(self):
         """Get actual database session"""
         async for session in get_db_session():
+
             yield session
             break
-    
+
     @pytest_asyncio.fixture
     async def your_repo(self, session):
         """Create YourRepository instance"""
         return YourRepository(session)
-    
+
     # Test data - replace with your actual test data
     SEED_DATA_IDS = {
         "test_item_1": UUID("123e4567-e89b-12d3-a456-426614174000"),
@@ -130,7 +131,6 @@ class TestYourRepository:
 async def test_your_function_name(self, your_repo):
     """Test description - what this function does"""
     log_test_start("your_function_name")
-    
     # Test data
     test_input = "your_test_input"
     logging.info(f"Attempting to test with input: {test_input}")
@@ -138,7 +138,7 @@ async def test_your_function_name(self, your_repo):
     try:
         # Execute the repository function
         result = await your_repo.your_function_name(test_input)
-        
+
         if result:
             # Log data verification using utility function
             log_data_verification("your_entity", {
@@ -147,18 +147,18 @@ async def test_your_function_name(self, your_repo):
                 "Status": result.status,
                 # Add other relevant fields
             })
-            
+
             # Verify data integrity
             assert result is not None, "Result should not be None"
             assert result.name == "expected_name", f"Expected 'expected_name', got '{result.name}'"
             # Add other assertions
-            
+
             log_assertion_success("All assertions passed - Supabase data is consistent")
         else:
             logging.error("❌ No data found in Supabase database")
             logging.error(f"   Searched input: {test_input}")
             raise AssertionError("Data should exist in Supabase")
-            
+
     except Exception as e:
         logging.error(f"❌ Error during Supabase query: {str(e)}")
         logging.error(f"   Error type: {type(e).__name__}")
@@ -175,7 +175,7 @@ Every repository test should include these core tests:
 async def test_supabase_connectivity(self, your_repo):
     """Test basic Supabase database connectivity"""
     log_test_start("Supabase Database Connectivity")
-    
+
     try:
         # Test basic connectivity by querying your table
         logging.info("Testing basic database connection...")
@@ -393,4 +393,3 @@ When creating a new repository test:
 - `'evaluation'` → `evaluation_repo_test_20250630_133312.log`
 - `'role'` → `role_repo_test_20250630_133500.log`
 
-This template ensures consistent, thorough testing across all repositories with excellent debugging capabilities through centralized logging utilities.

@@ -91,9 +91,10 @@ class StageUpdate(BaseModel):
 # ========================================
 
 class Role(BaseModel):
+    """Role information"""
     id: int
     name: str
-    description: str
+    description: Optional[str] = None
 
 
 class RoleDetail(BaseModel):
@@ -144,22 +145,26 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
+    """Schema for updating user information"""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     email: Optional[EmailStr] = None
     employee_code: Optional[str] = Field(None, min_length=1, max_length=20)
     job_title: Optional[str] = Field(None, max_length=100)
     department_id: Optional[UUID] = None
     stage_id: Optional[UUID] = None
-    role_ids: Optional[List[int]] = None
+    role_ids: Optional[List[int]] = Field(None, min_items=0, max_items=10)
+    supervisor_id: Optional[UUID] = None
     status: Optional[UserStatus] = None
 
 
 class UserInDB(UserBase):
+    """User model as stored in database"""
     id: UUID
     clerk_user_id: str
     status: UserStatus = UserStatus.ACTIVE
     department_id: UUID
     stage_id: UUID
+    supervisor_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 
@@ -172,6 +177,7 @@ class UserInDB(UserBase):
 
 
 class User(UserInDB):
+    """Complete user information with relationships"""
     department: Department
     stage: Stage
     roles: List[Role] = []
@@ -207,7 +213,6 @@ class UserExistsResponse(BaseModel):
     status: Optional[UserStatus] = None
 
     model_config = ConfigDict(from_attributes=True)
-
 
 
 # ========================================

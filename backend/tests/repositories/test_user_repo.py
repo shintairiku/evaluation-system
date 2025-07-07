@@ -249,6 +249,313 @@ class TestUserRepository:
             raise
 
 
+    @pytest.mark.asyncio
+    async def test_get_user_by_employee_code(self, user_repo):
+        """Test fetching user by employee code"""
+        log_test_start("get_user_by_employee_code")
+        
+        # Test with Yamada's employee code from seed data
+        employee_code = "EMP001"
+        logging.info(f"Attempting to fetch user with employee code: {employee_code}")
+        
+        try:
+            user = await user_repo.get_user_by_employee_code(employee_code)
+            
+            if user:
+                log_data_verification("user_by_employee_code", {
+                    "User ID": user.id,
+                    "Name": user.name,
+                    "Employee Code": user.employee_code,
+                    "Email": user.email,
+                    "Status": user.status
+                })
+                
+                assert user is not None, "User should not be None"
+                assert user.employee_code == employee_code, f"Expected '{employee_code}', got '{user.employee_code}'"
+                assert user.name == "山田 太郎", f"Expected '山田 太郎', got '{user.name}'"
+                
+                log_assertion_success("Employee code lookup successful")
+            else:
+                logging.error("❌ User not found by employee code")
+                raise AssertionError("User should exist with employee code EMP001")
+                
+        except Exception as e:
+            logging.error(f"❌ Error during employee code lookup: {str(e)}")
+            raise
+
+    @pytest.mark.asyncio
+    async def test_check_user_exists_by_clerk_id(self, user_repo):
+        """Test lightweight check for user existence by Clerk ID"""
+        log_test_start("check_user_exists_by_clerk_id")
+        
+        clerk_id = self.CLERK_IDS["sato"]
+        logging.info(f"Checking user existence with Clerk ID: {clerk_id}")
+        
+        try:
+            result = await user_repo.check_user_exists_by_clerk_id(clerk_id)
+            
+            if result:
+                log_data_verification("user_existence_check", {
+                    "User ID": result["id"],
+                    "Name": result["name"],
+                    "Email": result["email"],
+                    "Status": result["status"]
+                })
+                
+                # Verify result is a dict with expected fields (per memory note)
+                assert isinstance(result, dict), "Result should be a dictionary"
+                assert "id" in result, "Result should contain 'id' field"
+                assert "name" in result, "Result should contain 'name' field"
+                assert "email" in result, "Result should contain 'email' field"
+                assert "status" in result, "Result should contain 'status' field"
+                assert result["name"] == "佐藤 花子", f"Expected '佐藤 花子', got '{result['name']}'"
+                
+                log_assertion_success("User existence check successful")
+            else:
+                logging.error("❌ User existence check returned None")
+                raise AssertionError("User should exist")
+                
+        except Exception as e:
+            logging.error(f"❌ Error during user existence check: {str(e)}")
+            raise
+    
+    @pytest.mark.asyncio
+    async def test_get_users_by_department(self, user_repo):
+        """Test fetching users by department"""
+        log_test_start("get_users_by_department")
+        
+        # Use Engineering department ID from seed data (assuming it exists)
+        # First get a user to find their department ID
+        user = await user_repo.get_user_by_id_with_details(self.SEED_USER_IDS["yamada"])
+        assert user and user.department, "Need user with department for testing"
+        
+        department_id = user.department_id
+        logging.info(f"Testing department filtering with ID: {department_id}")
+        
+        try:
+            users = await user_repo.get_users_by_department(department_id)
+            
+            log_data_verification("users_by_department", {
+                "Department ID": department_id,
+                "Users Found": len(users),
+                "User Names": [u.name for u in users]
+            })
+            
+            assert len(users) > 0, "Should find at least one user in department"
+            assert all(u.department_id == department_id for u in users), "All users should be in the same department"
+            assert all(u.status == UserStatus.ACTIVE.value for u in users), "All users should be active"
+            
+            log_assertion_success(f"Found {len(users)} users in department")
+            
+        except Exception as e:
+            logging.error(f"❌ Error fetching users by department: {str(e)}")
+            raise
+    
+    @pytest.mark.asyncio
+    async def test_get_users_by_role_names(self, user_repo):
+        """Test fetching users by role names"""
+        log_test_start("get_users_by_role_names")
+        
+        # Test with common role names
+        role_names = ["employee", "manager"]
+        logging.info(f"Testing role filtering with names: {role_names}")
+        
+        try:
+            users = await user_repo.get_users_by_role_names(role_names)
+            
+            log_data_verification("users_by_role_names", {
+                "Role Names": role_names,
+                "Users Found": len(users),
+                "User Names": [u.name for u in users]
+            })
+            
+            assert len(users) > 0, "Should find users with specified roles"
+            assert all(u.status == UserStatus.ACTIVE.value for u in users), "All users should be active"
+            
+            log_assertion_success(f"Found {len(users)} users with roles: {role_names}")
+            
+        except Exception as e:
+            logging.error(f"❌ Error fetching users by role names: {str(e)}")
+            raise
+    
+    @pytest.mark.asyncio
+    async def test_get_user_roles(self, user_repo):
+        """Test fetching roles for a specific user"""
+        log_test_start("get_user_roles")
+        
+        user_id = self.SEED_USER_IDS["sato"]
+        logging.info(f"Testing role retrieval for user ID: {user_id}")
+        
+        try:
+            roles = await user_repo.get_user_roles(user_id)
+            
+            log_data_verification("user_roles", {
+                "User ID": user_id,
+                "Roles Found": len(roles),
+                "Role Names": [r.name for r in roles]
+            })
+            
+            assert len(roles) > 0, "User should have at least one role"
+            assert all(hasattr(role, 'name') for role in roles), "All roles should have name attribute"
+            
+            log_assertion_success(f"Found {len(roles)} roles for user")
+            
+        except Exception as e:
+            logging.error(f"❌ Error fetching user roles: {str(e)}")
+            raise
+    
+    @pytest.mark.asyncio
+    async def test_get_user_supervisors(self, user_repo):
+        """Test fetching supervisors for a user"""
+        log_test_start("get_user_supervisors")
+        
+        # Test with an employee who should have supervisors
+        user_id = self.SEED_USER_IDS["yamada"]
+        logging.info(f"Testing supervisor lookup for user ID: {user_id}")
+        
+        try:
+            supervisors = await user_repo.get_user_supervisors(user_id)
+            
+            log_data_verification("user_supervisors", {
+                "User ID": user_id,
+                "Supervisors Found": len(supervisors),
+                "Supervisor Names": [s.name for s in supervisors]
+            })
+            
+            # Note: May be 0 supervisors for some users, so just check structure
+            assert isinstance(supervisors, list), "Should return a list of supervisors"
+            if supervisors:
+                assert all(hasattr(s, 'name') for s in supervisors), "All supervisors should have name attribute"
+                assert all(s.status == UserStatus.ACTIVE.value for s in supervisors), "All supervisors should be active"
+            
+            log_assertion_success(f"Found {len(supervisors)} supervisors for user")
+            
+        except Exception as e:
+            logging.error(f"❌ Error fetching user supervisors: {str(e)}")
+            raise
+    
+    @pytest.mark.asyncio
+    async def test_get_subordinates(self, user_repo):
+        """Test fetching subordinates for a supervisor"""
+        log_test_start("get_subordinates")
+        
+        # Test with Sato who should be a manager/supervisor
+        supervisor_id = self.SEED_USER_IDS["sato"]
+        logging.info(f"Testing subordinate lookup for supervisor ID: {supervisor_id}")
+        
+        try:
+            subordinates = await user_repo.get_subordinates(supervisor_id)
+            
+            log_data_verification("subordinates", {
+                "Supervisor ID": supervisor_id,
+                "Subordinates Found": len(subordinates),
+                "Subordinate Names": [s.name for s in subordinates]
+            })
+            
+            # Note: May be 0 subordinates for some users, so just check structure
+            assert isinstance(subordinates, list), "Should return a list of subordinates"
+            if subordinates:
+                assert all(hasattr(s, 'name') for s in subordinates), "All subordinates should have name attribute"
+                assert all(s.status == UserStatus.ACTIVE.value for s in subordinates), "All subordinates should be active"
+            
+            log_assertion_success(f"Found {len(subordinates)} subordinates for supervisor")
+            
+        except Exception as e:
+            logging.error(f"❌ Error fetching subordinates: {str(e)}")
+            raise
+    
+    @pytest.mark.asyncio
+    async def test_search_users(self, user_repo):
+        """Test user search functionality"""
+        log_test_start("search_users")
+        
+        search_term = "山田"
+        logging.info(f"Testing user search with term: '{search_term}'")
+        
+        try:
+            # Test search by name
+            users = await user_repo.search_users(search_term)
+            
+            log_data_verification("search_users", {
+                "Search Term": search_term,
+                "Users Found": len(users),
+                "User Names": [u.name for u in users]
+            })
+            
+            assert len(users) > 0, "Should find users matching search term"
+            assert any(search_term in u.name for u in users), "At least one user should match search term"
+            assert all(u.status == UserStatus.ACTIVE.value for u in users), "All users should be active"
+            
+            # Test search with filters
+            filters = {"department_id": users[0].department_id} if users else {}
+            filtered_users = await user_repo.search_users(search_term, filters)
+            
+            assert len(filtered_users) <= len(users), "Filtered results should be subset of unfiltered"
+            
+            log_assertion_success(f"Search found {len(users)} users, filtered to {len(filtered_users)}")
+            
+        except Exception as e:
+            logging.error(f"❌ Error during user search: {str(e)}")
+            raise
+    
+    @pytest.mark.asyncio
+    async def test_count_users_by_filters(self, user_repo):
+        """Test counting users with filters"""
+        log_test_start("count_users_by_filters")
+        
+        logging.info("Testing user counting functionality")
+        
+        try:
+            # Count all users
+            total_count = await user_repo.count_users_by_filters()
+            
+            # Count active users
+            active_filter = {"status": UserStatus.ACTIVE.value}
+            active_count = await user_repo.count_users_by_filters(active_filter)
+            
+            log_data_verification("count_users", {
+                "Total Users": total_count,
+                "Active Users": active_count
+            })
+            
+            assert total_count >= 0, "Total count should be non-negative"
+            assert active_count >= 0, "Active count should be non-negative"
+            assert active_count <= total_count, "Active count should not exceed total"
+            
+            log_assertion_success(f"Count verification successful: {active_count}/{total_count} active users")
+            
+        except Exception as e:
+            logging.error(f"❌ Error counting users: {str(e)}")
+            raise
+    
+    @pytest.mark.asyncio
+    async def test_get_active_users(self, user_repo):
+        """Test fetching all active users"""
+        log_test_start("get_active_users")
+        
+        logging.info("Testing active users retrieval")
+        
+        try:
+            active_users = await user_repo.get_active_users()
+            
+            log_data_verification("active_users", {
+                "Active Users Found": len(active_users),
+                "User Names": [u.name for u in active_users][:5]  # Show first 5 names
+            })
+            
+            assert len(active_users) > 0, "Should find at least one active user"
+            assert all(u.status == UserStatus.ACTIVE.value for u in active_users), "All users should be active"
+            assert all(hasattr(u, 'department') for u in active_users), "Users should have department loaded"
+            assert all(hasattr(u, 'stage') for u in active_users), "Users should have stage loaded"
+            assert all(hasattr(u, 'roles') for u in active_users), "Users should have roles loaded"
+            
+            log_assertion_success(f"Successfully retrieved {len(active_users)} active users with full details")
+            
+        except Exception as e:
+            logging.error(f"❌ Error fetching active users: {str(e)}")
+            raise
+
+
 if __name__ == "__main__":
     import sys
     
@@ -273,6 +580,16 @@ if __name__ == "__main__":
                 ("get_users_by_status", "Get Users by Status", test_instance.test_get_users_by_status),
                 ("all_seed_users_exist", "All Seed Users Exist", test_instance.test_all_seed_users_exist),
                 ("database_relationships", "Database Relationships", test_instance.test_database_relationships),
+                ("get_user_by_employee_code", "Get User by Employee Code", test_instance.test_get_user_by_employee_code),
+                ("check_user_exists_by_clerk_id", "Check User Existence by Clerk ID", test_instance.test_check_user_exists_by_clerk_id),
+                ("get_users_by_department", "Get Users by Department", test_instance.test_get_users_by_department),
+                ("get_users_by_role_names", "Get Users by Role Names", test_instance.test_get_users_by_role_names),
+                ("get_user_roles", "Get User Roles", test_instance.test_get_user_roles),
+                ("get_user_supervisors", "Get User Supervisors", test_instance.test_get_user_supervisors),
+                ("get_subordinates", "Get Subordinates", test_instance.test_get_subordinates),
+                ("search_users", "Search Users", test_instance.test_search_users),
+                ("count_users_by_filters", "Count Users by Filters", test_instance.test_count_users_by_filters),
+                ("get_active_users", "Get Active Users", test_instance.test_get_active_users),
             ]
             
             # Filter tests if specific test requested
@@ -343,6 +660,16 @@ if __name__ == "__main__":
             ("get_users_by_status", "Test filtering users by status"),
             ("all_seed_users_exist", "Verify all seed users exist"),
             ("database_relationships", "Test database relationship loading"),
+            ("get_user_by_employee_code", "Test fetching user by employee code"),
+            ("check_user_exists_by_clerk_id", "Test checking user existence by Clerk ID"),
+            ("get_users_by_department", "Test fetching users by department"),
+            ("get_users_by_role_names", "Test fetching users by role names"),
+            ("get_user_roles", "Test fetching user roles"),
+            ("get_user_supervisors", "Test fetching user supervisors"),
+            ("get_subordinates", "Test fetching subordinates"),
+            ("search_users", "Test user search functionality"),
+            ("count_users_by_filters", "Test counting users with filters"),
+            ("get_active_users", "Test fetching all active users"),
         ]
         
         for test_key, description in tests:
