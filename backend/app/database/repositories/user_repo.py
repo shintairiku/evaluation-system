@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.user import User, UserSupervisor, Role, user_roles
 from ...schemas.user import UserStatus
+from ...schemas.common import PaginationParams
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,6 @@ class UserRepository:
             logger.error(f"Error fetching user by email {email}: {e}")
             raise
 
-  
     async def get_user_by_employee_code(self, employee_code: str) -> Optional[User]:
         """Get user by employee code."""
         try:
@@ -144,7 +144,6 @@ class UserRepository:
         except SQLAlchemyError as e:
             logger.error(f"Error fetching user by employee code {employee_code}: {e}")
             raise
-
 
     async def get_users_by_status(self, status: UserStatus) -> list[User]:
         """Get all users with specific status."""
@@ -271,35 +270,40 @@ class UserRepository:
             logger.error(f"Error fetching active users: {e}")
             raise
 
-    async def search_users(self, search_term: str = "", filters: Dict[str, Any] = None) -> list[User]:
-        """Search users with optional filters."""
+    async def search_users(
+        self,
+        search_term: str = "",
+        filters: Optional[Dict[str, Any]] = None,
+        pagination: Optional[PaginationParams] = None,
+    ) -> list[User]:
+        """Search users with optional filters and pagination."""
         try:
-            query = (
-                select(User)
-                .options(
-                    joinedload(User.department),
-                    joinedload(User.stage),
-                    joinedload(User.roles)
-                )
-                .filter(User.status == UserStatus.ACTIVE.value)
+            query = select(User).options(
+                joinedload(User.department),
+                joinedload(User.stage),
+                joinedload(User.roles),
             )
-            
+
+            final_filters = filters or {}
+            status_filter = final_filters.get("status", UserStatus.ACTIVE.value)
+            query = query.where(User.status == status_filter)
+
+            if "department_id" in final_filters:
+                query = query.where(User.department_id == final_filters["department_id"])
+
             if search_term:
                 search_filter = or_(
                     User.name.ilike(f"%{search_term}%"),
                     User.email.ilike(f"%{search_term}%"),
-                    User.employee_code.ilike(f"%{search_term}%")
+                    User.employee_code.ilike(f"%{search_term}%"),
                 )
                 query = query.where(search_filter)
-            
-            if filters:
-                if filters.get('department_id'):
-                    query = query.where(User.department_id == filters['department_id'])
-                if filters.get('status'):
-                    query = query.where(User.status == filters['status'])
-            
+
             query = query.order_by(User.name)
-            
+
+            if pagination:
+                query = query.offset(pagination.offset).limit(pagination.limit)
+
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
@@ -381,19 +385,30 @@ class UserRepository:
     # HELPER METHODS
     # ========================================
 
-    async def count_users_by_filters(self, filters: Dict[str, Any] = None) -> int:
-        """Count users with optional filters."""
+    async def count_users(
+        self, search_term: str = "", filters: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Count users with optional search term and filters."""
         try:
             query = select(func.count(User.id))
-            
-            if filters:
-                if filters.get('department_id'):
-                    query = query.where(User.department_id == filters['department_id'])
-                if filters.get('status'):
-                    query = query.where(User.status == filters['status'])
-            
+
+            final_filters = filters or {}
+            status_filter = final_filters.get("status", UserStatus.ACTIVE.value)
+            query = query.where(User.status == status_filter)
+
+            if "department_id" in final_filters:
+                query = query.where(User.department_id == final_filters["department_id"])
+
+            if search_term:
+                search_filter = or_(
+                    User.name.ilike(f"%{search_term}%"),
+                    User.email.ilike(f"%{search_term}%"),
+                    User.employee_code.ilike(f"%{search_term}%"),
+                )
+                query = query.where(search_filter)
+
             result = await self.session.execute(query)
-            return result.scalar()
+            return result.scalar() or 0
         except SQLAlchemyError as e:
             logger.error(f"Error counting users: {e}")
             raise
