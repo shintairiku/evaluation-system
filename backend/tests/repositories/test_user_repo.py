@@ -1,7 +1,10 @@
 import pytest
 import asyncio
 import logging
-from uuid import UUID
+from uuid import UUID, uuid4
+import pytest
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import pytest_asyncio
 
@@ -555,6 +558,59 @@ class TestUserRepository:
             logging.error(f"❌ Error fetching active users: {str(e)}")
             raise
 
+    @pytest.mark.asyncio
+    async def test_create_user(self, user_repo: UserRepository, session: AsyncSession):
+        """Test creating a new user."""
+        log_test_start("create_user")
+        
+        # 1. Define new user data without a pre-set ID
+        unique_part = uuid4().hex
+        new_user_data = {
+            "clerk_user_id": f"clerk_test_{unique_part}",
+            "name": "Test User",
+            "email": f"test.user.{unique_part}@example.com",
+            "employee_code": f"TEST{unique_part[:4].upper()}",
+            "status": UserStatus.ACTIVE.value,
+            "job_title": "Tester"
+        }
+        
+        new_user = User(**new_user_data)
+        
+        created_user = None
+        try:
+            # 2. Execute create_user method
+            created_user = await user_repo.create_user(new_user)
+            
+            log_data_verification("created_user", {
+                "User ID": created_user.id,
+                "Name": created_user.name,
+                "Email": created_user.email,
+                "Status": created_user.status
+            })
+            
+            # 3. Assertions
+            assert created_user is not None
+            assert isinstance(created_user.id, UUID) # Verify that the DB assigned a UUID
+            assert created_user.name == "Test User"
+            assert created_user.email == new_user_data["email"]
+            
+            # 4. Verify user is persisted in the database
+            verified_user = await user_repo.get_user_by_id(created_user.id)
+            assert verified_user is not None
+            assert verified_user.name == "Test User"
+            
+            log_assertion_success("User creation and persistence verified.")
+            
+        finally:
+            # 5. Cleanup
+            if created_user:
+                deleted = await user_repo.hard_delete_user_by_id(created_user.id)
+                await session.commit()
+                if deleted:
+                    logging.info(f"Successfully cleaned up created user {created_user.id}")
+                else:
+                    logging.warning(f"Failed to clean up created user {created_user.id}")
+
 
 if __name__ == "__main__":
     import sys
@@ -590,6 +646,7 @@ if __name__ == "__main__":
                 ("search_users", "Search Users", test_instance.test_search_users),
                 ("count_users_by_filters", "Count Users by Filters", test_instance.test_count_users_by_filters),
                 ("get_active_users", "Get Active Users", test_instance.test_get_active_users),
+                ("create_user", "Create User", test_instance.test_create_user),
             ]
             
             # Filter tests if specific test requested
@@ -670,6 +727,7 @@ if __name__ == "__main__":
             ("search_users", "Test user search functionality"),
             ("count_users_by_filters", "Test counting users with filters"),
             ("get_active_users", "Test fetching all active users"),
+            ("create_user", "Test creating a user"),
         ]
         
         for test_key, description in tests:

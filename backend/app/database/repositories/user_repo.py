@@ -31,6 +31,22 @@ class UserRepository:
         """Add a user-supervisor relationship to the session (does not commit)."""
         self.session.add(user_supervisor)
 
+    async def create_user(self, user: User) -> User:
+        """
+        Create a new user in the database.
+        Adds, commits, and refreshes the user instance.
+        """
+        try:
+            self.session.add(user)
+            await self.session.commit()
+            await self.session.refresh(user)
+            logger.info(f"Successfully created user {user.id} with email {user.email}")
+            return user
+        except SQLAlchemyError as e:
+            await self.session.rollback()
+            logger.error(f"Error creating user with email {user.email}: {e}")
+            raise
+
     # ========================================
     # READ OPERATIONS
     # ========================================
