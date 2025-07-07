@@ -167,6 +167,7 @@ class UserInDB(UserBase):
     supervisor_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
+    last_login_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

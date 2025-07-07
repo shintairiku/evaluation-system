@@ -121,6 +121,7 @@ export interface UserInDB extends UserBase {
   stage_id: UUID;
   created_at: string;
   updated_at: string;
+  last_login_at?: string;
 }
 
 export interface User extends UserInDB {
