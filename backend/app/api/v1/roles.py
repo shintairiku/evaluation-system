@@ -1,35 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any, List
 
-from ...dependencies.auth import get_current_user
+from ...dependencies.auth import get_current_user, require_admin
 from ...schemas.user import Role, RoleDetail, RoleCreate, RoleUpdate
 
 router = APIRouter(prefix="/admin/roles", tags=["roles"])
 
 @router.get("/", response_model=List[Role])
-async def get_roles(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_roles(current_user: Dict[str, Any] = Depends(require_admin())):
     """Get all roles (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can view roles"
-        )
-    
     # TODO: Implement role service to fetch all roles
     return []
 
 @router.post("/", response_model=Role)
 async def create_role(
     role_create: RoleCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_admin())
 ):
     """Create a new role (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can create roles"
-        )
-    
     # TODO: Implement role creation service
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -77,15 +65,9 @@ async def update_role(
 @router.delete("/{role_id}")
 async def delete_role(
     role_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_admin())
 ):
     """Delete a role (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can delete roles"
-        )
-    
     # TODO: Implement role deletion service
     # - Check if any users have this role
     # - Remove role assignments before deletion

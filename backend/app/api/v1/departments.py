@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...dependencies.auth import get_current_user, require_role, require_admin
 from ...schemas.user import Department, DepartmentDetail, DepartmentCreate, DepartmentUpdate
 from ...schemas.department import DepartmentCreate as DepartmentCreateSchema, DepartmentUpdate as DepartmentUpdateSchema
 from ...services.department_service import DepartmentService
@@ -68,7 +68,7 @@ async def get_departments(
 @router.post("/", response_model=Department)
 async def create_department(
     department_data: DepartmentCreateSchema,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_admin())
 ):
     """Create a new department (admin only)."""
     try:
@@ -193,7 +193,7 @@ async def update_department(
 async def delete_department(
     department_id: UUID,
     transfer_to_department_id: Optional[UUID] = Query(None, description="Department ID to transfer users to"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_admin())
 ):
     """Delete a department (admin only) with optional user transfer."""
     try:
@@ -354,7 +354,7 @@ async def remove_user_from_department(
 async def assign_department_manager(
     department_id: UUID,
     user_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_admin())
 ):
     """Assign a manager to a department (admin only)."""
     try:

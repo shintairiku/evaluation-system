@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, Optional
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...dependencies.auth import get_current_user, require_role, require_admin
 from ...schemas.user import (
     User, UserCreate, UserUpdate, UserProfile,
     UserCreateResponse, UserUpdateResponse, UserInactivateResponse,
@@ -368,7 +368,7 @@ async def get_user(
 )
 async def create_user(
     user_create: UserCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_admin())
 ):
     """
     Create a new user (admin only).
@@ -477,7 +477,7 @@ async def create_user(
 async def update_user(
     user_id: UUID,
     user_update: UserUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(require_role(["admin", "manager"]))
 ):
     """
     Update a user with permission checks.
