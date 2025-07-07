@@ -68,7 +68,7 @@ async def get_users(
         )
 
 
-@router.get("/{user_id}", response_model=User)
+@router.get("/{user_id}", response_model=UserDetailResponse)
 async def get_user(
     user_id: UUID,
     current_user: Dict[str, Any] = Depends(get_current_user)
