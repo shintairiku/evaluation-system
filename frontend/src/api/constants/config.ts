@@ -1,17 +1,46 @@
+declare const process: {
+  env: {
+    [key: string]: string | undefined;
+    NEXT_PUBLIC_API_BASE_URL?: string;
+    NODE_ENV?: string;
+  };
+};
+
+const getApiBaseUrl = () => {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!baseUrl) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('NEXT_PUBLIC_API_BASE_URL is not set for production environment');
+    }
+    // In Docker environment, use service name 'backend' instead of 'localhost'
+    // This can be detected by checking if we're in a containerized environment
+    // For now, we'll use 'backend' as the default for Docker networking
+    return 'http://backend:8000';
+  }
+  return baseUrl;
+};
+
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1',
+  BASE_URL: getApiBaseUrl(),
+  API_VERSION: 'v1',
+  FULL_URL: `${getApiBaseUrl()}/api/v1`,
   TIMEOUT: 30000, // 30 seconds
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000, // 1 second
 } as const;
 
+// Helper function to build full API URLs
+export const buildApiUrl = (endpoint: string, version?: string) => {
+  const apiVersion = version || API_CONFIG.API_VERSION;
+  return `${API_CONFIG.BASE_URL}/api/${apiVersion}${endpoint}`;
+};
+
 export const API_ENDPOINTS = {
   // Auth endpoints
   AUTH: {
-    SIGNIN: '/auth/signin',
-    SIGNOUT: '/auth/signout',
-    REFRESH: '/auth/refresh',
-    CURRENT_USER: '/auth/current-user',
+    GET_USER_BY_CLERK_ID: (clerkId: string) => `/auth/user/${clerkId}`,
+    SIGNUP: '/auth/signup',
+    SIGNUP_PROFILE_OPTIONS: '/auth/signup/profile-options',
   },
   
   // User endpoints

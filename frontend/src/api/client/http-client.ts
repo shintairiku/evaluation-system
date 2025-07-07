@@ -1,4 +1,5 @@
 import { auth } from '@clerk/nextjs/server';
+import { API_CONFIG } from '../constants/config';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -26,7 +27,7 @@ class HttpClient {
 
   private async getAuthHeaders(): Promise<Record<string, string>> {
     try {
-      const { getToken } = auth();
+      const { getToken } = await auth();
       const token = await getToken();
       
       if (token) {
@@ -83,7 +84,12 @@ class HttpClient {
     
     try {
       const url = `${this.baseUrl}${endpoint}`;
+      console.log('HTTP Client: Making request to:', url);
+      console.log('HTTP Client: Base URL:', this.baseUrl);
+      console.log('HTTP Client: Endpoint:', endpoint);
+      
       const headers = await this.buildHeaders(customHeaders);
+      console.log('HTTP Client: Headers built:', headers);
       
       const requestConfig: RequestInit = {
         method,
@@ -94,9 +100,19 @@ class HttpClient {
         requestConfig.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
 
+      console.log('HTTP Client: About to fetch with config:', { url, method, headers: requestConfig.headers });
       const response = await fetch(url, requestConfig);
-      return await this.handleResponse<T>(response);
+      console.log('HTTP Client: Fetch response status:', response.status, response.statusText);
+      
+      const result = await this.handleResponse<T>(response);
+      console.log('HTTP Client: Final result:', result);
+      
+      return result;
     } catch (error) {
+      console.error('HTTP Client: Fetch error:', error);
+      console.error('HTTP Client: Error type:', typeof error);
+      console.error('HTTP Client: Error message:', error instanceof Error ? error.message : String(error));
+      
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Network error occurred',
@@ -129,8 +145,7 @@ let httpClientInstance: HttpClient | null = null;
 
 export function getHttpClient(): HttpClient {
   if (!httpClientInstance) {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
-    httpClientInstance = new HttpClient(baseUrl);
+    httpClientInstance = new HttpClient(API_CONFIG.FULL_URL);
   }
   return httpClientInstance;
 }

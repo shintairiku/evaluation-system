@@ -1,37 +1,37 @@
 import { UUID } from './common';
-import { UserDetailResponse } from './user';
+import { Department, Stage, Role } from './user';
 
-export interface SignInRequest {
-  clerk_token: string;
-}
-
-export interface TokenData {
-  access_token: string;
-  refresh_token: string;
-}
-
-export interface SignInResponse {
-  user: UserDetailResponse;
-  token: TokenData;
-}
-
-export interface UserAuthResponse {
+export interface UserProfileOption {
   id: UUID;
-  email: string;
   name: string;
+  email: string;
+  employee_code: string;
+  job_title?: string;
+  roles: Role[];
+}
+
+export interface SignUpProfileOptionsResponse {
+  departments: Department[];
+  stages: Stage[];
+  roles: Role[];
+  users: UserProfileOption[];
+}
+
+export interface SignUpRequest {
   clerk_user_id: string;
+  name: string;
+  email: string;
+  employee_code: string;
+  job_title?: string;
+  department_id: UUID;
+  stage_id: UUID;
+  supervisor_id?: UUID;
 }
 
-export interface TokenVerifyRequest {
-  token: string;
-}
-
-export interface TokenVerifyResponse {
-  valid: boolean;
-  user?: UserAuthResponse;
-  error?: string;
-}
-
-export interface LogoutResponse {
-  message: string;
+export interface UserExistsResponse {
+  exists: boolean;
+  user_id?: UUID | null;
+  name?: string | null;
+  email?: string | null;
+  status?: string | null;
 }

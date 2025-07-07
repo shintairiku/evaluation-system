@@ -1,2 +1,3 @@
 // Re-export all endpoint APIs
-export { usersApi } from './users';
+export * from './users';
+export * from './auth';
