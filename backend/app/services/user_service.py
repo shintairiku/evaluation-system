@@ -28,8 +28,8 @@ user_search_cache = TTLCache(maxsize=100, ttl=300)
 class UserService:
     """Service layer for user-related business logic and operations"""
     
-    def __init__(self):
-        self.user_repo = UserRepository()
+    def __init__(self, session: Optional[AsyncSession] = None):
+        self.user_repo = UserRepository(session)
     
     async def get_users(
         self, 
@@ -37,7 +37,7 @@ class UserService:
         search_term: str = "",
         filters: Optional[Dict[str, Any]] = None,
         pagination: Optional[PaginationParams] = None
-    ) -> PaginatedResponse[UserProfile]:
+    ) -> PaginatedResponse[User]:
         """
         Get users based on current user's role and permissions
         
@@ -51,6 +51,15 @@ class UserService:
             user_role = current_user.get("role")
             user_id = current_user.get("sub")
             
+            # Create a cache key based on the request parameters
+            cache_key = self._generate_cache_key(
+                user_role, user_id, search_term, filters, pagination
+            )
+            
+            # Check cache first
+            if cache_key in user_search_cache:
+                return user_search_cache[cache_key]
+
             # Apply role-based filtering
             if user_role == "admin":
                 # Admin can see all users
@@ -110,7 +119,7 @@ class UserService:
             else:
                 raise PermissionDeniedError("Insufficient permissions to view users")
             
-            # Convert to UserProfile objects
+            # Convert to User objects
             user_profiles = []
             for user in users:
                 profile = await self._enrich_user_profile(user)
@@ -120,11 +129,16 @@ class UserService:
             if pagination is None:
                 pagination = PaginationParams(page=1, limit=len(user_profiles))
             
-            return PaginatedResponse.create(
+            paginated_response = PaginatedResponse.create(
                 items=user_profiles,
                 total=total,
                 pagination=pagination
             )
+
+            # Store result in cache before returning
+            user_search_cache[cache_key] = paginated_response
+            
+            return paginated_response
             
         except Exception as e:
             logger.error(f"Error getting users: {str(e)}")
