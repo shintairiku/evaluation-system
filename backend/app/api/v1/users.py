@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...dependencies.auth import get_current_user
-from ...schemas.user import UserList, User, UserCreate, UserUpdate, UserProfile
+from ...schemas.user import UserPaginatedResponse, User, UserCreate, UserUpdate, UserDetailResponse
+# from ...services.user_service import UserService
+from ...database.session import get_db_session
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.get("/", response_model=UserList)
+@router.get("/", response_model=UserPaginatedResponse)
 async def get_users(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Get all users (admin, manager, viewer, supervisor roles)."""
     allowed_roles = ["admin", "manager", "viewer", "supervisor"]
@@ -17,23 +20,15 @@ async def get_users(current_user: Dict[str, Any] = Depends(get_current_user)):
         )
     # TODO: Implement user service to fetch users based on role permissions
     # admin: all users, manager: subordinates only, viewer: department-based access, supervisor: subordinates only
-    return UserList(users=[], total=0)
+    return UserPaginatedResponse(data=[], total=0, limit=10, offset=0)
 
-@router.get("/{user_id}", response_model=User)
+@router.get("/{user_id}", response_model=UserDetailResponse)
 async def get_user(
     user_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    session: AsyncSession = Depends(get_db_session)
 ):
-    """Get a specific user by ID."""
-    # Users can view their own profile, or others based on role permissions
-    allowed_roles = ["admin", "manager", "viewer", "supervisor"]
-    if current_user.get("sub") != user_id and current_user.get("role") not in allowed_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. You can only view your own profile or have appropriate permissions"
-        )
-    
-    # TODO: Implement user service to fetch user by ID
+    """Get user details by ID."""
+    # TODO: Implement user service to get user details
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="User service not implemented"

@@ -4,9 +4,9 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from sqlalchemy import select, update, func, or_
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.user import User, UserSupervisor, Role
 from ...schemas.user import UserStatus
@@ -34,6 +34,24 @@ class UserRepository:
     # ========================================
     # READ OPERATIONS
     # ========================================
+
+
+    async def get_user_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
+        """Get user by Clerk user ID."""
+        try:
+            result = await self.session.execute(
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles)
+                )
+                .filter(User.clerk_user_id == clerk_user_id)
+            )
+            return result.scalars().unique().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user by clerk_id {clerk_user_id}: {e}")
+            raise
 
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> Optional[dict]:
         """
@@ -126,6 +144,7 @@ class UserRepository:
         except SQLAlchemyError as e:
             logger.error(f"Error fetching user by employee code {employee_code}: {e}")
             raise
+
 
     async def get_users_by_status(self, status: UserStatus) -> list[User]:
         """Get all users with specific status."""
@@ -344,4 +363,3 @@ class UserRepository:
         except SQLAlchemyError as e:
             logger.error(f"Error counting users: {e}")
             raise
-

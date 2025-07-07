@@ -248,6 +248,7 @@ class TestUserRepository:
             logging.error(f"❌ Error testing database relationships: {str(e)}")
             raise
 
+
     @pytest.mark.asyncio
     async def test_get_user_by_employee_code(self, user_repo):
         """Test fetching user by employee code"""

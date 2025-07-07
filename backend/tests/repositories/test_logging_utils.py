@@ -23,6 +23,7 @@ def setup_repository_test_logging(repo_name: str) -> str:
     """
     # Ensure logs directory exists
     log_dir = "backend/tests/logs"
+
     os.makedirs(log_dir, exist_ok=True)
     
     # Generate timestamped log file name

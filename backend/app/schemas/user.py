@@ -120,12 +120,10 @@ class RoleUpdate(BaseModel):
 # ========================================
 
 class UserBase(BaseModel):
-    """Base user schema with common fields"""
-    name: str = Field(..., min_length=1, max_length=100, description="Full name of the user")
-    email: EmailStr = Field(..., description="User's email address")
-    employee_code: str = Field(..., min_length=1, max_length=20, description="Unique employee identifier")
-    job_title: Optional[str] = Field(None, max_length=100, description="User's job title")
-
+    name: str = Field(..., min_length=1, max_length=100)
+    email: EmailStr
+    employee_code: str = Field(..., min_length=1, max_length=20)
+    job_title: Optional[str] = Field(None, max_length=100)
 
 
 class UserProfileOption(UserBase):
@@ -220,10 +218,10 @@ class UserExistsResponse(BaseModel):
 # ========================================
 # FORWARD REFERENCES UPDATE
 # ========================================
+
 # Update forward references for self-referencing models (Pydantic v2)
 try:
     UserDetailResponse.model_rebuild()
 except Exception:
     # Ignore forward reference errors for now
     pass
-
