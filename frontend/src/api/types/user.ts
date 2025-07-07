@@ -143,10 +143,6 @@ export interface UserDetailResponse {
   supervisor?: UserDetailResponse;
 }
 
-export interface UserPaginatedResponse extends PaginatedResponse<UserDetailResponse> {
-  data: UserDetailResponse[];
-}
-
 export interface UserList {
   users: UserDetailResponse[];
   total: number;

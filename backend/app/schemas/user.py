@@ -199,9 +199,6 @@ class UserDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserPaginatedResponse(PaginatedResponse):
-    data: List[UserDetailResponse]
-
 
 class UserExistsResponse(BaseModel):
     """Minimal user info for existence check during auth flow"""
