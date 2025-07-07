@@ -177,11 +177,10 @@ class UserInDB(UserBase):
 
 
 class User(UserInDB):
-    """Complete user information with relationships"""
+    """Complete a user information; no user-to-user relationship"""
     department: Department
     stage: Stage
     roles: List[Role] = []
-    supervisor: Optional['UserDetailResponse'] = None
 
 class UserDetailResponse(BaseModel):
     id: UUID

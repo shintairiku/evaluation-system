@@ -127,7 +127,6 @@ export interface User extends UserInDB {
   department: Department;
   stage: Stage;
   roles: Role[];
-  supervisor?: UserDetailResponse;
 }
 
 export interface UserDetailResponse {
