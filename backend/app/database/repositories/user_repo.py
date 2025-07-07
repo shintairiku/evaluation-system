@@ -51,6 +51,35 @@ class UserRepository:
     # READ OPERATIONS
     # ========================================
 
+    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
+        """Get user by ID."""
+        try:
+            result = await self.session.execute(
+                select(User).filter(User.id == user_id)
+            )
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user by ID {user_id}: {e}")
+            raise
+
+    async def get_user_by_id_with_details(self, user_id: UUID) -> Optional[User]:
+        """Get user by ID with all related data, including supervisors and subordinates."""
+        try:
+            result = await self.session.execute(
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles),
+                    joinedload(User.supervisor_relations).joinedload(UserSupervisor.supervisor),
+                    joinedload(User.subordinate_relations).joinedload(UserSupervisor.user),
+                )
+                .filter(User.id == user_id)
+            )
+            return result.scalars().unique().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user details for ID {user_id}: {e}")
+            raise
 
     async def get_user_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
         """Get user by Clerk user ID."""
@@ -93,23 +122,6 @@ class UserRepository:
             logger.error(f"Error checking user existence by clerk_id {clerk_user_id}: {e}")
             raise
 
-    async def get_user_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
-        """Get user by Clerk user ID."""
-        try:
-            result = await self.session.execute(
-                select(User)
-                .options(
-                    joinedload(User.department),
-                    joinedload(User.stage),
-                    joinedload(User.roles)
-                )
-                .filter(User.clerk_user_id == clerk_user_id)
-            )
-            return result.scalars().unique().first()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by clerk_id {clerk_user_id}: {e}")
-            raise
-
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email address."""
         try:
@@ -121,35 +133,7 @@ class UserRepository:
             logger.error(f"Error fetching user by email {email}: {e}")
             raise
 
-    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
-        """Get user by ID."""
-        try:
-            result = await self.session.execute(
-                select(User).filter(User.id == user_id)
-            )
-            return result.scalars().first()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by ID {user_id}: {e}")
-            raise
-
-    async def get_user_by_id_with_details(self, user_id: UUID) -> Optional[User]:
-        """Get user by ID with all related data."""
-        try:
-            result = await self.session.execute(
-                select(User)
-                .options(
-                    joinedload(User.department),
-                    joinedload(User.stage),
-                    joinedload(User.roles),
-                    joinedload(User.supervisor_relations).joinedload(UserSupervisor.supervisor),
-                )
-                .filter(User.id == user_id)
-            )
-            return result.scalars().unique().first()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user details for ID {user_id}: {e}")
-            raise
-
+  
     async def get_user_by_employee_code(self, employee_code: str) -> Optional[User]:
         """Get user by employee code."""
         try:

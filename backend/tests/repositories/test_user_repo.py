@@ -96,7 +96,7 @@ class TestUserRepository:
 
     @pytest.mark.asyncio
     async def test_get_user_by_id_with_details(self, user_repo):
-        """Test fetching user with all relationships"""
+        """Test fetching user with all relationships, including supervisors and subordinates"""
         print("\n=== Testing get_user_by_id_with_details ===")
         
         # Test with Sato (manager with relationships)
@@ -109,6 +109,8 @@ class TestUserRepository:
             print(f"   Stage: {user.stage.name if user.stage else 'None'}")
             print(f"   Roles: {[role.name for role in user.roles] if user.roles else 'None'}")
             print(f"   Status: {user.status}")
+            print(f"   Supervisors: {[rel.supervisor.name for rel in user.supervisor_relations] if user.supervisor_relations else 'None'}")
+            print(f"   Subordinates: {[rel.user.name for rel in user.subordinate_relations] if user.subordinate_relations else 'None'}")
         else:
             print("❌ User not found")
             
@@ -116,6 +118,16 @@ class TestUserRepository:
         assert user.name == "佐藤 花子"
         assert user.department is not None
         assert user.stage is not None
+        # New assertions for relationships
+        assert hasattr(user, "supervisor_relations"), "User should have supervisor_relations attribute"
+        assert hasattr(user, "subordinate_relations"), "User should have subordinate_relations attribute"
+        # Optionally, check that subordinate_relations is a list (even if empty)
+        assert isinstance(user.subordinate_relations, list), "subordinate_relations should be a list"
+        # Optionally, print or check the subordinate names if any
+        if user.subordinate_relations:
+            for rel in user.subordinate_relations:
+                assert hasattr(rel, "user"), "Each subordinate relation should have a user attribute"
+                print(f"      Subordinate: {rel.user.name}")
 
     @pytest.mark.asyncio
     async def test_get_users_by_status(self, user_repo):
