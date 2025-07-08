@@ -1,9 +1,14 @@
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID
 from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import datetime
-from .common import SubmissionStatus
+from .common import SubmissionStatus, PaginatedResponse
+
+if TYPE_CHECKING:
+    from .goal import Goal
+    from .evaluation_period import EvaluationPeriod
+    from .user import UserProfile
 
 class SupervisorAction(str, Enum):
     APPROVED = "approved"
@@ -45,12 +50,40 @@ class SupervisorReviewInDB(SupervisorReviewBase):
 
 class SupervisorReview(SupervisorReviewInDB):
     """
-    Represents a supervisor's review in API responses.
-    This schema defines the structure of a review object as it is sent to the client.
-    It inherits from SupervisorReviewInDB and can be extended with additional fields
-    (e.g., joined data from other tables) without altering the core database schema.
-    This separation provides flexibility to tailor API responses independently of the
-    internal data model.
+    Basic supervisor review schema for API responses (list views, simple references).
+    Contains core supervisor review information without expensive joins.
     """
+    pass
+
+
+class SupervisorReviewDetail(SupervisorReviewInDB):
+    """
+    Detailed supervisor review schema for single item views.
+    Supervisor reviews a specific goal to approve or deny it.
+    """
+    # Related goal information (the specific goal this review is for)
+    goal: Optional['Goal'] = Field(None, description="The specific goal this review is for")
+    
+    # Related evaluation period information
+    evaluation_period: Optional['EvaluationPeriod'] = Field(
+        None, 
+        alias="evaluationPeriod",
+        description="The evaluation period this review belongs to"
+    )
+    
+    # Employee information (goal owner)
+    employee: Optional['UserProfile'] = Field(None, description="The employee whose goal is being reviewed")
+    
+    # Timeline information
+    is_overdue: bool = Field(False, alias="isOverdue", description="Whether this review is past the deadline")
+    days_until_deadline: Optional[int] = Field(None, alias="daysUntilDeadline", description="Days remaining until review deadline")
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class SupervisorReviewList(PaginatedResponse['SupervisorReview']):
+    """Schema for paginated supervisor review list responses"""
     pass
 

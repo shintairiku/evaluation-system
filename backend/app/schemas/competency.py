@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from uuid import UUID
 
-from .user import Stage
+if TYPE_CHECKING:
+    from .user import Stage, UserProfile
 
 
 class CompetencyCreate(BaseModel):
@@ -23,7 +24,7 @@ class CompetencyUpdate(BaseModel):
 
 class Competency(CompetencyCreate):
     id: UUID
-    stage: Stage
+    stage: "Stage"
     goal_count: int = Field(0, alias="goalCount")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
@@ -34,26 +35,11 @@ class Competency(CompetencyCreate):
         
 
 class CompetencyDetail(Competency):
-    users_with_goals: List["UserWithGoals"] = Field(default=[], alias="usersWithGoals")
+    users: List["UserProfile"] = Field(default=[], alias="users")
     
     class Config:
         from_attributes = True
         populate_by_name = True
-
-
-class EvaluationPeriod(BaseModel):
-    id: UUID
-    name: str
-    start_date: datetime = Field(..., alias="startDate")
-    end_date: datetime = Field(..., alias="endDate")
-    
-    class Config:
-        populate_by_name = True
-
-
-class UserWithGoals(BaseModel):
-    user: "UserProfile"
-    period: EvaluationPeriod
 
 
 class CompetencyList(BaseModel):
@@ -62,5 +48,5 @@ class CompetencyList(BaseModel):
 
 
 # Forward reference resolution
-from .user import UserProfile
-UserWithGoals.model_rebuild()
+# from .user import UserProfile
+# UserWithGoals.model_rebuild()

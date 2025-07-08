@@ -1,34 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, Optional
-from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...dependencies.auth import get_current_user
-from ...schemas.user import (
-    User, UserCreate, UserUpdate, UserProfile,
-    UserCreateResponse, UserUpdateResponse, UserInactivateResponse
-)
-from ...schemas.common import PaginationParams, PaginatedResponse
-from ...services.user_service import UserService
-from ...core.exceptions import (
-    NotFoundError, ConflictError, ValidationError, 
-    PermissionDeniedError, BadRequestError
-)
+from ...schemas.user import UserPaginatedResponse, User, UserCreate, UserUpdate, UserDetailResponse
+# from ...services.user_service import UserService
+from ...database.session import get_db_session
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-# Initialize service
-user_service = UserService()
-
-
-@router.get("/", response_model=PaginatedResponse[UserProfile])
-async def get_users(
-    current_user: Dict[str, Any] = Depends(get_current_user),
-    search: Optional[str] = Query(None, description="Search term for name, email, or employee code"),
-    department_id: Optional[UUID] = Query(None, description="Filter by department ID"),
-    status: Optional[str] = Query(None, description="Filter by user status"),
-    page: int = Query(1, ge=1, description="Page number"),
-    size: int = Query(10, ge=1, le=100, description="Page size")
-):
+@router.get("/", response_model=UserPaginatedResponse)
+async def get_users(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Get all users (admin, manager, viewer, supervisor roles)."""
     try:
         # Build filters
@@ -61,38 +43,21 @@ async def get_users(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+    # TODO: Implement user service to fetch users based on role permissions
+    # admin: all users, manager: subordinates only, viewer: department-based access, supervisor: subordinates only
+    return UserPaginatedResponse(data=[], total=0, limit=10, offset=0)
 
-
-@router.get("/{user_id}", response_model=User)
+@router.get("/{user_id}", response_model=UserDetailResponse)
 async def get_user(
-    user_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    user_id: str,
+    session: AsyncSession = Depends(get_db_session)
 ):
-    """Get a specific user by ID."""
-    try:
-        user = await user_service.get_user_by_id(user_id, current_user)
-        return user
-        
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except PermissionDeniedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+    """Get user details by ID."""
+    # TODO: Implement user service to get user details
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="User service not implemented"
+    )
 
 
 @router.post("/", response_model=UserCreateResponse)
