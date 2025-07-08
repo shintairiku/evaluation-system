@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
@@ -512,4 +513,4 @@ class DepartmentService:
                     if name_filter in dept.name.lower()
                 ]
         
-        return filtered 
+        return filtered

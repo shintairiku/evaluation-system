@@ -1,9 +1,13 @@
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID
 from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import datetime
 from .common import SubmissionStatus
+
+if TYPE_CHECKING:
+    from .goal import Goal
+    from .supervisor_feedback import SupervisorFeedback
 
 
 class SelfAssessmentBase(BaseModel):
@@ -44,10 +48,45 @@ class SelfAssessmentInDB(SelfAssessmentBase):
 
 class SelfAssessment(SelfAssessmentInDB):
     """
-    Represents a self-assessment in API responses.
-    This schema defines the structure of a self-assessment object as it is sent to the client.
-    It inherits from SelfAssessmentInDB and can be extended with additional fields
-    (e.g., joined data from other tables) without altering the core database schema.
-    This separation provides flexibility to tailor API responses based on UI requirements.
+    Self-assessment schema for API responses.
+    Includes related goal and supervisor feedback information by default.
+    """
+    # Related goal information
+    goal: Optional['Goal'] = Field(None, description="The goal this assessment is for")
+    
+    # Supervisor feedback if it exists
+    supervisor_feedback: Optional['SupervisorFeedback'] = Field(
+        None, 
+        alias="supervisorFeedback",
+        description="Supervisor feedback on this assessment (if submitted)"
+    )
+    
+    # Assessment progress indicators
+    has_supervisor_feedback: bool = Field(
+        False, 
+        alias="hasSupervisorFeedback",
+        description="Whether supervisor feedback has been provided"
+    )
+    
+    # Evaluation period information (optional, for context)
+    period_name: Optional[str] = Field(None, alias="periodName", description="Name of the evaluation period")
+    period_status: Optional[str] = Field(None, alias="periodStatus", description="Status of the evaluation period")
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class SelfAssessmentDetail(SelfAssessment):
+    """
+    Detailed self-assessment schema for future scalability.
+    Currently identical to SelfAssessment but can be extended with additional fields
+    without breaking existing API contracts.
     """
     pass
+
+
+class SelfAssessmentList(BaseModel):
+    """Schema for paginated self-assessment list responses"""
+    assessments: List[SelfAssessment]
+    total: int

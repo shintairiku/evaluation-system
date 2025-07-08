@@ -108,6 +108,7 @@ class TestYourRepository:
     async def session(self):
         """Get actual database session"""
         async for session in get_db_session():
+
             yield session
             break
 
@@ -130,11 +131,10 @@ class TestYourRepository:
 async def test_your_function_name(self, your_repo):
     """Test description - what this function does"""
     log_test_start("your_function_name")
-
     # Test data
     test_input = "your_test_input"
     logging.info(f"Attempting to test with input: {test_input}")
-
+    
     try:
         # Execute the repository function
         result = await your_repo.your_function_name(test_input)
@@ -180,14 +180,14 @@ async def test_supabase_connectivity(self, your_repo):
         # Test basic connectivity by querying your table
         logging.info("Testing basic database connection...")
         results = await your_repo.get_all()  # or similar basic function
-
+        
         # Log connectivity success using utility function
         log_supabase_connectivity(len(results), "your_table_name")
-
+        
         # Verify we can access the database
         assert len(results) >= 0, "Should be able to query your table"
         log_assertion_success("Database connectivity verified")
-
+        
     except Exception as e:
         logging.error(f"❌ Supabase connectivity failed: {str(e)}")
         logging.error(f"   Connection error type: {type(e).__name__}")
@@ -393,4 +393,3 @@ When creating a new repository test:
 - `'evaluation'` → `evaluation_repo_test_20250630_133312.log`
 - `'role'` → `role_repo_test_20250630_133500.log`
 
-This template ensures consistent, thorough testing across all repositories with excellent debugging capabilities through centralized logging utilities. 

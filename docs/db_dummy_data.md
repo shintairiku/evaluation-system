@@ -6,7 +6,6 @@
     "employee_code": "EMP001",
     "name": "山田 太郎",
     "email": "yamada.taro@company.com",
-    "employment_type": "employee",
     "status": "active",
     "password": null,
     "department_id": "dept-001-sales",
@@ -15,7 +14,6 @@
     "created_at": "2024-01-01T00:00:00.000Z",
     "updated_at": "2024-01-15T09:00:00.000Z",
     "lastLoginAt": "2024-01-15T08:30:00.000Z"
-
 }
 
 {
@@ -24,7 +22,6 @@
     "employee_code": "EMP002",
     "name": "佐藤 花子",
     "email": "sato.hanako@company.com",
-    "employment_type": "supervisor",
     "status": "active",
     "password": null,
     "department_id": "dept-001-sales",
@@ -33,7 +30,6 @@
     "created_at": "2024-01-01T00:00:00.000Z",
     "updated_at": "2024-01-16T11:00:00.000Z",
     "lastLoginAt": "2024-01-16T10:45:00.000Z"
-
 }
 
 {
@@ -42,7 +38,6 @@
     "employee_code": "EMP003",
     "name": "田中 一郎",
     "email": "tanaka.ichiro@company.com",
-    "employment_type": "employee",
     "status": "active",
     "password": null,
     "department_id": "dept-002-engineering",
@@ -51,7 +46,6 @@
     "created_at": "2024-01-01T00:00:00.000Z",
     "updated_at": "2024-01-16T13:00:00.000Z",
     "lastLoginAt": "2024-01-16T12:30:00.000Z"
-
 }
 ```
 

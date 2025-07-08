@@ -1,8 +1,17 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field, validator, model_validator
+from typing import Optional, List, Dict, Any, Union, TYPE_CHECKING
+from pydantic import BaseModel, Field, validator, root_validator
 from uuid import UUID
+
+from .common import PaginatedResponse
+
+if TYPE_CHECKING:
+    from .evaluation_period import EvaluationPeriod
+    from .self_assessment import SelfAssessment
+    from .supervisor_feedback import SupervisorFeedback
+    from .user import UserProfile
+    from .competency import Competency
 
 
 class GoalStatus(str, Enum):
@@ -37,11 +46,65 @@ class CoreValueGoalTargetData(BaseModel):
 TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData]
 
 
-class GoalCreateRequest(BaseModel):
-    """API request schema for creating a goal - matches endpoints.md
-    Note: Core value goals (category 3) are not created through goal-input page,
-    only performance (1) and competency (2) goals are created by users.
-    """
+# === Goal Category Schemas ===
+
+class GoalCategoryBase(BaseModel):
+    """Base schema for goal categories"""
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class GoalCategoryCreate(GoalCategoryBase):
+    """Schema for creating a goal category via API"""
+    pass
+
+
+class GoalCategoryUpdate(BaseModel):
+    """Schema for updating a goal category via API"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+
+
+class GoalCategoryInDB(GoalCategoryBase):
+    """Internal database representation of goal category"""
+    id: int  # smallint in database
+
+    class Config:
+        from_attributes = True
+
+
+class GoalCategory(GoalCategoryInDB):
+    """Goal category schema for API responses"""
+    # Additional computed fields for API convenience
+    goal_count: Optional[int] = Field(None, alias="goalCount", description="Number of goals in this category")
+    description: Optional[str] = Field(None, description="Human-readable description")
+    required_fields: List[str] = Field(default_factory=list, alias="requiredFields", description="Required fields for this category")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class GoalCategoryDetail(GoalCategory):
+    """Detailed goal category schema with paginated goals list"""
+    # Paginated goals list using common pagination
+    goals: PaginatedResponse['Goal'] = Field(description="Paginated goals in this category")
+    
+    # Usage statistics (summary)
+    active_goals_count: Optional[int] = Field(None, alias="activeGoalsCount", description="Number of active goals")
+    draft_goals_count: Optional[int] = Field(None, alias="draftGoalsCount", description="Number of draft goals")
+    approved_goals_count: Optional[int] = Field(None, alias="approvedGoalsCount", description="Number of approved goals")
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class GoalCategoryList(PaginatedResponse[GoalCategory]):
+    """Schema for paginated goal category list responses"""
+    pass
+
+
+class GoalCreate(BaseModel):
+    """Schema for creating a goal via API"""
     period_id: UUID = Field(..., alias="periodId")
     goal_category_id: int = Field(..., ge=1, le=3, alias="goalCategoryId")
     weight: float = Field(..., ge=0, le=100)
@@ -60,35 +123,28 @@ class GoalCreateRequest(BaseModel):
     # Core Value Goal fields (goal_category_id = 3) 
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
     
-    @model_validator(mode='after')
-    def validate_goal_category_fields(self):
+    @root_validator(skip_on_failure=True)
+    @classmethod
+    def validate_goal_category_fields(cls, values):
         """Validate that required fields are present based on goal_category_id"""
-        if self.goal_category_id == 1:  # Performance goal
-            required_fields = [self.performance_goal_type, self.specific_goal_text, 
-                             self.achievement_criteria_text, self.means_methods_text]
-            if any(field is None for field in required_fields):
+        goal_category_id = values.get('goal_category_id')
+        if goal_category_id == 1:  # Performance goal
+            required_fields = ['performance_goal_type', 'specific_goal_text', 
+                             'achievement_criteria_text', 'means_methods_text']
+            if any(values.get(field) is None for field in required_fields):
                 raise ValueError("Performance goals require: performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText")
-        elif self.goal_category_id == 2:  # Competency goal
-            if self.competency_id is None or self.action_plan is None:
+        elif goal_category_id == 2:  # Competency goal
+            if values.get('competency_id') is None or values.get('action_plan') is None:
                 raise ValueError("Competency goals require: competencyId, actionPlan")
         # NOTE: Core value goal should be automatically created by the system
-        elif self.goal_category_id == 3:  # Core value goal
-            if self.core_value_plan is None:
+        elif goal_category_id == 3:  # Core value goal
+            if values.get('core_value_plan') is None:
                 raise ValueError("Core value goals require: coreValuePlan")
-        return self
+        return values
 
 
-class GoalCreate(BaseModel):
-    """Internal schema for creating a goal in database"""
-    period_id: UUID
-    goal_category_id: int
-    target_data: TargetData
-    weight: float
-    status: GoalStatus
-
-
-class GoalUpdateRequest(BaseModel):
-    """API request schema for updating a goal - matches endpoints.md"""
+class GoalUpdate(BaseModel):
+    """Schema for updating a goal via API"""
     weight: Optional[float] = Field(None, ge=0, le=100)
     status: Optional[GoalStatus] = Field(None, description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
@@ -106,13 +162,6 @@ class GoalUpdateRequest(BaseModel):
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
 
-class GoalUpdate(BaseModel):
-    """Internal schema for updating a goal in database"""
-    target_data: Optional[Dict[str, Any]] = None
-    weight: Optional[float] = Field(None, ge=0, le=100)
-    status: Optional[GoalStatus] = None
-
-
 class GoalInDB(BaseModel):
     id: UUID
     user_id: UUID
@@ -126,7 +175,7 @@ class GoalInDB(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @model_validator(mode='before')
+    @root_validator(pre=True)
     @classmethod
     def _validate_target_data(cls, data: Any) -> Any:
         if not isinstance(data, dict):
@@ -190,7 +239,7 @@ class Goal(BaseModel):
     # Core Value Goal fields (goal_category_id = 3)
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
-    @model_validator(mode='before')
+    @root_validator(pre=True)
     @classmethod
     def flatten_target_data(cls, data: Any) -> Any:
         """
@@ -210,6 +259,86 @@ class Goal(BaseModel):
         from_attributes = True
         populate_by_name = True
 
-class GoalList(BaseModel):
-    goals: List[Goal]
-    total: int
+
+class GoalDetail(Goal):
+    """
+    Detailed goal schema for single item views.
+    Includes comprehensive information with related entities.
+    """
+    # Related evaluation period information
+    evaluation_period: Optional['EvaluationPeriod'] = Field(
+        None, 
+        alias="evaluationPeriod",
+        description="The evaluation period this goal belongs to"
+    )
+    
+    # User information (goal owner)
+    user: Optional['UserProfile'] = Field(
+        None,
+        description="The user who owns this goal"
+    )
+    
+    # Competency details (for competency goals)
+    competency: Optional['Competency'] = Field(
+        None,
+        description="Detailed competency information (for competency goals)"
+    )
+    
+    # Assessment information
+    self_assessment: Optional['SelfAssessment'] = Field(
+        None, 
+        alias="selfAssessment",
+        description="Self-assessment for this goal (if exists)"
+    )
+    
+    # Supervisor feedback information
+    supervisor_feedback: Optional['SupervisorFeedback'] = Field(
+        None, 
+        alias="supervisorFeedback",
+        description="Supervisor feedback on this goal (if exists)"
+    )
+    
+    # Progress indicators
+    has_self_assessment: bool = Field(
+        False, 
+        alias="hasSelfAssessment",
+        description="Whether self-assessment has been submitted"
+    )
+    
+    has_supervisor_feedback: bool = Field(
+        False, 
+        alias="hasSupervisorFeedback",
+        description="Whether supervisor feedback has been provided"
+    )
+    
+    # Goal timeline information
+    is_editable: bool = Field(
+        True, 
+        alias="isEditable",
+        description="Whether this goal can still be edited"
+    )
+    
+    is_assessment_open: bool = Field(
+        False, 
+        alias="isAssessmentOpen",
+        description="Whether self-assessment is open for this goal"
+    )
+    
+    is_overdue: bool = Field(
+        False, 
+        alias="isOverdue",
+        description="Whether this goal is past the evaluation deadline"
+    )
+    
+    # Approval information
+    approved_by_name: Optional[str] = Field(None, alias="approvedByName", description="Name of the approver")
+    days_since_submission: Optional[int] = Field(None, alias="daysSinceSubmission", description="Days since goal was submitted for approval")
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class GoalList(PaginatedResponse[Goal]):
+    """Schema for paginated goal list responses"""
+    pass
