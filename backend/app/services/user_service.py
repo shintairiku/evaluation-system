@@ -261,44 +261,63 @@ class UserService:
     async def delete_user(
         self,
         user_id: UUID,
+        current_user_roles: UserRole,
         mode: str = "soft",
     ) -> bool:
-        """Delete a user via repository helper.
-
-        A minimal, clear implementation that supports:
-
-        • soft - mark user as INACTIVE
-        • hard - remove user and all relationships
         """
+        Delete a user. 'soft' marks as inactive, 'hard' removes from DB.
+        NOTE: Hard delete is permanent and irreversible.
+        """
+        try:
+            # TODO: Role-based access control
+            # if not current_user_roles.has_role("admin"):
+            #     raise PermissionDeniedError("Only administrators can delete users.")
 
-        if mode not in ("soft", "hard"):
-            raise BadRequestError("delete_user mode must be 'soft' or 'hard'.")
-
-        from ..database.session import AsyncSessionLocal  # local import avoids cycles
-
-        async with AsyncSessionLocal() as session:
-            repo = UserRepository(session)
+            # Check if user exists
+            existing_user = await self.user_repo.get_user_by_id(user_id)
+            if not existing_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
 
             if mode == "soft":
-                success = await repo.update_user_status(user_id, UserStatus.INACTIVE)
+                # TODO: Self-deletion check
+                # if current_user_roles.user_id == user_id:
+                #     raise BadRequestError("Administrators cannot inactivate their own accounts.")
+
+                # Check if user is a supervisor of active users
+                subordinates = await self.user_repo.get_subordinates(user_id)
+                if subordinates:
+                    raise BadRequestError("Cannot inactivate user who is currently supervising active users")
+                
+                # Perform soft delete by updating status
+                success = await self.user_repo.update_user_status(user_id, UserStatus.INACTIVE)
+                
+                if success:
+                    await self.session.commit()
+                    logger.info(f"User {user_id} inactivated successfully.")
+                else:
+                    logger.warning(f"Failed to inactivate user {user_id}.")
+                    
+                return success
+                
+            elif mode == "hard":
+                # Add any necessary pre-deletion logic here
+                # (e.g., reassigning resources, logging, etc.)
+                
+                success = await self.user_repo.hard_delete_user_by_id(user_id)
+                
+                if success:
+                    await self.session.commit()
+                    logger.info(f"User {user_id} permanently deleted.")
+                else:
+                    logger.warning(f"Failed to permanently delete user {user_id}.")
+                    
+                return success
             else:
-                success = await repo.hard_delete_user_by_id(user_id)
-
-            await session.commit()
-
-        return success
-    
-    async def get_user_profile(
-        self, 
-        user_id: UUID, 
-        current_user: Dict[str, Any]
-    ) -> UserProfile:
-        """Get user profile for display purposes"""
-        try:
-            user = await self.get_user_by_id(user_id, current_user)
-            return await self._enrich_user_profile(user)
+                raise BadRequestError("Invalid delete mode. Use 'soft' or 'hard'.")
+                
         except Exception as e:
-            logger.error(f"Error getting user profile {user_id}: {str(e)}")
+            await self.session.rollback()
+            logger.error(f"Error deleting user {user_id}: {str(e)}")
             raise
     
     async def update_last_login(self, clerk_user_id: str) -> bool:
