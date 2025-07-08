@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, Optional
+from typing import Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,7 +7,7 @@ from ...database.session import get_db_session
 from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus
 from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
-from ...dependencies.role import UserRole, get_current_user_with_roles, get_current_user
+from ...dependencies.role import UserRole, get_current_user_with_roles
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -213,29 +213,3 @@ async def delete_user(
             detail="Internal server error"
         )
 
-
-@router.get("/{user_id}/profile", response_model=UserProfile)
-async def get_user_profile(
-    user_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
-):
-    """Get user profile for display purposes."""
-    try:
-        profile = await user_service.get_user_profile(user_id, current_user)
-        return profile
-        
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except PermissionDeniedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
