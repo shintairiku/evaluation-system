@@ -5,14 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
 from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus
-from ...schemas.common import PaginatedResponse, PaginationParams
+from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
-from ...dependencies.role import UserRole, get_current_user_with_roles
+from ...dependencies.role import UserRole, get_current_user_with_roles, get_current_user
+from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-# Initialize service
-user_service = UserService()
 
 
 @router.get("/", response_model=PaginatedResponse[User])
@@ -67,11 +65,13 @@ async def get_users(
 @router.get("/{user_id}", response_model=UserDetailResponse)
 async def get_user(
     user_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    user_roles: UserRole = Depends(get_current_user_with_roles),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Get a specific user by ID."""
     try:
-        user = await user_service.get_user_by_id(user_id, current_user)
+        service = UserService(session)
+        user = await service.get_user_by_id(user_id, user_roles)
         return user
         
     except NotFoundError as e:
@@ -84,7 +84,7 @@ async def get_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
