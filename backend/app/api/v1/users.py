@@ -91,14 +91,16 @@ async def get_user(
         )
 
 
-@router.post("/", response_model=UserCreateResponse)
+@router.post("/", response_model=UserDetailResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_create: UserCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    user_roles: UserRole = Depends(get_current_user_with_roles),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create a new user (admin only)."""
     try:
-        result = await user_service.create_user(user_create, current_user)
+        service = UserService(session)
+        result = await service.create_user(user_create, user_roles)
         return result
         
     except PermissionDeniedError as e:
@@ -116,22 +118,24 @@ async def create_user(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
 
 
-@router.put("/{user_id}", response_model=UserUpdateResponse)
+@router.put("/{user_id}", response_model=UserDetailResponse)
 async def update_user(
     user_id: UUID,
     user_update: UserUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    user_roles: UserRole = Depends(get_current_user_with_roles),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Update a user."""
     try:
-        result = await user_service.update_user(user_id, user_update, current_user)
+        service = UserService(session)
+        result = await service.update_user(user_id, user_update, user_roles)
         return result
         
     except NotFoundError as e:
@@ -154,7 +158,7 @@ async def update_user(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
