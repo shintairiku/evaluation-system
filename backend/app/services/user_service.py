@@ -378,24 +378,32 @@ class UserService:
         
         # Additional checks can be added here (e.g., active evaluations)
     
-    async def _enrich_user_data(self, user: UserBase) -> User:
-        """Enrich user data with relationships"""
-        # Get department
-        department = await self._get_department(user.department_id)
+    async def _enrich_user_data(self, user: UserModel) -> User:
+        """Enrich user data with relationships using repository pattern"""
+        # Get department using repository
+        department_model = await self.department_repo.get_department_by_id(user.department_id)
+        department = Department(
+            id=department_model.id,
+            name=department_model.name,
+            description=department_model.description
+        ) if department_model else None
         
-        # Get stage
-        stage = await self._get_stage(user.stage_id)
+        # Get stage using repository
+        stage_model = await self.stage_repo.get_stage_by_id(user.stage_id)
+        stage = Stage(
+            id=stage_model.id,
+            name=stage_model.name,
+            description=stage_model.description
+        ) if stage_model else None
         
-        # Get roles
-        roles = await self._get_user_roles(user.id)
-        
-        # Get supervisor
-        supervisor = None
-        if user.supervisor_id:
-            supervisor_data = await self.user_repo.get_by_id(user.supervisor_id)
-            if supervisor_data:
-                supervisor = await self._enrich_user_profile(supervisor_data)
-        
+        # Get roles using repository
+        role_models = await self.role_repo.get_user_roles(user.id)
+        roles = [Role(
+            id=role.id,
+            name=role.name,
+            description=role.description
+        ) for role in role_models]
+
         return User(
             id=user.id,
             clerk_user_id=user.clerk_user_id,
@@ -438,36 +446,10 @@ class UserService:
             department=department,
             stage=stage,
             roles=roles,
-            last_login_at=user.last_login_at
+            supervisor=supervisor,
+            subordinates=subordinates if subordinates else None
         )
     
-    async def _get_department(self, department_id: UUID) -> Department:
-        """Get department information"""
-        query = "SELECT id, name, description FROM departments WHERE id = $1"
-        row = await self.user_repo.db.fetchrow(query, department_id)
-        if not row:
-            raise NotFoundError(f"Department {department_id} not found")
-        return Department(**dict(row))
-    
-    async def _get_stage(self, stage_id: UUID) -> Stage:
-        """Get stage information"""
-        query = "SELECT id, name, description FROM stages WHERE id = $1"
-        row = await self.user_repo.db.fetchrow(query, stage_id)
-        if not row:
-            raise NotFoundError(f"Stage {stage_id} not found")
-        return Stage(**dict(row))
-    
-    async def _get_user_roles(self, user_id: UUID) -> List[Role]:
-        """Get user roles"""
-        query = """
-            SELECT r.id, r.name, r.description 
-            FROM roles r
-            INNER JOIN user_roles ur ON r.id = ur.role_id
-            WHERE ur.user_id = $1
-            ORDER BY r.name
-        """
-        rows = await self.user_repo.db.fetch(query, user_id)
-        return [Role(**dict(row)) for row in rows]
     
     def _filter_users_by_criteria(
         self, 
