@@ -1,18 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, Optional
 from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...dependencies.auth import get_current_user
-from ...schemas.user import (
-    User, UserCreate, UserUpdate, UserProfile,
-    UserCreateResponse, UserUpdateResponse, UserInactivateResponse
-)
-from ...schemas.common import PaginationParams, PaginatedResponse
+from ...database.session import get_db_session
+from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus
+from ...schemas.common import PaginatedResponse, PaginationParams
 from ...services.user_service import UserService
-from ...core.exceptions import (
-    NotFoundError, ConflictError, ValidationError, 
-    PermissionDeniedError, BadRequestError
-)
+from ...dependencies.role import UserRole, get_current_user_with_roles
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -20,51 +15,52 @@ router = APIRouter(prefix="/users", tags=["users"])
 user_service = UserService()
 
 
-@router.get("/", response_model=PaginatedResponse[UserProfile])
+@router.get("/", response_model=PaginatedResponse[User])
 async def get_users(
-    current_user: Dict[str, Any] = Depends(get_current_user),
-    search: Optional[str] = Query(None, description="Search term for name, email, or employee code"),
-    department_id: Optional[UUID] = Query(None, description="Filter by department ID"),
-    status: Optional[str] = Query(None, description="Filter by user status"),
+    user_roles: UserRole = Depends(get_current_user_with_roles),
+    search: Optional[str] = Query(None, description="Search term for name, employee code, or job title"),
+    department_ids: Optional[list[UUID]] = Query(None, alias="department_ids", description="Filter by department IDs (multi-select)"),
+    stage_ids: Optional[list[UUID]] = Query(None, alias="stage_ids", description="Filter by stage IDs (multi-select)"),
+    role_ids: Optional[list[UUID]] = Query(None, alias="role_ids", description="Filter by role IDs (multi-select)"),
+    statuses: Optional[list[UserStatus]] = Query(None, alias="statuses", description="Filter by user statuses (multi-select)"),
     page: int = Query(1, ge=1, description="Page number"),
-    size: int = Query(10, ge=1, le=100, description="Page size")
+    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    session: AsyncSession = Depends(get_db_session)
 ):
-    """Get all users (admin, manager, viewer, supervisor roles)."""
+    """
+    Get users with multi-select filters and role-based access control.
+    
+    - **Admin/Viewer**: Can see all users
+    - **Manager/Supervisor**: Can see subordinates only
+    - **Others**: No access to user listing
+    
+    Supports filtering by:
+    - Search term (employee code, name, job title)
+    - Department IDs (multi-select)
+    - Stage IDs (multi-select) 
+    - Role IDs (multi-select)
+    - User statuses (multi-select)
+    """
     try:
-        # Build filters
-        filters = {}
-        if department_id:
-            filters["department_id"] = department_id
-        if status:
-            filters["status"] = status
+        pagination = PaginationParams(page=page, limit=limit)
+        service = UserService(session)
         
-        # Build pagination
-        pagination = PaginationParams(
-            page=page,
-            size=size,
-            limit=size,
-            offset=(page - 1) * size
-        )
-        
-        # Get users through service layer
-        result = await user_service.get_users(
-            current_user=current_user,
+        result = await service.get_users(
+            current_user_roles=user_roles,
             search_term=search or "",
-            filters=filters,
+            statuses=statuses,
+            department_ids=department_ids,
+            stage_ids=stage_ids,
+            role_ids=role_ids,
             pagination=pagination
         )
         
         return result
         
-    except PermissionDeniedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
+            detail=f"Error fetching users: {str(e)}"
         )
 
 
