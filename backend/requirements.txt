@@ -12,4 +12,5 @@ clerk-backend-sdk
 pydantic[email]
 svix
 pytest
-pytest-asyncio 
+pytest-asyncio
+cachetools

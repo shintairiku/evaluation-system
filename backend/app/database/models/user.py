@@ -30,6 +30,7 @@ class User(Base):
     job_title = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login_at = Column(DateTime)
 
     # Relationships
     department = relationship("Department", back_populates="users")

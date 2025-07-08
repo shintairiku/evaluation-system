@@ -21,14 +21,16 @@ def setup_repository_test_logging(repo_name: str) -> str:
         from tests.repositories.test_logging_utils import setup_repository_test_logging
         TEST_LOG_FILE = setup_repository_test_logging('user')
     """
-    # Ensure logs directory exists
-    log_dir = "backend/tests/logs"
-
+    # Ensure logs directory exists - check if we're in backend or root
+    if os.path.basename(os.getcwd()) == "backend":
+        log_dir = os.path.join("tests", "logs")
+    else:
+        log_dir = os.path.join("backend", "tests", "logs")
     os.makedirs(log_dir, exist_ok=True)
     
     # Generate timestamped log file name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = f"{log_dir}/{repo_name}_repo_test_{timestamp}.log"
+    log_file = os.path.join(log_dir, f"{repo_name}_repo_test_{timestamp}.log")
     
     # Clear any existing handlers to avoid duplicates
     root_logger = logging.getLogger()

@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Optional
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -15,3 +16,10 @@ class StageRepository:
         """Get all stages."""
         result = await self.session.execute(select(Stage))
         return result.scalars().all()
+    
+    async def get_stage_by_id(self, stage_id: UUID) -> Optional[Stage]:
+        """Get stage by ID."""
+        result = await self.session.execute(
+            select(Stage).where(Stage.id == stage_id)
+        )
+        return result.scalar_one_or_none()

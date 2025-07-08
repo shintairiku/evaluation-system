@@ -23,9 +23,9 @@ def setup_service_test_logging(service_name: str) -> str:
     """
     # Ensure logs directory exists - check if we're in backend or root
     if os.path.basename(os.getcwd()) == "backend":
-        log_dir = os.path.join(os.getcwd(), "tests", "logs")
+        log_dir = os.path.join("tests", "logs")
     else:
-        log_dir = os.path.join(os.getcwd(), "backend", "tests", "logs")
+        log_dir = os.path.join("backend", "tests", "logs")
     os.makedirs(log_dir, exist_ok=True)
     
     # Generate timestamped log file name

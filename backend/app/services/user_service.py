@@ -1,190 +1,163 @@
+from __future__ import annotations
 import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
+from ..database.repositories.department_repo import DepartmentRepository
+from ..database.repositories.stage_repo import StageRepository
+from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel
 from ..schemas.user import (
-    UserCreate, UserUpdate, UserProfile, User, UserInDB,
-    UserCreateResponse, UserUpdateResponse, UserInactivateResponse,
+    UserCreate, UserUpdate, User, UserDetailResponse,
     Department, Stage, Role, UserStatus
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
+from ..dependencies.role import UserRole
 from ..core.exceptions import (
-    NotFoundError, ConflictError, ValidationError, 
-    PermissionDeniedError, BadRequestError
+    NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
-from ..core.permissions import PermissionManager, Permission
+from ..utils.user_relationships import UserRelationshipManager
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+# Cache for user search results (100 items, 5-minute TTL)
+user_search_cache = TTLCache(maxsize=100, ttl=300)
 
 
 class UserService:
     """Service layer for user-related business logic and operations"""
     
-    def __init__(self):
-        self.user_repo = UserRepository()
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.user_repo = UserRepository(session)
+        self.department_repo = DepartmentRepository(session)
+        self.stage_repo = StageRepository(session)
+        self.role_repo = RoleRepository(session)
+        self.user_relationships = UserRelationshipManager(session)
     
     async def get_users(
-        self,
-        current_user: Dict[str, Any],
+        self, 
+        current_user_roles, 
         search_term: str = "",
-        filters: Optional[Dict[str, Any]] = None,
+        statuses: Optional[list[UserStatus]] = None,
+        department_ids: Optional[list[UUID]] = None,
+        stage_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
         pagination: Optional[PaginationParams] = None
-    ) -> PaginatedResponse[UserProfile]:
+    ) -> PaginatedResponse[User]:
         """
-        Get users based on current user's role and permissions
-        
-        Business Logic:
-        - Admin: Can see all users
-        - Manager: Can see subordinates only
-        - Viewer: Department-based access
-        - Supervisor: Can see subordinates only
+        Get users based on current user's roles and permissions, with explicit multi-select filters.
+        Uses role-based access control from dependencies/role.py.
         """
         try:
-            user_role = current_user.get("role")
-            user_id = current_user.get("sub")
+            # Check permissions based on user roles
+            user_ids_to_filter = None
             
-            # Validate user_role is present
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
+            # Business Logic: Determine access scope based on roles
+            # if current_user_roles.has_any_role(["admin", "viewer"]):
+            #     # Admin and Viewer: Can see all users
+            #     user_ids_to_filter = None
+            # elif current_user_roles.has_any_role(["manager", "supervisor"]):
+            #     # Manager/Supervisor: Can only see subordinates
+            #     subordinate_ids = await self.user_relationships.get_all_subordinates(
+            #         current_user_roles.user_id
+            #     )
+            #     user_ids_to_filter = subordinate_ids
+            # else:
+            #     # Default: No access to user listing
+            #     return PaginatedResponse(
+            #         items=[],
+            #         total=0,
+            #         page=pagination.page if pagination else 1,
+            #         limit=pagination.limit if pagination else 10,
+            #         pages=0
+            #     )
             
-            # Check permissions using PermissionManager
-            if PermissionManager.has_permission(user_role, Permission.USER_READ_ALL):
-                # Admin can see all users
-                users = await self.user_repo.search_users(
-                    search_term=search_term,
-                    filters=filters or {},
-                    pagination=pagination
-                )
-                total = await self.user_repo.count_users(filters=filters or {})
-            elif PermissionManager.has_permission(user_role, Permission.USER_READ_SUBORDINATES):
-                # Manager/Supervisor can only see subordinates
-                if not user_id:
-                    raise PermissionDeniedError("User ID not found in token")
-                
-                # Get current user's UUID
-                current_user_obj = await self.user_repo.get_by_clerk_id(user_id)
-                if not current_user_obj:
-                    raise NotFoundError("Current user not found in database")
-                
-                # Get subordinates
-                subordinates = await self.user_repo.get_subordinates(current_user_obj.id)
-                
-                # Apply search and filters to subordinates
-                filtered_subordinates = self._filter_users_by_criteria(
-                    subordinates, search_term, filters
-                )
-                
-                # Apply pagination
-                if pagination:
-                    start = pagination.offset
-                    end = start + pagination.limit
-                    users = filtered_subordinates[start:end]
-                else:
-                    users = filtered_subordinates
-                
-                total = len(filtered_subordinates)
-            elif PermissionManager.has_permission(user_role, Permission.USER_READ_DEPARTMENT):
-                # Viewer can see users in their department
-                if not user_id:
-                    raise PermissionDeniedError("User ID not found in token")
-                
-                current_user_obj = await self.user_repo.get_by_clerk_id(user_id)
-                if not current_user_obj:
-                    raise NotFoundError("Current user not found in database")
-                
-                # Add department filter
-                if filters is None:
-                    filters = {}
-                filters["department_id"] = current_user_obj.department_id
-                
-                users = await self.user_repo.search_users(
-                    search_term=search_term,
-                    filters=filters,
-                    pagination=pagination
-                )
-                total = await self.user_repo.count_users(filters=filters)
-            else:
-                raise PermissionDeniedError("Insufficient permissions to view users")
+            # Generate cache key including role information for proper caching
+            cache_key_params = {
+                "search_term": search_term,
+                "statuses": sorted(statuses) if statuses else None,
+                "department_ids": sorted([str(d) for d in department_ids]) if department_ids else None,
+                "stage_ids": sorted([str(s) for s in stage_ids]) if stage_ids else None,
+                "role_ids": sorted([str(r) for r in role_ids]) if role_ids else None,
+                "user_ids": sorted([str(u) for u in user_ids_to_filter]) if user_ids_to_filter else None,
+                "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None,
+                "requesting_user_roles": sorted(current_user_roles.role_names)
+            }
+            cache_key = self._generate_cache_key("get_users", cache_key_params)
             
-            # Convert to UserProfile objects
-            user_profiles = []
-            for user in users:
-                profile = await self._enrich_user_profile(user)
-                user_profiles.append(profile)
+            # Check cache
+            cached_result = user_search_cache.get(cache_key)
+            if cached_result:
+                return PaginatedResponse.model_validate_json(cached_result)
             
-            # Create pagination params if not provided
-            if pagination is None:
-                pagination = PaginationParams(page=1, limit=len(user_profiles))
-            
-            return PaginatedResponse.create(
-                items=user_profiles,
-                total=total,
+            # Get data from repository
+            users = await self.user_repo.search_users(
+                search_term=search_term,
+                statuses=statuses,
+                department_ids=department_ids,
+                stage_ids=stage_ids,
+                role_ids=role_ids,
+                user_ids=user_ids_to_filter,
                 pagination=pagination
             )
             
+            total_count = await self.user_repo.count_users(
+                search_term=search_term,
+                statuses=statuses,
+                department_ids=department_ids,
+                stage_ids=stage_ids,
+                role_ids=role_ids,
+                user_ids=user_ids_to_filter
+            )
+            
+            # Enrich users with schema conversion
+            enriched_users = []
+            for user_model in users:
+                enriched_user = await self._enrich_user_data(user_model)
+                enriched_users.append(enriched_user)
+            
+            # Create paginated response
+            total_pages = (total_count + pagination.limit - 1) // pagination.limit if pagination else 1
+            
+            result = PaginatedResponse(
+                items=enriched_users,
+                total=total_count,
+                page=pagination.page if pagination else 1,
+                limit=pagination.limit if pagination else len(enriched_users),
+                pages=total_pages
+            )
+            
+            # Cache the result
+            user_search_cache[cache_key] = result.model_dump_json()
+            
+            return result
+            
         except Exception as e:
-            logger.error(f"Error getting users: {str(e)}")
+            logger.error(f"Error in get_users: {e}")
             raise
     
     async def get_user_by_id(
         self, 
         user_id: UUID, 
-        current_user: Dict[str, Any]
-    ) -> User:
+        current_user_roles: UserRole
+    ) -> UserDetailResponse:
         """
-        Get a specific user by ID with permission checks
-        
-        Business Logic:
-        - Users can view their own profile
-        - Admin can view any user
-        - Manager/Supervisor can view subordinates
-        - Viewer can view users in same department
+        Get a specific user by ID and return UserDetailResponse with supervisor/subordinates
         """
         try:
-            user_role = current_user.get("role")
-            current_user_clerk_id = current_user.get("sub")
-            
-            # Validate user_role is present
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
-            
             # Check if user exists
-            user = await self.user_repo.get_by_id(user_id)
+            user = await self.user_repo.get_user_by_id(user_id)
             if not user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Permission checks using PermissionManager
-            if current_user_clerk_id:
-                current_user_obj = await self.user_repo.get_by_clerk_id(current_user_clerk_id)
-                if current_user_obj and current_user_obj.id == user_id:
-                    # User can always view their own profile
-                    if not PermissionManager.has_permission(user_role, Permission.USER_READ_SELF):
-                        raise PermissionDeniedError("You don't have permission to view user profiles")
-                elif PermissionManager.has_permission(user_role, Permission.USER_READ_ALL):
-                    # Admin can view any user
-                    pass
-                elif PermissionManager.has_permission(user_role, Permission.USER_READ_SUBORDINATES):
-                    # Check if user is a subordinate
-                    if current_user_obj:
-                        subordinates = await self.user_repo.get_subordinates(current_user_obj.id)
-                        if user_id not in [sub.id for sub in subordinates]:
-                            raise PermissionDeniedError("You can only view your own profile or subordinates")
-                    else:
-                        raise PermissionDeniedError("Current user not found in database")
-                elif PermissionManager.has_permission(user_role, Permission.USER_READ_DEPARTMENT):
-                    # Check if user is in same department
-                    if current_user_obj and current_user_obj.department_id != user.department_id:
-                        raise PermissionDeniedError("You can only view users in your department")
-                    elif not current_user_obj:
-                        raise PermissionDeniedError("Current user not found in database")
-                else:
-                    raise PermissionDeniedError("Insufficient permissions to view this user")
+            # TODO: add role-based access control
             
-            # Enrich user data with relationships
-            enriched_user = await self._enrich_user_data(user)
+            # Enrich user data for detail response with supervisor/subordinates
+            enriched_user = await self._enrich_detailed_user_data(user)
             return enriched_user
             
         except Exception as e:
@@ -194,8 +167,8 @@ class UserService:
     async def create_user(
         self, 
         user_data: UserCreate, 
-        current_user: Dict[str, Any]
-    ) -> UserCreateResponse:
+        current_user_roles: UserRole
+    ) -> UserDetailResponse:
         """
         Create a new user with validation and business rules
         
@@ -206,13 +179,9 @@ class UserService:
         - Set default status to active
         """
         try:
-            # Permission check using PermissionManager
-            user_role = current_user.get("role")
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
-            
-            if not PermissionManager.has_permission(user_role, Permission.USER_CREATE):
-                raise PermissionDeniedError("Only administrators can create users")
+            # TODO: Role-based access control
+            # if not current_user_roles.has_role("admin"):
+            #     raise PermissionDeniedError("Only administrators can create users")
             
             # Business validation
             await self._validate_user_creation(user_data)
@@ -220,16 +189,18 @@ class UserService:
             # Create user through repository
             created_user = await self.user_repo.create_user(user_data)
             
-            # Enrich user data for response
-            enriched_user = await self._enrich_user_data(created_user)
+            # Commit the transaction (Service controls the Unit of Work)
+            await self.session.commit()
+            await self.session.refresh(created_user)
+            
+            # Enrich user data for detailed response
+            enriched_user = await self._enrich_detailed_user_data(created_user)
             
             logger.info(f"User created successfully: {created_user.id}")
-            return UserCreateResponse(
-                user=enriched_user,
-                message="User created successfully"
-            )
+            return enriched_user
             
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error creating user: {str(e)}")
             raise
     
@@ -237,8 +208,8 @@ class UserService:
         self, 
         user_id: UUID, 
         user_data: UserUpdate, 
-        current_user: Dict[str, Any]
-    ) -> UserUpdateResponse:
+        current_user_roles: UserRole
+    ) -> UserDetailResponse:
         """
         Update user information with permission checks
         
@@ -249,115 +220,104 @@ class UserService:
         - Check for conflicts
         """
         try:
-            user_role = current_user.get("role")
-            current_user_clerk_id = current_user.get("sub")
-            
-            # Validate user_role is present
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
-            
             # Check if user exists
-            existing_user = await self.user_repo.get_by_id(user_id)
+            existing_user = await self.user_repo.get_user_by_id(user_id)
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Permission checks using PermissionManager
-            if current_user_clerk_id:
-                current_user_obj = await self.user_repo.get_by_clerk_id(current_user_clerk_id)
-                if current_user_obj and current_user_obj.id == user_id:
-                    # User can update their own profile
-                    if not PermissionManager.has_permission(user_role, Permission.USER_UPDATE):
-                        raise PermissionDeniedError("You don't have permission to update users")
-                elif PermissionManager.has_permission(user_role, Permission.USER_UPDATE):
-                    # Admin can update any user
-                    pass
-                else:
-                    raise PermissionDeniedError("You can only update your own profile")
+            # TODO: Role-based access control
+            # if current_user_roles.has_role("admin"):
+            #     # Admin can update any user
+            #     pass
+            # elif current_user_roles.user_id == user_id:
+            #     # User can update their own profile
+            #     pass
+            # else:
+            #     raise PermissionDeniedError("You can only update your own profile or need admin role")
             
             # Business validation
             await self._validate_user_update(user_data, existing_user)
             
-            # Update user through repository
+            # Update user through repository using UserUpdate schema
             updated_user = await self.user_repo.update_user(user_id, user_data)
             if not updated_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Enrich user data for response
-            enriched_user = await self._enrich_user_data(updated_user)
+            # Commit the transaction
+            await self.session.commit()
+            await self.session.refresh(updated_user)
+            
+            # Enrich user data for detailed response
+            enriched_user = await self._enrich_detailed_user_data(updated_user)
             
             logger.info(f"User updated successfully: {user_id}")
-            return UserUpdateResponse(
-                user=enriched_user,
-                message="User updated successfully"
-            )
+            return enriched_user
             
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error updating user {user_id}: {str(e)}")
             raise
     
-    async def inactivate_user(
-        self, 
-        user_id: UUID, 
-        current_user: Dict[str, Any]
-    ) -> UserInactivateResponse:
+    async def delete_user(
+        self,
+        user_id: UUID,
+        current_user_roles: UserRole,
+        mode: str = "soft",
+    ) -> bool:
         """
-        Inactivate a user (soft delete)
-        
-        Business Logic:
-        - Only admin can inactivate users
-        - Cannot inactivate self
-        - Check for active relationships (supervisor, evaluations)
+        Delete a user. 'soft' marks as inactive, 'hard' removes from DB.
+        NOTE: Hard delete is permanent and irreversible.
         """
         try:
-            # Permission check using PermissionManager
-            user_role = current_user.get("role")
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
-            
-            if not PermissionManager.has_permission(user_role, Permission.USER_DELETE):
-                raise PermissionDeniedError("Only administrators can inactivate users")
-            
+            # TODO: Role-based access control
+            # if not current_user_roles.has_role("admin"):
+            #     raise PermissionDeniedError("Only administrators can delete users.")
+
             # Check if user exists
-            existing_user = await self.user_repo.get_by_id(user_id)
+            existing_user = await self.user_repo.get_user_by_id(user_id)
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
-            
-            # Prevent self-inactivation
-            current_user_clerk_id = current_user.get("sub")
-            if current_user_clerk_id:
-                current_user_obj = await self.user_repo.get_by_clerk_id(current_user_clerk_id)
-                if current_user_obj and current_user_obj.id == user_id:
-                    raise BadRequestError("Cannot inactivate your own account")
-            
-            # Check for active relationships
-            await self._validate_user_inactivation(user_id)
-            
-            # Inactivate user through repository
-            success = await self.user_repo.inactivate_user(user_id)
-            if not success:
-                raise NotFoundError(f"User with ID {user_id} not found")
-            
-            logger.info(f"User inactivated successfully: {user_id}")
-            return UserInactivateResponse(
-                success=True,
-                message="User inactivated successfully"
-            )
-            
+
+            if mode == "soft":
+                # TODO: Self-deletion check
+                # if current_user_roles.user_id == user_id:
+                #     raise BadRequestError("Administrators cannot inactivate their own accounts.")
+
+                # Check if user is a supervisor of active users
+                subordinates = await self.user_repo.get_subordinates(user_id)
+                if subordinates:
+                    raise BadRequestError("Cannot inactivate user who is currently supervising active users")
+                
+                # Perform soft delete by updating status
+                success = await self.user_repo.update_user_status(user_id, UserStatus.INACTIVE)
+                
+                if success:
+                    await self.session.commit()
+                    logger.info(f"User {user_id} inactivated successfully.")
+                else:
+                    logger.warning(f"Failed to inactivate user {user_id}.")
+                    
+                return success
+                
+            elif mode == "hard":
+                # Add any necessary pre-deletion logic here
+                # (e.g., reassigning resources, logging, etc.)
+                
+                success = await self.user_repo.hard_delete_user_by_id(user_id)
+                
+                if success:
+                    await self.session.commit()
+                    logger.info(f"User {user_id} permanently deleted.")
+                else:
+                    logger.warning(f"Failed to permanently delete user {user_id}.")
+                    
+                return success
+            else:
+                raise BadRequestError("Invalid delete mode. Use 'soft' or 'hard'.")
+                
         except Exception as e:
-            logger.error(f"Error inactivating user {user_id}: {str(e)}")
-            raise
-    
-    async def get_user_profile(
-        self, 
-        user_id: UUID, 
-        current_user: Dict[str, Any]
-    ) -> UserProfile:
-        """Get user profile for display purposes"""
-        try:
-            user = await self.get_user_by_id(user_id, current_user)
-            return await self._enrich_user_profile(user)
-        except Exception as e:
-            logger.error(f"Error getting user profile {user_id}: {str(e)}")
+            await self.session.rollback()
+            logger.error(f"Error deleting user {user_id}: {str(e)}")
             raise
     
     async def update_last_login(self, clerk_user_id: str) -> bool:
@@ -379,8 +339,19 @@ class UserService:
     
     # Private helper methods
     
+    def _generate_cache_key(
+        self,
+        prefix: str,
+        params: Dict[str, Any]
+    ) -> str:
+        """Generates a cache key based on the prefix and parameters."""
+        # Sort keys to ensure consistent cache keys for the same parameters
+        sorted_params = sorted(params.items())
+        key_parts = [f"{k}={v}" for k, v in sorted_params]
+        return f"{prefix}:{':'.join(key_parts)}"
+    
     async def _validate_user_creation(self, user_data: UserCreate) -> None:
-        """Validate user creation data"""
+        """Validate all business rules before creating a user."""
         # Additional business validation can be added here
         # Repository already handles most validation
         pass
@@ -389,42 +360,42 @@ class UserService:
         """Validate user update data"""
         # Check for conflicts if email or employee_code is being updated
         if user_data.email and user_data.email != existing_user.email:
-            existing_user_with_email = await self.user_repo.get_by_email(user_data.email)
+            existing_user_with_email = await self.user_repo.get_user_by_email(user_data.email)
             if existing_user_with_email and existing_user_with_email.id != existing_user.id:
                 raise ConflictError(f"User with email {user_data.email} already exists")
         
         if user_data.employee_code and user_data.employee_code != existing_user.employee_code:
-            existing_user_with_code = await self.user_repo.get_by_employee_code(user_data.employee_code)
+            existing_user_with_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code)
             if existing_user_with_code and existing_user_with_code.id != existing_user.id:
                 raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
     
-    async def _validate_user_inactivation(self, user_id: UUID) -> None:
-        """Validate that user can be inactivated"""
-        # Check if user is a supervisor of active users
-        subordinates = await self.user_repo.get_subordinates(user_id)
-        if subordinates:
-            raise BadRequestError("Cannot inactivate user who is currently supervising active users")
-        
-        # Additional checks can be added here (e.g., active evaluations)
     
     async def _enrich_user_data(self, user: UserModel) -> User:
-        """Enrich user data with relationships"""
-        # Get department
-        department = await self._get_department(user.department_id)
+        """Enrich user data with relationships using repository pattern"""
+        # Get department using repository
+        department_model = await self.department_repo.get_department_by_id(user.department_id)
+        department = Department(
+            id=department_model.id,
+            name=department_model.name,
+            description=department_model.description
+        ) if department_model else None
         
-        # Get stage
-        stage = await self._get_stage(user.stage_id)
+        # Get stage using repository
+        stage_model = await self.stage_repo.get_stage_by_id(user.stage_id)
+        stage = Stage(
+            id=stage_model.id,
+            name=stage_model.name,
+            description=stage_model.description
+        ) if stage_model else None
         
-        # Get roles
-        roles = await self._get_user_roles(user.id)
-        
-        # Get supervisor
-        supervisor = None
-        if user.supervisor_id:
-            supervisor_data = await self.user_repo.get_by_id(user.supervisor_id)
-            if supervisor_data:
-                supervisor = await self._enrich_user_profile(supervisor_data)
-        
+        # Get roles using repository
+        role_models = await self.role_repo.get_user_roles(user.id)
+        roles = [Role(
+            id=role.id,
+            name=role.name,
+            description=role.description
+        ) for role in role_models]
+
         return User(
             id=user.id,
             clerk_user_id=user.clerk_user_id,
@@ -435,28 +406,53 @@ class UserService:
             job_title=user.job_title,
             department_id=user.department_id,
             stage_id=user.stage_id,
-            supervisor_id=user.supervisor_id,
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_login_at=user.last_login_at,
             department=department,
             stage=stage,
             roles=roles,
-            supervisor=supervisor
         )
-    
-    async def _enrich_user_profile(self, user: UserModel) -> UserProfile:
-        """Enrich user data for profile display"""
-        # Get department
-        department = await self._get_department(user.department_id)
+
+    async def _enrich_detailed_user_data(self, user: UserModel) -> UserDetailResponse:
+        """Enrich user data for UserDetailResponse with supervisor/subordinates using repository pattern"""
+        # Get basic data using repository pattern
+        department_model = await self.department_repo.get_department_by_id(user.department_id)
+        department = Department(
+            id=department_model.id,
+            name=department_model.name,
+            description=department_model.description
+        ) if department_model else None
         
-        # Get stage
-        stage = await self._get_stage(user.stage_id)
+        stage_model = await self.stage_repo.get_stage_by_id(user.stage_id)
+        stage = Stage(
+            id=stage_model.id,
+            name=stage_model.name,
+            description=stage_model.description
+        ) if stage_model else None
         
-        # Get roles
-        roles = await self._get_user_roles(user.id)
-        
-        return UserProfile(
+        role_models = await self.role_repo.get_user_roles(user.id)
+        roles = [Role(
+            id=role.id,
+            name=role.name,
+            description=role.description
+        ) for role in role_models]
+
+        # Get supervisor relationship
+        supervisor_models = await self.user_repo.get_user_supervisors(user.id)
+        supervisor = None
+        if supervisor_models:
+            supervisor_model = supervisor_models[0]  # Take first supervisor if multiple
+            supervisor = await self._enrich_user_data(supervisor_model)
+
+        # Get subordinates relationship
+        subordinate_models = await self.user_repo.get_subordinates(user.id)
+        subordinates = []
+        for subordinate_model in subordinate_models:
+            subordinate = await self._enrich_user_data(subordinate_model)
+            subordinates.append(subordinate)
+
+        return UserDetailResponse(
             id=user.id,
             clerk_user_id=user.clerk_user_id,
             employee_code=user.employee_code,
@@ -467,36 +463,10 @@ class UserService:
             department=department,
             stage=stage,
             roles=roles,
-            last_login_at=user.last_login_at
+            supervisor=supervisor,
+            subordinates=subordinates if subordinates else None
         )
     
-    async def _get_department(self, department_id: UUID) -> Department:
-        """Get department information"""
-        query = "SELECT id, name, description FROM departments WHERE id = $1"
-        row = await self.user_repo.db.fetchrow(query, department_id)
-        if not row:
-            raise NotFoundError(f"Department {department_id} not found")
-        return Department(**dict(row))
-    
-    async def _get_stage(self, stage_id: UUID) -> Stage:
-        """Get stage information"""
-        query = "SELECT id, name, description FROM stages WHERE id = $1"
-        row = await self.user_repo.db.fetchrow(query, stage_id)
-        if not row:
-            raise NotFoundError(f"Stage {stage_id} not found")
-        return Stage(**dict(row))
-    
-    async def _get_user_roles(self, user_id: UUID) -> List[Role]:
-        """Get user roles"""
-        query = """
-            SELECT r.id, r.name, r.description 
-            FROM roles r
-            INNER JOIN user_roles ur ON r.id = ur.role_id
-            WHERE ur.user_id = $1
-            ORDER BY r.name
-        """
-        rows = await self.user_repo.db.fetch(query, user_id)
-        return [Role(**dict(row)) for row in rows]
     
     def _filter_users_by_criteria(
         self, 
