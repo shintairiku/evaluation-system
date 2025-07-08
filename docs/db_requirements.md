@@ -4,11 +4,6 @@
 
 ## 1. ENUM型定義 (ENUM Type Definitions)
 
--   **雇用形態 (employment_type)**
-    -   説明: 従業員の雇用形態
-    -   許容値: 'admin' (管理者), 'supervisor' (管理職), 'employee' (正社員), 'parttime' (パート)
-    -   対象テーブル・カラム: `users.employment_type`
-
 -   **ユーザーステータス (user_status)**
     -   説明: ユーザーアカウントの状態
     -   許容値: 'active' (有効), 'inactive' (無効)
@@ -40,7 +35,7 @@
 
 ### 2.1 `users` テーブル
 
--   **ClerkユーザーIDフォーマットチェック (`check_clerk_user_id_format`)**
+-   **ClerkユーザーIDフォーマットチェック (`check_clerk_user_id`)**
     -   条件: `clerk_user_id` カラムの値は、Clerk指定のフォーマット（`user_xxx` または `usr_xxx` で始まり、その後に24文字以上の英数字が続く文字列）であるか、NULLである必要
     -   目的: Clerkシステムとの連携において、IDの形式的な正しさを保証
 

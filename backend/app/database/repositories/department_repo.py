@@ -214,4 +214,4 @@ class DepartmentRepository:
                     )
             
             result = await session.execute(query)
-            return result.scalar() or 0 
+            return result.scalar() or 0
