@@ -339,33 +339,36 @@ class UserService:
     
     # Private helper methods
     
+    def _generate_cache_key(
+        self,
+        prefix: str,
+        params: Dict[str, Any]
+    ) -> str:
+        """Generates a cache key based on the prefix and parameters."""
+        # Sort keys to ensure consistent cache keys for the same parameters
+        sorted_params = sorted(params.items())
+        key_parts = [f"{k}={v}" for k, v in sorted_params]
+        return f"{prefix}:{':'.join(key_parts)}"
+    
     async def _validate_user_creation(self, user_data: UserCreate) -> None:
-        """Validate user creation data"""
+        """Validate all business rules before creating a user."""
         # Additional business validation can be added here
         # Repository already handles most validation
         pass
     
-    async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserBase) -> None:
+    async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserModel) -> None:
         """Validate user update data"""
         # Check for conflicts if email or employee_code is being updated
         if user_data.email and user_data.email != existing_user.email:
-            existing_user_with_email = await self.user_repo.get_by_email(user_data.email)
+            existing_user_with_email = await self.user_repo.get_user_by_email(user_data.email)
             if existing_user_with_email and existing_user_with_email.id != existing_user.id:
                 raise ConflictError(f"User with email {user_data.email} already exists")
         
         if user_data.employee_code and user_data.employee_code != existing_user.employee_code:
-            existing_user_with_code = await self.user_repo.get_by_employee_code(user_data.employee_code)
+            existing_user_with_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code)
             if existing_user_with_code and existing_user_with_code.id != existing_user.id:
                 raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
     
-    async def _validate_user_inactivation(self, user_id: UUID) -> None:
-        """Validate that user can be inactivated"""
-        # Check if user is a supervisor of active users
-        subordinates = await self.user_repo.get_subordinates(user_id)
-        if subordinates:
-            raise BadRequestError("Cannot inactivate user who is currently supervising active users")
-        
-        # Additional checks can be added here (e.g., active evaluations)
     
     async def _enrich_user_data(self, user: UserModel) -> User:
         """Enrich user data with relationships using repository pattern"""
@@ -467,10 +470,10 @@ class UserService:
     
     def _filter_users_by_criteria(
         self, 
-        users: List[UserBase], 
+        users: List[UserModel], 
         search_term: str, 
         filters: Optional[Dict[str, Any]]
-    ) -> List[UserBase]:
+    ) -> List[UserModel]:
         """Filter users by search term and filters"""
         filtered_users = users
         
