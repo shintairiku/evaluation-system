@@ -5,7 +5,8 @@ from uuid import UUID
 
 from ...dependencies.auth import get_current_user
 from ...schemas.user import (
-    User, UserCreate, UserUpdate, UserProfile,
+    User, UserCreate, UserUpdate, UserDetailResponse,
+    UserPaginatedResponse, UserExistsResponse,
     UserCreateResponse, UserUpdateResponse, UserInactivateResponse,
     UserStatus
 )
@@ -25,7 +26,7 @@ user_service = UserService()
 
 @router.get(
     "/", 
-    response_model=PaginatedResponse[UserProfile],
+    response_model=UserPaginatedResponse,
     summary="List users with filtering and pagination",
     description="""
     Get a paginated list of users based on the current user's role and permissions.
@@ -597,7 +598,7 @@ async def delete_user(
 
 @router.get(
     "/{user_id}/profile", 
-    response_model=UserProfile,
+    response_model=UserDetailResponse,
     summary="Get user profile for display",
     description="""
     Get user profile information optimized for display purposes.

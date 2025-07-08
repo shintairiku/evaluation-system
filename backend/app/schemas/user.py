@@ -216,6 +216,24 @@ class UserExistsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserCreateResponse(BaseModel):
+    """Response for user creation"""
+    user: UserDetailResponse
+    message: str = "User created successfully"
+
+
+class UserUpdateResponse(BaseModel):
+    """Response for user update"""
+    user: UserDetailResponse
+    message: str = "User updated successfully"
+
+
+class UserInactivateResponse(BaseModel):
+    """Response for user inactivation"""
+    success: bool = True
+    message: str = "User inactivated successfully"
+
+
 # ========================================
 # FORWARD REFERENCES UPDATE
 # ========================================
