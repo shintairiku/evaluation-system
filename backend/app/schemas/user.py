@@ -154,6 +154,7 @@ class UserUpdate(BaseModel):
     stage_id: Optional[UUID] = None
     role_ids: Optional[List[int]] = Field(None, min_items=0, max_items=10)
     supervisor_id: Optional[UUID] = None
+    subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = None
 
 
