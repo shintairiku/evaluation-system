@@ -273,41 +273,54 @@ class UserRepository:
     async def search_users(
         self,
         search_term: str = "",
-        filters: Optional[Dict[str, Any]] = None,
+        statuses: Optional[list[UserStatus]] = None,
+        department_ids: Optional[list[UUID]] = None,
+        stage_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
+        user_ids: Optional[list[UUID]] = None,
         pagination: Optional[PaginationParams] = None,
     ) -> list[User]:
-        """Search users with optional filters and pagination."""
+        """
+        Search and filter users with pagination.
+        Handles complex filtering logic.
+        """
         try:
             query = select(User).options(
                 joinedload(User.department),
                 joinedload(User.stage),
-                joinedload(User.roles),
+                joinedload(User.roles)
             )
 
-            final_filters = filters or {}
-            status_filter = final_filters.get("status", UserStatus.ACTIVE.value)
-            query = query.where(User.status == status_filter)
-
-            if "department_id" in final_filters:
-                query = query.where(User.department_id == final_filters["department_id"])
-
             if search_term:
-                search_filter = or_(
-                    User.name.ilike(f"%{search_term}%"),
-                    User.email.ilike(f"%{search_term}%"),
-                    User.employee_code.ilike(f"%{search_term}%"),
+                search_ilike = f"%{search_term.lower()}%"
+                query = query.filter(
+                    or_(
+                        func.lower(User.name).ilike(search_ilike),
+                        func.lower(User.employee_code).ilike(search_ilike),
+                        func.lower(User.job_title).ilike(search_ilike),
+                    )
                 )
-                query = query.where(search_filter)
 
-            query = query.order_by(User.name)
+            if statuses:
+                query = query.filter(User.status.in_([s.value for s in statuses]))
+            if department_ids:
+                query = query.filter(User.department_id.in_(department_ids))
+            if stage_ids:
+                query = query.filter(User.stage_id.in_(stage_ids))
+            if role_ids:
+                query = query.join(user_roles).filter(user_roles.c.role_id.in_(role_ids))
+            if user_ids:
+                query = query.filter(User.id.in_(user_ids))
 
             if pagination:
-                query = query.offset(pagination.offset).limit(pagination.limit)
+                query = query.limit(pagination.limit).offset(pagination.offset)
+            
+            query = query.order_by(User.name)
 
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error searching users: {e}")
+            logger.error(f"Error searching for users: {e}")
             raise
 
     # ========================================
@@ -382,33 +395,47 @@ class UserRepository:
             raise
 
     # ========================================
-    # HELPER METHODS
+    # OTHER OPERATIONS
     # ========================================
 
     async def count_users(
-        self, search_term: str = "", filters: Optional[Dict[str, Any]] = None
+        self, 
+        search_term: str = "", 
+        statuses: Optional[list[UserStatus]] = None,
+        department_ids: Optional[list[UUID]] = None,
+        stage_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
+        user_ids: Optional[list[UUID]] = None
     ) -> int:
-        """Count users with optional search term and filters."""
+        """
+        Count users based on search and filter criteria.
+        """
         try:
-            query = select(func.count(User.id))
-
-            final_filters = filters or {}
-            status_filter = final_filters.get("status", UserStatus.ACTIVE.value)
-            query = query.where(User.status == status_filter)
-
-            if "department_id" in final_filters:
-                query = query.where(User.department_id == final_filters["department_id"])
+            query = select(func.count(User.id.distinct()))
 
             if search_term:
-                search_filter = or_(
-                    User.name.ilike(f"%{search_term}%"),
-                    User.email.ilike(f"%{search_term}%"),
-                    User.employee_code.ilike(f"%{search_term}%"),
+                search_ilike = f"%{search_term.lower()}%"
+                query = query.filter(
+                    or_(
+                        func.lower(User.name).ilike(search_ilike),
+                        func.lower(User.employee_code).ilike(search_ilike),
+                        func.lower(User.job_title).ilike(search_ilike),
+                    )
                 )
-                query = query.where(search_filter)
+
+            if statuses:
+                query = query.filter(User.status.in_([s.value for s in statuses]))
+            if department_ids:
+                query = query.filter(User.department_id.in_(department_ids))
+            if stage_ids:
+                query = query.filter(User.stage_id.in_(stage_ids))
+            if role_ids:
+                query = query.join(user_roles).filter(user_roles.c.role_id.in_(role_ids))
+            if user_ids:
+                query = query.filter(User.id.in_(user_ids))
 
             result = await self.session.execute(query)
-            return result.scalar() or 0
+            return result.scalar_one()
         except SQLAlchemyError as e:
             logger.error(f"Error counting users: {e}")
             raise
