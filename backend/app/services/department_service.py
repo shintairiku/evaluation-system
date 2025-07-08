@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
@@ -9,7 +8,7 @@ from ..database.models.user import Department as DepartmentModel
 from ..schemas.department import (
     Department, DepartmentCreate, DepartmentUpdate, DepartmentDetail
 )
-from ..schemas.user import UserProfile
+from ..schemas.user import UserDetailResponse
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, 
@@ -321,7 +320,7 @@ class DepartmentService:
         dept_id: UUID,
         current_user: Dict[str, Any],
         pagination: Optional[PaginationParams] = None
-    ) -> PaginatedResponse[UserProfile]:
+    ) -> PaginatedResponse[UserDetailResponse]:
         """
         Get users in a specific department with permission checks
         
