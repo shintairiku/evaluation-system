@@ -17,6 +17,7 @@ from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, 
     PermissionDeniedError, BadRequestError
 )
+from ..utils.user_relationships import UserRelationshipManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -28,120 +29,111 @@ user_search_cache = TTLCache(maxsize=100, ttl=300)
 class UserService:
     """Service layer for user-related business logic and operations"""
     
-    def __init__(self, session: Optional[AsyncSession] = None):
+    def __init__(self, session: AsyncSession):
+        self.session = session
         self.user_repo = UserRepository(session)
+        self.user_relationships = UserRelationshipManager(session)
     
     async def get_users(
         self, 
-        current_user: Dict[str, Any],
+        current_user_roles, 
         search_term: str = "",
-        filters: Optional[Dict[str, Any]] = None,
+        statuses: Optional[list[UserStatus]] = None,
+        department_ids: Optional[list[UUID]] = None,
+        stage_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[User]:
         """
-        Get users based on current user's role and permissions
-        
-        Business Logic:
-        - Admin: Can see all users
-        - Manager: Can see subordinates only
-        - Viewer: Department-based access
-        - Supervisor: Can see subordinates only
+        Get users based on current user's roles and permissions, with explicit multi-select filters.
+        Uses role-based access control from dependencies/role.py.
         """
         try:
-            user_role = current_user.get("role")
-            user_id = current_user.get("sub")
+            # Check permissions based on user roles
+            user_ids_to_filter = None
             
-            # Create a cache key based on the request parameters
-            cache_key = self._generate_cache_key(
-                user_role, user_id, search_term, filters, pagination
-            )
+            # Business Logic: Determine access scope based on roles
+            # if current_user_roles.has_any_role(["admin", "viewer"]):
+            #     # Admin and Viewer: Can see all users
+            #     user_ids_to_filter = None
+            # elif current_user_roles.has_any_role(["manager", "supervisor"]):
+            #     # Manager/Supervisor: Can only see subordinates
+            #     subordinate_ids = await self.user_relationships.get_all_subordinates(
+            #         current_user_roles.user_id
+            #     )
+            #     user_ids_to_filter = subordinate_ids
+            # else:
+            #     # Default: No access to user listing
+            #     return PaginatedResponse(
+            #         items=[],
+            #         total=0,
+            #         page=pagination.page if pagination else 1,
+            #         limit=pagination.limit if pagination else 10,
+            #         pages=0
+            #     )
             
-            # Check cache first
-            if cache_key in user_search_cache:
-                return user_search_cache[cache_key]
-
-            # Apply role-based filtering
-            if user_role == "admin":
-                # Admin can see all users
-                users = await self.user_repo.search_users(
-                    search_term=search_term,
-                    filters=filters or {},
-                    pagination=pagination
-                )
-                total = await self.user_repo.count_users(filters=filters or {})
-            elif user_role in ["manager", "supervisor"]:
-                # Manager/Supervisor can only see subordinates
-                if not user_id:
-                    raise PermissionDeniedError("User ID not found in token")
-                
-                # Get current user's UUID
-                current_user_obj = await self.user_repo.get_by_clerk_id(user_id)
-                if not current_user_obj:
-                    raise NotFoundError("Current user not found in database")
-                
-                # Get subordinates
-                subordinates = await self.user_repo.get_subordinates(current_user_obj.id)
-                
-                # Apply search and filters to subordinates
-                filtered_subordinates = self._filter_users_by_criteria(
-                    subordinates, search_term, filters
-                )
-                
-                # Apply pagination
-                if pagination:
-                    start = pagination.offset
-                    end = start + pagination.limit
-                    users = filtered_subordinates[start:end]
-                else:
-                    users = filtered_subordinates
-                
-                total = len(filtered_subordinates)
-            elif user_role == "viewer":
-                # Viewer can see users in their department
-                if not user_id:
-                    raise PermissionDeniedError("User ID not found in token")
-                
-                current_user_obj = await self.user_repo.get_by_clerk_id(user_id)
-                if not current_user_obj:
-                    raise NotFoundError("Current user not found in database")
-                
-                # Add department filter
-                if filters is None:
-                    filters = {}
-                filters["department_id"] = current_user_obj.department_id
-                
-                users = await self.user_repo.search_users(
-                    search_term=search_term,
-                    filters=filters,
-                    pagination=pagination
-                )
-                total = await self.user_repo.count_users(filters=filters)
-            else:
-                raise PermissionDeniedError("Insufficient permissions to view users")
+            # Generate cache key including role information for proper caching
+            cache_key_params = {
+                "search_term": search_term,
+                "statuses": sorted(statuses) if statuses else None,
+                "department_ids": sorted([str(d) for d in department_ids]) if department_ids else None,
+                "stage_ids": sorted([str(s) for s in stage_ids]) if stage_ids else None,
+                "role_ids": sorted([str(r) for r in role_ids]) if role_ids else None,
+                "user_ids": sorted([str(u) for u in user_ids_to_filter]) if user_ids_to_filter else None,
+                "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None,
+                "requesting_user_roles": sorted(current_user_roles.role_names)
+            }
+            cache_key = self._generate_cache_key("get_users", cache_key_params)
             
-            # Convert to User objects
-            user_profiles = []
-            for user in users:
-                profile = await self._enrich_user_profile(user)
-                user_profiles.append(profile)
+            # Check cache
+            cached_result = user_search_cache.get(cache_key)
+            if cached_result:
+                return PaginatedResponse.model_validate_json(cached_result)
             
-            # Create pagination params if not provided
-            if pagination is None:
-                pagination = PaginationParams(page=1, limit=len(user_profiles))
-            
-            paginated_response = PaginatedResponse.create(
-                items=user_profiles,
-                total=total,
+            # Get data from repository
+            users = await self.user_repo.search_users(
+                search_term=search_term,
+                statuses=statuses,
+                department_ids=department_ids,
+                stage_ids=stage_ids,
+                role_ids=role_ids,
+                user_ids=user_ids_to_filter,
                 pagination=pagination
             )
-
-            # Store result in cache before returning
-            user_search_cache[cache_key] = paginated_response
             
-            return paginated_response
+            total_count = await self.user_repo.count_users(
+                search_term=search_term,
+                statuses=statuses,
+                department_ids=department_ids,
+                stage_ids=stage_ids,
+                role_ids=role_ids,
+                user_ids=user_ids_to_filter
+            )
+            
+            # Enrich users with schema conversion
+            enriched_users = []
+            for user_model in users:
+                enriched_user = await self._enrich_user_data(user_model)
+                enriched_users.append(enriched_user)
+            
+            # Create paginated response
+            total_pages = (total_count + pagination.limit - 1) // pagination.limit if pagination else 1
+            
+            result = PaginatedResponse(
+                items=enriched_users,
+                total=total_count,
+                page=pagination.page if pagination else 1,
+                limit=pagination.limit if pagination else len(enriched_users),
+                pages=total_pages
+            )
+            
+            # Cache the result
+            user_search_cache[cache_key] = result.model_dump_json()
+            
+            return result
             
         except Exception as e:
-            logger.error(f"Error getting users: {str(e)}")
+            logger.error(f"Error in get_users: {e}")
             raise
     
     async def get_user_by_id(

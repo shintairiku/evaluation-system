@@ -164,7 +164,6 @@ class UserInDB(UserBase):
     status: UserStatus = UserStatus.ACTIVE
     department_id: UUID
     stage_id: UUID
-    supervisor_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None
