@@ -1,15 +1,16 @@
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update, func, or_
+from sqlalchemy import select, update, func, or_, delete
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.user import User, UserSupervisor, Role
-from ...schemas.user import UserStatus
+from ..models.user import User, UserSupervisor, Role, user_roles
+from ...schemas.user import UserStatus, UserCreate, UserUpdate
+from ...schemas.common import PaginationParams
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,64 @@ class UserRepository:
         """Add a user-supervisor relationship to the session (does not commit)."""
         self.session.add(user_supervisor)
 
+    async def create_user(self, user_data: UserCreate) -> User:
+        """
+        Create a new user from UserCreate schema.
+        Adds to session (does not commit - let service layer handle transactions).
+        """
+        try:
+            # Create User model from UserCreate schema
+            user = User(
+                name=user_data.name,
+                email=user_data.email,
+                employee_code=user_data.employee_code,
+                job_title=user_data.job_title,
+                clerk_user_id=user_data.clerk_user_id,
+                department_id=user_data.department_id,
+                stage_id=user_data.stage_id,
+                status=user_data.status or UserStatus.PENDING_APPROVAL
+            )
+            
+            self.session.add(user)
+            logger.info(f"Added user to session: {user.email}")
+            return user
+        except SQLAlchemyError as e:
+            logger.error(f"Error creating user with email {user_data.email}: {e}")
+            raise
+
     # ========================================
     # READ OPERATIONS
     # ========================================
 
+    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
+        """Get user by ID."""
+        try:
+            result = await self.session.execute(
+                select(User).filter(User.id == user_id)
+            )
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user by ID {user_id}: {e}")
+            raise
+
+    async def get_user_by_id_with_details(self, user_id: UUID) -> Optional[User]:
+        """Get user by ID with all related data, including supervisors and subordinates."""
+        try:
+            result = await self.session.execute(
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles),
+                    joinedload(User.supervisor_relations).joinedload(UserSupervisor.supervisor),
+                    joinedload(User.subordinate_relations).joinedload(UserSupervisor.user),
+                )
+                .filter(User.id == user_id)
+            )
+            return result.scalars().unique().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user details for ID {user_id}: {e}")
+            raise
 
     async def get_user_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
         """Get user by Clerk user ID."""
@@ -77,23 +132,6 @@ class UserRepository:
             logger.error(f"Error checking user existence by clerk_id {clerk_user_id}: {e}")
             raise
 
-    async def get_user_by_clerk_id(self, clerk_user_id: str) -> Optional[User]:
-        """Get user by Clerk user ID."""
-        try:
-            result = await self.session.execute(
-                select(User)
-                .options(
-                    joinedload(User.department),
-                    joinedload(User.stage),
-                    joinedload(User.roles)
-                )
-                .filter(User.clerk_user_id == clerk_user_id)
-            )
-            return result.scalars().unique().first()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by clerk_id {clerk_user_id}: {e}")
-            raise
-
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email address."""
         try:
@@ -103,35 +141,6 @@ class UserRepository:
             return result.scalars().first()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching user by email {email}: {e}")
-            raise
-
-    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
-        """Get user by ID."""
-        try:
-            result = await self.session.execute(
-                select(User).filter(User.id == user_id)
-            )
-            return result.scalars().first()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user by ID {user_id}: {e}")
-            raise
-
-    async def get_user_by_id_with_details(self, user_id: UUID) -> Optional[User]:
-        """Get user by ID with all related data."""
-        try:
-            result = await self.session.execute(
-                select(User)
-                .options(
-                    joinedload(User.department),
-                    joinedload(User.stage),
-                    joinedload(User.roles),
-                    joinedload(User.supervisor_relations).joinedload(UserSupervisor.supervisor),
-                )
-                .filter(User.id == user_id)
-            )
-            return result.scalars().unique().first()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching user details for ID {user_id}: {e}")
             raise
 
     async def get_user_by_employee_code(self, employee_code: str) -> Optional[User]:
@@ -144,7 +153,6 @@ class UserRepository:
         except SQLAlchemyError as e:
             logger.error(f"Error fetching user by employee code {employee_code}: {e}")
             raise
-
 
     async def get_users_by_status(self, status: UserStatus) -> list[User]:
         """Get all users with specific status."""
@@ -271,39 +279,57 @@ class UserRepository:
             logger.error(f"Error fetching active users: {e}")
             raise
 
-    async def search_users(self, search_term: str = "", filters: Dict[str, Any] = None) -> list[User]:
-        """Search users with optional filters."""
+    async def search_users(
+        self,
+        search_term: str = "",
+        statuses: Optional[list[UserStatus]] = None,
+        department_ids: Optional[list[UUID]] = None,
+        stage_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
+        user_ids: Optional[list[UUID]] = None,
+        pagination: Optional[PaginationParams] = None,
+    ) -> list[User]:
+        """
+        Search and filter users with pagination.
+        Handles complex filtering logic.
+        """
         try:
-            query = (
-                select(User)
-                .options(
-                    joinedload(User.department),
-                    joinedload(User.stage),
-                    joinedload(User.roles)
-                )
-                .filter(User.status == UserStatus.ACTIVE.value)
+            query = select(User).options(
+                joinedload(User.department),
+                joinedload(User.stage),
+                joinedload(User.roles)
             )
-            
+
             if search_term:
-                search_filter = or_(
-                    User.name.ilike(f"%{search_term}%"),
-                    User.email.ilike(f"%{search_term}%"),
-                    User.employee_code.ilike(f"%{search_term}%")
+                search_ilike = f"%{search_term.lower()}%"
+                query = query.filter(
+                    or_(
+                        func.lower(User.name).ilike(search_ilike),
+                        func.lower(User.employee_code).ilike(search_ilike),
+                        func.lower(User.job_title).ilike(search_ilike),
+                    )
                 )
-                query = query.where(search_filter)
-            
-            if filters:
-                if filters.get('department_id'):
-                    query = query.where(User.department_id == filters['department_id'])
-                if filters.get('status'):
-                    query = query.where(User.status == filters['status'])
+
+            if statuses:
+                query = query.filter(User.status.in_([s.value for s in statuses]))
+            if department_ids:
+                query = query.filter(User.department_id.in_(department_ids))
+            if stage_ids:
+                query = query.filter(User.stage_id.in_(stage_ids))
+            if role_ids:
+                query = query.join(user_roles).filter(user_roles.c.role_id.in_(role_ids))
+            if user_ids:
+                query = query.filter(User.id.in_(user_ids))
+
+            if pagination:
+                query = query.limit(pagination.limit).offset(pagination.offset)
             
             query = query.order_by(User.name)
-            
+
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error searching users: {e}")
+            logger.error(f"Error searching for users: {e}")
             raise
 
     # ========================================
@@ -338,28 +364,121 @@ class UserRepository:
             logger.error(f"Error updating last login for user {user_id}: {e}")
             raise
 
+
+    async def update_user(self, user_id: UUID, user_data: UserUpdate) -> Optional[User]:
+        """Update a user with UserUpdate schema (does not commit)."""
+        try:
+            # Get the existing user
+            existing_user = await self.get_user_by_id(user_id)
+            if not existing_user:
+                return None
+            
+            # Update fields from UserUpdate schema
+            if user_data.name is not None:
+                existing_user.name = user_data.name
+            if user_data.email is not None:
+                existing_user.email = user_data.email
+            if user_data.employee_code is not None:
+                existing_user.employee_code = user_data.employee_code
+            if user_data.job_title is not None:
+                existing_user.job_title = user_data.job_title
+            if user_data.department_id is not None:
+                existing_user.department_id = user_data.department_id
+            if user_data.stage_id is not None:
+                existing_user.stage_id = user_data.stage_id
+            if user_data.status is not None:
+                existing_user.status = user_data.status
+            
+            # Mark as modified in session
+            self.session.add(existing_user)
+            logger.info(f"Updated user in session: {existing_user.email}")
+            return existing_user
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Error updating user {user_id}: {e}")
+            raise
+
     # ========================================
     # DELETE OPERATIONS
     # ========================================
-    # (No delete operations yet - placeholder for future use)
 
-    # ========================================
-    # HELPER METHODS
-    # ========================================
-
-    async def count_users_by_filters(self, filters: Dict[str, Any] = None) -> int:
-        """Count users with optional filters."""
+    async def hard_delete_user_by_id(self, user_id: UUID) -> bool:
+        """
+        Permanently delete a user and their relationships from the database.
+        This includes roles and supervisor/subordinate links.
+        """
         try:
-            query = select(func.count(User.id))
+            # Delete from association tables first
+            await self.session.execute(
+                delete(user_roles).where(user_roles.c.user_id == user_id)
+            )
+            await self.session.execute(
+                delete(UserSupervisor).where(
+                    or_(
+                        UserSupervisor.user_id == user_id,
+                        UserSupervisor.supervisor_id == user_id
+                    )
+                )
+            )
+
+            # Then, delete the user
+            stmt = delete(User).where(User.id == user_id).returning(User.id)
+            result = await self.session.execute(stmt)
             
-            if filters:
-                if filters.get('department_id'):
-                    query = query.where(User.department_id == filters['department_id'])
-                if filters.get('status'):
-                    query = query.where(User.status == filters['status'])
+            deleted_id = result.scalar_one_or_none()
+            if deleted_id:
+                logger.info(f"Successfully hard deleted user {user_id}")
+                return True
             
+            logger.warning(f"Attempted to hard delete non-existent user {user_id}")
+            return False
+
+        except SQLAlchemyError as e:
+            logger.error(f"Error during hard delete for user {user_id}: {e}")
+            raise
+
+    # ========================================
+    # OTHER OPERATIONS
+    # ========================================
+
+    async def count_users(
+        self, 
+        search_term: str = "", 
+        statuses: Optional[list[UserStatus]] = None,
+        department_ids: Optional[list[UUID]] = None,
+        stage_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
+        user_ids: Optional[list[UUID]] = None
+    ) -> int:
+        """
+        Count users based on search and filter criteria.
+        """
+        try:
+            query = select(func.count(User.id.distinct()))
+
+            if search_term:
+                search_ilike = f"%{search_term.lower()}%"
+                query = query.filter(
+                    or_(
+                        func.lower(User.name).ilike(search_ilike),
+                        func.lower(User.employee_code).ilike(search_ilike),
+                        func.lower(User.job_title).ilike(search_ilike),
+                    )
+                )
+
+            if statuses:
+                query = query.filter(User.status.in_([s.value for s in statuses]))
+            if department_ids:
+                query = query.filter(User.department_id.in_(department_ids))
+            if stage_ids:
+                query = query.filter(User.stage_id.in_(stage_ids))
+            if role_ids:
+                query = query.join(user_roles).filter(user_roles.c.role_id.in_(role_ids))
+            if user_ids:
+                query = query.filter(User.id.in_(user_ids))
+
             result = await self.session.execute(query)
-            return result.scalar()
+            return result.scalar_one()
         except SQLAlchemyError as e:
             logger.error(f"Error counting users: {e}")
             raise

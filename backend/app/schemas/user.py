@@ -154,6 +154,7 @@ class UserUpdate(BaseModel):
     stage_id: Optional[UUID] = None
     role_ids: Optional[List[int]] = Field(None, min_items=0, max_items=10)
     supervisor_id: Optional[UUID] = None
+    subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = None
 
 
@@ -164,9 +165,9 @@ class UserInDB(UserBase):
     status: UserStatus = UserStatus.ACTIVE
     department_id: UUID
     stage_id: UUID
-    supervisor_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
+    last_login_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -177,11 +178,10 @@ class UserInDB(UserBase):
 
 
 class User(UserInDB):
-    """Complete user information with relationships"""
+    """Complete a user information; no user-to-user relationship"""
     department: Department
     stage: Stage
     roles: List[Role] = []
-    supervisor: Optional['UserDetailResponse'] = None
 
 class UserDetailResponse(BaseModel):
     id: UUID
@@ -194,14 +194,11 @@ class UserDetailResponse(BaseModel):
     department: Optional[Department] = None
     stage: Optional[Stage] = None
     roles: List[Role] = []
-    supervisor: Optional["UserDetailResponse"] = None
-    subordinates: Optional[List["UserDetailResponse"]] = None
+    supervisor: Optional["User"] = None
+    subordinates: Optional[List["User"]] = None
 
     model_config = ConfigDict(from_attributes=True)
 
-
-class UserPaginatedResponse(PaginatedResponse):
-    data: List[UserDetailResponse]
 
 
 class UserExistsResponse(BaseModel):
