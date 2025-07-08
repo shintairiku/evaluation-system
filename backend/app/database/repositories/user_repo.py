@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.user import User, UserSupervisor, Role, user_roles
-from ...schemas.user import UserStatus
+from ...schemas.user import UserStatus, UserCreate, UserUpdate
 from ...schemas.common import PaginationParams
 
 logger = logging.getLogger(__name__)
@@ -32,20 +32,29 @@ class UserRepository:
         """Add a user-supervisor relationship to the session (does not commit)."""
         self.session.add(user_supervisor)
 
-    async def create_user(self, user: User) -> User:
+    async def create_user(self, user_data: UserCreate) -> User:
         """
-        Create a new user in the database.
-        Adds, commits, and refreshes the user instance.
+        Create a new user from UserCreate schema.
+        Adds to session (does not commit - let service layer handle transactions).
         """
         try:
+            # Create User model from UserCreate schema
+            user = User(
+                name=user_data.name,
+                email=user_data.email,
+                employee_code=user_data.employee_code,
+                job_title=user_data.job_title,
+                clerk_user_id=user_data.clerk_user_id,
+                department_id=user_data.department_id,
+                stage_id=user_data.stage_id,
+                status=user_data.status or UserStatus.PENDING_APPROVAL
+            )
+            
             self.session.add(user)
-            await self.session.commit()
-            await self.session.refresh(user)
-            logger.info(f"Successfully created user {user.id} with email {user.email}")
+            logger.info(f"Added user to session: {user.email}")
             return user
         except SQLAlchemyError as e:
-            await self.session.rollback()
-            logger.error(f"Error creating user with email {user.email}: {e}")
+            logger.error(f"Error creating user with email {user_data.email}: {e}")
             raise
 
     # ========================================
@@ -353,6 +362,40 @@ class UserRepository:
             return result.scalar_one_or_none() is not None
         except SQLAlchemyError as e:
             logger.error(f"Error updating last login for user {user_id}: {e}")
+            raise
+
+
+    async def update_user(self, user_id: UUID, user_data: UserUpdate) -> Optional[User]:
+        """Update a user with UserUpdate schema (does not commit)."""
+        try:
+            # Get the existing user
+            existing_user = await self.get_user_by_id(user_id)
+            if not existing_user:
+                return None
+            
+            # Update fields from UserUpdate schema
+            if user_data.name is not None:
+                existing_user.name = user_data.name
+            if user_data.email is not None:
+                existing_user.email = user_data.email
+            if user_data.employee_code is not None:
+                existing_user.employee_code = user_data.employee_code
+            if user_data.job_title is not None:
+                existing_user.job_title = user_data.job_title
+            if user_data.department_id is not None:
+                existing_user.department_id = user_data.department_id
+            if user_data.stage_id is not None:
+                existing_user.stage_id = user_data.stage_id
+            if user_data.status is not None:
+                existing_user.status = user_data.status
+            
+            # Mark as modified in session
+            self.session.add(existing_user)
+            logger.info(f"Updated user in session: {existing_user.email}")
+            return existing_user
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Error updating user {user_id}: {e}")
             raise
 
     # ========================================
