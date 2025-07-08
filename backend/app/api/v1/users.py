@@ -165,15 +165,32 @@ async def update_user(
         )
 
 
-@router.delete("/{user_id}", response_model=UserInactivateResponse)
+@router.delete("/{user_id}", response_model=BaseResponse)
 async def delete_user(
     user_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    user_roles: UserRole = Depends(get_current_user_with_roles),
+    mode: str = Query("soft", regex="^(soft|hard)$", description="Delete mode: 'soft' (inactivate) or 'hard' (permanent)"),
+    session: AsyncSession = Depends(get_db_session)
 ):
-    """Delete a user (admin only)."""
+    """Delete a user (admin only). Supports both soft delete (inactivation) and hard delete (permanent removal)."""
     try:
-        result = await user_service.inactivate_user(user_id, current_user)
-        return result
+        service = UserService(session)
+        success = await service.delete_user(
+            user_id=user_id, 
+            current_user_roles=user_roles,
+            mode=mode
+        )
+        
+        if success:
+            if mode == "soft":
+                return BaseResponse(message="User inactivated successfully")
+            else:
+                return BaseResponse(message="User permanently deleted successfully")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete user"
+            )
         
     except NotFoundError as e:
         raise HTTPException(
@@ -190,7 +207,7 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
