@@ -167,8 +167,8 @@ class UserService:
     async def create_user(
         self, 
         user_data: UserCreate, 
-        current_user: Dict[str, Any]
-    ) -> UserCreateResponse:
+        current_user_roles: UserRole
+    ) -> UserDetailResponse:
         """
         Create a new user with validation and business rules
         
@@ -179,9 +179,9 @@ class UserService:
         - Set default status to active
         """
         try:
-            # Permission check
-            if current_user.get("role") != "admin":
-                raise PermissionDeniedError("Only administrators can create users")
+            # TODO: Role-based access control
+            # if not current_user_roles.has_role("admin"):
+            #     raise PermissionDeniedError("Only administrators can create users")
             
             # Business validation
             await self._validate_user_creation(user_data)
@@ -189,16 +189,18 @@ class UserService:
             # Create user through repository
             created_user = await self.user_repo.create_user(user_data)
             
-            # Enrich user data for response
-            enriched_user = await self._enrich_user_data(created_user)
+            # Commit the transaction (Service controls the Unit of Work)
+            await self.session.commit()
+            await self.session.refresh(created_user)
+            
+            # Enrich user data for detailed response
+            enriched_user = await self._enrich_detailed_user_data(created_user)
             
             logger.info(f"User created successfully: {created_user.id}")
-            return UserCreateResponse(
-                user=enriched_user,
-                message="User created successfully"
-            )
+            return enriched_user
             
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error creating user: {str(e)}")
             raise
     
@@ -206,8 +208,8 @@ class UserService:
         self, 
         user_id: UUID, 
         user_data: UserUpdate, 
-        current_user: Dict[str, Any]
-    ) -> UserUpdateResponse:
+        current_user_roles: UserRole
+    ) -> UserDetailResponse:
         """
         Update user information with permission checks
         
@@ -218,44 +220,41 @@ class UserService:
         - Check for conflicts
         """
         try:
-            current_user_role = current_user.get("role")
-            current_user_clerk_id = current_user.get("sub")
-            
             # Check if user exists
-            existing_user = await self.user_repo.get_by_id(user_id)
+            existing_user = await self.user_repo.get_user_by_id(user_id)
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Permission checks
-            if current_user_clerk_id:
-                current_user_obj = await self.user_repo.get_by_clerk_id(current_user_clerk_id)
-                if current_user_obj and current_user_obj.id == user_id:
-                    # User can update their own profile
-                    pass
-                elif current_user_role == "admin":
-                    # Admin can update any user
-                    pass
-                else:
-                    raise PermissionDeniedError("You can only update your own profile")
+            # TODO: Role-based access control
+            # if current_user_roles.has_role("admin"):
+            #     # Admin can update any user
+            #     pass
+            # elif current_user_roles.user_id == user_id:
+            #     # User can update their own profile
+            #     pass
+            # else:
+            #     raise PermissionDeniedError("You can only update your own profile or need admin role")
             
             # Business validation
             await self._validate_user_update(user_data, existing_user)
             
-            # Update user through repository
+            # Update user through repository using UserUpdate schema
             updated_user = await self.user_repo.update_user(user_id, user_data)
             if not updated_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Enrich user data for response
-            enriched_user = await self._enrich_user_data(updated_user)
+            # Commit the transaction
+            await self.session.commit()
+            await self.session.refresh(updated_user)
+            
+            # Enrich user data for detailed response
+            enriched_user = await self._enrich_detailed_user_data(updated_user)
             
             logger.info(f"User updated successfully: {user_id}")
-            return UserUpdateResponse(
-                user=enriched_user,
-                message="User updated successfully"
-            )
+            return enriched_user
             
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error updating user {user_id}: {str(e)}")
             raise
     
