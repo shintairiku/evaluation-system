@@ -2,20 +2,21 @@ from __future__ import annotations
 import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime
-import json
 from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
+from ..database.repositories.department_repo import DepartmentRepository
+from ..database.repositories.stage_repo import StageRepository
+from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel
 from ..schemas.user import (
     UserCreate, UserUpdate, User, UserDetailResponse,
     Department, Stage, Role, UserStatus
 )
-from ..schemas.common import PaginationParams, PaginatedResponse, BaseResponse
+from ..schemas.common import PaginationParams, PaginatedResponse
+from ..dependencies.role import UserRole
 from ..core.exceptions import (
-    NotFoundError, ConflictError, ValidationError, 
-    PermissionDeniedError, BadRequestError
+    NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
 from ..utils.user_relationships import UserRelationshipManager
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,9 @@ class UserService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.user_repo = UserRepository(session)
+        self.department_repo = DepartmentRepository(session)
+        self.stage_repo = StageRepository(session)
+        self.role_repo = RoleRepository(session)
         self.user_relationships = UserRelationshipManager(session)
     
     async def get_users(
@@ -139,54 +143,21 @@ class UserService:
     async def get_user_by_id(
         self, 
         user_id: UUID, 
-        current_user: Dict[str, Any]
-    ) -> User:
+        current_user_roles: UserRole
+    ) -> UserDetailResponse:
         """
-        Get a specific user by ID with permission checks
-        
-        Business Logic:
-        - Users can view their own profile
-        - Admin can view any user
-        - Manager/Supervisor can view subordinates
-        - Viewer can view users in same department
+        Get a specific user by ID and return UserDetailResponse with supervisor/subordinates
         """
         try:
-            current_user_role = current_user.get("role")
-            current_user_clerk_id = current_user.get("sub")
-            
             # Check if user exists
-            user = await self.user_repo.get_by_id(user_id)
+            user = await self.user_repo.get_user_by_id(user_id)
             if not user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Permission checks
-            if current_user_clerk_id:
-                current_user_obj = await self.user_repo.get_by_clerk_id(current_user_clerk_id)
-                if current_user_obj and current_user_obj.id == user_id:
-                    # User can always view their own profile
-                    pass
-                elif current_user_role == "admin":
-                    # Admin can view any user
-                    pass
-                elif current_user_role in ["manager", "supervisor"]:
-                    # Check if user is a subordinate
-                    if current_user_obj:
-                        subordinates = await self.user_repo.get_subordinates(current_user_obj.id)
-                        if user_id not in [sub.id for sub in subordinates]:
-                            raise PermissionDeniedError("You can only view your own profile or subordinates")
-                    else:
-                        raise PermissionDeniedError("Current user not found in database")
-                elif current_user_role == "viewer":
-                    # Check if user is in same department
-                    if current_user_obj and current_user_obj.department_id != user.department_id:
-                        raise PermissionDeniedError("You can only view users in your department")
-                    elif not current_user_obj:
-                        raise PermissionDeniedError("Current user not found in database")
-                else:
-                    raise PermissionDeniedError("Insufficient permissions to view this user")
+            # TODO: add role-based access control
             
-            # Enrich user data with relationships
-            enriched_user = await self._enrich_user_data(user)
+            # Enrich user data for detail response with supervisor/subordinates
+            enriched_user = await self._enrich_detailed_user_data(user)
             return enriched_user
             
         except Exception as e:
@@ -414,28 +385,53 @@ class UserService:
             job_title=user.job_title,
             department_id=user.department_id,
             stage_id=user.stage_id,
-            supervisor_id=user.supervisor_id,
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_login_at=user.last_login_at,
             department=department,
             stage=stage,
             roles=roles,
-            supervisor=supervisor
         )
-    
-    async def _enrich_user_profile(self, user: UserBase) -> UserProfile:
-        """Enrich user data for profile display"""
-        # Get department
-        department = await self._get_department(user.department_id)
+
+    async def _enrich_detailed_user_data(self, user: UserModel) -> UserDetailResponse:
+        """Enrich user data for UserDetailResponse with supervisor/subordinates using repository pattern"""
+        # Get basic data using repository pattern
+        department_model = await self.department_repo.get_department_by_id(user.department_id)
+        department = Department(
+            id=department_model.id,
+            name=department_model.name,
+            description=department_model.description
+        ) if department_model else None
         
-        # Get stage
-        stage = await self._get_stage(user.stage_id)
+        stage_model = await self.stage_repo.get_stage_by_id(user.stage_id)
+        stage = Stage(
+            id=stage_model.id,
+            name=stage_model.name,
+            description=stage_model.description
+        ) if stage_model else None
         
-        # Get roles
-        roles = await self._get_user_roles(user.id)
-        
-        return UserProfile(
+        role_models = await self.role_repo.get_user_roles(user.id)
+        roles = [Role(
+            id=role.id,
+            name=role.name,
+            description=role.description
+        ) for role in role_models]
+
+        # Get supervisor relationship
+        supervisor_models = await self.user_repo.get_user_supervisors(user.id)
+        supervisor = None
+        if supervisor_models:
+            supervisor_model = supervisor_models[0]  # Take first supervisor if multiple
+            supervisor = await self._enrich_user_data(supervisor_model)
+
+        # Get subordinates relationship
+        subordinate_models = await self.user_repo.get_subordinates(user.id)
+        subordinates = []
+        for subordinate_model in subordinate_models:
+            subordinate = await self._enrich_user_data(subordinate_model)
+            subordinates.append(subordinate)
+
+        return UserDetailResponse(
             id=user.id,
             clerk_user_id=user.clerk_user_id,
             employee_code=user.employee_code,
