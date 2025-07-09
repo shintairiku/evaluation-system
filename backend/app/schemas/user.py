@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from uuid import UUID
 
 from .common import Permission, PaginatedResponse
+from .role import Role, RoleDetail, RoleCreate, RoleUpdate
 
 if TYPE_CHECKING:
     from .competency import Competency
@@ -84,35 +85,6 @@ class StageCreate(BaseModel):
 class StageUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
-
-
-# ========================================
-# ROLE SCHEMAS
-# ========================================
-
-class Role(BaseModel):
-    """Role information"""
-    id: int
-    name: str
-    description: Optional[str] = None
-
-
-class RoleDetail(BaseModel):
-    id: int
-    name: str
-    description: str
-    permissions: List[Permission]
-    user_count: Optional[int] = None
-
-
-class RoleCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=50)
-    description: str = Field(..., min_length=1, max_length=200)
-
-
-class RoleUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=50)
-    description: Optional[str] = Field(None, min_length=1, max_length=200)
 
 
 # ========================================
