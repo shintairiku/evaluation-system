@@ -10,6 +10,7 @@ python-multipart
 python-dotenv
 clerk-backend-sdk
 pydantic[email]
+svix
 pytest
 pytest-asyncio
 httpx 
