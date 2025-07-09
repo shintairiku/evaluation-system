@@ -26,7 +26,6 @@ from .logging_utils import (
     log_api_response,
     log_auth_workflow_step,
     log_data_validation,
-    log_test_summary,
     log_workflow_completion
 )
 
