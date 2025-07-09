@@ -1,9 +1,9 @@
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from uuid import UUID
 
 # Import base class and models for runtime use
-from .user import UserBase, User, Department, Stage, Role, UserProfileOption
+from .user import UserBase, Department, Stage, Role, UserProfileOption
 
 
 # ========================================
