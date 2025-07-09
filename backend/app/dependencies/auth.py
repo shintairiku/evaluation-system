@@ -1,10 +1,9 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.session import get_db_session
-from ..schemas.user import UserExistsResponse, UserDetailResponse
+from ..schemas.user import UserExistsResponse
 from ..services.auth_service import AuthService
 
 # Handle exceptions import - create basic one if not available
