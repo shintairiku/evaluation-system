@@ -1,23 +1,34 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any, List
 
-from ...dependencies.auth import get_current_user, require_admin
+from ...dependencies.auth import get_current_user
 from ...schemas.user import Role, RoleDetail, RoleCreate, RoleUpdate
 
 router = APIRouter(prefix="/admin/roles", tags=["roles"])
 
+def check_admin_user(current_user: Dict[str, Any]) -> Dict[str, Any]:
+    """Helper function to check if user is admin."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can access this endpoint"
+        )
+    return current_user
+
 @router.get("/", response_model=List[Role])
-async def get_roles(current_user: Dict[str, Any] = Depends(require_admin())):
+async def get_roles(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Get all roles (admin only)."""
+    check_admin_user(current_user)
     # TODO: Implement role service to fetch all roles
     return []
 
 @router.post("/", response_model=Role)
 async def create_role(
     role_create: RoleCreate,
-    current_user: Dict[str, Any] = Depends(require_admin())
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Create a new role (admin only)."""
+    check_admin_user(current_user)
     # TODO: Implement role creation service
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -30,11 +41,7 @@ async def get_role(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Get role details by ID with permissions (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can view role details"
-        )
+    check_admin_user(current_user)
     
     # TODO: Implement role service to fetch role by ID with permissions
     # Should return RoleDetail with full permission list and user count
@@ -50,11 +57,7 @@ async def update_role(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Update role information (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update roles"
-        )
+    check_admin_user(current_user)
     
     # TODO: Implement role update service
     raise HTTPException(
@@ -65,9 +68,10 @@ async def update_role(
 @router.delete("/{role_id}")
 async def delete_role(
     role_id: int,
-    current_user: Dict[str, Any] = Depends(require_admin())
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Delete a role (admin only)."""
+    check_admin_user(current_user)
     # TODO: Implement role deletion service
     # - Check if any users have this role
     # - Remove role assignments before deletion
