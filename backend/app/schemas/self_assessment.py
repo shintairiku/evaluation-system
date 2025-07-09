@@ -1,6 +1,5 @@
 from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID
-from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import datetime
 from .common import SubmissionStatus

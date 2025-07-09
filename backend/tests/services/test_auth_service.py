@@ -6,9 +6,7 @@ from app.database.session import get_db_session
 from tests.services.test_logging_utils import (
     setup_service_test_logging,
     log_test_start,
-    log_test_success,
     log_test_failure,
-    log_assertion_success,
     log_service_operation
 )
 

@@ -160,9 +160,9 @@ def log_supabase_connectivity(record_count: int, table_name: str = "table") -> N
         record_count (int): Number of records retrieved
         table_name (str): Name of the table queried
     """
-    logging.info(f"✅ Supabase connection successful")
+    logging.info("✅ Supabase connection successful")
     logging.info(f"   Retrieved {record_count} records from {table_name}")
-    logging.info(f"   Database response time: measured in query execution")
+    logging.info("   Database response time: measured in query execution")
 
 
 def log_test_summary(total_tests: int, passed_tests: int, failed_tests: int, repo_name: str) -> None:

@@ -3,14 +3,13 @@ import logging
 from uuid import UUID, uuid4
 import pytest
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import pytest_asyncio
 
-from app.database.models.user import User, UserSupervisor, user_roles, Role
+from app.database.models.user import User
 from app.database.repositories.user_repo import UserRepository
 from app.schemas.user import UserStatus
-from app.database.session import get_db_session, AsyncSessionLocal
+from app.database.session import get_db_session
 from tests.repositories.test_logging_utils import (
     setup_repository_test_logging, 
     log_test_start, 
@@ -157,7 +156,7 @@ class TestUserRepository:
             user = await user_repo.get_user_by_email(test_email)
             
             if user:
-                logging.info(f"✅ Successfully fetched user from Supabase by email")
+                logging.info("✅ Successfully fetched user from Supabase by email")
                 logging.info(f"   User ID: {user.id}")
                 logging.info(f"   Name: {user.name}")
                 logging.info(f"   Email: {user.email}")
@@ -645,7 +644,7 @@ class TestUserRepository:
             })
             
             # Final verification
-            log_assertion_success(f"All search functionality tests passed successfully!")
+            log_assertion_success("All search functionality tests passed successfully!")
             logging.info(f"   - Basic search: {len(basic_search_users)} users found")
             logging.info(f"   - Employee code search: {len(emp_code_search)} users found")
             logging.info(f"   - Active users: {len(active_users)} users found")
@@ -887,7 +886,7 @@ if __name__ == "__main__":
             
             # Final summary
             logging.info(f"\n{'='*60}")
-            logging.info(f"USER REPOSITORY TEST SUMMARY")
+            logging.info("USER REPOSITORY TEST SUMMARY")
             logging.info(f"{'='*60}")
             logging.info(f"Total tests: {len(tests_to_run)}")
             logging.info(f"Passed: {passed_tests}")
@@ -942,7 +941,7 @@ if __name__ == "__main__":
         for test_key, description in tests:
             print(f"  {test_key:<25} - {description}")
         
-        print(f"\n📄 Logs will be saved to: tests/logs/user_repo_test_[timestamp].log")
+        print("\n📄 Logs will be saved to: tests/logs/user_repo_test_[timestamp].log")
         print("=" * 60)
     
     # Handle command line arguments

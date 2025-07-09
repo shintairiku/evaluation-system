@@ -188,7 +188,7 @@ async def test_create_user():
             # Create the user
             created_user = await service.create_user(test_user_data, mock_admin_roles)
             
-            logger.info(f"✅ Successfully created user in database:")
+            logger.info("✅ Successfully created user in database:")
             logger.info(f"   - ID: {created_user.id}")
             logger.info(f"   - Name: {created_user.name}")
             logger.info(f"   - Email: {created_user.email}")
@@ -247,7 +247,7 @@ async def test_update_user():
             # Perform the update
             updated_user = await service.update_user(yamada_user_id, update_data, mock_admin_roles)
             
-            logger.info(f"✅ Successfully updated user in database:")
+            logger.info("✅ Successfully updated user in database:")
             logger.info(f"   - ID: {updated_user.id}")
             logger.info(f"   - Name: {updated_user.name}")
             logger.info(f"   - Job Title: {original_job_title} → {updated_user.job_title}")
@@ -376,7 +376,7 @@ async def run_all_tests():
     success5 = await test_delete_user()
     
     if success1 and success2 and success3 and success4 and success5:
-        print(f"\n✅ All tests completed successfully!")
+        print("\n✅ All tests completed successfully!")
         print(f"📁 Log file: {TEST_LOG_FILE}")
         return True
     else:

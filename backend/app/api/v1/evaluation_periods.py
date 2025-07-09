@@ -4,7 +4,7 @@ from uuid import UUID
 
 from ...dependencies.auth import get_current_user
 from ...schemas.evaluation_period import EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList, EvaluationPeriodCreate, EvaluationPeriodUpdate
-from ...schemas.goal import Goal, GoalList
+from ...schemas.goal import GoalList
 from ...schemas.self_assessment import SelfAssessment
 from ...schemas.supervisor_feedback import SupervisorFeedback
 from ...schemas.supervisor_review import SupervisorReview
