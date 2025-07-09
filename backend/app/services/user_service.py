@@ -14,7 +14,8 @@ from ..schemas.user import (
     Department, Stage, Role, UserStatus
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
-from ..dependencies.role import UserRole
+from ..security.context import AuthContext
+from ..security.permissions import Permission
 from ..core.exceptions import (
     NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
@@ -40,7 +41,7 @@ class UserService:
     
     async def get_users(
         self, 
-        current_user_roles, 
+        current_user_context: AuthContext, 
         search_term: str = "",
         statuses: Optional[list[UserStatus]] = None,
         department_ids: Optional[list[UUID]] = None,
@@ -49,32 +50,33 @@ class UserService:
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[User]:
         """
-        Get users based on current user's roles and permissions, with explicit multi-select filters.
-        Uses role-based access control from dependencies/role.py.
+        Get users based on current user's permissions, with explicit multi-select filters.
+        Uses permission-based access control from security module.
         """
         try:
-            # Check permissions based on user roles
+            
+            # Ultra-simple permission-based access control
             user_ids_to_filter = None
             
-            # Business Logic: Determine access scope based on roles
-            # if current_user_roles.has_any_role(["admin", "viewer"]):
-            #     # Admin and Viewer: Can see all users
-            #     user_ids_to_filter = None
-            # elif current_user_roles.has_any_role(["manager", "supervisor"]):
-            #     # Manager/Supervisor: Can only see subordinates
-            #     subordinate_ids = await self.user_relationships.get_all_subordinates(
-            #         current_user_roles.user_id
-            #     )
-            #     user_ids_to_filter = subordinate_ids
-            # else:
-            #     # Default: No access to user listing
-            #     return PaginatedResponse(
-            #         items=[],
-            #         total=0,
-            #         page=pagination.page if pagination else 1,
-            #         limit=pagination.limit if pagination else 10,
-            #         pages=0
-            #     )
+            if current_user_context.has_permission(Permission.USER_READ_ALL):
+                # Admin: Can see all users
+                user_ids_to_filter = None
+            elif current_user_context.has_permission(Permission.USER_READ_SUBORDINATES):
+                # Manager/Supervisor: Can see subordinates
+                subordinate_ids = await self.user_relationships.get_all_subordinates(
+                    current_user_context.user_id
+                )
+                user_ids_to_filter = subordinate_ids
+            elif current_user_context.has_permission(Permission.USER_READ_SELF):
+                # Employee: Can only see themselves
+                user_ids_to_filter = [current_user_context.user_id]
+            else:
+                # No permission to read users - use helper method
+                current_user_context.require_any_permission([
+                    Permission.USER_READ_ALL,
+                    Permission.USER_READ_SUBORDINATES,
+                    Permission.USER_READ_SELF
+                ])
             
             # Generate cache key including role information for proper caching
             cache_key_params = {
@@ -85,7 +87,7 @@ class UserService:
                 "role_ids": sorted([str(r) for r in role_ids]) if role_ids else None,
                 "user_ids": sorted([str(u) for u in user_ids_to_filter]) if user_ids_to_filter else None,
                 "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None,
-                "requesting_user_roles": sorted(current_user_roles.role_names)
+                "requesting_user_roles": sorted(current_user_context.role_names)
             }
             cache_key = self._generate_cache_key("get_users", cache_key_params)
             
@@ -143,7 +145,7 @@ class UserService:
     async def get_user_by_id(
         self, 
         user_id: UUID, 
-        current_user_roles: UserRole
+        current_user_context: AuthContext
     ) -> UserDetailResponse:
         """
         Get a specific user by ID and return UserDetailResponse with supervisor/subordinates
@@ -154,7 +156,22 @@ class UserService:
             if not user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # TODO: add role-based access control
+            # Permission-based access control - Crystal clear business logic
+            if current_user_context.has_permission(Permission.USER_READ_ALL):
+                # Admin: Can access any user
+                pass
+            elif current_user_context.has_permission(Permission.USER_READ_SUBORDINATES):
+                # Manager/Supervisor: Can access subordinates - check if user_id is a subordinate
+                subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
+                subordinate_ids = [sub.id for sub in subordinates]
+                if user_id not in subordinate_ids:
+                    raise PermissionDeniedError(f"You do not have permission to access user {user_id} (not your subordinate)")
+            elif current_user_context.user_id == user_id:
+                # Self-access: User can access their own profile (requires USER_READ_SELF permission)
+                current_user_context.require_permission(Permission.USER_READ_SELF)
+            else:
+                # No access: User cannot access this profile
+                raise PermissionDeniedError(f"You do not have permission to access user {user_id}")
             
             # Enrich user data for detail response with supervisor/subordinates
             enriched_user = await self._enrich_detailed_user_data(user)
@@ -167,7 +184,7 @@ class UserService:
     async def create_user(
         self, 
         user_data: UserCreate, 
-        current_user_roles: UserRole
+        current_user_context: AuthContext
     ) -> UserDetailResponse:
         """
         Create a new user with validation and business rules
@@ -179,9 +196,8 @@ class UserService:
         - Set default status to active
         """
         try:
-            # TODO: Role-based access control
-            # if not current_user_roles.has_role("admin"):
-            #     raise PermissionDeniedError("Only administrators can create users")
+            # Permission-based access control - ultra-simple with helper method
+            current_user_context.require_permission(Permission.USER_MANAGE)
             
             # Business validation
             await self._validate_user_creation(user_data)
@@ -208,7 +224,7 @@ class UserService:
         self, 
         user_id: UUID, 
         user_data: UserUpdate, 
-        current_user_roles: UserRole
+        current_user_context: AuthContext
     ) -> UserDetailResponse:
         """
         Update user information with permission checks
@@ -225,15 +241,16 @@ class UserService:
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # TODO: Role-based access control
-            # if current_user_roles.has_role("admin"):
-            #     # Admin can update any user
-            #     pass
-            # elif current_user_roles.user_id == user_id:
-            #     # User can update their own profile
-            #     pass
-            # else:
-            #     raise PermissionDeniedError("You can only update your own profile or need admin role")
+            # Permission-based access control - ultra-simple with helper method
+            if current_user_context.has_permission(Permission.USER_MANAGE):
+                # Admin can modify any user
+                pass
+            elif current_user_context.user_id == user_id:
+                # User can modify their own profile - no additional permission needed
+                pass
+            else:
+                # Use helper method for consistent error handling
+                current_user_context.require_permission(Permission.USER_MANAGE)
             
             # Business validation
             await self._validate_user_update(user_data, existing_user)
@@ -261,7 +278,7 @@ class UserService:
     async def delete_user(
         self,
         user_id: UUID,
-        current_user_roles: UserRole,
+        current_user_context: AuthContext,
         mode: str = "soft",
     ) -> bool:
         """
@@ -269,9 +286,8 @@ class UserService:
         NOTE: Hard delete is permanent and irreversible.
         """
         try:
-            # TODO: Role-based access control
-            # if not current_user_roles.has_role("admin"):
-            #     raise PermissionDeniedError("Only administrators can delete users.")
+            # Permission-based access control - ultra-simple with helper method
+            current_user_context.require_permission(Permission.USER_MANAGE)
 
             # Check if user exists
             existing_user = await self.user_repo.get_user_by_id(user_id)
@@ -279,9 +295,9 @@ class UserService:
                 raise NotFoundError(f"User with ID {user_id} not found")
 
             if mode == "soft":
-                # TODO: Self-deletion check
-                # if current_user_roles.user_id == user_id:
-                #     raise BadRequestError("Administrators cannot inactivate their own accounts.")
+                # Self-deletion check
+                if current_user_context.user_id == user_id:
+                    raise BadRequestError("You cannot inactivate your own account")
 
                 # Check if user is a supervisor of active users
                 subordinates = await self.user_repo.get_subordinates(user_id)
@@ -354,7 +370,7 @@ class UserService:
         """Validate all business rules before creating a user."""
         # Additional business validation can be added here
         # Repository already handles most validation
-        pass
+        _ = user_data  # Acknowledge parameter for future use
     
     async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserModel) -> None:
         """Validate user update data"""
