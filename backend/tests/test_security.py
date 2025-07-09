@@ -1,14 +1,11 @@
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 from fastapi.testclient import TestClient
 from fastapi import status
 from jose import jwt
 from datetime import datetime, timedelta
-import json
 
 from app.main import app
 from app.core.clerk_config import ClerkConfig
-from app.core.exceptions import UnauthorizedError, PermissionDeniedError
 
 
 class TestSecurityPenetration:
