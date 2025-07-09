@@ -6,7 +6,6 @@ from fastapi import Request, Response, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .exceptions import CustomHTTPException
 
 logger = logging.getLogger(__name__)
 
