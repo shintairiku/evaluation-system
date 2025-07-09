@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID
-from enum import Enum
 from .common import SubmissionStatus
 
 if TYPE_CHECKING:

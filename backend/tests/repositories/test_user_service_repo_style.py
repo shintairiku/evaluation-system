@@ -8,8 +8,7 @@ import sys
 import asyncio
 import argparse
 import logging
-from uuid import UUID, uuid4
-from typing import Dict, Any
+from uuid import UUID
 from datetime import datetime
 
 # Add backend to path for imports
@@ -17,16 +16,14 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from app.services.user_service import UserService
-from app.database.repositories.user_repo import UserRepository
 from app.database.session import get_db_session
-from app.schemas.user import UserCreate, UserUpdate, UserStatus
+from app.schemas.user import UserCreate
 from tests.repositories.test_logging_utils import (
     setup_repository_test_logging,
     log_test_start,
     log_data_verification,
     log_assertion_success,
     log_supabase_connectivity,
-    log_database_operation,
     log_test_summary,
     log_error,
     log_warning,
@@ -247,7 +244,7 @@ def main():
     # Run the tests
     try:
         asyncio.run(run_test(args.test))
-        print(f"\n✅ Tests completed successfully!")
+        print("\n✅ Tests completed successfully!")
         print(f"📁 Log file: {TEST_LOG_FILE}")
     except Exception as e:
         print(f"\n❌ Tests failed: {e}")

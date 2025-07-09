@@ -1,12 +1,8 @@
 import pytest
-from unittest.mock import Mock, patch
-from uuid import uuid4
 
-from app.core.permissions import (
-    PermissionManager, Permission, Role, ROLE_PERMISSIONS,
-    require_admin, require_manager_or_above, require_supervisor_or_above
+from app.security.permissions import (
+    PermissionManager, Permission, Role, require_admin, require_manager_or_above, require_supervisor_or_above
 )
-from app.core.exceptions import PermissionDeniedError
 
 
 class TestPermissionManager:
@@ -276,17 +272,17 @@ class TestPermissionMatrix:
     
     @pytest.mark.parametrize("role,permission,expected", [
         ("admin", Permission.USER_READ_ALL, True),
-        ("admin", Permission.USER_CREATE, True),
-        ("admin", Permission.USER_DELETE, True),
+        ("admin", Permission.USER_MANAGE, True),
+        ("admin", Permission.ROLE_MANAGE, True),
         ("manager", Permission.USER_READ_ALL, False),
         ("manager", Permission.USER_READ_SUBORDINATES, True),
-        ("manager", Permission.USER_CREATE, False),
+        ("manager", Permission.USER_MANAGE, False),
         ("supervisor", Permission.USER_READ_SUBORDINATES, True),
         ("supervisor", Permission.USER_READ_ALL, False),
         ("employee", Permission.USER_READ_SELF, True),
         ("employee", Permission.USER_READ_ALL, False),
-        ("viewer", Permission.USER_READ_DEPARTMENT, True),
-        ("viewer", Permission.USER_CREATE, False),
+        ("viewer", Permission.USER_READ_SELF, True),
+        ("viewer", Permission.USER_MANAGE, False),
         ("parttime", Permission.USER_READ_SELF, True),
         ("parttime", Permission.USER_READ_ALL, False),
     ])

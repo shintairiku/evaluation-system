@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any, Union, TYPE_CHECKING
-from pydantic import BaseModel, Field, validator, root_validator
+from typing import Optional, List, Any, Union, TYPE_CHECKING
+from pydantic import BaseModel, Field, root_validator
 from uuid import UUID
 
 from .common import PaginatedResponse
@@ -194,7 +194,7 @@ class GoalInDB(BaseModel):
                 data['target_data'] = CompetencyGoalTargetData(**target_data_dict)
             elif goal_category_id == 3:
                 data['target_data'] = CoreValueGoalTargetData(**target_data_dict)
-        except Exception as e:
+        except Exception:
             # Let the default validation handle the error
             pass
             

@@ -13,4 +13,5 @@ pydantic[email]
 svix
 pytest
 pytest-asyncio
-httpx 
+httpx
+cachetools

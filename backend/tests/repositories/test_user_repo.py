@@ -1,10 +1,12 @@
-import pytest
 import asyncio
 import logging
-from uuid import UUID
+from uuid import UUID, uuid4
+import pytest
+
 from sqlalchemy.ext.asyncio import AsyncSession
 import pytest_asyncio
 
+from app.database.models.user import User
 from app.database.repositories.user_repo import UserRepository
 from app.schemas.user import UserStatus
 from app.database.session import get_db_session
@@ -93,7 +95,7 @@ class TestUserRepository:
 
     @pytest.mark.asyncio
     async def test_get_user_by_id_with_details(self, user_repo):
-        """Test fetching user with all relationships"""
+        """Test fetching user with all relationships, including supervisors and subordinates"""
         print("\n=== Testing get_user_by_id_with_details ===")
         
         # Test with Sato (manager with relationships)
@@ -106,6 +108,8 @@ class TestUserRepository:
             print(f"   Stage: {user.stage.name if user.stage else 'None'}")
             print(f"   Roles: {[role.name for role in user.roles] if user.roles else 'None'}")
             print(f"   Status: {user.status}")
+            print(f"   Supervisors: {[rel.supervisor.name for rel in user.supervisor_relations] if user.supervisor_relations else 'None'}")
+            print(f"   Subordinates: {[rel.user.name for rel in user.subordinate_relations] if user.subordinate_relations else 'None'}")
         else:
             print("❌ User not found")
             
@@ -113,6 +117,16 @@ class TestUserRepository:
         assert user.name == "佐藤 花子"
         assert user.department is not None
         assert user.stage is not None
+        # New assertions for relationships
+        assert hasattr(user, "supervisor_relations"), "User should have supervisor_relations attribute"
+        assert hasattr(user, "subordinate_relations"), "User should have subordinate_relations attribute"
+        # Optionally, check that subordinate_relations is a list (even if empty)
+        assert isinstance(user.subordinate_relations, list), "subordinate_relations should be a list"
+        # Optionally, print or check the subordinate names if any
+        if user.subordinate_relations:
+            for rel in user.subordinate_relations:
+                assert hasattr(rel, "user"), "Each subordinate relation should have a user attribute"
+                print(f"      Subordinate: {rel.user.name}")
 
     @pytest.mark.asyncio
     async def test_get_users_by_status(self, user_repo):
@@ -142,7 +156,7 @@ class TestUserRepository:
             user = await user_repo.get_user_by_email(test_email)
             
             if user:
-                logging.info(f"✅ Successfully fetched user from Supabase by email")
+                logging.info("✅ Successfully fetched user from Supabase by email")
                 logging.info(f"   User ID: {user.id}")
                 logging.info(f"   Name: {user.name}")
                 logging.info(f"   Email: {user.email}")
@@ -466,52 +480,196 @@ class TestUserRepository:
     
     @pytest.mark.asyncio
     async def test_search_users(self, user_repo):
-        """Test user search functionality"""
+        """Test comprehensive user search functionality with all filtering options"""
         log_test_start("search_users")
         
-        search_term = "山田"
-        logging.info(f"Testing user search with term: '{search_term}'")
-        
         try:
-            # Test search by name
-            users = await user_repo.search_users(search_term)
+            # Import required schemas for testing
+            from app.schemas.common import PaginationParams
+            from app.schemas.user import UserStatus
             
-            log_data_verification("search_users", {
+            # 1. Test basic search by name (Japanese characters)
+            search_term = "山田"
+            logging.info(f"1. Testing basic search with term: '{search_term}'")
+            
+            basic_search_users = await user_repo.search_users(search_term)
+            
+            log_data_verification("basic_search_users", {
                 "Search Term": search_term,
-                "Users Found": len(users),
-                "User Names": [u.name for u in users]
+                "Users Found": len(basic_search_users),
+                "User Names": [u.name for u in basic_search_users]
             })
             
-            assert len(users) > 0, "Should find users matching search term"
-            assert any(search_term in u.name for u in users), "At least one user should match search term"
-            assert all(u.status == UserStatus.ACTIVE.value for u in users), "All users should be active"
+            assert len(basic_search_users) > 0, "Should find users matching search term"
+            assert any(search_term in u.name for u in basic_search_users), "At least one user should match search term"
             
-            # Test search with filters
-            filters = {"department_id": users[0].department_id} if users else {}
-            filtered_users = await user_repo.search_users(search_term, filters)
+            # 2. Test search by employee code
+            logging.info("2. Testing search by employee code")
+            emp_code_search = await user_repo.search_users("EMP001")
             
-            assert len(filtered_users) <= len(users), "Filtered results should be subset of unfiltered"
+            assert len(emp_code_search) > 0, "Should find user by employee code"
+            assert any("EMP001" in (u.employee_code or "") for u in emp_code_search), "Should match employee code"
             
-            log_assertion_success(f"Search found {len(users)} users, filtered to {len(filtered_users)}")
+            # 3. Test search with status filtering
+            logging.info("3. Testing search with status filtering")
+            active_users = await user_repo.search_users(
+                statuses=[UserStatus.ACTIVE]
+            )
+            
+            assert len(active_users) > 0, "Should find active users"
+            assert all(u.status == UserStatus.ACTIVE.value for u in active_users), "All users should be active"
+            
+            # 4. Test search with department filtering
+            logging.info("4. Testing search with department filtering")
+            if basic_search_users and basic_search_users[0].department_id:
+                dept_id = basic_search_users[0].department_id
+                dept_filtered_users = await user_repo.search_users(
+                    department_ids=[dept_id]
+                )
+                
+                assert len(dept_filtered_users) > 0, "Should find users in department"
+                assert all(u.department_id == dept_id for u in dept_filtered_users), "All users should be in same department"
+                
+                log_data_verification("department_filtered", {
+                    "Department ID": dept_id,
+                    "Users Found": len(dept_filtered_users),
+                    "User Names": [u.name for u in dept_filtered_users]
+                })
+            
+            # 5. Test search with stage filtering
+            logging.info("5. Testing search with stage filtering")
+            if basic_search_users and basic_search_users[0].stage_id:
+                stage_id = basic_search_users[0].stage_id
+                stage_filtered_users = await user_repo.search_users(
+                    stage_ids=[stage_id]
+                )
+                
+                assert len(stage_filtered_users) > 0, "Should find users in stage"
+                assert all(u.stage_id == stage_id for u in stage_filtered_users), "All users should be in same stage"
+            
+            # 6. Test search with role filtering
+            logging.info("6. Testing search with role filtering")
+            # Get a user with roles first
+            user_with_roles = None
+            for user in basic_search_users:
+                if hasattr(user, 'roles') and user.roles:
+                    user_with_roles = user
+                    break
+            
+            if user_with_roles and user_with_roles.roles:
+                role_id = user_with_roles.roles[0].id
+                role_filtered_users = await user_repo.search_users(
+                    role_ids=[role_id]
+                )
+                
+                assert len(role_filtered_users) > 0, "Should find users with specific role"
+                
+                log_data_verification("role_filtered", {
+                    "Role ID": role_id,
+                    "Users Found": len(role_filtered_users),
+                    "User Names": [u.name for u in role_filtered_users]
+                })
+            
+            # 7. Test search with user ID filtering
+            logging.info("7. Testing search with user ID filtering")
+            if basic_search_users:
+                specific_user_ids = [basic_search_users[0].id]
+                id_filtered_users = await user_repo.search_users(
+                    user_ids=specific_user_ids
+                )
+                
+                assert len(id_filtered_users) == 1, "Should find exactly one user by ID"
+                assert id_filtered_users[0].id == specific_user_ids[0], "Should match the requested user ID"
+            
+            # 8. Test pagination
+            logging.info("8. Testing pagination")
+            pagination = PaginationParams(page=1, limit=2)
+            paginated_users = await user_repo.search_users(
+                pagination=pagination
+            )
+            
+            assert len(paginated_users) <= 2, "Should respect pagination limit"
+            
+            log_data_verification("paginated_search", {
+                "Page": pagination.page,
+                "Limit": pagination.limit,
+                "Users Returned": len(paginated_users)
+            })
+            
+            # 9. Test combined filtering
+            logging.info("9. Testing combined filtering")
+            combined_users = await user_repo.search_users(
+                search_term=search_term,
+                statuses=[UserStatus.ACTIVE],
+                pagination=PaginationParams(page=1, limit=5)
+            )
+            
+            if combined_users:
+                assert all(u.status == UserStatus.ACTIVE.value for u in combined_users), "Combined filter should respect status"
+                assert len(combined_users) <= 5, "Combined filter should respect pagination"
+                assert any(search_term in u.name for u in combined_users), "Combined filter should respect search term"
+            
+            # 10. Test empty search (should return all users with pagination)
+            logging.info("10. Testing empty search term")
+            all_users_paginated = await user_repo.search_users(
+                search_term="",
+                pagination=PaginationParams(page=1, limit=10)
+            )
+            
+            assert len(all_users_paginated) <= 10, "Empty search should return users with pagination"
+            assert len(all_users_paginated) > 0, "Should find some users"
+            
+            # 11. Test search with non-existent term
+            logging.info("11. Testing search with non-existent term")
+            no_result_users = await user_repo.search_users("NonExistentUserName12345")
+            
+            assert len(no_result_users) == 0, "Should return empty list for non-existent search term"
+            
+            # 12. Test count functionality (fix method name)
+            logging.info("12. Testing count_users method")
+            total_count = await user_repo.count_users()
+            active_count = await user_repo.count_users(statuses=[UserStatus.ACTIVE])
+            search_count = await user_repo.count_users(search_term=search_term)
+            
+            assert total_count >= 0, "Total count should be non-negative"
+            assert active_count >= 0, "Active count should be non-negative"
+            assert search_count >= 0, "Search count should be non-negative"
+            assert active_count <= total_count, "Active count should not exceed total"
+            assert search_count <= total_count, "Search count should not exceed total"
+            
+            log_data_verification("count_verification", {
+                "Total Users": total_count,
+                "Active Users": active_count,
+                "Search Result Count": search_count
+            })
+            
+            # Final verification
+            log_assertion_success("All search functionality tests passed successfully!")
+            logging.info(f"   - Basic search: {len(basic_search_users)} users found")
+            logging.info(f"   - Employee code search: {len(emp_code_search)} users found")
+            logging.info(f"   - Active users: {len(active_users)} users found")
+            logging.info(f"   - Pagination test: {len(paginated_users)} users returned")
+            logging.info(f"   - Combined filters: {len(combined_users)} users found")
+            logging.info(f"   - Total/Active/Search counts: {total_count}/{active_count}/{search_count}")
             
         except Exception as e:
-            logging.error(f"❌ Error during user search: {str(e)}")
+            logging.error(f"❌ Error during comprehensive search testing: {str(e)}")
+            logging.error(f"   Error type: {type(e).__name__}")
             raise
-    
+
     @pytest.mark.asyncio
-    async def test_count_users_by_filters(self, user_repo):
+    async def test_count_users(self, user_repo):
         """Test counting users with filters"""
-        log_test_start("count_users_by_filters")
+        log_test_start("count_users")
         
         logging.info("Testing user counting functionality")
         
         try:
             # Count all users
-            total_count = await user_repo.count_users_by_filters()
+            total_count = await user_repo.count_users()
             
             # Count active users
-            active_filter = {"status": UserStatus.ACTIVE.value}
-            active_count = await user_repo.count_users_by_filters(active_filter)
+            active_count = await user_repo.count_users(statuses=[UserStatus.ACTIVE])
             
             log_data_verification("count_users", {
                 "Total Users": total_count,
@@ -555,9 +713,107 @@ class TestUserRepository:
             logging.error(f"❌ Error fetching active users: {str(e)}")
             raise
 
+    @pytest.mark.asyncio
+    async def test_create_user(self, user_repo: UserRepository, session: AsyncSession):
+        """Test creating a new user."""
+        log_test_start("create_user")
+        
+        # 1. Define new user data without a pre-set ID
+        unique_part = uuid4().hex
+        new_user_data = {
+            "clerk_user_id": f"clerk_test_{unique_part}",
+            "name": "Test User",
+            "email": f"test.user.{unique_part}@example.com",
+            "employee_code": f"TEST{unique_part[:4].upper()}",
+            "status": UserStatus.ACTIVE.value,
+            "job_title": "Tester"
+        }
+        
+        new_user = User(**new_user_data)
+        
+        created_user = None
+        try:
+            # 2. Execute create_user method
+            created_user = await user_repo.create_user(new_user)
+            
+            log_data_verification("created_user", {
+                "User ID": created_user.id,
+                "Name": created_user.name,
+                "Email": created_user.email,
+                "Status": created_user.status
+            })
+            
+            # 3. Assertions
+            assert created_user is not None
+            assert isinstance(created_user.id, UUID) # Verify that the DB assigned a UUID
+            assert created_user.name == "Test User"
+            assert created_user.email == new_user_data["email"]
+            
+            # 4. Verify user is persisted in the database
+            verified_user = await user_repo.get_user_by_id(created_user.id)
+            assert verified_user is not None
+            assert verified_user.name == "Test User"
+            
+            log_assertion_success("User creation and persistence verified.")
+            
+        finally:
+            # 5. Cleanup
+            if created_user:
+                deleted = await user_repo.hard_delete_user_by_id(created_user.id)
+                await session.commit()
+                if deleted:
+                    logging.info(f"Successfully cleaned up created user {created_user.id}")
+                else:
+                    logging.warning(f"Failed to clean up created user {created_user.id}")
+
+    @pytest.mark.asyncio
+    async def test_soft_delete_user(self, user_repo: UserRepository, session: AsyncSession):
+        """Create a temp user, soft-delete (inactivate) it, verify status change, then clean up."""
+        log_test_start("soft_delete_user")
+        unique_part = uuid4().hex
+        new_user = User(
+            clerk_user_id=f"clerk_soft_{unique_part}",
+            name="Soft Delete Temp",
+            email=f"soft.temp.{unique_part}@example.com",
+            employee_code=f"SOFT{unique_part[:4].upper()}",
+            status=UserStatus.ACTIVE.value,
+        )
+        await user_repo.create_user(new_user)
+        # Soft delete
+        await user_repo.update_user_status(new_user.id, UserStatus.INACTIVE)
+        await session.commit()
+        refreshed = await user_repo.get_user_by_id(new_user.id)
+        assert refreshed is not None and refreshed.status == UserStatus.INACTIVE.value
+        log_assertion_success("Soft delete verified (status set to INACTIVE)")
+        # Cleanup hard delete
+        await user_repo.hard_delete_user_by_id(new_user.id)
+        await session.commit()
+
+    @pytest.mark.asyncio
+    async def test_hard_delete_temp_user(self, user_repo: UserRepository, session: AsyncSession):
+        """Create a temp user, hard delete it, verify removal."""
+        log_test_start("hard_delete_temp_user")
+        unique_part = uuid4().hex
+        new_user = User(
+            clerk_user_id=f"clerk_hard_{unique_part}",
+            name="Hard Delete Temp",
+            email=f"hard.temp.{unique_part}@example.com",
+            employee_code=f"HARD{unique_part[:4].upper()}",
+            status=UserStatus.ACTIVE.value,
+        )
+        await user_repo.create_user(new_user)
+        # Hard delete
+        deleted = await user_repo.hard_delete_user_by_id(new_user.id)
+        await session.commit()
+        assert deleted is True
+        missing = await user_repo.get_user_by_id(new_user.id)
+        assert missing is None
+        log_assertion_success("Hard delete verified (user removed)")
+
 
 if __name__ == "__main__":
     import sys
+    import inspect
     
     # Enhanced direct test execution with selection capabilities
     async def run_tests(selected_test: str = None):
@@ -588,8 +844,11 @@ if __name__ == "__main__":
                 ("get_user_supervisors", "Get User Supervisors", test_instance.test_get_user_supervisors),
                 ("get_subordinates", "Get Subordinates", test_instance.test_get_subordinates),
                 ("search_users", "Search Users", test_instance.test_search_users),
-                ("count_users_by_filters", "Count Users by Filters", test_instance.test_count_users_by_filters),
+                ("count_users", "Count Users", test_instance.test_count_users),
                 ("get_active_users", "Get Active Users", test_instance.test_get_active_users),
+                ("create_user", "Create User", test_instance.test_create_user),
+                ("soft_delete_user", "Soft Delete User", test_instance.test_soft_delete_user),
+                ("hard_delete_temp_user", "Hard Delete Temp User", test_instance.test_hard_delete_temp_user),
             ]
             
             # Filter tests if specific test requested
@@ -611,7 +870,11 @@ if __name__ == "__main__":
                     logging.info(f"Running: {test_name}")
                     logging.info(f"{'='*60}")
                     
-                    await test_func(repo)
+                    sig = inspect.signature(test_func)
+                    if 'session' in sig.parameters:
+                        await test_func(repo, session)
+                    else:
+                        await test_func(repo)
                     
                     passed_tests += 1
                     logging.info(f"✅ {test_name} - PASSED")
@@ -623,7 +886,7 @@ if __name__ == "__main__":
             
             # Final summary
             logging.info(f"\n{'='*60}")
-            logging.info(f"USER REPOSITORY TEST SUMMARY")
+            logging.info("USER REPOSITORY TEST SUMMARY")
             logging.info(f"{'='*60}")
             logging.info(f"Total tests: {len(tests_to_run)}")
             logging.info(f"Passed: {passed_tests}")
@@ -668,14 +931,17 @@ if __name__ == "__main__":
             ("get_user_supervisors", "Test fetching user supervisors"),
             ("get_subordinates", "Test fetching subordinates"),
             ("search_users", "Test user search functionality"),
-            ("count_users_by_filters", "Test counting users with filters"),
+            ("count_users", "Test counting users with filters"),
             ("get_active_users", "Test fetching all active users"),
+            ("create_user", "Test creating a user"),
+            ("soft_delete_user", "Test soft deleting a user"),
+            ("hard_delete_temp_user", "Test hard deleting a temp user"),
         ]
         
         for test_key, description in tests:
             print(f"  {test_key:<25} - {description}")
         
-        print(f"\n📄 Logs will be saved to: tests/logs/user_repo_test_[timestamp].log")
+        print("\n📄 Logs will be saved to: tests/logs/user_repo_test_[timestamp].log")
         print("=" * 60)
     
     # Handle command line arguments

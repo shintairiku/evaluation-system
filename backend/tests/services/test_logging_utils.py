@@ -25,14 +25,17 @@ def setup_service_test_logging(service_name: str) -> str:
     Returns:
         str: Path to the log file
     """
-    # Create logs directory if it doesn't exist
-    logs_dir = Path(__file__).parent / "logs"
-    logs_dir.mkdir(exist_ok=True)
+    # Ensure logs directory exists - check if we're in backend or root
+    if os.path.basename(os.getcwd()) == "backend":
+        log_dir = os.path.join("tests", "logs")
+    else:
+        log_dir = os.path.join("backend", "tests", "logs")
+    os.makedirs(log_dir, exist_ok=True)
     
     # Generate timestamp for unique log file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_filename = f"{service_name}_service_test_{timestamp}.log"
-    log_file_path = logs_dir / log_filename
+    log_file_path = os.path.join(log_dir, log_filename)
     
     # Configure logging
     logging.basicConfig(

@@ -1,6 +1,4 @@
 from datetime import datetime
-from enum import Enum
-from uuid import UUID
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
@@ -30,6 +28,7 @@ class User(Base):
     job_title = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login_at = Column(DateTime)
 
     # Relationships
     department = relationship("Department", back_populates="users")
