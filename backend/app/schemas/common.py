@@ -13,7 +13,7 @@ class Permission(BaseModel):
     """
     Permission for a role.
     Check the following files:
-    - name: app/core/permissions.py
+    - name: app/security/permissions.py
     - description: To be decided later
     """
     name: str
