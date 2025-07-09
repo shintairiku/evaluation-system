@@ -24,7 +24,7 @@ class CompetencyUpdate(BaseModel):
 
 class Competency(CompetencyCreate):
     id: UUID
-    stage: "Stage"
+    # stage: "Stage"
     goal_count: int = Field(0, alias="goalCount")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
@@ -35,7 +35,7 @@ class Competency(CompetencyCreate):
         
 
 class CompetencyDetail(Competency):
-    users: List["UserProfile"] = Field(default=[], alias="users")
+    # users: List["UserProfile"] = Field(default=[], alias="users")
     
     class Config:
         from_attributes = True
@@ -47,6 +47,18 @@ class CompetencyList(BaseModel):
     meta: dict
 
 
-# Forward reference resolution
-# from .user import UserProfile
-# UserWithGoals.model_rebuild()
+# ========================================
+# FORWARD REFERENCES UPDATE
+# ========================================
+
+# Update forward references for models with forward references (Pydantic v2)
+# This needs to be done after all models are defined
+try:
+    # Rebuild models that have forward references
+    Competency.model_rebuild()
+    CompetencyDetail.model_rebuild()
+    CompetencyList.model_rebuild()
+except Exception as e:
+    # Log the error but don't fail the import
+    print(f"Warning: Could not rebuild forward references in competency schemas: {e}")
+    pass

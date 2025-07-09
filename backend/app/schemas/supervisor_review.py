@@ -62,17 +62,17 @@ class SupervisorReviewDetail(SupervisorReviewInDB):
     Supervisor reviews a specific goal to approve or deny it.
     """
     # Related goal information (the specific goal this review is for)
-    goal: Optional['Goal'] = Field(None, description="The specific goal this review is for")
+    # goal: Optional['Goal'] = Field(None, description="The specific goal this review is for")
     
     # Related evaluation period information
-    evaluation_period: Optional['EvaluationPeriod'] = Field(
-        None, 
-        alias="evaluationPeriod",
-        description="The evaluation period this review belongs to"
-    )
+    # evaluation_period: Optional['EvaluationPeriod'] = Field(
+    #     None, 
+    #     alias="evaluationPeriod",
+    #     description="The evaluation period this review belongs to"
+    # )
     
     # Employee information (goal owner)
-    employee: Optional['UserProfile'] = Field(None, description="The employee whose goal is being reviewed")
+    # employee: Optional['UserProfile'] = Field(None, description="The employee whose goal is being reviewed")
     
     # Timeline information
     is_overdue: bool = Field(False, alias="isOverdue", description="Whether this review is past the deadline")
@@ -83,7 +83,22 @@ class SupervisorReviewDetail(SupervisorReviewInDB):
         populate_by_name = True
 
 
-class SupervisorReviewList(PaginatedResponse['SupervisorReview']):
+class SupervisorReviewList(PaginatedResponse):
     """Schema for paginated supervisor review list responses"""
+    data: List[SupervisorReview]
+
+
+# ========================================
+# FORWARD REFERENCES UPDATE
+# ========================================
+
+# Update forward references for models with forward references (Pydantic v2)
+# This needs to be done after all models are defined
+try:
+    # Rebuild models that have forward references
+    SupervisorReviewDetail.model_rebuild()
+except Exception as e:
+    # Log the error but don't fail the import
+    print(f"Warning: Could not rebuild forward references in supervisor_review schemas: {e}")
     pass
 

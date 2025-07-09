@@ -87,7 +87,7 @@ class EvaluationPeriodDetail(EvaluationPeriodInDB):
     Includes comprehensive information with related entities.
     """
     # Users involved in this evaluation period (via goals)
-    users: List['UserProfile'] = Field(default_factory=list, description="Users who have goals in this period")
+    # users: List['UserProfile'] = Field(default_factory=list, description="Users who have goals in this period")
     
     # Comprehensive statistics
     statistics: Optional['EvaluationPeriodStatistics'] = None
@@ -140,3 +140,19 @@ class EvaluationPeriodList(BaseModel):
     """Schema for paginated evaluation period list responses"""
     periods: List[EvaluationPeriod]
     total: int
+
+
+# ========================================
+# FORWARD REFERENCES UPDATE
+# ========================================
+
+# Update forward references for models with forward references (Pydantic v2)
+# This needs to be done after all models are defined
+try:
+    # Rebuild models that have forward references
+    EvaluationPeriodDetail.model_rebuild()
+    EvaluationPeriodStatistics.model_rebuild()
+except Exception as e:
+    # Log the error but don't fail the import
+    print(f"Warning: Could not rebuild forward references in evaluation_period schemas: {e}")
+    pass

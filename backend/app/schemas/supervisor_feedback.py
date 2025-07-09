@@ -57,18 +57,18 @@ class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
     Includes comprehensive information with related entities.
     """
     # Related self-assessment information
-    self_assessment: Optional['SelfAssessment'] = Field(
-        None, 
-        alias="selfAssessment",
-        description="The self-assessment this feedback is for"
-    )
+    # self_assessment: Optional['SelfAssessment'] = Field(
+    #     None, 
+    #     alias="selfAssessment",
+    #     description="The self-assessment this feedback is for"
+    # )
     
     # Related evaluation period information
-    evaluation_period: Optional['EvaluationPeriod'] = Field(
-        None, 
-        alias="evaluationPeriod",
-        description="The evaluation period this feedback belongs to"
-    )
+    # evaluation_period: Optional['EvaluationPeriod'] = Field(
+    #     None, 
+    #     alias="evaluationPeriod",
+    #     description="The evaluation period this feedback belongs to"
+    # )
     
     # Employee information (from self-assessment)
     employee_name: Optional[str] = Field(None, alias="employeeName", description="Name of the employee being evaluated")
@@ -91,3 +91,19 @@ class SupervisorFeedbackList(BaseModel):
     """Schema for paginated supervisor feedback list responses"""
     feedback_items: list[SupervisorFeedback] = Field(alias="feedbackItems")
     total: int
+
+
+# ========================================
+# FORWARD REFERENCES UPDATE
+# ========================================
+
+# Update forward references for models with forward references (Pydantic v2)
+# This needs to be done after all models are defined
+try:
+    # Rebuild models that have forward references
+    SupervisorFeedbackDetail.model_rebuild()
+    SupervisorFeedbackList.model_rebuild()
+except Exception as e:
+    # Log the error but don't fail the import
+    print(f"Warning: Could not rebuild forward references in supervisor_feedback schemas: {e}")
+    pass
