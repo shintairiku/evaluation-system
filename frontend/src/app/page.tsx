@@ -1,6 +1,52 @@
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import Header from "@/components/display/header";
 import Sidebar from "@/components/display/sidebar";
+import WelcomeDashboard from "@/components/display/WelcomeDashboard";
+import InactiveAccountMessage from "@/components/display/InactiveAccountMessage";
+import LandingPage from "@/components/display/LandingPage";
+import { getUserByClerkIdAction } from "@/api/server-actions/auth";
+
+async function SignedInContent() {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    redirect("/sign-in");
+  }
+
+  // Check if user exists in database
+  const userResult = await getUserByClerkIdAction(userId);
+  
+  if (!userResult.success || !userResult.data) {
+    // API call failed, redirect to profile creation
+    redirect("/profile");
+  }
+
+  const userCheck = userResult.data;
+  
+  // If user doesn't exist in database, redirect to profile creation
+  if (!userCheck.exists) {
+    redirect("/profile");
+  }
+  
+  // Only redirect inactive users - pending users can access the system
+  if (userCheck.status === 'inactive') {
+    return <InactiveAccountMessage />;
+  }
+
+  // User exists and can access the system - show main dashboard
+  return (
+    <div className="flex mt-[45px]">
+      <div className="fixed left-0 top-[45px] h-[calc(100vh-45px)]">
+        <Sidebar />
+      </div>
+      <main className="flex-1 ml-[314px] p-6">
+        <WelcomeDashboard user={userCheck} />
+      </main>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -8,34 +54,11 @@ export default function Home() {
       <Header />
       
       <SignedOut>
-        <div className="flex items-center justify-center min-h-screen bg-gray-50">
-          <div className="max-w-md w-full space-y-8 p-8">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                新大陸 人事システム
-              </h1>
-              <p className="text-lg text-gray-600 mb-8">
-                従業員評価管理システムへようこそ
-              </p>
-              <SignInButton mode="redirect">
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
-                  サインインして開始
-                </button>
-              </SignInButton>
-            </div>
-          </div>
-        </div>
+        <LandingPage />
       </SignedOut>
 
       <SignedIn>
-        <div className="flex mt-[45px]">
-          <div className="fixed left-0 top-[45px] h-[calc(100vh-45px)]">
-            <Sidebar />
-          </div>
-          <main className="flex-1 ml-[314px] p-6">
-            {/* ここにサインイン後のホームのページを追加 */}
-          </main>
-        </div>
+        <SignedInContent />
       </SignedIn>
     </div>
   );

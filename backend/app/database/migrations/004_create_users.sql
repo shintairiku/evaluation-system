@@ -1,4 +1,3 @@
-CREATE TYPE employment_type_enum AS ENUM ('auditor', 'supervisor', 'employee', 'parttime');
 CREATE TYPE user_status_enum AS ENUM ('active', 'inactive');
 
 CREATE TABLE users (
@@ -9,7 +8,6 @@ CREATE TABLE users (
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   employee_code TEXT UNIQUE NOT NULL,
-  employment_type employment_type_enum NOT NULL,
   status user_status_enum NOT NULL,
   password TEXT,
   job_title TEXT,
