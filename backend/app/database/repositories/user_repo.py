@@ -8,7 +8,8 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.user import User, UserSupervisor, Role, user_roles
+from ..models.user import User, UserSupervisor, user_roles
+from ..models.role import Role
 from ...schemas.user import UserStatus, UserCreate, UserUpdate
 from ...schemas.common import PaginationParams
 
@@ -175,7 +176,6 @@ class UserRepository:
     async def get_users_by_role_names(self, role_names: list[str]) -> list[User]:
         """Get users who have any of the specified roles by name."""
         try:
-            from ..models.user import Role, user_roles
             
             result = await self.session.execute(
                 select(User)
@@ -218,7 +218,6 @@ class UserRepository:
     async def get_user_roles(self, user_id: UUID) -> list[Role]:
         """Get all roles for a specific user."""
         try:
-            from ..models.user import user_roles
             
             result = await self.session.execute(
                 select(Role)

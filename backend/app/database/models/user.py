@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date, text, JSON
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -68,23 +68,6 @@ class Stage(Base):
     # Relationships
     users = relationship("User", back_populates="stage")
 
-
-class Role(Base):
-    __tablename__ = "roles"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(50), nullable=False, unique=True)
-    code = Column(String(20), nullable=False, unique=True)  # Uppercase role code (e.g., 'ADMIN', 'MANAGER')
-    description = Column(String(200), nullable=False)
-    permissions = Column(JSON, nullable=True, default=list)  # Array of permission strings
-    parent_id = Column(Integer, ForeignKey('roles.id'), nullable=True)  # Self-referencing for hierarchy
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    users = relationship("User", secondary="user_roles", back_populates="roles")
-    parent = relationship("Role", remote_side=[id], back_populates="children")
-    children = relationship("Role", back_populates="parent")
 
 
 class UserSupervisor(Base):

@@ -13,7 +13,8 @@ from sqlalchemy import select, update, delete, func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 
-from ..models.user import Role, user_roles
+from ..models.role import Role
+from ..models.user import user_roles
 
 logger = logging.getLogger(__name__)
 
