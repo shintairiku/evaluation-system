@@ -1,93 +1,82 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...dependencies.auth import get_current_user
-from ...schemas.auth import UserAuthResponse, TokenVerifyResponse
+from ...services.auth_service import AuthService
+from ...schemas.auth import SignUpOptionsResponse, UserSignUpRequest
+from ...database.session import get_db_session
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-@router.post("/signin")
-async def signin():
+@router.get("/signup/profile-options", response_model=SignUpOptionsResponse)
+async def get_profile_options(
+    session: AsyncSession = Depends(get_db_session)
+):
     """
-    Placeholder for Clerk integration signin endpoint.
-    Full implementation requires database integration (separate issue).
+    Get all available options for signup form.
+    Returns departments, stages, roles, and active users.
     """
-    raise HTTPException(
-        status_code=501, 
-        detail="Signin endpoint implementation requires database integration - tracked in separate issue"
-    )
-
-@router.get("/me")
-async def get_current_user_info(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Get current user information.
-    ToDo: Implement the response schema as `UserResponse` on `schemas/users.py
-    """
-    return {
-        "success": True,
-        "data": {
-            "user": {
-                "id": current_user.get("sub"),
-                "employeeCode": "EMP001",
-                "name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
-                "email": current_user.get("email"),
-                "employmentType": "employee",
-                "status": "active",
-                "department": {
-                    "id": "uuid",
-                    "name": "営業部",
-                    "description": "営業部門"
-                },
-                "stage": {
-                    "id": "uuid",
-                    "name": "S2", 
-                    "description": "中堅社員"
-                },
-                "roles": [
-                    {
-                        "id": 1,
-                        "name": current_user.get("role", "employee"),
-                        "description": "一般従業員"
-                    }
-                ],
-                "permissions": ["create_goal", "submit_evaluation"],
-                "supervisor": {
-                    "id": "uuid",
-                    "name": "田中 部長"
-                }
-            }
-        }
-    }
-
-@router.post("/verify", response_model=TokenVerifyResponse)
-async def verify_token(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """現在のJWTトークンが有効かどうかを検証し、ユーザー情報を返します。"""
     try:
-        user_response = UserAuthResponse(
-            id=current_user.get("sub"),
-            email=current_user.get("email"),
-            first_name=current_user.get("first_name"),
-            last_name=current_user.get("last_name"),
-            role=current_user.get("role", "employee")
+        auth_service = AuthService(session=session)
+        return await auth_service.get_profile_options()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve profile options: {str(e)}"
         )
+
+@router.get("/user/{clerk_user_id}")
+async def check_user_exists_by_clerk_id(
+    clerk_user_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Check if user record exists in Users database by Clerk ID.
+    """
+    auth_service = AuthService(session=session)
+    return await auth_service.check_user_exists_by_clerk_id(clerk_user_id)
+
+@router.post("/signup")
+async def signup(
+    signup_data: UserSignUpRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Complete user signup with profile data.
+    
+    Frontend sends clerk_user_id + profile data.
+    Creates user in database with pending_approval status.
+    """
+    try:
+        auth_service = AuthService(session=session)
         
-        return TokenVerifyResponse(
-            valid=True,
-            user=user_response
+        # Create user with signup data (automatically sets PENDING_APPROVAL)
+        user_details = await auth_service.complete_signup(signup_data)
+        
+        return {
+            "success": True,
+            "message": "User registration successful. Account is pending approval.",
+            "user": user_details
+        }
+        
+    except ValueError as e:
+        # User already exists
+        raise HTTPException(
+            status_code=409,
+            detail=str(e)
         )
     except Exception as e:
-        return TokenVerifyResponse(
-            valid=False,
-            error=str(e)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Registration failed: {str(e)}"
         )
+
 
 @router.post("/logout") 
 async def logout():
     """
-    Placeholder for logout endpoint.
-    Full implementation requires session/token management (separate issue).
+    Logout endpoint - Clerk handles session management client-side.
     """
-    raise HTTPException(
-        status_code=501, 
-        detail="Logout endpoint implementation requires session management - tracked in separate issue"
-    )
+    return {
+        "success": True,
+        "message": "Logout successful. Please clear your client-side session."
+    }
