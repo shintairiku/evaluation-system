@@ -10,7 +10,7 @@ from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel
 from ..schemas.user import (
-    UserCreate, UserUpdate, User, UserDetailResponse,
+    UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
     Department, Stage, Role, UserStatus
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
@@ -390,41 +390,37 @@ class UserService:
         """Enrich user data with relationships using repository pattern"""
         # Get department using repository
         department_model = await self.department_repo.get_department_by_id(user.department_id)
-        department = Department(
-            id=department_model.id,
-            name=department_model.name,
-            description=department_model.description
-        ) if department_model else None
+        if not department_model:
+            # Create a fallback department if not found
+            department = Department(
+                id=user.department_id,
+                name="Unknown Department",
+                description="Department not found"
+            )
+        else:
+            department = Department.model_validate(department_model, from_attributes=True)
         
         # Get stage using repository
         stage_model = await self.stage_repo.get_stage_by_id(user.stage_id)
-        stage = Stage(
-            id=stage_model.id,
-            name=stage_model.name,
-            description=stage_model.description
-        ) if stage_model else None
+        if not stage_model:
+            # Create a fallback stage if not found
+            stage = Stage(
+                id=user.stage_id,
+                name="Unknown Stage",
+                description="Stage not found"
+            )
+        else:
+            stage = Stage.model_validate(stage_model, from_attributes=True)
         
         # Get roles using repository
         role_models = await self.role_repo.get_user_roles(user.id)
-        roles = [Role(
-            id=role.id,
-            name=role.name,
-            description=role.description
-        ) for role in role_models]
+        roles = [Role.model_validate(role, from_attributes=True) for role in role_models]
 
+        # Use UserInDB to validate basic user data first
+        user_in_db = UserInDB.model_validate(user, from_attributes=True)
+        
         return User(
-            id=user.id,
-            clerk_user_id=user.clerk_user_id,
-            name=user.name,
-            email=user.email,
-            employee_code=user.employee_code,
-            status=user.status,
-            job_title=user.job_title,
-            department_id=user.department_id,
-            stage_id=user.stage_id,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-            last_login_at=user.last_login_at,
+            **user_in_db.model_dump(),
             department=department,
             stage=stage,
             roles=roles,
@@ -432,28 +428,9 @@ class UserService:
 
     async def _enrich_detailed_user_data(self, user: UserModel) -> UserDetailResponse:
         """Enrich user data for UserDetailResponse with supervisor/subordinates using repository pattern"""
-        # Get basic data using repository pattern
-        department_model = await self.department_repo.get_department_by_id(user.department_id)
-        department = Department(
-            id=department_model.id,
-            name=department_model.name,
-            description=department_model.description
-        ) if department_model else None
+        # Get basic enriched user data first
+        base_user = await self._enrich_user_data(user)
         
-        stage_model = await self.stage_repo.get_stage_by_id(user.stage_id)
-        stage = Stage(
-            id=stage_model.id,
-            name=stage_model.name,
-            description=stage_model.description
-        ) if stage_model else None
-        
-        role_models = await self.role_repo.get_user_roles(user.id)
-        roles = [Role(
-            id=role.id,
-            name=role.name,
-            description=role.description
-        ) for role in role_models]
-
         # Get supervisor relationship
         supervisor_models = await self.user_repo.get_user_supervisors(user.id)
         supervisor = None
@@ -468,20 +445,14 @@ class UserService:
             subordinate = await self._enrich_user_data(subordinate_model)
             subordinates.append(subordinate)
 
-        return UserDetailResponse(
-            id=user.id,
-            clerk_user_id=user.clerk_user_id,
-            employee_code=user.employee_code,
-            name=user.name,
-            email=user.email,
-            status=user.status,
-            job_title=user.job_title,
-            department=department,
-            stage=stage,
-            roles=roles,
-            supervisor=supervisor,
-            subordinates=subordinates if subordinates else None
-        )
+        # Create detailed response with supervisor/subordinates
+        user_detail_data = base_user.model_dump()
+        user_detail_data.update({
+            'supervisor': supervisor,
+            'subordinates': subordinates if subordinates else None
+        })
+
+        return UserDetailResponse(**user_detail_data)
     
     
     def _filter_users_by_criteria(
