@@ -40,6 +40,11 @@ class DepartmentRepository:
         
         logger.info(f"Department created: {new_dept.id}")
         return new_dept
+
+    # ========================================
+    # READ OPERATIONS
+    # ========================================
+    
     async def get_all(self) -> List[Department]:
         """Get all departments."""
         result = await self.session.execute(select(Department))
@@ -54,11 +59,10 @@ class DepartmentRepository:
     
     async def get_by_name(self, name: str) -> Optional[Department]:
         """Get department by name for uniqueness validation"""
-        async for session in get_db_session():
-            result = await session.execute(
-                select(Department).where(Department.name == name)
-            )
-            return result.scalar_one_or_none()
+        result = await self.session.execute(
+            select(Department).where(Department.name == name)
+        )
+        return result.scalar_one_or_none()
     
     async def get_by_manager(self, manager_id: UUID) -> List[Department]:
         """Get departments managed by a specific user"""
