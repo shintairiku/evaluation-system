@@ -86,7 +86,7 @@ class GoalCategory(GoalCategoryInDB):
 class GoalCategoryDetail(GoalCategory):
     """Detailed goal category schema with paginated goals list"""
     # Paginated goals list using common pagination
-    goals: PaginatedResponse['Goal'] = Field(description="Paginated goals in this category")
+    # goals: PaginatedResponse['Goal'] = Field(description="Paginated goals in this category")
     
     # Usage statistics (summary)
     active_goals_count: Optional[int] = Field(None, alias="activeGoalsCount", description="Number of active goals")
@@ -266,37 +266,37 @@ class GoalDetail(Goal):
     Includes comprehensive information with related entities.
     """
     # Related evaluation period information
-    evaluation_period: Optional['EvaluationPeriod'] = Field(
-        None, 
-        alias="evaluationPeriod",
-        description="The evaluation period this goal belongs to"
-    )
+    # evaluation_period: Optional['EvaluationPeriod'] = Field(
+    #     None, 
+    #     alias="evaluationPeriod",
+    #     description="The evaluation period this goal belongs to"
+    # )
     
     # User information (goal owner)
-    user: Optional['UserProfile'] = Field(
-        None,
-        description="The user who owns this goal"
-    )
+    # user: Optional['UserProfile'] = Field(
+    #     None,
+    #     description="The user who owns this goal"
+    # )
     
     # Competency details (for competency goals)
-    competency: Optional['Competency'] = Field(
-        None,
-        description="Detailed competency information (for competency goals)"
-    )
+    # competency: Optional['Competency'] = Field(
+    #     None,
+    #     description="Detailed competency information (for competency goals)"
+    # )
     
     # Assessment information
-    self_assessment: Optional['SelfAssessment'] = Field(
-        None, 
-        alias="selfAssessment",
-        description="Self-assessment for this goal (if exists)"
-    )
+    # self_assessment: Optional['SelfAssessment'] = Field(
+    #     None, 
+    #     alias="selfAssessment",
+    #     description="Self-assessment for this goal (if exists)"
+    # )
     
     # Supervisor feedback information
-    supervisor_feedback: Optional['SupervisorFeedback'] = Field(
-        None, 
-        alias="supervisorFeedback",
-        description="Supervisor feedback on this goal (if exists)"
-    )
+    # supervisor_feedback: Optional['SupervisorFeedback'] = Field(
+    #     None, 
+    #     alias="supervisorFeedback",
+    #     description="Supervisor feedback on this goal (if exists)"
+    # )
     
     # Progress indicators
     has_self_assessment: bool = Field(
@@ -341,4 +341,20 @@ class GoalDetail(Goal):
 
 class GoalList(PaginatedResponse[Goal]):
     """Schema for paginated goal list responses"""
+    pass
+
+
+# ========================================
+# FORWARD REFERENCES UPDATE
+# ========================================
+
+# Update forward references for models with forward references (Pydantic v2)
+# This needs to be done after all models are defined
+try:
+    # Rebuild models that have forward references
+    GoalCategoryDetail.model_rebuild()
+    GoalDetail.model_rebuild()
+except Exception as e:
+    # Log the error but don't fail the import
+    print(f"Warning: Could not rebuild forward references in goal schemas: {e}")
     pass

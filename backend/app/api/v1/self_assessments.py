@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...security.dependencies import require_admin, get_auth_context
+from ...security.context import AuthContext
 from ...schemas.self_assessment import SelfAssessment, SelfAssessmentDetail, SelfAssessmentList, SelfAssessmentCreate, SelfAssessmentUpdate
 
 router = APIRouter(prefix="/self-assessments", tags=["self-assessments"])
@@ -14,7 +15,7 @@ async def get_self_assessments(
     status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get self-assessments for the current user."""
     # TODO: Implement self-assessment service
@@ -28,7 +29,7 @@ async def get_self_assessments(
 @router.post("/", response_model=SelfAssessment)
 async def create_self_assessment(
     assessment_create: SelfAssessmentCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Create a new self-assessment."""
     # TODO: Implement self-assessment creation service
@@ -43,7 +44,7 @@ async def create_self_assessment(
 @router.get("/{assessment_id}", response_model=SelfAssessmentDetail)
 async def get_self_assessment(
     assessment_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get detailed self-assessment by ID."""
     # TODO: Implement self-assessment service
@@ -61,7 +62,7 @@ async def get_self_assessment(
 async def update_self_assessment(
     assessment_id: UUID,
     assessment_update: SelfAssessmentUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Update a self-assessment."""
     # TODO: Implement self-assessment update service
@@ -76,7 +77,7 @@ async def update_self_assessment(
 @router.delete("/{assessment_id}")
 async def delete_self_assessment(
     assessment_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Delete a self-assessment."""
     # TODO: Implement self-assessment deletion service
@@ -89,7 +90,7 @@ async def delete_self_assessment(
 async def bulk_submit_assessments(
     period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
     goal_ids: Optional[List[UUID]] = Query(None, alias="goalIds", description="Specific goal IDs to submit"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Submit multiple self-assessments at once."""
     # TODO: Implement bulk submission service

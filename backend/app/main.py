@@ -5,6 +5,7 @@ import logging
 
 from .api.v1 import api_router
 from .core.middleware import LoggingMiddleware, http_exception_handler, general_exception_handler
+from .core.config import settings
 from .schemas.common import HealthCheckResponse
 
 # Configure logging
@@ -15,8 +16,8 @@ app = FastAPI(
     title="HR Evaluation System API",
     description="API for managing employee evaluations, goals, and performance reports",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url="/docs" if settings.is_development else None,
+    redoc_url="/redoc" if settings.is_development else None
 )
 
 # CORS configuration

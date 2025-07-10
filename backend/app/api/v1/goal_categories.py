@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, Optional
+from typing import Optional
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...security.dependencies import get_auth_context, require_admin, require_manager_or_admin
+from ...security.context import AuthContext
 from ...schemas.goal import GoalCategory, GoalCategoryDetail, GoalCategoryList, GoalCategoryCreate, GoalCategoryUpdate
 from ...schemas.common import PaginationParams
 
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/goal-categories", tags=["goal-categories"])
 
 @router.get("/", response_model=GoalCategoryList)
 async def get_goal_categories(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get goal categories list."""
     # TODO: Implement goal category service
@@ -56,14 +57,9 @@ async def get_goal_categories(
 @router.post("/", response_model=GoalCategory)
 async def create_goal_category(
     category_create: GoalCategoryCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Create a new goal category (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can create goal categories"
-        )
     
     # TODO: Implement goal category creation service
     # - Validate unique name
@@ -81,15 +77,10 @@ async def get_goal_category(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter goals by evaluation period"),
     status: Optional[str] = Query(None, description="Filter goals by status"),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter goals by user (supervisor/admin only)"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get detailed goal category information by ID with paginated goals list."""
-    # Access control for user_id filter
-    if user_id and current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors and administrators can view other users' goals"
-        )
+    # Access control for user_id filter should be handled in the service layer
     
     # TODO: Implement goal category service
     # - Get category by ID (verify exists)
@@ -107,14 +98,9 @@ async def get_goal_category(
 async def update_goal_category(
     category_id: int,
     category_update: GoalCategoryUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Update a goal category (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update goal categories"
-        )
     
     # TODO: Implement goal category update service
     # - Verify category exists
@@ -129,14 +115,9 @@ async def update_goal_category(
 @router.delete("/{category_id}")
 async def delete_goal_category(
     category_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Delete a goal category (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can delete goal categories"
-        )
     
     # TODO: Implement goal category deletion service
     # - Verify category exists

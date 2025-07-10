@@ -2,21 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any, List
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...security.dependencies import require_admin, get_auth_context
+from ...security.context import AuthContext
 from ...schemas.user import Stage, StageDetail, StageCreate, StageUpdate
 
 router = APIRouter(prefix="/stages", tags=["stages"])
 
 @router.get("/", response_model=List[Stage])
-async def get_stages(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_stages(context: AuthContext = Depends(require_admin)):
     """Get all stages accessible to the current user."""
     # Access rules: admin, manager, supervisor, viewer, employee - all can view stages
     allowed_roles = ["admin", "manager", "supervisor", "viewer", "employee"]
-    if current_user.get("role") not in allowed_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
     
     # TODO: Implement stage service to fetch all stages
     # - Return all stages with user count and competencies
@@ -25,14 +21,9 @@ async def get_stages(current_user: Dict[str, Any] = Depends(get_current_user)):
 @router.post("/", response_model=StageCreate)
 async def create_stage(
     stage_create: StageCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Create a new stage (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can create stages"
-        )
     
     # TODO: Implement stage creation service
     raise HTTPException(
@@ -43,16 +34,11 @@ async def create_stage(
 @router.get("/{stage_id}", response_model=StageDetail)
 async def get_stage(
     stage_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Get stage details by ID."""
     # Access rules: admin, manager, supervisor, viewer, employee - all can view stages
     allowed_roles = ["admin", "manager", "supervisor", "viewer", "employee"]
-    if current_user.get("role") not in allowed_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
     
     # TODO: Implement stage service to fetch stage with competencies and users
     # Should return StageDetail with:
@@ -69,14 +55,9 @@ async def get_stage(
 async def update_stage(
     stage_id: UUID,
     stage_update: StageUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Update stage information (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update stages"
-        )
     
     # TODO: Implement stage update service
     raise HTTPException(
@@ -87,14 +68,9 @@ async def update_stage(
 @router.delete("/{stage_id}")
 async def delete_stage(
     stage_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Delete a stage (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can delete stages"
-        )
     
     # TODO: Implement stage deletion service
     # - Check if any users are assigned to this stage

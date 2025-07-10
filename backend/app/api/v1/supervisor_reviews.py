@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...security.dependencies import require_admin, get_auth_context, require_supervisor_or_above
+from ...security.context import AuthContext
 from ...schemas.supervisor_review import SupervisorReview, SupervisorReviewDetail, SupervisorReviewList, SupervisorReviewCreate, SupervisorReviewUpdate
 from ...schemas.common import PaginationParams
 
@@ -14,7 +15,7 @@ async def get_supervisor_reviews(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     goal_id: Optional[UUID] = Query(None, alias="goalId", description="Filter by goal ID"),
     status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get supervisor reviews."""
     # Access rules:
@@ -33,14 +34,9 @@ async def get_supervisor_reviews(
 @router.post("/", response_model=SupervisorReview)
 async def create_supervisor_review(
     review_create: SupervisorReviewCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Create a supervisor review for a goal."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors can create reviews"
-        )
     
     # TODO: Implement supervisor review creation service
     # - Verify current user is supervisor of the goal owner
@@ -54,7 +50,7 @@ async def create_supervisor_review(
 @router.get("/{review_id}", response_model=SupervisorReviewDetail)
 async def get_supervisor_review(
     review_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get detailed supervisor review by ID with goal context."""
     # TODO: Implement supervisor review service
@@ -75,7 +71,7 @@ async def get_supervisor_review(
 async def update_supervisor_review(
     review_id: UUID,
     review_update: SupervisorReviewUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Update a supervisor review."""
     # TODO: Implement supervisor review update service
@@ -91,7 +87,7 @@ async def update_supervisor_review(
 @router.delete("/{review_id}")
 async def delete_supervisor_review(
     review_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Delete a supervisor review."""
     # TODO: Implement supervisor review deletion service
@@ -104,14 +100,9 @@ async def delete_supervisor_review(
 async def bulk_submit_reviews(
     period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
     goal_ids: Optional[List[UUID]] = Query(None, alias="goalIds", description="Specific goal IDs"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Submit multiple supervisor reviews at once."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors can submit reviews"
-        )
     
     # TODO: Implement bulk review submission service
     # - Submit all supervisor's draft reviews for the period
@@ -126,14 +117,9 @@ async def bulk_submit_reviews(
 async def get_pending_reviews(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Get pending supervisor reviews that need attention (supervisor only)."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors can access pending reviews"
-        )
     
     # TODO: Implement pending review service
     # - Get all goals from subordinates with status 'pending_approval'

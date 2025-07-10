@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...security.dependencies import require_admin, get_auth_context, require_supervisor_or_above
+from ...security.context import AuthContext
 from ...schemas.goal import Goal, GoalDetail, GoalList, GoalCreate, GoalUpdate
 from ...schemas.common import PaginationParams
 
@@ -15,19 +16,13 @@ async def get_goals(
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
     goal_category_id: Optional[int] = Query(None, alias="goalCategoryId", description="Filter by goal category (1=performance, 2=competency, 3=core value)"),
     status: Optional[str] = Query(None, description="Filter by status (draft, pending_approval, approved, rejected)"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get goals for the current user or filtered goals for supervisors/admins."""
     # Access rules:
     # - Employees: can only view their own goals
     # - Supervisors: can view their subordinates' goals + their own
     # - Admins: can view all goals
-    
-    if user_id and current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors and administrators can view other users' goals"
-        )
     
     # TODO: Implement goal service
     # - If user_id provided: return goals for specified user (with permission check)
@@ -41,7 +36,7 @@ async def get_goals(
 @router.post("/", response_model=Goal)
 async def create_goal(
     goal_create: GoalCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Create a new goal."""
     # TODO: Implement goal creation service
@@ -58,7 +53,7 @@ async def create_goal(
 @router.get("/{goal_id}", response_model=GoalDetail)
 async def get_goal(
     goal_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get detailed goal information by ID."""
     # TODO: Implement goal service
@@ -79,7 +74,7 @@ async def get_goal(
 async def update_goal(
     goal_id: UUID,
     goal_update: GoalUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Update a goal."""
     # TODO: Implement goal update service
@@ -97,7 +92,7 @@ async def update_goal(
 @router.delete("/{goal_id}")
 async def delete_goal(
     goal_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Delete a goal."""
     # TODO: Implement goal deletion service
@@ -110,14 +105,9 @@ async def delete_goal(
 @router.post("/{goal_id}/approve")
 async def approve_goal(
     goal_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Approve a goal (supervisor/admin only)."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors and administrators can approve goals"
-        )
     
     # TODO: Implement goal approval service
     # - Verify user has permission to approve this goal (is supervisor of goal owner)
@@ -131,14 +121,9 @@ async def approve_goal(
 async def reject_goal(
     goal_id: UUID,
     rejection_reason: str = Query(..., alias="reason", description="Reason for rejection"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Reject a goal (supervisor/admin only)."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors and administrators can reject goals"
-        )
     
     # TODO: Implement goal rejection service
     # - Verify user has permission to reject this goal
@@ -152,7 +137,7 @@ async def reject_goal(
 async def bulk_submit_goals(
     period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
     goal_ids: Optional[List[UUID]] = Query(None, alias="goalIds", description="Specific goal IDs to submit"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Submit multiple goals for approval at once."""
     # TODO: Implement bulk goal submission service
@@ -166,14 +151,9 @@ async def bulk_submit_goals(
 async def get_pending_approvals(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Get goals pending approval (supervisor/admin only)."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors and administrators can view pending approvals"
-        )
     
     # TODO: Implement pending approvals service
     # - Get all goals with status 'pending_approval'

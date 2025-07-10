@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...security.dependencies import require_admin, get_auth_context, require_supervisor_or_above
+from ...security.context import AuthContext
 from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate
 
 router = APIRouter(prefix="/supervisor-feedbacks", tags=["supervisor-feedbacks"])
@@ -14,7 +15,7 @@ async def get_supervisor_feedbacks(
     status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get supervisor feedbacks."""
     # Access rules:
@@ -32,7 +33,7 @@ async def get_supervisor_feedbacks(
 @router.post("/", response_model=SupervisorFeedback)
 async def create_supervisor_feedback(
     feedback_create: SupervisorFeedbackCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Create supervisor feedback on a self-assessment."""
     # TODO: Implement supervisor feedback creation service
@@ -47,7 +48,7 @@ async def create_supervisor_feedback(
 @router.get("/{feedback_id}", response_model=SupervisorFeedbackDetail)
 async def get_supervisor_feedback(
     feedback_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get detailed supervisor feedback by ID."""
     # TODO: Implement supervisor feedback service
@@ -66,7 +67,7 @@ async def get_supervisor_feedback(
 async def update_supervisor_feedback(
     feedback_id: UUID,
     feedback_update: SupervisorFeedbackUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Update supervisor feedback."""
     # TODO: Implement supervisor feedback update service
@@ -81,7 +82,7 @@ async def update_supervisor_feedback(
 @router.delete("/{feedback_id}")
 async def delete_supervisor_feedback(
     feedback_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Delete supervisor feedback."""
     # TODO: Implement supervisor feedback deletion service
@@ -92,14 +93,9 @@ async def delete_supervisor_feedback(
 @router.get("/pending", response_model=List[SupervisorFeedback])
 async def get_pending_feedbacks(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Get pending supervisor feedbacks that need attention (supervisor only)."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors can access pending feedbacks"
-        )
     
     # TODO: Implement pending feedback service
     # - Get all submitted self-assessments from subordinates
@@ -111,14 +107,9 @@ async def get_pending_feedbacks(
 async def bulk_submit_feedbacks(
     period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
     assessment_ids: Optional[List[UUID]] = Query(None, alias="assessmentIds", description="Specific assessment IDs"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_supervisor_or_above)
 ):
     """Submit multiple supervisor feedbacks at once."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors can submit feedbacks"
-        )
     
     # TODO: Implement bulk feedback submission service
     # - Submit all supervisor's draft feedbacks for the period
