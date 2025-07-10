@@ -17,7 +17,29 @@ class DepartmentRepository:
     
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    # ========================================
+    # CREATE OPERATIONS
+    # ========================================
     
+    async def create_department(self, dept_data: DepartmentCreate) -> Department:
+        """Create new department with validation"""
+        # Check if department with same name already exists
+        existing = await self.get_by_name(dept_data.name)
+        if existing:
+            raise ValueError(f"Department with name '{dept_data.name}' already exists")
+        
+        # Create new department
+        new_dept = Department(
+            name=dept_data.name,
+            description=dept_data.description
+        )
+        
+        self.session.add(new_dept)
+        await self.session.flush()  # Flush to get the ID without committing
+        
+        logger.info(f"Department created: {new_dept.id}")
+        return new_dept
     async def get_all(self) -> List[Department]:
         """Get all departments."""
         result = await self.session.execute(select(Department))
