@@ -51,14 +51,14 @@ class SelfAssessment(SelfAssessmentInDB):
     Includes related goal and supervisor feedback information by default.
     """
     # Related goal information
-    goal: Optional['Goal'] = Field(None, description="The goal this assessment is for")
+    # goal: Optional['Goal'] = Field(None, description="The goal this assessment is for")
     
     # Supervisor feedback if it exists
-    supervisor_feedback: Optional['SupervisorFeedback'] = Field(
-        None, 
-        alias="supervisorFeedback",
-        description="Supervisor feedback on this assessment (if submitted)"
-    )
+    # supervisor_feedback: Optional['SupervisorFeedback'] = Field(
+    #     None, 
+    #     alias="supervisorFeedback",
+    #     description="Supervisor feedback on this assessment (if submitted)"
+    # )
     
     # Assessment progress indicators
     has_supervisor_feedback: bool = Field(
@@ -89,3 +89,20 @@ class SelfAssessmentList(BaseModel):
     """Schema for paginated self-assessment list responses"""
     assessments: List[SelfAssessment]
     total: int
+
+
+# ========================================
+# FORWARD REFERENCES UPDATE
+# ========================================
+
+# Update forward references for models with forward references (Pydantic v2)
+# This needs to be done after all models are defined
+try:
+    # Rebuild models that have forward references
+    SelfAssessment.model_rebuild()
+    SelfAssessmentDetail.model_rebuild()
+    SelfAssessmentList.model_rebuild()
+except Exception as e:
+    # Log the error but don't fail the import
+    print(f"Warning: Could not rebuild forward references in self_assessment schemas: {e}")
+    pass

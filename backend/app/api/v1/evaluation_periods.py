@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, Optional, List
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...security.dependencies import require_admin, get_auth_context
+from ...security.context import AuthContext
 from ...schemas.evaluation_period import EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList, EvaluationPeriodCreate, EvaluationPeriodUpdate
 from ...schemas.goal import GoalList
 from ...schemas.self_assessment import SelfAssessment
@@ -16,7 +17,7 @@ async def get_evaluation_periods(
     status: Optional[str] = Query(None, description="Filter by status (active, upcoming, completed)"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get all evaluation periods accessible to the current user."""
     # TODO: Implement evaluation period service
@@ -29,14 +30,9 @@ async def get_evaluation_periods(
 @router.post("/", response_model=EvaluationPeriod)
 async def create_evaluation_period(
     period_create: EvaluationPeriodCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Create a new evaluation period (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can create evaluation periods"
-        )
     
     # TODO: Implement evaluation period creation service
     # - Validate date ranges (start < end, deadlines within period)
@@ -50,7 +46,7 @@ async def create_evaluation_period(
 @router.get("/{period_id}", response_model=EvaluationPeriodDetail)
 async def get_evaluation_period(
     period_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get detailed evaluation period information by ID."""
     # TODO: Implement evaluation period service to fetch period by ID
@@ -68,14 +64,9 @@ async def get_evaluation_period(
 async def update_evaluation_period(
     period_id: UUID,
     period_update: EvaluationPeriodUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Update an evaluation period (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update evaluation periods"
-        )
     
     # TODO: Implement evaluation period update service
     # - Verify period exists
@@ -89,14 +80,9 @@ async def update_evaluation_period(
 @router.delete("/{period_id}")
 async def delete_evaluation_period(
     period_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Delete an evaluation period (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can delete evaluation periods"
-        )
     
     # TODO: Implement evaluation period deletion service
     # - Verify period exists
@@ -107,7 +93,7 @@ async def delete_evaluation_period(
 @router.get("/{period_id}/goals", response_model=GoalList)
 async def get_period_goals(
     period_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get all goals for the current user in a specific evaluation period."""
     # TODO: Implement goal service to fetch user goals for the period
@@ -117,7 +103,7 @@ async def get_period_goals(
 @router.get("/{period_id}/assessments", response_model=List[SelfAssessment])
 async def get_period_assessments(
     period_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get all self-assessments for the current user in a specific evaluation period."""
     # TODO: Implement self-assessment service
@@ -127,7 +113,7 @@ async def get_period_assessments(
 @router.get("/{period_id}/feedback", response_model=List[SupervisorFeedback])
 async def get_period_feedback(
     period_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get all supervisor feedback for the current user in a specific evaluation period."""
     # TODO: Implement supervisor feedback service
@@ -137,14 +123,9 @@ async def get_period_feedback(
 @router.get("/supervisor/reviews", response_model=List[SupervisorReview])
 async def get_supervisor_reviews(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get supervisor reviews that need attention (supervisor/admin only)."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors can access this endpoint"
-        )
     
     # TODO: Implement supervisor review service
     # - Get all reviews by current supervisor
@@ -155,14 +136,9 @@ async def get_supervisor_reviews(
 @router.get("/supervisor/feedback", response_model=List[SupervisorFeedback])
 async def get_supervisor_feedback_list(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get supervisor feedback that needs attention (supervisor/admin only)."""
-    if current_user.get("role") not in ["supervisor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only supervisors can access this endpoint"
-        )
     
     # TODO: Implement supervisor feedback service
     # - Get all feedback by current supervisor

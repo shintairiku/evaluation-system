@@ -5,7 +5,10 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+# Get the path to the project root (3 levels up from this file)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+env_path = os.path.join(project_root, '.env')
+load_dotenv(env_path)
 
 DATABASE_URL = os.getenv("SUPABASE_DATABASE_URL")
 

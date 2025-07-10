@@ -74,7 +74,7 @@ class StageDetail(BaseModel):
     user_count: Optional[int] = None
     competency_count: Optional[int] = None
     users: Optional[PaginatedResponse['UserDetailResponse']] = None
-    competencies: Optional[List['Competency']] = None
+    # competencies: Optional[List['Competency']] = None  # Commented out - Competency not available in this module
 
 
 class StageCreate(BaseModel):
@@ -188,8 +188,13 @@ class UserExistsResponse(BaseModel):
 # FORWARD REFERENCES UPDATE
 # ========================================
 
-# Update forward references for self-referencing models (Pydantic v2)
+# Update forward references for models with forward references (Pydantic v2)
+# This needs to be done after all models are defined
 try:
+    # Rebuild models that have forward references
+    DepartmentDetail.model_rebuild()
+    StageDetail.model_rebuild()
+    User.model_rebuild()
     UserDetailResponse.model_rebuild()
 except Exception:
     # Ignore forward reference errors for now

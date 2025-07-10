@@ -282,19 +282,20 @@ async def update_role(
                     detail=f"Role with name '{role_update.name}' already exists"
                 )
         
-        # Validate parent role exists if specified
+        # Validate parent role exists if being updated
         if role_update.parent_id is not None:
-            if role_update.parent_id == role_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Role cannot be its own parent"
-                )
-            
             parent_role = await repo.get_role_by_id(role_update.parent_id)
             if not parent_role:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Parent role with ID {role_update.parent_id} not found"
+                )
+            
+            # Prevent circular dependencies
+            if role_update.parent_id == role_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Role cannot be its own parent"
                 )
         
         # Update the role
@@ -356,20 +357,21 @@ async def delete_role(
         user_count = await repo.count_users_with_role(role_id)
         if user_count > 0:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot delete role: {user_count} users still have this role"
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete role: {user_count} users are assigned to this role"
             )
         
         # Check if role has children
         children = await repo.get_roles_by_parent_id(role_id)
         if children:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_409_CONFLICT,
                 detail=f"Cannot delete role: {len(children)} child roles depend on this role"
             )
         
         # Delete the role
         success = await repo.delete_role(role_id)
+        
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -379,7 +381,10 @@ async def delete_role(
         # Commit the transaction
         await session.commit()
         
-        return BaseResponse(message="Role deleted successfully")
+        return BaseResponse(
+            message=f"Role '{existing_role.name}' deleted successfully",
+            success=True
+        )
         
     except HTTPException:
         await session.rollback()
