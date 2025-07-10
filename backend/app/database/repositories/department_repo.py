@@ -1,9 +1,15 @@
-from typing import List, Optional
+import logging
+from typing import List, Optional, Dict, Any
 from uuid import UUID
+from datetime import datetime
+from sqlalchemy import select, update, delete, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from ..models.user import Department
+from ...schemas.department import DepartmentCreate, DepartmentUpdate
+from ...schemas.common import PaginationParams
+
+logger = logging.getLogger(__name__)
 
 
 class DepartmentRepository:
