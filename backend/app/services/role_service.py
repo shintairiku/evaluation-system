@@ -7,8 +7,7 @@ as UserService, including validation, permissions, and business rules.
 
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any
-from cachetools import TTLCache
+from typing import Optional, List
 
 from ..database.repositories.role_repo import RoleRepository
 from ..database.repositories.user_repo import UserRepository
@@ -26,8 +25,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-# Cache for role search results (50 items, 5-minute TTL)
-role_search_cache = TTLCache(maxsize=50, ttl=300)
 
 
 class RoleService:
@@ -52,19 +49,6 @@ class RoleService:
         try:
             # Permission check - only admin can manage roles
             current_user_context.require_permission(Permission.ROLE_MANAGE)
-            
-            # Generate cache key
-            cache_key_params = {
-                "search_term": search_term,
-                "parent_id": parent_id,
-                "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None
-            }
-            cache_key = self._generate_cache_key("get_roles", cache_key_params)
-            
-            # Check cache
-            cached_result = role_search_cache.get(cache_key)
-            if cached_result:
-                return PaginatedResponse.model_validate_json(cached_result)
             
             # Get all roles from repository
             all_roles = await self.role_repo.get_all()
@@ -110,9 +94,6 @@ class RoleService:
                 limit=pagination.limit if pagination else len(role_responses),
                 pages=total_pages
             )
-            
-            # Cache the result
-            role_search_cache[cache_key] = result.model_dump_json()
             
             return result
             
@@ -183,9 +164,6 @@ class RoleService:
             # Enrich role data for detailed response
             enriched_role = await self._enrich_detailed_role_data(new_role)
             
-            # Clear cache
-            role_search_cache.clear()
-            
             logger.info(f"Role created successfully: {new_role.id} - {new_role.name}")
             return enriched_role
             
@@ -242,9 +220,6 @@ class RoleService:
             # Enrich role data for detailed response
             enriched_role = await self._enrich_detailed_role_data(updated_role)
             
-            # Clear cache
-            role_search_cache.clear()
-            
             logger.info(f"Role updated successfully: {role_id}")
             return enriched_role
             
@@ -291,8 +266,6 @@ class RoleService:
             
             if success:
                 await self.session.commit()
-                # Clear cache
-                role_search_cache.clear()
                 logger.info(f"Role {role_id} deleted successfully")
             else:
                 logger.warning(f"Failed to delete role {role_id}")
@@ -370,17 +343,6 @@ class RoleService:
             raise
     
     # Private helper methods
-    
-    def _generate_cache_key(
-        self,
-        prefix: str,
-        params: Dict[str, Any]
-    ) -> str:
-        """Generate a cache key based on the prefix and parameters."""
-        # Sort keys to ensure consistent cache keys for the same parameters
-        sorted_params = sorted(params.items())
-        key_parts = [f"{k}={v}" for k, v in sorted_params]
-        return f"{prefix}:{':'.join(key_parts)}"
     
     async def _validate_role_creation(self, role_data: RoleCreate) -> None:
         """Validate all business rules before creating a role."""
