@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from ...dependencies.auth import get_current_user
+from ...security.dependencies import require_admin, get_auth_context
+from ...security.context import AuthContext
 from ...schemas.competency import Competency, CompetencyCreate, CompetencyUpdate, CompetencyDetail
 
 router = APIRouter(prefix="/competencies", tags=["competencies"])
@@ -13,7 +14,7 @@ async def get_competencies(
     search: Optional[str] = Query(None, description="Search competencies by name or description"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get competencies list with optional filtering."""
     # Access rules:
@@ -31,14 +32,9 @@ async def get_competencies(
 @router.post("/", response_model=Competency)
 async def create_competency(
     competency_create: CompetencyCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Create a new competency (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can create competencies"
-        )
     
     # TODO: Implement competency creation service
     # - Create competency with provided name, description, and stage associations
@@ -52,7 +48,7 @@ async def create_competency(
 @router.get("/{competency_id}", response_model=CompetencyDetail)
 async def get_competency(
     competency_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(get_auth_context)
 ):
     """Get competency details by ID."""
     # TODO: Implement competency service
@@ -68,14 +64,9 @@ async def get_competency(
 async def update_competency(
     competency_id: UUID,
     competency_update: CompetencyUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Update a competency (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update competencies"
-        )
     
     # TODO: Implement competency update service
     # - Verify competency exists
@@ -90,14 +81,9 @@ async def update_competency(
 @router.delete("/{competency_id}")
 async def delete_competency(
     competency_id: UUID,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    context: AuthContext = Depends(require_admin)
 ):
     """Delete a competency (admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can delete competencies"
-        )
     
     # TODO: Implement competency deletion service
     # - Verify competency exists
