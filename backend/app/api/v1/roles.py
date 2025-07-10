@@ -13,7 +13,8 @@ from ...database.session import get_db_session
 from ...database.repositories.role_repo import RoleRepository
 from ...schemas.role import Role, RoleDetail, RoleCreate, RoleUpdate, RoleHierarchy
 from ...schemas.common import BaseResponse
-from ...security import AuthContext, get_auth_context, Permission
+from ...security import AuthContext, get_auth_context
+from ...core.permissions import Permission
 from ...core.exceptions import NotFoundError, ConflictError, ValidationError
 
 router = APIRouter(prefix="/admin/roles", tags=["roles"])

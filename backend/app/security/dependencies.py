@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database.session import get_db_session
 from ..database.repositories.role_repo import RoleRepository
 from ..services.auth_service import AuthService
-from .permissions import Permission
+from ..core.permissions import Permission
 from .context import AuthContext, RoleInfo
 
 security = HTTPBearer()

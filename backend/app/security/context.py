@@ -10,7 +10,8 @@ from typing import List, Set
 from uuid import UUID
 from dataclasses import dataclass
 
-from .permissions import Permission, PermissionManager
+from .permissions import PermissionManager
+from ..core.permissions import Permission
 
 
 @dataclass
