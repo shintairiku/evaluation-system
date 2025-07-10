@@ -35,7 +35,7 @@ class Settings:
     # =============================================================================
     CLERK_SECRET_KEY: Optional[str] = os.getenv("CLERK_SECRET_KEY")
     CLERK_PUBLISHABLE_KEY: Optional[str] = os.getenv("CLERK_PUBLISHABLE_KEY") 
-    CLERK_WEBHOOK_SECRET: Optional[str] = os.getenv("CLERK_WEBHOOK_SECRET")
+    # CLERK_WEBHOOK_SECRET: Optional[str] = os.getenv("CLERK_WEBHOOK_SECRET")
     
     # =============================================================================
     # DATABASE SETTINGS (Supabase)
