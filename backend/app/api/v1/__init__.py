@@ -2,7 +2,6 @@ from fastapi import APIRouter
 
 from .auth import router as auth_router
 from .users import router as user_router
-from .roles import router as role_router
 from .departments import router as department_router
 from .stages import router as stage_router
 
@@ -23,7 +22,6 @@ api_router = APIRouter(prefix="/api/v1")
 
 api_router.include_router(auth_router)
 api_router.include_router(user_router)
-api_router.include_router(role_router)
 api_router.include_router(department_router)
 api_router.include_router(stage_router)
 
