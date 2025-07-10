@@ -7,7 +7,7 @@ as UserService, including validation, permissions, and business rules.
 
 from __future__ import annotations
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from ..database.repositories.role_repo import RoleRepository
 from ..database.repositories.user_repo import UserRepository

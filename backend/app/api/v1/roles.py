@@ -47,10 +47,10 @@ async def get_roles(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching roles: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -74,10 +74,10 @@ async def get_role_hierarchy(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching role hierarchy: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -116,10 +116,10 @@ async def create_role(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating role: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -148,10 +148,10 @@ async def get_role(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching role: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -197,10 +197,10 @@ async def update_role(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating role: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -244,10 +244,10 @@ async def delete_role(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting role: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -269,8 +269,8 @@ async def get_all_roles_flat(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching all roles: {str(e)}"
+            detail="Internal server error"
         )
