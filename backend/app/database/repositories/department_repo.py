@@ -17,7 +17,7 @@ class DepartmentRepository:
         result = await self.session.execute(select(Department))
         return result.scalars().all()
     
-    async def get_department_by_id(self, department_id: UUID) -> Optional[Department]:
+    async def get_by_id(self, department_id: UUID) -> Optional[Department]:
         """Get department by ID."""
         result = await self.session.execute(
             select(Department).where(Department.id == department_id)
