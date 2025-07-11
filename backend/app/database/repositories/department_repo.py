@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import select, update, delete, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.user import Department
+from ..models.user import User, Department
 from ...schemas.department import DepartmentCreate, DepartmentUpdate
 from ...schemas.common import PaginationParams
 
@@ -63,110 +63,19 @@ class DepartmentRepository:
             select(Department).where(Department.name == name)
         )
         return result.scalar_one_or_none()
-    
-    async def get_by_manager(self, manager_id: UUID) -> List[Department]:
-        """Get departments managed by a specific user"""
-        # This would need to be implemented when manager relationship is added
-        # For now, return empty list as manager relationship is not yet implemented
-        logger.info(f"Manager relationship not yet implemented for manager {manager_id}")
-        return []
-    
-    async def get_with_user_count(self) -> List[Dict[str, Any]]:
-        """Get departments with user count metadata"""
-        async for session in get_db_session():
-            # This would need a more complex query with user count
-            # For now, return basic department info
-            result = await session.execute(
-                select(Department).order_by(Department.name)
-            )
-            departments = result.scalars().all()
-            return [dept.to_dict() for dept in departments]
-    
-    async def create_department(self, dept_data: DepartmentCreate) -> Department:
-        """Create new department with validation"""
-        async for session in get_db_session():
-            # Check if department with same name already exists
-            existing = await self.get_by_name(dept_data.name)
-            if existing:
-                raise ValueError(f"Department with name '{dept_data.name}' already exists")
-            
-            # Create new department
-            new_dept = Department(
-                name=dept_data.name,
-                description=dept_data.description
-            )
-            
-            session.add(new_dept)
-            await session.commit()
-            await session.refresh(new_dept)
-            
-            logger.info(f"Department created: {new_dept.id}")
-            return new_dept
-    
-    async def update_department(self, dept_id: UUID, dept_data: DepartmentUpdate) -> Optional[Department]:
-        """Update department with validation"""
-        async for session in get_db_session():
-            # Check if department exists
-            existing = await self.get_by_id(dept_id)
-            if not existing:
-                return None
-            
-            # Check if new name conflicts with existing department
-            if dept_data.name and dept_data.name != existing.name:
-                name_conflict = await self.get_by_name(dept_data.name)
-                if name_conflict:
-                    raise ValueError(f"Department with name '{dept_data.name}' already exists")
-            
-            # Update fields
-            if dept_data.name is not None:
-                existing.name = dept_data.name
-            if dept_data.description is not None:
-                existing.description = dept_data.description
-            
-            existing.updated_at = datetime.utcnow()
-            
-            await session.commit()
-            await session.refresh(existing)
-            
-            logger.info(f"Department updated: {dept_id}")
-            return existing
-    
-    async def delete_department(self, dept_id: UUID) -> bool:
-        """Delete department with referential integrity checks"""
-        async for session in get_db_session():
-            # Check if department has active users
-            from ..models.user import User
-            user_count_result = await session.execute(
-                select(func.count(User.id)).where(
-                    and_(
-                        User.department_id == dept_id,
-                        User.status == "active"
-                    )
+
+    async def get_department_users(self, dept_id: UUID) -> List[User]:
+        """Get all users in a department"""
+        result = await self.session.execute(
+            select(User).where(
+                and_(
+                    User.department_id == dept_id,
+                    User.status == "active"
                 )
-            )
-            user_count = user_count_result.scalar()
-            
-            if user_count > 0:
-                raise ValueError(f"Cannot delete department with {user_count} active users")
-            
-            # Delete department
-            result = await session.execute(
-                delete(Department).where(Department.id == dept_id)
-            )
-            await session.commit()
-            
-            if result.rowcount > 0:
-                logger.info(f"Department deleted: {dept_id}")
-                return True
-            return False
-    
-    async def assign_manager(self, dept_id: UUID, manager_id: UUID) -> bool:
-        """Assign manager to department"""
-        # This would need to be implemented when manager relationship is added
-        # For now, this is a placeholder
-        logger.info(f"Manager assignment not yet implemented: dept_id={dept_id}, manager_id={manager_id}")
-        return True
-    
+            ).order_by(User.name)
+        )
+        return result.scalars().all()
+
     async def search_departments(
         self, 
         search_term: str = "", 
@@ -174,40 +83,66 @@ class DepartmentRepository:
         pagination: Optional[PaginationParams] = None
     ) -> List[Department]:
         """Search departments with filtering"""
-        async for session in get_db_session():
-            query = select(Department)
+        query = select(Department)
+        
+        # Add search term
+        if search_term:
+            query = query.where(
+                or_(
+                    Department.name.ilike(f"%{search_term}%"),
+                    Department.description.ilike(f"%{search_term}%")
+                )
+            )
+        
+        # Add filters
+        if filters:
+            if "name" in filters:
+                query = query.where(Department.name.ilike(f"%{filters['name']}%"))
             
-            # Add search term
-            if search_term:
+            if "has_users" in filters and filters["has_users"]:
+                from ..models.user import User
                 query = query.where(
-                    or_(
-                        Department.name.ilike(f"%{search_term}%"),
-                        Department.description.ilike(f"%{search_term}%")
+                    Department.id.in_(
+                        select(User.department_id).where(User.status == "active")
                     )
                 )
+        
+        # Add ordering
+        query = query.order_by(Department.name)
+        
+        # Add pagination
+        if pagination:
+            query = query.limit(pagination.limit).offset(pagination.offset)
+        
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
+    async def autocomplete_departments(self, partial_name: str, limit: int = 10) -> List[Department]:
+        """
+        Autocomplete search for departments - optimized for real-time UI suggestions.
+        Returns departments that match the partial name with smart ordering.
+        """
+        if not partial_name or len(partial_name.strip()) == 0:
+            # Return top departments if no search term
+            query = select(Department).order_by(Department.name).limit(limit)
+        else:
+            partial_name = partial_name.strip().lower()
             
-            # Add filters
-            if filters:
-                if "name" in filters:
-                    query = query.where(Department.name.ilike(f"%{filters['name']}%"))
-                
-                if "has_users" in filters and filters["has_users"]:
-                    from ..models.user import User
-                    query = query.where(
-                        Department.id.in_(
-                            select(User.department_id).where(User.status == "active")
-                        )
-                    )
-            
-            # Add ordering
-            query = query.order_by(Department.name)
-            
-            # Add pagination
-            if pagination:
-                query = query.limit(pagination.limit).offset(pagination.offset)
-            
-            result = await session.execute(query)
-            return result.scalars().all()
+            # Smart ordering: exact matches first, then starts-with, then contains
+            query = select(Department).where(
+                Department.name.ilike(f"%{partial_name}%")
+            ).order_by(
+                # Exact match first (case-insensitive)
+                func.lower(Department.name) == partial_name,
+                # Then starts with
+                func.lower(Department.name).like(f"{partial_name}%").desc(),
+                # Then alphabetical
+                Department.name
+            ).limit(limit)
+        
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
     
     async def get_department_users(self, dept_id: UUID) -> List[Dict[str, Any]]:
         """Get all users in a department"""
