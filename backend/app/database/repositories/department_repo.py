@@ -172,22 +172,52 @@ class DepartmentRepository:
         logger.info(f"Department updated: {dept_id}")
         return existing
 
+    # ========================================
+    # DELETE OPERATIONS
+    # ========================================
+    
+    async def delete_department(self, dept_id: UUID) -> bool:
+        """Delete department with referential integrity checks"""
+        # Check if department has active users
+        from ..models.user import User
+        user_count_result = await self.session.execute(
+            select(func.count(User.id)).where(
+                and_(
+                    User.department_id == dept_id,
+                    User.status == "active"
+                )
+            )
+        )
+        user_count = user_count_result.scalar()
+        
+        if user_count > 0:
+            raise ValueError(f"Cannot delete department with {user_count} active users")
+        
+        # Delete department
+        result = await self.session.execute(
+            delete(Department).where(Department.id == dept_id)
+        )
+        
+        if result.rowcount > 0:
+            logger.info(f"Department deleted: {dept_id}")
+            return True
+        return False
+
     async def count_departments(self, filters: Optional[Dict[str, Any]] = None) -> int:
         """Count departments with optional filters"""
-        async for session in get_db_session():
-            query = select(func.count(Department.id))
+        query = select(func.count(Department.id))
+        
+        if filters:
+            if "name" in filters:
+                query = query.where(Department.name.ilike(f"%{filters['name']}%"))
             
-            if filters:
-                if "name" in filters:
-                    query = query.where(Department.name.ilike(f"%{filters['name']}%"))
-                
-                if "has_users" in filters and filters["has_users"]:
-                    from ..models.user import User
-                    query = query.where(
-                        Department.id.in_(
-                            select(User.department_id).where(User.status == "active")
-                        )
+            if "has_users" in filters and filters["has_users"]:
+                from ..models.user import User
+                query = query.where(
+                    Department.id.in_(
+                        select(User.department_id).where(User.status == "active")
                     )
-            
-            result = await session.execute(query)
-            return result.scalar() or 0 
+                )
+        
+        result = await self.session.execute(query)
+        return result.scalar() or 0 
