@@ -143,22 +143,35 @@ class DepartmentRepository:
         result = await self.session.execute(query)
         return result.scalars().all()
 
+    # ========================================
+    # UPDATE OPERATIONS
+    # ========================================
     
-    async def get_department_users(self, dept_id: UUID) -> List[Dict[str, Any]]:
-        """Get all users in a department"""
-        async for session in get_db_session():
-            from ..models.user import User
-            result = await session.execute(
-                select(User).where(
-                    and_(
-                        User.department_id == dept_id,
-                        User.status == "active"
-                    )
-                ).order_by(User.name)
-            )
-            users = result.scalars().all()
-            return [user.to_dict() for user in users]
-    
+    async def update_department(self, dept_id: UUID, dept_data: DepartmentUpdate) -> Optional[Department]:
+        """Update department with validation"""
+        # Check if department exists
+        existing = await self.get_by_id(dept_id)
+        if not existing:
+            return None
+        
+        # Check if new name conflicts with existing department
+        if dept_data.name and dept_data.name != existing.name:
+            name_conflict = await self.get_by_name(dept_data.name)
+            if name_conflict:
+                raise ValueError(f"Department with name '{dept_data.name}' already exists")
+        
+        # Update fields
+        if dept_data.name is not None:
+            existing.name = dept_data.name
+        if dept_data.description is not None:
+            existing.description = dept_data.description
+        
+        existing.updated_at = datetime.utcnow()
+        await self.session.flush()  # Flush to update without committing
+        
+        logger.info(f"Department updated: {dept_id}")
+        return existing
+
     async def count_departments(self, filters: Optional[Dict[str, Any]] = None) -> int:
         """Count departments with optional filters"""
         async for session in get_db_session():
