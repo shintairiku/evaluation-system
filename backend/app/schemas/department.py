@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from uuid import UUID
 
-from .common import PaginatedResponse
-
+if TYPE_CHECKING:
+    from .user import User
 
 class Department(BaseModel):
     """Basic department information"""
@@ -24,7 +24,7 @@ class DepartmentDetail(BaseModel):
     user_count: Optional[int] = None
     manager_id: Optional[UUID] = None
     manager_name: Optional[str] = None
-    users: Optional[PaginatedResponse] = None  # Will be properly typed when UserProfile is available
+    users: Optional[List["User"]] = None 
 
 
 class DepartmentCreate(BaseModel):
@@ -99,6 +99,17 @@ class DepartmentDeleteResponse(BaseModel):
 
 
 # Rebuild models with forward references for Pydantic v2 compatibility
-DepartmentDetail.model_rebuild()
-DepartmentCreateResponse.model_rebuild()
-DepartmentUpdateResponse.model_rebuild() 
+# Note: model_rebuild() is called after all models are defined to resolve forward references
+def rebuild_models():
+    """Rebuild models after all schemas are imported to resolve forward references"""
+    try:
+        from .user import User  # Import at runtime for model rebuild
+        DepartmentDetail.model_rebuild()
+        DepartmentCreateResponse.model_rebuild()
+        DepartmentUpdateResponse.model_rebuild()
+    except ImportError:
+        # If User schema is not available, skip rebuild
+        pass
+
+# Call rebuild function
+rebuild_models() 
