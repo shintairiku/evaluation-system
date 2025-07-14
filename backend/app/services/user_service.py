@@ -11,7 +11,7 @@ from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel
 from ..schemas.user import (
     UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
-    Department, Stage, Role, UserStatus
+    Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
