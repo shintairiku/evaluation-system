@@ -6,7 +6,7 @@ import Sidebar from "@/components/display/sidebar";
 import WelcomeDashboard from "@/components/display/WelcomeDashboard";
 import InactiveAccountMessage from "@/components/display/InactiveAccountMessage";
 import LandingPage from "@/components/display/LandingPage";
-import { getUserByClerkIdAction } from "@/api/server-actions/auth";
+import { checkUserExistsAction } from "@/api/server-actions/users";
 
 async function SignedInContent() {
   const { userId } = await auth();
@@ -16,7 +16,7 @@ async function SignedInContent() {
   }
 
   // Check if user exists in database
-  const userResult = await getUserByClerkIdAction(userId);
+  const userResult = await checkUserExistsAction(userId);
   
   if (!userResult.success || !userResult.data) {
     // API call failed, redirect to profile creation
