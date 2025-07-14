@@ -9,7 +9,7 @@ import type {
   PaginationParams,
   UUID,
   UserExistsResponse,
-  SignUpProfileOptionsResponse
+  ProfileOptionsResponse
 } from '../types';
 
 /**
@@ -204,7 +204,7 @@ export async function checkUserExistsAction(clerkId: string): Promise<{
  */
 export async function getProfileOptionsAction(): Promise<{
   success: boolean;
-  data?: SignUpProfileOptionsResponse;
+  data?: ProfileOptionsResponse;
   error?: string;
 }> {
   try {
