@@ -1,4 +1,5 @@
 from typing import List, Optional
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -23,7 +24,7 @@ class RoleRepository:
         await self.session.refresh(role)
         return role
     
-    async def get_by_id(self, role_id: int) -> Optional[Role]:
+    async def get_by_id(self, role_id: UUID) -> Optional[Role]:
         """Get role by ID."""
         result = await self.session.execute(
             select(Role).where(Role.id == role_id)
@@ -35,7 +36,7 @@ class RoleRepository:
         result = await self.session.execute(select(Role))
         return list(result.scalars().all())
     
-    async def update_role(self, role_id: int, role_data: RoleUpdate) -> Optional[Role]:
+    async def update_role(self, role_id: UUID, role_data: RoleUpdate) -> Optional[Role]:
         """Update a role."""
         role = await self.get_by_id(role_id)
         if not role:
@@ -50,7 +51,7 @@ class RoleRepository:
         await self.session.refresh(role)
         return role
     
-    async def delete_role(self, role_id: int) -> bool:
+    async def delete_role(self, role_id: UUID) -> bool:
         """Delete a role."""
         role = await self.get_by_id(role_id)
         if not role:
