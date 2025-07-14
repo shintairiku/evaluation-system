@@ -389,7 +389,7 @@ class UserService:
     async def _enrich_user_data(self, user: UserModel) -> User:
         """Enrich user data with relationships using repository pattern"""
         # Get department using repository
-        department_model = await self.department_repo.get_department_by_id(user.department_id)
+        department_model = await self.department_repo.get_by_id(user.department_id)
         if not department_model:
             # Create a fallback department if not found
             department = Department(
