@@ -38,9 +38,9 @@ export const buildApiUrl = (endpoint: string, version?: string) => {
 export const API_ENDPOINTS = {
   // Auth endpoints
   AUTH: {
-    GET_USER_BY_CLERK_ID: (clerkId: string) => `/auth/user/${clerkId}`,
-    SIGNUP: '/auth/signup',
-    SIGNUP_PROFILE_OPTIONS: '/auth/signup/profile-options',
+    // GET_USER_BY_CLERK_ID: (clerkId: string) => `/auth/user/${clerkId}`,
+    // SIGNUP: '/auth/signup',
+    // SIGNUP_PROFILE_OPTIONS: '/auth/signup/profile-options',
   },
   
   // User endpoints
@@ -50,6 +50,8 @@ export const API_ENDPOINTS = {
     CREATE: '/users',
     UPDATE: (id: string) => `/users/${id}`,
     DELETE: (id: string) => `/users/${id}`,
+    EXISTS: (clerkId: string) => `/users/exists/${clerkId}`,
+    PROFILE_OPTIONS: '/users/profile-options',
   },
   
   // Department endpoints
