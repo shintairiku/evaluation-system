@@ -196,8 +196,16 @@ class UserService:
         - Set default status to active
         """
         try:
-            # Permission-based access control - ultra-simple with helper method
-            current_user_context.require_permission(Permission.USER_MANAGE)
+            # Permission-based access control
+            is_admin = current_user_context.has_permission(Permission.USER_MANAGE)
+            is_self_registration = (user_data.clerk_user_id == current_user_context.clerk_user_id)
+            
+            if not (is_admin or is_self_registration):
+                raise PermissionDeniedError("You can only create your own user profile or be an admin")
+            
+            # For self-registration, set status to PENDING_APPROVAL
+            if is_self_registration and not is_admin:
+                user_data.status = UserStatus.PENDING_APPROVAL
             
             # Business validation
             await self._validate_user_creation(user_data)
