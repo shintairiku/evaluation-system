@@ -42,13 +42,7 @@ async def get_auth_context(
         auth_service = AuthService(session)
         auth_user = auth_service.get_user_from_token(token)
         
-        # Check if user exists in our database
-        user_exists = await auth_service.check_user_exists_by_clerk_id(auth_user.user_id)
-        if not user_exists.exists or not user_exists.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found in database"
-            )
+        user_exists = await auth_service.check_user_exists_by_clerk_id(auth_user.clerk_id)
         
         # Get user roles
         role_repo = RoleRepository(session)
@@ -61,7 +55,7 @@ async def get_auth_context(
         ]
         
         # Create and return AuthContext
-        return AuthContext(user_id=user_exists.user_id, roles=role_infos)
+        return AuthContext(user_id=user_exists.clerk_id, roles=role_infos)
         
     except HTTPException:
         raise

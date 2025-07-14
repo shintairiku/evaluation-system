@@ -11,7 +11,7 @@ from .user import UserBase, Department, Stage, Role, UserProfileOption
 # ========================================
 class AuthUser(BaseModel):
     """User information extracted from Clerk JWT token."""
-    user_id: str = Field(..., description="Clerk user ID")
+    clerk_id: str = Field(..., description="Clerk user ID")
     email: str = Field(..., description="User email address")
     first_name: Optional[str] = Field(None, description="User first name")
     last_name: Optional[str] = Field(None, description="User last name")

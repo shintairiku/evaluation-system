@@ -56,17 +56,17 @@ class AuthService:
             payload = jwt.get_unverified_claims(token)
             
             # Extract user information from the JWT payload
-            user_id = payload.get("sub")  # Subject is typically the user ID
+            clerk_id = payload.get("sub")  # Subject is typically the user ID
             email = payload.get("email", "")
             first_name = payload.get("given_name", "")
             last_name = payload.get("family_name", "")
             role = payload.get("role", "")  # Custom claim if available
             
-            if not user_id:
+            if not clerk_id:
                 raise ValueError("User ID not found in token")
                 
             return AuthUser(
-                user_id=user_id,
+                clerk_id=clerk_id,
                 email=email,
                 first_name=first_name,
                 last_name=last_name,

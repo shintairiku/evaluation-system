@@ -85,13 +85,13 @@ class TestAuthUser:
     def test_auth_user_creation(self):
         """Test AuthUser model creation."""
         user = AuthUser(
-            user_id="user_123",
+            clerk_id="user_123",
             email="test@example.com",
             first_name="Test",
             last_name="User",
             role="employee"
         )
-        assert user.user_id == "user_123"
+        assert user.clerk_id == "user_123"
         assert user.email == "test@example.com"
         assert user.first_name == "Test"
         assert user.last_name == "User"
@@ -100,10 +100,10 @@ class TestAuthUser:
     def test_auth_user_optional_fields(self):
         """Test AuthUser with optional fields."""
         user = AuthUser(
-            user_id="user_123",
+            clerk_id="user_123",
             email="test@example.com"
         )
-        assert user.user_id == "user_123"
+        assert user.clerk_id == "user_123"
         assert user.email == "test@example.com"
         assert user.first_name is None
         assert user.last_name is None
@@ -123,7 +123,7 @@ class TestClerkAuth:
         user = auth.verify_token(mock_jwt_token)
         
         assert isinstance(user, AuthUser)
-        assert user.user_id == "user_123"
+        assert user.clerk_id == "user_123"
         assert user.email == "test@example.com"
         assert user.first_name == "Test"
         assert user.last_name == "User"
@@ -165,7 +165,7 @@ class TestAuthService:
         user = service.verify_token(mock_jwt_token)
         
         assert isinstance(user, AuthUser)
-        assert user.user_id == "user_123"
+        assert user.clerk_id == "user_123"
 
     def test_verify_token_failure(self, mock_clerk_config):
         """Test token verification failure through service."""
@@ -187,7 +187,7 @@ class TestAuthDependencies:
         
         with patch('app.dependencies.auth.clerk_auth') as mock_clerk_auth:
             mock_user = AuthUser(
-                user_id="user_123",
+                clerk_id="user_123",
                 email="test@example.com",
                 first_name="Test",
                 last_name="User",
