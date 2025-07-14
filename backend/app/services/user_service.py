@@ -352,6 +352,54 @@ class UserService:
         except Exception as e:
             logger.error(f"Error updating last login for {clerk_user_id}: {str(e)}")
             return False
+
+    async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
+        """Check if user exists in database with minimal info."""
+        user_data = await self.user_repo.check_user_exists_by_clerk_id(clerk_user_id)
+        
+        if user_data:
+            return UserExistsResponse(
+                exists=True,
+                user_id=user_data["id"],
+                name=user_data["name"],
+                email=user_data["email"], 
+                status=user_data["status"]
+            )
+        else:
+            return UserExistsResponse(exists=False)
+
+    async def get_profile_options(self) -> ProfileOptionsResponse:
+        """Get all available options for profile completion."""
+        # Fetch raw data from repositories
+        departments_data = await self.department_repo.get_all()
+        stages_data = await self.stage_repo.get_all()
+        roles_data = await self.role_repo.get_all()
+        users_data = await self.user_repo.get_active_users()
+        
+        # Convert SQLAlchemy models to Pydantic models
+        departments = [Department.model_validate(dept, from_attributes=True) for dept in departments_data]
+        stages = [Stage.model_validate(stage, from_attributes=True) for stage in stages_data]
+        roles = [Role.model_validate(role, from_attributes=True) for role in roles_data]
+        
+        # Create simple user options without complex relationships
+        users = []
+        for user_data in users_data:
+            user_option = UserProfileOption(
+                id=user_data.id,
+                name=user_data.name,
+                email=user_data.email,
+                employee_code=user_data.employee_code,
+                job_title=user_data.job_title,
+                roles=[Role.model_validate(role, from_attributes=True) for role in user_data.roles]
+            )
+            users.append(user_option)
+        
+        return ProfileOptionsResponse(
+            departments=departments,
+            stages=stages,
+            roles=roles,
+            users=users
+        )
     
     # Private helper methods
     
