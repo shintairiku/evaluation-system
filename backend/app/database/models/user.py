@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
 from .base import Base
+from .role import Role
 
 # Association table for user-role many-to-many relationship
 user_roles = Table(
@@ -68,16 +69,6 @@ class Stage(Base):
     # Relationships
     users = relationship("User", back_populates="stage")
 
-
-class Role(Base):
-    __tablename__ = "roles"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(50), nullable=False)
-    description = Column(String(200), nullable=False)
-
-    # Relationships
-    users = relationship("User", secondary="user_roles", back_populates="roles")
 
 
 class UserSupervisor(Base):
