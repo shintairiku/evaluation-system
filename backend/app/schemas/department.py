@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from pydantic import BaseModel, Field
 from uuid import UUID
 
-from .common import PaginatedResponse
-
+if TYPE_CHECKING:
+    from .user import User
 
 class Department(BaseModel):
     """Basic department information"""
@@ -24,7 +24,7 @@ class DepartmentDetail(BaseModel):
     user_count: Optional[int] = None
     manager_id: Optional[UUID] = None
     manager_name: Optional[str] = None
-    users: Optional[PaginatedResponse] = None  # Will be properly typed when UserProfile is available
+    users: Optional[List["User"]] = None 
 
 
 class DepartmentCreate(BaseModel):
