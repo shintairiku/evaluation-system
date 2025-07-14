@@ -31,13 +31,6 @@ class UserSignUpRequest(UserBase):
     subordinate_ids: Optional[List[UUID]] = None
 
 
-class SignUpOptionsResponse(BaseModel):
-    """Response with all available options for signup."""
-    departments: List[Department]
-    stages: List[Stage]
-    roles: List[Role]
-    users: List[UserProfileOption]  # Simple user options without complex relationships
-
 class SignInRequest(BaseModel):
     """Request model for clerk signin."""
     clerk_token: str = Field(..., min_length=1, description="Clerk authentication token")
