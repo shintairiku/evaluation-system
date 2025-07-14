@@ -99,6 +99,17 @@ class DepartmentDeleteResponse(BaseModel):
 
 
 # Rebuild models with forward references for Pydantic v2 compatibility
-DepartmentDetail.model_rebuild()
-DepartmentCreateResponse.model_rebuild()
-DepartmentUpdateResponse.model_rebuild() 
+# Note: model_rebuild() is called after all models are defined to resolve forward references
+def rebuild_models():
+    """Rebuild models after all schemas are imported to resolve forward references"""
+    try:
+        from .user import User  # Import at runtime for model rebuild
+        DepartmentDetail.model_rebuild()
+        DepartmentCreateResponse.model_rebuild()
+        DepartmentUpdateResponse.model_rebuild()
+    except ImportError:
+        # If User schema is not available, skip rebuild
+        pass
+
+# Call rebuild function
+rebuild_models() 
