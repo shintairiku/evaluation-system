@@ -9,7 +9,7 @@ import type {
   ApiResponse,
   UUID,
   UserExistsResponse,
-  SignUpProfileOptionsResponse,
+  ProfileOptionsResponse,
 } from '../types';
 
 const httpClient = getHttpClient();
@@ -70,7 +70,7 @@ export const usersApi = {
    * Get profile options for user creation/signup
    * Equivalent to GET /auth/signup/profile-options
    */
-  getProfileOptions: async (): Promise<ApiResponse<SignUpProfileOptionsResponse>> => {
-    return httpClient.get<SignUpProfileOptionsResponse>(API_ENDPOINTS.USERS.PROFILE_OPTIONS);
+  getProfileOptions: async (): Promise<ApiResponse<ProfileOptionsResponse>> => {
+    return httpClient.get<ProfileOptionsResponse>(API_ENDPOINTS.USERS.PROFILE_OPTIONS);
   },
 };
