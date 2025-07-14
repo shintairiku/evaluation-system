@@ -99,6 +99,9 @@ class DepartmentRepository:
             if "name" in filters:
                 query = query.where(Department.name.ilike(f"%{filters['name']}%"))
             
+            if "department_ids" in filters:
+                query = query.where(Department.id.in_(filters["department_ids"]))
+            
             if "has_users" in filters and filters["has_users"]:
                 from ..models.user import User
                 query = query.where(
@@ -210,6 +213,9 @@ class DepartmentRepository:
         if filters:
             if "name" in filters:
                 query = query.where(Department.name.ilike(f"%{filters['name']}%"))
+            
+            if "department_ids" in filters:
+                query = query.where(Department.id.in_(filters["department_ids"]))
             
             if "has_users" in filters and filters["has_users"]:
                 from ..models.user import User
