@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { signupAction } from '@/api/server-actions/auth';
+import { createUserAction } from '@/api/server-actions/users';
 import type { Department, Stage, Role } from '@/api/types/user';
-import type { UserProfileOption } from '@/api/types/auth';
+import type { UserProfileOption } from '@/api/types/user';
 
 interface ProfileFormProps {
   departments: Department[];
@@ -89,10 +89,12 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
         job_title: formData.job_title || undefined,
         department_id: formData.department_id,
         stage_id: formData.stage_id,
-        supervisor_id: formData.supervisor_id || undefined
+        role_ids: [], // Default empty array for signup
+        supervisor_id: formData.supervisor_id || undefined,
+        subordinate_ids: [] // Default empty array for signup
       };
 
-      const result = await signupAction(signupData);
+      const result = await createUserAction(signupData);
 
       if (result.success) {
         // Update Clerk metadata to indicate profile completion

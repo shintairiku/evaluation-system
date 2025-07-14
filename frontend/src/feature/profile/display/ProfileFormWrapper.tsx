@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import ProfileForm from './ProfileForm';
 import ClerkInfoCard from '@/components/display/ClerkInfoCard';
-import type { SignUpProfileOptionsResponse } from '@/api/types/auth';
-import { getSignupProfileOptionsAction } from '@/api/server-actions/auth';
+import type { ProfileOptionsResponse } from '@/api/types/user';
+import { getProfileOptionsAction } from '@/api/server-actions/users';
 
 export default function ProfileFormWrapper() {
-  const [options, setOptions] = useState<SignUpProfileOptionsResponse | null>(null);
+  const [options, setOptions] = useState<ProfileOptionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +15,7 @@ export default function ProfileFormWrapper() {
     const fetchOptions = async () => {
       try {
         console.log('ProfileFormWrapper: Starting server action...');
-        const result = await getSignupProfileOptionsAction();
+        const result = await getProfileOptionsAction();
         console.log('ProfileFormWrapper: Server action result:', result);
         
         if (!result.success || !result.data) {

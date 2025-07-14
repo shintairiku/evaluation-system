@@ -11,7 +11,7 @@ from .user import UserBase, Department, Stage, Role, UserProfileOption
 # ========================================
 class AuthUser(BaseModel):
     """User information extracted from Clerk JWT token."""
-    user_id: str = Field(..., description="Clerk user ID")
+    clerk_id: str = Field(..., description="Clerk user ID")
     email: str = Field(..., description="User email address")
     first_name: Optional[str] = Field(None, description="User first name")
     last_name: Optional[str] = Field(None, description="User last name")
@@ -21,33 +21,6 @@ class AuthUser(BaseModel):
 # ========================================
 # SIGNUP SCHEMAS
 # ========================================
-class UserSignUpRequest(UserBase):
-    """Request for user signup with all profile options."""
-    clerk_user_id: str = Field(..., min_length=1)
-    department_id: Optional[UUID] = None
-    stage_id: Optional[UUID] = None
-    role_ids: List[int] = []
-    supervisor_id: Optional[UUID] = None
-    subordinate_ids: Optional[List[UUID]] = None
-
-
-class SignUpOptionsResponse(BaseModel):
-    """Response with all available options for signup."""
-    departments: List[Department]
-    stages: List[Stage]
-    roles: List[Role]
-    users: List[UserProfileOption]  # Simple user options without complex relationships
-
-class SignInRequest(BaseModel):
-    """Request model for clerk signin."""
-    clerk_token: str = Field(..., min_length=1, description="Clerk authentication token")
-
-
-class TokenData(BaseModel):
-    """Data model for the application's token."""
-    access_token: str = Field(..., min_length=1, description="JWT access token")
-    refresh_token: str = Field(..., min_length=1, description="JWT refresh token")
-
 
 class UserAuthResponse(BaseModel):
     """Response model for authenticated user information."""

@@ -5,10 +5,11 @@ import type {
   UserList, 
   UserDetailResponse, 
   UserCreate, 
-  UserUpdate, 
-  UserProfile,
+  UserUpdate,
   PaginationParams,
-  UUID 
+  UUID,
+  UserExistsResponse,
+  ProfileOptionsResponse
 } from '../types';
 
 /**
@@ -161,6 +162,78 @@ export async function deleteUserAction(userId: UUID): Promise<{
     return {
       success: false,
       error: 'An unexpected error occurred while deleting user',
+    };
+  }
+}
+
+/**
+ * Server action to check if user exists by Clerk ID
+ * Uses new user endpoint instead of auth endpoint
+ */
+export async function checkUserExistsAction(clerkId: string): Promise<{
+  success: boolean;
+  data?: UserExistsResponse;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.checkUserExists(clerkId);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to check user existence',
+      };
+    }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Check user exists action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while checking user existence',
+    };
+  }
+}
+
+/**
+ * Server action to get profile options for signup
+ * Uses new user endpoint instead of auth endpoint
+ */
+export async function getProfileOptionsAction(): Promise<{
+  success: boolean;
+  data?: ProfileOptionsResponse;
+  error?: string;
+}> {
+  try {
+    console.log('Server action: Starting getProfileOptionsAction (using users endpoint)');
+    const response = await usersApi.getProfileOptions();
+    console.log('Server action: API response received:', response);
+    
+    if (!response.success || !response.data) {
+      console.log('Server action: API response failed:', response.error);
+      return {
+        success: false,
+        error: response.error || 'Failed to fetch profile options',
+      };
+    }
+    
+    console.log('Server action: Success, returning data');
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Server action: Exception caught:', error);
+    console.error('Error type:', typeof error);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching profile options',
     };
   }
 }

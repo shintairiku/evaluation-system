@@ -4,13 +4,54 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus
+from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus, UserExistsResponse, ProfileOptionsResponse
 from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
 from ...security import AuthContext, get_auth_context
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.get("/exists/{clerk_user_id}", response_model=UserExistsResponse)
+async def check_user_exists_by_clerk_id(
+    clerk_user_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Check if user record exists in Users database by Clerk ID.
+    This is a user lookup operation, equivalent to GET /auth/user/{clerk_user_id}
+    """
+    try:
+        user_service = UserService(session=session)
+        return await user_service.check_user_exists_by_clerk_id(clerk_user_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking user existence: {str(e)}"
+        )
+
+
+@router.get("/profile-options", response_model=ProfileOptionsResponse)
+async def get_profile_options(
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get all available options for signup form.
+    Returns departments, stages, roles, and active users.
+    This is equivalent to GET /auth/signup/profile-options
+    No authentication required as this is needed for signup flow.
+    """
+    try:
+        user_service = UserService(session=session)
+        return await user_service.get_profile_options()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve profile options: {str(e)}"
+        )
+
+
 
 
 @router.get("/", response_model=PaginatedResponse[User])
@@ -97,31 +138,27 @@ async def create_user(
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
-    """Create a new user (admin only)."""
+    """
+    Create a new user.
+    
+    Uses UserService.create_user with authentication context.
+    Service layer handles permission logic.
+    """
     try:
-        service = UserService(session)
-        result = await service.create_user(user_create, context)
+        user_service = UserService(session=session)
+        result = await user_service.create_user(user_create, context)
         return result
         
-    except PermissionDeniedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
-    except ConflictError as e:
+    except ValueError as e:
+        # User already exists
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(e)
         )
-    except ValidationError as e:
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        )
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User creation failed: {str(e)}"
         )
 
 

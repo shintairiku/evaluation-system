@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.session import get_db_session
 from ..database.repositories.role_repo import RoleRepository
+from ..database.repositories.user_repo import UserRepository
 from ..services.auth_service import AuthService
 from .permissions import Permission
 from .context import AuthContext, RoleInfo
@@ -42,17 +43,23 @@ async def get_auth_context(
         auth_service = AuthService(session)
         auth_user = auth_service.get_user_from_token(token)
         
-        # Check if user exists in our database
-        user_exists = await auth_service.check_user_exists_by_clerk_id(auth_user.user_id)
-        if not user_exists.exists or not user_exists.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found in database"
+        # Check if user exists in our database (use repository directly, not service)
+        user_repo = UserRepository(session)
+        user_data = await user_repo.check_user_exists_by_clerk_id(auth_user.clerk_id)
+        
+        if not user_data:
+            # User has valid Clerk token but doesn't exist in our database yet (signup case)
+            return AuthContext(
+                user_id=None,  # No user_id yet
+                clerk_user_id=auth_user.clerk_id,  # But we have Clerk ID
+                roles=[]  # No roles yet
             )
+        
+        user_id = user_data["id"]
         
         # Get user roles
         role_repo = RoleRepository(session)
-        user_roles = await role_repo.get_user_roles(user_exists.user_id)
+        user_roles = await role_repo.get_user_roles(user_id)
         
         # Convert to RoleInfo objects
         role_infos = [
@@ -61,7 +68,7 @@ async def get_auth_context(
         ]
         
         # Create and return AuthContext
-        return AuthContext(user_id=user_exists.user_id, roles=role_infos)
+        return AuthContext(user_id=user_id, clerk_user_id=auth_user.clerk_id, roles=role_infos)
         
     except HTTPException:
         raise
