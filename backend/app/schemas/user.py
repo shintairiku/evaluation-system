@@ -87,32 +87,11 @@ class StageUpdate(BaseModel):
 
 
 # ========================================
-# ROLE SCHEMAS
+# ROLE SCHEMAS (imported from role module)
 # ========================================
 
-class Role(BaseModel):
-    """Role information"""
-    id: int
-    name: str
-    description: Optional[str] = None
-
-
-class RoleDetail(BaseModel):
-    id: int
-    name: str
-    description: str
-    permissions: List[Permission]
-    user_count: Optional[int] = None
-
-
-class RoleCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=50)
-    description: str = Field(..., min_length=1, max_length=200)
-
-
-class RoleUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=50)
-    description: Optional[str] = Field(None, min_length=1, max_length=200)
+# Role schemas are now defined in app.schemas.role
+from .role import Role, RoleDetail, RoleCreate, RoleUpdate
 
 
 # ========================================

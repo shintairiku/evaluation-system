@@ -1,5 +1,18 @@
-from typing import Optional
-from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional, List
+from uuid import UUID
+from pydantic import BaseModel, Field, ConfigDict
+
+from .common import Permission
+
+
+class Role(BaseModel):
+    """Basic role information"""
+    id: UUID
+    name: str
+    description: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoleCreate(BaseModel):
@@ -15,10 +28,13 @@ class RoleUpdate(BaseModel):
 
 
 class RoleDetail(BaseModel):
-    """Schema for role details"""
-    id: int
+    """Schema for detailed role information"""
+    id: UUID
     name: str
     description: str
+    created_at: datetime
+    updated_at: datetime
+    permissions: Optional[List[Permission]] = []
+    user_count: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
