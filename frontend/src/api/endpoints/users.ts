@@ -5,10 +5,11 @@ import type {
   UserDetailResponse,
   UserCreate,
   UserUpdate,
-  UserProfile,
   PaginationParams,
   ApiResponse,
   UUID,
+  UserExistsResponse,
+  SignUpProfileOptionsResponse,
 } from '../types';
 
 const httpClient = getHttpClient();
@@ -55,5 +56,21 @@ export const usersApi = {
    */
   deleteUser: async (userId: UUID): Promise<ApiResponse<void>> => {
     return httpClient.delete<void>(API_ENDPOINTS.USERS.DELETE(userId));
+  },
+
+  /**
+   * Check if a user exists by Clerk ID
+   * Equivalent to GET /auth/user/{clerk_user_id}
+   */
+  checkUserExists: async (clerkId: string): Promise<ApiResponse<UserExistsResponse>> => {
+    return httpClient.get<UserExistsResponse>(API_ENDPOINTS.USERS.EXISTS(clerkId));
+  },
+
+  /**
+   * Get profile options for user creation/signup
+   * Equivalent to GET /auth/signup/profile-options
+   */
+  getProfileOptions: async (): Promise<ApiResponse<SignUpProfileOptionsResponse>> => {
+    return httpClient.get<SignUpProfileOptionsResponse>(API_ENDPOINTS.USERS.PROFILE_OPTIONS);
   },
 };
