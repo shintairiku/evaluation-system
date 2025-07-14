@@ -6,12 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ..database.repositories.department_repo import DepartmentRepository
+from ..database.repositories.user_repo import UserRepository
 from ..database.models.user import Department as DepartmentModel
 from ..schemas.department import (
     Department, DepartmentCreate, DepartmentUpdate, DepartmentDetail
 )
 from ..schemas.user import Department as DepartmentSchema
-from ..schemas.common import PaginationParams, PaginatedResponse
+from ..security.context import AuthContext
+from ..security.permissions import Permission
 from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, 
     PermissionDeniedError, BadRequestError
@@ -21,20 +23,27 @@ logger = logging.getLogger(__name__)
 
 
 class DepartmentService:
-    """Service for department operations."""
+    """
+    Service for department CRUD operations.
+    
+    Note: For department listing with advanced filtering and department user management,
+    use UserService.get_users() with department_ids filter instead.
+    """
     
     def __init__(self, session: AsyncSession):
         self.session = session
         self.dept_repo = DepartmentRepository(session)
+        self.user_repo = UserRepository(session)
 
-    async def get_departments(self) -> List[DepartmentSchema]:
+    async def get_departments_for_dropdown(self) -> List[DepartmentSchema]:
         """
-        Get all departments for user selection.
+        Get all departments for dropdown/selection purposes only.
+        For advanced department listing with filtering, use UserService.get_users() instead.
         
         Returns:
-            List[DepartmentSchema]: All available departments
+            List[DepartmentSchema]: Simple department list for UI dropdowns
         """
-        result = await self.session.execute(select(Department))
+        result = await self.session.execute(select(DepartmentModel))
         departments = result.scalars().all()
         
         return [
@@ -49,33 +58,38 @@ class DepartmentService:
     async def get_department_by_id(
         self, 
         dept_id: UUID, 
-        current_user: Dict[str, Any]
+        current_user_context: AuthContext
     ) -> DepartmentDetail:
         """
-        Get a specific department by ID with permission checks
+        Get a specific department by ID with enriched metadata.
         
         Business Logic:
-        - Admin can view any department
-        - Manager can view managed departments
-        - Supervisor can view own department or managed departments
-        - Employee can view their own department only
+        - Admin, Manager, Viewer can view any department
+        - Supervisor, Employee, Part-time can view their own department only
         """
         try:
-            user_role = current_user.get("role")
-            user_id = current_user.get("sub")
-            
-            # Validate user_role is present
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
+            # Permission check: Must have department read permission
+            current_user_context.require_permission(Permission.DEPARTMENT_READ)
             
             # Check if department exists
             department = await self.dept_repo.get_by_id(dept_id)
             if not department:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
             
-            # TODO: Permission check
+            # Conditional access check based on role
+            if current_user_context.has_any_role(["admin", "manager", "viewer"]):
+                # Admin, Manager, Viewer can access any department
+                pass
+            else:
+                # Supervisor, Employee, Part-time can only access their own department
+                current_user = await self.user_repo.get_user_by_id(current_user_context.user_id)
+                if not current_user:
+                    raise PermissionDeniedError("Current user not found")
+                
+                if current_user.department_id != dept_id:
+                    raise PermissionDeniedError("You can only access your own department")
             
-            # Enrich department data with relationships
+            # Enrich department data with metadata
             enriched_dept = await self._enrich_department_detail(department)
             return enriched_dept
             
@@ -86,7 +100,7 @@ class DepartmentService:
     async def create_department(
         self, 
         dept_data: DepartmentCreate, 
-        current_user: Dict[str, Any]
+        current_user_context: AuthContext
     ) -> Department:
         """
         Create a new department with validation and business rules
@@ -97,13 +111,8 @@ class DepartmentService:
         - Validate department data
         """
         try:
-            user_role = current_user.get("role")
-            
-            # Validate user_role is present
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
-            
-            # TODO: Role-based permission check
+            # Permission check: Only admin can create departments
+            current_user_context.require_permission(Permission.DEPARTMENT_MANAGE)
             
             # Validate department data
             await self._validate_department_creation(dept_data)
@@ -114,35 +123,32 @@ class DepartmentService:
             # Enrich department data
             enriched_dept = await self._enrich_department_data(new_dept)
             
-            logger.info(f"Department created: {new_dept.id} by user {current_user.get('sub')}")
+            logger.info(f"Department created: {new_dept.id} by user {current_user_context.user_id}")
             return enriched_dept
             
         except Exception as e:
             logger.error(f"Error creating department: {str(e)}")
             raise
-    
+
     async def update_department(
         self, 
         dept_id: UUID, 
         dept_data: DepartmentUpdate, 
-        current_user: Dict[str, Any]
+        current_user_context: AuthContext
     ) -> Department:
         """
         Update department with validation and business rules
         
         Business Logic:
-        - Only admin can update departments
+        - Supervisor or above can update departments
         - Department must exist
         - Validate update data
         """
         try:
-            user_role = current_user.get("role")
-            
-            # Validate user_role is present
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
-            
-            # TODO: Role-based permission check
+            # Permission check: Supervisor or above can update departments
+            current_user_context.require_permission(Permission.DEPARTMENT_READ)
+            if not current_user_context.is_supervisor_or_above():
+                raise PermissionDeniedError("Only supervisors and above can update departments")
             
             # Check if department exists
             existing_dept = await self.dept_repo.get_by_id(dept_id)
@@ -160,7 +166,7 @@ class DepartmentService:
             # Enrich department data
             enriched_dept = await self._enrich_department_data(updated_dept)
             
-            logger.info(f"Department updated: {dept_id} by user {current_user.get('sub')}")
+            logger.info(f"Department updated: {dept_id} by user {current_user_context.user_id}")
             return enriched_dept
             
         except Exception as e:
@@ -170,7 +176,7 @@ class DepartmentService:
     async def delete_department(
         self, 
         dept_id: UUID, 
-        current_user: Dict[str, Any]
+        current_user_context: AuthContext
     ) -> Dict[str, str]:
         """
         Delete department with validation and business rules
@@ -181,13 +187,8 @@ class DepartmentService:
         - Cannot delete department with active users
         """
         try:
-            user_role = current_user.get("role")
-            
-            # Validate user_role is present
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
-            
-            # TODO: Role-based permission check
+            # Permission check: Only admin can delete departments
+            current_user_context.require_permission(Permission.DEPARTMENT_MANAGE)
             
             # Check if department exists
             existing_dept = await self.dept_repo.get_by_id(dept_id)
@@ -202,75 +203,14 @@ class DepartmentService:
             if not success:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
             
-            logger.info(f"Department deleted: {dept_id} by user {current_user.get('sub')}")
+            logger.info(f"Department deleted: {dept_id} by user {current_user_context.user_id}")
             return {"message": "Department deleted successfully"}
             
         except Exception as e:
             logger.error(f"Error deleting department {dept_id}: {str(e)}")
             raise
     
-    async def get_department_users(
-        self,
-        dept_id: UUID,
-        current_user: Dict[str, Any],
-        pagination: Optional[PaginationParams] = None
-    ) -> PaginatedResponse[UserProfile]:
-        """
-        Get users in a specific department with permission checks
-        
-        Business Logic:
-        - Admin can view users in any department
-        - Manager can view users in managed departments
-        - Employee can view users in their own department
-        """
-        try:
-            user_role = current_user.get("role")
-            user_id = current_user.get("sub")
-            
-            # Validate user_role is present
-            if not user_role:
-                raise PermissionDeniedError("User role not found in token")
-            
-            # Check if department exists
-            department = await self.dept_repo.get_by_id(dept_id)
-            if not department:
-                raise NotFoundError(f"Department with ID {dept_id} not found")
-            
-            # TODO: Role-based permission check
-            
-            # Get department users
-            from ..database.repositories.user_repo import UserRepository
-            user_repo = UserRepository()
-            
-            # Add department filter
-            filters = {"department_id": dept_id}
-            
-            users = await user_repo.search_users(
-                search_term="",
-                filters=filters,
-                pagination=pagination
-            )
-            total = await user_repo.count_users(filters=filters)
-            
-            # Convert to UserProfile objects
-            user_profiles = []
-            for user in users:
-                profile = await self._enrich_user_profile(user)
-                user_profiles.append(profile)
-            
-            # Create pagination params if not provided
-            if pagination is None:
-                pagination = PaginationParams(page=1, limit=len(user_profiles))
-            
-            return PaginatedResponse.create(
-                items=user_profiles,
-                total=total,
-                pagination=pagination
-            )
-            
-        except Exception as e:
-            logger.error(f"Error getting department users for {dept_id}: {str(e)}")
-            raise
+    # Private helper methods
     
     async def _validate_department_creation(self, dept_data: DepartmentCreate) -> None:
         """Validate department creation data"""
@@ -308,15 +248,15 @@ class DepartmentService:
     
     async def _validate_department_deletion(self, dept_id: UUID) -> None:
         """Validate department deletion"""
-        # Check if department has active users
-        from ..database.repositories.user_repo import UserRepository
-        user_repo = UserRepository()
+        # Check if department has active users        
+        from ..schemas.user import UserStatus
+        users = await self.user_repo.search_users(
+            department_ids=[dept_id], 
+            statuses=[UserStatus.ACTIVE]
+        )
         
-        filters = {"department_id": dept_id, "status": "active"}
-        user_count = await user_repo.count_users(filters=filters)
-        
-        if user_count > 0:
-            raise ValidationError(f"Cannot delete department with {user_count} active users")
+        if users:
+            raise ValidationError(f"Cannot delete department with {len(users)} active users")
     
     async def _enrich_department_data(self, dept: DepartmentModel) -> Department:
         """Enrich department data with additional information"""
@@ -330,57 +270,39 @@ class DepartmentService:
     
     async def _enrich_department_detail(self, dept: DepartmentModel) -> DepartmentDetail:
         """Enrich department data with detailed information"""
-        # Get department users count
-        from ..database.repositories.user_repo import UserRepository
-        user_repo = UserRepository()
+        from ..schemas.user import UserStatus
+        from ..services.user_service import UserService
+
+        user_models = await self.user_repo.search_users(
+            department_ids=[dept.id], 
+            statuses=[UserStatus.ACTIVE]
+        )
+        user_count = len(user_models)
         
-        filters = {"department_id": dept.id, "status": "active"}
-        user_count = await user_repo.count_users(filters=filters)
-        
-        # Get department manager (placeholder for now)
-        manager = None  # TODO: Implement when manager relationship is added
+        user_service = UserService(self.session)
+        enriched_users = [await user_service._enrich_user_data(u) for u in user_models]
+
+        # Get department manager
+        manager_id = None
+        manager_name = None
+        try:
+            manager_users = await self.user_repo.get_users_by_role_names(["manager"])
+            for user in manager_users:
+                if user.department_id == dept.id:
+                    manager_id = user.id
+                    manager_name = user.name
+                    break  # Take the first manager found
+        except Exception as e:
+            logger.warning(f"Could not find manager for department {dept.id}: {e}")
         
         return DepartmentDetail(
             id=dept.id,
             name=dept.name,
             description=dept.description,
-            manager=manager,
+            manager_id=manager_id,
+            manager_name=manager_name,
             user_count=user_count,
+            users=enriched_users,
             created_at=dept.created_at,
             updated_at=dept.updated_at
-        )
-    
-    async def _enrich_user_profile(self, user) -> UserProfile:
-        """Enrich user data with profile information"""
-        from ..services.user_service import UserService
-        user_service = UserService()
-        return await user_service._enrich_user_profile(user)
-    
-    def _filter_departments_by_criteria(
-        self, 
-        departments: List[DepartmentModel], 
-        search_term: str, 
-        filters: Optional[Dict[str, Any]]
-    ) -> List[DepartmentModel]:
-        """Filter departments by search term and filters"""
-        filtered = departments
-        
-        # Apply search term
-        if search_term:
-            search_lower = search_term.lower()
-            filtered = [
-                dept for dept in filtered
-                if search_lower in dept.name.lower() or 
-                   (dept.description and search_lower in dept.description.lower())
-            ]
-        
-        # Apply filters
-        if filters:
-            if "name" in filters:
-                name_filter = filters["name"].lower()
-                filtered = [
-                    dept for dept in filtered
-                    if name_filter in dept.name.lower()
-                ]
-        
-        return filtered 
+        ) 
