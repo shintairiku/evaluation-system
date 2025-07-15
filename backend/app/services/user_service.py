@@ -413,7 +413,7 @@ class UserService:
     async def update_last_login(self, clerk_user_id: str) -> bool:
         """Update user's last login timestamp"""
         try:
-            user = await self.user_repo.get_by_clerk_id(clerk_user_id)
+            user = await self.user_repo.get_user_by_clerk_id(clerk_user_id)
             if not user:
                 logger.warning(f"User not found for last login update: {clerk_user_id}")
                 return False
