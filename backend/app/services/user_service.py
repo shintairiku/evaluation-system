@@ -214,6 +214,34 @@ class UserService:
             # Create user through repository
             created_user = await self.user_repo.create_user(user_data)
             
+            # Flush to get the user ID for relationships
+            await self.session.flush()
+            await self.session.refresh(created_user)
+            
+            # Get the actual user ID value
+            user_id = created_user.id
+            logger.info(f"Created user with ID: {user_id}")
+            
+            # Assign roles if provided
+            if user_data.role_ids:
+                logger.info(f"About to assign roles {user_data.role_ids} to user {user_id}")
+                logger.info(f"User ID type: {type(user_id)}, value: {user_id}")
+                logger.info(f"Role IDs type: {type(user_data.role_ids)}, value: {user_data.role_ids}")
+                await self.user_relationships.assign_roles_to_user(user_id, user_data.role_ids)
+                logger.info(f"Completed role assignment for user {user_id}")
+            else:
+                logger.info(f"No role_ids provided for user {user_id}")
+            
+            # Add supervisor relationship if provided
+            if user_data.supervisor_id:
+                logger.info(f"Adding supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
+                await self.user_relationships.add_supervisor_relationship(user_id, user_data.supervisor_id)
+            
+            # Add subordinate relationships if provided
+            if user_data.subordinate_ids:
+                logger.info(f"Adding subordinate relationships for supervisor {user_id}: {user_data.subordinate_ids}")
+                await self.user_relationships.add_subordinate_relationships(user_id, user_data.subordinate_ids)
+            
             # Commit the transaction (Service controls the Unit of Work)
             await self.session.commit()
             await self.session.refresh(created_user)
