@@ -552,6 +552,46 @@ class UserService:
             existing_user_with_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code)
             if existing_user_with_code and existing_user_with_code.id != existing_user.id:
                 raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
+        
+        # Validate role IDs exist if being updated
+        if user_data.role_ids is not None:
+            for role_id in user_data.role_ids:
+                role = await self.role_repo.get_role_by_id(role_id)
+                if not role:
+                    raise BadRequestError(f"Role with ID {role_id} does not exist")
+        
+        # Validate supervisor exists and is active if being updated
+        if user_data.supervisor_id is not None and user_data.supervisor_id:
+            supervisor = await self.user_repo.get_user_by_id(user_data.supervisor_id)
+            if not supervisor:
+                raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} does not exist")
+            if supervisor.status != UserStatus.ACTIVE.value:
+                raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} is not active")
+            if supervisor.id == existing_user.id:
+                raise BadRequestError("User cannot be their own supervisor")
+        
+        # Validate subordinates exist and are active if being updated
+        if user_data.subordinate_ids is not None:
+            for subordinate_id in user_data.subordinate_ids:
+                subordinate = await self.user_repo.get_user_by_id(subordinate_id)
+                if not subordinate:
+                    raise BadRequestError(f"Subordinate with ID {subordinate_id} does not exist")
+                if subordinate.status != UserStatus.ACTIVE.value:
+                    raise BadRequestError(f"Subordinate with ID {subordinate_id} is not active")
+                if subordinate_id == existing_user.id:
+                    raise BadRequestError("User cannot be their own subordinate")
+        
+        # Validate department exists if being updated
+        if user_data.department_id is not None:
+            department = await self.department_repo.get_by_id(user_data.department_id)
+            if not department:
+                raise BadRequestError(f"Department with ID {user_data.department_id} does not exist")
+        
+        # Validate stage exists if being updated
+        if user_data.stage_id is not None:
+            stage = await self.stage_repo.get_stage_by_id(user_data.stage_id)
+            if not stage:
+                raise BadRequestError(f"Stage with ID {user_data.stage_id} does not exist")
     
     
     async def _enrich_user_data(self, user: UserModel) -> User:
