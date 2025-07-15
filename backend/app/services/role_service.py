@@ -1,6 +1,5 @@
 import logging
 from typing import List, Optional
-from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.role_repo import RoleRepository
@@ -35,7 +34,6 @@ class RoleService:
         Business Logic:
         - Only admin can create roles
         - Validate role name uniqueness
-        - Set default timestamps
         """
         try:
             # Permission check - only admin can manage roles
@@ -64,7 +62,7 @@ class RoleService:
     
     async def get_by_id(
         self,
-        role_id: UUID,
+        role_id: int,
         current_user_context: AuthContext
     ) -> RoleDetail:
         """
@@ -125,7 +123,7 @@ class RoleService:
     
     async def update_role(
         self,
-        role_id: UUID,
+        role_id: int,
         role_data: RoleUpdate,
         current_user_context: AuthContext
     ) -> RoleDetail:
@@ -171,7 +169,7 @@ class RoleService:
     
     async def delete_role(
         self,
-        role_id: UUID,
+        role_id: int,
         current_user_context: AuthContext
     ) -> bool:
         """
@@ -294,8 +292,6 @@ class RoleService:
             id=role.id,
             name=role.name,
             description=role.description,
-            created_at=role.created_at,
-            updated_at=role.updated_at,
             permissions=[],  # Permissions are defined in backend files, not in DB
             user_count=None  # Could be populated with actual count if needed
         )
