@@ -244,17 +244,21 @@ class UserService:
             
             # Commit the transaction (Service controls the Unit of Work)
             await self.session.commit()
-            await self.session.refresh(created_user)
+            
+            # Fetch the user fresh from database with all relationships
+            fresh_user = await self.user_repo.get_user_by_id_with_details(user_id)
+            if not fresh_user:
+                raise NotFoundError(f"Created user {user_id} not found after commit")
             
             # Enrich user data for detailed response
-            enriched_user = await self._enrich_detailed_user_data(created_user)
+            enriched_user = await self._enrich_detailed_user_data(fresh_user)
             
-            logger.info(f"User created successfully: {created_user.id}")
+            logger.info(f"User created successfully with relationships: {created_user.id}")
             return enriched_user
             
         except Exception as e:
             await self.session.rollback()
-            logger.error(f"Error creating user: {str(e)}")
+            logger.error(f"Error creating user with relationships: {str(e)}")
             raise
     
     async def update_user(
