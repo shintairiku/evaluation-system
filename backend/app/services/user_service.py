@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from uuid import UUID
 from cachetools import TTLCache
 
@@ -194,6 +194,7 @@ class UserService:
         - Validate all required relationships exist
         - Check for conflicts (email, employee_code, clerk_id)
         - Set default status to active
+        - Assign roles and supervisor relationships
         """
         try:
             # Permission-based access control
