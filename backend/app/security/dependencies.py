@@ -39,6 +39,39 @@ async def get_auth_context(
         # Get token from request
         token = credentials.credentials
         
+        # Check for development API keys
+        dev_keys = {
+            "dev-admin-key": {
+                "user_id": "00000000-0000-0000-0000-000000000001",
+                "clerk_user_id": "dev-admin",
+                "roles": [RoleInfo(id=1, name="admin", description="Development admin role")]
+            },
+            "dev-manager-key": {
+                "user_id": "00000000-0000-0000-0000-000000000002", 
+                "clerk_user_id": "dev-manager",
+                "roles": [RoleInfo(id=2, name="manager", description="Development manager role")]
+            },
+            "dev-supervisor-key": {
+                "user_id": "00000000-0000-0000-0000-000000000003",
+                "clerk_user_id": "dev-supervisor", 
+                "roles": [RoleInfo(id=3, name="supervisor", description="Development supervisor role")]
+            },
+            "dev-employee-key": {
+                "user_id": "00000000-0000-0000-0000-000000000004",
+                "clerk_user_id": "dev-employee",
+                "roles": [RoleInfo(id=4, name="employee", description="Development employee role")]
+            }
+        }
+        
+        if token in dev_keys:
+            from uuid import UUID
+            dev_user = dev_keys[token]
+            return AuthContext(
+                user_id=UUID(dev_user["user_id"]),
+                clerk_user_id=dev_user["clerk_user_id"],
+                roles=dev_user["roles"]
+            )
+        
         # Verify with Clerk and get user info
         auth_service = AuthService(session)
         auth_user = auth_service.get_user_from_token(token)
