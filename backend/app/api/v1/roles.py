@@ -3,7 +3,7 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.role import RoleDetail, RoleCreate, RoleUpdate
+from ...schemas.user import RoleDetail, RoleCreate, RoleUpdate
 from ...schemas.common import BaseResponse
 from ...services.role_service import RoleService
 from ...security import AuthContext, get_auth_context

@@ -4,7 +4,6 @@ from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
 from .base import Base
-from .role import Role
 
 # Association table for user-role many-to-many relationship
 user_roles = Table(
@@ -83,3 +82,15 @@ class UserSupervisor(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="supervisor_relations")
     supervisor = relationship("User", foreign_keys=[supervisor_id], back_populates="subordinate_relations")
+
+
+class Role(Base):
+    """Role model - moved from separate role.py file as per Arino's suggestion"""
+    __tablename__ = "roles"
+
+    id = Column(SmallInteger, primary_key=True)
+    name = Column(String(50), nullable=False)
+    description = Column(String(200), nullable=True)
+
+    # Relationships
+    users = relationship("User", secondary="user_roles", back_populates="roles")

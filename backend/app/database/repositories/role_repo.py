@@ -2,8 +2,8 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
-from ..models.role import Role
-from ...schemas.role import RoleCreate, RoleUpdate
+from ..models.user import Role
+from ...schemas.user import RoleCreate, RoleUpdate
 
 
 class RoleRepository:

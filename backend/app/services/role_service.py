@@ -3,8 +3,8 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.role_repo import RoleRepository
-from ..database.models.role import Role as RoleModel
-from ..schemas.role import (
+from ..database.models.user import Role as RoleModel
+from ..schemas.user import (
     RoleCreate, RoleUpdate, Role, RoleDetail
 )
 from ..core.exceptions import (
