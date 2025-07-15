@@ -29,11 +29,12 @@ class AuthContext:
     in a single, simple class that replaces the over-engineered SecurityContext.
     """
     
-    def __init__(self, user_id: UUID, roles: List[RoleInfo]):
+    def __init__(self, user_id: UUID = None, roles: List[RoleInfo] = None, clerk_user_id: str = None):
         self.user_id = user_id
-        self.roles = roles
-        self.role_names = [role.name for role in roles]
-        self.role_ids = [role.id for role in roles]
+        self.clerk_user_id = clerk_user_id
+        self.roles = roles or []
+        self.role_names = [role.name for role in self.roles]
+        self.role_ids = [role.id for role in self.roles]
         
         # Compute permissions once at initialization
         self._permissions = self._compute_permissions()

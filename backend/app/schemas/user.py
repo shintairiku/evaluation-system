@@ -179,7 +179,6 @@ class UserDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-
 class UserExistsResponse(BaseModel):
     """Minimal user info for existence check during auth flow"""
     exists: bool
@@ -189,6 +188,14 @@ class UserExistsResponse(BaseModel):
     status: Optional[UserStatus] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProfileOptionsResponse(BaseModel):
+    """Response with all available options for signup."""
+    departments: List[Department]
+    stages: List[Stage]
+    roles: List[Role]
+    users: List[UserProfileOption]  # Simple user options without complex relationships
 
 
 # ========================================

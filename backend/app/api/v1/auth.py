@@ -1,74 +1,43 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from ...services.auth_service import AuthService
-from ...schemas.auth import SignUpOptionsResponse, UserSignUpRequest
-from ...database.session import get_db_session
+from fastapi import APIRouter
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-@router.get("/signup/profile-options", response_model=SignUpOptionsResponse)
-async def get_profile_options(
-    session: AsyncSession = Depends(get_db_session)
-):
+@router.get("/dev-keys")
+async def get_dev_keys():
     """
-    Get all available options for signup form.
-    Returns departments, stages, roles, and active users.
+    Get development API keys for testing different roles.
     """
-    try:
-        auth_service = AuthService(session=session)
-        return await auth_service.get_profile_options()
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve profile options: {str(e)}"
-        )
-
-@router.get("/user/{clerk_user_id}")
-async def check_user_exists_by_clerk_id(
-    clerk_user_id: str,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """
-    Check if user record exists in Users database by Clerk ID.
-    """
-    auth_service = AuthService(session=session)
-    return await auth_service.check_user_exists_by_clerk_id(clerk_user_id)
-
-@router.post("/signup")
-async def signup(
-    signup_data: UserSignUpRequest,
-    session: AsyncSession = Depends(get_db_session)
-):
-    """
-    Complete user signup with profile data.
-    
-    Frontend sends clerk_user_id + profile data.
-    Creates user in database with pending_approval status.
-    """
-    try:
-        auth_service = AuthService(session=session)
-        
-        # Create user with signup data (automatically sets PENDING_APPROVAL)
-        user_details = await auth_service.complete_signup(signup_data)
-        
-        return {
-            "success": True,
-            "message": "User registration successful. Account is pending approval.",
-            "user": user_details
-        }
-        
-    except ValueError as e:
-        # User already exists
-        raise HTTPException(
-            status_code=409,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Registration failed: {str(e)}"
-        )
+    return {
+        "dev_keys": {
+            "admin": {
+                "key": "dev-admin-key",
+                "role": "admin",
+                "description": "Full access to all endpoints including admin operations"
+            },
+            "manager": {
+                "key": "dev-manager-key", 
+                "role": "manager",
+                "description": "Access to management operations and team oversight"
+            },
+            "supervisor": {
+                "key": "dev-supervisor-key",
+                "role": "supervisor", 
+                "description": "Access to supervisor operations and direct reports"
+            },
+            "employee": {
+                "key": "dev-employee-key",
+                "role": "employee",
+                "description": "Basic employee access to own data and evaluations"
+            }
+        },
+        "instructions": [
+            "1. Go to http://localhost:8000/docs",
+            "2. Click 'Authorize' button", 
+            "3. Enter one of the keys above based on the role you want to test",
+            "4. Click 'Authorize'",
+            "5. Test endpoints - access will be restricted based on the role"
+        ]
+    }
 
 
 @router.post("/logout") 
