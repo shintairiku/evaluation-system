@@ -490,9 +490,55 @@ class UserService:
     
     async def _validate_user_creation(self, user_data: UserCreate) -> None:
         """Validate all business rules before creating a user."""
-        # Additional business validation can be added here
-        # Repository already handles most validation
-        _ = user_data  # Acknowledge parameter for future use
+        # Validate role IDs exist
+        if user_data.role_ids:
+            for role_id in user_data.role_ids:
+                role = await self.role_repo.get_role_by_id(role_id)
+                if not role:
+                    raise BadRequestError(f"Role with ID {role_id} does not exist")
+        
+        # Validate supervisor exists and is active
+        if user_data.supervisor_id:
+            supervisor = await self.user_repo.get_user_by_id(user_data.supervisor_id)
+            if not supervisor:
+                raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} does not exist")
+            if supervisor.status != UserStatus.ACTIVE.value:
+                raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} is not active")
+        
+        # Validate subordinates exist and are active
+        if user_data.subordinate_ids:
+            for subordinate_id in user_data.subordinate_ids:
+                subordinate = await self.user_repo.get_user_by_id(subordinate_id)
+                if not subordinate:
+                    raise BadRequestError(f"Subordinate with ID {subordinate_id} does not exist")
+                if subordinate.status != UserStatus.ACTIVE.value:
+                    raise BadRequestError(f"Subordinate with ID {subordinate_id} is not active")
+        
+        # Validate department exists if provided
+        if user_data.department_id:
+            department = await self.department_repo.get_by_id(user_data.department_id)
+            if not department:
+                raise BadRequestError(f"Department with ID {user_data.department_id} does not exist")
+        
+        # Validate stage exists if provided
+        if user_data.stage_id:
+            stage = await self.stage_repo.get_stage_by_id(user_data.stage_id)
+            if not stage:
+                raise BadRequestError(f"Stage with ID {user_data.stage_id} does not exist")
+        
+        # Check for existing user with same email or employee_code
+        existing_user_email = await self.user_repo.get_user_by_email(user_data.email)
+        if existing_user_email:
+            raise ConflictError(f"User with email {user_data.email} already exists")
+        
+        existing_user_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code)
+        if existing_user_code:
+            raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
+        
+        # Check for existing user with same clerk_user_id
+        existing_user_clerk = await self.user_repo.get_user_by_clerk_id(user_data.clerk_user_id)
+        if existing_user_clerk:
+            raise ConflictError(f"User with clerk_user_id {user_data.clerk_user_id} already exists")
     
     async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserModel) -> None:
         """Validate user update data"""
