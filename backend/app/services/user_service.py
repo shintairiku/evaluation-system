@@ -301,6 +301,25 @@ class UserService:
             if not updated_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
+            # Update roles if provided
+            if user_data.role_ids is not None:
+                logger.info(f"Updating roles for user {user_id}: {user_data.role_ids}")
+                await self.user_relationships.update_user_roles(user_id, user_data.role_ids)
+            
+            # Update supervisor relationship if provided
+            if user_data.supervisor_id is not None:
+                # Remove existing supervisor relationships
+                from ..database.models.user import UserSupervisor
+                from sqlalchemy import delete
+                await self.session.execute(
+                    delete(UserSupervisor).where(UserSupervisor.user_id == user_id)
+                )
+                
+                # Add new supervisor if specified
+                if user_data.supervisor_id:
+                    logger.info(f"Updating supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
+                    await self.user_relationships.add_supervisor_relationship(user_id, user_data.supervisor_id)
+            
             # Commit the transaction
             await self.session.commit()
             await self.session.refresh(updated_user)
