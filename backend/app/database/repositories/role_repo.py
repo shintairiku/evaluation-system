@@ -17,7 +17,7 @@ class RoleRepository:
         result = await self.session.execute(select(Role))
         return result.scalars().all()
     
-    async def get_role_by_id(self, role_id: UUID) -> Optional[Role]:
+    async def get_role_by_id(self, role_id: int) -> Optional[Role]:
         """Get role by ID."""
         result = await self.session.execute(
             select(Role).where(Role.id == role_id)
