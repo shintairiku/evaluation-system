@@ -95,3 +95,10 @@ class UserRelationshipManager:
                 valid_to=None
             )
             self.session.add(relationship)
+    
+    async def get_all_subordinates(self, supervisor_id: UUID) -> List[UUID]:
+        """Get all subordinate IDs for a supervisor recursively."""
+        result = await self.session.execute(
+            select(UserSupervisor.user_id).where(UserSupervisor.supervisor_id == supervisor_id)
+        )
+        return [row[0] for row in result.fetchall()]
