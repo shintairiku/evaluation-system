@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
-from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
@@ -77,7 +76,7 @@ async def get_roles(
 
 @router.get("/{role_id}", response_model=RoleDetail)
 async def get_role(
-    role_id: UUID,
+    role_id: int,
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -106,7 +105,7 @@ async def get_role(
 
 @router.put("/{role_id}", response_model=RoleDetail)
 async def update_role(
-    role_id: UUID,
+    role_id: int,
     role_update: RoleUpdate,
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
@@ -146,7 +145,7 @@ async def update_role(
 
 @router.delete("/{role_id}", response_model=BaseResponse)
 async def delete_role(
-    role_id: UUID,
+    role_id: int,
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
