@@ -320,6 +320,20 @@ class UserService:
                     logger.info(f"Updating supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
                     await self.user_relationships.add_supervisor_relationship(user_id, user_data.supervisor_id)
             
+            # Update subordinate relationships if provided
+            if user_data.subordinate_ids is not None:
+                # Remove existing subordinate relationships where this user is supervisor
+                from ..database.models.user import UserSupervisor
+                from sqlalchemy import delete
+                await self.session.execute(
+                    delete(UserSupervisor).where(UserSupervisor.supervisor_id == user_id)
+                )
+                
+                # Add new subordinate relationships
+                if user_data.subordinate_ids:
+                    logger.info(f"Updating subordinate relationships for supervisor {user_id}: {user_data.subordinate_ids}")
+                    await self.user_relationships.add_subordinate_relationships(user_id, user_data.subordinate_ids)
+            
             # Commit the transaction
             await self.session.commit()
             await self.session.refresh(updated_user)
