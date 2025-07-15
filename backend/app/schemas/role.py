@@ -1,6 +1,4 @@
-from datetime import datetime
 from typing import Optional, List
-from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
 
 from .common import Permission
@@ -8,7 +6,7 @@ from .common import Permission
 
 class Role(BaseModel):
     """Basic role information"""
-    id: UUID
+    id: int
     name: str
     description: Optional[str] = None
 
@@ -18,7 +16,7 @@ class Role(BaseModel):
 class RoleCreate(BaseModel):
     """Schema for creating a new role"""
     name: str = Field(..., min_length=1, max_length=50)
-    description: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, min_length=1, max_length=200)
 
 
 class RoleUpdate(BaseModel):
@@ -29,11 +27,9 @@ class RoleUpdate(BaseModel):
 
 class RoleDetail(BaseModel):
     """Schema for detailed role information"""
-    id: UUID
+    id: int
     name: str
-    description: str
-    created_at: datetime
-    updated_at: datetime
+    description: Optional[str] = None
     permissions: Optional[List[Permission]] = []
     user_count: Optional[int] = None
 
