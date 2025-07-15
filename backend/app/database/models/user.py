@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text, SmallInteger
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -11,7 +11,7 @@ user_roles = Table(
     'user_roles',
     Base.metadata,
     Column('user_id', PostgreSQLUUID(as_uuid=True), ForeignKey('users.id'), primary_key=True),
-    Column('role_id', PostgreSQLUUID(as_uuid=True), ForeignKey('roles.id'), primary_key=True)
+    Column('role_id', SmallInteger, ForeignKey('roles.id'), primary_key=True)
 )
 
 
