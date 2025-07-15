@@ -59,13 +59,21 @@ class UserRelationshipManager:
     
     async def update_user_roles(self, user_id: UUID, role_ids: List[int]) -> None:
         """Update user roles by replacing existing assignments."""
-        # Delete existing role assignments
-        delete_stmt = delete(user_roles).where(user_roles.c.user_id == user_id)
-        await self.session.execute(delete_stmt)
+        logger.info(f"Updating roles for user {user_id} with roles {role_ids}")
         
-        # Add new role assignments
-        if role_ids:
-            await self.assign_roles_to_user(user_id, role_ids)
+        try:
+            # Delete existing role assignments
+            delete_stmt = delete(user_roles).where(user_roles.c.user_id == user_id)
+            await self.session.execute(delete_stmt)
+            logger.info(f"Cleared existing roles for user {user_id}")
+            
+            # Add new role assignments using the assign method
+            if role_ids:
+                await self.assign_roles_to_user(user_id, role_ids)
+                        
+        except Exception as e:
+            logger.error(f"Error updating roles for user {user_id}: {e}")
+            raise
     
     async def add_supervisor_relationship(self, user_id: UUID, supervisor_id: UUID) -> None:
         """Add supervisor relationship for a user."""
