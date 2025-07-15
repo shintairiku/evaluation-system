@@ -24,6 +24,38 @@ class UserRelationshipManager:
         
         logger.info(f"Starting role assignment for user {user_id} with roles {role_ids}")
         
+        try:
+            for role_id in role_ids:
+                # Check if role exists first
+                role_check = await self.session.execute(select(Role).where(Role.id == role_id))
+                role = role_check.scalar_one_or_none()
+                if not role:
+                    logger.warning(f"Role {role_id} not found, skipping")
+                    continue
+                
+                # Check if assignment already exists
+                existing_check = await self.session.execute(
+                    select(user_roles).where(
+                        (user_roles.c.user_id == user_id) & 
+                        (user_roles.c.role_id == role_id)
+                    )
+                )
+                existing = existing_check.first()
+                
+                if existing is None:
+                    # Insert the role assignment directly into the association table
+                    stmt = insert(user_roles).values(user_id=user_id, role_id=role_id)
+                    await self.session.execute(stmt)
+                    logger.info(f"Successfully assigned role {role_id} to user {user_id}")
+                else:
+                    logger.info(f"Role {role_id} already assigned to user {user_id}")
+                    
+        except IntegrityError as e:
+            logger.error(f"Integrity error assigning roles to user {user_id}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error assigning roles to user {user_id}: {e}")
+            raise
     
     async def update_user_roles(self, user_id: UUID, role_ids: List[int]) -> None:
         """Update user roles by replacing existing assignments."""
