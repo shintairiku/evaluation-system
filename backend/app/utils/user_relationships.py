@@ -1,10 +1,14 @@
+import logging
 from typing import List
 from uuid import UUID
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete, insert
+from sqlalchemy import select, insert, delete
+from sqlalchemy.exc import IntegrityError
 
-from ..database.models.user import UserSupervisor, user_roles
+from ..database.models.user import UserSupervisor, User, Role, user_roles
+
+logger = logging.getLogger(__name__)
 
 
 class UserRelationshipManager:
@@ -17,10 +21,9 @@ class UserRelationshipManager:
         """Assign roles to user by inserting into user_roles table."""
         if not role_ids:
             return
-            
-        for role_id in role_ids:
-            stmt = insert(user_roles).values(user_id=user_id, role_id=role_id)
-            await self.session.execute(stmt)
+        
+        logger.info(f"Starting role assignment for user {user_id} with roles {role_ids}")
+        
     
     async def update_user_roles(self, user_id: UUID, role_ids: List[int]) -> None:
         """Update user roles by replacing existing assignments."""
