@@ -1,7 +1,6 @@
 from typing import List, Optional
-from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from ..models.role import Role
 from ...schemas.role import RoleCreate, RoleUpdate
@@ -24,7 +23,7 @@ class RoleRepository:
         await self.session.refresh(role)
         return role
     
-    async def get_by_id(self, role_id: UUID) -> Optional[Role]:
+    async def get_by_id(self, role_id: int) -> Optional[Role]:
         """Get role by ID."""
         result = await self.session.execute(
             select(Role).where(Role.id == role_id)
@@ -36,7 +35,7 @@ class RoleRepository:
         result = await self.session.execute(select(Role))
         return list(result.scalars().all())
     
-    async def update_role(self, role_id: UUID, role_data: RoleUpdate) -> Optional[Role]:
+    async def update_role(self, role_id: int, role_data: RoleUpdate) -> Optional[Role]:
         """Update a role."""
         role = await self.get_by_id(role_id)
         if not role:
@@ -51,7 +50,7 @@ class RoleRepository:
         await self.session.refresh(role)
         return role
     
-    async def delete_role(self, role_id: UUID) -> bool:
+    async def delete_role(self, role_id: int) -> bool:
         """Delete a role."""
         role = await self.get_by_id(role_id)
         if not role:
@@ -60,3 +59,16 @@ class RoleRepository:
         await self.session.delete(role)
         await self.session.flush()
         return True
+    
+    async def get_user_roles(self, user_id) -> List[Role]:
+        """Get user roles by user ID."""
+        query = text("""
+            SELECT r.id, r.name, r.description 
+            FROM roles r
+            INNER JOIN user_roles ur ON r.id = ur.role_id
+            WHERE ur.user_id = :user_id
+            ORDER BY r.name
+        """)
+        result = await self.session.execute(query, {"user_id": user_id})
+        rows = result.fetchall()
+        return [Role(id=row.id, name=row.name, description=row.description) for row in rows]
