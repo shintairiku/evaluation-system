@@ -53,10 +53,17 @@ ALTER TABLE users ALTER COLUMN email TYPE VARCHAR(320);
 ```
 
 ### 3. Run Migrations
+
+**Prerequisites:**
+- The migration script expects `.env.local` in the **root directory** (not backend directory)
+- Ensure `SUPABASE_DATABASE_URL` is set in `/path/to/project/.env.local`
+
 ```bash
 cd backend/app/database/scripts
 python run_migrations.py
 ```
+
+**Important:** The migration script loads environment variables from `../../../../.env.local` relative to the scripts directory, which should be the root project directory containing the main `.env.local` file.
 
 ## Features
 
