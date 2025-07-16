@@ -9,7 +9,8 @@ from ...schemas.stage import (
     StageCreateResponse, StageUpdateResponse, StageDeleteResponse
 )
 from ...services.stage_service import StageService
-from ...security import AuthContext, get_auth_context, require_role
+from ...security.dependencies import require_admin, get_auth_context
+from ...security.context import AuthContext
 from ...core.exceptions import NotFoundError, ConflictError, BadRequestError
 
 router = APIRouter(prefix="/stages", tags=["stages"])
@@ -38,7 +39,7 @@ async def get_stages(
 
 @router.get("/admin", response_model=List[StageWithUserCount])
 async def get_stages_with_user_count(
-    context: AuthContext = Depends(require_role(["admin"])),
+    context: AuthContext = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Get all stages with user count for administrative views (admin only)."""
@@ -57,7 +58,7 @@ async def get_stages_with_user_count(
 @router.post("/", response_model=StageCreateResponse)
 async def create_stage(
     stage_create: StageCreate,
-    context: AuthContext = Depends(require_role(["admin"])),
+    context: AuthContext = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Create a new stage (admin only)."""
@@ -114,7 +115,7 @@ async def get_stage(
 async def update_stage(
     stage_id: UUID,
     stage_update: StageUpdate,
-    context: AuthContext = Depends(require_role(["admin"])),
+    context: AuthContext = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Update stage information (admin only)."""
@@ -148,7 +149,7 @@ async def update_stage(
 @router.delete("/{stage_id}", response_model=StageDeleteResponse)
 async def delete_stage(
     stage_id: UUID,
-    context: AuthContext = Depends(require_role(["admin"])),
+    context: AuthContext = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Delete a stage (admin only)."""
