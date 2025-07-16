@@ -1,10 +1,9 @@
 from typing import List, Optional
-from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..models.role import Role
-from ...schemas.role import RoleCreate, RoleUpdate
+from ..models.user import Role
+from ...schemas.user import RoleCreate, RoleUpdate
 
 
 class RoleRepository:
@@ -60,3 +59,16 @@ class RoleRepository:
         await self.session.delete(role)
         await self.session.flush()
         return True
+    
+    async def get_user_roles(self, user_id) -> List[Role]:
+        """Get user roles by user ID."""
+        from ..models.user import user_roles
+        
+        query = (
+            select(Role)
+            .join(user_roles, Role.id == user_roles.c.role_id)
+            .where(user_roles.c.user_id == user_id)
+            .order_by(Role.name)
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())

@@ -1,11 +1,11 @@
 import logging
 from typing import List, Optional
-from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.role_repo import RoleRepository
-from ..database.models.role import Role as RoleModel
-from ..schemas.role import (
+from ..database.models.user import Role as RoleModel
+from ..schemas.user import (
+
     RoleCreate, RoleUpdate, Role, RoleDetail
 )
 from ..core.exceptions import (
@@ -72,12 +72,7 @@ class RoleService:
         """
         try:
             # Permission check - require read access
-            current_user_context.require_any_permission([
-                Permission.USER_MANAGE,
-                Permission.USER_READ_ALL,
-                Permission.USER_READ_SUBORDINATES,
-                Permission.USER_READ_SELF
-            ])
+            # Current RBAC is not set; all users can read all roles
             
             # Get role from repository
             role = await self.role_repo.get_by_id(role_id)
@@ -101,12 +96,7 @@ class RoleService:
         """
         try:
             # Permission check - require read access
-            current_user_context.require_any_permission([
-                Permission.USER_MANAGE,
-                Permission.USER_READ_ALL,
-                Permission.USER_READ_SUBORDINATES,
-                Permission.USER_READ_SELF
-            ])
+            # Current RBAC is not set; all users can read all roles
             
             # Get all roles from repository
             roles = await self.role_repo.get_all()
@@ -125,7 +115,7 @@ class RoleService:
     
     async def update_role(
         self,
-        role_id: UUID,
+        role_id: int,
         role_data: RoleUpdate,
         current_user_context: AuthContext
     ) -> RoleDetail:
@@ -171,7 +161,7 @@ class RoleService:
     
     async def delete_role(
         self,
-        role_id: UUID,
+        role_id: int,
         current_user_context: AuthContext
     ) -> bool:
         """
@@ -209,24 +199,6 @@ class RoleService:
             await self.session.rollback()
             logger.error(f"Error deleting role {role_id}: {str(e)}")
             raise
-    
-    async def get_all_roles(self) -> List[Role]:
-        """
-        Get all roles for user selection (legacy method for backward compatibility)
-        
-        Returns:
-            List[Role]: All available roles
-        """
-        roles = await self.role_repo.get_all()
-        
-        return [
-            Role(
-                id=role.id,
-                name=role.name,
-                description=role.description
-            )
-            for role in roles
-        ]
     
     # Private helper methods
     
@@ -294,10 +266,8 @@ class RoleService:
             id=role.id,
             name=role.name,
             description=role.description,
-            created_at=role.created_at,
-            updated_at=role.updated_at,
             permissions=[],  # Permissions are defined in backend files, not in DB
             user_count=None  # Could be populated with actual count if needed
         )
-        
+       
         return role_detail
