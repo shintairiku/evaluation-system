@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text, Integer
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -70,6 +70,18 @@ class Stage(Base):
     users = relationship("User", back_populates="stage")
 
 
+class Role(Base):
+    __tablename__ = "roles"
+
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    name = Column(String(50), nullable=False, unique=True)
+    description = Column(String(200), nullable=False)
+    hierarchy_order = Column(Integer, nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    users = relationship("User", secondary="user_roles", back_populates="roles")
 
 class UserSupervisor(Base):
     __tablename__ = "users_supervisors"
@@ -84,15 +96,3 @@ class UserSupervisor(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="supervisor_relations")
     supervisor = relationship("User", foreign_keys=[supervisor_id], back_populates="subordinate_relations")
-
-
-class Role(Base):
-    """Role model - moved from separate role.py file as per Arino's suggestion"""
-    __tablename__ = "roles"
-
-    id = Column(SmallInteger, primary_key=True)
-    name = Column(String(50), nullable=False)
-    description = Column(String(200), nullable=True)
-
-    # Relationships
-    users = relationship("User", secondary="user_roles", back_populates="roles")
