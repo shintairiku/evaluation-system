@@ -2,13 +2,14 @@ from __future__ import annotations
 import logging
 from typing import Optional, Dict, Any
 from uuid import UUID
+from datetime import date
 from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
-from ..database.models.user import User as UserModel
+from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
     Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption
@@ -19,7 +20,6 @@ from ..security.permissions import Permission
 from ..core.exceptions import (
     NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
-from ..utils.user_relationships import UserRelationshipManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,6 @@ class UserService:
         self.department_repo = DepartmentRepository(session)
         self.stage_repo = StageRepository(session)
         self.role_repo = RoleRepository(session)
-        self.user_relationships = UserRelationshipManager(session)
     
     async def get_users(
         self, 
@@ -63,10 +62,10 @@ class UserService:
                 user_ids_to_filter = None
             elif current_user_context.has_permission(Permission.USER_READ_SUBORDINATES):
                 # Manager/Supervisor: Can see subordinates
-                subordinate_ids = await self.user_relationships.get_all_subordinates(
+                subordinate_users = await self.user_repo.get_subordinates(
                     current_user_context.user_id
                 )
-                user_ids_to_filter = subordinate_ids
+                user_ids_to_filter = [user.id for user in subordinate_users]
             elif current_user_context.has_permission(Permission.USER_READ_SELF):
                 # Employee: Can only see themselves
                 user_ids_to_filter = [current_user_context.user_id]
@@ -220,14 +219,14 @@ class UserService:
             
             # Get the actual user ID value
             user_id = created_user.id
-            logger.info(f"Created user with ID: {user_id}")
+            logger.info(f"Created user with ID: {str(user_id)[:10]}...")
             
             # Assign roles if provided
             if user_data.role_ids:
                 logger.info(f"About to assign roles {user_data.role_ids} to user {user_id}")
                 logger.info(f"User ID type: {type(user_id)}, value: {user_id}")
                 logger.info(f"Role IDs type: {type(user_data.role_ids)}, value: {user_data.role_ids}")
-                await self.user_relationships.assign_roles_to_user(user_id, user_data.role_ids)
+                await self.user_repo.assign_roles_to_user(user_id, user_data.role_ids)
                 logger.info(f"Completed role assignment for user {user_id}")
             else:
                 logger.info(f"No role_ids provided for user {user_id}")
@@ -235,20 +234,43 @@ class UserService:
             # Add supervisor relationship if provided
             if user_data.supervisor_id:
                 logger.info(f"Adding supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
-                await self.user_relationships.add_supervisor_relationship(user_id, user_data.supervisor_id)
+                relationship = UserSupervisor(
+                    user_id=user_id,
+                    supervisor_id=user_data.supervisor_id,
+                    valid_from=date.today(),
+                    valid_to=None
+                )
+                self.session.add(relationship)
             
             # Add subordinate relationships if provided
             if user_data.subordinate_ids:
                 logger.info(f"Adding subordinate relationships for supervisor {user_id}: {user_data.subordinate_ids}")
-                await self.user_relationships.add_subordinate_relationships(user_id, user_data.subordinate_ids)
+                for subordinate_id in user_data.subordinate_ids:
+                    relationship = UserSupervisor(
+                        user_id=subordinate_id,
+                        supervisor_id=user_id,
+                        valid_from=date.today(),
+                        valid_to=None
+                    )
+                    self.session.add(relationship)
             
             # Commit the transaction (Service controls the Unit of Work)
             await self.session.commit()
+            logger.info(f"Transaction committed successfully for user {user_id}")
+            
+            # Verify roles were actually persisted after commit
+            if user_data.role_ids:
+                roles_check = await self.user_repo.get_user_roles(user_id)
+                logger.info(f"Post-commit verification: User {user_id} has {len(roles_check)} roles: {[r.name for r in roles_check]}")
+                if len(roles_check) != len(user_data.role_ids):
+                    logger.error(f"Role assignment verification failed! Expected {len(user_data.role_ids)} roles, got {len(roles_check)}")
             
             # Fetch the user fresh from database with all relationships
             fresh_user = await self.user_repo.get_user_by_id_with_details(user_id)
             if not fresh_user:
-                raise NotFoundError(f"Created user {user_id} not found after commit")
+                # This should not happen since we just created the user successfully
+                logger.error(f"Created user {user_id} not found after commit - this indicates a serious database issue")
+                raise NotFoundError(f"User was created successfully but could not be retrieved from database")
             
             # Enrich user data for detailed response
             enriched_user = await self._enrich_detailed_user_data(fresh_user)
@@ -304,12 +326,11 @@ class UserService:
             # Update roles if provided
             if user_data.role_ids is not None:
                 logger.info(f"Updating roles for user {user_id}: {user_data.role_ids}")
-                await self.user_relationships.update_user_roles(user_id, user_data.role_ids)
+                await self.user_repo.update_user_roles(user_id, user_data.role_ids)
             
             # Update supervisor relationship if provided
             if user_data.supervisor_id is not None:
                 # Remove existing supervisor relationships
-                from ..database.models.user import UserSupervisor
                 from sqlalchemy import delete
                 await self.session.execute(
                     delete(UserSupervisor).where(UserSupervisor.user_id == user_id)
@@ -318,12 +339,17 @@ class UserService:
                 # Add new supervisor if specified
                 if user_data.supervisor_id:
                     logger.info(f"Updating supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
-                    await self.user_relationships.add_supervisor_relationship(user_id, user_data.supervisor_id)
+                    relationship = UserSupervisor(
+                        user_id=user_id,
+                        supervisor_id=user_data.supervisor_id,
+                        valid_from=date.today(),
+                        valid_to=None
+                    )
+                    self.session.add(relationship)
             
             # Update subordinate relationships if provided
             if user_data.subordinate_ids is not None:
                 # Remove existing subordinate relationships where this user is supervisor
-                from ..database.models.user import UserSupervisor
                 from sqlalchemy import delete
                 await self.session.execute(
                     delete(UserSupervisor).where(UserSupervisor.supervisor_id == user_id)
@@ -332,7 +358,14 @@ class UserService:
                 # Add new subordinate relationships
                 if user_data.subordinate_ids:
                     logger.info(f"Updating subordinate relationships for supervisor {user_id}: {user_data.subordinate_ids}")
-                    await self.user_relationships.add_subordinate_relationships(user_id, user_data.subordinate_ids)
+                    for subordinate_id in user_data.subordinate_ids:
+                        relationship = UserSupervisor(
+                            user_id=subordinate_id,
+                            supervisor_id=user_id,
+                            valid_from=date.today(),
+                            valid_to=None
+                        )
+                        self.session.add(relationship)
             
             # Commit the transaction
             await self.session.commit()
