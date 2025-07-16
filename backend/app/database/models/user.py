@@ -5,7 +5,6 @@ from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
 from .base import Base
-from .role import Role
 
 # Association table for user-role many-to-many relationship
 user_roles = Table(
