@@ -89,17 +89,25 @@ Functions automatically include authentication headers when available through th
 
 ## When to Use
 
-**Use endpoint functions when:**
-- Building client-side functionality
-- Need direct API access in components
-- Working with form submissions
-- Implementing real-time features
+**Use endpoint functions when you need CLIENT-SIDE INTERACTIVITY:**
+- Real-time features (auto-save, live updates, polling)
+- Dynamic search/filtering without page refresh
+- Progressive data loading (infinite scroll, lazy loading)
+- Interactive form validation (validate as user types)
+- Optimistic UI updates
+- Background data synchronization
 
-**Consider server actions instead when:**
-- Implementing server-side rendering (SSR)
-- Pre-loading data for pages
-- SEO is important
-- Want to reduce client-side JavaScript
+**Use server actions instead for STATIC OPERATIONS:**
+- Form submissions (create, update, delete)
+- Initial page data loading
+- User authentication flows
+- One-time data fetching
+- Server-side rendering (SSR)
+- SEO-critical pages
+
+**Key Distinction:**
+- **Server Actions**: "Fire and forget" operations, one-way communication
+- **Endpoint Functions**: Continuous interaction, bidirectional communication
 
 ## Adding New Endpoints
 
