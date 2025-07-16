@@ -72,6 +72,11 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
       return;
     }
 
+    if (formData.role_ids.length === 0) {
+      setError('少なくとも1つの役割を選択してください。');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -89,7 +94,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
         job_title: formData.job_title || undefined,
         department_id: formData.department_id,
         stage_id: formData.stage_id,
-        role_ids: [], // Default empty array for signup
+        role_ids: formData.role_ids, // Use selected roles from form
         supervisor_id: formData.supervisor_id || undefined,
         subordinate_ids: [] // Default empty array for signup
       };
