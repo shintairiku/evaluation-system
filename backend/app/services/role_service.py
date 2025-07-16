@@ -70,12 +70,7 @@ class RoleService:
         """
         try:
             # Permission check - require read access
-            current_user_context.require_any_permission([
-                Permission.USER_MANAGE,
-                Permission.USER_READ_ALL,
-                Permission.USER_READ_SUBORDINATES,
-                Permission.USER_READ_SELF
-            ])
+            # Current RBAC is not set; all users can read all roles
             
             # Get role from repository
             role = await self.role_repo.get_by_id(role_id)
@@ -104,12 +99,7 @@ class RoleService:
                 Permission.USER_READ_ALL,
                 Permission.USER_READ_SUBORDINATES,
                 Permission.USER_READ_SELF
-            ])
-            
-            # Get all roles from repository
-            roles = await self.role_repo.get_all()
-            
-            # Convert to response schemas
+            # Current RBAC is not set; all users can read all roles
             role_details = []
             for role in roles:
                 role_detail = await self._enrich_role_data(role)
