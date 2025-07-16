@@ -3,7 +3,7 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update, func, or_, delete
+from sqlalchemy import select, update, func, or_, delete, insert
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -396,6 +396,104 @@ class UserRepository:
             
         except SQLAlchemyError as e:
             logger.error(f"Error updating user {user_id}: {e}")
+            raise
+
+    async def assign_roles_to_user(self, user_id: UUID, role_ids: list[int]) -> None:
+        """Assign roles to user by inserting into user_roles table (does not commit)."""
+        if not role_ids:
+            logger.info(f"No role_ids provided for user {user_id}")
+            return
+        
+        logger.info(f"Starting role assignment - User ID: {user_id}, Role IDs: {role_ids}")
+        
+        try:
+            # First verify the user exists
+            user_check = await self.session.execute(select(User).where(User.id == user_id))
+            user = user_check.scalar_one_or_none()
+            if not user:
+                logger.error(f"User {user_id} not found - cannot assign roles")
+                raise ValueError(f"User {user_id} not found")
+            
+            for role_id in role_ids:
+                logger.info(f"Processing role {role_id} for user {user_id}")
+                
+                # Check if role exists first
+                role_check = await self.session.execute(select(Role).where(Role.id == role_id))
+                role = role_check.scalar_one_or_none()
+                if not role:
+                    logger.warning(f"Role {role_id} not found, skipping")
+                    continue
+                
+                logger.info(f"Role {role_id} found: {role.name}")
+                
+                # Check if assignment already exists
+                existing_check = await self.session.execute(
+                    select(user_roles).where(
+                        (user_roles.c.user_id == user_id) & 
+                        (user_roles.c.role_id == role_id)
+                    )
+                )
+                existing = existing_check.first()
+                
+                if existing is None:
+                    # Insert the role assignment directly into the association table
+                    logger.info(f"Inserting role assignment: user_id={user_id}, role_id={role_id}")
+                    stmt = insert(user_roles).values(user_id=user_id, role_id=role_id)
+                    result = await self.session.execute(stmt)
+                    logger.info(f"Insert result: {result}")
+                    logger.info(f"Successfully assigned role {role_id} to user {user_id}")
+                else:
+                    logger.info(f"Role {role_id} already assigned to user {user_id}")
+            
+            # Verify the assignments were made by checking the table
+            verification_check = await self.session.execute(
+                select(user_roles).where(user_roles.c.user_id == user_id)
+            )
+            assignments = verification_check.fetchall()
+            logger.info(f"Verification: User {user_id} now has {len(assignments)} role assignments: {[a.role_id for a in assignments]}")
+                    
+        except SQLAlchemyError as e:
+            logger.error(f"SQLAlchemy error assigning roles to user {user_id}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error assigning roles to user {user_id}: {e}")
+            raise
+
+    async def update_user_roles(self, user_id: UUID, role_ids: list[int]) -> None:
+        """Update user roles by replacing existing assignments (does not commit)."""
+        logger.info(f"Updating roles for user {user_id} with roles {role_ids}")
+        
+        try:
+            # Delete existing role assignments
+            delete_stmt = delete(user_roles).where(user_roles.c.user_id == user_id)
+            await self.session.execute(delete_stmt)
+            logger.info(f"Cleared existing roles for user {user_id}")
+            
+            # Add new role assignments
+            if role_ids:
+                await self.assign_roles_to_user(user_id, role_ids)
+                        
+        except SQLAlchemyError as e:
+            logger.error(f"Error updating roles for user {user_id}: {e}")
+            raise
+
+    async def remove_user_roles(self, user_id: UUID, role_ids: list[int]) -> None:
+        """Remove specific roles from user (does not commit)."""
+        if not role_ids:
+            return
+            
+        logger.info(f"Removing roles {role_ids} from user {user_id}")
+        
+        try:
+            delete_stmt = delete(user_roles).where(
+                (user_roles.c.user_id == user_id) & 
+                (user_roles.c.role_id.in_(role_ids))
+            )
+            await self.session.execute(delete_stmt)
+            logger.info(f"Removed roles {role_ids} from user {user_id}")
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Error removing roles from user {user_id}: {e}")
             raise
 
     # ========================================
