@@ -1,12 +1,12 @@
 import logging
-from typing import List, Optional
+from typing import List
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import Role as RoleModel
 from ..schemas.user import (
-
-    RoleCreate, RoleUpdate, Role, RoleDetail
+    RoleCreate, RoleUpdate, Role, RoleDetail, RoleReorderItem
 )
 from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, BadRequestError
@@ -35,16 +35,18 @@ class RoleService:
         Business Logic:
         - Only admin can create roles
         - Validate role name uniqueness
-        - Set default timestamps
+        - Set hierarchy_order (specified or max+1)
         """
         try:
+            logger.info(f"Starting role creation for name: {role_data.name}")
+            
             # Permission check - only admin can manage roles
-            current_user_context.require_permission(Permission.USER_MANAGE)
+            current_user_context.require_permission(Permission.ROLE_MANAGE)
             
             # Business validation
             await self._validate_role_creation(role_data)
             
-            # Create role through repository
+            # Create role through repository with optional hierarchy_order
             created_role = await self.role_repo.create_role(role_data)
             
             # Commit the transaction (Service controls the Unit of Work)
@@ -62,6 +64,42 @@ class RoleService:
             logger.error(f"Error creating role: {str(e)}")
             raise
     
+    async def reorder_roles(
+        self,
+        role_orders: List[RoleReorderItem],
+        current_user_context: AuthContext
+    ) -> List[Role]:
+        """
+        Reorder roles based on complete hierarchy list from frontend drag-and-drop.
+        
+        Simple approach: Frontend sends back ALL roles with their new hierarchy_order.
+        This handles any number of role position changes in one atomic operation.
+        
+        Business Logic:
+        - Only admin can reorder roles
+        - Validate all roles exist and are included
+        - Update all hierarchy_orders based on frontend state
+        """
+        try:
+            logger.info("Reordering all roles based on frontend drag-and-drop state")
+            
+            # Permission check - only admin can manage roles
+            current_user_context.require_permission(Permission.ROLE_MANAGE)
+            
+            # Execute reorder through repository
+            updated_roles = await self.role_repo.reorder_roles(role_orders)
+            
+            # Commit the transaction
+            await self.session.commit()
+            logger.info(f"Successfully reordered {len(updated_roles)} roles")
+            
+            return updated_roles
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error reordering roles: {str(e)}")
+            raise
+    
     async def get_by_id(
         self,
         role_id: UUID,
@@ -72,7 +110,7 @@ class RoleService:
         """
         try:
             # Permission check - require read access
-            # Current RBAC is not set; all users can read all roles
+            current_user_context.require_permission(Permission.ROLE_READ_ALL)
             
             # Get role from repository
             role = await self.role_repo.get_by_id(role_id)
@@ -92,13 +130,13 @@ class RoleService:
         current_user_context: AuthContext
     ) -> List[RoleDetail]:
         """
-        Get all roles
+        Get all roles ordered by hierarchy
         """
         try:
             # Permission check - require read access
-            # Current RBAC is not set; all users can read all roles
+            current_user_context.require_permission(Permission.ROLE_READ_ALL)
             
-            # Get all roles from repository
+            # Get all roles from repository (ordered by hierarchy_order)
             roles = await self.role_repo.get_all()
             
             # Convert to response schemas
@@ -115,12 +153,12 @@ class RoleService:
     
     async def update_role(
         self,
-        role_id: int,
+        role_id: UUID,
         role_data: RoleUpdate,
         current_user_context: AuthContext
     ) -> RoleDetail:
         """
-        Update role information with permission checks
+        Update role information (name/description only, not hierarchy_order)
         
         Business Logic:
         - Only admin can update roles
@@ -161,7 +199,7 @@ class RoleService:
     
     async def delete_role(
         self,
-        role_id: int,
+        role_id: UUID,
         current_user_context: AuthContext
     ) -> bool:
         """
@@ -171,6 +209,7 @@ class RoleService:
         - Only admin can delete roles
         - Cannot delete role if assigned to users
         - Prevent deletion of system roles
+        - Automatically adjust hierarchy_order of remaining roles
         """
         try:
             # Permission check - only admin can manage roles
@@ -184,7 +223,7 @@ class RoleService:
             # Business validation before deletion
             await self._validate_role_deletion(existing_role)
             
-            # Delete role through repository
+            # Delete role through repository (handles hierarchy_order adjustment)
             success = await self.role_repo.delete_role(role_id)
             
             if success:
@@ -204,11 +243,9 @@ class RoleService:
     
     async def _validate_role_creation(self, role_data: RoleCreate) -> None:
         """Validate all business rules before creating a role."""
-        # Check if role name already exists
-        existing_roles = await self.role_repo.get_all()
-        existing_names = [role.name.lower() for role in existing_roles]
-        
-        if role_data.name.lower() in existing_names:
+        # Check if role name already exists - use efficient lookup
+        existing_role = await self.role_repo.get_by_name(role_data.name)
+        if existing_role:
             raise ConflictError(f"Role with name '{role_data.name}' already exists")
         
         # Additional business validation can be added here
@@ -217,15 +254,43 @@ class RoleService:
         
         if not role_data.description.strip():
             raise ValidationError("Role description cannot be empty")
+        
+        # Validate hierarchy_order if specified
+        if role_data.hierarchy_order is not None:
+            if role_data.hierarchy_order < 1:
+                raise ValidationError("Hierarchy order must be 1 or greater")
+            
+            # Check if hierarchy_order already exists
+            existing_role_with_order = await self.role_repo.get_by_hierarchy_order(role_data.hierarchy_order)
+            if existing_role_with_order:
+                # This is okay - the repository will shift existing roles to make space
+                pass
+    
+    async def _validate_role_reorder(self, role_orders: List[RoleReorderItem]) -> None:
+        """Validate role reorder request"""
+        # Check that all roles exist
+        for item in role_orders:
+            role = await self.role_repo.get_by_id(item.id)
+            if not role:
+                raise NotFoundError(f"Role with ID {item.id} not found")
+        
+        # Check that hierarchy_orders are unique
+        orders = [item.hierarchy_order for item in role_orders]
+        if len(set(orders)) != len(orders):
+            raise ValidationError("Duplicate hierarchy_order values detected")
+        
+        # Check that hierarchy_orders start from 1 and are sequential
+        sorted_orders = sorted(orders)
+        expected_orders = list(range(1, len(orders) + 1))
+        if sorted_orders != expected_orders:
+            raise ValidationError("Hierarchy orders must be sequential starting from 1")
     
     async def _validate_role_update(self, role_data: RoleUpdate, existing_role: RoleModel) -> None:
         """Validate role update data"""
         # Check for name conflicts if name is being updated
         if role_data.name and role_data.name.lower() != existing_role.name.lower():
-            all_roles = await self.role_repo.get_all()
-            existing_names = [role.name.lower() for role in all_roles if role.id != existing_role.id]
-            
-            if role_data.name.lower() in existing_names:
+            existing_role_with_name = await self.role_repo.get_by_name(role_data.name)
+            if existing_role_with_name and existing_role_with_name.id != existing_role.id:
                 raise ConflictError(f"Role with name '{role_data.name}' already exists")
         
         # Validate field contents
@@ -243,31 +308,30 @@ class RoleService:
             raise BadRequestError(f"Cannot delete system role '{role.name}'")
         
         # Check if role is assigned to users
-        # Note: This would require a method in role_repo to count users with this role
-        # For now, we'll add a basic check - this can be enhanced later
-        try:
-            # Get role by name to see if it has users (simplified check)
-            # In a real implementation, you'd want a dedicated method for this
-            all_roles = await self.role_repo.get_all()
-            role_to_delete = next((r for r in all_roles if r.id == role.id), None)
-            
-            if role_to_delete:
-                # Add logic here to check if role has users assigned
-                # This would typically involve checking the user_roles junction table
-                pass
-                
-        except Exception as e:
-            logger.warning(f"Could not validate role usage: {e}")
+        user_roles = await self.role_repo.get_user_roles(role.id)
+        if user_roles:
+            raise BadRequestError(f"Cannot delete role '{role.name}' because it is assigned to users")
     
     async def _enrich_role_data(self, role: RoleModel) -> RoleDetail:
         """Convert role model to RoleDetail schema with additional metadata"""
+        # Count users with this role (simplified - could be optimized)
+        user_count = 0
+        try:
+            # This would require a method to count users with this role
+            # For now, we'll set it to None
+            user_count = None
+        except Exception as e:
+            logger.warning(f"Could not get user count for role {role.id}: {e}")
+        
         # Convert basic role data
         role_detail = RoleDetail(
             id=role.id,
             name=role.name,
             description=role.description,
-            permissions=[],  # Permissions are defined in backend files, not in DB
-            user_count=None  # Could be populated with actual count if needed
+            hierarchy_order=role.hierarchy_order,
+            created_at=role.created_at.isoformat() if role.created_at else "",
+            updated_at=role.updated_at.isoformat() if role.updated_at else "",
+            user_count=user_count
         )
-       
+        
         return role_detail
