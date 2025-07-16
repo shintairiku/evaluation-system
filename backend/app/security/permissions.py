@@ -42,7 +42,8 @@ class Permission(Enum):
     DEPARTMENT_READ = "department:read"      # Read department info (scope determined by role)
     DEPARTMENT_MANAGE = "department:manage"  # Create, update, delete departments (admin only)
     
-    # Role Management (Consolidated from 4 to 1)
+    # Role Management (Consolidated from 4 to 2)
+    ROLE_READ_ALL = "role:read:all"          # Read all roles (admin, manager, supervisor, viewer, employee, parttime)
     ROLE_MANAGE = "role:manage"              # Manage roles (admin only)
     
     # Goal Management (Consolidated from 9 to 3)
@@ -85,6 +86,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.DEPARTMENT_MANAGE,
             
             # Role Management - Full Access
+            Permission.ROLE_READ_ALL,
             Permission.ROLE_MANAGE,
             
             # Goal Management - Full Access
@@ -114,6 +116,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
             
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
+            
             # Goal Management - Manage and approve
             Permission.GOAL_READ,
             Permission.GOAL_MANAGE,
@@ -141,6 +146,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
             
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
+            
             # Goal Management - Approve subordinates
             Permission.GOAL_READ,
             Permission.GOAL_MANAGE,
@@ -167,6 +175,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
             
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
+            
             # Goal Management - Read only
             Permission.GOAL_READ,
             
@@ -187,6 +198,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Department Management - Read own
             Permission.DEPARTMENT_READ,
+            
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
             
             # Goal Management - Own goals
             Permission.GOAL_READ,
@@ -210,6 +224,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Department Management - Read own
             Permission.DEPARTMENT_READ,
+            
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
             
             # Goal Management - Basic functions
             Permission.GOAL_READ,
