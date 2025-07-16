@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import Role as RoleModel
 from ..schemas.user import (
+
     RoleCreate, RoleUpdate, Role, RoleDetail
 )
 from ..core.exceptions import (
@@ -34,6 +35,7 @@ class RoleService:
         Business Logic:
         - Only admin can create roles
         - Validate role name uniqueness
+        - Set default timestamps
         """
         try:
             # Permission check - only admin can manage roles
@@ -62,7 +64,7 @@ class RoleService:
     
     async def get_by_id(
         self,
-        role_id: int,
+        role_id: UUID,
         current_user_context: AuthContext
     ) -> RoleDetail:
         """
@@ -267,5 +269,5 @@ class RoleService:
             permissions=[],  # Permissions are defined in backend files, not in DB
             user_count=None  # Could be populated with actual count if needed
         )
-        
+       
         return role_detail

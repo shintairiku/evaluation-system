@@ -87,7 +87,7 @@ class StageUpdate(BaseModel):
 
 
 # ========================================
-# ROLE SCHEMAS
+# ROLE SCHEMAS (imported from role module)
 # ========================================
 
 class Role(BaseModel):
@@ -109,6 +109,7 @@ class RoleUpdate(BaseModel):
     """Schema for updating a role"""
     name: Optional[str] = Field(None, min_length=1, max_length=50)
     description: Optional[str] = Field(None, min_length=1, max_length=200)
+
 
 
 class RoleDetail(BaseModel):

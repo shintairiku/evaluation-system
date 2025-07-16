@@ -1,14 +1,15 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from uuid import UUID
+from datetime import date
 from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
-from ..database.models.user import User as UserModel
+from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
     Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption
@@ -19,7 +20,6 @@ from ..security.permissions import Permission
 from ..core.exceptions import (
     NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
-from ..utils.user_relationships import UserRelationshipManager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,6 @@ class UserService:
         self.department_repo = DepartmentRepository(session)
         self.stage_repo = StageRepository(session)
         self.role_repo = RoleRepository(session)
-        self.user_relationships = UserRelationshipManager(session)
     
     async def get_users(
         self, 
@@ -63,10 +62,10 @@ class UserService:
                 user_ids_to_filter = None
             elif current_user_context.has_permission(Permission.USER_READ_SUBORDINATES):
                 # Manager/Supervisor: Can see subordinates
-                subordinate_ids = await self.user_relationships.get_all_subordinates(
+                subordinate_users = await self.user_repo.get_subordinates(
                     current_user_context.user_id
                 )
-                user_ids_to_filter = subordinate_ids
+                user_ids_to_filter = [user.id for user in subordinate_users]
             elif current_user_context.has_permission(Permission.USER_READ_SELF):
                 # Employee: Can only see themselves
                 user_ids_to_filter = [current_user_context.user_id]
@@ -194,6 +193,7 @@ class UserService:
         - Validate all required relationships exist
         - Check for conflicts (email, employee_code, clerk_id)
         - Set default status to active
+        - Assign roles and supervisor relationships
         """
         try:
             # Permission-based access control
@@ -213,19 +213,74 @@ class UserService:
             # Create user through repository
             created_user = await self.user_repo.create_user(user_data)
             
-            # Commit the transaction (Service controls the Unit of Work)
-            await self.session.commit()
+            # Flush to get the user ID for relationships
+            await self.session.flush()
             await self.session.refresh(created_user)
             
-            # Enrich user data for detailed response
-            enriched_user = await self._enrich_detailed_user_data(created_user)
+            # Get the actual user ID value
+            user_id = created_user.id
+            logger.info(f"Created user with ID: {str(user_id)[:10]}...")
             
-            logger.info(f"User created successfully: {created_user.id}")
+            # Assign roles if provided
+            if user_data.role_ids:
+                logger.info(f"About to assign roles {user_data.role_ids} to user {user_id}")
+                logger.info(f"User ID type: {type(user_id)}, value: {user_id}")
+                logger.info(f"Role IDs type: {type(user_data.role_ids)}, value: {user_data.role_ids}")
+                await self.user_repo.assign_roles_to_user(user_id, user_data.role_ids)
+                logger.info(f"Completed role assignment for user {user_id}")
+            else:
+                logger.info(f"No role_ids provided for user {user_id}")
+            
+            # Add supervisor relationship if provided
+            if user_data.supervisor_id:
+                logger.info(f"Adding supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
+                relationship = UserSupervisor(
+                    user_id=user_id,
+                    supervisor_id=user_data.supervisor_id,
+                    valid_from=date.today(),
+                    valid_to=None
+                )
+                self.session.add(relationship)
+            
+            # Add subordinate relationships if provided
+            if user_data.subordinate_ids:
+                logger.info(f"Adding subordinate relationships for supervisor {user_id}: {user_data.subordinate_ids}")
+                for subordinate_id in user_data.subordinate_ids:
+                    relationship = UserSupervisor(
+                        user_id=subordinate_id,
+                        supervisor_id=user_id,
+                        valid_from=date.today(),
+                        valid_to=None
+                    )
+                    self.session.add(relationship)
+            
+            # Commit the transaction (Service controls the Unit of Work)
+            await self.session.commit()
+            logger.info(f"Transaction committed successfully for user {user_id}")
+            
+            # Verify roles were actually persisted after commit
+            if user_data.role_ids:
+                roles_check = await self.user_repo.get_user_roles(user_id)
+                logger.info(f"Post-commit verification: User {user_id} has {len(roles_check)} roles: {[r.name for r in roles_check]}")
+                if len(roles_check) != len(user_data.role_ids):
+                    logger.error(f"Role assignment verification failed! Expected {len(user_data.role_ids)} roles, got {len(roles_check)}")
+            
+            # Fetch the user fresh from database with all relationships
+            fresh_user = await self.user_repo.get_user_by_id_with_details(user_id)
+            if not fresh_user:
+                # This should not happen since we just created the user successfully
+                logger.error(f"Created user {user_id} not found after commit - this indicates a serious database issue")
+                raise NotFoundError(f"User was created successfully but could not be retrieved from database")
+            
+            # Enrich user data for detailed response
+            enriched_user = await self._enrich_detailed_user_data(fresh_user)
+            
+            logger.info(f"User created successfully with relationships: {created_user.id}")
             return enriched_user
             
         except Exception as e:
             await self.session.rollback()
-            logger.error(f"Error creating user: {str(e)}")
+            logger.error(f"Error creating user with relationships: {str(e)}")
             raise
     
     async def update_user(
@@ -267,6 +322,50 @@ class UserService:
             updated_user = await self.user_repo.update_user(user_id, user_data)
             if not updated_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
+            
+            # Update roles if provided
+            if user_data.role_ids is not None:
+                logger.info(f"Updating roles for user {user_id}: {user_data.role_ids}")
+                await self.user_repo.update_user_roles(user_id, user_data.role_ids)
+            
+            # Update supervisor relationship if provided
+            if user_data.supervisor_id is not None:
+                # Remove existing supervisor relationships
+                from sqlalchemy import delete
+                await self.session.execute(
+                    delete(UserSupervisor).where(UserSupervisor.user_id == user_id)
+                )
+                
+                # Add new supervisor if specified
+                if user_data.supervisor_id:
+                    logger.info(f"Updating supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
+                    relationship = UserSupervisor(
+                        user_id=user_id,
+                        supervisor_id=user_data.supervisor_id,
+                        valid_from=date.today(),
+                        valid_to=None
+                    )
+                    self.session.add(relationship)
+            
+            # Update subordinate relationships if provided
+            if user_data.subordinate_ids is not None:
+                # Remove existing subordinate relationships where this user is supervisor
+                from sqlalchemy import delete
+                await self.session.execute(
+                    delete(UserSupervisor).where(UserSupervisor.supervisor_id == user_id)
+                )
+                
+                # Add new subordinate relationships
+                if user_data.subordinate_ids:
+                    logger.info(f"Updating subordinate relationships for supervisor {user_id}: {user_data.subordinate_ids}")
+                    for subordinate_id in user_data.subordinate_ids:
+                        relationship = UserSupervisor(
+                            user_id=subordinate_id,
+                            supervisor_id=user_id,
+                            valid_from=date.today(),
+                            valid_to=None
+                        )
+                        self.session.add(relationship)
             
             # Commit the transaction
             await self.session.commit()
@@ -347,7 +446,7 @@ class UserService:
     async def update_last_login(self, clerk_user_id: str) -> bool:
         """Update user's last login timestamp"""
         try:
-            user = await self.user_repo.get_by_clerk_id(clerk_user_id)
+            user = await self.user_repo.get_user_by_clerk_id(clerk_user_id)
             if not user:
                 logger.warning(f"User not found for last login update: {clerk_user_id}")
                 return False
@@ -424,9 +523,55 @@ class UserService:
     
     async def _validate_user_creation(self, user_data: UserCreate) -> None:
         """Validate all business rules before creating a user."""
-        # Additional business validation can be added here
-        # Repository already handles most validation
-        _ = user_data  # Acknowledge parameter for future use
+        # Validate role IDs exist
+        if user_data.role_ids:
+            for role_id in user_data.role_ids:
+                role = await self.role_repo.get_role_by_id(role_id)
+                if not role:
+                    raise BadRequestError(f"Role with ID {role_id} does not exist")
+        
+        # Validate supervisor exists and is active
+        if user_data.supervisor_id:
+            supervisor = await self.user_repo.get_user_by_id(user_data.supervisor_id)
+            if not supervisor:
+                raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} does not exist")
+            if supervisor.status != UserStatus.ACTIVE.value:
+                raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} is not active")
+        
+        # Validate subordinates exist and are active
+        if user_data.subordinate_ids:
+            for subordinate_id in user_data.subordinate_ids:
+                subordinate = await self.user_repo.get_user_by_id(subordinate_id)
+                if not subordinate:
+                    raise BadRequestError(f"Subordinate with ID {subordinate_id} does not exist")
+                if subordinate.status != UserStatus.ACTIVE.value:
+                    raise BadRequestError(f"Subordinate with ID {subordinate_id} is not active")
+        
+        # Validate department exists if provided
+        if user_data.department_id:
+            department = await self.department_repo.get_by_id(user_data.department_id)
+            if not department:
+                raise BadRequestError(f"Department with ID {user_data.department_id} does not exist")
+        
+        # Validate stage exists if provided
+        if user_data.stage_id:
+            stage = await self.stage_repo.get_stage_by_id(user_data.stage_id)
+            if not stage:
+                raise BadRequestError(f"Stage with ID {user_data.stage_id} does not exist")
+        
+        # Check for existing user with same email or employee_code
+        existing_user_email = await self.user_repo.get_user_by_email(user_data.email)
+        if existing_user_email:
+            raise ConflictError(f"User with email {user_data.email} already exists")
+        
+        existing_user_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code)
+        if existing_user_code:
+            raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
+        
+        # Check for existing user with same clerk_user_id
+        existing_user_clerk = await self.user_repo.get_user_by_clerk_id(user_data.clerk_user_id)
+        if existing_user_clerk:
+            raise ConflictError(f"User with clerk_user_id {user_data.clerk_user_id} already exists")
     
     async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserModel) -> None:
         """Validate user update data"""
@@ -440,6 +585,46 @@ class UserService:
             existing_user_with_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code)
             if existing_user_with_code and existing_user_with_code.id != existing_user.id:
                 raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
+        
+        # Validate role IDs exist if being updated
+        if user_data.role_ids is not None:
+            for role_id in user_data.role_ids:
+                role = await self.role_repo.get_role_by_id(role_id)
+                if not role:
+                    raise BadRequestError(f"Role with ID {role_id} does not exist")
+        
+        # Validate supervisor exists and is active if being updated
+        if user_data.supervisor_id is not None and user_data.supervisor_id:
+            supervisor = await self.user_repo.get_user_by_id(user_data.supervisor_id)
+            if not supervisor:
+                raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} does not exist")
+            if supervisor.status != UserStatus.ACTIVE.value:
+                raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} is not active")
+            if supervisor.id == existing_user.id:
+                raise BadRequestError("User cannot be their own supervisor")
+        
+        # Validate subordinates exist and are active if being updated
+        if user_data.subordinate_ids is not None:
+            for subordinate_id in user_data.subordinate_ids:
+                subordinate = await self.user_repo.get_user_by_id(subordinate_id)
+                if not subordinate:
+                    raise BadRequestError(f"Subordinate with ID {subordinate_id} does not exist")
+                if subordinate.status != UserStatus.ACTIVE.value:
+                    raise BadRequestError(f"Subordinate with ID {subordinate_id} is not active")
+                if subordinate_id == existing_user.id:
+                    raise BadRequestError("User cannot be their own subordinate")
+        
+        # Validate department exists if being updated
+        if user_data.department_id is not None:
+            department = await self.department_repo.get_by_id(user_data.department_id)
+            if not department:
+                raise BadRequestError(f"Department with ID {user_data.department_id} does not exist")
+        
+        # Validate stage exists if being updated
+        if user_data.stage_id is not None:
+            stage = await self.stage_repo.get_stage_by_id(user_data.stage_id)
+            if not stage:
+                raise BadRequestError(f"Stage with ID {user_data.stage_id} does not exist")
     
     
     async def _enrich_user_data(self, user: UserModel) -> User:
