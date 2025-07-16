@@ -87,7 +87,7 @@ class StageUpdate(BaseModel):
 
 
 # ========================================
-# ROLE SCHEMAS (moved from separate role.py file as per Arino's suggestion)
+# ROLE SCHEMAS
 # ========================================
 
 class Role(BaseModel):
