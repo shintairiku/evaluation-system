@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from ..models.user import Role
 from ...schemas.user import RoleCreate, RoleUpdate
@@ -62,13 +62,13 @@ class RoleRepository:
     
     async def get_user_roles(self, user_id) -> List[Role]:
         """Get user roles by user ID."""
-        query = text("""
-            SELECT r.id, r.name, r.description 
-            FROM roles r
-            INNER JOIN user_roles ur ON r.id = ur.role_id
-            WHERE ur.user_id = :user_id
-            ORDER BY r.name
-        """)
-        result = await self.session.execute(query, {"user_id": user_id})
-        rows = result.fetchall()
-        return [Role(id=row.id, name=row.name, description=row.description) for row in rows]
+        from ..models.user import user_roles
+        
+        query = (
+            select(Role)
+            .join(user_roles, Role.id == user_roles.c.role_id)
+            .where(user_roles.c.user_id == user_id)
+            .order_by(Role.name)
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
