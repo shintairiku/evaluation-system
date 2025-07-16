@@ -1,16 +1,17 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Table, Date, text
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
 from .base import Base
+from .role import Role
 
 # Association table for user-role many-to-many relationship
 user_roles = Table(
     'user_roles',
     Base.metadata,
     Column('user_id', PostgreSQLUUID(as_uuid=True), ForeignKey('users.id'), primary_key=True),
-    Column('role_id', Integer, ForeignKey('roles.id'), primary_key=True)
+    Column('role_id', PostgreSQLUUID(as_uuid=True), ForeignKey('roles.id'), primary_key=True)
 )
 
 
@@ -67,16 +68,6 @@ class Stage(Base):
     # Relationships
     users = relationship("User", back_populates="stage")
 
-
-class Role(Base):
-    __tablename__ = "roles"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(50), nullable=False)
-    description = Column(String(200), nullable=False)
-
-    # Relationships
-    users = relationship("User", secondary="user_roles", back_populates="roles")
 
 
 class UserSupervisor(Base):
