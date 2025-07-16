@@ -7,7 +7,6 @@ from ..database.repositories.department_repo import DepartmentRepository
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User
-from ..utils.user_relationships import UserRelationshipManager
 from ..schemas.auth import AuthUser
 from ..schemas.user import UserDetailResponse, Department, Stage, Role, UserProfileOption, UserExistsResponse, UserStatus
 from ..core.clerk_config import get_clerk_config
@@ -23,7 +22,6 @@ class AuthService:
         self.department_repo = DepartmentRepository(session)
         self.stage_repo = StageRepository(session)
         self.role_repo = RoleRepository(session)
-        self.relationship_manager = UserRelationshipManager(session)
         
         # Initialize Clerk client
         clerk_config = get_clerk_config()
