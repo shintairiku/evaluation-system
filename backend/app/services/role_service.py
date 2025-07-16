@@ -94,12 +94,12 @@ class RoleService:
         """
         try:
             # Permission check - require read access
-            current_user_context.require_any_permission([
-                Permission.USER_MANAGE,
-                Permission.USER_READ_ALL,
-                Permission.USER_READ_SUBORDINATES,
-                Permission.USER_READ_SELF
             # Current RBAC is not set; all users can read all roles
+            
+            # Get all roles from repository
+            roles = await self.role_repo.get_all()
+            
+            # Convert to response schemas
             role_details = []
             for role in roles:
                 role_detail = await self._enrich_role_data(role)
@@ -197,24 +197,6 @@ class RoleService:
             await self.session.rollback()
             logger.error(f"Error deleting role {role_id}: {str(e)}")
             raise
-    
-    async def get_all_roles(self) -> List[Role]:
-        """
-        Get all roles for user selection (legacy method for backward compatibility)
-        
-        Returns:
-            List[Role]: All available roles
-        """
-        roles = await self.role_repo.get_all()
-        
-        return [
-            Role(
-                id=role.id,
-                name=role.name,
-                description=role.description
-            )
-            for role in roles
-        ]
     
     # Private helper methods
     
