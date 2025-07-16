@@ -152,3 +152,27 @@ export interface UserList {
 export interface UserProfile extends UserDetailResponse {
   // Additional profile-specific fields can be added here
 }
+
+export interface UserProfileOption {
+  id: UUID;
+  name: string;
+  email: string;
+  employee_code: string;
+  job_title?: string;
+  roles: Role[];
+}
+
+export interface UserExistsResponse {
+  exists: boolean;
+  user_id?: UUID | null;
+  name?: string | null;
+  email?: string | null;
+  status?: string | null;
+}
+
+export interface ProfileOptionsResponse {
+  departments: Department[];
+  stages: Stage[];
+  roles: Role[];
+  users: UserProfileOption[];
+}

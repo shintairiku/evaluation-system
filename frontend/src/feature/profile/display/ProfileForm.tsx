@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { signupAction } from '@/api/server-actions/auth';
+import { createUserAction } from '@/api/server-actions/users';
 import type { Department, Stage, Role } from '@/api/types/user';
-import type { UserProfileOption } from '@/api/types/auth';
+import type { UserProfileOption } from '@/api/types/user';
 
 interface ProfileFormProps {
   departments: Department[];
@@ -34,14 +34,35 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
     supervisor_id: ''
   });
 
-  // Separate users by role
-  const supervisors = users.filter(user => 
-    user.roles.some(role => role.name === 'supervisor' || role.name === 'admin')
-  );
-  const employees = users.filter(user => 
-    user.roles.some(role => role.name === 'employee') && 
-    !user.roles.some(role => role.name === 'supervisor' || role.name === 'admin')
-  );
+  const [supervisorSearch, setSupervisorSearch] = useState('');
+  const [supervisorDropdownOpen, setSupervisorDropdownOpen] = useState(false);
+  const supervisorDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Filter users based on search term
+  const filteredUsers = users.filter(user => {
+    const searchTerm = supervisorSearch.toLowerCase();
+    return (
+      user.name.toLowerCase().includes(searchTerm) ||
+      user.employee_code.toLowerCase().includes(searchTerm) ||
+      (user.job_title && user.job_title.toLowerCase().includes(searchTerm)) ||
+      user.roles.some(role => role.name.toLowerCase().includes(searchTerm))
+    );
+  });
+
+  // Get selected user info for display
+  const selectedUser = users.find(user => user.id === formData.supervisor_id);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (supervisorDropdownRef.current && !supervisorDropdownRef.current.contains(event.target as Node)) {
+        setSupervisorDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -59,6 +80,20 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
     }));
   };
 
+  const handleSupervisorSelect = (userId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      supervisor_id: userId
+    }));
+    setSupervisorDropdownOpen(false);
+    setSupervisorSearch('');
+  };
+
+  const handleSupervisorSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSupervisorSearch(e.target.value);
+    setSupervisorDropdownOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -69,6 +104,11 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
 
     if (!formData.employee_code || !formData.department_id || !formData.stage_id) {
       setError('必須項目をすべて入力してください。');
+      return;
+    }
+
+    if (formData.role_ids.length === 0) {
+      setError('少なくとも1つの役割を選択してください。');
       return;
     }
 
@@ -89,10 +129,12 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
         job_title: formData.job_title || undefined,
         department_id: formData.department_id,
         stage_id: formData.stage_id,
-        supervisor_id: formData.supervisor_id || undefined
+        role_ids: formData.role_ids, // Use selected roles from form
+        supervisor_id: formData.supervisor_id || undefined,
+        subordinate_ids: [] // Default empty array for signup
       };
 
-      const result = await signupAction(signupData);
+      const result = await createUserAction(signupData);
 
       if (result.success) {
         // Update Clerk metadata to indicate profile completion
@@ -213,37 +255,73 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="supervisor_id">上司の選択（任意）</Label>
-            <Select
-              id="supervisor_id"
-              name="supervisor_id"
-              value={formData.supervisor_id}
-              onChange={handleInputChange}
-            >
-              <option value="">上司を選択してください</option>
-              
-              {supervisors.length > 0 && (
-                <optgroup label="管理職・スーパーバイザー">
-                  {supervisors.map((supervisor) => (
-                    <option key={supervisor.id} value={supervisor.id}>
-                      {supervisor.name} ({supervisor.employee_code}) - {supervisor.job_title || '役職なし'}
-                    </option>
-                  ))}
-                </optgroup>
+            <Label htmlFor="supervisor_search">上司の選択（任意）</Label>
+            <div className="relative" ref={supervisorDropdownRef}>
+              {selectedUser ? (
+                <div className="flex items-center justify-between p-2 border rounded-md bg-gray-50">
+                  <span className="text-sm">
+                    {selectedUser.name} ({selectedUser.employee_code})
+                    {selectedUser.job_title && ` - ${selectedUser.job_title}`}
+                    {selectedUser.roles.length > 0 && (
+                      <span className="text-gray-500 ml-2">
+                        [{selectedUser.roles.map(role => role.description).join(', ')}]
+                      </span>
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFormData(prev => ({ ...prev, supervisor_id: '' }))}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  id="supervisor_search"
+                  type="text"
+                  placeholder="上司を検索... (名前、社員番号、役職、または役割)"
+                  value={supervisorSearch}
+                  onChange={handleSupervisorSearchChange}
+                  onFocus={() => setSupervisorDropdownOpen(true)}
+                />
               )}
               
-              {employees.length > 0 && (
-                <optgroup label="一般社員">
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name} ({employee.employee_code}) - {employee.job_title || '役職なし'}
-                    </option>
-                  ))}
-                </optgroup>
+              {supervisorDropdownOpen && !selectedUser && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {filteredUsers.length > 0 ? (
+                    filteredUsers.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        className="w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
+                        onClick={() => handleSupervisorSelect(user.id)}
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-medium">{user.name}</span>
+                          <span className="text-sm text-gray-500">
+                            社員番号: {user.employee_code}
+                            {user.job_title && ` | 役職: ${user.job_title}`}
+                          </span>
+                          {user.roles.length > 0 && (
+                            <span className="text-xs text-blue-600">
+                              役割: {user.roles.map(role => role.description).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-gray-500">
+                      検索結果がありません
+                    </div>
+                  )}
+                </div>
               )}
-            </Select>
+            </div>
             <p className="text-sm text-gray-500">
-              通常は管理職・スーパーバイザーから選択してください。
+              名前、社員番号、役職、または役割で検索できます。
             </p>
           </div>
 
