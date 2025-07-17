@@ -161,6 +161,7 @@ export interface UserList {
 
 export interface UserProfile extends UserDetailResponse {
   // Additional profile-specific fields can be added here
+  last_login_at?: string;
 }
 
 export interface UserProfileOption {
