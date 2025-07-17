@@ -460,19 +460,27 @@ This document provides granular, actionable tickets for connecting the existing 
 **Complexity**: Medium (M)
 **Files to modify**:
 - `frontend/src/utils/error-handling.ts` (new)
-- `frontend/src/api/client/http-client.ts`
+- `frontend/src/api/client/http-unified-client.ts` (new)
+- `frontend/src/api/client/auth-helper.ts` (new)
+- `frontend/src/api/hooks/useAuthSync.ts` (new)
+- `frontend/src/api/client/http-client.ts` (updated for backward compatibility)
 
-**Description**: Create standardized error handling patterns across the application.
+**Description**: Create standardized error handling patterns across the application and implement unified HTTP client for both server-side and client-side contexts.
 
 **Requirements**:
 - Centralized error handling utility
 - Consistent error message formatting
 - Error logging and reporting
+- Unified HTTP client supporting both server and client environments
+- Automatic environment detection and appropriate auth handling
 
 **Acceptance Criteria**:
-- [ ] All API errors handle consistently
-- [ ] User-friendly error messages
-- [ ] Errors are properly logged
+- [x] All API errors handle consistently
+- [x] User-friendly error messages (Japanese)
+- [x] Errors are properly logged with severity levels
+- [x] Unified HTTP client works in both server and client contexts
+- [x] Automatic Clerk auth integration for both environments
+- [x] Backward compatibility maintained for existing code
 
 **Dependencies**: None
 
