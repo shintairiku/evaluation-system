@@ -56,7 +56,6 @@ class Department(Base):
     users = relationship("User", back_populates="department")
 
 
-
 class Role(Base):
     __tablename__ = "roles"
 
