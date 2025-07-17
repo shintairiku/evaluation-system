@@ -1,7 +1,8 @@
 import { auth } from '@clerk/nextjs/server';
 import { API_CONFIG } from '../constants/config';
+import { createAppError, logError } from '../../utils/error-handling';
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -11,7 +12,7 @@ export interface ApiResponse<T = any> {
 export interface RequestConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   headers?: Record<string, string>;
-  body?: any;
+  body?: unknown;
 }
 
 class HttpClient {
@@ -54,29 +55,55 @@ class HttpClient {
 
   private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
     const contentType = response.headers.get('content-type');
-    let data: any;
+    let data: unknown;
 
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
-    } else {
-      data = await response.text();
+    try {
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
+    } catch (parseError) {
+      const appError = createAppError(
+        parseError,
+        response.status,
+        'Response parsing failed'
+      );
+      logError(appError, 'HTTP Client - Response Parsing');
+      
+      return {
+        success: false,
+        error: appError.userMessage,
+        data: undefined,
+      };
     }
 
     if (!response.ok) {
+      const errorMessage = (data as { message?: string; error?: string })?.message || 
+                          (data as { message?: string; error?: string })?.error || 
+                          `HTTP ${response.status}: ${response.statusText}`;
+      
+      const appError = createAppError(
+        new Error(errorMessage),
+        response.status,
+        `API request failed: ${response.url}`
+      );
+      logError(appError, 'HTTP Client - API Error');
+      
       return {
         success: false,
-        error: data?.message || data?.error || `HTTP ${response.status}: ${response.statusText}`,
-        data: data,
+        error: appError.userMessage,
+        data: data as T,
       };
     }
 
     return {
       success: true,
-      data: data,
+      data: data as T,
     };
   }
 
-  async request<T = any>(
+  async request<T = unknown>(
     endpoint: string,
     config: RequestConfig = {}
   ): Promise<ApiResponse<T>> {
@@ -109,34 +136,37 @@ class HttpClient {
       
       return result;
     } catch (error) {
-      console.error('HTTP Client: Fetch error:', error);
-      console.error('HTTP Client: Error type:', typeof error);
-      console.error('HTTP Client: Error message:', error instanceof Error ? error.message : String(error));
+      const appError = createAppError(
+        error,
+        undefined,
+        `Network request failed: ${method} ${endpoint}`
+      );
+      logError(appError, 'HTTP Client - Network Error');
       
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Network error occurred',
+        error: appError.userMessage,
       };
     }
   }
 
-  async get<T = any>(endpoint: string, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+  async get<T = unknown>(endpoint: string, headers?: Record<string, string>): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET', headers });
   }
 
-  async post<T = any>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+  async post<T = unknown>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'POST', body, headers });
   }
 
-  async put<T = any>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+  async put<T = unknown>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'PUT', body, headers });
   }
 
-  async delete<T = any>(endpoint: string, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+  async delete<T = unknown>(endpoint: string, headers?: Record<string, string>): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE', headers });
   }
 
-  async patch<T = any>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+  async patch<T = unknown>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'PATCH', body, headers });
   }
 }
