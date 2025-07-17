@@ -8,7 +8,7 @@ export * from './auth';
 export * from './user';
 
 // API Response wrapper type
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
