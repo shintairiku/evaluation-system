@@ -162,13 +162,7 @@ export interface UserProfileOption {
   roles: Role[];
 }
 
-export interface UserExistsResponse {
-  exists: boolean;
-  user_id?: UUID | null;
-  name?: string | null;
-  email?: string | null;
-  status?: string | null;
-}
+// UserExistsResponse moved to auth.ts to avoid circular imports
 
 export interface ProfileOptionsResponse {
   departments: Department[];
