@@ -158,7 +158,7 @@ function getUserMessage(
 export function createAppError(
   error: unknown,
   statusCode?: number,
-  _context?: string
+  context?: string
 ): AppError {
   const originalMessage = error instanceof Error ? error.message : String(error);
   const type = categorizeError(statusCode, error);
@@ -169,7 +169,7 @@ export function createAppError(
   return {
     type,
     severity,
-    message: originalMessage,
+    message: context ? `${context}: ${originalMessage}` : originalMessage,
     originalError: error,
     statusCode,
     timestamp: new Date().toISOString(),
