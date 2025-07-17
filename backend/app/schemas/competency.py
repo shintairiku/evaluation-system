@@ -22,6 +22,19 @@ class CompetencyUpdate(BaseModel):
     stage_id: Optional[UUID] = Field(None, alias="stageId")
 
 
+class CompetencyInDB(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    stage_id: UUID = Field(..., alias="stageId")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
 class Competency(CompetencyCreate):
     id: UUID
     # stage: "Stage"
@@ -55,6 +68,7 @@ class CompetencyList(BaseModel):
 # This needs to be done after all models are defined
 try:
     # Rebuild models that have forward references
+    CompetencyInDB.model_rebuild()
     Competency.model_rebuild()
     CompetencyDetail.model_rebuild()
     CompetencyList.model_rebuild()
