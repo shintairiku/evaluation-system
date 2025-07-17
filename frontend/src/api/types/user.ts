@@ -40,6 +40,16 @@ export interface Stage {
   description?: string;
 }
 
+// Temporary Competency interface - will be moved to separate file when competency module is implemented
+export interface Competency {
+  id: UUID;
+  name: string;
+  description?: string;
+  stage_id: UUID;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface StageDetail {
   id: UUID;
   name: string;
@@ -49,7 +59,7 @@ export interface StageDetail {
   user_count?: number;
   competency_count?: number;
   users?: PaginatedResponse<UserDetailResponse>;
-  competencies?: any[]; // TODO: Define Competency type
+  competencies?: Competency[]; // TODO: Define Competency type when competency module is implemented
 }
 
 export interface StageCreate {
