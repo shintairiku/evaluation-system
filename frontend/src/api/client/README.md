@@ -97,9 +97,65 @@ All API calls return a standardized response:
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
-  error?: string;
-  message?: string;
+  errorMessage?: string;  // Preferred unified error message
+  error?: string;         // Deprecated: use errorMessage
+  message?: string;       // Deprecated: use errorMessage
 }
+```
+
+**Note**: Use `response.errorMessage` for new code. The `error` and `message` properties are kept for backward compatibility.
+
+## File Upload Support
+
+The unified client includes built-in support for file uploads:
+
+### Single File Upload
+
+```typescript
+const httpClient = getHttpClient();
+
+// Upload a single file
+const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+const file = fileInput.files?.[0];
+
+if (file) {
+  const response = await httpClient.uploadFile(
+    '/api/users/123/avatar',
+    file,
+    'avatar', // field name
+    { userId: '123' } // additional form fields
+  );
+  
+  if (response.success) {
+    console.log('Upload successful:', response.data);
+  } else {
+    console.error('Upload failed:', response.errorMessage);
+  }
+}
+```
+
+### Multiple File Upload
+
+```typescript
+const files = Array.from(fileInput.files || []);
+
+const response = await httpClient.uploadFiles(
+  '/api/documents/upload',
+  files,
+  'documents',
+  { category: 'reports' }
+);
+```
+
+### Manual FormData Usage
+
+```typescript
+const formData = new FormData();
+formData.append('file', file);
+formData.append('metadata', JSON.stringify({ type: 'avatar' }));
+
+const response = await httpClient.post('/api/upload', formData);
+// Content-Type header automatically handled for FormData
 ```
 
 ## Migration from Old Client
