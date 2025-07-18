@@ -4,10 +4,10 @@ from typing import Optional, List, TYPE_CHECKING
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from uuid import UUID
 
-from .common import Permission, PaginatedResponse
+from .common import PaginatedResponse
 
 if TYPE_CHECKING:
-    from .competency import Competency
+    pass
 
 
 # ========================================
@@ -87,32 +87,57 @@ class StageUpdate(BaseModel):
 
 
 # ========================================
-# ROLE SCHEMAS
+# ROLE SCHEMAS (imported from role module)
 # ========================================
 
-class Role(BaseModel):
-    """Role information"""
-    id: int
-    name: str
-    description: Optional[str] = None
-
-
-class RoleDetail(BaseModel):
-    id: int
-    name: str
-    description: str
-    permissions: List[Permission]
-    user_count: Optional[int] = None
-
-
-class RoleCreate(BaseModel):
+class RoleBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
     description: str = Field(..., min_length=1, max_length=200)
+
+
+class RoleCreate(RoleBase):
+    hierarchy_order: Optional[int] = Field(None, description="Optional hierarchy order. If not specified, will be set to max+1")
 
 
 class RoleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=50)
     description: Optional[str] = Field(None, min_length=1, max_length=200)
+    # Note: hierarchy_order is not included here - use reorder endpoints instead
+
+
+class Role(RoleBase):
+    id: UUID
+    hierarchy_order: int
+    created_at: str
+    updated_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class RoleReorderItem(BaseModel):
+    """Single item for role reordering"""
+    id: UUID
+    hierarchy_order: int = Field(..., ge=1, description="New hierarchy order position (1 = highest authority)")
+
+
+class RoleReorderRequest(BaseModel):
+    """Request to reorder multiple roles via drag-and-drop"""
+    roles: List[RoleReorderItem] = Field(..., min_items=1, description="List of roles with their new hierarchy orders")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "roles": [
+                    {"id": "550e8400-e29b-41d4-a716-446655440000", "hierarchy_order": 1},
+                    {"id": "550e8400-e29b-41d4-a716-446655440001", "hierarchy_order": 2},
+                    {"id": "550e8400-e29b-41d4-a716-446655440002", "hierarchy_order": 3}
+                ]
+            }
+        }
+
+
+
 
 
 # ========================================
@@ -183,6 +208,12 @@ class User(UserInDB):
     stage: Stage
     roles: List[Role] = []
 
+class RoleDetail(Role):
+    """Extended role information for detailed views"""
+    # TODO: add users once implement Goals domain
+    user_count: Optional[int] = Field(None, description="Number of users with this role")
+    users: Optional[PaginatedResponse['User']] = None 
+
 class UserDetailResponse(BaseModel):
     id: UUID
     clerk_user_id: str
@@ -229,6 +260,7 @@ try:
     # Rebuild models that have forward references
     DepartmentDetail.model_rebuild()
     StageDetail.model_rebuild()
+    RoleDetail.model_rebuild()
     User.model_rebuild()
     UserDetailResponse.model_rebuild()
 except Exception:
