@@ -473,6 +473,9 @@ This document provides granular, actionable tickets for connecting the existing 
 - Error logging and reporting
 - Unified HTTP client supporting both server and client environments
 - Automatic environment detection and appropriate auth handling
+- Enhanced request body handling (JSON, FormData, file uploads)
+- Unified error response format for better clarity
+- Proper Content-Type header management for different body types
 
 **Acceptance Criteria**:
 - [x] All API errors handle consistently
@@ -481,6 +484,9 @@ This document provides granular, actionable tickets for connecting the existing 
 - [x] Unified HTTP client works in both server and client contexts
 - [x] Automatic Clerk auth integration for both environments
 - [x] Backward compatibility maintained for existing code
+- [x] FormData and file upload support with proper Content-Type handling
+- [x] Unified error response format (single errorMessage property)
+- [x] Automatic Content-Type detection and header management
 
 **Dependencies**: None
 
