@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { MultiSelectRoles } from '@/components/ui/multi-select-roles';
 import { createUserAction } from '@/api/server-actions/users';
 import type { Department, Stage, Role } from '@/api/types/user';
 import type { UserProfileOption } from '@/api/types/user';
@@ -72,11 +73,10 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
     }));
   };
 
-  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOptions = Array.from(e.target.selectedOptions, option => parseInt(option.value));
+  const handleRoleSelectionChange = (selectedIds: number[]) => {
     setFormData(prev => ({
       ...prev,
-      role_ids: selectedOptions
+      role_ids: selectedIds
     }));
   };
 
@@ -232,27 +232,12 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="role_ids">役割 *</Label>
-            <Select
-              id="role_ids"
-              name="role_ids"
-              multiple
-              value={formData.role_ids.map(String)}
-              onChange={handleRoleChange}
-              required
-              className="min-h-[100px]"
-            >
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name} - {role.description}
-                </option>
-              ))}
-            </Select>
-            <p className="text-sm text-gray-500">
-              複数選択可能です。Ctrl/Cmd キーを押しながらクリックしてください。
-            </p>
-          </div>
+          <MultiSelectRoles
+            roles={roles}
+            selectedRoleIds={formData.role_ids}
+            onSelectionChange={handleRoleSelectionChange}
+            required={true}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="supervisor_search">上司の選択（任意）</Label>
