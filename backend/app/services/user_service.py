@@ -486,7 +486,7 @@ class UserService:
         # Convert SQLAlchemy models to Pydantic models
         departments = [Department.model_validate(dept, from_attributes=True) for dept in departments_data]
         stages = [Stage.model_validate(stage, from_attributes=True) for stage in stages_data]
-        roles = [Role(id=role.id, name=role.name, description=role.description) for role in roles_data]
+        roles = [Role.model_validate(role, from_attributes=True) for role in roles_data]
         
         # Create simple user options without complex relationships
         users = []
@@ -497,7 +497,7 @@ class UserService:
                 email=user_data.email,
                 employee_code=user_data.employee_code,
                 job_title=user_data.job_title,
-                roles=[Role(id=role.id, name=role.name, description=role.description) for role in user_data.roles]
+                roles=[Role.model_validate(role, from_attributes=True) for role in user_data.roles]
             )
             users.append(user_option)
         
@@ -655,7 +655,7 @@ class UserService:
         
         # Get roles using repository
         role_models = await self.role_repo.get_user_roles(user.id)
-        roles = [Role(id=role.id, name=role.name, description=role.description) for role in role_models]
+        roles = [Role.model_validate(role, from_attributes=True) for role in role_models]
 
         # Use UserInDB to validate basic user data first
         user_in_db = UserInDB.model_validate(user, from_attributes=True)
