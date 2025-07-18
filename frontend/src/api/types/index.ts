@@ -11,6 +11,9 @@ export * from './user';
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
+  errorMessage?: string;
+  /** @deprecated Use errorMessage instead */
   error?: string;
+  /** @deprecated Use errorMessage instead */
   message?: string;
 }
