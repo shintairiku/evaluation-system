@@ -497,18 +497,27 @@ This document provides granular, actionable tickets for connecting the existing 
 **Files to modify**:
 - `frontend/src/hooks/useLoading.ts` (new)
 - `frontend/src/context/LoadingContext.tsx` (new)
+- `frontend/src/components/ui/loading-spinner.tsx` (new)
+- `frontend/src/components/ui/loading-skeleton.tsx` (new)
+- `frontend/src/components/ui/loading-button.tsx` (new)
 
-**Description**: Implement consistent loading state management across components.
+**Description**: Implement consistent loading state management across components with comprehensive UI patterns.
 
 **Requirements**:
-- Global loading context
-- Loading hook for components
-- Consistent loading UI patterns
+- Global loading context with key-based state management
+- Loading hook for components with automatic cleanup
+- Multiple loading patterns (spinner, skeleton, button states)
+- Support for concurrent loading operations
+- Consistent loading UI patterns across the application
 
 **Acceptance Criteria**:
-- [ ] Loading states work consistently
-- [ ] Multiple loading operations handled
-- [ ] Loading UI is user-friendly
+- [x] Global loading context provider with key-based state management
+- [x] useLoading hook with withLoading wrapper for async operations
+- [x] Multiple loading hooks (useGlobalLoading, useMultipleLoading)
+- [x] Comprehensive loading UI components (spinner, skeleton, button)
+- [x] Automatic cleanup on component unmount
+- [x] Support for multiple concurrent loading operations
+- [x] User-friendly loading indicators with Japanese text support
 
 **Dependencies**: None
 
