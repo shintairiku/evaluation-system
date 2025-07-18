@@ -163,7 +163,7 @@ class UserCreate(UserBase):
     clerk_user_id: str = Field(..., min_length=1)
     department_id: Optional[UUID] = None
     stage_id: Optional[UUID] = None
-    role_ids: List[int] = []
+    role_ids: List[UUID] = []
     supervisor_id: Optional[UUID] = None
     subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = UserStatus.PENDING_APPROVAL
@@ -177,7 +177,7 @@ class UserUpdate(BaseModel):
     job_title: Optional[str] = Field(None, max_length=100)
     department_id: Optional[UUID] = None
     stage_id: Optional[UUID] = None
-    role_ids: Optional[List[int]] = Field(None, min_items=0, max_items=10)
+    role_ids: Optional[List[UUID]] = Field(None, min_items=0, max_items=10)
     supervisor_id: Optional[UUID] = None
     subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = None
