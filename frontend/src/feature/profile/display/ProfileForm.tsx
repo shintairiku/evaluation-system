@@ -1,14 +1,30 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MultiSelectRoles } from '@/components/ui/multi-select-roles';
+import { 
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 import { createUserAction } from '@/api/server-actions/users';
 import type { Department, Stage, Role } from '@/api/types/user';
 import type { UserProfileOption } from '@/api/types/user';
@@ -35,41 +51,27 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
     supervisor_id: ''
   });
 
-  const [supervisorSearch, setSupervisorSearch] = useState('');
-  const [supervisorDropdownOpen, setSupervisorDropdownOpen] = useState(false);
-  const supervisorDropdownRef = useRef<HTMLDivElement>(null);
+  const [supervisorPopoverOpen, setSupervisorPopoverOpen] = useState(false);
 
-  // Filter users based on search term
-  const filteredUsers = users.filter(user => {
-    const searchTerm = supervisorSearch.toLowerCase();
-    return (
-      user.name.toLowerCase().includes(searchTerm) ||
-      user.employee_code.toLowerCase().includes(searchTerm) ||
-      (user.job_title && user.job_title.toLowerCase().includes(searchTerm)) ||
-      user.roles.some(role => role.name.toLowerCase().includes(searchTerm))
-    );
-  });
+  // Get available users for supervisor selection (excluding current user if editing)
+  const availableUsers = users;
 
   // Get selected user info for display
   const selectedUser = users.find(user => user.id === formData.supervisor_id);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (supervisorDropdownRef.current && !supervisorDropdownRef.current.contains(event.target as Node)) {
-        setSupervisorDropdownOpen(false);
-      }
-    };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleSelectChange = (field: string) => (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
     }));
   };
 
@@ -85,13 +87,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
       ...prev,
       supervisor_id: userId
     }));
-    setSupervisorDropdownOpen(false);
-    setSupervisorSearch('');
-  };
-
-  const handleSupervisorSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSupervisorSearch(e.target.value);
-    setSupervisorDropdownOpen(true);
+    setSupervisorPopoverOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -198,37 +194,43 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
 
           <div className="space-y-2">
             <Label htmlFor="department_id">部署 *</Label>
-            <Select
-              id="department_id"
-              name="department_id"
-              value={formData.department_id}
-              onChange={handleInputChange}
-              required
-            >
-              <option value="">部署を選択してください</option>
-              {departments.map((dept) => (
-                <option key={dept.id} value={dept.id}>
-                  {dept.name}
-                </option>
-              ))}
+            <Select value={formData.department_id} onValueChange={handleSelectChange('department_id')} required>
+              <SelectTrigger>
+                <SelectValue placeholder="部署を選択してください" />
+              </SelectTrigger>
+              <SelectContent>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{dept.name}</span>
+                      {dept.description && (
+                        <span className="text-xs text-gray-500">{dept.description}</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="stage_id">段階 *</Label>
-            <Select
-              id="stage_id"
-              name="stage_id"
-              value={formData.stage_id}
-              onChange={handleInputChange}
-              required
-            >
-              <option value="">段階を選択してください</option>
-              {stages.map((stage) => (
-                <option key={stage.id} value={stage.id}>
-                  {stage.name}
-                </option>
-              ))}
+            <Select value={formData.stage_id} onValueChange={handleSelectChange('stage_id')} required>
+              <SelectTrigger>
+                <SelectValue placeholder="段階を選択してください" />
+              </SelectTrigger>
+              <SelectContent>
+                {stages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{stage.name}</span>
+                      {stage.description && (
+                        <span className="text-xs text-gray-500">{stage.description}</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
 
@@ -240,71 +242,83 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
           />
 
           <div className="space-y-2">
-            <Label htmlFor="supervisor_search">上司の選択（任意）</Label>
-            <div className="relative" ref={supervisorDropdownRef}>
-              {selectedUser ? (
-                <div className="flex items-center justify-between p-2 border rounded-md bg-gray-50">
-                  <span className="text-sm">
-                    {selectedUser.name} ({selectedUser.employee_code})
-                    {selectedUser.job_title && ` - ${selectedUser.job_title}`}
-                    {selectedUser.roles.length > 0 && (
-                      <span className="text-gray-500 ml-2">
-                        [{selectedUser.roles.map(role => role.description).join(', ')}]
-                      </span>
-                    )}
+            <Label>上司の選択（任意）</Label>
+            
+            {selectedUser ? (
+              <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
+                <div className="flex flex-col">
+                  <span className="font-medium">{selectedUser.name}</span>
+                  <span className="text-sm text-gray-500">
+                    社員番号: {selectedUser.employee_code}
+                    {selectedUser.job_title && ` | 役職: ${selectedUser.job_title}`}
                   </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFormData(prev => ({ ...prev, supervisor_id: '' }))}
-                  >
-                    ×
-                  </Button>
-                </div>
-              ) : (
-                <Input
-                  id="supervisor_search"
-                  type="text"
-                  placeholder="上司を検索... (名前、社員番号、役職、または役割)"
-                  value={supervisorSearch}
-                  onChange={handleSupervisorSearchChange}
-                  onFocus={() => setSupervisorDropdownOpen(true)}
-                />
-              )}
-              
-              {supervisorDropdownOpen && !selectedUser && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {filteredUsers.length > 0 ? (
-                    filteredUsers.map((user) => (
-                      <button
-                        key={user.id}
-                        type="button"
-                        className="w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
-                        onClick={() => handleSupervisorSelect(user.id)}
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-medium">{user.name}</span>
-                          <span className="text-sm text-gray-500">
-                            社員番号: {user.employee_code}
-                            {user.job_title && ` | 役職: ${user.job_title}`}
-                          </span>
-                          {user.roles.length > 0 && (
-                            <span className="text-xs text-blue-600">
-                              役割: {user.roles.map(role => role.description).join(', ')}
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-gray-500">
-                      検索結果がありません
+                  {selectedUser.roles.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedUser.roles.map(role => (
+                        <Badge key={role.id} variant="secondary" className="text-xs">
+                          {role.description}
+                        </Badge>
+                      ))}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFormData(prev => ({ ...prev, supervisor_id: '' }))}
+                >
+                  ×
+                </Button>
+              </div>
+            ) : (
+              <Popover open={supervisorPopoverOpen} onOpenChange={setSupervisorPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    上司を選択してください...
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="名前、社員番号、役職で検索..." />
+                    <CommandList>
+                      <CommandEmpty>検索結果がありません</CommandEmpty>
+                      <CommandGroup>
+                        {availableUsers.map((user) => (
+                          <CommandItem
+                            key={user.id}
+                            value={`${user.name} ${user.employee_code} ${user.job_title || ''} ${user.roles.map(r => r.name).join(' ')}`}
+                            onSelect={() => handleSupervisorSelect(user.id)}
+                          >
+                            <div className="flex flex-col w-full">
+                              <span className="font-medium">{user.name}</span>
+                              <span className="text-sm text-gray-500">
+                                社員番号: {user.employee_code}
+                                {user.job_title && ` | 役職: ${user.job_title}`}
+                              </span>
+                              {user.roles.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {user.roles.map(role => (
+                                    <Badge key={role.id} variant="outline" className="text-xs">
+                                      {role.description}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
+            
             <p className="text-sm text-gray-500">
               名前、社員番号、役職、または役割で検索できます。
             </p>
