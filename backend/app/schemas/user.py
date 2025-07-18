@@ -4,7 +4,7 @@ from typing import Optional, List, TYPE_CHECKING
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from uuid import UUID
 
-from .common import PaginatedResponse
+from .common import PaginatedResponse, Permission
 
 if TYPE_CHECKING:
     pass
@@ -87,7 +87,7 @@ class StageUpdate(BaseModel):
 
 
 # ========================================
-# ROLE SCHEMAS (imported from role module)
+# ROLE SCHEMAS 
 # ========================================
 
 class RoleBase(BaseModel):
@@ -108,25 +108,35 @@ class RoleUpdate(BaseModel):
 class Role(RoleBase):
     id: UUID
     hierarchy_order: int
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
+
+class RoleDetail(BaseModel):
+    """Schema for detailed role information"""
+    id: UUID
+    name: str
+    description: str
+    created_at: datetime
+    updated_at: datetime
+    permissions: Optional[List[Permission]] = []
+    user_count: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 class RoleReorderItem(BaseModel):
     """Single item for role reordering"""
     id: UUID
     hierarchy_order: int = Field(..., ge=1, description="New hierarchy order position (1 = highest authority)")
 
-
 class RoleReorderRequest(BaseModel):
     """Request to reorder multiple roles via drag-and-drop"""
     roles: List[RoleReorderItem] = Field(..., min_items=1, description="List of roles with their new hierarchy orders")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "roles": [
                     {"id": "550e8400-e29b-41d4-a716-446655440000", "hierarchy_order": 1},
@@ -135,9 +145,7 @@ class RoleReorderRequest(BaseModel):
                 ]
             }
         }
-
-
-
+    )
 
 
 # ========================================
@@ -163,7 +171,7 @@ class UserCreate(UserBase):
     clerk_user_id: str = Field(..., min_length=1)
     department_id: Optional[UUID] = None
     stage_id: Optional[UUID] = None
-    role_ids: List[int] = []
+    role_ids: List[UUID] = []
     supervisor_id: Optional[UUID] = None
     subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = UserStatus.PENDING_APPROVAL
@@ -177,7 +185,7 @@ class UserUpdate(BaseModel):
     job_title: Optional[str] = Field(None, max_length=100)
     department_id: Optional[UUID] = None
     stage_id: Optional[UUID] = None
-    role_ids: Optional[List[int]] = Field(None, min_items=0, max_items=10)
+    role_ids: Optional[List[UUID]] = Field(None, min_items=0, max_items=10)
     supervisor_id: Optional[UUID] = None
     subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = None
