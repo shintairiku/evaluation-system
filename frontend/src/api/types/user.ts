@@ -73,15 +73,20 @@ export interface StageUpdate {
 }
 
 export interface Role {
-  id: number;
+  id: UUID;
   name: string;
   description: string;
+  hierarchy_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface RoleDetail {
-  id: number;
+  id: UUID;
   name: string;
   description: string;
+  created_at: string;
+  updated_at: string;
   permissions: Permission[];
   user_count?: number;
 }
@@ -89,11 +94,21 @@ export interface RoleDetail {
 export interface RoleCreate {
   name: string;
   description: string;
+  hierarchy_order?: number;
 }
 
 export interface RoleUpdate {
   name?: string;
   description?: string;
+}
+
+export interface RoleReorderItem {
+  id: UUID;
+  hierarchy_order: number;
+}
+
+export interface RoleReorderRequest {
+  roles: RoleReorderItem[];
 }
 
 export interface UserBase {
@@ -105,10 +120,11 @@ export interface UserBase {
 
 export interface UserCreate extends UserBase {
   clerk_user_id: string;
-  department_id: UUID;
-  stage_id: UUID;
-  role_ids?: number[];
+  department_id?: UUID;
+  stage_id?: UUID;
+  role_ids: UUID[];
   supervisor_id?: UUID;
+  subordinate_ids: UUID[];
   status?: UserStatus;
 }
 
@@ -119,7 +135,9 @@ export interface UserUpdate {
   job_title?: string;
   department_id?: UUID;
   stage_id?: UUID;
-  role_ids?: number[];
+  role_ids?: UUID[];
+  supervisor_id?: UUID;
+  subordinate_ids: UUID[];
   status?: UserStatus;
 }
 
@@ -148,10 +166,11 @@ export interface UserDetailResponse {
   email: string;
   status: UserStatus;
   job_title?: string;
-  department: Department;
-  stage: Stage;
+  department?: Department;
+  stage?: Stage;
   roles: Role[];
-  supervisor?: UserDetailResponse;
+  supervisor?: User;
+  subordinates?: User[];
 }
 
 export interface UserList {
@@ -173,7 +192,13 @@ export interface UserProfileOption {
   roles: Role[];
 }
 
-// UserExistsResponse moved to auth.ts to avoid circular imports
+export interface UserExistsResponse {
+  exists: boolean;
+  user_id?: UUID;
+  name?: string;
+  email?: string;
+  status?: UserStatus;
+}
 
 export interface ProfileOptionsResponse {
   departments: Department[];
