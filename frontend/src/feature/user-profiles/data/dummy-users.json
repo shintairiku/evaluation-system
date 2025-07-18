@@ -1,0 +1,383 @@
+
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "田中 太郎",
+    "email": "tanaka.taro@company.com",
+    "employee_code": "EMP001",
+    "job_title": "シニアマネージャー",
+    "status": "active",
+    "hire_date": "2020-04-01",
+    "last_login_at": "2025-01-15T10:30:00Z",
+    "created_at": "2020-04-01T09:00:00Z",
+    "updated_at": "2025-01-15T10:30:00Z",
+    "department": {
+      "id": "dept-001",
+      "name": "開発部",
+      "description": "システム開発を担当する部署"
+    },
+    "stage": {
+      "id": "stage-003",
+      "name": "シニア",
+      "description": "シニアレベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-002",
+        "name": "マネージャー",
+        "description": "チーム管理職"
+      }
+    ],
+    "supervisor": null,
+    "subordinates": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "name": "佐藤 花子",
+        "email": "sato.hanako@company.com",
+        "employee_code": "EMP002"
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440003",
+        "name": "山田 次郎",
+        "email": "yamada.jiro@company.com",
+        "employee_code": "EMP003"
+      }
+    ]
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "name": "佐藤 花子",
+    "email": "sato.hanako@company.com",
+    "employee_code": "EMP002",
+    "job_title": "システムエンジニア",
+    "status": "active",
+    "hire_date": "2021-04-01",
+    "last_login_at": "2025-01-15T09:45:00Z",
+    "created_at": "2021-04-01T09:00:00Z",
+    "updated_at": "2025-01-15T09:45:00Z",
+    "department": {
+      "id": "dept-001",
+      "name": "開発部",
+      "description": "システム開発を担当する部署"
+    },
+    "stage": {
+      "id": "stage-002",
+      "name": "ミドル",
+      "description": "中堅レベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-004",
+        "name": "従業員",
+        "description": "一般従業員"
+      }
+    ],
+    "supervisor": {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "田中 太郎",
+      "email": "tanaka.taro@company.com",
+      "employee_code": "EMP001"
+    },
+    "subordinates": null
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440003",
+    "name": "山田 次郎",
+    "email": "yamada.jiro@company.com",
+    "employee_code": "EMP003",
+    "job_title": "フロントエンドエンジニア",
+    "status": "active",
+    "hire_date": "2022-04-01",
+    "last_login_at": "2025-01-15T11:15:00Z",
+    "created_at": "2022-04-01T09:00:00Z",
+    "updated_at": "2025-01-15T11:15:00Z",
+    "department": {
+      "id": "dept-001",
+      "name": "開発部",
+      "description": "システム開発を担当する部署"
+    },
+    "stage": {
+      "id": "stage-001",
+      "name": "ジュニア",
+      "description": "新人・若手レベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-004",
+        "name": "従業員",
+        "description": "一般従業員"
+      }
+    ],
+    "supervisor": {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "田中 太郎",
+      "email": "tanaka.taro@company.com",
+      "employee_code": "EMP001"
+    },
+    "subordinates": null
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440004",
+    "name": "鈴木 一郎",
+    "email": "suzuki.ichiro@company.com",
+    "employee_code": "EMP004",
+    "job_title": "人事部長",
+    "status": "active",
+    "hire_date": "2018-04-01",
+    "last_login_at": "2025-01-15T08:30:00Z",
+    "created_at": "2018-04-01T09:00:00Z",
+    "updated_at": "2025-01-15T08:30:00Z",
+    "department": {
+      "id": "dept-002",
+      "name": "人事部",
+      "description": "人事・総務を担当する部署"
+    },
+    "stage": {
+      "id": "stage-004",
+      "name": "エキスパート",
+      "description": "専門職・管理職レベル"
+    },
+    "roles": [
+      {
+        "id": "role-002",
+        "name": "マネージャー",
+        "description": "チーム管理職"
+      },
+      {
+        "id": "role-001",
+        "name": "管理者",
+        "description": "システム管理者"
+      }
+    ],
+    "supervisor": null,
+    "subordinates": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440005",
+        "name": "高橋 美咲",
+        "email": "takahashi.misaki@company.com",
+        "employee_code": "EMP005"
+      }
+    ]
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440005",
+    "name": "高橋 美咲",
+    "email": "takahashi.misaki@company.com",
+    "employee_code": "EMP005",
+    "job_title": "人事担当",
+    "status": "active",
+    "hire_date": "2023-04-01",
+    "last_login_at": "2025-01-15T09:00:00Z",
+    "created_at": "2023-04-01T09:00:00Z",
+    "updated_at": "2025-01-15T09:00:00Z",
+    "department": {
+      "id": "dept-002",
+      "name": "人事部",
+      "description": "人事・総務を担当する部署"
+    },
+    "stage": {
+      "id": "stage-001",
+      "name": "ジュニア",
+      "description": "新人・若手レベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-004",
+        "name": "従業員",
+        "description": "一般従業員"
+      }
+    ],
+    "supervisor": {
+      "id": "550e8400-e29b-41d4-a716-446655440004",
+      "name": "鈴木 一郎",
+      "email": "suzuki.ichiro@company.com",
+      "employee_code": "EMP004"
+    },
+    "subordinates": null
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440006",
+    "name": "伊藤 博",
+    "email": "ito.hiroshi@company.com",
+    "employee_code": "EMP006",
+    "job_title": "営業部長",
+    "status": "active",
+    "hire_date": "2019-04-01",
+    "last_login_at": "2025-01-15T07:45:00Z",
+    "created_at": "2019-04-01T09:00:00Z",
+    "updated_at": "2025-01-15T07:45:00Z",
+    "department": {
+      "id": "dept-003",
+      "name": "営業部",
+      "description": "営業・販売を担当する部署"
+    },
+    "stage": {
+      "id": "stage-003",
+      "name": "シニア",
+      "description": "シニアレベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-002",
+        "name": "マネージャー",
+        "description": "チーム管理職"
+      }
+    ],
+    "supervisor": null,
+    "subordinates": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440007",
+        "name": "渡辺 恵子",
+        "email": "watanabe.keiko@company.com",
+        "employee_code": "EMP007"
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440008",
+        "name": "中村 健太",
+        "email": "nakamura.kenta@company.com",
+        "employee_code": "EMP008"
+      }
+    ]
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440007",
+    "name": "渡辺 恵子",
+    "email": "watanabe.keiko@company.com",
+    "employee_code": "EMP007",
+    "job_title": "営業主任",
+    "status": "active",
+    "hire_date": "2020-10-01",
+    "last_login_at": "2025-01-15T08:15:00Z",
+    "created_at": "2020-10-01T09:00:00Z",
+    "updated_at": "2025-01-15T08:15:00Z",
+    "department": {
+      "id": "dept-003",
+      "name": "営業部",
+      "description": "営業・販売を担当する部署"
+    },
+    "stage": {
+      "id": "stage-002",
+      "name": "ミドル",
+      "description": "中堅レベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-003",
+        "name": "スーパーバイザー",
+        "description": "現場監督者"
+      }
+    ],
+    "supervisor": {
+      "id": "550e8400-e29b-41d4-a716-446655440006",
+      "name": "伊藤 博",
+      "email": "ito.hiroshi@company.com",
+      "employee_code": "EMP006"
+    },
+    "subordinates": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440008",
+        "name": "中村 健太",
+        "email": "nakamura.kenta@company.com",
+        "employee_code": "EMP008"
+      }
+    ]
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440008",
+    "name": "中村 健太",
+    "email": "nakamura.kenta@company.com",
+    "employee_code": "EMP008",
+    "job_title": "営業担当",
+    "status": "active",
+    "hire_date": "2023-07-01",
+    "last_login_at": "2025-01-15T09:30:00Z",
+    "created_at": "2023-07-01T09:00:00Z",
+    "updated_at": "2025-01-15T09:30:00Z",
+    "department": {
+      "id": "dept-003",
+      "name": "営業部",
+      "description": "営業・販売を担当する部署"
+    },
+    "stage": {
+      "id": "stage-001",
+      "name": "ジュニア",
+      "description": "新人・若手レベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-004",
+        "name": "従業員",
+        "description": "一般従業員"
+      }
+    ],
+    "supervisor": {
+      "id": "550e8400-e29b-41d4-a716-446655440007",
+      "name": "渡辺 恵子",
+      "email": "watanabe.keiko@company.com",
+      "employee_code": "EMP007"
+    },
+    "subordinates": null
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440009",
+    "name": "小林 雄一",
+    "email": "kobayashi.yuichi@company.com",
+    "employee_code": "EMP009",
+    "job_title": "品質管理責任者",
+    "status": "pending_approval",
+    "hire_date": "2025-01-15",
+    "last_login_at": null,
+    "created_at": "2025-01-15T09:00:00Z",
+    "updated_at": "2025-01-15T09:00:00Z",
+    "department": {
+      "id": "dept-004",
+      "name": "品質管理部",
+      "description": "品質管理・保証を担当する部署"
+    },
+    "stage": {
+      "id": "stage-002",
+      "name": "ミドル",
+      "description": "中堅レベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-004",
+        "name": "従業員",
+        "description": "一般従業員"
+      }
+    ],
+    "supervisor": null,
+    "subordinates": null
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440010",
+    "name": "加藤 智子",
+    "email": "kato.tomoko@company.com",
+    "employee_code": "EMP010",
+    "job_title": "経理担当",
+    "status": "inactive",
+    "hire_date": "2021-04-01",
+    "last_login_at": "2024-12-20T10:00:00Z",
+    "created_at": "2021-04-01T09:00:00Z",
+    "updated_at": "2024-12-31T09:00:00Z",
+    "department": {
+      "id": "dept-005",
+      "name": "経理部",
+      "description": "経理・財務を担当する部署"
+    },
+    "stage": {
+      "id": "stage-002",
+      "name": "ミドル",
+      "description": "中堅レベルの職位"
+    },
+    "roles": [
+      {
+        "id": "role-004",
+        "name": "従業員",
+        "description": "一般従業員"
+      }
+    ],
+    "supervisor": null,
+    "subordinates": null
+  }
+]
