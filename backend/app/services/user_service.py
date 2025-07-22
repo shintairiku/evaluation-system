@@ -526,7 +526,7 @@ class UserService:
         # Validate role IDs exist
         if user_data.role_ids:
             for role_id in user_data.role_ids:
-                role = await self.role_repo.get_role_by_id(role_id)
+                role = await self.role_repo.get_by_id(role_id)
                 if not role:
                     raise BadRequestError(f"Role with ID {role_id} does not exist")
         
@@ -589,7 +589,7 @@ class UserService:
         # Validate role IDs exist if being updated
         if user_data.role_ids is not None:
             for role_id in user_data.role_ids:
-                role = await self.role_repo.get_role_by_id(role_id)
+                role = await self.role_repo.get_by_id(role_id)
                 if not role:
                     raise BadRequestError(f"Role with ID {role_id} does not exist")
         

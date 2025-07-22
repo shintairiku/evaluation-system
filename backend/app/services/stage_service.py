@@ -1,13 +1,11 @@
 import logging
-from typing import List
+from typing import List, Dict
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.repositories.stage_repository import StageRepository
-from ..schemas.stage import (
-    Stage, StageDetail, StageCreate, StageUpdate,
-    StageCreateResponse, StageUpdateResponse, StageDeleteResponse,
-    StageWithUserCount
+from ..database.repositories.stage_repo import StageRepository
+from ..schemas.stage_competency import (
+    Stage, StageDetail, StageCreate, StageUpdate, StageWithUserCount
 )
 from ..core.exceptions import NotFoundError, ConflictError, BadRequestError
 
@@ -21,7 +19,7 @@ class StageService:
         self.session = session
         self.stage_repo = StageRepository(session)
     
-    async def create_stage(self, stage_data: StageCreate) -> StageCreateResponse:
+    async def create_stage(self, stage_data: StageCreate) -> StageDetail:
         """
         Create a new stage.
         
@@ -29,7 +27,7 @@ class StageService:
             stage_data: Stage creation data
             
         Returns:
-            StageCreateResponse: Created stage with success message
+            StageDetail: Created stage with metadata
             
         Raises:
             ConflictError: If stage name already exists
@@ -47,16 +45,16 @@ class StageService:
             
             logger.info(f"Successfully created stage: {stage_model.name}")
             
-            stage_detail = StageDetail(
+            return StageDetail(
                 id=stage_model.id,
                 name=stage_model.name,
                 description=stage_model.description,
                 created_at=stage_model.created_at,
                 updated_at=stage_model.updated_at,
-                user_count=0
+                user_count=0,
+                users=None,
+                competencies=None
             )
-            
-            return StageCreateResponse(stage=stage_detail)
             
         except ConflictError:
             await self.session.rollback()
@@ -138,7 +136,7 @@ class StageService:
         
         return stages_with_count
     
-    async def update_stage(self, stage_id: UUID, stage_data: StageUpdate) -> StageUpdateResponse:
+    async def update_stage(self, stage_id: UUID, stage_data: StageUpdate) -> StageDetail:
         """
         Update an existing stage.
         
@@ -147,7 +145,7 @@ class StageService:
             stage_data: Updated stage data
             
         Returns:
-            StageUpdateResponse: Updated stage with success message
+            StageDetail: Updated stage with metadata
             
         Raises:
             NotFoundError: If stage not found
@@ -178,16 +176,16 @@ class StageService:
             # Get user count for response
             user_count = await self.stage_repo.count_users_by_stage(stage_id)
             
-            stage_detail = StageDetail(
+            return StageDetail(
                 id=updated_stage.id,
                 name=updated_stage.name,
                 description=updated_stage.description,
                 created_at=updated_stage.created_at,
                 updated_at=updated_stage.updated_at,
-                user_count=user_count
+                user_count=user_count,
+                users=None,
+                competencies=None
             )
-            
-            return StageUpdateResponse(stage=stage_detail)
             
         except (NotFoundError, ConflictError):
             await self.session.rollback()
@@ -197,7 +195,7 @@ class StageService:
             logger.error(f"Error updating stage {stage_id}: {e}")
             raise BadRequestError("Failed to update stage")
     
-    async def delete_stage(self, stage_id: UUID) -> StageDeleteResponse:
+    async def delete_stage(self, stage_id: UUID) -> Dict[str, str]:
         """
         Delete a stage.
         
@@ -205,7 +203,7 @@ class StageService:
             stage_id: Stage UUID
             
         Returns:
-            StageDeleteResponse: Success confirmation
+            Dict[str, str]: Success message
             
         Raises:
             NotFoundError: If stage not found
@@ -230,7 +228,7 @@ class StageService:
             await self.session.commit()
             logger.info(f"Successfully deleted stage with ID: {stage_id}")
             
-            return StageDeleteResponse(success=True)
+            return {"message": "Stage deleted successfully"}
             
         except (NotFoundError, BadRequestError):
             await self.session.rollback()

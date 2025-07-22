@@ -6,126 +6,104 @@ import { usePathname } from 'next/navigation';
 import { groups } from '@/components/constants/routes';
 import clsx from 'clsx';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import Image from 'next/image';
-/* 追加 import（react-icons/io5）*/
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import {
-  IoClipboard, IoPeople, IoCalendar, IoDocumentText, IoStatsChart,
-  IoCheckmarkCircle, IoTime, IoOptions, IoCreate, IoPulse, IoEye,
-  IoChatbubbles, IoRefresh
-} from 'react-icons/io5';
+  Home, Target, ClipboardList, List, Users, CheckCircle, MessageSquare,
+  UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield
+} from 'lucide-react';
 
-/* 追記用スニペット */
-export const iconMap: Record<string, React.ReactElement<{ size?: number }>> = {
-  /* …既存マッピング… */
-
-  /* ───────── Evaluation module ───────── */
-  '/evaluation'              : <IoClipboard size={24} />,
-
-  // Admin
-  '/user-management'         : <IoPeople size={24} />,
-  '/cycle-settings'          : <IoCalendar size={24} />,
-  '/template-management'     : <IoDocumentText size={24} />,
-  '/report'                  : <IoStatsChart size={24} />,
-  '/system-logs'             : <IoClipboard size={24} />,
-
-  // Supervisor
-  '/goal-approval'           : <IoCheckmarkCircle size={24} />,
-  '/midterm-check'           : <IoTime size={24} />,
-  '/evaluation-feedback'     : <IoChatbubbles size={24} />,
-  '/calibration'             : <IoOptions size={24} />,
-  '/team-dashboard'          : <IoStatsChart size={24} />,
-
-  // Employee
-  '/goal-input'              : <IoCreate size={24} />,
-  '/progress-update'         : <IoPulse size={24} />,
-  '/self-review'             : <IoDocumentText size={24} />,
-  '/evaluation-input'        : <IoCreate size={24} />,
-  '/view-feedback'           : <IoEye size={24} />,
+// アイコンマッピング
+const iconMap: Record<string, React.ReactElement> = {
+  'home': <Home size={20} />,
+  'target': <Target size={20} />,
+  'clipboard': <ClipboardList size={20} />,
+  'list': <List size={20} />,
+  'users': <Users size={20} />,
+  'check-circle': <CheckCircle size={20} />,
+  'message-square': <MessageSquare size={20} />,
+  'user-cog': <UserCog size={20} />,
+  'building': <Building size={20} />,
+  'trending-up': <TrendingUp size={20} />,
+  'brain': <Brain size={20} />,
+  'bell': <Bell size={20} />,
+  'settings': <Settings size={20} />,
+  'shield': <Shield size={20} />,
 };
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const selectedMenu = groups
-    .flatMap(g => g.links)
-    .find(l => pathname.startsWith(l.href));
+
+  // 権限フィルタリング（現在はダミー実装）
+  const filterByPermission = (links: any[]) => {
+    // TODO: 実際の権限チェックロジックを実装
+    return links; // 現在は全て表示
+  };
 
   return (
-    <div className="flex h-[calc(100vh-45px)]">
-      <aside className="group w-[64px] hover:w-[250px] h-full bg-primary text-white relative transition-all duration-300 ease-in-out z-20">
-        <ScrollArea className="h-full">
-          <nav className="flex flex-col gap-2">
-            {groups.map((g) => (
-              <div key={g.title} className="border-b border-white/20 p-[8px]">
-                {g.links.map((l) => (
-                  <Link
-                    key={l.href}
-                    href={l.href}
-                    className={clsx(
-                      'flex items-center p-[8px] rounded-lg text-sm',
-                      pathname.startsWith(l.href)
-                        ? 'bg-primary text-white hover:bg-primary/80'
-                        : 'hover:bg-primary/80'
-                    )}
-                  >
-                    <div className="text-white">
-                      {iconMap[l.href]}
-                    </div>
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity delay-100 ml-3 text-[15px] text-white font-semibold whitespace-nowrap">
-                      {l.label}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            ))}
-          </nav>
-        </ScrollArea>
-        <div className='absolute right-0 top-0 size-[36px] translate-x-full bg-primary'>
-          <div className='size-[36px] bg-white' style={{ clipPath: 'circle(100% at 100% 100%)' }}></div>
-        </div>
-        <div className='absolute right-0 bottom-0 size-[36px] translate-x-full bg-primary'>
-          <div className='size-[36px] bg-white' style={{ clipPath: 'circle(100% at 100% 0%)' }}></div>
-        </div>
-      </aside>
-
-      <aside className="absolute left-[64px] w-[250px] h-full bg-white text-black shadow-[10px_0_10px_rgba(0,0,0,0.1)] z-10">
-        <div className="flex flex-col gap-2 p-5">
-          <div className="flex items-center justify-center gap-2">
-            <p className="text-lg font-bold whitespace-nowrap text-center">{selectedMenu?.sublabel}</p>
+    <aside className="group fixed left-0 top-[45px] w-[64px] hover:w-[280px] h-[calc(100vh-45px)] bg-primary overflow-hidden transition-all duration-300 ease-in-out z-40">
+      <div className="p-4 border-b border-white/20">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Building className="w-4 h-4 text-white" />
+          </div>
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100 min-w-0">
+            <h2 className="text-lg font-semibold text-white truncate">人事評価システム</h2>
           </div>
         </div>
-        <ScrollArea className="h-[calc(100%-80px)]">
-          {selectedMenu?.subLinks?.map((section) => (
-            <div key={section.title} className="flex flex-col gap-2 p-[8px] py-5">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-bold text-primary">{section.title}</p>
-                <div className='h-[1px] bg-primary flex-1'></div>
+      </div>
+      
+      <ScrollArea className="h-[calc(100%-80px)]">
+        <nav className="p-2 space-y-4">
+          {groups.map((group) => (
+            <div key={group.title} className="space-y-2">
+              <div className="px-2">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+                  <h3 className="text-xs font-medium text-white/70 uppercase tracking-wider mb-2">
+                    {group.title}
+                  </h3>
+                  <Separator className="bg-white/20" />
+                </div>
               </div>
-              <div className="flex flex-col">
-                {section.links.map((link) => (
+              
+              <div className="space-y-1">
+                {filterByPermission(group.links).map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
                     className={clsx(
-                      "flex items-center gap-2 p-[8px] rounded-lg",
+                      'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200',
                       pathname === link.href
-                        ? "bg-primary/10 text-primary"
-                        : "hover:bg-gray-100"
+                        ? 'bg-white/20 text-white'
+                        : 'text-white/90 hover:bg-white/10 hover:text-white'
                     )}
                   >
-                    <div className="text-foreground">
-                      {iconMap[link.href]}
+                    <div className="flex-shrink-0">
+                      {iconMap[link.icon]}
                     </div>
-                    <span className="text-sm text-foreground whitespace-nowrap transition-opacity duration-300 group-hover:opacity-0">
-                      {link.label}
-                    </span>
+                    <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+                      <div className="font-medium truncate">{link.label}</div>
+                    </div>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+                      {link.permission === 'admin' && (
+                        <Badge variant="secondary" className="text-xs bg-white/20 text-white border-white/30">
+                          管理者
+                        </Badge>
+                      )}
+                      {link.permission === 'supervisor' && (
+                        <Badge variant="outline" className="text-xs border-white/30 text-white">
+                          上司
+                        </Badge>
+                      )}
+                    </div>
                   </Link>
                 ))}
               </div>
             </div>
           ))}
-        </ScrollArea>
-      </aside>
-    </div>
+        </nav>
+      </ScrollArea>
+    </aside>
   );
 }
 

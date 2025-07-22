@@ -4,7 +4,7 @@ from uuid import UUID
 
 from ...security.dependencies import require_admin, get_auth_context
 from ...security.context import AuthContext
-from ...schemas.competency import Competency, CompetencyCreate, CompetencyUpdate, CompetencyDetail
+from ...schemas.stage_competency import Competency, CompetencyCreate, CompetencyUpdate, CompetencyDetail
 
 router = APIRouter(prefix="/competencies", tags=["competencies"])
 

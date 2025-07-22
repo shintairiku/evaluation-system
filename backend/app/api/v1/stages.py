@@ -12,6 +12,7 @@ from ...services.stage_service import StageService
 from ...security.dependencies import require_admin, get_auth_context
 from ...security.context import AuthContext
 from ...core.exceptions import NotFoundError, ConflictError, BadRequestError
+from ...schemas.stage_competency import Stage, StageDetail, StageCreate, StageUpdate
 
 router = APIRouter(prefix="/stages", tags=["stages"])
 
@@ -55,7 +56,7 @@ async def get_stages_with_user_count(
         )
 
 
-@router.post("/", response_model=StageCreateResponse)
+@router.post("/", response_model=StageDetail)
 async def create_stage(
     stage_create: StageCreate,
     context: AuthContext = Depends(require_admin),
@@ -110,8 +111,7 @@ async def get_stage(
             detail=f"Failed to retrieve stage: {str(e)}"
         )
 
-
-@router.put("/{stage_id}", response_model=StageUpdateResponse)
+@router.put("/{stage_id}", response_model=StageDetail)
 async def update_stage(
     stage_id: UUID,
     stage_update: StageUpdate,
