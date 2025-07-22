@@ -7,6 +7,7 @@ from ..models.stage_competency import Stage
 from ...schemas.stage_competency import StageCreate, StageUpdate
 
 
+
 class StageRepository:
     """Repository for stage operations."""
     
