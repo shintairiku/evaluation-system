@@ -67,6 +67,11 @@ class Permission(Enum):
     
     # Report Management (Kept as-is, 1 permission)
     REPORT_ACCESS = "report:access"          # Read and generate reports
+    
+    # Stage Management
+    STAGE_READ_ALL = "stage:read:all"        # Admin can read all stages
+    STAGE_READ_SELF = "stage:read:self"      # Users can read their own stage info
+    STAGE_MANAGE = "stage:manage"            # Create, update, delete stages (admin only)
 
 
 @dataclass
@@ -114,6 +119,10 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
             Permission.REPORT_ACCESS,
+            
+            # Stage Management - Full Access
+            Permission.STAGE_READ_ALL,
+            Permission.STAGE_MANAGE,
         }
     ),
     
@@ -147,6 +156,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
             Permission.REPORT_ACCESS,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
     
@@ -180,6 +192,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
             Permission.REPORT_ACCESS,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
     
@@ -207,6 +222,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Self Assessment only
             Permission.SELF_ASSESSMENT,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
     
@@ -236,6 +254,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Self Assessment
             Permission.SELF_ASSESSMENT,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
     
@@ -265,6 +286,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Self Assessment
             Permission.SELF_ASSESSMENT,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
 }

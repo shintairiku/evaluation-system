@@ -7,7 +7,7 @@ from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
-from ..database.repositories.stage_repo import StageRepository
+from ..database.repositories.stage_repository import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
@@ -555,7 +555,7 @@ class UserService:
         
         # Validate stage exists if provided
         if user_data.stage_id:
-            stage = await self.stage_repo.get_stage_by_id(user_data.stage_id)
+            stage = await self.stage_repo.get_by_id(user_data.stage_id)
             if not stage:
                 raise BadRequestError(f"Stage with ID {user_data.stage_id} does not exist")
         
@@ -622,7 +622,7 @@ class UserService:
         
         # Validate stage exists if being updated
         if user_data.stage_id is not None:
-            stage = await self.stage_repo.get_stage_by_id(user_data.stage_id)
+            stage = await self.stage_repo.get_by_id(user_data.stage_id)
             if not stage:
                 raise BadRequestError(f"Stage with ID {user_data.stage_id} does not exist")
     
@@ -642,7 +642,7 @@ class UserService:
             department = Department.model_validate(department_model, from_attributes=True)
         
         # Get stage using repository
-        stage_model = await self.stage_repo.get_stage_by_id(user.stage_id)
+        stage_model = await self.stage_repo.get_by_id(user.stage_id)
         if not stage_model:
             # Create a fallback stage if not found
             stage = Stage(

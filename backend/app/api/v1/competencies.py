@@ -4,10 +4,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.competency import Competency, CompetencyCreate, CompetencyUpdate, CompetencyDetail
+from ...schemas.stage_competency import Competency, CompetencyCreate, CompetencyUpdate, CompetencyDetail
 from ...schemas.common import PaginatedResponse, PaginationParams
 from ...services.competency_service import CompetencyService
-from ...security import AuthContext, get_auth_context
+from ...security.dependencies import require_admin, get_auth_context
+from ...security.context import AuthContext
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/competencies", tags=["competencies"])
