@@ -3,8 +3,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 
-from ..models.user import Stage
-from ...schemas.user import StageCreate, StageUpdate
+from ..models.stage_competency import Stage
+from ...schemas.stage_competency import StageCreate, StageUpdate
 
 
 class StageRepository:
