@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useForm, type ControllerRenderProps } from 'react-hook-form';
@@ -97,8 +97,8 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
     resolver: zodResolver(profileFormSchema),
     mode: 'onChange', // Enable real-time validation
     defaultValues: {
-      name: '',
-      email: '',
+      name: user?.fullName || '',
+      email: user?.primaryEmailAddress?.emailAddress || '',
       employee_code: '',
       job_title: '',
       department_id: '',
@@ -107,6 +107,21 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
       supervisor_id: '',
     },
   });
+
+  // Update form values when user data is loaded
+  useEffect(() => {
+    if (user) {
+      const fullName = user.firstName && user.lastName
+        ? `${user.lastName} ${user.firstName}`
+        : user.fullName || '';
+      
+      form.reset({
+        ...form.getValues(),
+        name: fullName,
+        email: user.primaryEmailAddress?.emailAddress || '',
+      });
+    }
+  }, [user, form]);
 
   // Get available users for supervisor selection (excluding current user if editing)
   const availableUsers = users;
@@ -252,6 +267,35 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
                 {error}
               </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>氏名</FormLabel>
+                    <FormControl>
+                      <Input {...field} readOnly className="bg-gray-100" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>メールアドレス</FormLabel>
+                    <FormControl>
+                      <Input {...field} readOnly className="bg-gray-100" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
