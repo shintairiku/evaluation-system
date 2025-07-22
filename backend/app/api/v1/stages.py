@@ -4,7 +4,7 @@ from uuid import UUID
 
 from ...security.dependencies import require_admin, get_auth_context
 from ...security.context import AuthContext
-from ...schemas.user import Stage, StageDetail, StageCreate, StageUpdate
+from ...schemas.stage_competency import Stage, StageDetail, StageCreate, StageUpdate
 
 router = APIRouter(prefix="/stages", tags=["stages"])
 
@@ -18,7 +18,7 @@ async def get_stages(context: AuthContext = Depends(require_admin)):
     # - Return all stages with user count and competencies
     return []
 
-@router.post("/", response_model=StageCreate)
+@router.post("/", response_model=StageDetail)
 async def create_stage(
     stage_create: StageCreate,
     context: AuthContext = Depends(require_admin)
@@ -51,7 +51,7 @@ async def get_stage(
         detail="Stage service not implemented"
     )
 
-@router.put("/{stage_id}", response_model=StageUpdate)
+@router.put("/{stage_id}", response_model=StageDetail)
 async def update_stage(
     stage_id: UUID,
     stage_update: StageUpdate,
