@@ -8,7 +8,8 @@ from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User
 from ..schemas.auth import AuthUser
-from ..schemas.user import UserDetailResponse, Department, Stage, Role, UserProfileOption, UserExistsResponse, UserStatus
+from ..schemas.user import UserDetailResponse, Department, Role, UserProfileOption, UserExistsResponse, UserStatus
+from ..schemas.stage_competency import Stage
 from ..core.clerk_config import get_clerk_config
 
 logger = logging.getLogger(__name__)
