@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { checkUserExistsAction } from '@/api/server-actions/users';
 
 /**
@@ -12,14 +12,25 @@ import { checkUserExistsAction } from '@/api/server-actions/users';
 export default function AuthRedirectHandler() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
+  const [hasChecked, setHasChecked] = useState(false);
+
+  // Reset check status when user changes
+  useEffect(() => {
+    setHasChecked(false);
+  }, [user?.id]);
 
   useEffect(() => {
     const checkAndRedirect = async () => {
-      // Wait for Clerk to load user data
-      if (!isLoaded) return;
+      // Wait for Clerk to load user data and avoid duplicate checks
+      if (!isLoaded || hasChecked) return;
+      
+      // Only run on main page to avoid redirecting from profile page
+      if (pathname !== '/') return;
       
       // If user is signed in, check if they need to complete profile
       if (user) {
+        setHasChecked(true);
         try {
           console.log('AuthRedirectHandler: Checking user status for', user.id);
           
@@ -69,7 +80,7 @@ export default function AuthRedirectHandler() {
     const timeoutId = setTimeout(checkAndRedirect, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [user, isLoaded, router]);
+  }, [user, isLoaded, router, pathname, hasChecked]);
 
   // This component doesn't render anything visible
   return null;
