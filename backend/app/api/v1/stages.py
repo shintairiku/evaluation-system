@@ -4,15 +4,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.stage import (
-    Stage, StageDetail, StageCreate, StageUpdate, StageWithUserCount,
-    StageCreateResponse, StageUpdateResponse, StageDeleteResponse
+from ...schemas.stage_competency import (
+    Stage, StageDetail, StageCreate, StageUpdate, StageWithUserCount
 )
 from ...services.stage_service import StageService
 from ...security.dependencies import require_admin, get_auth_context
 from ...security.context import AuthContext
 from ...core.exceptions import NotFoundError, ConflictError, BadRequestError
-from ...schemas.stage_competency import Stage, StageDetail, StageCreate, StageUpdate
 
 router = APIRouter(prefix="/stages", tags=["stages"])
 
@@ -28,7 +26,7 @@ async def get_stages(
         allowed_roles = ["admin", "manager", "supervisor", "viewer", "employee"]
         
         stage_service = StageService(session)
-        stages = await stage_service.get_all_stages()
+        stages = await stage_service.get_all_stages(context)
         return stages
         
     except Exception as e:
@@ -46,7 +44,7 @@ async def get_stages_with_user_count(
     """Get all stages with user count for administrative views (admin only)."""
     try:
         stage_service = StageService(session)
-        stages = await stage_service.get_stages_with_user_count()
+        stages = await stage_service.get_stages_with_user_count(context)
         return stages
         
     except Exception as e:
@@ -65,7 +63,7 @@ async def create_stage(
     """Create a new stage (admin only)."""
     try:
         stage_service = StageService(session)
-        result = await stage_service.create_stage(stage_create)
+        result = await stage_service.create_stage(context, stage_create)
         return result
         
     except ConflictError as e:
@@ -97,7 +95,7 @@ async def get_stage(
         allowed_roles = ["admin", "manager", "supervisor", "viewer", "employee"]
         
         stage_service = StageService(session)
-        stage = await stage_service.get_stage(stage_id)
+        stage = await stage_service.get_stage(context, stage_id)
         return stage
         
     except NotFoundError as e:
@@ -121,7 +119,7 @@ async def update_stage(
     """Update stage information (admin only)."""
     try:
         stage_service = StageService(session)
-        result = await stage_service.update_stage(stage_id, stage_update)
+        result = await stage_service.update_stage(context, stage_id, stage_update)
         return result
         
     except NotFoundError as e:
@@ -146,7 +144,7 @@ async def update_stage(
         )
 
 
-@router.delete("/{stage_id}", response_model=StageDeleteResponse)
+@router.delete("/{stage_id}")
 async def delete_stage(
     stage_id: UUID,
     context: AuthContext = Depends(require_admin),
@@ -155,7 +153,7 @@ async def delete_stage(
     """Delete a stage (admin only)."""
     try:
         stage_service = StageService(session)
-        result = await stage_service.delete_stage(stage_id)
+        result = await stage_service.delete_stage(context, stage_id)
         return result
         
     except NotFoundError as e:
