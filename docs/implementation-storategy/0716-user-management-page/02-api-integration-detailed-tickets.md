@@ -4,6 +4,8 @@
 
 This document provides granular, actionable tickets for connecting the existing frontend components (goal-input and user-profile pages) to the backend API layer. Each ticket is designed to be small, specific, and implementable by individual developers.
 
+**Updated Priority**: This document has been updated to prioritize user management functionality since user endpoints are already implemented and ready for integration. Goal-related tickets have been moved to later phases.
+
 ## Current State Analysis
 
 ### Frontend Components Status
@@ -204,6 +206,295 @@ This document provides granular, actionable tickets for connecting the existing 
 - [ ] Errors don't crash the application
 
 **Dependencies**: A1, A2
+
+---
+
+### 🟢 Category D: User Management Page Implementation
+
+#### D1: Create User Management Page Structure
+**Complexity**: Medium (M)
+**Files to modify**:
+- `frontend/src/app/(evaluation)/(admin)/user-profiles/page.tsx` (new)
+- `frontend/src/feature/evaluation/admin/user-management/display/index.tsx` (new)
+
+**Description**: Create the main user management page with proper routing and layout structure.
+
+**Requirements**:
+- Set up page component with proper routing
+- Create main UserManagementIndex component
+- Implement basic layout structure (header, filters, content area)
+- Connect to getAllUsers server action for data fetching
+
+**Acceptance Criteria**:
+- [ ] Page loads at /user-profiles route
+- [ ] Basic layout structure displays correctly
+- [ ] Fetches all users from API
+- [ ] Proper TypeScript types used throughout
+
+**Dependencies**: A1, C1
+
+---
+
+#### D2: Implement View Mode Selector
+**Complexity**: Small (S)
+**Files to modify**:
+- `frontend/src/feature/evaluation/admin/user-management/display/ViewModeSelector.tsx` (new)
+- `frontend/src/feature/evaluation/admin/user-management/display/index.tsx`
+
+**Description**: Create view mode selector component with Table/Gallery/Organization view options.
+
+**Requirements**:
+- Use shadcn/ui Tabs component for view mode selection
+- Implement state management for current view mode
+- Three view modes: Table, Gallery, Organization
+- Responsive design for mobile/desktop
+
+**Acceptance Criteria**:
+- [ ] Tab selector displays three view modes
+- [ ] View mode state persists during session
+- [ ] Responsive design works on all screen sizes
+- [ ] Proper accessibility attributes
+
+**Dependencies**: D1
+
+---
+
+#### D3: Build Filter and Search Bar
+**Complexity**: Medium (M)
+**Files to modify**:
+- `frontend/src/feature/evaluation/admin/user-management/display/FilterBar.tsx` (new)
+- `frontend/src/feature/evaluation/admin/user-management/hooks/useUserFilters.ts` (new)
+
+**Description**: Create comprehensive search and filtering system for user management.
+
+**Requirements**:
+- Search input with debounced API calls
+- Filter by department, stage, role, status
+- Multiple criteria combinations
+- Reset filters functionality
+- Real-time search results
+
+**Acceptance Criteria**:
+- [ ] Search by name/email works with debouncing
+- [ ] Department, stage, role, status filters work
+- [ ] Multiple filter combinations work correctly
+- [ ] Reset filters clears all selections
+- [ ] Results update in real-time
+
+**Dependencies**: D1, A5
+
+---
+
+#### D4: Implement User Table View
+**Complexity**: Large (L)
+**Files to modify**:
+- `frontend/src/feature/evaluation/admin/user-management/display/UserTableView.tsx` (new)
+- `frontend/src/components/ui/data-table.tsx` (enhance if needed)
+
+**Description**: Create comprehensive table view with sorting, pagination, and actions.
+
+**Requirements**:
+- Use shadcn/ui Table components
+- Sortable columns (name, email, department, stage, status)
+- Pagination for large datasets
+- Row actions (view, edit, approve/reject)
+- Bulk selection and actions
+- Responsive table design
+
+**Acceptance Criteria**:
+- [ ] Table displays all user data correctly
+- [ ] Sorting works on all columns
+- [ ] Pagination handles large datasets
+- [ ] Row actions work correctly
+- [ ] Bulk selection and actions function
+- [ ] Responsive design on mobile
+
+**Dependencies**: D1, D3
+
+---
+
+#### D5: Implement User Gallery View
+**Complexity**: Medium (M)
+**Files to modify**:
+- `frontend/src/feature/evaluation/admin/user-management/display/UserGalleryView.tsx` (new)
+- `frontend/src/components/ui/user-card.tsx` (new)
+
+**Description**: Create card-based gallery view for visual user browsing.
+
+**Requirements**:
+- Use shadcn/ui Card components
+- Responsive grid layout
+- User avatars with fallback images
+- Quick action buttons on cards
+- Hover effects and interactions
+- Pagination or infinite scroll
+
+**Acceptance Criteria**:
+- [ ] Cards display user information clearly
+- [ ] Grid layout is responsive
+- [ ] User avatars display correctly
+- [ ] Quick actions work on cards
+- [ ] Hover effects provide good UX
+- [ ] Pagination/infinite scroll works
+
+**Dependencies**: D1, D3
+
+---
+
+#### D6: Implement Organization View
+**Complexity**: Large (L)
+**Files to modify**:
+- `frontend/src/feature/evaluation/admin/user-management/display/UserOrganizationView.tsx` (new)
+- `frontend/src/components/ui/organization-tree.tsx` (new)
+
+**Description**: Create hierarchical organization chart view showing supervisor-subordinate relationships.
+
+**Requirements**:
+- Tree/hierarchical display of users
+- Show supervisor-subordinate relationships
+- Collapsible department/team sections
+- User cards within organization structure
+- Zoom and pan capabilities for large organizations
+
+**Acceptance Criteria**:
+- [ ] Organization hierarchy displays correctly
+- [ ] Supervisor-subordinate relationships are clear
+- [ ] Department sections are collapsible
+- [ ] User information is accessible in tree view
+- [ ] Navigation works for large organizations
+
+**Dependencies**: D1, D3
+
+---
+
+#### D7: Connect User List to Real API Data
+**Complexity**: Medium (M)
+**Files to modify**:
+- `frontend/src/feature/evaluation/admin/user-management/hooks/useUserManagement.ts` (new)
+- All view components (D4, D5, D6)
+
+**Description**: Connect all user management views to real API data with proper error handling.
+
+**Requirements**:
+- Use getAllUsers server action
+- Handle loading states across all views
+- Implement error handling and retry logic
+- Cache user data appropriately
+- Handle real-time updates
+
+**Acceptance Criteria**:
+- [ ] All views display real user data
+- [ ] Loading states work consistently
+- [ ] Error handling is comprehensive
+- [ ] Data caching improves performance
+- [ ] Real-time updates reflect changes
+
+**Dependencies**: D4, D5, D6
+
+---
+
+#### D8: Add User Approval Workflow
+**Complexity**: Medium (M)
+**Files to modify**:
+- `frontend/src/feature/evaluation/admin/user-management/components/UserApprovalModal.tsx` (new)
+- `frontend/src/feature/evaluation/admin/user-management/display/UserTableView.tsx`
+- `frontend/src/feature/evaluation/admin/user-management/display/UserGalleryView.tsx`
+
+**Description**: Implement user approval workflow for pending users.
+
+**Requirements**:
+- Identify pending users with visual indicators
+- Approve/reject action buttons
+- Bulk approval functionality
+- Approval confirmation modal
+- Integration with user status updates
+
+**Acceptance Criteria**:
+- [ ] Pending users are visually distinct
+- [ ] Approve/reject actions work correctly
+- [ ] Bulk approval handles multiple users
+- [ ] Confirmation modal prevents accidental actions
+- [ ] Status updates reflect in real-time
+
+**Dependencies**: D7, A2
+
+---
+
+#### D9: Implement User Status Management
+**Complexity**: Small (S)
+**Files to modify**:
+- `frontend/src/feature/evaluation/admin/user-management/components/UserStatusToggle.tsx` (new)
+- All view components
+
+**Description**: Add user status management (active/inactive) functionality.
+
+**Requirements**:
+- Toggle switches for active/inactive status
+- Visual indicators for user status
+- Bulk status change operations
+- Status change confirmation
+- Integration with user update API
+
+**Acceptance Criteria**:
+- [ ] Status toggles work correctly
+- [ ] Visual indicators are clear
+- [ ] Bulk status changes work
+- [ ] Confirmation prevents accidental changes
+- [ ] API integration updates status
+
+**Dependencies**: D7, A2
+
+---
+
+#### D10: Add User Management Loading States
+**Complexity**: Small (S)
+**Files to modify**:
+- All user management components
+- `frontend/src/feature/evaluation/admin/user-management/hooks/useUserManagement.ts`
+
+**Description**: Implement comprehensive loading states for all user management operations.
+
+**Requirements**:
+- Table/gallery/organization view loading skeletons
+- Action button loading states
+- Pagination loading indicators
+- Search/filter loading states
+- Bulk operation loading feedback
+
+**Acceptance Criteria**:
+- [ ] Loading states are consistent across views
+- [ ] Skeleton loaders match content structure
+- [ ] Action buttons show loading appropriately
+- [ ] Search/filter operations show loading
+- [ ] Bulk operations provide progress feedback
+
+**Dependencies**: D7, C3
+
+---
+
+#### D11: Implement User Management Error Handling
+**Complexity**: Medium (M)
+**Files to modify**:
+- All user management components
+- `frontend/src/feature/evaluation/admin/user-management/utils/error-handling.ts` (new)
+
+**Description**: Add comprehensive error handling for all user management operations.
+
+**Requirements**:
+- User-friendly error messages
+- Retry mechanisms for failed operations
+- Fallback UI for error states
+- Error logging and reporting
+- Graceful degradation
+
+**Acceptance Criteria**:
+- [ ] Error messages are user-friendly
+- [ ] Retry mechanisms work for recoverable errors
+- [ ] Fallback UI displays when needed
+- [ ] Errors are logged appropriately
+- [ ] App doesn't crash on errors
+
+**Dependencies**: D7, C2
 
 ---
 
@@ -593,22 +884,49 @@ This document provides granular, actionable tickets for connecting the existing 
 
 ### Phase 1: Foundation (Tickets C1-C4)
 Setup technical infrastructure and ensure all types/configurations are correct.
+**Priority**: High - Required for all other phases
 
-### Phase 2: Basic Integration (Tickets A1, B1)
-Connect basic display functionality for both user profiles and goals.
+### Phase 2: User Profile Integration (Tickets A1-A7)
+Connect individual user profile functionality since user endpoints are ready.
+**Priority**: High - User endpoints are implemented and ready for integration
+**Focus**: Individual user profile display, editing, avatar upload, search functionality
 
-### Phase 3: Core Features (Tickets A2-A5, B2-B6)
-Implement main CRUD operations for users and goals.
+### Phase 3: User Management Page (Tickets D1-D11)
+Implement comprehensive user management page with all three view modes.
+**Priority**: High - Core user management functionality required by strategy
+**Focus**: Table/Gallery/Organization views, filtering, search, approval workflows
 
-### Phase 4: Advanced Features (Tickets A6-A8, B7-B10, C5-C6)
-Add loading states, error handling, validation, and advanced features.
+### Phase 4: Goal Integration (Tickets B1-B10)
+Connect goal-related functionality (moved to later phase).
+**Priority**: Medium - Goal endpoints may need additional work
+**Focus**: Goal input, editing, submission, validation workflows
+
+### Phase 5: Advanced Features (Tickets C5-C6)
+Add optimistic updates and advanced technical patterns.
+**Priority**: Low - Enhancement features for better UX
 
 
 ## Success Criteria
 
-✅ All frontend components connected to real API endpoints
-✅ User profile management fully functional
+### Phase 1-2 Success (User Profile Integration)
+✅ All user profile components connected to real API endpoints
+✅ Individual user profile display and editing fully functional
+✅ User avatar upload and management working
+✅ User search and filtering operational
+
+### Phase 3 Success (User Management Page)
+✅ User management page with three view modes (Table/Gallery/Organization)
+✅ Comprehensive search and filtering system
+✅ User approval workflow for pending users
+✅ User status management (active/inactive)
+✅ Administrative bulk operations
+
+### Phase 4 Success (Goal Integration)
 ✅ Goal input/editing workflow complete
+✅ Goal submission and approval processes
+✅ Goal validation and error handling
+
+### Overall Success
 ✅ Consistent error handling and loading states
 ✅ Type-safe API interactions throughout
-✅ Permission-based access controls implemented
+✅ Permission-based access controls implemented (future ready)
