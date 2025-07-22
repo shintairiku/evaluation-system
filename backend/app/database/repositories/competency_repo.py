@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.user import Competency
+from ..models.stage_competency import Competency
 
 logger = logging.getLogger(__name__)
 

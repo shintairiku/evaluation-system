@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .self_assessment import SelfAssessment
     from .supervisor_feedback import SupervisorFeedback
     from .user import UserProfile
-    from .competency import Competency
+    from .stage_competency import Competency
 
 
 class GoalStatus(str, Enum):

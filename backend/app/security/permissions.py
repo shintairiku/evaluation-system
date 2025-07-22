@@ -42,7 +42,8 @@ class Permission(Enum):
     DEPARTMENT_READ = "department:read"      # Read department info (scope determined by role)
     DEPARTMENT_MANAGE = "department:manage"  # Create, update, delete departments (admin only)
     
-    # Role Management (Consolidated from 4 to 1)
+    # Role Management (Consolidated from 4 to 2)
+    ROLE_READ_ALL = "role:read:all"          # Read all roles (admin, manager, supervisor, viewer, employee, parttime)
     ROLE_MANAGE = "role:manage"              # Manage roles (admin only)
     
     # Goal Management (Consolidated from 9 to 3)
@@ -66,6 +67,11 @@ class Permission(Enum):
     
     # Report Management (Kept as-is, 1 permission)
     REPORT_ACCESS = "report:access"          # Read and generate reports
+    
+    # Stage Management
+    STAGE_READ_ALL = "stage:read:all"        # Admin can read all stages
+    STAGE_READ_SELF = "stage:read:self"      # Users can read their own stage info
+    STAGE_MANAGE = "stage:manage"            # Create, update, delete stages (admin only)
 
 
 @dataclass
@@ -91,6 +97,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.DEPARTMENT_MANAGE,
             
             # Role Management - Full Access
+            Permission.ROLE_READ_ALL,
             Permission.ROLE_MANAGE,
             
             # Goal Management - Full Access
@@ -112,6 +119,10 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
             Permission.REPORT_ACCESS,
+            
+            # Stage Management - Full Access
+            Permission.STAGE_READ_ALL,
+            Permission.STAGE_MANAGE,
         }
     ),
     
@@ -125,6 +136,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
+            
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
             
             # Goal Management - Manage and approve
             Permission.GOAL_READ,
@@ -142,6 +156,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
             Permission.REPORT_ACCESS,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
     
@@ -155,6 +172,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
+            
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
             
             # Goal Management - Approve subordinates
             Permission.GOAL_READ,
@@ -172,6 +192,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
             Permission.REPORT_ACCESS,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
     
@@ -185,6 +208,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
             
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
+            
             # Goal Management - Read only
             Permission.GOAL_READ,
             
@@ -196,6 +222,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Self Assessment only
             Permission.SELF_ASSESSMENT,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
     
@@ -208,6 +237,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Department Management - Read own
             Permission.DEPARTMENT_READ,
+            
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
             
             # Goal Management - Own goals
             Permission.GOAL_READ,
@@ -222,6 +254,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Self Assessment
             Permission.SELF_ASSESSMENT,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
     
@@ -234,6 +269,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Department Management - Read own
             Permission.DEPARTMENT_READ,
+            
+            # Role Management - Read access
+            Permission.ROLE_READ_ALL,
             
             # Goal Management - Basic functions
             Permission.GOAL_READ,
@@ -248,6 +286,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Self Assessment
             Permission.SELF_ASSESSMENT,
+            
+            # Stage Management - Read All
+            Permission.STAGE_READ_ALL,
         }
     ),
 }
