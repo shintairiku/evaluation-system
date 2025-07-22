@@ -12,6 +12,7 @@ from ...security.dependencies import require_admin, get_auth_context
 from ...security.context import AuthContext
 from ...core.exceptions import NotFoundError, ConflictError, BadRequestError
 
+
 router = APIRouter(prefix="/stages", tags=["stages"])
 
 
