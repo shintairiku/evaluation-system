@@ -5,43 +5,61 @@ import ProfileForm from './ProfileForm';
 import ClerkInfoCard from '@/components/display/ClerkInfoCard';
 import type { ProfileOptionsResponse } from '@/api/types/user';
 import { getProfileOptionsAction } from '@/api/server-actions/users';
+import { useLoading } from '@/hooks/useLoading';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { FormSkeleton } from '@/components/ui/loading-skeleton';
 
 export default function ProfileFormWrapper() {
   const [options, setOptions] = useState<ProfileOptionsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isLoading, withLoading } = useLoading('profile-options-fetch');
 
   useEffect(() => {
     const fetchOptions = async () => {
-      try {
-        console.log('ProfileFormWrapper: Starting server action...');
-        const result = await getProfileOptionsAction();
-        console.log('ProfileFormWrapper: Server action result:', result);
-        
-        if (!result.success || !result.data) {
-          console.error('ProfileFormWrapper: Server action failed:', result.error);
-          throw new Error(result.error || 'Failed to fetch profile options');
+      await withLoading(async () => {
+        try {
+          console.log('ProfileFormWrapper: Starting server action...');
+          const result = await getProfileOptionsAction();
+          console.log('ProfileFormWrapper: Server action result:', result);
+          
+          if (!result.success || !result.data) {
+            console.error('ProfileFormWrapper: Server action failed:', result.error);
+            throw new Error(result.error || 'Failed to fetch profile options');
+          }
+          
+          console.log('ProfileFormWrapper: Data received:', result.data);
+          setOptions(result.data);
+          setError(null); // Clear any previous errors
+        } catch (err) {
+          console.error('ProfileFormWrapper: Error:', err);
+          setError(err instanceof Error ? err.message : 'Failed to fetch profile options');
+          throw err; // Re-throw to let withLoading handle it
         }
-        
-        console.log('ProfileFormWrapper: Data received:', result.data);
-        setOptions(result.data);
-      } catch (err) {
-        console.error('ProfileFormWrapper: Error:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch profile options');
-      } finally {
-        setLoading(false);
-      }
+      }, {
+        onError: (error) => {
+          console.error('ProfileFormWrapper: Loading error:', error);
+        }
+      });
     };
 
     fetchOptions();
-  }, []);
+  }, []); // Empty dependency array - only run once on mount
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">プロフィール設定を読み込み中...</p>
+      <div className="space-y-6">
+        <div className="mb-6">
+          <ClerkInfoCard />
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <LoadingSpinner 
+            size="lg" 
+            text="プロフィール設定を読み込み中..." 
+            className="py-8"
+          />
+          <div className="mt-6">
+            <FormSkeleton />
+          </div>
         </div>
       </div>
     );

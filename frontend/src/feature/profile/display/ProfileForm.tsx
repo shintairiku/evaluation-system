@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { 
@@ -28,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { createUserAction } from '@/api/server-actions/users';
 import type { Department, Stage, Role } from '@/api/types/user';
 import type { UserProfileOption } from '@/api/types/user';
+import { useLoading } from '@/hooks/useLoading';
 
 interface ProfileFormProps {
   departments: Department[];
@@ -39,7 +41,7 @@ interface ProfileFormProps {
 export default function ProfileForm({ departments, stages, roles, users }: ProfileFormProps) {
   const { user } = useUser();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const { isLoading, withLoading } = useLoading('profile-creation');
   const [error, setError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
@@ -108,50 +110,56 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    await withLoading(async () => {
+      setError(null);
 
-    try {
-      // Get name from Clerk user data
-      const fullName = user.firstName && user.lastName 
-        ? `${user.lastName} ${user.firstName}` // Japanese style: surname first
-        : user.fullName || "";
+      try {
+        // Get name from Clerk user data
+        const fullName = user.firstName && user.lastName 
+          ? `${user.lastName} ${user.firstName}` // Japanese style: surname first
+          : user.fullName || "";
 
-      const signupData = {
-        clerk_user_id: user.id,
-        name: fullName,
-        email: user.primaryEmailAddress?.emailAddress || '',
-        employee_code: formData.employee_code,
-        job_title: formData.job_title || undefined,
-        department_id: formData.department_id,
-        stage_id: formData.stage_id,
-        role_ids: formData.role_ids, // Use selected roles from form
-        supervisor_id: formData.supervisor_id || undefined,
-        subordinate_ids: [] // Default empty array for signup
-      };
+        const signupData = {
+          clerk_user_id: user.id,
+          name: fullName,
+          email: user.primaryEmailAddress?.emailAddress || '',
+          employee_code: formData.employee_code,
+          job_title: formData.job_title || undefined,
+          department_id: formData.department_id,
+          stage_id: formData.stage_id,
+          role_ids: formData.role_ids, // Use selected roles from form
+          supervisor_id: formData.supervisor_id || undefined,
+          subordinate_ids: [] // Default empty array for signup
+        };
 
-      const result = await createUserAction(signupData);
+        const result = await createUserAction(signupData);
 
-      if (result.success) {
-        // Update Clerk metadata to indicate profile completion
-        await user.update({
-          unsafeMetadata: {
-            ...user.unsafeMetadata,
-            profileCompleted: true,
-            status: 'pending_approval'
-          }
-        });
-        
-        router.push('/profile/confirmation');
-      } else {
-        setError(result.error || 'プロフィールの作成に失敗しました。');
+        if (result.success) {
+          // Update Clerk metadata to indicate profile completion
+          await user.update({
+            unsafeMetadata: {
+              ...user.unsafeMetadata,
+              profileCompleted: true,
+              status: 'pending_approval'
+            }
+          });
+          
+          router.push('/profile/confirmation');
+        } else {
+          setError(result.error || 'プロフィールの作成に失敗しました。');
+          throw new Error(result.error || 'Profile creation failed');
+        }
+      } catch (error) {
+        console.error('Profile creation error:', error);
+        const errorMessage = '予期しないエラーが発生しました。もう一度お試しください。';
+        setError(errorMessage);
+        throw error; // Re-throw to let withLoading handle it
       }
-    } catch (error) {
-      console.error('Profile creation error:', error);
-      setError('予期しないエラーが発生しました。もう一度お試しください。');
-    } finally {
-      setLoading(false);
-    }
+    }, {
+      onError: (error) => {
+        console.error('Profile creation loading error:', error);
+      }
+    });
   };
 
   return (
@@ -324,13 +332,14 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
             </p>
           </div>
 
-          <Button
+          <LoadingButton
             type="submit"
-            disabled={loading}
+            loading={isLoading}
+            loadingText="プロフィールを作成中..."
             className="w-full"
           >
-            {loading ? '処理中...' : 'プロフィールを作成'}
-          </Button>
+            プロフィールを作成
+          </LoadingButton>
         </form>
       </CardContent>
     </Card>

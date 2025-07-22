@@ -8,40 +8,49 @@ import FilterBar from './FilterBar';
 import UserTableView from './UserTableView';
 import UserGalleryView from './UserGalleryView';
 // import UserOrganizationView from './UserOrganizationView';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useLoading } from '@/hooks/useLoading';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { UserListSkeleton } from '@/components/ui/loading-skeleton';
 
 // ダミーデータをインポート
 import dummyUsers from '../data/dummy-users.json';
 
 export default function UserManagementIndex() {
   const [users, setUsers] = useState<UserDetailResponse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isLoading, withLoading } = useLoading('user-list-fetch');
 
   const { viewMode, setViewMode } = useViewMode('table');
 
   useEffect(() => {
     const loadDummyData = async () => {
-      try {
-        setLoading(true);
-        console.log('UserManagementIndex: Loading dummy data...');
-        
-        // ダミーデータの読み込みをシミュレート（実際のAPIコールのような遅延を追加）
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        console.log('UserManagementIndex: Dummy data loaded:', dummyUsers);
-        setUsers(dummyUsers as unknown as UserDetailResponse[]);
-      } catch (err) {
-        console.error('UserManagementIndex: Error loading dummy data:', err);
-        setError('ダミーデータの読み込みに失敗しました');
-      } finally {
-        setLoading(false);
-      }
+      await withLoading(async () => {
+        try {
+          console.log('UserManagementIndex: Loading dummy data...');
+          
+          // ダミーデータの読み込みをシミュレート（実際のAPIコールのような遅延を追加）
+          await new Promise(resolve => setTimeout(resolve, 800));
+          
+          console.log('UserManagementIndex: Dummy data loaded:', dummyUsers);
+          setUsers(dummyUsers as unknown as UserDetailResponse[]);
+          setError(null); // Clear any previous errors
+        } catch (err) {
+          console.error('UserManagementIndex: Error loading dummy data:', err);
+          const errorMessage = 'ダミーデータの読み込みに失敗しました';
+          setError(errorMessage);
+          throw new Error(errorMessage); // Re-throw to let withLoading handle it
+        }
+      }, {
+        onError: (error) => {
+          console.error('UserManagementIndex: Loading error:', error);
+        }
+      });
     };
 
     loadDummyData();
-  }, []);
+  }, []); // Empty dependency array - only run once on mount
 
   const renderCurrentView = () => {
     switch (viewMode) {
@@ -56,12 +65,29 @@ export default function UserManagementIndex() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary mb-4" />
-          <p className="text-muted-foreground">ユーザー情報を読み込み中...</p>
+      <div className="space-y-6">
+        {/* Loading state with view selector skeleton */}
+        <div className="flex justify-between items-center">
+          <div className="h-10 w-48 bg-gray-200 rounded animate-pulse" />
+          <div className="h-10 w-32 bg-gray-200 rounded animate-pulse" />
+        </div>
+        
+        {/* Filter bar skeleton */}
+        <div className="flex gap-4">
+          <div className="h-10 w-48 bg-gray-200 rounded animate-pulse" />
+          <div className="h-10 w-32 bg-gray-200 rounded animate-pulse" />
+          <div className="h-10 w-24 bg-gray-200 rounded animate-pulse" />
+        </div>
+
+        <div className="text-center py-4">
+          <LoadingSpinner 
+            size="lg" 
+            text="ユーザー情報を読み込み中..." 
+            className="mb-6"
+          />
+          <UserListSkeleton />
         </div>
       </div>
     );

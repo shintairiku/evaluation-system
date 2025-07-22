@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +29,7 @@ import {
   X
 } from "lucide-react";
 import type { UserDetailResponse } from '@/api/types';
+import { useLoading } from '@/hooks/useLoading';
 
 interface UserEditViewModalProps {
   user: UserDetailResponse | null;
@@ -39,6 +42,65 @@ export default function UserEditViewModal({
   isOpen, 
   onClose
 }: UserEditViewModalProps) {
+  const { isLoading, withLoading } = useLoading('user-edit');
+  const [formData, setFormData] = useState({
+    name: '',
+    employee_code: '',
+    email: '',
+    job_title: '',
+    department: '',
+    stage: '',
+    status: ''
+  });
+
+  // Initialize form data when user changes
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name,
+        employee_code: user.employee_code,
+        email: user.email,
+        job_title: user.job_title || '',
+        department: user.department?.name || '',
+        stage: user.stage?.name || '',
+        status: user.status
+      });
+    }
+  }, [user]);
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    await withLoading(async () => {
+      try {
+        // Simulate API call for user update
+        console.log('Updating user:', user.id, formData);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // TODO: Replace with actual API call
+        // const result = await updateUserAction(user.id, formData);
+        // if (!result.success) throw new Error(result.error);
+        
+        console.log('User updated successfully');
+        onClose();
+      } catch (error) {
+        console.error('Failed to update user:', error);
+        throw error; // Re-throw to let withLoading handle it
+      }
+    }, {
+      onError: (error) => {
+        console.error('User update loading error:', error);
+      }
+    });
+  };
+
   const getUserInitials = (name: string) => {
     return name.split(' ').map(part => part[0]).join('').toUpperCase();
   };
@@ -97,16 +159,20 @@ export default function UserEditViewModal({
                   <Label htmlFor="name">名前</Label>
                   <Input
                     id="name"
-                    defaultValue={user.name}
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
                     placeholder="名前を入力"
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="employee_code">従業員コード</Label>
                   <Input
                     id="employee_code"
-                    defaultValue={user.employee_code}
+                    value={formData.employee_code}
+                    onChange={(e) => handleInputChange('employee_code', e.target.value)}
                     placeholder="従業員コードを入力"
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -118,8 +184,10 @@ export default function UserEditViewModal({
                   <Input
                     id="email"
                     type="email"
-                    defaultValue={user.email}
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
                     placeholder="メールアドレスを入力"
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -128,8 +196,10 @@ export default function UserEditViewModal({
                 <Label htmlFor="job_title">役職</Label>
                 <Input
                   id="job_title"
-                  defaultValue={user.job_title || ''}
+                  value={formData.job_title}
+                  onChange={(e) => handleInputChange('job_title', e.target.value)}
                   placeholder="役職を入力"
+                  disabled={isLoading}
                 />
               </div>
             </CardContent>
@@ -144,7 +214,11 @@ export default function UserEditViewModal({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="department">部署</Label>
-                  <Select defaultValue={user.department?.name || 'all'}>
+                  <Select 
+                    value={formData.department} 
+                    onValueChange={(value) => handleInputChange('department', value)}
+                    disabled={isLoading}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="部署を選択" />
                     </SelectTrigger>
@@ -161,7 +235,11 @@ export default function UserEditViewModal({
 
                 <div className="space-y-2">
                   <Label htmlFor="stage">ステージ</Label>
-                  <Select defaultValue={user.stage?.name || 'all'}>
+                  <Select 
+                    value={formData.stage} 
+                    onValueChange={(value) => handleInputChange('stage', value)}
+                    disabled={isLoading}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="ステージを選択" />
                     </SelectTrigger>
@@ -178,7 +256,11 @@ export default function UserEditViewModal({
 
               <div className="space-y-2">
                 <Label htmlFor="status">ステータス</Label>
-                <Select defaultValue={user.status}>
+                <Select 
+                  value={formData.status} 
+                  onValueChange={(value) => handleInputChange('status', value)}
+                  disabled={isLoading}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="ステータスを選択" />
                   </SelectTrigger>
@@ -205,14 +287,18 @@ export default function UserEditViewModal({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             <X className="h-4 w-4 mr-2" />
             キャンセル
           </Button>
-          <Button onClick={onClose}>
+          <LoadingButton 
+            onClick={handleSave}
+            loading={isLoading}
+            loadingText="保存中..."
+          >
             <Save className="h-4 w-4 mr-2" />
             保存
-          </Button>
+          </LoadingButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
