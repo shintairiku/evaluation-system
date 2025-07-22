@@ -3,7 +3,8 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 
 # Import base class and models for runtime use
-from .user import UserBase, Department, Stage, Role, UserProfileOption
+from .user import UserBase, Department, Role, UserProfileOption
+from .stage_competency import Stage
 
 
 # ========================================

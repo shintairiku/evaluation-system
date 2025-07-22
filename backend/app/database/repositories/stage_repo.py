@@ -1,10 +1,11 @@
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 
-from ..models.user import Stage
-from ...schemas.user import StageCreate, StageUpdate
+from ..models.stage_competency import Stage
+from ...schemas.stage_competency import StageCreate, StageUpdate
+
 
 
 class StageRepository:
@@ -63,3 +64,11 @@ class StageRepository:
             delete(Stage).where(Stage.id == stage_id).returning(Stage.id)
         )
         return result.scalar_one_or_none() is not None
+    
+    async def count_users_by_stage(self, stage_id: UUID) -> int:
+        """Count number of users in a stage."""
+        from ..models.user import User
+        result = await self.session.execute(
+            select(func.count(User.id)).where(User.stage_id == stage_id)
+        )
+        return result.scalar_one()
