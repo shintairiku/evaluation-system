@@ -4,6 +4,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { jaJP } from "@clerk/localizations";
 import { LoadingProvider } from "@/context/LoadingContext";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +39,7 @@ export default function RootLayout({
         >
           <LoadingProvider>
             {children}
+            <Toaster richColors position="top-right" />
           </LoadingProvider>
         </body>
       </html>
