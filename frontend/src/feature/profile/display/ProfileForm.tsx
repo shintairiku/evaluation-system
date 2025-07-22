@@ -5,10 +5,10 @@ import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useForm, type ControllerRenderProps } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { 
   Select,
   SelectContent,
@@ -57,9 +57,45 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
   const [error, setError] = useState<string | null>(null);
   const [supervisorPopoverOpen, setSupervisorPopoverOpen] = useState(false);
 
+  
+  // Track form field states for optimistic feedback
+  const [fieldStates, setFieldStates] = useState<Record<string, 'valid' | 'invalid' | 'pending'>>({});
+  
+  // Handle optimistic field validation
+  const handleFieldChange = (fieldName: keyof ProfileFormData) => {
+    // Update field state optimistically
+    setFieldStates(prev => ({ ...prev, [fieldName]: 'pending' }));
+    
+    // Validate field with a slight delay for better UX
+    setTimeout(() => {
+      const errors = form.formState.errors;
+      const hasError = errors[fieldName];
+      
+      setFieldStates(prev => ({ 
+        ...prev, 
+        [fieldName]: hasError ? 'invalid' : 'valid' 
+      }));
+      
+      // Show success feedback for valid required fields
+      if (!hasError && ['employee_code', 'department_id', 'stage_id', 'role_ids'].includes(fieldName)) {
+        const fieldLabels = {
+          employee_code: '社員番号',
+          department_id: '部署',
+          stage_id: 'ステージ',
+          role_ids: '役職'
+        };
+        
+        toast.success(`${fieldLabels[fieldName as keyof typeof fieldLabels]}を確認しました`, {
+          duration: 1000
+        });
+      }
+    }, 300);
+  };
+
   // Initialize react-hook-form with Zod validation
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileFormSchema),
+    mode: 'onChange', // Enable real-time validation
     defaultValues: {
       name: '',
       email: '',
@@ -86,12 +122,32 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
       return role ? role.id : '';
     }).filter(id => id !== '');
     
+    // Optimistic update with immediate visual feedback
     form.setValue('role_ids', stringIds, { shouldValidate: true });
+    
+    // Show immediate feedback for role selection
+    if (stringIds.length > 0) {
+      const selectedRoleNames = selectedIds
+        .map(index => roles[index]?.name)
+        .filter(Boolean)
+        .join(', ');
+      toast.success(`役職を選択しました: ${selectedRoleNames}`, { 
+        duration: 1500
+      });
+    }
   };
 
   const handleSupervisorSelect = (userId: string) => {
     form.setValue('supervisor_id', userId, { shouldValidate: true });
     setSupervisorPopoverOpen(false);
+    
+    // Show immediate feedback for supervisor selection
+    const selectedUser = users.find(u => u.id === userId);
+    if (selectedUser) {
+      toast.success(`上司を選択しました: ${selectedUser.name}`, {
+        duration: 1500
+      });
+    }
   };
 
   const onSubmit = async (data: ProfileFormData) => {
@@ -99,6 +155,16 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
       setError('ユーザー情報を取得できませんでした。');
       return;
     }
+
+    // Show immediate optimistic success and navigate
+    toast.success('プロフィールを作成しています...', {
+      duration: 2000
+    });
+
+    // Navigate optimistically for better UX
+    const optimisticNavigation = setTimeout(() => {
+      router.push('/profile/confirmation');
+    }, 500);
 
     await withLoading(async () => {
       setError(null);
@@ -134,20 +200,41 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
             }
           });
           
+          // Clear the optimistic navigation timeout since we're successful
+          clearTimeout(optimisticNavigation);
+          
+          toast.success('プロフィールが正常に作成されました！', {
+            duration: 3000
+          });
+          
+          // Navigate to confirmation (might already be there from optimistic nav)
           router.push('/profile/confirmation');
         } else {
-          setError(result.error || 'プロフィールの作成に失敗しました。');
+          // Clear optimistic navigation and show error
+          clearTimeout(optimisticNavigation);
+          
+          const errorMsg = result.error || 'プロフィールの作成に失敗しました。';
+          setError(errorMsg);
+          toast.error(errorMsg, { duration: 4000 });
+          
           throw new Error(result.error || 'Profile creation failed');
         }
       } catch (error) {
         console.error('Profile creation error:', error);
+        
+        // Clear optimistic navigation on error
+        clearTimeout(optimisticNavigation);
+        
         const errorMessage = '予期しないエラーが発生しました。もう一度お試しください。';
         setError(errorMessage);
+        toast.error(errorMessage, { duration: 4000 });
+        
         throw error; // Re-throw to let withLoading handle it
       }
     }, {
       onError: (error) => {
         console.error('Profile creation loading error:', error);
+        clearTimeout(optimisticNavigation);
       }
     });
   };
@@ -171,9 +258,31 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
               name="employee_code"
               render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'employee_code'> }) => (
                 <FormItem>
-                  <FormLabel>社員番号 *</FormLabel>
+                  <FormLabel>
+                    社員番号 *
+                    {fieldStates.employee_code === 'valid' && (
+                      <span className="ml-2 text-green-600 text-sm">✓</span>
+                    )}
+                    {fieldStates.employee_code === 'pending' && (
+                      <span className="ml-2 text-yellow-600 text-sm">⏳</span>
+                    )}
+                  </FormLabel>
                   <FormControl>
-                    <Input placeholder="例: EMP001" {...field} />
+                    <Input 
+                      placeholder="例: EMP001" 
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        handleFieldChange('employee_code');
+                      }}
+                      className={
+                        fieldStates.employee_code === 'valid' 
+                          ? 'border-green-500 focus:border-green-600' 
+                          : fieldStates.employee_code === 'invalid'
+                          ? 'border-red-500 focus:border-red-600'
+                          : ''
+                      }
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -199,10 +308,29 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
               name="department_id"
               render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'department_id'> }) => (
                 <FormItem>
-                  <FormLabel>部署 *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>
+                    部署 *
+                    {fieldStates.department_id === 'valid' && (
+                      <span className="ml-2 text-green-600 text-sm">✓</span>
+                    )}
+                  </FormLabel>
+                  <Select 
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      handleFieldChange('department_id');
+                    }} 
+                    value={field.value}
+                  >
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger
+                        className={
+                          fieldStates.department_id === 'valid' 
+                            ? 'border-green-500 focus:border-green-600' 
+                            : fieldStates.department_id === 'invalid'
+                            ? 'border-red-500 focus:border-red-600'
+                            : ''
+                        }
+                      >
                         <SelectValue placeholder="部署を選択してください" />
                       </SelectTrigger>
                     </FormControl>
@@ -229,10 +357,29 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
               name="stage_id"
               render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'stage_id'> }) => (
                 <FormItem>
-                  <FormLabel>段階 *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>
+                    段階 *
+                    {fieldStates.stage_id === 'valid' && (
+                      <span className="ml-2 text-green-600 text-sm">✓</span>
+                    )}
+                  </FormLabel>
+                  <Select 
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      handleFieldChange('stage_id');
+                    }} 
+                    value={field.value}
+                  >
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger
+                        className={
+                          fieldStates.stage_id === 'valid' 
+                            ? 'border-green-500 focus:border-green-600' 
+                            : fieldStates.stage_id === 'invalid'
+                            ? 'border-red-500 focus:border-red-600'
+                            : ''
+                        }
+                      >
                         <SelectValue placeholder="段階を選択してください" />
                       </SelectTrigger>
                     </FormControl>
@@ -259,20 +406,36 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
               name="role_ids"
               render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'role_ids'> }) => (
                 <FormItem>
-                  <FormLabel>役職 *</FormLabel>
+                  <FormLabel>
+                    役職 *
+                    {fieldStates.role_ids === 'valid' && (
+                      <span className="ml-2 text-green-600 text-sm">✓</span>
+                    )}
+                  </FormLabel>
                   <FormControl>
-                    <MultiSelectRoles
-                      roles={roles.map((role, index) => ({
-                        id: index,
-                        name: role.name,
-                        description: role.description
-                      }))}
-                      selectedRoleIds={field.value.map(roleId => {
-                        return roles.findIndex(role => role.id === roleId);
-                      }).filter(index => index !== -1)}
-                      onSelectionChange={handleRoleSelectionChange}
-                      required={true}
-                    />
+                    <div className={
+                      fieldStates.role_ids === 'valid' 
+                        ? 'ring-2 ring-green-500 rounded-md' 
+                        : fieldStates.role_ids === 'invalid'
+                        ? 'ring-2 ring-red-500 rounded-md'
+                        : ''
+                    }>
+                      <MultiSelectRoles
+                        roles={roles.map((role, index) => ({
+                          id: index,
+                          name: role.name,
+                          description: role.description
+                        }))}
+                        selectedRoleIds={field.value.map(roleId => {
+                          return roles.findIndex(role => role.id === roleId);
+                        }).filter(index => index !== -1)}
+                        onSelectionChange={(selectedIds) => {
+                          handleRoleSelectionChange(selectedIds);
+                          handleFieldChange('role_ids');
+                        }}
+                        required={true}
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
