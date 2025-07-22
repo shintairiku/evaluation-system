@@ -54,14 +54,17 @@ erDiagram
 
     %% 権限管理
     roles {
-        smallint id PK
-        string name
+        uuid id PK
+        string name UK
         string description
+        integer hierarchy_order
+        timestamp created_at
+        timestamp updated_at
     }
 
     user_roles {
         uuid user_id FK
-        smallint role_id FK
+        uuid role_id FK
     }
 
     %% 評価期間
@@ -240,18 +243,22 @@ erDiagram
 
 | **カラム名** | **型** | **備考** |
 | --- | --- | --- |
-| id | smallint | 主キー |
-| name | text | 役割名（例：admin、supervisor、employee） |
+| id | uuid | 主キー、自動生成 |
+| name | text | 役割名（例：admin、supervisor、employee）、ユニーク |
 | description | text | 役割の説明 |
+| hierarchy_order | integer | 階層順序（1から開始、1が最高権限のadmin） |
+| created_at | timestamp | 作成日時 |
+| updated_at | timestamp | 更新日時 |
 補足：
 - バックエンドのファイルにて、役割に対応する権限リストを定義。
+- hierarchy_orderは権限レベルを表し、数値が小さいほど高い権限を持つ。
 
 ### 7. user_roles（ユーザー-役割の関連）
 
 | **カラム名** | **型** | **備考** |
 | --- | --- | --- |
 | user_id | uuid | ユーザーID、外部キー |
-| role_id | smallint | 役割ID、外部キー |
+| role_id | uuid | 役割ID、外部キー |
 
 ### 8. evaluation_periods（評価期間）
 
