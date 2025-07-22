@@ -22,9 +22,6 @@ async def get_stages(
 ):
     """Get all stages accessible to the current user."""
     try:
-        # Access rules: admin, manager, supervisor, viewer, employee - all can view stages
-        allowed_roles = ["admin", "manager", "supervisor", "viewer", "employee"]
-        
         stage_service = StageService(session)
         stages = await stage_service.get_all_stages(context)
         return stages
@@ -91,9 +88,6 @@ async def get_stage(
 ):
     """Get stage details by ID."""
     try:
-        # Access rules: admin, manager, supervisor, viewer, employee - all can view stages
-        allowed_roles = ["admin", "manager", "supervisor", "viewer", "employee"]
-        
         stage_service = StageService(session)
         stage = await stage_service.get_stage(context, stage_id)
         return stage
