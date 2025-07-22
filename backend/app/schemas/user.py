@@ -4,10 +4,11 @@ from typing import Optional, List, TYPE_CHECKING
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from uuid import UUID
 
-from .common import PaginatedResponse, Permission
+from .common import Permission, PaginatedResponse
+from .stage_competency import Stage
 
 if TYPE_CHECKING:
-    pass
+    from .stage_competency import StageDetail
 
 
 # ========================================
@@ -54,40 +55,7 @@ class DepartmentUpdate(BaseModel):
 
 
 # ========================================
-# STAGE SCHEMAS
-# ========================================
-
-class Stage(BaseModel):
-    id: UUID
-    name: str
-    description: Optional[str] = None
-
-
-class StageDetail(BaseModel):
-    id: UUID
-    name: str
-    description: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
-    # NOTE: below metadata is optional; not finalized yet. Refine metadata based on UI requirement.
-    user_count: Optional[int] = None
-    competency_count: Optional[int] = None
-    users: Optional[PaginatedResponse['UserDetailResponse']] = None
-    # competencies: Optional[List['Competency']] = None  # Commented out - Competency not available in this module
-
-
-class StageCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
-
-
-class StageUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
-
-
-# ========================================
-# ROLE SCHEMAS 
+# ROLE SCHEMAS
 # ========================================
 
 class RoleBase(BaseModel):
@@ -119,17 +87,21 @@ class RoleDetail(BaseModel):
     id: UUID
     name: str
     description: str
+    hierarchy_order: int
     created_at: datetime
     updated_at: datetime
     permissions: Optional[List[Permission]] = []
-    user_count: Optional[int] = None
+    user_count: Optional[int] = Field(None, description="Number of users with this role")
+    users: Optional[PaginatedResponse['User']] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class RoleReorderItem(BaseModel):
     """Single item for role reordering"""
     id: UUID
     hierarchy_order: int = Field(..., ge=1, description="New hierarchy order position (1 = highest authority)")
+
 
 class RoleReorderRequest(BaseModel):
     """Request to reorder multiple roles via drag-and-drop"""
@@ -209,18 +181,12 @@ class UserInDB(UserBase):
 # USER RESPONSE SCHEMAS
 # ========================================
 
-
 class User(UserInDB):
     """Complete a user information; no user-to-user relationship"""
     department: Department
     stage: Stage
     roles: List[Role] = []
 
-class RoleDetail(Role):
-    """Extended role information for detailed views"""
-    # TODO: add users once implement Goals domain
-    user_count: Optional[int] = Field(None, description="Number of users with this role")
-    users: Optional[PaginatedResponse['User']] = None 
 
 class UserDetailResponse(BaseModel):
     id: UUID
@@ -267,7 +233,6 @@ class ProfileOptionsResponse(BaseModel):
 try:
     # Rebuild models that have forward references
     DepartmentDetail.model_rebuild()
-    StageDetail.model_rebuild()
     RoleDetail.model_rebuild()
     User.model_rebuild()
     UserDetailResponse.model_rebuild()
