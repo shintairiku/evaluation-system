@@ -828,9 +828,9 @@ This document provides granular, actionable tickets for connecting the existing 
 - Add request/response interceptors
 
 **Acceptance Criteria**:
-- [ ] API client handles auth correctly
-- [ ] Timeouts and retries work
-- [ ] Interceptors log appropriately
+- [x] API client handles auth correctly
+- [x] Timeouts and retries work
+- [x] Interceptors log appropriately
 
 **Dependencies**: None
 
@@ -850,9 +850,9 @@ This document provides granular, actionable tickets for connecting the existing 
 - Provide clear validation feedback
 
 **Acceptance Criteria**:
-- [ ] All forms validate with schemas
-- [ ] Validation feedback is immediate
-- [ ] Schemas match backend requirements
+- [x] All forms validate with schemas
+- [x] Validation feedback is immediate
+- [x] Schemas match backend requirements
 
 **Dependencies**: C1
 

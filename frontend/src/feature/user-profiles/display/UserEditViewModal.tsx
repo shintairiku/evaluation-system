@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -35,12 +36,14 @@ interface UserEditViewModalProps {
   user: UserDetailResponse | null;
   isOpen: boolean;
   onClose: () => void;
+  onUserUpdate?: (updatedUser: UserDetailResponse) => void;
 }
 
 export default function UserEditViewModal({ 
   user, 
   isOpen, 
-  onClose
+  onClose,
+  onUserUpdate
 }: UserEditViewModalProps) {
   const { isLoading, withLoading } = useLoading('user-edit');
   const [formData, setFormData] = useState({
@@ -52,11 +55,16 @@ export default function UserEditViewModal({
     stage: '',
     status: ''
   });
+  
+  // Optimistic update state
+  const [isOptimisticallyUpdated, setIsOptimisticallyUpdated] = useState(false);
+  const [optimisticFormData, setOptimisticFormData] = useState(formData);
+  const [hasChanges, setHasChanges] = useState(false);
 
   // Initialize form data when user changes
   useEffect(() => {
     if (user) {
-      setFormData({
+      const initialData = {
         name: user.name,
         employee_code: user.employee_code,
         email: user.email,
@@ -64,19 +72,77 @@ export default function UserEditViewModal({
         department: user.department?.name || '',
         stage: user.stage?.name || '',
         status: user.status
-      });
+      };
+      setFormData(initialData);
+      setOptimisticFormData(initialData);
+      setHasChanges(false);
+      setIsOptimisticallyUpdated(false);
     }
   }, [user]);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
+    const newFormData = {
+      ...formData,
       [field]: value
-    }));
+    };
+    
+    setFormData(newFormData);
+    setOptimisticFormData(newFormData);
+    setHasChanges(true);
+    
+    // Show immediate feedback for field changes
+    if (user) {
+      const originalValue = field === 'department' ? user.department?.name : 
+                           field === 'stage' ? user.stage?.name : 
+                           (user as any)[field];
+      
+      if (value !== originalValue) {
+        const fieldLabels: Record<string, string> = {
+          name: '名前',
+          employee_code: '従業員コード',
+          email: 'メールアドレス',
+          job_title: '役職',
+          department: '部署',
+          stage: 'ステージ',
+          status: 'ステータス'
+        };
+        
+        toast.success(`${fieldLabels[field]}を更新しました`, {
+          duration: 1500
+        });
+      }
+    }
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !hasChanges) return;
+
+    // Optimistic updates: close modal immediately and show success
+    setIsOptimisticallyUpdated(true);
+    
+    toast.success('ユーザー情報を更新しています...', {
+      duration: 2000
+    });
+    
+    // Create optimistic updated user
+    const optimisticUser: UserDetailResponse = {
+      ...user,
+      name: optimisticFormData.name,
+      employee_code: optimisticFormData.employee_code,
+      email: optimisticFormData.email,
+      job_title: optimisticFormData.job_title || '',
+      status: optimisticFormData.status as 'active' | 'inactive' | 'pending_approval'
+    };
+    
+    // Update parent component optimistically
+    if (onUserUpdate) {
+      onUserUpdate(optimisticUser);
+    }
+    
+    // Close modal optimistically
+    const optimisticClose = setTimeout(() => {
+      onClose();
+    }, 500);
 
     await withLoading(async () => {
       try {
@@ -89,9 +155,33 @@ export default function UserEditViewModal({
         // if (!result.success) throw new Error(result.error);
         
         console.log('User updated successfully');
+        
+        // Clear optimistic close timeout since we're successful
+        clearTimeout(optimisticClose);
+        
+        toast.success('ユーザー情報が正常に更新されました！', {
+          duration: 3000
+        });
+        
+        setHasChanges(false);
         onClose();
+        
       } catch (error) {
         console.error('Failed to update user:', error);
+        
+        // Clear optimistic close on error
+        clearTimeout(optimisticClose);
+        
+        // Rollback optimistic changes
+        setIsOptimisticallyUpdated(false);
+        if (onUserUpdate && user) {
+          onUserUpdate(user); // Rollback to original user
+        }
+        
+        toast.error('ユーザー情報の更新に失敗しました', {
+          duration: 4000
+        });
+        
         throw error; // Re-throw to let withLoading handle it
       }
     }, {
@@ -294,10 +384,19 @@ export default function UserEditViewModal({
           <LoadingButton 
             onClick={handleSave}
             loading={isLoading}
-            loadingText="保存中..."
+            loadingText={isOptimisticallyUpdated ? "更新完了..." : "保存中..."}
+            disabled={!hasChanges || isLoading}
+            className={
+              hasChanges 
+                ? "bg-green-600 hover:bg-green-700" 
+                : ""
+            }
           >
             <Save className="h-4 w-4 mr-2" />
-            保存
+            {hasChanges ? '変更を保存' : '保存'}
+            {isOptimisticallyUpdated && (
+              <span className="ml-2 text-green-200">✓</span>
+            )}
           </LoadingButton>
         </DialogFooter>
       </DialogContent>
