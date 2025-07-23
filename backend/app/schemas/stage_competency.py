@@ -79,7 +79,7 @@ class StageDetail(BaseModel):
     updated_at: datetime
     user_count: Optional[int] = None
     users: Optional[List["User"]] = None
-    competencies: Optional[List[Competency]] = None
+    competencies: List[Competency] = []
 
 
 class StageCreate(BaseModel):
