@@ -1,4 +1,4 @@
-import ProfileFormWrapper from '@/feature/profile/display/ProfileFormWrapper';
+import ProfileFormWrapper from '@/feature/setup/display/ProfileFormWrapper';
 
 export default function ProfilePage() {
   return (
