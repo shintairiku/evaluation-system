@@ -6,9 +6,10 @@ from cachetools import TTLCache
 
 from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.repositories.stage_repo import StageRepository
-from ..database.models.user import Competency as CompetencyModel
-from ..schemas.competency import (
-    CompetencyCreate, CompetencyUpdate, Competency, CompetencyDetail, CompetencyList
+from ..database.repositories.user_repo import UserRepository
+from ..database.models.stage_competency import Competency as CompetencyModel
+from ..schemas.stage_competency import (
+    CompetencyCreate, CompetencyUpdate, Competency, CompetencyDetail
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
 # Cache for competency search results (100 items, 5-minute TTL)
 competency_search_cache = TTLCache(maxsize=100, ttl=300)
 
+# Cache for user stage lookups within competency service (100 items, 5-minute TTL)
+user_stage_cache = TTLCache(maxsize=100, ttl=300)
+
 
 class CompetencyService:
     """Service layer for competency-related business logic and operations"""
@@ -31,6 +35,7 @@ class CompetencyService:
         self.session = session
         self.competency_repo = CompetencyRepository(session)
         self.stage_repo = StageRepository(session)
+        self.user_repo = UserRepository(session)
     
     async def get_competencies(
         self, 
@@ -43,17 +48,40 @@ class CompetencyService:
         Get competencies with search and filtering
         
         Business Logic:
-        - Users with READ permissions can view competencies
+        - Admin: can see all competencies for all stages
+        - Other roles: can only see competencies for their own stage
         - Support search by name and description
         - Filter by stage_ids if provided
         - Cache results for performance
         """
         try:
             # Permission check
-            current_user_context.require_permission(Permission.COMPETENCY_READ)
+            if current_user_context.is_admin():
+                current_user_context.require_permission(Permission.COMPETENCY_READ)
+            else:
+                current_user_context.require_permission(Permission.COMPETENCY_READ_SELF)
             
-            # Create cache key
-            cache_key = f"competencies:{search_term}:{stage_ids}:{pagination.page if pagination else 1}:{pagination.limit if pagination else 'all'}"
+            # Apply stage-based filtering for non-admin users
+            filtered_stage_ids = stage_ids
+            if not current_user_context.is_admin():
+                user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
+                if user_stage_id is None:
+                    raise PermissionDeniedError("User has no stage assigned")
+                
+                # Non-admin users can only see competencies for their own stage
+                if stage_ids:
+                    # If stage_ids were provided, check if user's stage is included
+                    if user_stage_id not in stage_ids:
+                        # User requested stages they don't have access to
+                        raise PermissionDeniedError("Access denied to requested stages")
+                    filtered_stage_ids = [user_stage_id]  # Only allow user's own stage
+                else:
+                    # No specific stages requested, use user's stage
+                    filtered_stage_ids = [user_stage_id]
+            
+            # Create cache key (include user role for cache segregation)
+            user_role = current_user_context.role_names[0] if current_user_context.role_names else "unknown"
+            cache_key = f"competencies:{user_role}:{search_term}:{filtered_stage_ids}:{pagination.page if pagination else 1}:{pagination.limit if pagination else 'all'}"
             
             # Check cache first
             if cache_key in competency_search_cache:
@@ -63,7 +91,7 @@ class CompetencyService:
             # Get competencies from repository
             competencies = await self.competency_repo.search_competencies(
                 search_term=search_term,
-                stage_ids=stage_ids
+                stage_ids=filtered_stage_ids
             )
             
             # Apply pagination if provided
@@ -106,54 +134,54 @@ class CompetencyService:
     ) -> CompetencyDetail:
         """
         Get a specific competency by ID
+        
+        Business Logic:
+        - Admin: can get any competency and see CompetencyDetail.users
+        - Other roles: can only get competencies from their stage, CompetencyDetail.users is empty
         """
         try:
             # Permission check
-            current_user_context.require_permission(Permission.COMPETENCY_READ)
+            if current_user_context.is_admin():
+                current_user_context.require_permission(Permission.COMPETENCY_READ)
+            else:
+                current_user_context.require_permission(Permission.COMPETENCY_READ_SELF)
             
             # Get competency from repository
             competency = await self.competency_repo.get_competency_by_id_with_stage(competency_id)
             if not competency:
                 raise NotFoundError(f"Competency with ID {competency_id} not found")
             
-            # Enrich competency data
-            enriched_competency = await self._enrich_detailed_competency_data(competency)
+            # Validate stage access
+            await self._validate_stage_access(current_user_context, UUID(str(competency.stage_id)))
+            
+            # Enrich competency data (with or without users based on role)
+            enriched_competency = await self._enrich_detailed_competency_data(competency, current_user_context)
             return enriched_competency
             
         except Exception as e:
             logger.error(f"Error getting competency {competency_id}: {str(e)}")
             raise
     
-    async def get_competency_by_id(
-        self, 
-        competency_id: UUID, 
-        current_user_context: AuthContext
-    ) -> CompetencyDetail:
-        """
-        Get a specific competency by ID (alias for get_competency for compatibility)
-        """
-        return await self.get_competency(competency_id, current_user_context)
-    
     async def create_competency(
         self, 
         competency_data: CompetencyCreate, 
         current_user_context: AuthContext
-    ) -> CompetencyDetail:
+    ) -> Competency:
         """
         Create a new competency with validation and business rules
         
         Business Logic:
-        - Only users with CREATE permission can create competencies
+        - Only admin can create competencies
         - Validate stage exists
         - Check for naming conflicts
         - Name must be unique across all competencies
         """
         try:
-            # Permission check
-            current_user_context.require_permission(Permission.COMPETENCY_CREATE)
+            # Permission check - only admin can create competencies
+            current_user_context.require_permission(Permission.COMPETENCY_MANAGE)
             
             # Validate stage exists
-            stage = await self.stage_repo.get_stage_by_id(competency_data.stage_id)
+            stage = await self.stage_repo.get_by_id(competency_data.stage_id)
             if not stage:
                 raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
             
@@ -177,7 +205,7 @@ class CompetencyService:
             competency_search_cache.clear()
             
             # Return enriched competency
-            enriched_competency = await self._enrich_detailed_competency_data(competency)
+            enriched_competency = await self._enrich_competency_data(competency)
             return enriched_competency
             
         except Exception as e:
@@ -190,19 +218,19 @@ class CompetencyService:
         competency_id: UUID, 
         competency_data: CompetencyUpdate, 
         current_user_context: AuthContext
-    ) -> CompetencyDetail:
+    ) -> Competency:
         """
         Update a competency with validation and business rules
         
         Business Logic:
-        - Only users with UPDATE permission can update competencies
+        - Only admin can update competencies
         - Validate stage exists if being updated
         - Check for naming conflicts if name is being updated
         - Name must remain unique across all competencies
         """
         try:
-            # Permission check
-            current_user_context.require_permission(Permission.COMPETENCY_UPDATE)
+            # Permission check - only admin can update competencies
+            current_user_context.require_permission(Permission.COMPETENCY_MANAGE)
             
             # Get existing competency
             existing_competency = await self.competency_repo.get_competency_by_id(competency_id)
@@ -211,7 +239,7 @@ class CompetencyService:
             
             # Validate stage exists if being updated
             if competency_data.stage_id is not None:
-                stage = await self.stage_repo.get_stage_by_id(competency_data.stage_id)
+                stage = await self.stage_repo.get_by_id(competency_data.stage_id)
                 if not stage:
                     raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
             
@@ -239,7 +267,7 @@ class CompetencyService:
             competency_search_cache.clear()
             
             # Return enriched competency
-            enriched_competency = await self._enrich_detailed_competency_data(updated_competency)
+            enriched_competency = await self._enrich_competency_data(updated_competency)
             return enriched_competency
             
         except Exception as e:
@@ -256,13 +284,13 @@ class CompetencyService:
         Delete a competency with validation and business rules
         
         Business Logic:
-        - Only users with DELETE permission can delete competencies
+        - Only admin can delete competencies
         - Check if competency is in use (has associated goals/evaluations)
         - Prevent deletion if competency is referenced by other entities
         """
         try:
-            # Permission check
-            current_user_context.require_permission(Permission.COMPETENCY_DELETE)
+            # Permission check - only admin can delete competencies
+            current_user_context.require_permission(Permission.COMPETENCY_MANAGE)
             
             # Get existing competency
             existing_competency = await self.competency_repo.get_competency_by_id(competency_id)
@@ -299,13 +327,28 @@ class CompetencyService:
     ) -> List[Competency]:
         """
         Get all competencies (alias for get_competencies without pagination)
+        
+        Business Logic:
+        - Admin: can see all competencies for all stages
+        - Other roles: can only see competencies for their own stage
         """
         try:
             # Permission check
-            current_user_context.require_permission(Permission.COMPETENCY_READ)
+            if current_user_context.is_admin():
+                current_user_context.require_permission(Permission.COMPETENCY_READ)
+            else:
+                current_user_context.require_permission(Permission.COMPETENCY_READ_SELF)
             
-            # Get all competencies
-            competencies = await self.competency_repo.get_all_competencies()
+            # Apply stage-based filtering for non-admin users
+            if current_user_context.is_admin():
+                # Admin can see all competencies
+                competencies = await self.competency_repo.get_all_competencies()
+            else:
+                # Non-admin users can only see competencies for their own stage
+                user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
+                if user_stage_id is None:
+                    raise PermissionDeniedError("User has no stage assigned")
+                competencies = await self.competency_repo.get_competencies_by_stage_id(user_stage_id)
             
             # Convert to schema objects
             competency_schemas = []
@@ -326,13 +369,23 @@ class CompetencyService:
     ) -> List[Competency]:
         """
         Get all competencies for a specific stage
+        
+        Business Logic:
+        - Admin: can get competencies for any stage
+        - Other roles: can only get competencies for their own stage
         """
         try:
             # Permission check
-            current_user_context.require_permission(Permission.COMPETENCY_READ)
+            if current_user_context.is_admin():
+                current_user_context.require_permission(Permission.COMPETENCY_READ)
+            else:
+                current_user_context.require_permission(Permission.COMPETENCY_READ_SELF)
+            
+            # Validate stage access
+            await self._validate_stage_access(current_user_context, stage_id)
             
             # Validate stage exists
-            stage = await self.stage_repo.get_stage_by_id(stage_id)
+            stage = await self.stage_repo.get_by_id(stage_id)
             if not stage:
                 raise NotFoundError(f"Stage with ID {stage_id} not found")
             
@@ -355,6 +408,59 @@ class CompetencyService:
     # PRIVATE HELPER METHODS
     # ========================================
     
+    async def _get_user_stage_id(self, user_id: UUID) -> Optional[UUID]:
+        """Get user's stage_id efficiently with caching."""
+        try:
+            # Check cache first
+            cache_key = f"user_stage_{user_id}"
+            cached_stage_id = user_stage_cache.get(cache_key)
+            if cached_stage_id is not None:
+                return cached_stage_id
+            
+            # Fetch from database via repository
+            stage_id = await self.user_repo.get_user_stage_id(user_id)
+            
+            # Cache the result (including None values)
+            user_stage_cache[cache_key] = stage_id
+            
+            return stage_id
+            
+        except Exception as e:
+            logger.error(f"Error getting stage_id for user {user_id}: {str(e)}")
+            raise
+    
+    async def _validate_stage_access(self, current_user_context: AuthContext, required_stage_id: Optional[UUID] = None) -> Optional[UUID]:
+        """
+        Validate that the user has access to a stage and return the user's stage_id.
+        
+        Args:
+            current_user_context: The current user's auth context
+            required_stage_id: If provided, validate user has access to this specific stage
+            
+        Returns:
+            Optional[UUID]: The user's stage_id (may be None for admin users without explicit stage)
+            
+        Raises:
+            PermissionDeniedError: If user has no stage or doesn't have access to required_stage_id
+        """
+        if current_user_context.is_admin():
+            # Admin users don't need stage validation - they can access any stage
+            if required_stage_id:
+                return required_stage_id
+            # If no specific stage required, we still need to get user's stage for some operations
+            user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
+            return user_stage_id
+        else:
+            # Non-admin users can only access their own stage
+            user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
+            if user_stage_id is None:
+                raise PermissionDeniedError("User has no stage assigned")
+            
+            if required_stage_id and required_stage_id != user_stage_id:
+                raise PermissionDeniedError("Access denied to competencies from different stage")
+            
+            return user_stage_id
+    
     async def _enrich_competency_data(self, competency_model: CompetencyModel) -> Competency:
         """Convert competency model to schema with basic enrichment"""
         try:
@@ -375,7 +481,7 @@ class CompetencyService:
             logger.error(f"Error enriching competency data: {e}")
             raise
     
-    async def _enrich_detailed_competency_data(self, competency_model: CompetencyModel) -> CompetencyDetail:
+    async def _enrich_detailed_competency_data(self, competency_model: CompetencyModel, current_user_context: Optional[AuthContext] = None) -> CompetencyDetail:
         """Convert competency model to detailed schema with full enrichment"""
         try:
             # Convert to basic schema first
@@ -383,6 +489,14 @@ class CompetencyService:
             
             # Create detailed schema
             detailed_dict = basic_competency.model_dump()
+            
+            # Add users field based on role permissions
+            if current_user_context and current_user_context.is_admin():
+                # TODO: Admin can see users - for now empty list until User relationships are implemented; need to get the current evaluation periods and who chose this competency
+                detailed_dict["users"] = []
+            else:
+                # Non-admin users cannot see users list
+                detailed_dict["users"] = None
             
             return CompetencyDetail.model_validate(detailed_dict)
             
