@@ -1,128 +1,108 @@
-# API Endpoints
+# DEPRECATED: API Endpoints
 
-This directory contains functions that directly map to backend API endpoints (1:1 relationship).
+⚠️ **This directory is DEPRECATED and should not be used for new development.**
 
-## Files
+## Migration to Server Actions + useActionState
 
-### `users.ts`
-User management API functions:
-- `getUsers()`: Get paginated list of users
-- `getUserById()`: Get specific user by ID
-- `createUser()`: Create new user
-- `updateUser()`: Update existing user
-- `deleteUser()`: Delete user
-- `getUserProfile()`: Get user profile information
+This project has migrated to a **server-first architecture** using React 19's `useActionState` and Next.js Server Actions. 
 
-### `index.ts`
-Re-exports all endpoint APIs for convenient importing
+### Use These Instead:
 
-## Usage Patterns
+- **Server Actions**: Located in `/api/server-actions/` 
+- **useActionState**: For client-side interactions
+- **Server Components**: For initial data loading
 
-### Basic Usage
+## Legacy Files (Do Not Use)
+
+### `users.ts` - DEPRECATED
+Use `/api/server-actions/users.ts` instead
+
+### `index.ts` - DEPRECATED  
+Import from `/api/server-actions/index.ts` instead
+
+## Migration Guide
+
+### OLD (Deprecated Client-Side Endpoints)
 ```typescript
-import { authApi, usersApi } from '@/api/endpoints';
+// DON'T USE THIS
+import { usersApi } from '@/api/endpoints';
 
-// Authentication
-const signInResult = await authApi.signIn({ clerk_token: 'token123' });
-const currentUser = await authApi.getCurrentUser();
-
-// User Management
-const users = await usersApi.getUsers({ page: 1, limit: 10 });
-const user = await usersApi.getUserById('user-123');
-```
-
-### Error Handling
-```typescript
 const result = await usersApi.getUserById('user-123');
+```
 
-if (result.success && result.data) {
-  console.log('User found:', result.data);
-} else {
-  console.error('Error:', result.error);
+### NEW (Server Actions + useActionState)
+
+#### For Server Components
+```typescript
+// ✅ USE THIS INSTEAD
+import { getUserByIdAction } from '@/api/server-actions';
+
+export default async function UserPage({ params }) {
+  const result = await getUserByIdAction(params.id);
+  return <div>{result.data?.name}</div>;
 }
 ```
 
-### With TypeScript
+#### For Client Components (Forms)
 ```typescript
-import type { UserCreate, ApiResponse, UserDetailResponse } from '@/api/types';
+// ✅ USE THIS INSTEAD
+'use client';
+import { useActionState } from 'react';
+import { createUserAction } from '@/api/server-actions';
 
-const newUser: UserCreate = {
-  name: 'John Doe',
-  email: 'john@example.com',
-  // ... other fields
-};
+export function CreateUserForm() {
+  const actionWrapper = async (prevState: any, formData: FormData) => {
+    const userData = {
+      name: formData.get('name') as string,
+      email: formData.get('email') as string,
+    };
+    return await createUserAction(userData);
+  };
 
-const result: ApiResponse<UserDetailResponse> = await usersApi.createUser(newUser);
-```
+  const [actionState, formAction, isPending] = useActionState(actionWrapper, null);
 
-## Design Principles
-
-### 1:1 Backend Mapping
-Each function corresponds directly to a backend endpoint:
-```typescript
-// Frontend: usersApi.getUserById('123')
-// Backend:  GET /api/v1/users/123
-
-// Frontend: usersApi.createUser(userData)
-// Backend:  POST /api/v1/users
-```
-
-### Consistent Return Format
-All functions return the same `ApiResponse<T>` structure:
-```typescript
-interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
+  return (
+    <form action={formAction}>
+      <input name="name" required />
+      <input name="email" required />
+      {actionState?.error && <div>{actionState.error}</div>}
+      <button disabled={isPending}>Submit</button>
+    </form>
+  );
 }
 ```
 
-### Type Safety
-All functions are fully typed with:
-- Input parameter types
-- Response data types
-- Error handling types
+#### For Client Components (Data Fetching)  
+```typescript
+// ✅ USE THIS INSTEAD
+'use client';
+import { useActionState, useEffect } from 'react';
+import { getUsersAction } from '@/api/server-actions';
 
-### Authentication
-Functions automatically include authentication headers when available through the HTTP client.
+export function UsersWrapper() {
+  const actionWrapper = async () => await getUsersAction();
+  const [actionState, formAction, isPending] = useActionState(actionWrapper, null);
 
-## When to Use
+  useEffect(() => { formAction(); }, [formAction]);
 
-**Use endpoint functions when you need CLIENT-SIDE INTERACTIVITY:**
-- Real-time features (auto-save, live updates, polling)
-- Dynamic search/filtering without page refresh
-- Progressive data loading (infinite scroll, lazy loading)
-- Interactive form validation (validate as user types)
-- Optimistic UI updates
-- Background data synchronization
+  if (isPending) return <div>Loading...</div>;
+  return <UsersList users={actionState?.data} />;
+}
+```
 
-**Use server actions instead for STATIC OPERATIONS:**
-- Form submissions (create, update, delete)
-- Initial page data loading
-- User authentication flows
-- One-time data fetching
-- Server-side rendering (SSR)
-- SEO-critical pages
+## Why We Migrated
 
-**Key Distinction:**
-- **Server Actions**: "Fire and forget" operations, one-way communication
-- **Endpoint Functions**: Continuous interaction, bidirectional communication
+1. **Better Performance**: Server-side processing reduces client bundle size
+2. **Built-in Loading States**: React's `isPending` eliminates manual state management
+3. **Type Safety**: Unified API layer with consistent interfaces
+4. **Progressive Enhancement**: Forms work without JavaScript
+5. **Simpler Architecture**: No confusion between client/server data fetching
 
-## Adding New Endpoints
+## Next Steps
 
-1. Define types in `/types/` directory
-2. Add endpoint constants to `/constants/config.ts`
-3. Create endpoint functions in appropriate file
-4. Add to index.ts exports
-5. Create corresponding server actions if needed
+1. Replace all `/api/endpoints` imports with `/api/server-actions`
+2. Use `useActionState` for client-side interactions
+3. Use Server Components for initial data loading
+4. Remove manual loading/error state management
 
-## Error Handling
-
-All endpoint functions handle errors consistently:
-- Network errors
-- HTTP status errors
-- JSON parsing errors
-- Authentication failures
-
-Errors are returned in the standardized format rather than thrown as exceptions.
+For detailed examples, see: `/docs/requirement-definition/02-tech/architecture/02-fe-architecture.md`
