@@ -31,6 +31,8 @@ export default function RootLayout({
       localization={jaJP}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
+      signUpForceRedirectUrl="/profile"
+      signInForceRedirectUrl="/profile"
     >
       <html lang="ja" suppressHydrationWarning>
         <head />
