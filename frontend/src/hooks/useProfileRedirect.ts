@@ -19,13 +19,13 @@ export function useProfileRedirect() {
 
     // If user status is pending_approval, redirect to pending page
     if (userStatus === 'pending_approval') {
-      router.push('/profile/confirmation');
+      router.push('/setup/confirmation');
       return;
     }
 
     // If user hasn't completed profile, redirect to profile completion
     if (!hasCompletedProfile && userStatus !== 'active') {
-      router.push('/profile');
+      router.push('/setup');
       return;
     }
   }, [isLoaded, user, router]);

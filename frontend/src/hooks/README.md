@@ -249,8 +249,8 @@ function DashboardPage() {
   const { isLoaded, user } = useProfileRedirect();
 
   // Hook automatically redirects:
-  // - Incomplete profiles → /profile
-  // - Pending approval → /profile/confirmation
+  // - Incomplete profiles → /setup
+  // - Pending approval → /setup/confirmation
   
   if (!isLoaded) {
     return <LoadingSpinner />;

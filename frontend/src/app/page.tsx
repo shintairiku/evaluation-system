@@ -21,14 +21,14 @@ async function SignedInContent() {
   
   if (!userResult.success || !userResult.data) {
     // API call failed, redirect to profile creation
-    redirect("/profile");
+    redirect("/setup");
   }
 
   const userCheck = userResult.data;
   
   // If user doesn't exist in database, redirect to profile creation
   if (!userCheck.exists) {
-    redirect("/profile");
+    redirect("/setup");
   }
   
   // Only redirect inactive users - pending users can access the system
