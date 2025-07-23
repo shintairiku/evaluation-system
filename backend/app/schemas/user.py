@@ -228,14 +228,4 @@ class ProfileOptionsResponse(BaseModel):
 # FORWARD REFERENCES UPDATE
 # ========================================
 
-# Update forward references for models with forward references (Pydantic v2)
-# This needs to be done after all models are defined
-try:
-    # Rebuild models that have forward references
-    DepartmentDetail.model_rebuild()
-    RoleDetail.model_rebuild()
-    User.model_rebuild()
-    UserDetailResponse.model_rebuild()
-except Exception:
-    # Ignore forward reference errors for now
-    pass
+# Model rebuilding is handled in __init__.py to avoid circular import issues

@@ -139,17 +139,4 @@ class StageWithUserCount(BaseModel):
 # ========================================
 
 # Update forward references for models with forward references (Pydantic v2)
-# This needs to be done after all models are defined
-def rebuild_models():
-    """Rebuild models after all schemas are imported to resolve forward references"""
-    try:
-        from .user import User  # Import at runtime for model rebuild
-        StageDetail.model_rebuild()
-        CompetencyDetail.model_rebuild()
-        CompetencyList.model_rebuild()
-    except ImportError:
-        # If User schema is not available, skip rebuild
-        pass
-
-# Call rebuild function
-rebuild_models()
+# This needs to be done after all models are defined to avoid circular import issues

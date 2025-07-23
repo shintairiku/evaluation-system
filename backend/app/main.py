@@ -53,6 +53,13 @@ def custom_openapi():
     
     logger.info("Generating custom OpenAPI schema...")
     
+    # Rebuild schemas to resolve forward references before generating OpenAPI
+    try:
+        from .schemas.stage_competency import rebuild_models
+        rebuild_models()
+    except Exception as e:
+        logger.warning(f"Could not rebuild schema models: {e}")
+    
     openapi_schema = get_openapi(
         title="HR Evaluation System API",
         version="1.0.0",
