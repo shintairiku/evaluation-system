@@ -7,7 +7,6 @@ from .departments import router as department_router
 from .stages import router as stage_router
 
 from .goals import router as goal_router
-from .goal_categories import router as goal_category_router
 from .supervisor_reviews import router as supervisor_review_router
 
 from .evaluation_periods import router as evaluation_period_router
@@ -28,7 +27,6 @@ api_router.include_router(department_router)
 api_router.include_router(stage_router)
 
 api_router.include_router(goal_router)
-api_router.include_router(goal_category_router)
 api_router.include_router(supervisor_review_router)
 
 api_router.include_router(evaluation_period_router)
