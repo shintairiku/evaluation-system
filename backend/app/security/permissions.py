@@ -58,9 +58,8 @@ class Permission(Enum):
     
     # Competency Management (Added for competency feature)
     COMPETENCY_READ = "competency:read"      # Read competencies (scope determined by role)
-    COMPETENCY_CREATE = "competency:create"  # Create competencies (admin only)
-    COMPETENCY_UPDATE = "competency:update"  # Update competencies (admin only)
-    COMPETENCY_DELETE = "competency:delete"  # Delete competencies (admin only)
+    COMPETENCY_READ_SELF = "competency:read:self"  # Read competencies for own stage
+    COMPETENCY_MANAGE = "competency:manage"  # Create, update, delete competencies (admin only)
     
     # Self Assessment (Kept as-is, 1 permission)
     SELF_ASSESSMENT = "self_assessment"      # Create, update, submit self assessments
@@ -112,9 +111,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Competency Management - Full Access
             Permission.COMPETENCY_READ,
-            Permission.COMPETENCY_CREATE,
-            Permission.COMPETENCY_UPDATE,
-            Permission.COMPETENCY_DELETE,
+            Permission.COMPETENCY_MANAGE,
             
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
@@ -151,7 +148,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.EVALUATION_REVIEW,
             
             # Competency Management - Read access
-            Permission.COMPETENCY_READ,
+            Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
@@ -187,7 +184,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.EVALUATION_REVIEW,
             
             # Competency Management - Read access
-            Permission.COMPETENCY_READ,
+            Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment & Reports
             Permission.SELF_ASSESSMENT,
@@ -218,7 +215,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.EVALUATION_READ,
             
             # Competency Management - Read access
-            Permission.COMPETENCY_READ,
+            Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment only
             Permission.SELF_ASSESSMENT,
@@ -250,7 +247,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.EVALUATION_MANAGE,
             
             # Competency Management - Read access
-            Permission.COMPETENCY_READ,
+            Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment
             Permission.SELF_ASSESSMENT,
@@ -282,7 +279,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.EVALUATION_MANAGE,
             
             # Competency Management - Read access
-            Permission.COMPETENCY_READ,
+            Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment
             Permission.SELF_ASSESSMENT,

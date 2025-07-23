@@ -26,7 +26,19 @@ export const API_CONFIG = {
   FULL_URL: `${getApiBaseUrl()}/api/v1`,
   TIMEOUT: 30000, // 30 seconds
   RETRY_ATTEMPTS: 3,
-  RETRY_DELAY: 1000, // 1 second
+  RETRY_DELAY: 1000, // 1 second (base delay for exponential backoff)
+  MAX_RETRY_DELAY: 30000, // 30 seconds (cap for exponential backoff)
+  
+  // Environment-specific settings
+  IS_PRODUCTION: process.env.NODE_ENV === 'production',
+  IS_DEVELOPMENT: process.env.NODE_ENV === 'development',
+  
+  // Logging configuration
+  ENABLE_REQUEST_LOGGING: process.env.NODE_ENV !== 'production', // Disable in production for performance
+  ENABLE_ERROR_LOGGING: true, // Always log errors
+  
+  // Performance settings
+  MAX_CONCURRENT_REQUESTS: 10, // Limit concurrent requests to prevent overload
 } as const;
 
 // Helper function to build full API URLs

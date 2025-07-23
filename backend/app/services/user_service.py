@@ -7,7 +7,7 @@ from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
-from ..database.repositories.stage_repository import StageRepository
+from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Cache for user search results (100 items, 5-minute TTL)
 user_search_cache = TTLCache(maxsize=100, ttl=300)
+
 
 
 class UserService:

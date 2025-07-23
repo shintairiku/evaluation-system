@@ -10,3 +10,11 @@ export interface SignUpRequest {
   stage_id: UUID;
   supervisor_id?: UUID;
 }
+
+export interface UserExistsResponse {
+  exists: boolean;
+  user_id?: UUID | null;
+  name?: string | null;
+  email?: string | null;
+  status?: string | null;
+}

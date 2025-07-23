@@ -3,45 +3,52 @@
 import { useState, useEffect } from 'react';
 import ProfileForm from './ProfileForm';
 import ClerkInfoCard from '@/components/display/ClerkInfoCard';
-import type { ProfileOptionsResponse } from '@/api/types/user';
 import { getProfileOptionsAction } from '@/api/server-actions/users';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { FormSkeleton } from '@/components/ui/loading-skeleton';
+import type { ProfileOptionsResponse } from '@/api/types/user';
 
 export default function ProfileFormWrapper() {
   const [options, setOptions] = useState<ProfileOptionsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchOptions = async () => {
+    async function fetchOptions() {
       try {
-        console.log('ProfileFormWrapper: Starting server action...');
         const result = await getProfileOptionsAction();
-        console.log('ProfileFormWrapper: Server action result:', result);
         
-        if (!result.success || !result.data) {
-          console.error('ProfileFormWrapper: Server action failed:', result.error);
-          throw new Error(result.error || 'Failed to fetch profile options');
+        if (result.success && result.data) {
+          setOptions(result.data);
+          setError(null);
+        } else {
+          setError(result.error || 'Failed to fetch profile options');
         }
-        
-        console.log('ProfileFormWrapper: Data received:', result.data);
-        setOptions(result.data);
       } catch (err) {
-        console.error('ProfileFormWrapper: Error:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch profile options');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
-    };
+    }
 
     fetchOptions();
   }, []);
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">プロフィール設定を読み込み中...</p>
+      <div className="space-y-6">
+        <div className="mb-6">
+          <ClerkInfoCard />
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <LoadingSpinner 
+            size="lg" 
+            text="プロフィール設定を読み込み中..." 
+            className="py-8"
+          />
+          <div className="mt-6">
+            <FormSkeleton />
+          </div>
         </div>
       </div>
     );

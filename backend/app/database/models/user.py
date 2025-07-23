@@ -82,5 +82,3 @@ class UserSupervisor(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="supervisor_relations")
     supervisor = relationship("User", foreign_keys=[supervisor_id], back_populates="subordinate_relations")
-
-

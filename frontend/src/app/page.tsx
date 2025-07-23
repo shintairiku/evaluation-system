@@ -6,6 +6,7 @@ import Sidebar from "@/components/display/sidebar";
 import WelcomeDashboard from "@/components/display/WelcomeDashboard";
 import InactiveAccountMessage from "@/components/display/InactiveAccountMessage";
 import LandingPage from "@/components/display/LandingPage";
+import AuthRedirectHandler from "@/components/auth/AuthRedirectHandler";
 import { checkUserExistsAction } from "@/api/server-actions/users";
 
 async function SignedInContent() {
@@ -58,6 +59,8 @@ export default function Home() {
       </SignedOut>
 
       <SignedIn>
+        {/* Client-side redirect handler for smooth user flow */}
+        <AuthRedirectHandler />
         <SignedInContent />
       </SignedIn>
     </div>

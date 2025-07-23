@@ -4,7 +4,7 @@ import logging
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
-from ..database.repositories.stage_repository import StageRepository
+from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User
 from ..schemas.auth import AuthUser
