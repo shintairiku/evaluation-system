@@ -45,10 +45,9 @@ class CompetencyDetail(BaseModel):
     name: str
     description: Optional[str] = None
     stage_id: UUID = Field(..., alias="stageId")
-    goal_count: int = Field(0, alias="goalCount")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
-    # users: Optional[List["User"]] = Field(default=None, alias="users")
+    users: Optional[List["User"]] = Field(default=None, alias="users")
     
     class Config:
         from_attributes = True

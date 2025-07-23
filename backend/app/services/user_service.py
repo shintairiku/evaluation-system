@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 user_search_cache = TTLCache(maxsize=100, ttl=300)
 
 
+
 class UserService:
     """Service layer for user-related business logic and operations"""
     

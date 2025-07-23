@@ -108,6 +108,17 @@ class UserRepository:
             logger.error(f"Error fetching user by clerk_id {clerk_user_id}: {e}")
             raise
 
+    async def get_user_stage_id(self, user_id: UUID) -> Optional[UUID]:
+        """Get user's stage_id efficiently with minimal query."""
+        try:
+            result = await self.session.execute(
+                select(User.stage_id).filter(User.id == user_id)
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching stage_id for user {user_id}: {e}")
+            raise
+
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> Optional[dict]:
         """
         Lightweight check if user exists by clerk_id.
