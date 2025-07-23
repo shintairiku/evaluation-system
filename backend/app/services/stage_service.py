@@ -4,8 +4,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.stage_repo import StageRepository
+from ..database.repositories.competency_repo import CompetencyRepository
 from ..schemas.stage_competency import (
-    Stage, StageDetail, StageCreate, StageUpdate, StageWithUserCount
+    Stage, StageDetail, StageCreate, StageUpdate, StageWithUserCount, Competency
 )
 from ..security.context import AuthContext
 from ..security.permissions import Permission
@@ -20,6 +21,7 @@ class StageService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.stage_repo = StageRepository(session)
+        self.competency_repo = CompetencyRepository(session)
     
     async def create_stage(self, current_user_context: AuthContext, stage_data: StageCreate) -> StageDetail:
         """
@@ -51,6 +53,9 @@ class StageService:
             
             logger.info(f"Successfully created stage: {stage_model.name}")
             
+            # Get competencies for the stage (will be empty for new stage)
+            competencies = await self._get_competencies_for_stage(stage_model.id)
+            
             return StageDetail(
                 id=stage_model.id,
                 name=stage_model.name,
@@ -59,7 +64,7 @@ class StageService:
                 updated_at=stage_model.updated_at,
                 user_count=0,
                 users=None,
-                competencies=None
+                competencies=competencies
             )
             
         except ConflictError:
@@ -94,13 +99,18 @@ class StageService:
         # Count users in this stage
         user_count = await self.stage_repo.count_users_by_stage(stage_id)
         
+        # Get competencies for the stage
+        competencies = await self._get_competencies_for_stage(stage_id)
+        
         return StageDetail(
             id=stage_model.id,
             name=stage_model.name,
             description=stage_model.description,
             created_at=stage_model.created_at,
             updated_at=stage_model.updated_at,
-            user_count=user_count
+            user_count=user_count,
+            users=None,
+            competencies=competencies
         )
     
     async def get_all_stages(self, current_user_context: AuthContext) -> List[Stage]:
@@ -198,6 +208,9 @@ class StageService:
             # Get user count for response
             user_count = await self.stage_repo.count_users_by_stage(stage_id)
             
+            # Get competencies for the stage
+            competencies = await self._get_competencies_for_stage(stage_id)
+            
             return StageDetail(
                 id=updated_stage.id,
                 name=updated_stage.name,
@@ -206,7 +219,7 @@ class StageService:
                 updated_at=updated_stage.updated_at,
                 user_count=user_count,
                 users=None,
-                competencies=None
+                competencies=competencies
             )
             
         except (NotFoundError, ConflictError):
@@ -263,3 +276,34 @@ class StageService:
             await self.session.rollback()
             logger.error(f"Error deleting stage {stage_id}: {e}")
             raise BadRequestError("Failed to delete stage")
+    
+    async def _get_competencies_for_stage(self, stage_id: UUID) -> List[Competency]:
+        """
+        Get all competencies for a specific stage.
+        
+        Args:
+            stage_id: Stage UUID
+            
+        Returns:
+            List[Competency]: List of competencies for the stage
+        """
+        try:
+            competency_models = await self.competency_repo.get_competencies_by_stage_id(stage_id)
+            
+            # Convert to schema objects
+            competencies = []
+            for competency_model in competency_models:
+                competency = Competency(
+                    id=competency_model.id,
+                    name=competency_model.name,
+                    description=competency_model.description,
+                    stage_id=competency_model.stage_id,
+                    created_at=competency_model.created_at,
+                    updated_at=competency_model.updated_at
+                )
+                competencies.append(competency)
+            
+            return competencies
+        except Exception as e:
+            logger.error(f"Error getting competencies for stage {stage_id}: {e}")
+            return []

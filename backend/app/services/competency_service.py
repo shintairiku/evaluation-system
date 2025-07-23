@@ -470,7 +470,6 @@ class CompetencyService:
                 "name": competency_model.name,
                 "description": competency_model.description,
                 "stage_id": competency_model.stage_id,
-                "goal_count": 0,  # Will be updated when Goal entities are implemented
                 "created_at": competency_model.created_at,
                 "updated_at": competency_model.updated_at
             }
