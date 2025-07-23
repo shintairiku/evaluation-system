@@ -82,7 +82,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
             duration: 3000
           });
           
-          router.push('/profile/confirmation');
+          router.push('/setup/confirmation');
         });
       } else if (actionState.error) {
         toast.error(actionState.error, { duration: 4000 });
