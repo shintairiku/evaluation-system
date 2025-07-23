@@ -25,26 +25,26 @@ export default function AuthRedirectHandler() {
         const profileCompleted = user.unsafeMetadata?.profileCompleted;
         
         if (!profileCompleted) {
-          router.push('/profile');
+          router.push('/setup');
           return;
         }
         
         const userResult = await checkUserExistsAction(user.id);
         
         if (!userResult.success || !userResult.data) {
-          router.push('/profile');
+          router.push('/setup');
           return;
         }
 
         const userCheck = userResult.data;
         
         if (!userCheck.exists) {
-          router.push('/profile');
+          router.push('/setup');
           return;
         }
       } catch (error) {
         console.error('AuthRedirectHandler: Error checking user status:', error);
-        router.push('/profile');
+        router.push('/setup');
       }
     };
 
