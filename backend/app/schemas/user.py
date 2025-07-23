@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from .stage_competency import StageDetail
 
 
-
 # ========================================
 # ENUMS
 # ========================================
@@ -88,17 +87,21 @@ class RoleDetail(BaseModel):
     id: UUID
     name: str
     description: str
+    hierarchy_order: int
     created_at: datetime
     updated_at: datetime
     permissions: Optional[List[Permission]] = []
-    user_count: Optional[int] = None
+    user_count: Optional[int] = Field(None, description="Number of users with this role")
+    users: Optional[PaginatedResponse['User']] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class RoleReorderItem(BaseModel):
     """Single item for role reordering"""
     id: UUID
     hierarchy_order: int = Field(..., ge=1, description="New hierarchy order position (1 = highest authority)")
+
 
 class RoleReorderRequest(BaseModel):
     """Request to reorder multiple roles via drag-and-drop"""
@@ -178,18 +181,12 @@ class UserInDB(UserBase):
 # USER RESPONSE SCHEMAS
 # ========================================
 
-
 class User(UserInDB):
     """Complete a user information; no user-to-user relationship"""
     department: Department
     stage: Stage
     roles: List[Role] = []
 
-class RoleDetail(Role):
-    """Extended role information for detailed views"""
-    # TODO: add users once implement Goals domain
-    user_count: Optional[int] = Field(None, description="Number of users with this role")
-    users: Optional[PaginatedResponse['User']] = None 
 
 class UserDetailResponse(BaseModel):
     id: UUID
@@ -236,7 +233,6 @@ class ProfileOptionsResponse(BaseModel):
 try:
     # Rebuild models that have forward references
     DepartmentDetail.model_rebuild()
-    StageDetail.model_rebuild()
     RoleDetail.model_rebuild()
     User.model_rebuild()
     UserDetailResponse.model_rebuild()

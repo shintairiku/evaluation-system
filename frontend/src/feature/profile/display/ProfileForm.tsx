@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useActionState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { 
   Select,
   SelectContent,
@@ -26,7 +26,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { createUserAction } from '@/api/server-actions/users';
-import type { Department, Stage, Role } from '@/api/types/user';
+import type { Department, Stage, Role, UserCreate } from '@/api/types/user';
 import type { UserProfileOption } from '@/api/types/user';
 
 interface ProfileFormProps {
@@ -39,120 +39,89 @@ interface ProfileFormProps {
 export default function ProfileForm({ departments, stages, roles, users }: ProfileFormProps) {
   const { user } = useUser();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   
-  const [formData, setFormData] = useState({
-    employee_code: '',
-    job_title: '',
-    department_id: '',
-    stage_id: '',
-    role_ids: [] as number[],
-    supervisor_id: ''
-  });
-
+  // Form state
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedStage, setSelectedStage] = useState('');
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedSupervisor, setSelectedSupervisor] = useState('');
   const [supervisorPopoverOpen, setSupervisorPopoverOpen] = useState(false);
 
-  // Get available users for supervisor selection (excluding current user if editing)
-  const availableUsers = users;
-
-  // Get selected user info for display
-  const selectedUser = users.find(user => user.id === formData.supervisor_id);
-
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSelectChange = (field: string) => (value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleRoleSelectionChange = (selectedIds: number[]) => {
-    setFormData(prev => ({
-      ...prev,
-      role_ids: selectedIds
-    }));
-  };
-
-  const handleSupervisorSelect = (userId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      supervisor_id: userId
-    }));
-    setSupervisorPopoverOpen(false);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Server action wrapper for useActionState
+  const formActionWrapper = async (prevState: any, formData: FormData) => {
+    const userData: UserCreate = {
+      clerk_user_id: formData.get('clerk_user_id') as string,
+      name: formData.get('name') as string,
+      email: formData.get('email') as string,
+      employee_code: formData.get('employee_code') as string,
+      job_title: formData.get('job_title') as string || undefined,
+      department_id: formData.get('department_id') as string,
+      stage_id: formData.get('stage_id') as string,
+      role_ids: JSON.parse(formData.get('role_ids') as string || '[]'),
+      supervisor_id: formData.get('supervisor_id') as string || undefined,
+      subordinate_ids: []
+    };
     
-    if (!user) {
-      setError('ユーザー情報を取得できませんでした。');
-      return;
-    }
+    return await createUserAction(userData);
+  };
 
-    if (!formData.employee_code || !formData.department_id || !formData.stage_id) {
-      setError('必須項目をすべて入力してください。');
-      return;
-    }
+  const [actionState, formAction, isPending] = useActionState(formActionWrapper, null);
 
-    if (formData.role_ids.length === 0) {
-      setError('少なくとも1つの役割を選択してください。');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Get name from Clerk user data
-      const fullName = user.firstName && user.lastName 
-        ? `${user.lastName} ${user.firstName}` // Japanese style: surname first
-        : user.fullName || "";
-
-      const signupData = {
-        clerk_user_id: user.id,
-        name: fullName,
-        email: user.primaryEmailAddress?.emailAddress || '',
-        employee_code: formData.employee_code,
-        job_title: formData.job_title || undefined,
-        department_id: formData.department_id,
-        stage_id: formData.stage_id,
-        role_ids: formData.role_ids, // Use selected roles from form
-        supervisor_id: formData.supervisor_id || undefined,
-        subordinate_ids: [] // Default empty array for signup
-      };
-
-      const result = await createUserAction(signupData);
-
-      if (result.success) {
-        // Update Clerk metadata to indicate profile completion
-        await user.update({
+  // Handle action state changes
+  useEffect(() => {
+    if (actionState) {
+      if (actionState.success && actionState.data) {
+        user?.update({
           unsafeMetadata: {
             ...user.unsafeMetadata,
             profileCompleted: true,
             status: 'pending_approval'
           }
+        }).then(() => {
+          toast.success('プロフィールが正常に作成されました！', {
+            duration: 3000
+          });
+          
+          router.push('/profile/confirmation');
         });
-        
-        router.push('/profile/confirmation');
-      } else {
-        setError(result.error || 'プロフィールの作成に失敗しました。');
+      } else if (actionState.error) {
+        toast.error(actionState.error, { duration: 4000 });
       }
-    } catch (error) {
-      console.error('Profile creation error:', error);
-      setError('予期しないエラーが発生しました。もう一度お試しください。');
-    } finally {
-      setLoading(false);
+    }
+  }, [actionState, user, router]);
+
+  const handleRoleSelectionChange = (selectedIds: number[]) => {
+    const stringIds = selectedIds.map(index => {
+      const role = roles[index];
+      return role ? role.id : '';
+    }).filter(id => id !== '');
+    
+    setSelectedRoles(stringIds);
+    
+    if (stringIds.length > 0) {
+      const selectedRoleNames = selectedIds
+        .map(index => roles[index]?.name)
+        .filter(Boolean)
+        .join(', ');
+      toast.success(`役職を選択しました: ${selectedRoleNames}`, { 
+        duration: 1500
+      });
     }
   };
+
+  const handleSupervisorSelect = (userId: string) => {
+    setSelectedSupervisor(userId);
+    setSupervisorPopoverOpen(false);
+    
+    const selectedUser = users.find(u => u.id === userId);
+    if (selectedUser) {
+      toast.success(`上司を選択しました: ${selectedUser.name}`, {
+        duration: 1500
+      });
+    }
+  };
+
+  const selectedSupervisorUser = users.find(u => u.id === selectedSupervisor);
 
   return (
     <Card>
@@ -160,41 +129,68 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
         <CardTitle>プロフィール情報</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
+        <form action={formAction} className="space-y-6">
+          {/* Hidden fields for user data */}
+          <input type="hidden" name="clerk_user_id" value={user?.id || ''} />
+          <input type="hidden" name="name" value={
+            user?.firstName && user?.lastName 
+              ? `${user.lastName} ${user.firstName}` 
+              : user?.fullName || ''
+          } />
+          <input type="hidden" name="email" value={user?.primaryEmailAddress?.emailAddress || ''} />
+          <input type="hidden" name="department_id" value={selectedDepartment} />
+          <input type="hidden" name="stage_id" value={selectedStage} />
+          <input type="hidden" name="role_ids" value={JSON.stringify(selectedRoles)} />
+          <input type="hidden" name="supervisor_id" value={selectedSupervisor} />
+
+          {actionState?.error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
+              {actionState.error}
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="employee_code">社員番号 *</Label>
-            <Input
-              id="employee_code"
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium mb-2">氏名</label>
+              <Input 
+                value={user?.firstName && user?.lastName 
+                  ? `${user.lastName} ${user.firstName}` 
+                  : user?.fullName || ''
+                } 
+                readOnly 
+                className="bg-gray-100" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">メールアドレス</label>
+              <Input 
+                value={user?.primaryEmailAddress?.emailAddress || ''} 
+                readOnly 
+                className="bg-gray-100" 
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">社員番号 *</label>
+            <Input 
               name="employee_code"
-              type="text"
-              value={formData.employee_code}
-              onChange={handleInputChange}
-              required
-              placeholder="例: EMP001"
+              placeholder="例: EMP001" 
+              required 
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="job_title">役職</Label>
-            <Input
-              id="job_title"
+          <div>
+            <label className="block text-sm font-medium mb-2">役職</label>
+            <Input 
               name="job_title"
-              type="text"
-              value={formData.job_title}
-              onChange={handleInputChange}
-              placeholder="例: 営業部長"
+              placeholder="例: 営業部長" 
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="department_id">部署 *</Label>
-            <Select value={formData.department_id} onValueChange={handleSelectChange('department_id')} required>
+          <div>
+            <label className="block text-sm font-medium mb-2">部署 *</label>
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment} required>
               <SelectTrigger>
                 <SelectValue placeholder="部署を選択してください" />
               </SelectTrigger>
@@ -213,9 +209,9 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="stage_id">段階 *</Label>
-            <Select value={formData.stage_id} onValueChange={handleSelectChange('stage_id')} required>
+          <div>
+            <label className="block text-sm font-medium mb-2">段階 *</label>
+            <Select value={selectedStage} onValueChange={setSelectedStage} required>
               <SelectTrigger>
                 <SelectValue placeholder="段階を選択してください" />
               </SelectTrigger>
@@ -234,105 +230,111 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
             </Select>
           </div>
 
-          <MultiSelectRoles
-            roles={roles}
-            selectedRoleIds={formData.role_ids}
-            onSelectionChange={handleRoleSelectionChange}
-            required={true}
-          />
+          <div>
+            <label className="block text-sm font-medium mb-2">役職 *</label>
+            <MultiSelectRoles
+              roles={roles.map((role, index) => ({
+                id: index,
+                name: role.name,
+                description: role.description
+              }))}
+              selectedRoleIds={selectedRoles.map(roleId => {
+                return roles.findIndex(role => role.id === roleId);
+              }).filter(index => index !== -1)}
+              onSelectionChange={handleRoleSelectionChange}
+              required={true}
+            />
+          </div>
 
-          <div className="space-y-2">
-            <Label>上司の選択（任意）</Label>
-            
-            {selectedUser ? (
-              <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
-                <div className="flex flex-col">
-                  <span className="font-medium">{selectedUser.name}</span>
-                  <span className="text-sm text-gray-500">
-                    社員番号: {selectedUser.employee_code}
-                    {selectedUser.job_title && ` | 役職: ${selectedUser.job_title}`}
-                  </span>
-                  {selectedUser.roles.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {selectedUser.roles.map(role => (
-                        <Badge key={role.id} variant="secondary" className="text-xs">
-                          {role.description}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setFormData(prev => ({ ...prev, supervisor_id: '' }))}
-                >
-                  ×
-                </Button>
-              </div>
-            ) : (
-              <Popover open={supervisorPopoverOpen} onOpenChange={setSupervisorPopoverOpen}>
-                <PopoverTrigger asChild>
+          <div>
+            <label className="block text-sm font-medium mb-2">上司の選択（任意）</label>
+            <div className="space-y-2">
+              {selectedSupervisorUser ? (
+                <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
+                  <div className="flex flex-col">
+                    <span className="font-medium">{selectedSupervisorUser.name}</span>
+                    <span className="text-sm text-gray-500">
+                      社員番号: {selectedSupervisorUser.employee_code}
+                      {selectedSupervisorUser.job_title && ` | 役職: ${selectedSupervisorUser.job_title}`}
+                    </span>
+                    {selectedSupervisorUser.roles.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedSupervisorUser.roles.map(role => (
+                          <Badge key={role.id} variant="secondary" className="text-xs">
+                            {role.description}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <Button
                     type="button"
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedSupervisor('')}
                   >
-                    上司を選択してください...
+                    ×
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="名前、社員番号、役職で検索..." />
-                    <CommandList>
-                      <CommandEmpty>検索結果がありません</CommandEmpty>
-                      <CommandGroup>
-                        {availableUsers.map((user) => (
-                          <CommandItem
-                            key={user.id}
-                            value={`${user.name} ${user.employee_code} ${user.job_title || ''} ${user.roles.map(r => r.name).join(' ')}`}
-                            onSelect={() => handleSupervisorSelect(user.id)}
-                          >
-                            <div className="flex flex-col w-full">
-                              <span className="font-medium">{user.name}</span>
-                              <span className="text-sm text-gray-500">
-                                社員番号: {user.employee_code}
-                                {user.job_title && ` | 役職: ${user.job_title}`}
-                              </span>
-                              {user.roles.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {user.roles.map(role => (
-                                    <Badge key={role.id} variant="outline" className="text-xs">
-                                      {role.description}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            )}
-            
-            <p className="text-sm text-gray-500">
-              名前、社員番号、役職、または役割で検索できます。
-            </p>
+                </div>
+              ) : (
+                <Popover open={supervisorPopoverOpen} onOpenChange={setSupervisorPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      上司を選択してください...
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="名前、社員番号、役職で検索..." />
+                      <CommandList>
+                        <CommandEmpty>検索結果がありません</CommandEmpty>
+                        <CommandGroup>
+                          {users.map((user) => (
+                            <CommandItem
+                              key={user.id}
+                              value={`${user.name} ${user.employee_code} ${user.job_title || ''} ${user.roles.map(r => r.name).join(' ')}`}
+                              onSelect={() => handleSupervisorSelect(user.id)}
+                            >
+                              <div className="flex flex-col w-full">
+                                <span className="font-medium">{user.name}</span>
+                                <span className="text-sm text-gray-500">
+                                  社員番号: {user.employee_code}
+                                  {user.job_title && ` | 役職: ${user.job_title}`}
+                                </span>
+                                {user.roles.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {user.roles.map(role => (
+                                      <Badge key={role.id} variant="outline" className="text-xs">
+                                        {role.description}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
           </div>
 
           <Button
             type="submit"
-            disabled={loading}
+            disabled={isPending || !selectedDepartment || !selectedStage || selectedRoles.length === 0}
             className="w-full"
           >
-            {loading ? '処理中...' : 'プロフィールを作成'}
+            {isPending ? 'プロフィールを作成中...' : 'プロフィールを作成'}
           </Button>
         </form>
       </CardContent>
     </Card>
   );
-} 
+}

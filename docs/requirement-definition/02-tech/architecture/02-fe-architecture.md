@@ -10,8 +10,7 @@ frontend/src/
 ├── api/                    # API統合レイヤー
 │   ├── client/            # HTTPクライアント設定
 │   ├── constants/         # API設定定数
-│   ├── endpoints/         # APIエンドポイント関数（バックエンドと1:1対応）
-│   ├── server-actions/    # Next.jsサーバーアクション（SSR用）
+│   ├── server-actions/    # Next.jsサーバーアクション（SSR・クライアント用）
 │   └── types/            # TypeScript型定義（バックエンドスキーマと一致）
 ├── app/                   # Next.js App Router（ページ定義）
 ├── components/            # 再利用可能なUIコンポーネント
@@ -25,7 +24,9 @@ frontend/src/
 └── middleware.ts         # Next.jsミドルウェア
 ```
 
-## 開発フロー
+## 開発フロー（Server Actions + useActionState）
+
+このプロジェクトでは、React 19の`useActionState`とNext.jsのServer Actionsを活用した**サーバーファースト**なアーキテクチャを採用しています。
 
 ### 1. APIエンドポイント設定 (`frontend/src/api/constants/config.ts`)
 
@@ -95,77 +96,24 @@ export interface NewResourceDetailResponse {
 }
 ```
 
-### 3. エンドポイント関数作成 (`frontend/src/api/endpoints/`)
+### 3. サーバーアクション作成 (`frontend/src/api/server-actions/`)
 
-バックエンドエンドポイントと1:1対応する関数を作成します。
-
-```ts
-// frontend/src/api/endpoints/new-resource.ts
-import { getHttpClient } from '../client/http-client';
-import { API_ENDPOINTS } from '../constants/config';
-import type {
-  NewResourceDetailResponse,
-  NewResourceCreate,
-  NewResourceUpdate,
-  ApiResponse,
-  UUID,
-} from '../types';
-
-const httpClient = getHttpClient();
-
-export const newResourceApi = {
-  /**
-   * リソース一覧を取得
-   */
-  getNewResources: async (): Promise<ApiResponse<NewResourceDetailResponse[]>> => {
-    return httpClient.get<NewResourceDetailResponse[]>(API_ENDPOINTS.NEW_RESOURCE.LIST);
-  },
-
-  /**
-   * 特定のリソースをIDで取得
-   */
-  getNewResourceById: async (id: UUID): Promise<ApiResponse<NewResourceDetailResponse>> => {
-    return httpClient.get<NewResourceDetailResponse>(API_ENDPOINTS.NEW_RESOURCE.BY_ID(id));
-  },
-
-  /**
-   * 新しいリソースを作成
-   */
-  createNewResource: async (data: NewResourceCreate): Promise<ApiResponse<NewResourceDetailResponse>> => {
-    return httpClient.post<NewResourceDetailResponse>(API_ENDPOINTS.NEW_RESOURCE.CREATE, data);
-  },
-
-  /**
-   * 既存のリソースを更新
-   */
-  updateNewResource: async (id: UUID, data: NewResourceUpdate): Promise<ApiResponse<NewResourceDetailResponse>> => {
-    return httpClient.put<NewResourceDetailResponse>(API_ENDPOINTS.NEW_RESOURCE.UPDATE(id), data);
-  },
-
-  /**
-   * リソースを削除
-   */
-  deleteNewResource: async (id: UUID): Promise<ApiResponse<void>> => {
-    return httpClient.delete<void>(API_ENDPOINTS.NEW_RESOURCE.DELETE(id));
-  },
-};
-```
-
-### 4. サーバーアクション作成 (`frontend/src/api/server-actions/`)
-
-SSR用のサーバーアクションを作成します。
+サーバーアクションはSSRとクライアントコンポーネント（`useActionState`経由）の両方で使用します([reference](https://zenn.dev/akfm/books/nextjs-basic-principle/viewer/part_1_interactive_fetch))。
 
 ```ts
 // frontend/src/api/server-actions/new-resource.ts
 'use server';
 
-import { newResourceApi } from '../endpoints/new-resource';
+import { getHttpClient } from '../client/http-client';
+import { API_ENDPOINTS } from '../constants/config';
 import type { 
   NewResourceDetailResponse, 
   NewResourceCreate, 
   NewResourceUpdate,
   UUID 
 } from '../types';
+
+const httpClient = getHttpClient();
 
 /**
  * リソース一覧を取得するサーバーアクション
@@ -176,7 +124,9 @@ export async function getNewResourcesAction(): Promise<{
   error?: string;
 }> {
   try {
-    const response = await newResourceApi.getNewResources();
+    const response = await httpClient.get<NewResourceDetailResponse[]>(
+      API_ENDPOINTS.NEW_RESOURCE.LIST
+    );
     
     if (!response.success || !response.data) {
       return {
@@ -199,37 +149,6 @@ export async function getNewResourcesAction(): Promise<{
 }
 
 /**
- * 特定のリソースをIDで取得するサーバーアクション
- */
-export async function getNewResourceByIdAction(id: UUID): Promise<{
-  success: boolean;
-  data?: NewResourceDetailResponse;
-  error?: string;
-}> {
-  try {
-    const response = await newResourceApi.getNewResourceById(id);
-    
-    if (!response.success || !response.data) {
-      return {
-        success: false,
-        error: response.error || 'リソースの取得に失敗しました',
-      };
-    }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get new resource by ID action error:', error);
-    return {
-      success: false,
-      error: 'リソースの取得中に予期しないエラーが発生しました',
-    };
-  }
-}
-
-/**
  * 新しいリソースを作成するサーバーアクション
  */
 export async function createNewResourceAction(data: NewResourceCreate): Promise<{
@@ -238,7 +157,10 @@ export async function createNewResourceAction(data: NewResourceCreate): Promise<
   error?: string;
 }> {
   try {
-    const response = await newResourceApi.createNewResource(data);
+    const response = await httpClient.post<NewResourceDetailResponse>(
+      API_ENDPOINTS.NEW_RESOURCE.CREATE, 
+      data
+    );
     
     if (!response.success || !response.data) {
       return {
@@ -261,16 +183,11 @@ export async function createNewResourceAction(data: NewResourceCreate): Promise<
 }
 ```
 
-### 5. エクスポート設定
+### 4. エクスポート設定
 
 各ファイルのindex.tsにエクスポートを追加します。
 
 ```ts
-// frontend/src/api/endpoints/index.ts
-export * from './users';
-export * from './auth';
-export * from './new-resource'; // 新しく追加
-
 // frontend/src/api/server-actions/index.ts
 export * from './users';
 export * from './auth';
@@ -283,7 +200,7 @@ export * from './user';
 export * from './new-resource'; // 新しく追加
 ```
 
-### 6. ページとコンポーネント実装
+### 5. ページとコンポーネント実装
 
 #### ページコンポーネント (`frontend/src/app/`)
 
@@ -374,48 +291,36 @@ export function NewResourceList({ resources }: NewResourceListProps) {
 }
 ```
 
-#### フォームコンポーネント
+#### フォームコンポーネント（useActionState使用）
 
 ```tsx
 // frontend/src/feature/evaluation/admin/new-resource/display/CreateNewResourceForm.tsx
 'use client';
 
-import { useState } from 'react';
+import { useActionState, useRef } from 'react';
 import { createNewResourceAction } from '@/api/server-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import type { NewResourceCreate } from '@/api/types';
 
 export function CreateNewResourceForm() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-
-    const formData = new FormData(e.currentTarget);
-    const data = {
+  const formRef = useRef<HTMLFormElement>(null);
+  
+  const actionWrapper = async (prevState: any, formData: FormData) => {
+    const data: NewResourceCreate = {
       name: formData.get('name') as string,
       description: formData.get('description') as string,
     };
+    
+    return await createNewResourceAction(data);
+  };
 
-    const result = await createNewResourceAction(data);
-    
-    if (result.success) {
-      // 成功時の処理（リダイレクトやリフレッシュなど）
-      window.location.reload();
-    } else {
-      setError(result.error || '作成に失敗しました');
-    }
-    
-    setIsLoading(false);
-  }
+  const [actionState, formAction, isPending] = useActionState(actionWrapper, null);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} action={formAction} className="space-y-4">
       <div>
         <Label htmlFor="name">名前</Label>
         <Input id="name" name="name" required />
@@ -424,38 +329,103 @@ export function CreateNewResourceForm() {
         <Label htmlFor="description">説明</Label>
         <Textarea id="description" name="description" />
       </div>
-      {error && <div className="text-red-600">{error}</div>}
-      <Button type="submit" disabled={isLoading}>
-        {isLoading ? '作成中...' : '作成'}
+      {actionState?.error && (
+        <div className="text-red-600">{actionState.error}</div>
+      )}
+      <Button type="submit" disabled={isPending}>
+        {isPending ? '作成中...' : '作成'}
       </Button>
     </form>
   );
 }
 ```
 
+#### データ取得コンポーネント（useActionState使用）
+
+```tsx
+// frontend/src/feature/evaluation/admin/new-resource/display/NewResourceWrapper.tsx
+'use client';
+
+import { useActionState, useEffect } from 'react';
+import { getNewResourcesAction } from '@/api/server-actions';
+import { NewResourceList } from './NewResourceList';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+
+export function NewResourceWrapper() {
+  const actionWrapper = async () => {
+    return await getNewResourcesAction();
+  };
+
+  const [actionState, formAction, isPending] = useActionState(actionWrapper, null);
+
+  useEffect(() => {
+    formAction();
+  }, [formAction]);
+
+  if (isPending) {
+    return <LoadingSpinner text="リソースを読み込み中..." />;
+  }
+
+  if (!actionState?.success || !actionState?.data) {
+    return (
+      <div className="text-center py-8">
+        <div className="text-red-600">
+          エラー: {actionState?.error || 'データの取得に失敗しました'}
+        </div>
+        <button 
+          onClick={() => formAction()}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+        >
+          再試行
+        </button>
+      </div>
+    );
+  }
+
+  return <NewResourceList resources={actionState.data} />;
+}
+```
+
 ## ベストプラクティス
 
-### 1. サーバーコンポーネント優先
-- SEOとパフォーマンスのため、可能な限りサーバーコンポーネントを使用
-- データフェッチはサーバーサイドで実行
+### 1. サーバーファーストアプローチ
+- **サーバーコンポーネント**: 初期データ読み込みとSSRに使用
+- **useActionState**: クライアントでのユーザーインタラクション（フォーム送信、データ更新）に使用
+- 可能な限りサーバーサイドでデータ処理を実行
 
-### 2. 型安全性
-- すべてのAPI呼び出しでTypeScript型を使用
+### 2. useActionStateの使用パターン
+
+#### フォーム送信
+```tsx
+const [actionState, formAction, isPending] = useActionState(serverAction, null);
+return <form action={formAction}>...</form>
+```
+
+#### データ取得
+```tsx
+const [actionState, formAction, isPending] = useActionState(serverAction, null);
+useEffect(() => { formAction(); }, [formAction]);
+```
+
+#### エラーハンドリング
+```tsx
+{actionState?.error && <div className="error">{actionState.error}</div>}
+```
+
+### 3. 型安全性
+- すべてのServer ActionsでTypeScript型を使用
 - バックエンドスキーマと一致する型定義を維持
+- `useActionState`のactionWrapperで適切な型変換を実行
 
-### 3. エラーハンドリング
-- 一貫したエラーハンドリングパターンを使用
+### 4. エラーハンドリング
+- Server Actionsで一貫したエラーレスポンス形式を使用
+- `actionState`でエラー状態を管理
 - ユーザーフレンドリーなエラーメッセージを表示
 
-### 4. コンポーネント設計
-- 単一責任の原則に従う
-- 再利用可能なコンポーネントを作成
-- 適切なprops型定義
-
 ### 5. パフォーマンス
+- Server Actionsで重い処理をサーバーサイドで実行
+- `isPending`でローディング状態を適切に表示
 - 不要な再レンダリングを避ける
-- 適切なメモ化を使用
-- 画像の最適化
 
 ## 環境変数設定
 

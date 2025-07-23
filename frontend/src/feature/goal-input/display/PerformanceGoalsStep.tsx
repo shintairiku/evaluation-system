@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, X, AlertCircle, TrendingUp, BarChart3, Zap } from 'lucide-react';
+import { Plus, X, AlertCircle, TrendingUp, BarChart3, Zap, Save, Cloud, CloudOff, CheckCircle } from 'lucide-react';
 
 interface PerformanceGoal {
   id: string;
@@ -30,6 +31,48 @@ interface PerformanceGoalsStepProps {
 
 export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: PerformanceGoalsStepProps) {
   const [currentGoals, setCurrentGoals] = useState<PerformanceGoal[]>(goals);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Autosave functionality
+  const autosave = useCallback(async () => {
+    setSaveStatus('saving');
+    setHasUnsavedChanges(false);
+    
+    try {
+      // Simulate API call for autosave
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setSaveStatus('saved');
+      setLastSaved(new Date());
+      
+      toast.success('目標を自動保存しました', {
+        duration: 2000
+      });
+      
+      // Reset to idle after showing saved status
+      setTimeout(() => setSaveStatus('idle'), 2000);
+      
+    } catch {
+      setSaveStatus('error');
+      toast.error('自動保存に失敗しました', {
+        duration: 3000
+      });
+      setHasUnsavedChanges(true);
+    }
+  }, []);
+
+  // Debounced autosave
+  useEffect(() => {
+    if (hasUnsavedChanges && currentGoals.length > 0) {
+      const timeoutId = setTimeout(() => {
+        autosave();
+      }, 2000); // Autosave after 2 seconds of inactivity
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentGoals, hasUnsavedChanges, autosave]);
 
   useEffect(() => {
     // 初期設定：目標がない場合は1つ追加
@@ -62,13 +105,37 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
     const updatedGoals = [...currentGoals, newGoal];
     setCurrentGoals(updatedGoals);
     onGoalsChange(updatedGoals);
+    setHasUnsavedChanges(true);
+    
+    // Show immediate feedback
+    toast.success('新しい目標を追加しました', {
+      duration: 1500
+    });
   };
 
   const removeGoal = (id: string) => {
     if (currentGoals.length === 1) return; // 最低1つは残す
+    
+    const goalToRemove = currentGoals.find(goal => goal.id === id);
     const updatedGoals = currentGoals.filter(goal => goal.id !== id);
+    
     setCurrentGoals(updatedGoals);
     onGoalsChange(updatedGoals);
+    setHasUnsavedChanges(true);
+    
+    // Show immediate feedback with undo option
+    const goalTitle = goalToRemove?.title || '目標';
+    toast.success(`「${goalTitle}」を削除しました`, {
+      duration: 3000,
+      action: {
+        label: '元に戻す',
+        onClick: () => {
+          setCurrentGoals(currentGoals);
+          onGoalsChange(currentGoals);
+          toast.success('削除を取り消しました', { duration: 1500 });
+        },
+      },
+    });
   };
 
   const updateGoal = (id: string, field: keyof PerformanceGoal, value: string | number) => {
@@ -77,6 +144,17 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
     );
     setCurrentGoals(updatedGoals);
     onGoalsChange(updatedGoals);
+    setHasUnsavedChanges(true);
+    
+    // Show subtle feedback for important field updates
+    if (field === 'weight') {
+      const newTotal = updatedGoals.reduce((sum, goal) => sum + goal.weight, 0);
+      if (newTotal === 100) {
+        toast.success('重み配分が完了しました！', {
+          duration: 2000
+        });
+      }
+    }
   };
 
   const getTotalWeight = () => {
@@ -97,22 +175,65 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
 
   const weightStatus = getWeightStatus();
 
+  const getSaveStatusIndicator = () => {
+    switch (saveStatus) {
+      case 'saving':
+        return (
+          <div className="flex items-center gap-2 text-blue-600">
+            <Cloud className="h-4 w-4 animate-pulse" />
+            <span className="text-sm">保存中...</span>
+          </div>
+        );
+      case 'saved':
+        return (
+          <div className="flex items-center gap-2 text-green-600">
+            <CheckCircle className="h-4 w-4" />
+            <span className="text-sm">
+              保存済み {lastSaved && `(${lastSaved.toLocaleTimeString()})`}
+            </span>
+          </div>
+        );
+      case 'error':
+        return (
+          <div className="flex items-center gap-2 text-red-600">
+            <CloudOff className="h-4 w-4" />
+            <span className="text-sm">保存失敗</span>
+          </div>
+        );
+      default:
+        return hasUnsavedChanges ? (
+          <div className="flex items-center gap-2 text-yellow-600">
+            <Save className="h-4 w-4" />
+            <span className="text-sm">未保存の変更</span>
+          </div>
+        ) : null;
+    }
+  };
+
   return (
     <div className="space-y-6">
 
       {/* ヘッダーカード */}
       <Card>
         <CardContent>
-          {/* 重み配分の視覚化 */}
+          {/* 重み配分の視覚化と保存状態 */}
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">重み配分の進捗</span>
-              <Badge variant={weightStatus.status === 'success' ? "default" : 
-                             weightStatus.status === 'error' ? "destructive" : "secondary"}>
-                {getTotalWeight()}% / 100%
-              </Badge>
+              <div className="flex items-center gap-3">
+                {getSaveStatusIndicator()}
+                <Badge variant={weightStatus.status === 'success' ? "default" : 
+                               weightStatus.status === 'error' ? "destructive" : "secondary"}>
+                  {getTotalWeight()}% / 100%
+                </Badge>
+              </div>
             </div>
             <Progress value={getTotalWeight()} />
+            {weightStatus.status !== 'success' && (
+              <p className="text-xs text-muted-foreground text-center">
+                {weightStatus.message}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
