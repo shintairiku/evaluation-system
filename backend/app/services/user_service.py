@@ -7,7 +7,7 @@ from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
-from ..database.repositories.stage_repository import StageRepository
+from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 # Cache for user search results (100 items, 5-minute TTL)
 user_search_cache = TTLCache(maxsize=100, ttl=300)
+
+# Cache for user stage lookups (500 items, 10-minute TTL)
+user_stage_cache = TTLCache(maxsize=500, ttl=600)
 
 
 class UserService:
@@ -474,6 +477,27 @@ class UserService:
             )
         else:
             return UserExistsResponse(exists=False)
+
+    async def get_user_stage_id(self, user_id: UUID) -> Optional[UUID]:
+        """Get user's stage_id efficiently with caching."""
+        try:
+            # Check cache first
+            cache_key = f"user_stage_{user_id}"
+            cached_stage_id = user_stage_cache.get(cache_key)
+            if cached_stage_id is not None:
+                return cached_stage_id
+            
+            # Fetch from database
+            stage_id = await self.user_repo.get_user_stage_id(user_id)
+            
+            # Cache the result (including None values)  
+            user_stage_cache[cache_key] = stage_id
+            
+            return stage_id
+            
+        except Exception as e:
+            logger.error(f"Error getting stage_id for user {user_id}: {str(e)}")
+            raise
 
     async def get_profile_options(self) -> ProfileOptionsResponse:
         """Get all available options for profile completion."""
