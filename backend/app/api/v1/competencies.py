@@ -32,7 +32,7 @@ async def get_competencies(
     - Support search functionality
     """
     try:
-        service = CompetencyService(session)
+        service = CompetencyService(session=session)
         
         # Prepare stage_ids filter
         stage_ids = [stage_id] if stage_id else None
@@ -55,10 +55,10 @@ async def get_competencies(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching competencies: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -75,7 +75,7 @@ async def create_competency(
     - Admin only can create competencies
     """
     try:
-        service = CompetencyService(session)
+        service = CompetencyService(session=session)
         result = await service.create_competency(competency_create, context)
         return result
         
@@ -99,10 +99,10 @@ async def create_competency(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating competency: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -119,7 +119,7 @@ async def get_competency(
     - All authenticated users can view competency details
     """
     try:
-        service = CompetencyService(session)
+        service = CompetencyService(session=session)
         result = await service.get_competency(competency_id, context)
         return result
         
@@ -133,10 +133,10 @@ async def get_competency(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching competency: {str(e)}"
+            detail="Internal server error"
         )
 
 
@@ -154,7 +154,7 @@ async def update_competency(
     - Admin only can update competencies
     """
     try:
-        service = CompetencyService(session)
+        service = CompetencyService(session=session)
         result = await service.update_competency(competency_id, competency_update, context)
         return result
         
@@ -183,14 +183,14 @@ async def update_competency(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating competency: {str(e)}"
+            detail="Internal server error"
         )
 
 
-@router.delete("/{competency_id}")
+@router.delete("/{competency_id}", response_model=BaseResponse)
 async def delete_competency(
     competency_id: UUID,
     context: AuthContext = Depends(get_auth_context),
@@ -203,9 +203,9 @@ async def delete_competency(
     - Admin only can delete competencies
     """
     try:
-        service = CompetencyService(session)
+        service = CompetencyService(session=session)
         await service.delete_competency(competency_id, context)
-        return {"message": "Competency deleted successfully"}
+        return BaseResponse(message="Competency deleted successfully")
         
     except NotFoundError as e:
         raise HTTPException(
@@ -222,8 +222,8 @@ async def delete_competency(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting competency: {str(e)}"
+            detail="Internal server error"
         )
