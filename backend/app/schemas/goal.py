@@ -57,17 +57,17 @@ class GoalCreate(BaseModel):
     weight: float = Field(..., ge=0, le=100)
     status: GoalStatus = Field(..., description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
-    # Performance Goal fields (goal_category = "Performance")
+    # Performance Goal fields (goal_category = "業績目標")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
     means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
     
-    # Competency Goal fields (goal_category = "Development")
+    # Competency Goal fields (goal_category = "コンピテンシー")
     competency_id: Optional[UUID] = Field(None, alias="competencyId")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
-    # Core Value Goal fields (goal_category = "Leadership") 
+    # Core Value Goal fields (goal_category = "コアバリュー") 
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
     
     @root_validator(skip_on_failure=True)
@@ -75,16 +75,16 @@ class GoalCreate(BaseModel):
     def validate_goal_category_fields(cls, values):
         """Validate that required fields are present based on goal_category"""
         goal_category = values.get('goal_category')
-        if goal_category == "Performance":  # Performance goal
+        if goal_category == "業績目標":  # Performance goal
             required_fields = ['performance_goal_type', 'specific_goal_text', 
                              'achievement_criteria_text', 'means_methods_text']
             if any(values.get(field) is None for field in required_fields):
                 raise ValueError("Performance goals require: performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText")
-        elif goal_category == "Development":  # Competency goal
+        elif goal_category == "コンピテンシー":  # Competency goal
             if values.get('competency_id') is None or values.get('action_plan') is None:
                 raise ValueError("Competency goals require: competencyId, actionPlan")
         # NOTE: Core value goal should be automatically created by the system
-        elif goal_category == "Leadership":  # Core value goal
+        elif goal_category == "コアバリュー":  # Core value goal
             if values.get('core_value_plan') is None:
                 raise ValueError("Core value goals require: coreValuePlan")
         return values
@@ -95,17 +95,17 @@ class GoalUpdate(BaseModel):
     weight: Optional[float] = Field(None, ge=0, le=100)
     status: Optional[GoalStatus] = Field(None, description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
-    # Performance Goal fields (goal_category = "Performance")
+    # Performance Goal fields (goal_category = "業績目標")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
     means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
     
-    # Competency Goal fields (goal_category = "Development")
+    # Competency Goal fields (goal_category = "コンピテンシー")
     competency_id: Optional[UUID] = Field(None, alias="competencyId")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
-    # Core Value Goal fields (goal_category = "Leadership")
+    # Core Value Goal fields (goal_category = "コアバリュー")
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
 
@@ -135,11 +135,11 @@ class GoalInDB(BaseModel):
             return data
 
         try:
-            if goal_category == "Performance":
+            if goal_category == "業績目標":
                 data['target_data'] = PerformanceGoalTargetData(**target_data_dict)
-            elif goal_category == "Development":
+            elif goal_category == "コンピテンシー":
                 data['target_data'] = CompetencyGoalTargetData(**target_data_dict)
-            elif goal_category == "Leadership":
+            elif goal_category == "コアバリュー":
                 data['target_data'] = CoreValueGoalTargetData(**target_data_dict)
         except Exception:
             # Let the default validation handle the error
@@ -172,18 +172,18 @@ class Goal(BaseModel):
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
     
-    # Performance Goal fields (goal_category = "Performance")
+    # Performance Goal fields (goal_category = "業績目標")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
     means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
     
-    # Competency Goal fields (goal_category = "Development")
+    # Competency Goal fields (goal_category = "コンピテンシー")
     competency_id: Optional[UUID] = Field(None, alias="competencyId")
     competency_name: Optional[str] = Field(None, alias="competencyName")  # Looked up from competency table
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
-    # Core Value Goal fields (goal_category = "Leadership")
+    # Core Value Goal fields (goal_category = "コアバリュー")
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
     @root_validator(pre=True)

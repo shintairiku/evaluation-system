@@ -14,7 +14,7 @@ async def get_goals(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
-    goal_category: Optional[str] = Query(None, alias="goalCategory", description="Filter by goal category (Performance, Development, Leadership, Technical, etc.)"),
+    goal_category: Optional[str] = Query(None, alias="goalCategory", description="Filter by goal category (業績目標, コンピテンシー, コアバリュー)"),
     status: Optional[str] = Query(None, description="Filter by status (draft, pending_approval, approved, rejected)"),
     context: AuthContext = Depends(get_auth_context)
 ):
