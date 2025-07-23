@@ -12,8 +12,8 @@ interface UserProfilesPageProps {
 }
 
 export default async function UserProfilesPage({ searchParams }: UserProfilesPageProps) {
-  // Get userId from URL params - for demo purposes, use a default ID if not provided
-  const userId = searchParams.userId || '550e8400-e29b-41d4-a716-446655440001';
+  // Get userId from URL params - using actual existing user ID for demo
+  const userId = searchParams.userId || 'afa75299-1d51-4f78-8e54-d7701aec8d7b'; // Silva (シルバ) - current user
   
   // Server-side data fetching using getUserByIdAction as specified
   const result = await getUserByIdAction(userId);
