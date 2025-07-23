@@ -172,7 +172,6 @@ class UserInDB(UserBase):
     stage_id: UUID
     created_at: datetime
     updated_at: datetime
-    last_login_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

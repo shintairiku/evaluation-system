@@ -46,98 +46,45 @@ class CoreValueGoalTargetData(BaseModel):
 TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData]
 
 
-# === Goal Category Schemas ===
-
-class GoalCategoryBase(BaseModel):
-    """Base schema for goal categories"""
-    name: str = Field(..., min_length=1, max_length=100)
-
-
-class GoalCategoryCreate(GoalCategoryBase):
-    """Schema for creating a goal category via API"""
-    pass
-
-
-class GoalCategoryUpdate(BaseModel):
-    """Schema for updating a goal category via API"""
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-
-
-class GoalCategoryInDB(GoalCategoryBase):
-    """Internal database representation of goal category"""
-    id: int  # smallint in database
-
-    class Config:
-        from_attributes = True
-
-
-class GoalCategory(GoalCategoryInDB):
-    """Goal category schema for API responses"""
-    # Additional computed fields for API convenience
-    goal_count: Optional[int] = Field(None, alias="goalCount", description="Number of goals in this category")
-    description: Optional[str] = Field(None, description="Human-readable description")
-    required_fields: List[str] = Field(default_factory=list, alias="requiredFields", description="Required fields for this category")
-
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-
-
-class GoalCategoryDetail(GoalCategory):
-    """Detailed goal category schema with paginated goals list"""
-    # Paginated goals list using common pagination
-    # goals: PaginatedResponse['Goal'] = Field(description="Paginated goals in this category")
-    
-    # Usage statistics (summary)
-    active_goals_count: Optional[int] = Field(None, alias="activeGoalsCount", description="Number of active goals")
-    draft_goals_count: Optional[int] = Field(None, alias="draftGoalsCount", description="Number of draft goals")
-    approved_goals_count: Optional[int] = Field(None, alias="approvedGoalsCount", description="Number of approved goals")
-    
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-
-
-class GoalCategoryList(PaginatedResponse[GoalCategory]):
-    """Schema for paginated goal category list responses"""
-    pass
+# === Goal Schemas ===
+# Note: Goal categories are now stored as simple string values rather than a separate table
 
 
 class GoalCreate(BaseModel):
     """Schema for creating a goal via API"""
     period_id: UUID = Field(..., alias="periodId")
-    goal_category_id: int = Field(..., ge=1, le=3, alias="goalCategoryId")
+    goal_category: str = Field(..., min_length=1, max_length=100, alias="goalCategory")
     weight: float = Field(..., ge=0, le=100)
     status: GoalStatus = Field(..., description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
-    # Performance Goal fields (goal_category_id = 1)
+    # Performance Goal fields (goal_category = "Performance")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
     means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
     
-    # Competency Goal fields (goal_category_id = 2)
+    # Competency Goal fields (goal_category = "Development")
     competency_id: Optional[UUID] = Field(None, alias="competencyId")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
-    # Core Value Goal fields (goal_category_id = 3) 
+    # Core Value Goal fields (goal_category = "Leadership") 
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
     
     @root_validator(skip_on_failure=True)
     @classmethod
     def validate_goal_category_fields(cls, values):
-        """Validate that required fields are present based on goal_category_id"""
-        goal_category_id = values.get('goal_category_id')
-        if goal_category_id == 1:  # Performance goal
+        """Validate that required fields are present based on goal_category"""
+        goal_category = values.get('goal_category')
+        if goal_category == "Performance":  # Performance goal
             required_fields = ['performance_goal_type', 'specific_goal_text', 
                              'achievement_criteria_text', 'means_methods_text']
             if any(values.get(field) is None for field in required_fields):
                 raise ValueError("Performance goals require: performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText")
-        elif goal_category_id == 2:  # Competency goal
+        elif goal_category == "Development":  # Competency goal
             if values.get('competency_id') is None or values.get('action_plan') is None:
                 raise ValueError("Competency goals require: competencyId, actionPlan")
         # NOTE: Core value goal should be automatically created by the system
-        elif goal_category_id == 3:  # Core value goal
+        elif goal_category == "Leadership":  # Core value goal
             if values.get('core_value_plan') is None:
                 raise ValueError("Core value goals require: coreValuePlan")
         return values
@@ -148,17 +95,17 @@ class GoalUpdate(BaseModel):
     weight: Optional[float] = Field(None, ge=0, le=100)
     status: Optional[GoalStatus] = Field(None, description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
-    # Performance Goal fields (goal_category_id = 1)
+    # Performance Goal fields (goal_category = "Performance")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
     means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
     
-    # Competency Goal fields (goal_category_id = 2)
+    # Competency Goal fields (goal_category = "Development")
     competency_id: Optional[UUID] = Field(None, alias="competencyId")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
-    # Core Value Goal fields (goal_category_id = 3)
+    # Core Value Goal fields (goal_category = "Leadership")
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
 
@@ -166,7 +113,7 @@ class GoalInDB(BaseModel):
     id: UUID
     user_id: UUID
     period_id: UUID
-    goal_category_id: int = Field(..., ge=1, le=3)
+    goal_category: str = Field(..., min_length=1, max_length=100)
     target_data: TargetData
     weight: float = Field(..., ge=0, le=100)
     status: GoalStatus = GoalStatus.DRAFT
@@ -181,18 +128,18 @@ class GoalInDB(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        goal_category_id = data.get('goal_category_id')
+        goal_category = data.get('goal_category')
         target_data_dict = data.get('target_data')
 
         if not isinstance(target_data_dict, dict):
             return data
 
         try:
-            if goal_category_id == 1:
+            if goal_category == "Performance":
                 data['target_data'] = PerformanceGoalTargetData(**target_data_dict)
-            elif goal_category_id == 2:
+            elif goal_category == "Development":
                 data['target_data'] = CompetencyGoalTargetData(**target_data_dict)
-            elif goal_category_id == 3:
+            elif goal_category == "Leadership":
                 data['target_data'] = CoreValueGoalTargetData(**target_data_dict)
         except Exception:
             # Let the default validation handle the error
@@ -217,7 +164,7 @@ class Goal(BaseModel):
     id: UUID
     user_id: UUID = Field(..., alias="userId")
     period_id: UUID = Field(..., alias="periodId") 
-    goal_category_id: int = Field(..., alias="goalCategoryId")
+    goal_category: str = Field(..., alias="goalCategory")
     weight: float
     status: GoalStatus
     approved_by: Optional[UUID] = Field(None, alias="approvedBy")
@@ -225,18 +172,18 @@ class Goal(BaseModel):
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
     
-    # Performance Goal fields (goal_category_id = 1)
+    # Performance Goal fields (goal_category = "Performance")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
     means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
     
-    # Competency Goal fields (goal_category_id = 2)
+    # Competency Goal fields (goal_category = "Development")
     competency_id: Optional[UUID] = Field(None, alias="competencyId")
     competency_name: Optional[str] = Field(None, alias="competencyName")  # Looked up from competency table
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
-    # Core Value Goal fields (goal_category_id = 3)
+    # Core Value Goal fields (goal_category = "Leadership")
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
     @root_validator(pre=True)
@@ -352,7 +299,6 @@ class GoalList(PaginatedResponse[Goal]):
 # This needs to be done after all models are defined
 try:
     # Rebuild models that have forward references
-    GoalCategoryDetail.model_rebuild()
     GoalDetail.model_rebuild()
 except Exception as e:
     # Log the error but don't fail the import

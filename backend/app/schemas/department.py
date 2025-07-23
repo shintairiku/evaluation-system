@@ -76,7 +76,6 @@ class DepartmentUser(BaseModel):
     job_title: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    last_login_at: Optional[datetime] = None
 
 
 # Response Models
