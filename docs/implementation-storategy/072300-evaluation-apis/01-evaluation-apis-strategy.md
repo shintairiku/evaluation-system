@@ -3,6 +3,16 @@
 ## 概要
 人事評価システムの核となる5つのサービスドメイン（evaluation_periods, goals, supervisor_reviews, self_assessments, supervisor_feedback）のAPI実装を段階的に行う戦略書。
 
+## GitHub Issues
+
+| Phase | Domain | Issue # | Title | Status |
+|-------|--------|---------|-------|--------|
+| Phase 1 | evaluation_periods | [#131](https://github.com/shintairiku/evaluation-system/issues/131) | [Backend] Implement Evaluation Periods API - Phase 1 Foundation Layer | Open |
+| Phase 2 | goals | [#132](https://github.com/shintairiku/evaluation-system/issues/132) | [Backend] Implement Goals API - Phase 2 Core Business Logic | Open |
+| Phase 3A | self_assessments | [#134](https://github.com/shintairiku/evaluation-system/issues/134) | [Backend] Implement Self Assessments API - Phase 3A Employee Self-Evaluation | Open |
+| Phase 3B | supervisor_reviews | [#133](https://github.com/shintairiku/evaluation-system/issues/133) | [Backend] Implement Supervisor Reviews API - Phase 3B Supervisor Review Process | Open |
+| Phase 4 | supervisor_feedback | [#135](https://github.com/shintairiku/evaluation-system/issues/135) | [Backend] Implement Supervisor Feedback API - Phase 4 Final Evaluation Loop | Open |
+
 ## 実装順序と依存関係
 
 ### 依存関係図
@@ -24,6 +34,7 @@ supervisor_feedback
 **対象:** `evaluation_periods`
 **期間:** 3-4日
 **優先度:** 🔴 Critical
+**GitHub Issue:** [#131](https://github.com/shintairiku/evaluation-system/issues/131)
 
 #### 実装理由
 - 全ての評価プロセスの基盤となる評価期間管理
@@ -49,6 +60,7 @@ supervisor_feedback
 **対象:** `goals`
 **期間:** 5-6日
 **優先度:** 🔴 Critical
+**GitHub Issue:** [#132](https://github.com/shintairiku/evaluation-system/issues/132)
 
 #### 実装理由
 - 評価プロセスの中核となる目標設定機能
@@ -76,6 +88,7 @@ supervisor_feedback
 **対象:** `self_assessments`
 **期間:** 3-4日
 **優先度:** 🟡 High
+**GitHub Issue:** [#134](https://github.com/shintairiku/evaluation-system/issues/134)
 
 #### 実装理由
 - 従業員による自己評価機能
@@ -102,6 +115,7 @@ supervisor_feedback
 **対象:** `supervisor_reviews`
 **期間:** 4-5日
 **優先度:** 🟡 High
+**GitHub Issue:** [#133](https://github.com/shintairiku/evaluation-system/issues/133)
 
 #### 実装理由
 - 上司による目標レビュー機能
@@ -128,6 +142,7 @@ supervisor_feedback
 **対象:** `supervisor_feedback`
 **期間:** 4-5日
 **優先度:** 🟡 High
+**GitHub Issue:** [#135](https://github.com/shintairiku/evaluation-system/issues/135)
 
 #### 実装理由
 - 評価プロセスの最終段階
@@ -274,9 +289,15 @@ backend/app/
 - [ ] セキュリティテスト完了
 
 ## Next Actions
-1. **Phase 1開始**: evaluation_periods実装着手
+1. **Phase 1開始**: evaluation_periods実装着手 ([Issue #131](https://github.com/shintairiku/evaluation-system/issues/131))
 2. **環境準備**: 開発環境の確認・設定
-3. **Issue作成**: GitHub Issueとして各フェーズをトラッキング
+3. **Issue管理**: GitHub Issueでの進捗トラッキング
 4. **進捗管理**: 日次でのプロジェクト進捗確認
+
+## GitHub Issue Management
+- **進捗更新**: 各フェーズの完了時にIssueをCloseする
+- **依存関係**: 前フェーズのIssueがCloseされてから次フェーズを開始する
+- **ブロッカー**: 問題が発生した場合はIssueにコメントを追加する
+- **レビュー**: 各Issue完了時にPull Requestを作成し、コードレビューを実施する
 
 この戦略書に従って段階的に実装を進めることで、堅牢で保守性の高い評価システムAPIを構築する。
