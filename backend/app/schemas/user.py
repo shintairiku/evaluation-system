@@ -222,10 +222,3 @@ class ProfileOptionsResponse(BaseModel):
     stages: List[Stage]
     roles: List[Role]
     users: List[UserProfileOption]  # Simple user options without complex relationships
-
-
-# ========================================
-# FORWARD REFERENCES UPDATE
-# ========================================
-
-# Model rebuilding is handled in __init__.py to avoid circular import issues
