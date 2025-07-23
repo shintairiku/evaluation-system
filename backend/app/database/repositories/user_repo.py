@@ -361,19 +361,7 @@ class UserRepository:
             logger.error(f"Error updating user status for {user_id}: {e}")
             raise
 
-    async def update_last_login(self, user_id: UUID) -> bool:
-        """Update user's last login timestamp."""
-        try:
-            result = await self.session.execute(
-                update(User)
-                .where(User.id == user_id)
-                .values(last_login_at=datetime.now(timezone.utc))
-                .returning(User.id)
-            )
-            return result.scalar_one_or_none() is not None
-        except SQLAlchemyError as e:
-            logger.error(f"Error updating last login for user {user_id}: {e}")
-            raise
+    
 
 
     async def update_user(self, user_id: UUID, user_data: UserUpdate) -> Optional[User]:
