@@ -3,47 +3,36 @@
 import { useState, useEffect } from 'react';
 import ProfileForm from './ProfileForm';
 import ClerkInfoCard from '@/components/display/ClerkInfoCard';
-import type { ProfileOptionsResponse } from '@/api/types/user';
 import { getProfileOptionsAction } from '@/api/server-actions/users';
-import { useLoading } from '@/hooks/useLoading';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { FormSkeleton } from '@/components/ui/loading-skeleton';
+import type { ProfileOptionsResponse } from '@/api/types/user';
 
 export default function ProfileFormWrapper() {
   const [options, setOptions] = useState<ProfileOptionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { isLoading, withLoading } = useLoading('profile-options-fetch');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchOptions = async () => {
-      await withLoading(async () => {
-        try {
-          console.log('ProfileFormWrapper: Starting server action...');
-          const result = await getProfileOptionsAction();
-          console.log('ProfileFormWrapper: Server action result:', result);
-          
-          if (!result.success || !result.data) {
-            console.error('ProfileFormWrapper: Server action failed:', result.error);
-            throw new Error(result.error || 'Failed to fetch profile options');
-          }
-          
-          console.log('ProfileFormWrapper: Data received:', result.data);
+    async function fetchOptions() {
+      try {
+        const result = await getProfileOptionsAction();
+        
+        if (result.success && result.data) {
           setOptions(result.data);
-          setError(null); // Clear any previous errors
-        } catch (err) {
-          console.error('ProfileFormWrapper: Error:', err);
-          setError(err instanceof Error ? err.message : 'Failed to fetch profile options');
-          throw err; // Re-throw to let withLoading handle it
+          setError(null);
+        } else {
+          setError(result.error || 'Failed to fetch profile options');
         }
-      }, {
-        onError: (error) => {
-          console.error('ProfileFormWrapper: Loading error:', error);
-        }
-      });
-    };
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch profile options');
+      } finally {
+        setIsLoading(false);
+      }
+    }
 
     fetchOptions();
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
   if (isLoading) {
     return (

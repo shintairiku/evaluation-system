@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useActionState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { useForm, type ControllerRenderProps } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { LoadingButton } from '@/components/ui/loading-button';
 import { Input } from '@/components/ui/input';
 import { 
   Select,
@@ -29,19 +26,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { createUserAction } from '@/api/server-actions/users';
-import type { Department, Stage, Role } from '@/api/types/user';
+import type { Department, Stage, Role, UserCreate } from '@/api/types/user';
 import type { UserProfileOption } from '@/api/types/user';
-import { useLoading } from '@/hooks/useLoading';
-import { profileFormSchema, type ProfileFormData } from '@/lib/validation/user';
-import { 
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
 
 interface ProfileFormProps {
   departments: Department[];
@@ -53,94 +39,65 @@ interface ProfileFormProps {
 export default function ProfileForm({ departments, stages, roles, users }: ProfileFormProps) {
   const { user } = useUser();
   const router = useRouter();
-  const { isLoading, withLoading } = useLoading('profile-creation');
-  const [error, setError] = useState<string | null>(null);
+  
+  // Form state
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedStage, setSelectedStage] = useState('');
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedSupervisor, setSelectedSupervisor] = useState('');
   const [supervisorPopoverOpen, setSupervisorPopoverOpen] = useState(false);
 
-  
-  // Track form field states for optimistic feedback
-  const [fieldStates, setFieldStates] = useState<Record<string, 'valid' | 'invalid' | 'pending'>>({});
-  
-  // Handle optimistic field validation
-  const handleFieldChange = (fieldName: keyof ProfileFormData) => {
-    // Update field state optimistically
-    setFieldStates(prev => ({ ...prev, [fieldName]: 'pending' }));
+  // Server action wrapper for useActionState
+  const formActionWrapper = async (prevState: any, formData: FormData) => {
+    const userData: UserCreate = {
+      clerk_user_id: formData.get('clerk_user_id') as string,
+      name: formData.get('name') as string,
+      email: formData.get('email') as string,
+      employee_code: formData.get('employee_code') as string,
+      job_title: formData.get('job_title') as string || undefined,
+      department_id: formData.get('department_id') as string,
+      stage_id: formData.get('stage_id') as string,
+      role_ids: JSON.parse(formData.get('role_ids') as string || '[]'),
+      supervisor_id: formData.get('supervisor_id') as string || undefined,
+      subordinate_ids: []
+    };
     
-    // Validate field with a slight delay for better UX
-    setTimeout(() => {
-      const errors = form.formState.errors;
-      const hasError = errors[fieldName];
-      
-      setFieldStates(prev => ({ 
-        ...prev, 
-        [fieldName]: hasError ? 'invalid' : 'valid' 
-      }));
-      
-      // Show success feedback for valid required fields
-      if (!hasError && ['employee_code', 'department_id', 'stage_id', 'role_ids'].includes(fieldName)) {
-        const fieldLabels = {
-          employee_code: '社員番号',
-          department_id: '部署',
-          stage_id: 'ステージ',
-          role_ids: '役職'
-        };
-        
-        toast.success(`${fieldLabels[fieldName as keyof typeof fieldLabels]}を確認しました`, {
-          duration: 1000
-        });
-      }
-    }, 300);
+    return await createUserAction(userData);
   };
 
-  // Initialize react-hook-form with Zod validation
-  const form = useForm<ProfileFormData>({
-    resolver: zodResolver(profileFormSchema),
-    mode: 'onChange', // Enable real-time validation
-    defaultValues: {
-      name: user?.fullName || '',
-      email: user?.primaryEmailAddress?.emailAddress || '',
-      employee_code: '',
-      job_title: '',
-      department_id: '',
-      stage_id: '',
-      role_ids: [],
-      supervisor_id: '',
-    },
-  });
+  const [actionState, formAction, isPending] = useActionState(formActionWrapper, null);
 
-  // Update form values when user data is loaded
+  // Handle action state changes
   useEffect(() => {
-    if (user) {
-      const fullName = user.firstName && user.lastName
-        ? `${user.lastName} ${user.firstName}`
-        : user.fullName || '';
-      
-      form.reset({
-        ...form.getValues(),
-        name: fullName,
-        email: user.primaryEmailAddress?.emailAddress || '',
-      });
+    if (actionState) {
+      if (actionState.success && actionState.data) {
+        user?.update({
+          unsafeMetadata: {
+            ...user.unsafeMetadata,
+            profileCompleted: true,
+            status: 'pending_approval'
+          }
+        }).then(() => {
+          toast.success('プロフィールが正常に作成されました！', {
+            duration: 3000
+          });
+          
+          router.push('/profile/confirmation');
+        });
+      } else if (actionState.error) {
+        toast.error(actionState.error, { duration: 4000 });
+      }
     }
-  }, [user, form]);
-
-  // Get available users for supervisor selection (excluding current user if editing)
-  const availableUsers = users;
-
-  // Get selected user info for display
-  const selectedUser = users.find(u => u.id === form.watch('supervisor_id'));
-
+  }, [actionState, user, router]);
 
   const handleRoleSelectionChange = (selectedIds: number[]) => {
-    // Convert number indices back to string UUIDs
     const stringIds = selectedIds.map(index => {
       const role = roles[index];
       return role ? role.id : '';
     }).filter(id => id !== '');
     
-    // Optimistic update with immediate visual feedback
-    form.setValue('role_ids', stringIds, { shouldValidate: true });
+    setSelectedRoles(stringIds);
     
-    // Show immediate feedback for role selection
     if (stringIds.length > 0) {
       const selectedRoleNames = selectedIds
         .map(index => roles[index]?.name)
@@ -153,10 +110,9 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
   };
 
   const handleSupervisorSelect = (userId: string) => {
-    form.setValue('supervisor_id', userId, { shouldValidate: true });
+    setSelectedSupervisor(userId);
     setSupervisorPopoverOpen(false);
     
-    // Show immediate feedback for supervisor selection
     const selectedUser = users.find(u => u.id === userId);
     if (selectedUser) {
       toast.success(`上司を選択しました: ${selectedUser.name}`, {
@@ -165,94 +121,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
     }
   };
 
-  const onSubmit = async (data: ProfileFormData) => {
-    if (!user) {
-      setError('ユーザー情報を取得できませんでした。');
-      return;
-    }
-
-    // Show immediate optimistic success and navigate
-    toast.success('プロフィールを作成しています...', {
-      duration: 2000
-    });
-
-    // Navigate optimistically for better UX
-    const optimisticNavigation = setTimeout(() => {
-      router.push('/profile/confirmation');
-    }, 500);
-
-    await withLoading(async () => {
-      setError(null);
-
-      try {
-        // Get name from Clerk user data
-        const fullName = user.firstName && user.lastName 
-          ? `${user.lastName} ${user.firstName}` // Japanese style: surname first
-          : user.fullName || "";
-
-        const signupData = {
-          clerk_user_id: user.id,
-          name: fullName,
-          email: user.primaryEmailAddress?.emailAddress || '',
-          employee_code: data.employee_code,
-          job_title: data.job_title || undefined,
-          department_id: data.department_id,
-          stage_id: data.stage_id,
-          role_ids: data.role_ids,
-          supervisor_id: data.supervisor_id || undefined,
-          subordinate_ids: [] // Default empty array for signup
-        };
-
-        const result = await createUserAction(signupData);
-
-        if (result.success) {
-          // Update Clerk metadata to indicate profile completion
-          await user.update({
-            unsafeMetadata: {
-              ...user.unsafeMetadata,
-              profileCompleted: true,
-              status: 'pending_approval'
-            }
-          });
-          
-          // Clear the optimistic navigation timeout since we're successful
-          clearTimeout(optimisticNavigation);
-          
-          toast.success('プロフィールが正常に作成されました！', {
-            duration: 3000
-          });
-          
-          // Navigate to confirmation (might already be there from optimistic nav)
-          router.push('/profile/confirmation');
-        } else {
-          // Clear optimistic navigation and show error
-          clearTimeout(optimisticNavigation);
-          
-          const errorMsg = result.error || 'プロフィールの作成に失敗しました。';
-          setError(errorMsg);
-          toast.error(errorMsg, { duration: 4000 });
-          
-          throw new Error(result.error || 'Profile creation failed');
-        }
-      } catch (error) {
-        console.error('Profile creation error:', error);
-        
-        // Clear optimistic navigation on error
-        clearTimeout(optimisticNavigation);
-        
-        const errorMessage = '予期しないエラーが発生しました。もう一度お試しください。';
-        setError(errorMessage);
-        toast.error(errorMessage, { duration: 4000 });
-        
-        throw error; // Re-throw to let withLoading handle it
-      }
-    }, {
-      onError: (error) => {
-        console.error('Profile creation loading error:', error);
-        clearTimeout(optimisticNavigation);
-      }
-    });
-  };
+  const selectedSupervisorUser = users.find(u => u.id === selectedSupervisor);
 
   return (
     <Card>
@@ -260,335 +129,212 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
         <CardTitle>プロフィール情報</CardTitle>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                {error}
-              </div>
-            )}
+        <form action={formAction} className="space-y-6">
+          {/* Hidden fields for user data */}
+          <input type="hidden" name="clerk_user_id" value={user?.id || ''} />
+          <input type="hidden" name="name" value={
+            user?.firstName && user?.lastName 
+              ? `${user.lastName} ${user.firstName}` 
+              : user?.fullName || ''
+          } />
+          <input type="hidden" name="email" value={user?.primaryEmailAddress?.emailAddress || ''} />
+          <input type="hidden" name="department_id" value={selectedDepartment} />
+          <input type="hidden" name="stage_id" value={selectedStage} />
+          <input type="hidden" name="role_ids" value={JSON.stringify(selectedRoles)} />
+          <input type="hidden" name="supervisor_id" value={selectedSupervisor} />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>氏名</FormLabel>
-                    <FormControl>
-                      <Input {...field} readOnly className="bg-gray-100" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>メールアドレス</FormLabel>
-                    <FormControl>
-                      <Input {...field} readOnly className="bg-gray-100" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          {actionState?.error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {actionState.error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium mb-2">氏名</label>
+              <Input 
+                value={user?.firstName && user?.lastName 
+                  ? `${user.lastName} ${user.firstName}` 
+                  : user?.fullName || ''
+                } 
+                readOnly 
+                className="bg-gray-100" 
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">メールアドレス</label>
+              <Input 
+                value={user?.primaryEmailAddress?.emailAddress || ''} 
+                readOnly 
+                className="bg-gray-100" 
+              />
+            </div>
+          </div>
 
-            <FormField
-              control={form.control}
+          <div>
+            <label className="block text-sm font-medium mb-2">社員番号 *</label>
+            <Input 
               name="employee_code"
-              render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'employee_code'> }) => (
-                <FormItem>
-                  <FormLabel>
-                    社員番号 *
-                    {fieldStates.employee_code === 'valid' && (
-                      <span className="ml-2 text-green-600 text-sm">✓</span>
-                    )}
-                    {fieldStates.employee_code === 'pending' && (
-                      <span className="ml-2 text-yellow-600 text-sm">⏳</span>
-                    )}
-                  </FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="例: EMP001" 
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        handleFieldChange('employee_code');
-                      }}
-                      className={
-                        fieldStates.employee_code === 'valid' 
-                          ? 'border-green-500 focus:border-green-600' 
-                          : fieldStates.employee_code === 'invalid'
-                          ? 'border-red-500 focus:border-red-600'
-                          : ''
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              placeholder="例: EMP001" 
+              required 
             />
+          </div>
 
-            <FormField
-              control={form.control}
+          <div>
+            <label className="block text-sm font-medium mb-2">役職</label>
+            <Input 
               name="job_title"
-              render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'job_title'> }) => (
-                <FormItem>
-                  <FormLabel>役職</FormLabel>
-                  <FormControl>
-                    <Input placeholder="例: 営業部長" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              placeholder="例: 営業部長" 
             />
+          </div>
 
-            <FormField
-              control={form.control}
-              name="department_id"
-              render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'department_id'> }) => (
-                <FormItem>
-                  <FormLabel>
-                    部署 *
-                    {fieldStates.department_id === 'valid' && (
-                      <span className="ml-2 text-green-600 text-sm">✓</span>
-                    )}
-                  </FormLabel>
-                  <Select 
-                    onValueChange={(value) => {
-                      field.onChange(value);
-                      handleFieldChange('department_id');
-                    }} 
-                    value={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger
-                        className={
-                          fieldStates.department_id === 'valid' 
-                            ? 'border-green-500 focus:border-green-600' 
-                            : fieldStates.department_id === 'invalid'
-                            ? 'border-red-500 focus:border-red-600'
-                            : ''
-                        }
-                      >
-                        <SelectValue placeholder="部署を選択してください" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{dept.name}</span>
-                            {dept.description && (
-                              <span className="text-xs text-gray-500">{dept.description}</span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="stage_id"
-              render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'stage_id'> }) => (
-                <FormItem>
-                  <FormLabel>
-                    段階 *
-                    {fieldStates.stage_id === 'valid' && (
-                      <span className="ml-2 text-green-600 text-sm">✓</span>
-                    )}
-                  </FormLabel>
-                  <Select 
-                    onValueChange={(value) => {
-                      field.onChange(value);
-                      handleFieldChange('stage_id');
-                    }} 
-                    value={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger
-                        className={
-                          fieldStates.stage_id === 'valid' 
-                            ? 'border-green-500 focus:border-green-600' 
-                            : fieldStates.stage_id === 'invalid'
-                            ? 'border-red-500 focus:border-red-600'
-                            : ''
-                        }
-                      >
-                        <SelectValue placeholder="段階を選択してください" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {stages.map((stage) => (
-                        <SelectItem key={stage.id} value={stage.id}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{stage.name}</span>
-                            {stage.description && (
-                              <span className="text-xs text-gray-500">{stage.description}</span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="role_ids"
-              render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'role_ids'> }) => (
-                <FormItem>
-                  <FormLabel>
-                    役職 *
-                    {fieldStates.role_ids === 'valid' && (
-                      <span className="ml-2 text-green-600 text-sm">✓</span>
-                    )}
-                  </FormLabel>
-                  <FormControl>
-                    <div className={
-                      fieldStates.role_ids === 'valid' 
-                        ? 'ring-2 ring-green-500 rounded-md' 
-                        : fieldStates.role_ids === 'invalid'
-                        ? 'ring-2 ring-red-500 rounded-md'
-                        : ''
-                    }>
-                      <MultiSelectRoles
-                        roles={roles.map((role, index) => ({
-                          id: index,
-                          name: role.name,
-                          description: role.description
-                        }))}
-                        selectedRoleIds={field.value.map(roleId => {
-                          return roles.findIndex(role => role.id === roleId);
-                        }).filter(index => index !== -1)}
-                        onSelectionChange={(selectedIds) => {
-                          handleRoleSelectionChange(selectedIds);
-                          handleFieldChange('role_ids');
-                        }}
-                        required={true}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="supervisor_id"
-              render={({ field }: { field: ControllerRenderProps<ProfileFormData, 'supervisor_id'> }) => (
-                <FormItem>
-                  <FormLabel>上司の選択（任意）</FormLabel>
-                  <FormControl>
-                    <div className="space-y-2">
-                      {selectedUser ? (
-                        <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{selectedUser.name}</span>
-                            <span className="text-sm text-gray-500">
-                              社員番号: {selectedUser.employee_code}
-                              {selectedUser.job_title && ` | 役職: ${selectedUser.job_title}`}
-                            </span>
-                            {selectedUser.roles.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {selectedUser.roles.map(role => (
-                                  <Badge key={role.id} variant="secondary" className="text-xs">
-                                    {role.description}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => form.setValue('supervisor_id', '', { shouldValidate: true })}
-                          >
-                            ×
-                          </Button>
-                        </div>
-                      ) : (
-                        <Popover open={supervisorPopoverOpen} onOpenChange={setSupervisorPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="w-full justify-start text-left font-normal"
-                            >
-                              上司を選択してください...
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-full p-0" align="start">
-                            <Command>
-                              <CommandInput placeholder="名前、社員番号、役職で検索..." />
-                              <CommandList>
-                                <CommandEmpty>検索結果がありません</CommandEmpty>
-                                <CommandGroup>
-                                  {availableUsers.map((user) => (
-                                    <CommandItem
-                                      key={user.id}
-                                      value={`${user.name} ${user.employee_code} ${user.job_title || ''} ${user.roles.map(r => r.name).join(' ')}`}
-                                      onSelect={() => handleSupervisorSelect(user.id)}
-                                    >
-                                      <div className="flex flex-col w-full">
-                                        <span className="font-medium">{user.name}</span>
-                                        <span className="text-sm text-gray-500">
-                                          社員番号: {user.employee_code}
-                                          {user.job_title && ` | 役職: ${user.job_title}`}
-                                        </span>
-                                        {user.roles.length > 0 && (
-                                          <div className="flex flex-wrap gap-1 mt-1">
-                                            {user.roles.map(role => (
-                                              <Badge key={role.id} variant="outline" className="text-xs">
-                                                {role.description}
-                                              </Badge>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
+          <div>
+            <label className="block text-sm font-medium mb-2">部署 *</label>
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment} required>
+              <SelectTrigger>
+                <SelectValue placeholder="部署を選択してください" />
+              </SelectTrigger>
+              <SelectContent>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{dept.name}</span>
+                      {dept.description && (
+                        <span className="text-xs text-gray-500">{dept.description}</span>
                       )}
                     </div>
-                  </FormControl>
-                  <FormDescription>
-                    名前、社員番号、役職、または役割で検索できます。
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <LoadingButton
-              type="submit"
-              loading={isLoading}
-              loadingText="プロフィールを作成中..."
-              className="w-full"
-            >
-              プロフィールを作成
-            </LoadingButton>
-          </form>
-        </Form>
+          <div>
+            <label className="block text-sm font-medium mb-2">段階 *</label>
+            <Select value={selectedStage} onValueChange={setSelectedStage} required>
+              <SelectTrigger>
+                <SelectValue placeholder="段階を選択してください" />
+              </SelectTrigger>
+              <SelectContent>
+                {stages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{stage.name}</span>
+                      {stage.description && (
+                        <span className="text-xs text-gray-500">{stage.description}</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">役職 *</label>
+            <MultiSelectRoles
+              roles={roles.map((role, index) => ({
+                id: index,
+                name: role.name,
+                description: role.description
+              }))}
+              selectedRoleIds={selectedRoles.map(roleId => {
+                return roles.findIndex(role => role.id === roleId);
+              }).filter(index => index !== -1)}
+              onSelectionChange={handleRoleSelectionChange}
+              required={true}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">上司の選択（任意）</label>
+            <div className="space-y-2">
+              {selectedSupervisorUser ? (
+                <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
+                  <div className="flex flex-col">
+                    <span className="font-medium">{selectedSupervisorUser.name}</span>
+                    <span className="text-sm text-gray-500">
+                      社員番号: {selectedSupervisorUser.employee_code}
+                      {selectedSupervisorUser.job_title && ` | 役職: ${selectedSupervisorUser.job_title}`}
+                    </span>
+                    {selectedSupervisorUser.roles.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedSupervisorUser.roles.map(role => (
+                          <Badge key={role.id} variant="secondary" className="text-xs">
+                            {role.description}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedSupervisor('')}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ) : (
+                <Popover open={supervisorPopoverOpen} onOpenChange={setSupervisorPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      上司を選択してください...
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="名前、社員番号、役職で検索..." />
+                      <CommandList>
+                        <CommandEmpty>検索結果がありません</CommandEmpty>
+                        <CommandGroup>
+                          {users.map((user) => (
+                            <CommandItem
+                              key={user.id}
+                              value={`${user.name} ${user.employee_code} ${user.job_title || ''} ${user.roles.map(r => r.name).join(' ')}`}
+                              onSelect={() => handleSupervisorSelect(user.id)}
+                            >
+                              <div className="flex flex-col w-full">
+                                <span className="font-medium">{user.name}</span>
+                                <span className="text-sm text-gray-500">
+                                  社員番号: {user.employee_code}
+                                  {user.job_title && ` | 役職: ${user.job_title}`}
+                                </span>
+                                {user.roles.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {user.roles.map(role => (
+                                      <Badge key={role.id} variant="outline" className="text-xs">
+                                        {role.description}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={isPending || !selectedDepartment || !selectedStage || selectedRoles.length === 0}
+            className="w-full"
+          >
+            {isPending ? 'プロフィールを作成中...' : 'プロフィールを作成'}
+          </Button>
+        </form>
       </CardContent>
     </Card>
   );
-} 
+}
