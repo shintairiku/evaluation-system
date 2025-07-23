@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
 from ...schemas.stage_competency import Competency, CompetencyCreate, CompetencyUpdate, CompetencyDetail
-from ...schemas.common import PaginatedResponse, PaginationParams
+from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.competency_service import CompetencyService
-from ...security.dependencies import require_admin, get_auth_context
-from ...security.context import AuthContext
+from ...security import AuthContext, get_auth_context
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/competencies", tags=["competencies"])
@@ -62,7 +61,7 @@ async def get_competencies(
         )
 
 
-@router.post("/", response_model=CompetencyDetail, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=Competency, status_code=status.HTTP_201_CREATED)
 async def create_competency(
     competency_create: CompetencyCreate,
     context: AuthContext = Depends(get_auth_context),
@@ -140,7 +139,7 @@ async def get_competency(
         )
 
 
-@router.put("/{competency_id}", response_model=CompetencyDetail)
+@router.put("/{competency_id}", response_model=Competency)
 async def update_competency(
     competency_id: UUID,
     competency_update: CompetencyUpdate,
