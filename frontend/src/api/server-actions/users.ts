@@ -1,6 +1,7 @@
 'use server';
 
-import { usersApi } from '../endpoints/users';
+import { getHttpClient } from '../client/http-client';
+import { API_ENDPOINTS } from '../constants/config';
 import type { 
   UserList, 
   UserDetailResponse, 
@@ -12,6 +13,8 @@ import type {
   ProfileOptionsResponse
 } from '../types';
 
+const httpClient = getHttpClient();
+
 /**
  * Server action to get all users with pagination
  * This function runs on the server side for SSR
@@ -22,12 +25,20 @@ export async function getUsersAction(params?: PaginationParams): Promise<{
   error?: string;
 }> {
   try {
-    const response = await usersApi.getUsers(params);
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    const endpoint = queryParams.toString() 
+      ? `${API_ENDPOINTS.USERS.LIST}?${queryParams.toString()}`
+      : API_ENDPOINTS.USERS.LIST;
+    
+    const response = await httpClient.get<UserList>(endpoint);
     
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch users',
+        error: response.errorMessage || response.error || 'Failed to fetch users',
       };
     }
     
@@ -53,12 +64,14 @@ export async function getUserByIdAction(userId: UUID): Promise<{
   error?: string;
 }> {
   try {
-    const response = await usersApi.getUserById(userId);
+    const response = await httpClient.get<UserDetailResponse>(
+      API_ENDPOINTS.USERS.BY_ID(userId)
+    );
     
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch user',
+        error: response.errorMessage || response.error || 'Failed to fetch user',
       };
     }
     
@@ -84,12 +97,15 @@ export async function createUserAction(userData: UserCreate): Promise<{
   error?: string;
 }> {
   try {
-    const response = await usersApi.createUser(userData);
+    const response = await httpClient.post<UserDetailResponse>(
+      API_ENDPOINTS.USERS.CREATE,
+      userData
+    );
     
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to create user',
+        error: response.errorMessage || response.error || 'Failed to create user',
       };
     }
     
@@ -115,12 +131,15 @@ export async function updateUserAction(userId: UUID, updateData: UserUpdate): Pr
   error?: string;
 }> {
   try {
-    const response = await usersApi.updateUser(userId, updateData);
+    const response = await httpClient.put<UserDetailResponse>(
+      API_ENDPOINTS.USERS.UPDATE(userId),
+      updateData
+    );
     
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to update user',
+        error: response.errorMessage || response.error || 'Failed to update user',
       };
     }
     
@@ -145,12 +164,14 @@ export async function deleteUserAction(userId: UUID): Promise<{
   error?: string;
 }> {
   try {
-    const response = await usersApi.deleteUser(userId);
+    const response = await httpClient.delete(
+      API_ENDPOINTS.USERS.DELETE(userId)
+    );
     
     if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to delete user',
+        error: response.errorMessage || response.error || 'Failed to delete user',
       };
     }
     
@@ -176,12 +197,14 @@ export async function checkUserExistsAction(clerkId: string): Promise<{
   error?: string;
 }> {
   try {
-    const response = await usersApi.checkUserExists(clerkId);
+    const response = await httpClient.get<UserExistsResponse>(
+      API_ENDPOINTS.USERS.EXISTS(clerkId)
+    );
     
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to check user existence',
+        error: response.errorMessage || response.error || 'Failed to check user existence',
       };
     }
     
@@ -209,14 +232,16 @@ export async function getProfileOptionsAction(): Promise<{
 }> {
   try {
     console.log('Server action: Starting getProfileOptionsAction (using users endpoint)');
-    const response = await usersApi.getProfileOptions();
+    const response = await httpClient.get<ProfileOptionsResponse>(
+      API_ENDPOINTS.USERS.PROFILE_OPTIONS
+    );
     console.log('Server action: API response received:', response);
     
     if (!response.success || !response.data) {
-      console.log('Server action: API response failed:', response.error);
+      console.log('Server action: API response failed:', response.errorMessage || response.error);
       return {
         success: false,
-        error: response.error || 'Failed to fetch profile options',
+        error: response.errorMessage || response.error || 'Failed to fetch profile options',
       };
     }
     
