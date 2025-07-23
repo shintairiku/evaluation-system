@@ -14,7 +14,7 @@ async def get_goals(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
-    goal_category_id: Optional[int] = Query(None, alias="goalCategoryId", description="Filter by goal category (1=performance, 2=competency, 3=core value)"),
+    goal_category: Optional[str] = Query(None, alias="goalCategory", description="Filter by goal category (Performance, Development, Leadership, Technical, etc.)"),
     status: Optional[str] = Query(None, description="Filter by status (draft, pending_approval, approved, rejected)"),
     context: AuthContext = Depends(get_auth_context)
 ):
@@ -27,7 +27,7 @@ async def get_goals(
     # TODO: Implement goal service
     # - If user_id provided: return goals for specified user (with permission check)
     # - If no user_id: return current user's goals
-    # - Apply period_id, goal_category_id, and status filters
+    # - Apply period_id, goal_category, and status filters
     # - Use pagination.page, pagination.limit, pagination.offset for pagination
     # - Use PaginatedResponse.create(goals, total, pagination) to return result
     # - Include basic goal information with competency names for competency goals
