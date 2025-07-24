@@ -173,8 +173,11 @@ export interface UserDetailResponse {
 }
 
 export interface UserList {
-  users: UserDetailResponse[];
+  items: UserDetailResponse[];
   total: number;
+  page: number;
+  limit: number;
+  pages: number;
 }
 
 export interface UserProfile extends UserDetailResponse {

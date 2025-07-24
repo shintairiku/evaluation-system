@@ -27,7 +27,7 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
   console.log('UserProfilesPage - API Result:', {
     success: result.success,
     hasData: !!result.data,
-    userCount: result.data?.users?.length || 0,
+    userCount: result.data?.items?.length || 0,
     error: result.error,
     totalUsers: result.data?.total
   });
@@ -62,7 +62,7 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
         </div>
         <main className="flex-1 ml-[314px] p-5">
           {/* Pass real user data to the existing UserManagementIndex component */}
-          <UserManagementIndex initialUsers={result.data!.users} />
+          <UserManagementIndex initialUsers={result.data!.items} />
         </main>
       </div>
     </div>
