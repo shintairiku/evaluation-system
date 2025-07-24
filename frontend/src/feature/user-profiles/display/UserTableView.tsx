@@ -27,9 +27,10 @@ import UserEditViewModal from './UserEditViewModal';
 
 interface UserTableViewProps {
   users: UserDetailResponse[];
+  onUserUpdate?: (updatedUser: UserDetailResponse) => void;
 }
 
-export default function UserTableView({ users }: UserTableViewProps) {
+export default function UserTableView({ users, onUserUpdate }: UserTableViewProps) {
   const [selectedUser, setSelectedUser] = useState<UserDetailResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -153,6 +154,7 @@ export default function UserTableView({ users }: UserTableViewProps) {
         user={selectedUser}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onUserUpdate={onUserUpdate}
       />
     </>
   );
