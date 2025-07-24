@@ -13,9 +13,12 @@ interface UserProfilesPageProps {
 }
 
 export default async function UserProfilesPage({ searchParams }: UserProfilesPageProps) {
+  // Await searchParams for Next.js 15 compatibility
+  const resolvedSearchParams = await searchParams;
+  
   // Parse pagination parameters from URL
-  const page = parseInt(searchParams.page || '1', 10);
-  const limit = parseInt(searchParams.limit || '50', 10);
+  const page = parseInt(resolvedSearchParams.page || '1', 10);
+  const limit = parseInt(resolvedSearchParams.limit || '50', 10);
   
   // Server-side data fetching using getUsersAction as specified in task #112
   const result = await getUsersAction({ page, limit });
