@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Dict, Any, Optional, List
 from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...security.dependencies import require_admin, get_auth_context
 from ...security.context import AuthContext
@@ -100,79 +101,160 @@ async def create_evaluation_period(
 @router.get("/{period_id}", response_model=EvaluationPeriodDetail)
 async def get_evaluation_period(
     period_id: UUID,
-    context: AuthContext = Depends(get_auth_context)
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
 ):
-    """Get detailed evaluation period information by ID."""
-    # TODO: Implement evaluation period service to fetch period by ID
-    # - Get evaluation period details
-    # - Get list of users involved via goals (unique user IDs)
-    # - Calculate comprehensive statistics
-    # - Include timeline information (is_active, days_remaining, etc.)
-    # - Include department progress breakdown
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Evaluation period service not implemented"
-    )
+    """Get detailed evaluation period information by ID.
+    
+    Currently accessible to all authenticated users.
+    TODO: Consider adding user-specific restrictions in the future (may limit non-admin access).
+    """
+    try:
+        service = EvaluationPeriodService(session)
+        
+        result = await service.get_evaluation_period_detail(
+            current_user_context=context,
+            period_id=period_id
+        )
+        
+        return result
+        
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        # Add more detailed error logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in get_evaluation_period: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 @router.put("/{period_id}", response_model=EvaluationPeriod)
 async def update_evaluation_period(
     period_id: UUID,
     period_update: EvaluationPeriodUpdate,
-    context: AuthContext = Depends(require_admin)
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Update an evaluation period (admin only)."""
-    
-    # TODO: Implement evaluation period update service
-    # - Verify period exists
-    # - Validate date changes don't conflict with existing data
-    # - Update period information
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Evaluation period service not implemented"
-    )
+    try:
+        service = EvaluationPeriodService(session)
+        
+        result = await service.update_evaluation_period(
+            current_user_context=context,
+            period_id=period_id,
+            period_data=period_update
+        )
+        
+        return result
+        
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (ConflictError, BadRequestError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
 
 @router.delete("/{period_id}")
 async def delete_evaluation_period(
     period_id: UUID,
-    context: AuthContext = Depends(require_admin)
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Delete an evaluation period (admin only)."""
-    
-    # TODO: Implement evaluation period deletion service
-    # - Verify period exists
-    # - Check if period has associated goals/assessments (prevent deletion if so)
-    # - Delete period and clean up references
-    return {"message": "Evaluation period deleted successfully"}
+    try:
+        service = EvaluationPeriodService(session)
+        
+        deleted = await service.delete_evaluation_period(
+            current_user_context=context,
+            period_id=period_id
+        )
+        
+        if deleted:
+            return {"message": "Evaluation period deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Evaluation period not found")
+        
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (ConflictError, BadRequestError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
 
-@router.get("/{period_id}/goals", response_model=GoalList)
-async def get_period_goals(
-    period_id: UUID,
-    context: AuthContext = Depends(get_auth_context)
-):
-    """Get all goals for the current user in a specific evaluation period."""
-    # TODO: Implement goal service to fetch user goals for the period
-    # - Filter by current_user ID and period_id
-    return GoalList(goals=[], total=0)
 
-@router.get("/{period_id}/assessments", response_model=List[SelfAssessment])
-async def get_period_assessments(
-    period_id: UUID,
-    context: AuthContext = Depends(get_auth_context)
-):
-    """Get all self-assessments for the current user in a specific evaluation period."""
-    # TODO: Implement self-assessment service
-    # - Get all user's self-assessments for goals in this period
-    return []
+# @router.put("/{period_id}/status", response_model=EvaluationPeriod)
+# async def update_evaluation_period_status(
+#     period_id: UUID,
+#     new_status: EvaluationPeriodStatus,
+#     context: AuthContext = Depends(require_admin),
+#     session: AsyncSession = Depends(get_db_session)
+# ):
+#     """Update the status of an evaluation period (admin only)."""
+#     try:
+#         service = EvaluationPeriodService(session)
+#         
+#         result = await service.update_evaluation_period_status(
+#             current_user_context=context,
+#             period_id=period_id,
+#             status=new_status
+#         )
+#         
+#         return result
+#         
+#     except NotFoundError as e:
+#         raise HTTPException(status_code=404, detail=str(e))
+#     except (ConflictError, BadRequestError) as e:
+#         raise HTTPException(status_code=400, detail=str(e))
+#     except PermissionDeniedError as e:
+#         raise HTTPException(status_code=403, detail=str(e))
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Internal server error"
+#         )
 
-@router.get("/{period_id}/feedback", response_model=List[SupervisorFeedback])
-async def get_period_feedback(
-    period_id: UUID,
-    context: AuthContext = Depends(get_auth_context)
-):
-    """Get all supervisor feedback for the current user in a specific evaluation period."""
-    # TODO: Implement supervisor feedback service
-    # - Get all feedback on user's assessments for this period
-    return []
+# @router.get("/{period_id}/goals", response_model=GoalList)
+# async def get_period_goals(
+#     period_id: UUID,
+#     context: AuthContext = Depends(get_auth_context)
+# ):
+#     """Get all goals for the current user in a specific evaluation period."""
+#     # TODO: Implement goal service to fetch user goals for the period
+#     # - Filter by current_user ID and period_id
+#     return GoalList(goals=[], total=0)
+
+# @router.get("/{period_id}/assessments", response_model=List[SelfAssessment])
+# async def get_period_assessments(
+#     period_id: UUID,
+#     context: AuthContext = Depends(get_auth_context)
+# ):
+#     """Get all self-assessments for the current user in a specific evaluation period."""
+#     # TODO: Implement self-assessment service
+#     # - Get all user's self-assessments for goals in this period
+#     return []
+
+# @router.get("/{period_id}/feedback", response_model=List[SupervisorFeedback])
+# async def get_period_feedback(
+#     period_id: UUID,
+#     context: AuthContext = Depends(get_auth_context)
+# ):
+#     """Get all supervisor feedback for the current user in a specific evaluation period."""
+#     # TODO: Implement supervisor feedback service
+#     # - Get all feedback on user's assessments for this period
+#     return []
 
 @router.get("/supervisor/reviews", response_model=List[SupervisorReview])
 async def get_supervisor_reviews(
