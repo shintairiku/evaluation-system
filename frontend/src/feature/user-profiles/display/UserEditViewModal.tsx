@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useActionState } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -10,7 +10,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { LoadingButton } from "@/components/ui/loading-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -29,8 +28,9 @@ import {
   Save,
   X
 } from "lucide-react";
-import type { UserDetailResponse } from '@/api/types';
-import { useLoading } from '@/hooks/useLoading';
+import type { UserDetailResponse, UserUpdate, Department, Stage, Role } from '@/api/types';
+import type { UUID } from '@/api/types/common';
+import { updateUserAction, getProfileOptionsAction } from '@/api/server-actions/users';
 
 interface UserEditViewModalProps {
   user: UserDetailResponse | null;
@@ -39,27 +39,103 @@ interface UserEditViewModalProps {
   onUserUpdate?: (updatedUser: UserDetailResponse) => void;
 }
 
+// Server action for form submission
+async function handleUpdateUserProfile(prevState: any, formData: FormData) {
+  try {
+    // Extract form data
+    const departmentId = formData.get('department_id') as string;
+    const stageId = formData.get('stage_id') as string;
+    
+    const userData: UserUpdate = {
+      name: formData.get('name') as string,
+      email: formData.get('email') as string,
+      employee_code: formData.get('employee_code') as string,
+      job_title: formData.get('job_title') as string,
+      department_id: departmentId === 'unset' ? undefined : departmentId as UUID,
+      stage_id: stageId === 'unset' ? undefined : stageId as UUID,
+      status: formData.get('status') as any,
+      subordinate_ids: [], // Keep empty for profile edit
+    };
+
+    // Get user ID from form
+    const userId = formData.get('user_id') as UUID;
+    
+    if (!userId) {
+      return { success: false, user: null, error: 'ユーザーIDが見つかりません' };
+    }
+
+    // Filter out empty values
+    Object.keys(userData).forEach(key => {
+      if (userData[key as keyof UserUpdate] === '' || userData[key as keyof UserUpdate] === null) {
+        delete userData[key as keyof UserUpdate];
+      }
+    });
+
+    const result = await updateUserAction(userId, userData);
+
+    if (result.success && result.data) {
+      return { success: true, user: result.data, error: null };
+    } else {
+      return { success: false, user: null, error: result.error || 'プロフィールの更新に失敗しました' };
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'プロフィールの更新中にエラーが発生しました';
+    return { success: false, user: null, error: errorMessage };
+  }
+}
+
 export default function UserEditViewModal({ 
   user, 
   isOpen, 
   onClose,
   onUserUpdate
 }: UserEditViewModalProps) {
-  const { isLoading, withLoading } = useLoading('user-edit');
+  // useActionState for form handling
+  const [actionState, formAction, isPending] = useActionState(
+    handleUpdateUserProfile,
+    { success: false, user: null, error: null }
+  );
+
+  // Profile options state for departments/stages
+  const [profileOptions, setProfileOptions] = useState<{
+    departments: Department[];
+    stages: Stage[];
+    roles: Role[];
+  }>({
+    departments: [],
+    stages: [],
+    roles: []
+  });
+
   const [formData, setFormData] = useState({
     name: '',
     employee_code: '',
     email: '',
     job_title: '',
-    department: '',
-    stage: '',
+    department_id: '',
+    stage_id: '',
     status: ''
   });
-  
-  // Optimistic update state
-  const [isOptimisticallyUpdated, setIsOptimisticallyUpdated] = useState(false);
-  const [optimisticFormData, setOptimisticFormData] = useState(formData);
-  const [hasChanges, setHasChanges] = useState(false);
+
+  // Fetch profile options when component mounts
+  useEffect(() => {
+    const fetchProfileOptions = async () => {
+      try {
+        const result = await getProfileOptionsAction();
+        if (result.success && result.data) {
+          setProfileOptions({
+            departments: result.data.departments,
+            stages: result.data.stages,
+            roles: result.data.roles
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile options:', error);
+      }
+    };
+
+    fetchProfileOptions();
+  }, []);
 
   // Initialize form data when user changes
   useEffect(() => {
@@ -69,127 +145,32 @@ export default function UserEditViewModal({
         employee_code: user.employee_code,
         email: user.email,
         job_title: user.job_title || '',
-        department: user.department?.name || '',
-        stage: user.stage?.name || '',
+        department_id: user.department?.id || 'unset',
+        stage_id: user.stage?.id || 'unset',
         status: user.status
       };
       setFormData(initialData);
-      setOptimisticFormData(initialData);
-      setHasChanges(false);
-      setIsOptimisticallyUpdated(false);
     }
   }, [user]);
 
-  const handleInputChange = (field: string, value: string) => {
-    const newFormData = {
-      ...formData,
-      [field]: value
-    };
-    
-    setFormData(newFormData);
-    setOptimisticFormData(newFormData);
-    setHasChanges(true);
-    
-    // Show immediate feedback for field changes
-    if (user) {
-      const originalValue = field === 'department' ? user.department?.name : 
-                           field === 'stage' ? user.stage?.name : 
-                           (user as any)[field];
-      
-      if (value !== originalValue) {
-        const fieldLabels: Record<string, string> = {
-          name: '名前',
-          employee_code: '従業員コード',
-          email: 'メールアドレス',
-          job_title: '役職',
-          department: '部署',
-          stage: 'ステージ',
-          status: 'ステータス'
-        };
-        
-        toast.success(`${fieldLabels[field]}を更新しました`, {
-          duration: 1500
-        });
-      }
-    }
-  };
-
-  const handleSave = async () => {
-    if (!user || !hasChanges) return;
-
-    // Optimistic updates: close modal immediately and show success
-    setIsOptimisticallyUpdated(true);
-    
-    toast.success('ユーザー情報を更新しています...', {
-      duration: 2000
-    });
-    
-    // Create optimistic updated user
-    const optimisticUser: UserDetailResponse = {
-      ...user,
-      name: optimisticFormData.name,
-      employee_code: optimisticFormData.employee_code,
-      email: optimisticFormData.email,
-      job_title: optimisticFormData.job_title || '',
-      status: optimisticFormData.status as 'active' | 'inactive' | 'pending_approval'
-    };
-    
-    // Update parent component optimistically
-    if (onUserUpdate) {
-      onUserUpdate(optimisticUser);
-    }
-    
-    // Close modal optimistically
-    const optimisticClose = setTimeout(() => {
+  // Handle success/error after form submission
+  useEffect(() => {
+    if (actionState?.success && actionState?.user) {
+      toast.success('プロフィールが正常に更新されました');
+      onUserUpdate?.(actionState.user);
       onClose();
-    }, 500);
+    } else if (actionState?.error) {
+      toast.error(actionState.error);
+    }
+  }, [actionState, onUserUpdate, onClose]);
 
-    await withLoading(async () => {
-      try {
-        // Simulate API call for user update
-        console.log('Updating user:', user.id, formData);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // TODO: Replace with actual API call
-        // const result = await updateUserAction(user.id, formData);
-        // if (!result.success) throw new Error(result.error);
-        
-        console.log('User updated successfully');
-        
-        // Clear optimistic close timeout since we're successful
-        clearTimeout(optimisticClose);
-        
-        toast.success('ユーザー情報が正常に更新されました！', {
-          duration: 3000
-        });
-        
-        setHasChanges(false);
-        onClose();
-        
-      } catch (error) {
-        console.error('Failed to update user:', error);
-        
-        // Clear optimistic close on error
-        clearTimeout(optimisticClose);
-        
-        // Rollback optimistic changes
-        setIsOptimisticallyUpdated(false);
-        if (onUserUpdate && user) {
-          onUserUpdate(user); // Rollback to original user
-        }
-        
-        toast.error('ユーザー情報の更新に失敗しました', {
-          duration: 4000
-        });
-        
-        throw error; // Re-throw to let withLoading handle it
-      }
-    }, {
-      onError: (error) => {
-        console.error('User update loading error:', error);
-      }
-    });
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
+
 
   const getUserInitials = (name: string) => {
     return name.split(' ').map(part => part[0]).join('').toUpperCase();
@@ -220,7 +201,20 @@ export default function UserEditViewModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4">
+        <form action={formAction} className="space-y-4">
+          {/* Hidden fields for form data */}
+          <input type="hidden" name="user_id" value={user.id} />
+          <input type="hidden" name="department_id" value={formData.department_id} />
+          <input type="hidden" name="stage_id" value={formData.stage_id} />
+
+          {/* Error display */}
+          {actionState?.error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {actionState.error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
           {/* ユーザー基本情報カード */}
           <Card>
             <CardHeader>
@@ -252,7 +246,7 @@ export default function UserEditViewModal({
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     placeholder="名前を入力"
-                    disabled={isLoading}
+                    disabled={isPending}
                   />
                 </div>
                 <div className="space-y-2">
@@ -262,7 +256,7 @@ export default function UserEditViewModal({
                     value={formData.employee_code}
                     onChange={(e) => handleInputChange('employee_code', e.target.value)}
                     placeholder="従業員コードを入力"
-                    disabled={isLoading}
+                    disabled={isPending}
                   />
                 </div>
               </div>
@@ -277,7 +271,7 @@ export default function UserEditViewModal({
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
                     placeholder="メールアドレスを入力"
-                    disabled={isLoading}
+                    disabled={isPending}
                   />
                 </div>
               </div>
@@ -289,7 +283,7 @@ export default function UserEditViewModal({
                   value={formData.job_title}
                   onChange={(e) => handleInputChange('job_title', e.target.value)}
                   placeholder="役職を入力"
-                  disabled={isLoading}
+                  disabled={isPending}
                 />
               </div>
             </CardContent>
@@ -305,20 +299,21 @@ export default function UserEditViewModal({
                 <div className="space-y-2">
                   <Label htmlFor="department">部署</Label>
                   <Select 
-                    value={formData.department} 
-                    onValueChange={(value) => handleInputChange('department', value)}
-                    disabled={isLoading}
+                    name="department_id"
+                    value={formData.department_id} 
+                    onValueChange={(value) => handleInputChange('department_id', value)}
+                    disabled={isPending}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="部署を選択" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">未設定</SelectItem>
-                      <SelectItem value="開発部">開発部</SelectItem>
-                      <SelectItem value="人事部">人事部</SelectItem>
-                      <SelectItem value="営業部">営業部</SelectItem>
-                      <SelectItem value="経理部">経理部</SelectItem>
-                      <SelectItem value="品質管理部">品質管理部</SelectItem>
+                      <SelectItem value="unset">未設定</SelectItem>
+                      {profileOptions.departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -326,19 +321,21 @@ export default function UserEditViewModal({
                 <div className="space-y-2">
                   <Label htmlFor="stage">ステージ</Label>
                   <Select 
-                    value={formData.stage} 
-                    onValueChange={(value) => handleInputChange('stage', value)}
-                    disabled={isLoading}
+                    name="stage_id"
+                    value={formData.stage_id} 
+                    onValueChange={(value) => handleInputChange('stage_id', value)}
+                    disabled={isPending}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="ステージを選択" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">未設定</SelectItem>
-                      <SelectItem value="ジュニア">ジュニア</SelectItem>
-                      <SelectItem value="ミドル">ミドル</SelectItem>
-                      <SelectItem value="シニア">シニア</SelectItem>
-                      <SelectItem value="エキスパート">エキスパート</SelectItem>
+                      <SelectItem value="unset">未設定</SelectItem>
+                      {profileOptions.stages.map((stage) => (
+                        <SelectItem key={stage.id} value={stage.id}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -347,9 +344,10 @@ export default function UserEditViewModal({
               <div className="space-y-2">
                 <Label htmlFor="status">ステータス</Label>
                 <Select 
+                  name="status"
                   value={formData.status} 
                   onValueChange={(value) => handleInputChange('status', value)}
-                  disabled={isLoading}
+                  disabled={isPending}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="ステータスを選択" />
@@ -376,29 +374,33 @@ export default function UserEditViewModal({
           </Card>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
-            <X className="h-4 w-4 mr-2" />
-            キャンセル
-          </Button>
-          <LoadingButton 
-            onClick={handleSave}
-            loading={isLoading}
-            loadingText={isOptimisticallyUpdated ? "更新完了..." : "保存中..."}
-            disabled={!hasChanges || isLoading}
-            className={
-              hasChanges 
-                ? "bg-green-600 hover:bg-green-700" 
-                : ""
-            }
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {hasChanges ? '変更を保存' : '保存'}
-            {isOptimisticallyUpdated && (
-              <span className="ml-2 text-green-200">✓</span>
-            )}
-          </LoadingButton>
-        </DialogFooter>
+          <DialogFooter className="gap-2">
+            <Button 
+              type="button"
+              variant="outline" 
+              onClick={onClose} 
+              disabled={isPending}
+            >
+              <X className="h-4 w-4 mr-2" />
+              キャンセル
+            </Button>
+            <Button 
+              type="submit"
+              disabled={isPending}
+            >
+              {isPending ? (
+                <>
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  変更を保存
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
