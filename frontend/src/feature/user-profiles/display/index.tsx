@@ -14,44 +14,27 @@ import { useLoading } from '@/hooks/useLoading';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { UserListSkeleton } from '@/components/ui/loading-skeleton';
 
-// ダミーデータをインポート
-import dummyUsers from '../data/dummy-users.json';
+interface UserManagementIndexProps {
+  initialUsers: UserDetailResponse[];
+}
 
-export default function UserManagementIndex() {
-  const [users, setUsers] = useState<UserDetailResponse[]>([]);
+export default function UserManagementIndex({ initialUsers }: UserManagementIndexProps) {
+  const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [error, setError] = useState<string | null>(null);
   const { isLoading, withLoading } = useLoading('user-list-fetch');
 
   const { viewMode, setViewMode } = useViewMode('table');
 
+  // Initialize with real data from server-side fetch
   useEffect(() => {
-    const loadDummyData = async () => {
-      await withLoading(async () => {
-        try {
-          console.log('UserManagementIndex: Loading dummy data...');
-          
-          // ダミーデータの読み込みをシミュレート（実際のAPIコールのような遅延を追加）
-          await new Promise(resolve => setTimeout(resolve, 800));
-          
-          console.log('UserManagementIndex: Dummy data loaded:', dummyUsers);
-          setUsers(dummyUsers as unknown as UserDetailResponse[]);
-          setError(null); // Clear any previous errors
-        } catch (err) {
-          console.error('UserManagementIndex: Error loading dummy data:', err);
-          const errorMessage = 'ダミーデータの読み込みに失敗しました';
-          setError(errorMessage);
-          throw new Error(errorMessage); // Re-throw to let withLoading handle it
-        }
-      }, {
-        onError: (error) => {
-          console.error('UserManagementIndex: Loading error:', error);
-        }
-      });
-    };
+    console.log('UserManagementIndex: Initialized with real API data:', initialUsers);
+    setUsers(initialUsers);
+    setError(null);
+  }, [initialUsers]);
 
-    loadDummyData();
-  }, []); // Empty dependency array - only run once on mount
-
+  // TODO: Add search/filter functionality that works with real API
+  // For now, we use the initial data fetched server-side
+  
   const renderCurrentView = () => {
     switch (viewMode) {
       case 'table':
