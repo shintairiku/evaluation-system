@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -22,8 +22,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { UserDetailResponse } from '@/api/types';
-import UserEditViewModal from './UserEditViewModal';
+import type { UserDetailResponse, Department, Stage, Role } from '@/api/types';
+import EditProfileModal from '../../user-profile/components/EditProfileModal';
+import { getProfileOptionsAction } from '@/api/server-actions/users';
 
 interface UserTableViewProps {
   users: UserDetailResponse[];
@@ -32,6 +33,35 @@ interface UserTableViewProps {
 export default function UserTableView({ users }: UserTableViewProps) {
   const [selectedUser, setSelectedUser] = useState<UserDetailResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [profileOptions, setProfileOptions] = useState<{
+    departments: Department[];
+    stages: Stage[];
+    roles: Role[];
+  }>({
+    departments: [],
+    stages: [],
+    roles: []
+  });
+
+  // Fetch profile options when component mounts
+  useEffect(() => {
+    const fetchProfileOptions = async () => {
+      try {
+        const result = await getProfileOptionsAction();
+        if (result.success && result.data) {
+          setProfileOptions({
+            departments: result.data.departments,
+            stages: result.data.stages,
+            roles: result.data.roles
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile options:', error);
+      }
+    };
+
+    fetchProfileOptions();
+  }, []);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -148,11 +178,18 @@ export default function UserTableView({ users }: UserTableViewProps) {
         </CardContent>
       </Card>
 
-      {/* ユーザー編集モーダル */}
-      <UserEditViewModal
+      {/* ユーザー編集モーダル - Task #113: Using EditProfileModal with useActionState */}
+      <EditProfileModal
         user={selectedUser}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onUserUpdate={(updatedUser) => {
+          // Update the user in the local state optimistically
+          console.log('User updated in table:', updatedUser);
+        }}
+        departments={profileOptions.departments}
+        stages={profileOptions.stages}
+        roles={profileOptions.roles}
       />
     </>
   );
