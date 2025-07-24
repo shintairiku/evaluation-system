@@ -226,6 +226,7 @@ class UnifiedHttpClient {
     }
   }
 
+  // Get auth headers (with Clerk integration)
   private async getAuthHeaders(): Promise<Record<string, string>> {
     try {
       if (isServer) {
@@ -237,6 +238,14 @@ class UnifiedHttpClient {
         if (token) {
           return {
             'Authorization': `Bearer ${token}`,
+          };
+        }
+        
+        // DEVELOPMENT FALLBACK: Use dev token when no auth is available
+        if (API_CONFIG.IS_DEVELOPMENT) {
+          console.log('🔧 [Development] Using dev-admin-key for API access');
+          return {
+            'Authorization': `Bearer dev-admin-key`,
           };
         }
       } else {
@@ -251,6 +260,14 @@ class UnifiedHttpClient {
         if (token) {
           return {
             'Authorization': `Bearer ${token}`,
+          };
+        }
+        
+        // DEVELOPMENT FALLBACK: Use dev token when no auth is available
+        if (API_CONFIG.IS_DEVELOPMENT) {
+          console.log('🔧 [Development] Using dev-admin-key for API access');
+          return {
+            'Authorization': `Bearer dev-admin-key`,
           };
         }
       }
