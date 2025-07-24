@@ -4,28 +4,71 @@ from uuid import UUID
 
 from ...security.dependencies import require_admin, get_auth_context
 from ...security.context import AuthContext
-from ...schemas.evaluation_period import EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList, EvaluationPeriodCreate, EvaluationPeriodUpdate
+from ...database.session import get_db_session
+from ...services.evaluation_period_service import EvaluationPeriodService
+from ...schemas.evaluation import (
+    EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList, 
+    EvaluationPeriodCreate, EvaluationPeriodUpdate, EvaluationPeriodStatus
+)
 from ...schemas.goal import GoalList
 from ...schemas.self_assessment import SelfAssessment
 from ...schemas.supervisor_feedback import SupervisorFeedback
 from ...schemas.supervisor_review import SupervisorReview
+from ...schemas.common import PaginationParams
+from ...core.exceptions import NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 
 router = APIRouter(prefix="/evaluation-periods", tags=["evaluation-periods"])
 
+
 @router.get("/", response_model=EvaluationPeriodList)
 async def get_evaluation_periods(
-    status: Optional[str] = Query(None, description="Filter by status (active, upcoming, completed)"),
+    status: Optional[str] = Query("実施中", description="Filter by status (実施中, 準備中, 完了, all). Defaults to '実施中' (active)"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    context: AuthContext = Depends(get_auth_context)
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
 ):
-    """Get all evaluation periods accessible to the current user."""
-    # TODO: Implement evaluation period service
-    # - Return all active/available evaluation periods
-    # - Apply status filter if provided
-    # - Implement pagination
-    # - Include basic statistics for each period
-    return EvaluationPeriodList(periods=[], total=0)
+    """Get evaluation periods accessible to the current user.
+    
+    Defaults to showing active (実施中) periods only, similar to GitHub's default "open" filter.
+    Use status=all to see all periods, or specify other statuses as needed.
+    
+    Currently accessible to all authenticated users.
+    TODO: Consider adding user-specific restrictions in the future (may limit non-admin access).
+    """
+    try:
+        service = EvaluationPeriodService(session)
+        
+        # Parse status filter - default to active if not specified or if "active" is explicitly passed
+        status_filter = None
+        if status and status.lower() != "all":
+            try:
+                status_filter = EvaluationPeriodStatus(status)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid status: {status}. Must be one of: 準備中, 実施中, 完了, all"
+                )
+        
+        # Create pagination params
+        pagination = PaginationParams(page=page, limit=limit)
+        
+        # Get evaluation periods
+        result = await service.get_evaluation_periods(
+            current_user_context=context,
+            status=status_filter,
+            pagination=pagination
+        )
+        
+        return result
+        
+    except (NotFoundError, ConflictError, PermissionDeniedError, BadRequestError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
 
 @router.post("/", response_model=EvaluationPeriod)
 async def create_evaluation_period(
