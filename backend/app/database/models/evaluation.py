@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy import Column, String, Text, DateTime, Date, text
@@ -32,8 +32,8 @@ class EvaluationPeriod(Base):
     goal_submission_deadline = Column(Date, nullable=False)
     evaluation_deadline = Column(Date, nullable=False)
     status = Column(String(50), nullable=False, default=EvaluationPeriodStatus.UPCOMING)
-    created_at = Column(DateTime, default=lambda: datetime.now(datetime.UTC))
-    updated_at = Column(DateTime, default=lambda: datetime.now(datetime.UTC), onupdate=lambda: datetime.now(datetime.UTC))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # TODO: Relationships will be added when other models are implemented
     # goals = relationship("Goal", back_populates="evaluation_period")
