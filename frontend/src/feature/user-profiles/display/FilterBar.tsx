@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from 'react';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -14,11 +15,26 @@ export default function FilterBar({ users }: FilterBarProps) {
   // Add safety check to ensure users is an array before operations
   const safeUsers = users || [];
   
-  // フィルター用の選択肢を生成（UIのみ）
-  const departments = Array.from(new Set(safeUsers.map(user => user.department?.name).filter(Boolean))) as string[];
-  const stages = Array.from(new Set(safeUsers.map(user => user.stage?.name).filter(Boolean))) as string[];
-  const roles = Array.from(new Set(safeUsers.flatMap(user => user.roles.map(role => role.name))));
-  const statuses = Array.from(new Set(safeUsers.map(user => user.status)));
+  // Memoize calculated arrays to prevent unnecessary recalculations
+  const departments = useMemo(() => 
+    Array.from(new Set(safeUsers.map(user => user.department?.name).filter(Boolean))) as string[],
+    [safeUsers]
+  );
+  
+  const stages = useMemo(() => 
+    Array.from(new Set(safeUsers.map(user => user.stage?.name).filter(Boolean))) as string[],
+    [safeUsers]
+  );
+  
+  const roles = useMemo(() => 
+    Array.from(new Set(safeUsers.flatMap(user => user.roles.map(role => role.name)))),
+    [safeUsers]
+  );
+  
+  const statuses = useMemo(() => 
+    Array.from(new Set(safeUsers.map(user => user.status))),
+    [safeUsers]
+  );
 
   return (
     <div className="flex flex-wrap items-center gap-4 p-4 bg-card rounded-lg border">

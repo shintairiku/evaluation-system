@@ -32,7 +32,7 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
     console.log('UserManagementIndex: Initialized with real API data:', initialUsers);
     setUsers(safeInitialUsers);
     setError(null);
-  }, [initialUsers, safeInitialUsers]);
+  }, [initialUsers]); // Remove safeInitialUsers from dependencies to prevent infinite loop
 
   // TODO: Add search/filter functionality that works with real API
   // For now, we use the initial data fetched server-side
