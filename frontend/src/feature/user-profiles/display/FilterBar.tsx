@@ -11,11 +11,14 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({ users }: FilterBarProps) {
+  // Add safety check to ensure users is an array before operations
+  const safeUsers = users || [];
+  
   // フィルター用の選択肢を生成（UIのみ）
-  const departments = Array.from(new Set(users.map(user => user.department?.name).filter(Boolean))) as string[];
-  const stages = Array.from(new Set(users.map(user => user.stage?.name).filter(Boolean))) as string[];
-  const roles = Array.from(new Set(users.flatMap(user => user.roles.map(role => role.name))));
-  const statuses = Array.from(new Set(users.map(user => user.status)));
+  const departments = Array.from(new Set(safeUsers.map(user => user.department?.name).filter(Boolean))) as string[];
+  const stages = Array.from(new Set(safeUsers.map(user => user.stage?.name).filter(Boolean))) as string[];
+  const roles = Array.from(new Set(safeUsers.flatMap(user => user.roles.map(role => role.name))));
+  const statuses = Array.from(new Set(safeUsers.map(user => user.status)));
 
   return (
     <div className="flex flex-wrap items-center gap-4 p-4 bg-card rounded-lg border">

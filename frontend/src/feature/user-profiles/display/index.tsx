@@ -19,7 +19,9 @@ interface UserManagementIndexProps {
 }
 
 export default function UserManagementIndex({ initialUsers }: UserManagementIndexProps) {
-  const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
+  // Safety check to ensure initialUsers is always an array
+  const safeInitialUsers = initialUsers || [];
+  const [users, setUsers] = useState<UserDetailResponse[]>(safeInitialUsers);
   const [error, setError] = useState<string | null>(null);
   const { isLoading, withLoading } = useLoading('user-list-fetch');
 
@@ -28,9 +30,9 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
   // Initialize with real data from server-side fetch
   useEffect(() => {
     console.log('UserManagementIndex: Initialized with real API data:', initialUsers);
-    setUsers(initialUsers);
+    setUsers(safeInitialUsers);
     setError(null);
-  }, [initialUsers]);
+  }, [initialUsers, safeInitialUsers]);
 
   // TODO: Add search/filter functionality that works with real API
   // For now, we use the initial data fetched server-side
