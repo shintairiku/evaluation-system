@@ -23,7 +23,7 @@ class EvaluationPeriodType(str, Enum):
 # Base schema  
 class EvaluationPeriodBase(BaseModel):
     name: str = Field(..., description="Name of the evaluation period")
-    period_type: str = Field(..., description="Type of evaluation period")
+    period_type: EvaluationPeriodType = Field(..., description="Type of evaluation period")
     start_date: date = Field(..., description="Start date of the evaluation period")
     end_date: date = Field(..., description="End date of the evaluation period")
     goal_submission_deadline: date = Field(..., description="Deadline for goal submission")
