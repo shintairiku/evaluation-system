@@ -7,7 +7,7 @@ from .common import SubmissionStatus, PaginatedResponse
 
 if TYPE_CHECKING:
     from .goal import Goal
-    from .evaluation_period import EvaluationPeriod
+    from .evaluation import EvaluationPeriod
     from .user import UserProfile
 
 class SupervisorAction(str, Enum):
