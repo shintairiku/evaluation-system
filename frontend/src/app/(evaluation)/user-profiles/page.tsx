@@ -23,6 +23,15 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
   // Server-side data fetching using getUsersAction as specified in task #112
   const result = await getUsersAction({ page, limit });
 
+  // DEBUG: Log the result to see what we're getting
+  console.log('UserProfilesPage - API Result:', {
+    success: result.success,
+    hasData: !!result.data,
+    userCount: result.data?.users?.length || 0,
+    error: result.error,
+    totalUsers: result.data?.total
+  });
+
   if (!result.success) {
     return (
       <div className="min-h-screen bg-background">
