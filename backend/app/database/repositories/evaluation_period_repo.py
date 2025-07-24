@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from sqlalchemy import select, update, func, and_
 from sqlalchemy.exc import SQLAlchemyError
@@ -163,7 +163,7 @@ class EvaluationPeriodRepository:
                 return existing_period
 
             # Add updated_at timestamp
-            update_data['updated_at'] = datetime.now(datetime.UTC)
+            update_data['updated_at'] = datetime.utcnow()
 
             # Execute update
             await self.session.execute(
@@ -188,7 +188,7 @@ class EvaluationPeriodRepository:
             await self.session.execute(
                 update(EvaluationPeriod)
                 .where(EvaluationPeriod.id == period_id)
-                .values(status=status, updated_at=datetime.now(datetime.UTC))
+                .values(status=status, updated_at=datetime.utcnow())
             )
 
             # Get and return the updated period
