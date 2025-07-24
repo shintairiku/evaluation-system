@@ -73,18 +73,29 @@ async def get_evaluation_periods(
 @router.post("/", response_model=EvaluationPeriod)
 async def create_evaluation_period(
     period_create: EvaluationPeriodCreate,
-    context: AuthContext = Depends(require_admin)
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create a new evaluation period (admin only)."""
-    
-    # TODO: Implement evaluation period creation service
-    # - Validate date ranges (start < end, deadlines within period)
-    # - Check for overlapping periods
-    # - Create period with default status 'upcoming'
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Evaluation period service not implemented"
-    )
+    try:
+        service = EvaluationPeriodService(session)
+        
+        result = await service.create_evaluation_period(
+            current_user_context=context,
+            period_data=period_create
+        )
+        
+        return result
+        
+    except (ConflictError, BadRequestError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
 
 @router.get("/{period_id}", response_model=EvaluationPeriodDetail)
 async def get_evaluation_period(
