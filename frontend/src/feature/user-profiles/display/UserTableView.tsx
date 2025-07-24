@@ -179,18 +179,20 @@ export default function UserTableView({ users }: UserTableViewProps) {
       </Card>
 
       {/* ユーザー編集モーダル - Task #113: Using EditProfileModal with useActionState */}
-      <EditProfileModal
-        user={selectedUser}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onUserUpdate={(updatedUser) => {
-          // Update the user in the local state optimistically
-          console.log('User updated in table:', updatedUser);
-        }}
-        departments={profileOptions.departments}
-        stages={profileOptions.stages}
-        roles={profileOptions.roles}
-      />
+      {selectedUser && (
+        <EditProfileModal
+          user={selectedUser}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          onUserUpdate={(updatedUser) => {
+            // Update the user in the local state optimistically
+            console.log('User updated in table:', updatedUser);
+          }}
+          departments={profileOptions.departments}
+          stages={profileOptions.stages}
+          roles={profileOptions.roles}
+        />
+      )}
     </>
   );
 }
