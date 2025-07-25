@@ -226,6 +226,7 @@ class UnifiedHttpClient {
     }
   }
 
+  // Get auth headers (with Clerk integration)
   private async getAuthHeaders(): Promise<Record<string, string>> {
     try {
       if (isServer) {
