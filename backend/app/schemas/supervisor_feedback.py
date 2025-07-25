@@ -6,7 +6,7 @@ from .common import SubmissionStatus
 
 if TYPE_CHECKING:
     from .self_assessment import SelfAssessment
-    from .evaluation_period import EvaluationPeriod
+    from .evaluation import EvaluationPeriod
 
 
 class SupervisorFeedbackBase(BaseModel):
