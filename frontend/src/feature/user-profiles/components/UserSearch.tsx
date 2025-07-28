@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useActionState, useEffect, useCallback, useTransition } from 'react';
+import React, { useActionState, useEffect, useCallback, useTransition, useRef } from 'react';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -99,8 +99,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
           loading: false,
           error: null,
         };
-        // Notify parent component of search results
-        setTimeout(() => onSearchResults(result.data!.items, result.data!.total), 0);
         return searchResult;
       } else {
         const errorResult = {
@@ -109,8 +107,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
           loading: false,
           error: result.error || 'Search failed',
         };
-        // Notify parent of empty results
-        setTimeout(() => onSearchResults([], 0), 0);
         return errorResult;
       }
     } catch (error) {
@@ -195,7 +191,17 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
       // No search/filters active, show initial users
       onSearchResults(initialUsers, initialUsers.length);
     }
-  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status, searchAction, initialUsers, onSearchResults]);
+  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status]);
+
+  // Update parent with search results when search state changes (without causing loops)
+  const onSearchResultsRef = useRef(onSearchResults);
+  onSearchResultsRef.current = onSearchResults;
+  
+  useEffect(() => {
+    if (searchState.users.length > 0 || (searchState.users.length === 0 && searchState.total === 0 && !searchState.loading)) {
+      onSearchResultsRef.current(searchState.users, searchState.total);
+    }
+  }, [searchState.users, searchState.total, searchState.loading]);
 
   // Handle search errors with toast notifications
   useEffect(() => {
