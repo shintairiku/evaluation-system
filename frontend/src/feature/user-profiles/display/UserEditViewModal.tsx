@@ -28,7 +28,7 @@ import {
   Save,
   X
 } from "lucide-react";
-import type { UserDetailResponse, UserUpdate, Department, Stage, Role } from '@/api/types';
+import type { UserDetailResponse, UserUpdate, Department, Stage, Role, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
 import { updateUserAction, getProfileOptionsAction } from '@/api/server-actions/users';
 
@@ -122,7 +122,7 @@ export default function UserEditViewModal({
         job_title: formData.job_title,
         department_id: formData.department_id === 'unset' ? undefined : formData.department_id as UUID,
         stage_id: formData.stage_id === 'unset' ? undefined : formData.stage_id as UUID,
-        status: formData.status as any,
+        status: formData.status as UserStatus,
         subordinate_ids: [], // Keep empty for profile edit
       };
 
