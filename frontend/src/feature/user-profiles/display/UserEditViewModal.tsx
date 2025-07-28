@@ -182,7 +182,7 @@ export default function UserEditViewModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-5xl">
+      <DialogContent className="sm:max-w-4xl w-full">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <User className="h-5 w-5" />
@@ -192,13 +192,13 @@ export default function UserEditViewModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
           {/* ユーザー基本情報カード */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">基本情報</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16">
                   <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">
@@ -216,7 +216,7 @@ export default function UserEditViewModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="name">名前</Label>
                   <Input
@@ -272,8 +272,8 @@ export default function UserEditViewModal({
             <CardHeader>
               <CardTitle className="text-lg">組織・ロール</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="department">部署</Label>
                   <Select 
@@ -349,7 +349,7 @@ export default function UserEditViewModal({
           </Card>
         </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-4">
             <Button 
               type="button"
               variant="outline" 
