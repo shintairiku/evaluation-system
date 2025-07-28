@@ -91,8 +91,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
       limit: parseInt(formData.get('limit') as string || '50', 10)
     };
 
-    console.log('UserSearch: Executing search with params:', params);
-
     try {
       const result = await searchUsersAction(params);
       
@@ -134,7 +132,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
     const fetchProfileOptions = async () => {
       setIsLoadingOptions(true);
       try {
-        console.log('UserSearch: Fetching profile options...');
         const result = await getProfileOptionsAction();
         
         if (result.success && result.data) {
@@ -143,7 +140,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
             stages: result.data.stages,
             roles: result.data.roles
           });
-          console.log('UserSearch: Profile options loaded successfully');
         } else {
           console.error('UserSearch: Failed to load profile options:', result.error);
           toast.error('フィルターオプションの読み込みに失敗しました');
@@ -161,28 +157,12 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
 
   // FIXED: Properly initialize with initial users on component mount
   useEffect(() => {
-    console.log('🔧 UserSearch: useEffect triggered with initialUsers:', {
-      length: initialUsers.length,
-      hasCallback: !!onSearchResultsRef.current,
-      callbackType: typeof onSearchResultsRef.current
-    });
-    
     if (initialUsers.length > 0) {
-      console.log('🔧 UserSearch: Initializing with', initialUsers.length, 'initial users');
-      console.log('🔧 UserSearch: First user:', initialUsers[0]?.name);
-      
-      // Force the callback to be called
-      try {
-        onSearchResultsRef.current(initialUsers, initialUsers.length);
-        console.log('🔧 UserSearch: ✅ Callback executed successfully');
-      } catch (error) {
-        console.error('🔧 UserSearch: ❌ Callback failed:', error);
-      }
+      onSearchResultsRef.current(initialUsers, initialUsers.length);
     } else {
-      console.log('🔧 UserSearch: No initial users provided, showing empty state');
       onSearchResultsRef.current([], 0);
     }
-  }, [initialUsers]); // Include initialUsers to trigger when they change
+  }, [initialUsers]);
 
   // FIXED: Improved search trigger logic with minimum character validation
   useEffect(() => {
@@ -193,15 +173,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
                       searchParams.role_id !== 'all' || 
                       searchParams.status !== 'all';
 
-    console.log('UserSearch: Search trigger evaluation:', {
-      debouncedQuery: debouncedQuery,
-      hasMinimumSearchQuery,
-      hasFilters,
-      shouldSearch: hasMinimumSearchQuery || hasFilters
-    });
-
     if (hasMinimumSearchQuery || hasFilters) {
-      console.log('UserSearch: Triggering search with conditions met');
       startTransition(() => {
         const formData = new FormData();
         formData.append('query', debouncedQuery);
@@ -216,7 +188,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
       });
     } else if (debouncedQuery.trim().length === 0 && !hasFilters) {
       // Clear search - show initial users
-      console.log('UserSearch: No search/filters active, showing initial users');
       onSearchResultsRef.current(initialUsers, initialUsers.length);
     }
     // If query is 1 character, do nothing (wait for more characters)
@@ -225,7 +196,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
   // Update parent with search results when search state changes
   useEffect(() => {
     if (searchState.users.length > 0 || (searchState.users.length === 0 && searchState.total === 0 && !searchState.loading)) {
-      console.log('UserSearch: Updating parent with search results:', searchState.users.length);
       onSearchResultsRef.current(searchState.users, searchState.total);
     }
   }, [searchState.users, searchState.total, searchState.loading]);
@@ -239,7 +209,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
 
   // Handle parameter changes
   const handleParamChange = useCallback((key: keyof SearchUsersParams, value: string | number) => {
-    console.log('UserSearch: Parameter changed:', key, '=', value);
     setSearchParams(prev => ({
       ...prev,
       [key]: value,
@@ -249,7 +218,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
 
   // Clear all filters and return to initial state
   const handleClearFilters = useCallback(() => {
-    console.log('UserSearch: Clearing all filters');
     const clearedParams: SearchUsersParams = {
       query: '',
       department_id: 'all',
