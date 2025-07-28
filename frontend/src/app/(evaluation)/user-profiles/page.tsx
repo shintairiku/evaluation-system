@@ -41,6 +41,8 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
     );
   }
 
+  console.log('🔍 DEBUG: About to render UserManagementWithSearch with users:', result.data?.items?.length || 0);
+  
   return (
     <UserManagementWithSearch initialUsers={result.data!.items} />
   );
