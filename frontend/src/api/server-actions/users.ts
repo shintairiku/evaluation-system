@@ -217,29 +217,21 @@ export async function getProfileOptionsAction(): Promise<{
   error?: string;
 }> {
   try {
-    console.log('Server action: Starting getProfileOptionsAction (using users endpoint)');
     const response = await usersApi.getProfileOptions();
-    console.log('Server action: API response received:', response);
     
     if (!response.success || !response.data) {
-      console.log('Server action: API response failed:', response.error);
       return {
         success: false,
         error: response.error || 'Failed to fetch profile options',
       };
     }
     
-    console.log('Server action: Success, returning data');
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('Server action: Exception caught:', error);
-    console.error('Error type:', typeof error);
-    console.error('Error message:', error instanceof Error ? error.message : String(error));
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
-    
+    console.error('Get profile options action error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching profile options',
@@ -257,8 +249,6 @@ export async function searchUsersAction(params: SearchUsersParams): Promise<{
   error?: string;
 }> {
   try {
-    console.log('Server action: Starting searchUsersAction with params:', params);
-    
     // Build query parameters for the API call
     const queryParams = new URLSearchParams();
     
@@ -280,8 +270,6 @@ export async function searchUsersAction(params: SearchUsersParams): Promise<{
     if (params.status && params.status !== 'all') {
       queryParams.append('status', params.status);
     }
-    
-    console.log('Server action: Query parameters:', queryParams.toString());
     
     // Use existing getUsersAction as base but extend it for search
     // For now, we'll use the existing API and filter server-side
@@ -334,8 +322,6 @@ export async function searchUsersAction(params: SearchUsersParams): Promise<{
       limit: params.limit || 50,
       pages: Math.ceil(filteredUsers.length / (params.limit || 50))
     };
-    
-    console.log('Server action: Search completed, found', filteredUsers.length, 'users');
     
     return {
       success: true,

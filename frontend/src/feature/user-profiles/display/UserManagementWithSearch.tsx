@@ -15,8 +15,6 @@ interface UserManagementWithSearchProps {
 }
 
 export default function UserManagementWithSearch({ initialUsers }: UserManagementWithSearchProps) {
-  console.log('🏁 UserManagementWithSearch: Component mounted with initialUsers:', initialUsers.length);
-  
   // Initialize with initialUsers directly to avoid race condition
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [totalUsers, setTotalUsers] = useState<number>(initialUsers.length);
@@ -26,11 +24,9 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
 
   // FORCE initialization with initialUsers when component mounts
   useEffect(() => {
-    console.log('🏁 UserManagementWithSearch: useEffect - Ensuring users are set with initialUsers:', initialUsers.length);
     if (initialUsers.length > 0) {
       setUsers(initialUsers);
       setTotalUsers(initialUsers.length);
-      console.log('🏁 UserManagementWithSearch: ✅ Users state updated directly with', initialUsers.length, 'users');
     }
   }, [initialUsers]);
 
@@ -45,12 +41,6 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
 
   // Callback to handle search results from UserSearch component
   const handleSearchResults = (searchUsers: UserDetailResponse[], total: number) => {
-    console.log('🎯 UserManagementWithSearch: Received search results:', {
-      userCount: searchUsers.length,
-      total: total,
-      firstUser: searchUsers[0]?.name || 'none'
-    });
-    
     setUsers(searchUsers);
     setTotalUsers(total);
     setError(null);
