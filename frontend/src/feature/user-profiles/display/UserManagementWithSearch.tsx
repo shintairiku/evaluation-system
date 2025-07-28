@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { UserDetailResponse } from '@/api/types';
 import { useViewMode } from '../hooks/useViewMode';
 import ViewModeSelector from './ViewModeSelector';
@@ -15,11 +15,24 @@ interface UserManagementWithSearchProps {
 }
 
 export default function UserManagementWithSearch({ initialUsers }: UserManagementWithSearchProps) {
+  console.log('🏁 UserManagementWithSearch: Component mounted with initialUsers:', initialUsers.length);
+  
+  // Initialize with initialUsers directly to avoid race condition
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [totalUsers, setTotalUsers] = useState<number>(initialUsers.length);
   const [error, setError] = useState<string | null>(null);
 
   const { viewMode, setViewMode } = useViewMode('table');
+
+  // FORCE initialization with initialUsers when component mounts
+  useEffect(() => {
+    console.log('🏁 UserManagementWithSearch: useEffect - Ensuring users are set with initialUsers:', initialUsers.length);
+    if (initialUsers.length > 0) {
+      setUsers(initialUsers);
+      setTotalUsers(initialUsers.length);
+      console.log('🏁 UserManagementWithSearch: ✅ Users state updated directly with', initialUsers.length, 'users');
+    }
+  }, [initialUsers]);
 
   // Callback to update user data when edited
   const handleUserUpdate = (updatedUser: UserDetailResponse) => {
@@ -32,9 +45,10 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
 
   // Callback to handle search results from UserSearch component
   const handleSearchResults = (searchUsers: UserDetailResponse[], total: number) => {
-    console.log('UserManagementWithSearch: Received search results:', {
+    console.log('🎯 UserManagementWithSearch: Received search results:', {
       userCount: searchUsers.length,
-      total: total
+      total: total,
+      firstUser: searchUsers[0]?.name || 'none'
     });
     
     setUsers(searchUsers);
