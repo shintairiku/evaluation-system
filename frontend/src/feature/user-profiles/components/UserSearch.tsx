@@ -93,19 +93,25 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
       const result = await searchUsersAction(params);
       
       if (result.success && result.data) {
-        return {
+        const searchResult = {
           users: result.data.items,
           total: result.data.total,
           loading: false,
           error: null,
         };
+        // Notify parent component of search results
+        setTimeout(() => onSearchResults(result.data!.items, result.data!.total), 0);
+        return searchResult;
       } else {
-        return {
+        const errorResult = {
           users: [],
           total: 0,
           loading: false,
           error: result.error || 'Search failed',
         };
+        // Notify parent of empty results
+        setTimeout(() => onSearchResults([], 0), 0);
+        return errorResult;
       }
     } catch (error) {
       console.error('UserSearch: Search error:', error);
@@ -153,43 +159,50 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
     fetchProfileOptions();
   }, []);
 
-  // Initialize with initial users if provided
+  // Initialize with initial users only on first load
   useEffect(() => {
-    if (initialUsers.length > 0 && searchState.users.length === 0) {
+    if (initialUsers.length > 0 && searchState.users.length === 0 && 
+        !searchParams.query && searchParams.department_id === 'all' && 
+        searchParams.stage_id === 'all' && searchParams.role_id === 'all' && 
+        searchParams.status === 'all') {
       onSearchResults(initialUsers, initialUsers.length);
     }
-  }, [initialUsers, searchState.users.length, onSearchResults]);
+  }, [initialUsers]); // Remove dependencies that cause re-triggering
 
-  // Trigger search when debounced query changes
+  // Trigger search when debounced query changes or filters change
   useEffect(() => {
-    if (debouncedQuery !== searchParams.query) {
-      return; // Skip if query hasn't actually changed after debounce
+    // Only perform server search if there are actual search parameters
+    const hasSearchQuery = debouncedQuery.trim().length > 0;
+    const hasFilters = searchParams.department_id !== 'all' || 
+                      searchParams.stage_id !== 'all' || 
+                      searchParams.role_id !== 'all' || 
+                      searchParams.status !== 'all';
+
+    if (hasSearchQuery || hasFilters) {
+      startTransition(() => {
+        const formData = new FormData();
+        formData.append('query', debouncedQuery);
+        formData.append('department_id', searchParams.department_id || 'all');
+        formData.append('stage_id', searchParams.stage_id || 'all');
+        formData.append('role_id', searchParams.role_id || 'all');
+        formData.append('status', searchParams.status || 'all');
+        formData.append('page', searchParams.page?.toString() || '1');
+        formData.append('limit', searchParams.limit?.toString() || '50');
+
+        searchAction(formData);
+      });
+    } else {
+      // No search/filters active, show initial users
+      onSearchResults(initialUsers, initialUsers.length);
     }
+  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status, searchAction, initialUsers, onSearchResults]);
 
-    startTransition(() => {
-      const formData = new FormData();
-      formData.append('query', searchParams.query);
-      formData.append('department_id', searchParams.department_id || 'all');
-      formData.append('stage_id', searchParams.stage_id || 'all');
-      formData.append('role_id', searchParams.role_id || 'all');
-      formData.append('status', searchParams.status || 'all');
-      formData.append('page', searchParams.page?.toString() || '1');
-      formData.append('limit', searchParams.limit?.toString() || '50');
-
-      searchAction(formData);
-    });
-  }, [debouncedQuery, searchParams, searchAction]);
-
-  // Update parent component when search results change
+  // Handle search errors with toast notifications
   useEffect(() => {
-    if (searchState.users.length > 0 || searchState.error) {
-      onSearchResults(searchState.users, searchState.total);
-    }
-    
     if (searchState.error) {
       toast.error(searchState.error);
     }
-  }, [searchState, onSearchResults]);
+  }, [searchState.error]);
 
   // Handle parameter changes
   const handleParamChange = useCallback((key: keyof SearchUsersParams, value: string | number) => {
