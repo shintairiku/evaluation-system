@@ -1,5 +1,5 @@
 import { getUsersAction } from '@/api/server-actions';
-import UserManagementIndex from "@/feature/user-profiles/display/index";
+import UserManagementWithSearch from "@/feature/user-profiles/display/UserManagementWithSearch";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -42,6 +42,6 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
   }
 
   return (
-    <UserManagementIndex initialUsers={result.data!.items} />
+    <UserManagementWithSearch initialUsers={result.data!.items} />
   );
 } 
