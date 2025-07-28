@@ -1,13 +1,13 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Any, Union, TYPE_CHECKING
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 from uuid import UUID
 
 from .common import PaginatedResponse
 
 if TYPE_CHECKING:
-    from .evaluation_period import EvaluationPeriod
+    from .evaluation import EvaluationPeriod
     from .self_assessment import SelfAssessment
     from .supervisor_feedback import SupervisorFeedback
     from .user import UserProfile
@@ -70,7 +70,7 @@ class GoalCreate(BaseModel):
     # Core Value Goal fields (goal_category = "コアバリュー") 
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
     
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode='before')
     @classmethod
     def validate_goal_category_fields(cls, values):
         """Validate that required fields are present based on goal_category"""
@@ -122,7 +122,7 @@ class GoalInDB(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @root_validator(pre=True)
+    @model_validator(mode='before')
     @classmethod
     def _validate_target_data(cls, data: Any) -> Any:
         if not isinstance(data, dict):
@@ -147,8 +147,7 @@ class GoalInDB(BaseModel):
             
         return data
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class Goal(BaseModel):
@@ -186,7 +185,7 @@ class Goal(BaseModel):
     # Core Value Goal fields (goal_category = "コアバリュー")
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
-    @root_validator(pre=True)
+    @model_validator(mode='before')
     @classmethod
     def flatten_target_data(cls, data: Any) -> Any:
         """
@@ -202,9 +201,7 @@ class Goal(BaseModel):
         # If it's already a dict or other type, pass it through
         return data
 
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class GoalDetail(Goal):
@@ -281,9 +278,7 @@ class GoalDetail(Goal):
     approved_by_name: Optional[str] = Field(None, alias="approvedByName", description="Name of the approver")
     days_since_submission: Optional[int] = Field(None, alias="daysSinceSubmission", description="Days since goal was submitted for approval")
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class GoalList(PaginatedResponse[Goal]):
