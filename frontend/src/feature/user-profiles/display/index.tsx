@@ -27,6 +27,15 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
 
   const { viewMode, setViewMode } = useViewMode('table');
 
+  // Callback to update user data when edited
+  const handleUserUpdate = (updatedUser: UserDetailResponse) => {
+    setUsers(prevUsers => 
+      prevUsers.map(user => 
+        user.id === updatedUser.id ? updatedUser : user
+      )
+    );
+  };
+
   // Initialize with real data from server-side fetch
   useEffect(() => {
     console.log('UserManagementIndex: Initialized with real API data:', initialUsers);
@@ -40,13 +49,13 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
   const renderCurrentView = () => {
     switch (viewMode) {
       case 'table':
-        return <UserTableView users={users} />;
+        return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
       case 'gallery':
-        return <UserGalleryView users={users} />;
+        return <UserGalleryView users={users} onUserUpdate={handleUserUpdate} />;
       // case 'organization':
-      //   return <UserOrganizationView users={users} />;
+      //   return <UserOrganizationView users={users} onUserUpdate={handleUserUpdate} />;
       default:
-        return <UserTableView users={users} />;
+        return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
     }
   };
 

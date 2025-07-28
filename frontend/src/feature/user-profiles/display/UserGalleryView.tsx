@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -11,12 +12,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Eye, Edit, User, Mail, Building, Trophy } from "lucide-react";
 import type { UserDetailResponse } from '@/api/types';
+import UserEditViewModal from './UserEditViewModal';
 
 interface UserGalleryViewProps {
   users: UserDetailResponse[];
+  onUserUpdate?: (updatedUser: UserDetailResponse) => void;
 }
 
-export default function UserGalleryView({ users }: UserGalleryViewProps) {
+export default function UserGalleryView({ users, onUserUpdate }: UserGalleryViewProps) {
+  const [selectedUser, setSelectedUser] = useState<UserDetailResponse | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -36,8 +41,16 @@ export default function UserGalleryView({ users }: UserGalleryViewProps) {
   };
 
   const handleEditUser = (userId: string) => {
-    console.log('Edit user:', userId);
-    // TODO: ユーザー編集モーダル表示
+    const user = users.find(u => u.id === userId);
+    if (user) {
+      setSelectedUser(user);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setSelectedUser(null);
+    setIsModalOpen(false);
   };
 
   if (users.length === 0) {
@@ -149,6 +162,14 @@ export default function UserGalleryView({ users }: UserGalleryViewProps) {
           </CardContent>
         </Card>
       ))}
+      
+      {/* ユーザー編集モーダル */}
+      <UserEditViewModal
+        user={selectedUser}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onUserUpdate={onUserUpdate}
+      />
     </div>
   );
 }
