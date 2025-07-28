@@ -28,7 +28,7 @@ const initialState: SearchState = {
   error: null,
 };
 
-// Debounce utility function
+// Improved debounce utility function with minimum length validation
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
 
@@ -73,8 +73,8 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
   const onSearchResultsRef = useRef(onSearchResults);
   onSearchResultsRef.current = onSearchResults;
 
-  // Debounce search query to avoid excessive API calls
-  const debouncedQuery = useDebounce(searchParams.query, 300);
+  // Increased debounce delay to reduce API calls
+  const debouncedQuery = useDebounce(searchParams.query, 800);
 
   // Server action wrapper for useActionState
   const searchActionWrapper = async (
@@ -159,26 +159,49 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
     fetchProfileOptions();
   }, []);
 
-  // Initialize with initial users on component mount
-  const isInitializedRef = useRef(false);
+  // FIXED: Properly initialize with initial users on component mount
   useEffect(() => {
-    if (initialUsers.length > 0 && !isInitializedRef.current) {
-      console.log('UserSearch: Initializing with', initialUsers.length, 'users');
-      onSearchResults(initialUsers, initialUsers.length);
-      isInitializedRef.current = true;
+    console.log('🔧 UserSearch: useEffect triggered with initialUsers:', {
+      length: initialUsers.length,
+      hasCallback: !!onSearchResultsRef.current,
+      callbackType: typeof onSearchResultsRef.current
+    });
+    
+    if (initialUsers.length > 0) {
+      console.log('🔧 UserSearch: Initializing with', initialUsers.length, 'initial users');
+      console.log('🔧 UserSearch: First user:', initialUsers[0]?.name);
+      
+      // Force the callback to be called
+      try {
+        onSearchResultsRef.current(initialUsers, initialUsers.length);
+        console.log('🔧 UserSearch: ✅ Callback executed successfully');
+      } catch (error) {
+        console.error('🔧 UserSearch: ❌ Callback failed:', error);
+      }
+    } else {
+      console.log('🔧 UserSearch: No initial users provided, showing empty state');
+      onSearchResultsRef.current([], 0);
     }
-  }, [initialUsers]); // Include initialUsers but use ref to prevent re-initialization
+  }, [initialUsers]); // Include initialUsers to trigger when they change
 
-  // Trigger search when debounced query changes or filters change
+  // FIXED: Improved search trigger logic with minimum character validation
   useEffect(() => {
-    // Only perform server search if there are actual search parameters
-    const hasSearchQuery = debouncedQuery.trim().length > 0;
+    // Only perform server search if there are meaningful search parameters
+    const hasMinimumSearchQuery = debouncedQuery.trim().length >= 2; // Minimum 2 characters
     const hasFilters = searchParams.department_id !== 'all' || 
                       searchParams.stage_id !== 'all' || 
                       searchParams.role_id !== 'all' || 
                       searchParams.status !== 'all';
 
-    if (hasSearchQuery || hasFilters) {
+    console.log('UserSearch: Search trigger evaluation:', {
+      debouncedQuery: debouncedQuery,
+      hasMinimumSearchQuery,
+      hasFilters,
+      shouldSearch: hasMinimumSearchQuery || hasFilters
+    });
+
+    if (hasMinimumSearchQuery || hasFilters) {
+      console.log('UserSearch: Triggering search with conditions met');
       startTransition(() => {
         const formData = new FormData();
         formData.append('query', debouncedQuery);
@@ -191,16 +214,18 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
 
         searchAction(formData);
       });
-    } else {
-      // No search/filters active, show initial users
+    } else if (debouncedQuery.trim().length === 0 && !hasFilters) {
+      // Clear search - show initial users
+      console.log('UserSearch: No search/filters active, showing initial users');
       onSearchResultsRef.current(initialUsers, initialUsers.length);
     }
-  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status]);
+    // If query is 1 character, do nothing (wait for more characters)
+  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status, initialUsers]);
 
-  // Update parent with search results when search state changes (without causing loops)
-  
+  // Update parent with search results when search state changes
   useEffect(() => {
     if (searchState.users.length > 0 || (searchState.users.length === 0 && searchState.total === 0 && !searchState.loading)) {
+      console.log('UserSearch: Updating parent with search results:', searchState.users.length);
       onSearchResultsRef.current(searchState.users, searchState.total);
     }
   }, [searchState.users, searchState.total, searchState.loading]);
@@ -214,6 +239,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
 
   // Handle parameter changes
   const handleParamChange = useCallback((key: keyof SearchUsersParams, value: string | number) => {
+    console.log('UserSearch: Parameter changed:', key, '=', value);
     setSearchParams(prev => ({
       ...prev,
       [key]: value,
@@ -221,8 +247,9 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
     }));
   }, []);
 
-  // Clear all filters
+  // Clear all filters and return to initial state
   const handleClearFilters = useCallback(() => {
+    console.log('UserSearch: Clearing all filters');
     const clearedParams: SearchUsersParams = {
       query: '',
       department_id: 'all',
@@ -234,33 +261,33 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
     };
     setSearchParams(clearedParams);
     
-    // Trigger immediate search with cleared params
-    startTransition(() => {
-      const formData = new FormData();
-      Object.entries(clearedParams).forEach(([key, value]) => {
-        formData.append(key, value?.toString() || '');
-      });
-      searchAction(formData);
-    });
-  }, [searchAction]);
+    // Return to initial users immediately
+    onSearchResultsRef.current(initialUsers, initialUsers.length);
+  }, [initialUsers]);
 
   const isLoading = isPending || isPendingAction || searchState.loading;
 
   return (
     <div className="flex flex-wrap items-center gap-4 p-4 bg-card rounded-lg border">
-      {/* Search Input with Debounce */}
+      {/* Search Input with Improved Debounce */}
       <div className="relative flex-1 min-w-[300px]">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
         {isLoading && (
           <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 animate-spin" />
         )}
         <Input
-          placeholder="名前・従業員コード・メールアドレスで検索..."
+          placeholder="名前・従業員コード・メールアドレスで検索... (2文字以上)"
           className="pl-10 pr-10"
           value={searchParams.query}
           onChange={(e) => handleParamChange('query', e.target.value)}
           disabled={isLoading}
         />
+        {/* Show hint for minimum characters */}
+        {searchParams.query.length === 1 && (
+          <div className="absolute top-full left-0 mt-1 text-xs text-muted-foreground">
+            もう1文字入力してください (最小2文字)
+          </div>
+        )}
       </div>
 
       {/* Department Filter */}
