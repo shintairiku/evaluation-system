@@ -68,6 +68,10 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
 
   const [isLoadingOptions, setIsLoadingOptions] = React.useState(true);
   const [isPending, startTransition] = useTransition();
+  
+  // Refs to avoid callback dependency issues
+  const onSearchResultsRef = useRef(onSearchResults);
+  onSearchResultsRef.current = onSearchResults;
 
   // Debounce search query to avoid excessive API calls
   const debouncedQuery = useDebounce(searchParams.query, 300);
@@ -155,15 +159,15 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
     fetchProfileOptions();
   }, []);
 
-  // Initialize with initial users only on first load
+  // Initialize with initial users on component mount
+  const isInitializedRef = useRef(false);
   useEffect(() => {
-    if (initialUsers.length > 0 && searchState.users.length === 0 && 
-        !searchParams.query && searchParams.department_id === 'all' && 
-        searchParams.stage_id === 'all' && searchParams.role_id === 'all' && 
-        searchParams.status === 'all') {
+    if (initialUsers.length > 0 && !isInitializedRef.current) {
+      console.log('UserSearch: Initializing with', initialUsers.length, 'users');
       onSearchResults(initialUsers, initialUsers.length);
+      isInitializedRef.current = true;
     }
-  }, [initialUsers]); // Remove dependencies that cause re-triggering
+  }, [initialUsers]); // Include initialUsers but use ref to prevent re-initialization
 
   // Trigger search when debounced query changes or filters change
   useEffect(() => {
@@ -189,13 +193,11 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
       });
     } else {
       // No search/filters active, show initial users
-      onSearchResults(initialUsers, initialUsers.length);
+      onSearchResultsRef.current(initialUsers, initialUsers.length);
     }
   }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status]);
 
   // Update parent with search results when search state changes (without causing loops)
-  const onSearchResultsRef = useRef(onSearchResults);
-  onSearchResultsRef.current = onSearchResults;
   
   useEffect(() => {
     if (searchState.users.length > 0 || (searchState.users.length === 0 && searchState.total === 0 && !searchState.loading)) {
