@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { UserDetailResponse } from '@/api/types';
 import { useViewMode } from '../hooks/useViewMode';
 import ViewModeSelector from './ViewModeSelector';
-import FilterBar from './FilterBar';
+import FilterBar, { FilterState } from './FilterBar';
 import UserTableView from './UserTableView';
 import UserGalleryView from './UserGalleryView';
 // import UserOrganizationView from './UserOrganizationView';
@@ -24,6 +24,13 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
   const [users, setUsers] = useState<UserDetailResponse[]>(safeInitialUsers);
   const [error, setError] = useState<string | null>(null);
   const { isLoading, withLoading } = useLoading('user-list-fetch');
+  const [currentFilters, setCurrentFilters] = useState<FilterState>({
+    search: '',
+    department: 'all',
+    stage: 'all',
+    role: 'all',
+    status: 'all'
+  });
 
   const { viewMode, setViewMode } = useViewMode('table');
 
@@ -43,8 +50,55 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
     setError(null);
   }, [initialUsers]); // Remove safeInitialUsers from dependencies to prevent infinite loop
 
-  // TODO: Add search/filter functionality that works with real API
-  // For now, we use the initial data fetched server-side
+  // Filter users based on current filters
+  const filteredUsers = useMemo(() => {
+    let filtered = safeInitialUsers;
+
+    // Search filter
+    if (currentFilters.search.trim()) {
+      const searchTerm = currentFilters.search.toLowerCase();
+      filtered = filtered.filter(user => 
+        user.name.toLowerCase().includes(searchTerm) ||
+        user.employee_code.toLowerCase().includes(searchTerm) ||
+        user.email.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Department filter
+    if (currentFilters.department !== 'all') {
+      filtered = filtered.filter(user => user.department?.id === currentFilters.department);
+    }
+
+    // Stage filter
+    if (currentFilters.stage !== 'all') {
+      filtered = filtered.filter(user => user.stage?.id === currentFilters.stage);
+    }
+
+    // Role filter
+    if (currentFilters.role !== 'all') {
+      filtered = filtered.filter(user => 
+        user.roles.some(role => role.id === currentFilters.role)
+      );
+    }
+
+    // Status filter
+    if (currentFilters.status !== 'all') {
+      filtered = filtered.filter(user => user.status === currentFilters.status);
+    }
+
+    return filtered;
+  }, [safeInitialUsers, currentFilters]);
+
+  // Handle filter changes from FilterBar
+  const handleFilterChange = (filters: FilterState) => {
+    console.log('UserManagementIndex: Filters changed:', filters);
+    setCurrentFilters(filters);
+  };
+
+  // Update users state when filters change
+  useEffect(() => {
+    setUsers(filteredUsers);
+  }, [filteredUsers]);
   
   const renderCurrentView = () => {
     switch (viewMode) {
@@ -104,7 +158,7 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
       <ViewModeSelector viewMode={viewMode} onViewModeChange={setViewMode} />
 
       {/* フィルターバー */}
-      <FilterBar users={users} />
+      <FilterBar users={users} onFilter={handleFilterChange} />
 
       {/* 結果表示 */}
       <div className="space-y-4">
