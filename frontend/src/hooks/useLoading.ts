@@ -102,7 +102,7 @@ export function useGlobalLoading() {
  * Hook for managing multiple loading states with a single key prefix
  */
 export function useMultipleLoading(keyPrefix: string) {
-  const { setLoading: setGlobalLoading, isLoading: isGlobalLoading } = useLoadingContext();
+  const { setLoading: setGlobalLoading, isLoading: isGlobalLoading, loadingStates } = useLoadingContext();
 
   const setLoading = useCallback(
     (subKey: string, loading: boolean) => {
@@ -122,11 +122,10 @@ export function useMultipleLoading(keyPrefix: string) {
 
   const isAnySubLoading = useCallback(() => {
     // Check if any key starting with our prefix is loading
-    const context = useLoadingContext();
-    return Object.keys(context.loadingStates).some(key => 
+    return Object.keys(loadingStates).some(key => 
       key.startsWith(`${keyPrefix}.`)
     );
-  }, [keyPrefix]);
+  }, [keyPrefix, loadingStates]);
 
   const withLoading = useCallback(
     async <T>(

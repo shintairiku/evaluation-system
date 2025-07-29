@@ -48,6 +48,7 @@ export default function UserEditViewModal({
 }: UserEditViewModalProps) {
   // State for form handling
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingOptions, setIsLoadingOptions] = useState(true);
 
   // Profile options state for departments/stages
   const [profileOptions, setProfileOptions] = useState<{
@@ -73,17 +74,32 @@ export default function UserEditViewModal({
   // Fetch profile options when component mounts
   useEffect(() => {
     const fetchProfileOptions = async () => {
+      setIsLoadingOptions(true);
       try {
+        console.log('UserEditViewModal: Fetching profile options...');
         const result = await getProfileOptionsAction();
+        console.log('UserEditViewModal: Profile options result:', result);
+        
         if (result.success && result.data) {
           setProfileOptions({
             departments: result.data.departments,
             stages: result.data.stages,
             roles: result.data.roles
           });
+          console.log('UserEditViewModal: Successfully loaded options:', {
+            departments: result.data.departments.length,
+            stages: result.data.stages.length,
+            roles: result.data.roles.length
+          });
+        } else {
+          console.error('UserEditViewModal: Failed to load options:', result.error);
+          toast.error('部署・ステージの選択肢の読み込みに失敗しました');
         }
       } catch (error) {
-        console.error('Failed to fetch profile options:', error);
+        console.error('UserEditViewModal: Exception while fetching options:', error);
+        toast.error('部署・ステージの選択肢の読み込み中にエラーが発生しました');
+      } finally {
+        setIsLoadingOptions(false);
       }
     };
 
@@ -133,16 +149,13 @@ export default function UserEditViewModal({
         }
       });
 
-      console.log('Updating user with data:', userData);
       const result = await updateUserAction(user.id, userData);
-      console.log('Update result:', result);
 
       if (result.success && result.data) {
         toast.success('プロフィールが正常に更新されました');
         onUserUpdate?.(result.data);
         onClose();
       } else {
-        console.log('Update failed:', result.error);
         toast.error(result.error || 'プロフィールの更新に失敗しました');
       }
     } catch (error) {
@@ -279,10 +292,10 @@ export default function UserEditViewModal({
                   <Select 
                     value={formData.department_id} 
                     onValueChange={(value) => handleInputChange('department_id', value)}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoadingOptions}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="部署を選択" />
+                      <SelectValue placeholder={isLoadingOptions ? "読み込み中..." : "部署を選択"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unset">未設定</SelectItem>
@@ -291,6 +304,11 @@ export default function UserEditViewModal({
                           {dept.name}
                         </SelectItem>
                       ))}
+                      {isLoadingOptions && (
+                        <SelectItem value="" disabled>
+                          読み込み中...
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -300,10 +318,10 @@ export default function UserEditViewModal({
                   <Select 
                     value={formData.stage_id} 
                     onValueChange={(value) => handleInputChange('stage_id', value)}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoadingOptions}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="ステージを選択" />
+                      <SelectValue placeholder={isLoadingOptions ? "読み込み中..." : "ステージを選択"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unset">未設定</SelectItem>
@@ -312,6 +330,11 @@ export default function UserEditViewModal({
                           {stage.name}
                         </SelectItem>
                       ))}
+                      {isLoadingOptions && (
+                        <SelectItem value="" disabled>
+                          読み込み中...
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
