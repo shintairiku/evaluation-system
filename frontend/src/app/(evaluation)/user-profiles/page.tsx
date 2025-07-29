@@ -23,7 +23,7 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
         <div>
           <h1 className="text-3xl font-bold">ユーザー管理</h1>
           <p className="text-muted-foreground">
-            システム内のユーザー情報を管理します
+            組織内のユーザーを検索し、プロフィール情報を管理します
           </p>
         </div>
         
