@@ -35,9 +35,12 @@ export default function UserGalleryView({ users, onUserUpdate }: UserGalleryView
     }
   };
 
-  const handleViewUser = (userId: string) => {
-    console.log('View user:', userId);
-    // TODO: ユーザー詳細モーダル表示
+  const handleUserClick = (userId: string) => {
+    // Abrir modal de detalhes do usuário  
+    const selectedUser = users.find(user => user.id === userId);
+    if (selectedUser) {
+      // Implementação futura do modal de detalhes
+    }
   };
 
   const handleEditUser = (userId: string) => {
@@ -143,7 +146,7 @@ export default function UserGalleryView({ users, onUserUpdate }: UserGalleryView
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleViewUser(user.id)}
+                onClick={() => handleUserClick(user.id)}
                 className="flex-1"
               >
                 <Eye className="w-4 h-4 mr-1" />
