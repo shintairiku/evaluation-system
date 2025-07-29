@@ -1,9 +1,9 @@
-import type { UserExistsResponse } from '@/api/types/auth';
+import type { AuthUserExistsResponse } from '@/api/types/auth';
 import PendingApprovalNotification from './PendingApprovalNotification';
 import UserInfoCard from './UserInfoCard';
 
 interface WelcomeDashboardProps {
-  user: UserExistsResponse;
+  user: AuthUserExistsResponse;
 }
 
 export default function WelcomeDashboard({ user }: WelcomeDashboardProps) {

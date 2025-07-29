@@ -1,7 +1,5 @@
 export { default as Header } from './header';
 export { default as Sidebar } from './sidebar';
-export { PopUp } from './PopUp';
-export { SidePeak } from './SidePeak';
 
 // New reusable components
 export { default as WelcomeDashboard } from './WelcomeDashboard';

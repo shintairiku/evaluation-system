@@ -1,7 +1,7 @@
-import type { UserExistsResponse } from '@/api/types/auth';
+import type { AuthUserExistsResponse } from '@/api/types/auth';
 
 interface UserInfoCardProps {
-  user: UserExistsResponse;
+  user: AuthUserExistsResponse;
 }
 
 export default function UserInfoCard({ user }: UserInfoCardProps) {
