@@ -19,11 +19,11 @@ interface UserManagementIndexProps {
 }
 
 export default function UserManagementIndex({ initialUsers }: UserManagementIndexProps) {
-  // Safety check to ensure initialUsers is always an array
-  const safeInitialUsers = initialUsers || [];
+  // Safety check to ensure initialUsers is always an array  
+  const safeInitialUsers = useMemo(() => initialUsers || [], [initialUsers]);
   const [users, setUsers] = useState<UserDetailResponse[]>(safeInitialUsers);
   const [error, setError] = useState<string | null>(null);
-  const { isLoading, withLoading } = useLoading('user-list-fetch');
+  const { isLoading } = useLoading('user-list-fetch');
   const [currentFilters, setCurrentFilters] = useState<FilterState>({
     search: '',
     department: 'all',
@@ -45,10 +45,9 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
 
   // Initialize with real data from server-side fetch
   useEffect(() => {
-    console.log('UserManagementIndex: Initialized with real API data:', initialUsers);
     setUsers(safeInitialUsers);
     setError(null);
-  }, [initialUsers]); // Remove safeInitialUsers from dependencies to prevent infinite loop
+  }, [initialUsers, safeInitialUsers]);
 
   // Filter users based on current filters
   const filteredUsers = useMemo(() => {
@@ -91,7 +90,6 @@ export default function UserManagementIndex({ initialUsers }: UserManagementInde
 
   // Handle filter changes from FilterBar
   const handleFilterChange = (filters: FilterState) => {
-    console.log('UserManagementIndex: Filters changed:', filters);
     setCurrentFilters(filters);
   };
 
