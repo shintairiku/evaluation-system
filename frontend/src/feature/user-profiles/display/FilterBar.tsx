@@ -48,9 +48,7 @@ export default function FilterBar({ users, onFilter }: FilterBarProps) {
     const fetchProfileOptions = async () => {
       setIsLoadingOptions(true);
       try {
-        console.log('FilterBar: Fetching profile options for dropdowns...');
         const result = await getProfileOptionsAction();
-        console.log('FilterBar: Profile options result:', result);
         
         if (result.success && result.data) {
           setProfileOptions({
@@ -58,17 +56,12 @@ export default function FilterBar({ users, onFilter }: FilterBarProps) {
             stages: result.data.stages,
             roles: result.data.roles
           });
-          console.log('FilterBar: Successfully loaded filter options:', {
-            departments: result.data.departments.length,
-            stages: result.data.stages.length,
-            roles: result.data.roles.length
-          });
         } else {
-          console.error('FilterBar: Failed to load filter options:', result.error);
+          console.error('Failed to load filter options:', result.error);
           toast.error('フィルターオプションの読み込みに失敗しました');
         }
       } catch (error) {
-        console.error('FilterBar: Exception while fetching filter options:', error);
+        console.error('Exception while fetching filter options:', error);
         toast.error('フィルターオプションの読み込み中にエラーが発生しました');
       } finally {
         setIsLoadingOptions(false);

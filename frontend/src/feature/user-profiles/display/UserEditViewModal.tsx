@@ -149,16 +149,13 @@ export default function UserEditViewModal({
         }
       });
 
-      console.log('Updating user with data:', userData);
       const result = await updateUserAction(user.id, userData);
-      console.log('Update result:', result);
 
       if (result.success && result.data) {
         toast.success('プロフィールが正常に更新されました');
         onUserUpdate?.(result.data);
         onClose();
       } else {
-        console.log('Update failed:', result.error);
         toast.error(result.error || 'プロフィールの更新に失敗しました');
       }
     } catch (error) {
