@@ -33,7 +33,7 @@ export const groups = [
       },
       {
         href: '/user-profiles',
-        label: '組織管理',
+        label: 'ユーザー管理',
         sublabel: 'User Profiles',
         icon: 'users',
         permission: 'authenticated'
