@@ -58,6 +58,9 @@ export default function UserEditViewModal({
 }: UserEditViewModalProps) {
   // State for form handling
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   
   // Use cached profile options
   const { options, isLoading: isLoadingOptions, error: optionsError } = useProfileOptions();
@@ -95,13 +98,47 @@ export default function UserEditViewModal({
     }
   }, [optionsError, isOpen]);
 
-  // Form submission handler
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // Retry logic for failed submissions
+  const handleRetry = async () => {
+    if (retryCount >= 3 || !user) return;
     
+    setRetryCount(prev => prev + 1);
+    await performSubmission();
+  };
+
+  // Validate all fields before submission
+  const validateAllFields = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    // Validate all required fields
+    const nameError = validateField('name', formData.name);
+    if (nameError) errors.name = nameError;
+    
+    const emailError = validateField('email', formData.email);
+    if (emailError) errors.email = emailError;
+    
+    const employeeCodeError = validateField('employee_code', formData.employee_code);
+    if (employeeCodeError) errors.employee_code = employeeCodeError;
+    
+    const jobTitleError = validateField('job_title', formData.job_title);
+    if (jobTitleError) errors.job_title = jobTitleError;
+    
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Core submission logic (extracted for retry)
+  const performSubmission = async () => {
     if (!user || isSubmitting) return;
     
+    // Validate all fields before submission
+    if (!validateAllFields()) {
+      toast.error('入力内容に誤りがあります。確認してください。');
+      return;
+    }
+    
     setIsSubmitting(true);
+    setLastError(null);
     
     try {
       const userData: UserUpdate = {
@@ -126,24 +163,114 @@ export default function UserEditViewModal({
 
       if (result.success && result.data) {
         toast.success('プロフィールが正常に更新されました');
+        setRetryCount(0); // Reset retry count on success
+        setLastError(null);
         onUserUpdate?.(result.data);
         onClose();
       } else {
-        toast.error(result.error || 'プロフィールの更新に失敗しました');
+        const errorMessage = result.error || 'プロフィールの更新に失敗しました';
+        setLastError(errorMessage);
+        
+        // Show toast with retry option if under retry limit
+        if (retryCount < 3) {
+          toast.error(errorMessage, {
+            action: {
+              label: '再試行',
+              onClick: handleRetry
+            },
+            description: `試行回数: ${retryCount + 1}/3`
+          });
+        } else {
+          toast.error(`${errorMessage}（最大試行回数に達しました）`);
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'プロフィールの更新中にエラーが発生しました';
-      toast.error(errorMessage);
+      setLastError(errorMessage);
+      
+      // Show toast with retry option if under retry limit
+      if (retryCount < 3) {
+        toast.error(errorMessage, {
+          action: {
+            label: '再試行',
+            onClick: handleRetry
+          },
+          description: `試行回数: ${retryCount + 1}/3`
+        });
+      } else {
+        toast.error(`${errorMessage}（最大試行回数に達しました）`);
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Form submission handler
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    await performSubmission();
+  };
+
+  // Field validation function
+  const validateField = (field: string, value: string): string | null => {
+    switch (field) {
+      case 'name':
+        if (!value.trim()) return '名前は必須です';
+        if (value.trim().length < 2) return '名前は2文字以上で入力してください';
+        if (value.trim().length > 50) return '名前は50文字以下で入力してください';
+        return null;
+        
+      case 'email':
+        if (!value.trim()) return 'メールアドレスは必須です';
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) return 'メールアドレスの形式が正しくありません';
+        return null;
+        
+      case 'employee_code':
+        if (!value.trim()) return '従業員コードは必須です';
+        if (value.trim().length < 3) return '従業員コードは3文字以上で入力してください';
+        return null;
+        
+      case 'job_title':
+        if (value.trim().length > 100) return '役職は100文字以下で入力してください';
+        return null;
+        
+      default:
+        return null;
+    }
+  };
+
+  // Clear field error when field becomes valid
+  const clearFieldError = (field: string) => {
+    setFieldErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[field];
+      return newErrors;
+    });
+  };
+
+  // Set field error
+  const setFieldError = (field: string, error: string) => {
+    setFieldErrors(prev => ({
+      ...prev,
+      [field]: error
+    }));
+  };
+
   const handleInputChange = (field: string, value: string) => {
+    // Update form data
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
+
+    // Validate field in real-time
+    const error = validateField(field, value);
+    if (error) {
+      setFieldError(field, error);
+    } else {
+      clearFieldError(field);
+    }
   };
 
   const getUserInitials = (name: string) => {
@@ -212,7 +339,11 @@ export default function UserEditViewModal({
                       onChange={(e) => handleInputChange('name', e.target.value)}
                       placeholder="名前を入力"
                       disabled={isSubmitting || isLoadingOptions}
+                      className={fieldErrors.name ? 'border-destructive focus-visible:ring-destructive' : ''}
                     />
+                    {fieldErrors.name && (
+                      <p className="text-sm text-destructive">{fieldErrors.name}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="employee_code">従業員コード</Label>
@@ -222,7 +353,11 @@ export default function UserEditViewModal({
                       onChange={(e) => handleInputChange('employee_code', e.target.value)}
                       placeholder="従業員コードを入力"
                       disabled={isSubmitting || isLoadingOptions}
+                      className={fieldErrors.employee_code ? 'border-destructive focus-visible:ring-destructive' : ''}
                     />
+                    {fieldErrors.employee_code && (
+                      <p className="text-sm text-destructive">{fieldErrors.employee_code}</p>
+                    )}
                   </div>
                 </div>
 
@@ -237,8 +372,12 @@ export default function UserEditViewModal({
                       onChange={(e) => handleInputChange('email', e.target.value)}
                       placeholder="メールアドレスを入力"
                       disabled={isSubmitting || isLoadingOptions}
+                      className={fieldErrors.email ? 'border-destructive focus-visible:ring-destructive' : ''}
                     />
                   </div>
+                  {fieldErrors.email && (
+                    <p className="text-sm text-destructive">{fieldErrors.email}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
