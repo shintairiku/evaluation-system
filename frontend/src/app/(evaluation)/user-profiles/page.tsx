@@ -1,7 +1,6 @@
-import { getUsersAction } from '@/api/server-actions';
-import UserManagementWithSearch from "@/feature/user-profiles/display/UserManagementWithSearch";
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { Suspense } from 'react';
+import UserProfilesDataLoader from "@/feature/user-profiles/display/UserProfilesDataLoader";
+import { ProfilePageSkeleton } from '@/components/ui/loading-skeleton';
 
 interface UserProfilesPageProps {
   searchParams: {
@@ -18,21 +17,20 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
   const page = parseInt(resolvedSearchParams.page || '1', 10);
   const limit = parseInt(resolvedSearchParams.limit || '50', 10);
   
-  // Server-side data fetching using getUsersAction as specified in task #112
-  const result = await getUsersAction({ page, limit });
-
-  if (!result.success) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          エラー: {result.error || 'ユーザーリストの取得に失敗しました'}
-        </AlertDescription>
-      </Alert>
-    );
-  }
-  
   return (
-    <UserManagementWithSearch initialUsers={result.data!.items} />
+    <div className="container mx-auto p-6">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">ユーザー管理</h1>
+          <p className="text-muted-foreground">
+            システム内のユーザー情報を管理します
+          </p>
+        </div>
+        
+        <Suspense fallback={<ProfilePageSkeleton />}>
+          <UserProfilesDataLoader page={page} limit={limit} />
+        </Suspense>
+      </div>
+    </div>
   );
 } 
