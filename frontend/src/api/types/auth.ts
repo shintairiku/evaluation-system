@@ -11,7 +11,7 @@ export interface SignUpRequest {
   supervisor_id?: UUID;
 }
 
-export interface UserExistsResponse {
+export interface AuthUserExistsResponse {
   exists: boolean;
   user_id?: UUID | null;
   name?: string | null;
