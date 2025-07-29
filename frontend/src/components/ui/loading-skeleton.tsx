@@ -1,8 +1,38 @@
 import { cn } from "@/lib/utils";
 import { Skeleton } from "./skeleton";
+import { useState, useEffect } from 'react';
 
 export interface LoadingSkeletonProps {
   className?: string;
+}
+
+// DelayedSkeleton to prevent flashing on fast loads
+interface DelayedSkeletonProps {
+  children: React.ReactNode;
+  delay?: number;
+  fallback?: React.ReactNode;
+}
+
+export function DelayedSkeleton({ 
+  children, 
+  delay = 300, 
+  fallback = null 
+}: DelayedSkeletonProps) {
+  const [showSkeleton, setShowSkeleton] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSkeleton(true);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  if (!showSkeleton) {
+    return fallback;
+  }
+
+  return <>{children}</>;
 }
 
 export function UserProfileSkeleton({ className }: LoadingSkeletonProps) {
@@ -126,7 +156,7 @@ export function GoalInputSkeleton({ className }: LoadingSkeletonProps) {
 
 export function ProfilePageSkeleton({ className }: LoadingSkeletonProps) {
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn("space-y-6 animate-pulse", className)}>
       {/* View Mode Selector */}
       <div className="flex space-x-2">
         <Skeleton className="h-10 w-20" />
@@ -146,10 +176,14 @@ export function ProfilePageSkeleton({ className }: LoadingSkeletonProps) {
       {/* Results count */}
       <Skeleton className="h-4 w-32" />
 
-      {/* User list/table */}
+      {/* User list/table with staggered animation */}
       <div className="space-y-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
+          <div 
+            key={i} 
+            className="flex items-center space-x-4 p-4 border rounded-lg opacity-0 animate-fadeIn"
+            style={{ animationDelay: `${i * 100}ms` }}
+          >
             <Skeleton className="h-12 w-12 rounded-full" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-4 w-1/3" />
@@ -163,6 +197,28 @@ export function ProfilePageSkeleton({ className }: LoadingSkeletonProps) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Enhanced skeleton for search results
+export function SearchResultsSkeleton({ count = 3, className }: LoadingSkeletonProps & { count?: number }) {
+  return (
+    <div className={cn("space-y-3", className)}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div 
+          key={i} 
+          className="flex items-center space-x-4 p-3 border rounded-lg bg-muted/30 animate-pulse"
+          style={{ animationDelay: `${i * 150}ms` }}
+        >
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="flex-1 space-y-1">
+            <Skeleton className="h-3 w-2/3" />
+            <Skeleton className="h-2 w-1/2" />
+          </div>
+          <Skeleton className="h-6 w-12" />
+        </div>
+      ))}
     </div>
   );
 }

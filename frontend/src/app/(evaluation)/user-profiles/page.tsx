@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import UserProfilesDataLoader from "@/feature/user-profiles/display/UserProfilesDataLoader";
-import { ProfilePageSkeleton } from '@/components/ui/loading-skeleton';
+import { ProfilePageSkeleton, DelayedSkeleton } from '@/components/ui/loading-skeleton';
 
 interface UserProfilesPageProps {
   searchParams: {
@@ -27,7 +27,11 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
           </p>
         </div>
         
-        <Suspense fallback={<ProfilePageSkeleton />}>
+        <Suspense fallback={
+          <DelayedSkeleton delay={300}>
+            <ProfilePageSkeleton />
+          </DelayedSkeleton>
+        }>
           <UserProfilesDataLoader page={page} limit={limit} />
         </Suspense>
       </div>

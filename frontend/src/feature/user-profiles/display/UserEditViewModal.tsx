@@ -30,9 +30,10 @@ import {
   Loader2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { UserDetailResponse, UserUpdate, Department, Stage, Role, UserStatus } from '@/api/types';
+import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
-import { updateUserAction, getProfileOptionsAction } from '@/api/server-actions/users';
+import { updateUserAction } from '@/api/server-actions/users';
+import { useProfileOptions } from '@/context/ProfileOptionsContext';
 
 interface UserEditViewModalProps {
   user: UserDetailResponse | null;
@@ -49,14 +50,6 @@ const SelectSkeleton = () => (
   </div>
 );
 
-// Loading skeleton for input fields  
-const InputSkeleton = () => (
-  <div className="space-y-2">
-    <Skeleton className="h-4 w-20" />
-    <Skeleton className="h-10 w-full" />
-  </div>
-);
-
 export default function UserEditViewModal({ 
   user, 
   isOpen, 
@@ -65,18 +58,9 @@ export default function UserEditViewModal({
 }: UserEditViewModalProps) {
   // State for form handling
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingOptions, setIsLoadingOptions] = useState(true);
-
-  // Profile options state for departments/stages
-  const [profileOptions, setProfileOptions] = useState<{
-    departments: Department[];
-    stages: Stage[];
-    roles: Role[];
-  }>({
-    departments: [],
-    stages: [],
-    roles: []
-  });
+  
+  // Use cached profile options
+  const { options, isLoading: isLoadingOptions, error: optionsError } = useProfileOptions();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -87,34 +71,6 @@ export default function UserEditViewModal({
     stage_id: '',
     status: ''
   });
-
-  // Fetch profile options when component mounts
-  useEffect(() => {
-    if (!isOpen) return; // Only fetch when modal is open
-    
-    const fetchProfileOptions = async () => {
-      setIsLoadingOptions(true);
-      try {
-        const result = await getProfileOptionsAction();
-        
-        if (result.success && result.data) {
-          setProfileOptions({
-            departments: result.data.departments,
-            stages: result.data.stages,
-            roles: result.data.roles
-          });
-        } else {
-          toast.error('部署・ステージの選択肢の読み込みに失敗しました');
-        }
-      } catch (error) {
-        toast.error('部署・ステージの選択肢の読み込み中にエラーが発生しました');
-      } finally {
-        setIsLoadingOptions(false);
-      }
-    };
-
-    fetchProfileOptions();
-  }, [isOpen]);
 
   // Initialize form data when user changes
   useEffect(() => {
@@ -131,6 +87,13 @@ export default function UserEditViewModal({
       setFormData(initialData);
     }
   }, [user]);
+
+  // Show error if profile options failed to load
+  useEffect(() => {
+    if (optionsError && isOpen) {
+      toast.error(`部署・ステージの選択肢の読み込みに失敗しました: ${optionsError}`);
+    }
+  }, [optionsError, isOpen]);
 
   // Form submission handler
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -317,7 +280,7 @@ export default function UserEditViewModal({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unset">未設定</SelectItem>
-                            {profileOptions.departments.map((dept) => (
+                            {options.departments.map((dept) => (
                               <SelectItem key={dept.id} value={dept.id}>
                                 {dept.name}
                               </SelectItem>
@@ -338,7 +301,7 @@ export default function UserEditViewModal({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unset">未設定</SelectItem>
-                            {profileOptions.stages.map((stage) => (
+                            {options.stages.map((stage) => (
                               <SelectItem key={stage.id} value={stage.id}>
                                 {stage.name}
                               </SelectItem>

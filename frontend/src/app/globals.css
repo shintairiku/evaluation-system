@@ -278,3 +278,102 @@
     animation: toast-exit 0.2s cubic-bezier(0.4, 0, 1, 1);
   }
 }
+
+/* Loading State Animations */
+@layer utilities {
+  .animate-fadeIn {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  .animate-slideIn {
+    animation: slideIn 0.4s ease-out forwards;
+  }
+
+  .animate-skeleton-pulse {
+    animation: skeleton-pulse 2s ease-in-out infinite;
+  }
+
+  .skeleton-exit {
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
+  }
+
+  .content-enter {
+    opacity: 1;
+    transition: opacity 0.3s ease-in;
+  }
+
+  /* Staggered animation for multiple items */
+  .animate-staggered {
+    opacity: 0;
+    animation: fadeInUp 0.5s ease-out forwards;
+  }
+
+  .animate-staggered:nth-child(1) { animation-delay: 0.1s; }
+  .animate-staggered:nth-child(2) { animation-delay: 0.2s; }
+  .animate-staggered:nth-child(3) { animation-delay: 0.3s; }
+  .animate-staggered:nth-child(4) { animation-delay: 0.4s; }
+  .animate-staggered:nth-child(5) { animation-delay: 0.5s; }
+  .animate-staggered:nth-child(6) { animation-delay: 0.6s; }
+  .animate-staggered:nth-child(7) { animation-delay: 0.7s; }
+  .animate-staggered:nth-child(8) { animation-delay: 0.8s; }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Enhanced loading states */
+.loading-shimmer {
+  background: linear-gradient(90deg, 
+    hsl(var(--muted)) 0%, 
+    hsl(var(--accent)) 50%, 
+    hsl(var(--muted)) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
