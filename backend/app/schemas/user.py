@@ -161,7 +161,11 @@ class UserUpdate(BaseModel):
     supervisor_id: Optional[UUID] = None
     subordinate_ids: List[UUID] = []
     status: Optional[UserStatus] = None
-    clerk_user_id: Optional[str] = Field(None, min_length=1, max_length=100)
+
+
+class UserClerkIdUpdate(BaseModel):
+    """Internal schema for updating clerk_user_id only (used by fallback system)"""
+    clerk_user_id: str = Field(min_length=1, max_length=100)
 
 
 class UserInDB(UserBase):
