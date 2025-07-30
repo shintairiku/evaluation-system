@@ -208,28 +208,21 @@ export async function getProfileOptionsAction(): Promise<{
   error?: string;
 }> {
   try {
-    console.log('Server action: Starting getProfileOptionsAction (using users endpoint)');
     const response = await usersApi.getProfileOptions();
-    console.log('Server action: API response received:', response);
     
     if (!response.success || !response.data) {
-      console.log('Server action: API response failed:', response.error);
       return {
         success: false,
         error: response.error || 'Failed to fetch profile options',
       };
     }
     
-    console.log('Server action: Success, returning data');
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('Server action: Exception caught:', error);
-    console.error('Error type:', typeof error);
-    console.error('Error message:', error instanceof Error ? error.message : String(error));
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('Get profile options action error:', error);
     
     return {
       success: false,
