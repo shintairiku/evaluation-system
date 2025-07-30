@@ -93,10 +93,10 @@ class UserService:
             }
             cache_key = self._generate_cache_key("get_users", cache_key_params)
             
-            # Check cache
-            cached_result = user_search_cache.get(cache_key)
-            if cached_result:
-                return PaginatedResponse.model_validate_json(cached_result)
+            # Temporarily disable cache to ensure fresh data with supervisor/subordinate info
+            # cached_result = user_search_cache.get(cache_key)
+            # if cached_result:
+            #     return PaginatedResponse.model_validate_json(cached_result)
             
             # Get data from repository
             users = await self.user_repo.search_users(
@@ -135,8 +135,8 @@ class UserService:
                 pages=total_pages
             )
             
-            # Cache the result
-            user_search_cache[cache_key] = result.model_dump_json()
+            # Temporarily disable cache to ensure fresh data
+            # user_search_cache[cache_key] = result.model_dump_json()
             
             return result
             
