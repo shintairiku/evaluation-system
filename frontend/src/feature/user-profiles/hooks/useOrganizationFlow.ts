@@ -95,20 +95,20 @@ export function useOrganizationFlow({ users }: UseOrganizationFlowProps): UseOrg
 
   // Handle node changes (drag, etc.)
   const onNodesChange = useCallback((changes: any) => {
-    // For now, just log changes - in future could save positions
-    console.log('Nodes changed:', changes);
+    // For now, just handle changes silently - in future could save positions
+    // console.log('Nodes changed:', changes);
   }, []);
 
   // Handle edge changes
   const onEdgesChange = useCallback((changes: any) => {
-    // For now, just log changes
-    console.log('Edges changed:', changes);
+    // For now, just handle changes silently
+    // console.log('Edges changed:', changes);
   }, []);
 
   // Handle new connections (not used in organization view, but required by React Flow)
   const onConnect = useCallback((params: any) => {
-    // For now, just log connections - in future could create new supervisor relationships
-    console.log('New connection:', params);
+    // For now, just handle connections silently - in future could create new supervisor relationships
+    // console.log('New connection:', params);
   }, []);
 
   return {
