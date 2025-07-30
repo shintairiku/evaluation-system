@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import type { UserDetailResponse } from '@/api/types';
-import { AlertCircle, Users, Loader2 } from 'lucide-react';
+import { AlertCircle, Users } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
