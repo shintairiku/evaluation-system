@@ -5,6 +5,7 @@ from uuid import UUID
 from datetime import date
 from cachetools import TTLCache
 
+from .clerk_service import ClerkService
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
 from ..database.repositories.stage_repo import StageRepository
@@ -12,7 +13,7 @@ from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
-    Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption
+    Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -34,6 +35,7 @@ class UserService:
     
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.clerk_service = ClerkService()
         self.user_repo = UserRepository(session)
         self.department_repo = DepartmentRepository(session)
         self.stage_repo = StageRepository(session)
@@ -259,6 +261,23 @@ class UserService:
             await self.session.commit()
             logger.info(f"Transaction committed successfully for user {user_id}")
             
+            # Update Clerk publicMetadata with Users.id (only profile_completed and users_table_id)
+            metadata = {
+                'users_table_id': str(user_id),
+                'profile_completed': True
+            }
+            
+            # ClerkService methods are SYNCHRONOUS, do not use await
+            success = self.clerk_service.update_user_metadata(
+                clerk_user_id=user_data.clerk_user_id,
+                metadata=metadata
+            )
+            
+            if not success:
+                logger.error(f"Failed to update Clerk metadata for user {user_id}")
+                # Note: We don't rollback here since the user was successfully created
+                # The metadata failure is logged but doesn't break the user creation
+            
             # Verify roles were actually persisted after commit
             if user_data.role_ids:
                 roles_check = await self.user_repo.get_user_roles(user_id)
@@ -462,19 +481,88 @@ class UserService:
             return False
 
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
-        """Check if user exists in database with minimal info."""
-        user_data = await self.user_repo.check_user_exists_by_clerk_id(clerk_user_id)
-        
-        if user_data:
-            return UserExistsResponse(
-                exists=True,
-                user_id=user_data["id"],
-                name=user_data["name"],
-                email=user_data["email"], 
-                status=user_data["status"]
-            )
-        else:
+        """Check if user exists in database with enhanced fallback lookup."""
+        try:
+            # Use enhanced lookup with Clerk fallback
+            user = await self.get_user_with_clerk_fallback(clerk_user_id)
+            
+            if user:
+                return UserExistsResponse(
+                    exists=True,
+                    user_id=user.id,
+                    name=user.name,
+                    email=user.email,
+                    status=UserStatus(user.status)
+                )
+            else:
+                return UserExistsResponse(exists=False)
+                
+        except Exception as e:
+            logger.error(f"Error in enhanced user existence check for {clerk_user_id}: {e}")
             return UserExistsResponse(exists=False)
+
+    async def get_user_with_clerk_fallback(self, clerk_user_id: str) -> Optional[UserModel]:
+        """
+        Get user by clerk_id with fallback to metadata lookup
+        If clerk_id changed, update it in database
+        """
+        try:
+            # 1. Try direct clerk_id lookup
+            user = await self.user_repo.get_user_by_clerk_id(clerk_user_id)
+            if user:
+                return user
+            
+            # 2. Fallback: Get user info from Clerk to check metadata
+            # ClerkService methods are SYNCHRONOUS, do not use await
+            clerk_user = self.clerk_service.get_user_by_id(clerk_user_id)
+            if not clerk_user:
+                return None
+            
+            # 3. Check if we have users_table_id in metadata
+            metadata = clerk_user.get('public_metadata', {})
+            users_table_id = metadata.get('users_table_id')
+            
+            if not users_table_id:
+                return None
+            
+            # 4. Lookup user by Users.id
+            user = await self.user_repo.get_user_by_id(UUID(users_table_id))
+            if not user:
+                logger.error(f"Metadata points to non-existent user: {users_table_id}")
+                return None
+            
+            # 5. Update clerk_id in database (it has changed)
+            old_clerk_id = user.clerk_user_id
+            logger.info(f"🔄 CLERK ID MISMATCH DETECTED! User {user.id}: DB has '{old_clerk_id}' but current is '{clerk_user_id}'")
+            
+            try:
+                # Update the clerk_user_id using dedicated internal method
+                clerk_update = UserClerkIdUpdate(clerk_user_id=clerk_user_id)
+                logger.info(f"📝 Calling user_repo.update_user_clerk_id with clerk_user_id='{clerk_user_id}'")
+                updated_user = await self.user_repo.update_user_clerk_id(user.id, clerk_update)
+                
+                if updated_user:
+                    logger.info(f"📄 Repository returned updated user, committing transaction...")
+                    await self.session.commit()
+                    logger.info(f"✅ Transaction committed! Refreshing user...")
+                    # Refresh the user to get the latest data from database
+                    await self.session.refresh(updated_user)
+                    logger.info(f"🎉 SUCCESS! Updated user {user.id} clerk_id from '{old_clerk_id}' to '{updated_user.clerk_user_id}'")
+                    return updated_user
+                else:
+                    logger.error(f"❌ Repository returned None - update failed for user {user.id}")
+                    return user
+                    
+            except Exception as update_error:
+                logger.error(f"💥 EXCEPTION during clerk_id update for user {user.id}: {update_error}")
+                logger.error(f"💥 Exception type: {type(update_error)}")
+                await self.session.rollback()
+                logger.error(f"💥 Transaction rolled back")
+                return user
+            
+        except Exception as e:
+            logger.error(f"User lookup with fallback failed: {e}")
+            return None
 
     async def get_profile_options(self) -> ProfileOptionsResponse:
         """Get all available options for profile completion."""
