@@ -232,6 +232,7 @@ export async function getProfileOptionsAction(): Promise<{
     };
   } catch (error) {
     console.error('Get profile options action error:', error);
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching profile options',

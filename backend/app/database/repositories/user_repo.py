@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.user import User, UserSupervisor, Role, user_roles
-from ...schemas.user import UserStatus, UserCreate, UserUpdate
+from ...schemas.user import UserStatus, UserCreate, UserUpdate, UserClerkIdUpdate
 from ...schemas.common import PaginationParams
 
 logger = logging.getLogger(__name__)
@@ -395,6 +395,29 @@ class UserRepository:
             
         except SQLAlchemyError as e:
             logger.error(f"Error updating user {user_id}: {e}")
+            raise
+
+    async def update_user_clerk_id(self, user_id: UUID, clerk_data: UserClerkIdUpdate) -> Optional[User]:
+        """
+        INTERNAL METHOD: Update only clerk_user_id (used by fallback system only).
+        This is separated from regular user updates for security.
+        """
+        try:
+            # Get the existing user
+            existing_user = await self.get_user_by_id(user_id)
+            if not existing_user:
+                return None
+            
+            # Update only clerk_user_id
+            existing_user.clerk_user_id = clerk_data.clerk_user_id
+            
+            # Mark as modified in session
+            self.session.add(existing_user)
+            logger.info(f"Updated clerk_user_id for user: {existing_user.email}")
+            return existing_user
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Error updating clerk_user_id for user {user_id}: {e}")
             raise
 
     async def assign_roles_to_user(self, user_id: UUID, role_ids: list[int]) -> None:

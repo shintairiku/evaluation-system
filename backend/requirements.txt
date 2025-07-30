@@ -8,7 +8,7 @@ sqlalchemy[asyncio]
 python-jose[cryptography]
 python-multipart
 python-dotenv
-clerk-backend-sdk
+clerk-backend-api
 pydantic[email]
 svix
 pytest

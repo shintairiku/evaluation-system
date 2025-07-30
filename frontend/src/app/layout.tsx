@@ -32,7 +32,7 @@ export default function RootLayout({
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
       signUpForceRedirectUrl="/setup"
-      signInForceRedirectUrl="/setup"
+      signInForceRedirectUrl="/"
     >
       <html lang="ja" suppressHydrationWarning>
         <head />

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from clerk_backend_sdk import ApiClient, Configuration, SessionsApi
+from clerk_backend_api import Clerk
 import logging
 
 from ..database.repositories.user_repo import UserRepository
@@ -26,11 +26,9 @@ class AuthService:
         
         # Initialize Clerk client
         clerk_config = get_clerk_config()
-        configuration = Configuration(
-            api_key=clerk_config.secret_key
+        self.clerk = Clerk(
+            bearer_auth=clerk_config.secret_key
         )
-        self.clerk_client = ApiClient(configuration)
-        self.sessions_api = SessionsApi(self.clerk_client)
 
     def get_user_from_token(self, token: str) -> AuthUser:
         """
@@ -77,15 +75,20 @@ class AuthService:
 
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
         """Check if user exists in database with minimal info."""
-        user_data = await self.user_repo.check_user_exists_by_clerk_id(clerk_user_id)
-        
-        if user_data:
-            return UserExistsResponse(
-                exists=True,
-                user_id=user_data["id"],
-                name=user_data["name"],
-                email=user_data["email"], 
-                status=user_data["status"]
-            )
-        else:
+        try:
+            user_data = await self.user_repo.check_user_exists_by_clerk_id(clerk_user_id)
+            
+            if user_data:
+                return UserExistsResponse(
+                    exists=True,
+                    user_id=user_data["id"],
+                    name=user_data["name"],
+                    email=user_data["email"], 
+                    status=user_data["status"]
+                )
+            else:
+                return UserExistsResponse(exists=False)
+                
+        except Exception as e:
+            logger.error(f"Error in auth service user existence check: {e}")
             return UserExistsResponse(exists=False) 

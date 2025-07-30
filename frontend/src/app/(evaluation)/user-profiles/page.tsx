@@ -37,4 +37,4 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
       </div>
     </div>
   );
-} 
+}
