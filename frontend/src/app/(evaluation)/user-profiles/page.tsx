@@ -1,5 +1,5 @@
 import { getUsersAction } from '@/api/server-actions';
-import UserManagementIndex from "@/feature/user-profiles/display/index";
+import UserManagementWithSearch from "@/feature/user-profiles/display/UserManagementWithSearch";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -21,15 +21,6 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
   // Server-side data fetching using getUsersAction as specified in task #112
   const result = await getUsersAction({ page, limit });
 
-  // DEBUG: Log the result to see what we're getting
-  console.log('UserProfilesPage - API Result:', {
-    success: result.success,
-    hasData: !!result.data,
-    userCount: result.data?.items?.length || 0,
-    error: result.error,
-    totalUsers: result.data?.total
-  });
-
   if (!result.success) {
     return (
       <Alert variant="destructive">
@@ -40,8 +31,8 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
       </Alert>
     );
   }
-
+  
   return (
-    <UserManagementIndex initialUsers={result.data!.items} />
+    <UserManagementWithSearch initialUsers={result.data!.items} />
   );
 } 
