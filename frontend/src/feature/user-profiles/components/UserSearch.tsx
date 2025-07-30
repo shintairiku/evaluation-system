@@ -112,7 +112,6 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
         return errorResult;
       }
     } catch (error) {
-      console.error('UserSearch: Search error:', error);
       return {
         users: [],
         total: 0,
