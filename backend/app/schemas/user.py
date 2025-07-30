@@ -163,6 +163,11 @@ class UserUpdate(BaseModel):
     status: Optional[UserStatus] = None
 
 
+class UserClerkIdUpdate(BaseModel):
+    """Internal schema for updating clerk_user_id only (used by fallback system)"""
+    clerk_user_id: str = Field(min_length=1, max_length=100)
+
+
 class UserInDB(UserBase):
     """User model as stored in database"""
     id: UUID
