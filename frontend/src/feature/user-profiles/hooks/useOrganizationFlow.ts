@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useCallback } from 'react';
-import { Node, Edge } from '@xyflow/react';
+import { Node, Edge } from 'reactflow';
 import * as dagre from 'dagre';
 import type { UserDetailResponse } from '@/api/types';
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position } from 'reactflow';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';

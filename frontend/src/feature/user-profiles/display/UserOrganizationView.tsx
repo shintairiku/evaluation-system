@@ -14,8 +14,8 @@ import ReactFlow, {
   MiniMap,
   ReactFlowProvider,
   Panel
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 interface UserOrganizationViewProps {
   users: UserDetailResponse[];
