@@ -17,18 +17,14 @@ export default function AuthRedirectHandler() {
 
   useEffect(() => {
     const checkAndRedirect = async () => {
-      if (!isLoaded || hasChecked || pathname !== '/' || !user) return;
+      // Allow redirect logic on multiple paths
+      const allowedPaths = ['/', '/sign-in'];
+      if (!isLoaded || hasChecked || !allowedPaths.includes(pathname) || !user) return;
       
       setHasChecked(true);
       
       try {
-        const profileCompleted = user.unsafeMetadata?.profileCompleted;
-        
-        if (!profileCompleted) {
-          router.push('/setup');
-          return;
-        }
-        
+        // Check user existence and profile completion via backend API
         const userResult = await checkUserExistsAction(user.id);
         
         if (!userResult.success || !userResult.data) {
@@ -42,6 +38,9 @@ export default function AuthRedirectHandler() {
           router.push('/setup');
           return;
         }
+
+        // ✅ Redirect existing users to home page (regardless of status)
+        router.push('/');
       } catch (error) {
         console.error('AuthRedirectHandler: Error checking user status:', error);
         router.push('/setup');
