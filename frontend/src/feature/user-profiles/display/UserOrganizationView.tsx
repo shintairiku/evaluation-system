@@ -50,10 +50,10 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
     );
   }
 
-  // Node types for React Flow
-  const nodeTypes = {
-    organizationNode: OrganizationNode,
-  };
+          // Node types for React Flow - memoized to prevent recreation
+        const nodeTypes = useMemo(() => ({
+          organizationNode: OrganizationNode,
+        }), []);
 
   return (
     <div className="h-[600px] w-full border rounded-lg">
