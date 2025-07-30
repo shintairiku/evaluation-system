@@ -15,6 +15,8 @@ export default function Page() {
 
         <div className="flex justify-center">
           <SignUp 
+            forceRedirectUrl="/setup"
+            signInForceRedirectUrl="/"
             appearance={{
               elements: {
                 formButtonPrimary: 
