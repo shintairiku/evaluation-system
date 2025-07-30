@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useActionState } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -56,8 +56,48 @@ export default function UserEditViewModal({
   onClose,
   onUserUpdate
 }: UserEditViewModalProps) {
-  // State for form handling
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Form action wrapper for useActionState
+  const updateUserWrapper = async (prevState: { success: boolean; error?: string; data?: UserDetailResponse } | null, formData: FormData) => {
+    if (!user) return { success: false, error: 'ユーザー情報が見つかりません' };
+    
+    try {
+      const userData: UserUpdate = {
+        name: formData.get('name') as string,
+        email: formData.get('email') as string,
+        employee_code: formData.get('employee_code') as string,
+        job_title: formData.get('job_title') as string || '',
+        department_id: formData.get('department_id') === 'unset' ? undefined : formData.get('department_id') as UUID,
+        stage_id: formData.get('stage_id') === 'unset' ? undefined : formData.get('stage_id') as UUID,
+        status: formData.get('status') as UserStatus,
+        subordinate_ids: [], // Keep empty for profile edit
+      };
+
+      // Filter out empty values
+      Object.keys(userData).forEach(key => {
+        if (userData[key as keyof UserUpdate] === '' || userData[key as keyof UserUpdate] === null) {
+          delete userData[key as keyof UserUpdate];
+        }
+      });
+
+      const result = await updateUserAction(user.id, userData);
+
+      if (result.success && result.data) {
+        toast.success('プロフィールが正常に更新されました');
+        onUserUpdate?.(result.data);
+        onClose();
+        return { success: true, data: result.data };
+      } else {
+        toast.error(result.error || 'プロフィールの更新に失敗しました');
+        return { success: false, error: result.error || 'プロフィールの更新に失敗しました' };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'プロフィールの更新中にエラーが発生しました';
+      toast.error(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const [, formAction, isPending] = useActionState(updateUserWrapper, null);
   
   // Use cached profile options
   const { options, isLoading: isLoadingOptions, error: optionsError } = useProfileOptions();
@@ -95,49 +135,6 @@ export default function UserEditViewModal({
     }
   }, [optionsError, isOpen]);
 
-  // Form submission handler
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    if (!user || isSubmitting) return;
-    
-    setIsSubmitting(true);
-    
-    try {
-      const userData: UserUpdate = {
-        name: formData.name,
-        email: formData.email,
-        employee_code: formData.employee_code,
-        job_title: formData.job_title,
-        department_id: formData.department_id === 'unset' ? undefined : formData.department_id as UUID,
-        stage_id: formData.stage_id === 'unset' ? undefined : formData.stage_id as UUID,
-        status: formData.status as UserStatus,
-        subordinate_ids: [], // Keep empty for profile edit
-      };
-
-      // Filter out empty values
-      Object.keys(userData).forEach(key => {
-        if (userData[key as keyof UserUpdate] === '' || userData[key as keyof UserUpdate] === null) {
-          delete userData[key as keyof UserUpdate];
-        }
-      });
-
-      const result = await updateUserAction(user.id, userData);
-
-      if (result.success && result.data) {
-        toast.success('プロフィールが正常に更新されました');
-        onUserUpdate?.(result.data);
-        onClose();
-      } else {
-        toast.error(result.error || 'プロフィールの更新に失敗しました');
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'プロフィールの更新中にエラーが発生しました';
-      toast.error(errorMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -178,7 +175,7 @@ export default function UserEditViewModal({
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={formAction} className="space-y-4">
           <div className="grid grid-cols-2 gap-6">
             {/* ユーザー基本情報カード */}
             <Card>
@@ -211,7 +208,8 @@ export default function UserEditViewModal({
                       value={formData.name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
                       placeholder="名前を入力"
-                      disabled={isSubmitting || isLoadingOptions}
+                      disabled={isPending || isLoadingOptions}
+                      name="name"
                     />
                   </div>
                   <div className="space-y-2">
@@ -221,7 +219,8 @@ export default function UserEditViewModal({
                       value={formData.employee_code}
                       onChange={(e) => handleInputChange('employee_code', e.target.value)}
                       placeholder="従業員コードを入力"
-                      disabled={isSubmitting || isLoadingOptions}
+                      disabled={isPending || isLoadingOptions}
+                      name="employee_code"
                     />
                   </div>
                 </div>
@@ -236,7 +235,8 @@ export default function UserEditViewModal({
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
                       placeholder="メールアドレスを入力"
-                      disabled={isSubmitting || isLoadingOptions}
+                      disabled={isPending || isLoadingOptions}
+                      name="email"
                     />
                   </div>
                 </div>
@@ -248,7 +248,8 @@ export default function UserEditViewModal({
                     value={formData.job_title}
                     onChange={(e) => handleInputChange('job_title', e.target.value)}
                     placeholder="役職を入力"
-                    disabled={isSubmitting || isLoadingOptions}
+                    disabled={isPending || isLoadingOptions}
+                    name="job_title"
                   />
                 </div>
               </CardContent>
@@ -273,7 +274,8 @@ export default function UserEditViewModal({
                         <Select 
                           value={formData.department_id} 
                           onValueChange={(value) => handleInputChange('department_id', value)}
-                          disabled={isSubmitting}
+                          disabled={isPending}
+                          name="department_id"
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="部署を選択" />
@@ -294,7 +296,8 @@ export default function UserEditViewModal({
                         <Select 
                           value={formData.stage_id} 
                           onValueChange={(value) => handleInputChange('stage_id', value)}
-                          disabled={isSubmitting}
+                          disabled={isPending}
+                          name="stage_id"
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="ステージを選択" />
@@ -318,7 +321,8 @@ export default function UserEditViewModal({
                   <Select 
                     value={formData.status} 
                     onValueChange={(value) => handleInputChange('status', value)}
-                    disabled={isSubmitting || isLoadingOptions}
+                    disabled={isPending || isLoadingOptions}
+                    name="status"
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="ステータスを選択" />
@@ -358,16 +362,16 @@ export default function UserEditViewModal({
               type="button"
               variant="outline" 
               onClick={onClose} 
-              disabled={isSubmitting}
+              disabled={isPending}
             >
               <X className="h-4 w-4 mr-2" />
               キャンセル
             </Button>
             <Button 
               type="submit"
-              disabled={isSubmitting || isLoadingOptions}
+              disabled={isPending || isLoadingOptions}
             >
-              {isSubmitting ? (
+              {isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   保存中...
