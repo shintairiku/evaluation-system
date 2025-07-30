@@ -25,6 +25,13 @@ export function useOrganizationFlow({ users }: UseOrganizationFlowProps): UseOrg
       return { nodes: [], edges: [] };
     }
 
+    console.log('🔍 Debug - Users data:', users.map(u => ({
+      id: u.id,
+      name: u.name,
+      supervisor: u.supervisor ? { id: u.supervisor.id, name: u.supervisor.name } : null,
+      subordinates: u.subordinates ? u.subordinates.length : 0
+    })));
+
     const flowNodes: Node[] = [];
     const flowEdges: Edge[] = [];
 
@@ -42,6 +49,7 @@ export function useOrganizationFlow({ users }: UseOrganizationFlowProps): UseOrg
     // Create edges from supervisor relationships
     users.forEach(user => {
       if (user.supervisor) {
+        console.log(`🔗 Creating edge: ${user.supervisor.name} -> ${user.name}`);
         // Only create edge if supervisor is in the current user list
         const supervisorInList = users.find(u => u.id === user.supervisor?.id);
         if (supervisorInList) {
@@ -53,9 +61,15 @@ export function useOrganizationFlow({ users }: UseOrganizationFlowProps): UseOrg
             animated: false,
             style: { stroke: '#64748b', strokeWidth: 2 },
           });
+        } else {
+          console.log(`⚠️ Supervisor ${user.supervisor.name} not found in current user list`);
         }
+      } else {
+        console.log(`👤 User ${user.name} has no supervisor`);
       }
     });
+
+    console.log(`📊 Created ${flowNodes.length} nodes and ${flowEdges.length} edges`);
 
     // Apply dagre layout for automatic positioning
     const dagreGraph = new dagre.graphlib.Graph();
