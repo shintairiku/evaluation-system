@@ -50,7 +50,7 @@ class UserService:
         stage_ids: Optional[list[UUID]] = None,
         role_ids: Optional[list[UUID]] = None,
         pagination: Optional[PaginationParams] = None
-    ) -> PaginatedResponse[UserDetailResponse]:
+    ) -> PaginatedResponse[User]:
         """
         Get users based on current user's permissions, with explicit multi-select filters.
         Uses permission-based access control from security module.
@@ -93,10 +93,10 @@ class UserService:
             }
             cache_key = self._generate_cache_key("get_users", cache_key_params)
             
-            # Temporarily disable cache to ensure fresh data with supervisor/subordinate info
-            # cached_result = user_search_cache.get(cache_key)
-            # if cached_result:
-            #     return PaginatedResponse.model_validate_json(cached_result)
+            # Check cache
+            cached_result = user_search_cache.get(cache_key)
+            if cached_result:
+                return PaginatedResponse.model_validate_json(cached_result)
             
             # Get data from repository
             users = await self.user_repo.search_users(
@@ -118,10 +118,10 @@ class UserService:
                 user_ids=user_ids_to_filter
             )
             
-            # Enrich users with schema conversion including supervisor/subordinate data
+            # Enrich users with schema conversion
             enriched_users = []
             for user_model in users:
-                enriched_user = await self._enrich_detailed_user_data(user_model)
+                enriched_user = await self._enrich_user_data(user_model)
                 enriched_users.append(enriched_user)
             
             # Create paginated response
@@ -135,8 +135,8 @@ class UserService:
                 pages=total_pages
             )
             
-            # Temporarily disable cache to ensure fresh data
-            # user_search_cache[cache_key] = result.model_dump_json()
+            # Cache the result
+            user_search_cache[cache_key] = result.model_dump_json()
             
             return result
             

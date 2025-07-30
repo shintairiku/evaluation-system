@@ -54,7 +54,7 @@ async def get_profile_options(
 
 
 
-@router.get("/", response_model=PaginatedResponse[UserDetailResponse])
+@router.get("/", response_model=PaginatedResponse[User])
 async def get_users(
     context: AuthContext = Depends(get_auth_context),
     search: Optional[str] = Query(None, description="Search term for name, employee code, or job title"),
