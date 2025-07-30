@@ -1,14 +1,21 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { UserDetailResponse } from '@/api/types';
-import { AlertCircle, Users, ChevronRight, ChevronDown } from 'lucide-react';
+import { AlertCircle, Users, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
+import { useOrganizationFlow } from '../hooks/useOrganizationFlow';
+import OrganizationNode from './components/OrganizationNode';
+import ReactFlow, { 
+  Background, 
+  Controls, 
+  MiniMap,
+  ReactFlowProvider,
+  Panel
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 
 interface UserOrganizationViewProps {
   users: UserDetailResponse[];
@@ -18,7 +25,10 @@ interface UserOrganizationViewProps {
 export default function UserOrganizationView({ users }: UserOrganizationViewProps) {
   const { options, isLoading: isLoadingOptions, error: optionsError } = useProfileOptions();
 
-  // Build hierarchy from the users prop directly (already filtered by parent)
+  // Use React Flow hook for hierarchy management
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useOrganizationFlow({ users });
+
+  // Build hierarchy for empty state check
   const hierarchy = useMemo(() => {
     return buildHierarchyFromUsers(users, options);
   }, [users, options]);
@@ -40,34 +50,81 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
     );
   }
 
-  return (
-    <div className="h-[600px] w-full border rounded-lg p-4 overflow-auto">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            組織図 ({users.length}件のユーザー)
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>部署: {options.departments.length}件</span>
-            <span>•</span>
-            <span>ステージ: {options.stages.length}件</span>
-          </div>
-        </div>
+  // Node types for React Flow
+  const nodeTypes = {
+    organizationNode: OrganizationNode,
+  };
 
-        {hierarchy.length === 0 ? (
-          <div className="h-[500px] flex items-center justify-center">
-            <div className="text-center">
-              <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold text-muted-foreground">組織図データがありません</h3>
-              <p className="text-sm text-muted-foreground mt-2">
-                ユーザー間の上司-部下関係が設定されていません。
-              </p>
+  return (
+    <div className="h-[600px] w-full border rounded-lg">
+      <ReactFlowProvider>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          attributionPosition="bottom-left"
+          proOptions={{ hideAttribution: true }}
+          minZoom={0.1}
+          maxZoom={2}
+          defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        >
+          {/* Background grid */}
+          <Background 
+            color="#64748b" 
+            gap={20} 
+            size={1}
+            variant="dots"
+          />
+          
+          {/* Controls for zoom/pan */}
+          <Controls 
+            showZoom={true}
+            showFitView={true}
+            showInteractive={true}
+            position="bottom-right"
+          />
+          
+          {/* Mini map for navigation */}
+          <MiniMap 
+            nodeColor="#64748b"
+            nodeStrokeColor="#1e293b"
+            nodeStrokeWidth={2}
+            maskColor="rgba(0, 0, 0, 0.1)"
+            position="top-right"
+            size={150}
+          />
+          
+          {/* Info panel */}
+          <Panel position="top-left" className="bg-background/80 backdrop-blur-sm border rounded-lg p-2">
+            <div className="text-xs text-muted-foreground">
+              <div>組織図 ({users.length}件のユーザー)</div>
+              <div className="flex items-center gap-2">
+                <span>部署: {options.departments.length}件</span>
+                <span>•</span>
+                <span>ステージ: {options.stages.length}件</span>
+              </div>
             </div>
-          </div>
-        ) : (
-          <HierarchyTree users={hierarchy} options={options} />
-        )}
-      </div>
+          </Panel>
+
+          {/* Empty state overlay */}
+          {hierarchy.length === 0 && (
+            <Panel position="center" className="bg-background/90 backdrop-blur-sm border rounded-lg p-6">
+              <div className="text-center">
+                <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold text-muted-foreground">組織図データがありません</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  ユーザー間の上司-部下関係が設定されていません。
+                </p>
+              </div>
+            </Panel>
+          )}
+        </ReactFlow>
+      </ReactFlowProvider>
     </div>
   );
 }
@@ -97,110 +154,6 @@ function OrganizationViewSkeleton() {
           ))}
         </div>
       </div>
-    </div>
-  );
-}
-
-// Component to render hierarchy tree
-function HierarchyTree({ 
-  users, 
-  options 
-}: { 
-  users: UserDetailResponse[];
-  options: {
-    departments: any[];
-    stages: any[];
-    roles: any[];
-  };
-}) {
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-
-  const toggleNode = (userId: string) => {
-    const newExpanded = new Set(expandedNodes);
-    if (newExpanded.has(userId)) {
-      newExpanded.delete(userId);
-    } else {
-      newExpanded.add(userId);
-    }
-    setExpandedNodes(newExpanded);
-  };
-
-  const renderUserNode = (user: UserDetailResponse, level: number = 0) => {
-    const hasSubordinates = user.subordinates && user.subordinates.length > 0;
-    const isExpanded = expandedNodes.has(user.id);
-
-    return (
-      <div key={user.id} className="space-y-2">
-        <div 
-          className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-          style={{ marginLeft: `${level * 20}px` }}
-        >
-          {hasSubordinates && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => toggleNode(user.id)}
-              className="h-6 w-6 p-0"
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </Button>
-          )}
-          
-          <Avatar className="h-8 w-8">
-            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-          </Avatar>
-          
-          <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-sm truncate">{user.name}</h4>
-            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-          </div>
-          
-          <div className="flex flex-wrap gap-1">
-            {user.department && (
-              <Badge variant="secondary" className="text-xs">
-                {user.department.name}
-              </Badge>
-            )}
-            {user.stage && (
-              <Badge variant="outline" className="text-xs">
-                {user.stage.name}
-              </Badge>
-            )}
-            {user.roles && user.roles.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {user.roles.slice(0, 2).map((role) => (
-                  <Badge key={role.id} variant="outline" className="text-xs">
-                    {role.name}
-                  </Badge>
-                ))}
-                {user.roles.length > 2 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{user.roles.length - 2}
-                  </Badge>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {hasSubordinates && isExpanded && (
-          <div className="space-y-2">
-            {user.subordinates!.map(subordinate => 
-              renderUserNode(subordinate, level + 1)
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-2">
-      {users.map(user => renderUserNode(user))}
     </div>
   );
 }
