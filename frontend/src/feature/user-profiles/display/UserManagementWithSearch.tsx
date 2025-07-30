@@ -7,6 +7,7 @@ import ViewModeSelector from './ViewModeSelector';
 import UserSearch from '../components/UserSearch';
 import UserTableView from './UserTableView';
 import UserGalleryView from './UserGalleryView';
+import UserOrganizationView from './UserOrganizationView';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -52,6 +53,8 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
         return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
       case 'gallery':
         return <UserGalleryView users={users} onUserUpdate={handleUserUpdate} />;
+      case 'organization':
+        return <UserOrganizationView users={users} onUserUpdate={handleUserUpdate} />;
       default:
         return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
     }
