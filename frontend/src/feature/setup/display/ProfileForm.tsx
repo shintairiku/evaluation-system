@@ -71,24 +71,15 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
   useEffect(() => {
     if (actionState) {
       if (actionState.success && actionState.data) {
-        user?.update({
-          unsafeMetadata: {
-            ...user.unsafeMetadata,
-            profileCompleted: true,
-            status: 'pending_approval'
-          }
-        }).then(() => {
-          toast.success('プロフィールが正常に作成されました！', {
-            duration: 3000
-          });
-          
-          router.push('/setup/confirmation');
+        toast.success('プロフィールが正常に作成されました！', {
+          duration: 3000
         });
+        router.push('/setup/confirmation');
       } else if (actionState.error) {
         toast.error(actionState.error, { duration: 4000 });
       }
     }
-  }, [actionState, user, router]);
+  }, [actionState, router]);
 
   const handleRoleSelectionChange = (selectedIds: number[]) => {
     const stringIds = selectedIds.map(index => {
