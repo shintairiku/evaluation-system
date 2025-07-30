@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, startTransition } from 'react';
-import { useActionState } from 'react';
+import { useMemo } from 'react';
 import type { UserDetailResponse } from '@/api/types';
-import { getUsersAction } from '@/api/server-actions/users';
-import { AlertCircle, Users, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
+import { AlertCircle, Users, ChevronRight, ChevronDown } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,95 +14,13 @@ interface UserOrganizationViewProps {
   onUserUpdate?: (user: UserDetailResponse) => void;
 }
 
-interface HierarchyState {
-  hierarchy: UserDetailResponse[];
-  total_users: number;
-  loading: boolean;
-  error: string | null;
-}
-
-// Server action wrapper for useActionState
-async function hierarchyActionWrapper(
-  prevState: HierarchyState,
-  formData: FormData
-): Promise<HierarchyState> {
-  try {
-    // Get all users for hierarchy (no pagination for organization view)
-    const result = await getUsersAction({ page: 1, limit: 1000 });
-    
-    if (result.success && result.data) {
-      const users = result.data.items;
-      const hierarchy = buildHierarchyFromUsers(users);
-      
-      return {
-        hierarchy,
-        total_users: users.length,
-        loading: false,
-        error: null
-      };
-    } else {
-      return {
-        hierarchy: [],
-        total_users: 0,
-        loading: false,
-        error: result.error || '組織図の取得に失敗しました'
-      };
-    }
-  } catch (error) {
-    return {
-      hierarchy: [],
-      total_users: 0,
-      loading: false,
-      error: error instanceof Error ? error.message : '予期しないエラーが発生しました'
-    };
-  }
-}
-
 export default function UserOrganizationView({ users }: UserOrganizationViewProps) {
-  const [hierarchyState, hierarchyAction, isPending] = useActionState(
-    hierarchyActionWrapper,
-    {
-      hierarchy: [],
-      total_users: 0,
-      loading: true,
-      error: null
-    }
-  );
+  // Build hierarchy from the users prop directly
+  const hierarchy = useMemo(() => {
+    return buildHierarchyFromUsers(users);
+  }, [users]);
 
-  // Trigger hierarchy action on mount and when users change
-  useEffect(() => {
-    startTransition(() => {
-      const formData = new FormData();
-      hierarchyAction(formData);
-    });
-  }, [users, hierarchyAction]);
-
-  if (isPending || hierarchyState.loading) {
-    return (
-      <div className="h-[600px] w-full border rounded-lg p-4">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm text-muted-foreground">組織図を読み込み中...</span>
-          </div>
-          <Skeleton className="h-[500px] w-full" />
-        </div>
-      </div>
-    );
-  }
-
-  if (hierarchyState.error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          エラー: {hierarchyState.error}
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (hierarchyState.hierarchy.length === 0) {
+  if (hierarchy.length === 0) {
     return (
       <div className="h-[600px] w-full border rounded-lg flex items-center justify-center">
         <div className="text-center">
@@ -123,9 +38,9 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
     <div className="h-[600px] w-full border rounded-lg p-4 overflow-auto">
       <div className="space-y-4">
         <div className="text-sm text-muted-foreground">
-          組織図 ({hierarchyState.total_users}件のユーザー)
+          組織図 ({users.length}件のユーザー)
         </div>
-        <HierarchyTree users={hierarchyState.hierarchy} />
+        <HierarchyTree users={hierarchy} />
       </div>
     </div>
   );
