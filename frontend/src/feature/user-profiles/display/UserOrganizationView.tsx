@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, startTransition } from 'react';
 import { useActionState } from 'react';
 import type { UserDetailResponse } from '@/api/types';
 import { getUsersAction } from '@/api/server-actions/users';
@@ -74,8 +74,10 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
 
   // Trigger hierarchy action on mount and when users change
   useEffect(() => {
-    const formData = new FormData();
-    hierarchyAction(formData);
+    startTransition(() => {
+      const formData = new FormData();
+      hierarchyAction(formData);
+    });
   }, [users, hierarchyAction]);
 
   if (isPending || hierarchyState.loading) {
