@@ -17,10 +17,10 @@ import ReactFlow, {
 // @ts-ignore
 import 'reactflow/dist/style.css';
 import type { UserDetailResponse } from '@/api/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Building2, Users, User } from 'lucide-react';
+import { Building2, Users, User, Mail } from 'lucide-react';
 
 
 interface UserOrganizationViewProps {
@@ -49,94 +49,87 @@ const UserNode = ({ data }: { data: any }) => {
     return 'border-gray-200 bg-white';
   };
 
-  const getAvatarStyle = () => {
-    if (user.status === 'pending_approval') {
-      return 'bg-orange-100 text-orange-700';
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge variant="default" className="bg-green-100 text-green-800">アクティブ</Badge>;
+      case 'inactive':
+        return <Badge variant="secondary" className="bg-red-100 text-red-800">非アクティブ</Badge>;
+      case 'pending_approval':
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">承認待ち</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
     }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('admin'))) {
-      return 'bg-blue-100 text-blue-700';
-    }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('manager'))) {
-      return 'bg-green-100 text-green-700';
-    }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('supervisor'))) {
-      return 'bg-purple-100 text-purple-700';
-    }
-    return 'bg-gray-100 text-gray-700';
   };
 
   return (
-    <Card className={`w-72 shadow-xl border-2 hover:shadow-2xl transition-all duration-300 ${getCardStyle()}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-12 w-12">
-            <AvatarFallback className={`font-bold text-sm ${getAvatarStyle()}`}>
-              {user.name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <CardTitle className="text-base font-bold truncate text-gray-900">
-              {user.name}
-            </CardTitle>
-            <p className="text-sm text-gray-600 font-mono">
+    <Card className={`w-72 group hover:shadow-md transition-shadow ${getCardStyle()}`}>
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <CardTitle className="text-lg">{user.name}</CardTitle>
+            <CardDescription className="flex items-center gap-1 mt-1">
+              <User className="w-3 h-3" />
               {user.employee_code}
-            </p>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-3">
-        {user.job_title && (
-          <div className="bg-gray-50 rounded-lg p-2">
-            <p className="text-sm font-medium text-gray-800 truncate">
-              {user.job_title}
-            </p>
-          </div>
-        )}
-        
-        <div className="grid grid-cols-1 gap-2">
-          {user.department && (
-            <div className="flex items-center gap-2 bg-blue-50 rounded-lg p-2">
-              <Building2 className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800 truncate">
-                {user.department.name}
-              </span>
-            </div>
-          )}
-          
-          {user.stage && (
-            <div className="flex items-center gap-2 bg-green-50 rounded-lg p-2">
-              <Users className="h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium text-green-800 truncate">
-                {user.stage.name}
-              </span>
-            </div>
-          )}
-        </div>
-        
-        {user.roles && user.roles.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {user.roles.slice(0, 3).map((role: any) => (
-              <Badge 
-                key={role.id} 
-                variant="secondary" 
-                className="text-xs px-2 py-1 font-medium"
-              >
-                {role.name}
-              </Badge>
-            ))}
-            {user.roles.length > 3 && (
-              <Badge variant="outline" className="text-xs px-2 py-1">
-                +{user.roles.length - 3}
-              </Badge>
+            </CardDescription>
+            {user.job_title && (
+              <CardDescription className="mt-1 font-medium">
+                {user.job_title}
+              </CardDescription>
             )}
           </div>
-        )}
-        
-        {user.status === 'pending_approval' && (
-          <Badge variant="destructive" className="text-xs px-2 py-1 font-medium">
-            承認待ち
-          </Badge>
-        )}
+          {getStatusBadge(user.status)}
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-3">
+        {/* メールアドレス */}
+        <div className="flex items-center gap-2 text-sm">
+          <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <span className="truncate" title={user.email}>
+            {user.email}
+          </span>
+        </div>
+
+        {/* 部署 */}
+        <div className="flex items-center gap-2 text-sm">
+          <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          {user.department ? (
+            <Badge variant="outline" className="text-xs">
+              {user.department.name}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">部署未設定</span>
+          )}
+        </div>
+
+        {/* ステージ */}
+        <div className="flex items-center gap-2 text-sm">
+          <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          {user.stage ? (
+            <Badge variant="secondary" className="text-xs">
+              {user.stage.name}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">ステージ未設定</span>
+          )}
+        </div>
+
+        {/* ロール */}
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-muted-foreground">ロール</div>
+          <div className="flex flex-wrap gap-1">
+            {user.roles && user.roles.length > 0 ? (
+              user.roles.map((role: any) => (
+                <Badge key={role.id} variant="outline" className="text-xs">
+                  {role.name}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-xs text-muted-foreground">ロール未設定</span>
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
