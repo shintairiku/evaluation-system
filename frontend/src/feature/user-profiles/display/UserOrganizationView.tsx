@@ -32,72 +32,111 @@ interface UserOrganizationViewProps {
 const UserNode = ({ data }: { data: any }) => {
   const { user } = data;
   
+  // Determine card styling based on user role and status
+  const getCardStyle = () => {
+    if (user.status === 'pending_approval') {
+      return 'border-orange-300 bg-orange-50/50';
+    }
+    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('admin'))) {
+      return 'border-blue-400 bg-blue-50/50';
+    }
+    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('manager'))) {
+      return 'border-green-400 bg-green-50/50';
+    }
+    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('supervisor'))) {
+      return 'border-purple-400 bg-purple-50/50';
+    }
+    return 'border-gray-200 bg-white';
+  };
+
+  const getAvatarStyle = () => {
+    if (user.status === 'pending_approval') {
+      return 'bg-orange-100 text-orange-700';
+    }
+    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('admin'))) {
+      return 'bg-blue-100 text-blue-700';
+    }
+    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('manager'))) {
+      return 'bg-green-100 text-green-700';
+    }
+    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('supervisor'))) {
+      return 'bg-purple-100 text-purple-700';
+    }
+    return 'bg-gray-100 text-gray-700';
+  };
+
   return (
-    <Card className="w-64 shadow-lg border-2 hover:border-primary/50 transition-colors">
-      <CardHeader className="pb-2">
+    <Card className={`w-72 shadow-xl border-2 hover:shadow-2xl transition-all duration-300 ${getCardStyle()}`}>
+      <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+          <Avatar className="h-12 w-12">
+            <AvatarFallback className={`font-bold text-sm ${getAvatarStyle()}`}>
               {user.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-sm font-semibold truncate">
+            <CardTitle className="text-base font-bold truncate text-gray-900">
               {user.name}
             </CardTitle>
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-sm text-gray-600 font-mono">
               {user.employee_code}
             </p>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-2">
-          {user.job_title && (
-            <p className="text-xs text-muted-foreground truncate">
+      <CardContent className="pt-0 space-y-3">
+        {user.job_title && (
+          <div className="bg-gray-50 rounded-lg p-2">
+            <p className="text-sm font-medium text-gray-800 truncate">
               {user.job_title}
             </p>
-          )}
-          
+          </div>
+        )}
+        
+        <div className="grid grid-cols-1 gap-2">
           {user.department && (
-            <div className="flex items-center gap-1">
-              <Building2 className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground truncate">
+            <div className="flex items-center gap-2 bg-blue-50 rounded-lg p-2">
+              <Building2 className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800 truncate">
                 {user.department.name}
               </span>
             </div>
           )}
           
           {user.stage && (
-            <div className="flex items-center gap-1">
-              <Users className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground truncate">
+            <div className="flex items-center gap-2 bg-green-50 rounded-lg p-2">
+              <Users className="h-4 w-4 text-green-600" />
+              <span className="text-sm font-medium text-green-800 truncate">
                 {user.stage.name}
               </span>
             </div>
           )}
-          
-          {user.roles && user.roles.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {user.roles.slice(0, 2).map((role: any) => (
-                <Badge key={role.id} variant="secondary" className="text-xs px-1 py-0">
-                  {role.name}
-                </Badge>
-              ))}
-              {user.roles.length > 2 && (
-                <Badge variant="outline" className="text-xs px-1 py-0">
-                  +{user.roles.length - 2}
-                </Badge>
-              )}
-            </div>
-          )}
-          
-          {user.status === 'pending_approval' && (
-            <Badge variant="destructive" className="text-xs">
-              承認待ち
-            </Badge>
-          )}
         </div>
+        
+        {user.roles && user.roles.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {user.roles.slice(0, 3).map((role: any) => (
+              <Badge 
+                key={role.id} 
+                variant="secondary" 
+                className="text-xs px-2 py-1 font-medium"
+              >
+                {role.name}
+              </Badge>
+            ))}
+            {user.roles.length > 3 && (
+              <Badge variant="outline" className="text-xs px-2 py-1">
+                +{user.roles.length - 3}
+              </Badge>
+            )}
+          </div>
+        )}
+        
+        {user.status === 'pending_approval' && (
+          <Badge variant="destructive" className="text-xs px-2 py-1 font-medium">
+            承認待ち
+          </Badge>
+        )}
       </CardContent>
     </Card>
   );
@@ -109,13 +148,6 @@ const nodeTypes: NodeTypes = {
 };
 
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
-  // Debug: Log users data to check hierarchy
-  useEffect(() => {
-    console.log('UserOrganizationView - Users data:', users);
-    console.log('UserOrganizationView - Users with supervisors:', users.filter(u => u.supervisor));
-    console.log('UserOrganizationView - Users with subordinates:', users.filter(u => u.subordinates && u.subordinates.length > 0));
-  }, [users]);
-  
   // Build hierarchy from users data
   const { nodes, edges } = useMemo(() => {
     const nodeMap = new Map<string, Node>();
@@ -139,8 +171,19 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           source: user.supervisor.id,
           target: user.id,
           type: 'smoothstep',
-          style: { stroke: '#64748b', strokeWidth: 2 },
+          style: { 
+            stroke: '#3b82f6', 
+            strokeWidth: 3,
+            strokeDasharray: '5,5',
+            opacity: 0.7
+          },
           animated: false,
+          markerEnd: {
+            type: 'arrowclosed',
+            width: 20,
+            height: 20,
+            color: '#3b82f6',
+          },
         });
       }
     });
@@ -159,39 +202,47 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       // Get subordinates
       const subordinates = users.filter(u => u.supervisor?.id === user.id);
       
+      // Improved spacing and layout
+      const nodeWidth = 288; // w-72 = 288px
+      const verticalSpacing = 320; // Increased from 250
+      const horizontalSpacing = 50; // Spacing between nodes at same level
+      
       if (subordinates.length === 0) {
         // Leaf node
         node.position = {
           x: xOffset,
-          y: level * 250,
+          y: level * verticalSpacing,
         };
-        return { width: 300, center: xOffset + 150 };
+        return { width: nodeWidth + horizontalSpacing, center: xOffset + (nodeWidth / 2) };
       }
       
       // Parent node - layout subordinates first
       let totalWidth = 0;
       let minX = xOffset;
       
-      subordinates.forEach((subordinate) => {
+      subordinates.forEach((subordinate, index) => {
         const result = layoutNodes(subordinate, level + 1, xOffset + totalWidth);
         totalWidth += result.width;
+        if (index < subordinates.length - 1) {
+          totalWidth += horizontalSpacing; // Add spacing between children
+        }
       });
       
       // Position parent node at center of children
       const centerX = minX + (totalWidth / 2);
       node.position = {
-        x: centerX - 150, // Center the node (300px width)
-        y: level * 250,
+        x: centerX - (nodeWidth / 2), // Center the node
+        y: level * verticalSpacing,
       };
       
-      return { width: Math.max(totalWidth, 300), center: centerX };
+      return { width: Math.max(totalWidth, nodeWidth), center: centerX };
     };
     
-    // Layout each root user
+    // Layout each root user with better spacing
     let currentX = 0;
-    rootUsers.forEach((rootUser) => {
+    rootUsers.forEach((rootUser, index) => {
       const result = layoutNodes(rootUser, 0, currentX);
-      currentX += result.width + 100; // Add spacing between root users
+      currentX += result.width + 150; // Increased spacing between root users
     });
     
     return {
@@ -229,21 +280,32 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
   }
   
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">組織図</h3>
-          <p className="text-sm text-muted-foreground">
-            {users.length}人のユーザーを階層構造で表示
-          </p>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          <p>ズーム: マウスホイール</p>
-          <p>移動: ドラッグ</p>
+    <div className="space-y-6">
+      {/* Header with statistics */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <h3 className="text-2xl font-bold text-gray-900">組織図</h3>
+            <p className="text-gray-600">
+              {users.length}人のユーザーを階層構造で表示
+            </p>
+            <div className="flex gap-4 text-sm text-gray-600">
+              <span>• 管理者: {users.filter(u => u.roles?.some(r => r.name.toLowerCase().includes('admin'))).length}人</span>
+              <span>• マネージャー: {users.filter(u => u.roles?.some(r => r.name.toLowerCase().includes('manager'))).length}人</span>
+              <span>• 承認待ち: {users.filter(u => u.status === 'pending_approval').length}人</span>
+            </div>
+          </div>
+          <div className="text-right text-sm text-gray-600 space-y-1">
+            <p className="font-medium">操作方法:</p>
+            <p>🔍 ズーム: マウスホイール</p>
+            <p>🖱️ 移動: ドラッグ</p>
+            <p>📱 リセット: ダブルクリック</p>
+          </div>
         </div>
       </div>
       
-      <div className="w-full h-[600px] border rounded-lg overflow-hidden bg-background">
+      {/* React Flow Container */}
+      <div className="w-full h-[700px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
@@ -252,14 +314,37 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           onConnect={onConnect}
           nodeTypes={nodeTypes}
           fitView
-          fitViewOptions={{ padding: 0.2 }}
-          minZoom={0.1}
-          maxZoom={2}
-          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+          fitViewOptions={{ 
+            padding: 0.3,
+            includeHiddenNodes: false,
+            minZoom: 0.5,
+            maxZoom: 1.2
+          }}
+          minZoom={0.3}
+          maxZoom={1.5}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
           proOptions={{ hideAttribution: true }}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          panOnDrag={true}
+          zoomOnScroll={true}
+          zoomOnPinch={true}
+          zoomOnDoubleClick={false}
+          preventScrolling={true}
         >
-          <Background color="#f1f5f9" gap={20} />
-          <Controls />
+          <Background 
+            color="#e2e8f0" 
+            gap={30}
+            size={1}
+            className="opacity-50"
+          />
+          <Controls 
+            showZoom={true}
+            showFitView={true}
+            showInteractive={false}
+            position="bottom-left"
+          />
         </ReactFlow>
       </div>
     </div>
