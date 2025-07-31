@@ -13,6 +13,8 @@ import ReactFlow, {
   Connection,
   EdgeTypes,
   NodeTypes,
+  Handle,
+  Position,
 } from 'reactflow';
 // @ts-ignore
 import 'reactflow/dist/style.css';
@@ -63,75 +65,101 @@ const UserNode = ({ data }: { data: any }) => {
   };
 
   return (
-    <Card className={`w-72 group hover:shadow-md transition-shadow ${getCardStyle()}`}>
-      <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-lg">{user.name}</CardTitle>
-            <CardDescription className="flex items-center gap-1 mt-1">
-              <User className="w-3 h-3" />
-              {user.employee_code}
-            </CardDescription>
-            {user.job_title && (
-              <CardDescription className="mt-1 font-medium">
-                {user.job_title}
+    <div className="relative">
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="top"
+        style={{ 
+          background: '#3b82f6',
+          width: 8,
+          height: 8,
+          border: '2px solid #ffffff',
+          borderRadius: '50%'
+        }}
+      />
+      <Card className={`w-72 group hover:shadow-md transition-shadow ${getCardStyle()}`}>
+        <CardHeader className="pb-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <CardTitle className="text-lg">{user.name}</CardTitle>
+              <CardDescription className="flex items-center gap-1 mt-1">
+                <User className="w-3 h-3" />
+                {user.employee_code}
               </CardDescription>
-            )}
+              {user.job_title && (
+                <CardDescription className="mt-1 font-medium">
+                  {user.job_title}
+                </CardDescription>
+              )}
+            </div>
+            {getStatusBadge(user.status)}
           </div>
-          {getStatusBadge(user.status)}
-        </div>
-      </CardHeader>
-      
-      <CardContent className="space-y-3">
-        {/* メールアドレス */}
-        <div className="flex items-center gap-2 text-sm">
-          <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <span className="truncate" title={user.email}>
-            {user.email}
-          </span>
-        </div>
+        </CardHeader>
+        
+        <CardContent className="space-y-3">
+          {/* メールアドレス */}
+          <div className="flex items-center gap-2 text-sm">
+            <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <span className="truncate" title={user.email}>
+              {user.email}
+            </span>
+          </div>
 
-        {/* 部署 */}
-        <div className="flex items-center gap-2 text-sm">
-          <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          {user.department ? (
-            <Badge variant="outline" className="text-xs">
-              {user.department.name}
-            </Badge>
-          ) : (
-            <span className="text-muted-foreground">部署未設定</span>
-          )}
-        </div>
-
-        {/* ステージ */}
-        <div className="flex items-center gap-2 text-sm">
-          <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          {user.stage ? (
-            <Badge variant="secondary" className="text-xs">
-              {user.stage.name}
-            </Badge>
-          ) : (
-            <span className="text-muted-foreground">ステージ未設定</span>
-          )}
-        </div>
-
-        {/* ロール */}
-        <div className="space-y-1">
-          <div className="text-xs font-medium text-muted-foreground">ロール</div>
-          <div className="flex flex-wrap gap-1">
-            {user.roles && user.roles.length > 0 ? (
-              user.roles.map((role: any) => (
-                <Badge key={role.id} variant="outline" className="text-xs">
-                  {role.name}
-                </Badge>
-              ))
+          {/* 部署 */}
+          <div className="flex items-center gap-2 text-sm">
+            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            {user.department ? (
+              <Badge variant="outline" className="text-xs">
+                {user.department.name}
+              </Badge>
             ) : (
-              <span className="text-xs text-muted-foreground">ロール未設定</span>
+              <span className="text-muted-foreground">部署未設定</span>
             )}
           </div>
-        </div>
-      </CardContent>
-    </Card>
+
+          {/* ステージ */}
+          <div className="flex items-center gap-2 text-sm">
+            <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            {user.stage ? (
+              <Badge variant="secondary" className="text-xs">
+                {user.stage.name}
+              </Badge>
+            ) : (
+              <span className="text-muted-foreground">ステージ未設定</span>
+            )}
+          </div>
+
+          {/* ロール */}
+          <div className="space-y-1">
+            <div className="text-xs font-medium text-muted-foreground">ロール</div>
+            <div className="flex flex-wrap gap-1">
+              {user.roles && user.roles.length > 0 ? (
+                user.roles.map((role: any) => (
+                  <Badge key={role.id} variant="outline" className="text-xs">
+                    {role.name}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">ロール未設定</span>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="bottom"
+        style={{ 
+          background: '#3b82f6',
+          width: 8,
+          height: 8,
+          border: '2px solid #ffffff',
+          borderRadius: '50%'
+        }}
+      />
+    </div>
   );
 };
 
@@ -158,17 +186,18 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     
     // Create edges for supervisor-subordinate relationships
     users.forEach((user) => {
-      if (user.supervisor) {
+      if (user.supervisor && user.supervisor.id && user.id) {
         edgeList.push({
           id: `${user.supervisor.id}-${user.id}`,
           source: user.supervisor.id,
           target: user.id,
+          sourceHandle: 'bottom',
+          targetHandle: 'top',
           type: 'smoothstep',
           style: { 
             stroke: '#3b82f6', 
             strokeWidth: 3,
-            strokeDasharray: '5,5',
-            opacity: 0.7
+            opacity: 0.8
           },
           animated: false,
           markerEnd: {
@@ -195,10 +224,10 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       // Get subordinates
       const subordinates = users.filter(u => u.supervisor?.id === user.id);
       
-      // Improved spacing and layout
+      // Improved spacing and layout for better visualization
       const nodeWidth = 288; // w-72 = 288px
-      const verticalSpacing = 320; // Increased from 250
-      const horizontalSpacing = 50; // Spacing between nodes at same level
+      const verticalSpacing = 450; // Increased for better line visibility
+      const horizontalSpacing = 80; // Increased spacing between nodes at same level
       
       if (subordinates.length === 0) {
         // Leaf node
@@ -217,7 +246,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
         const result = layoutNodes(subordinate, level + 1, xOffset + totalWidth);
         totalWidth += result.width;
         if (index < subordinates.length - 1) {
-          totalWidth += horizontalSpacing; // Add spacing between children
+          totalWidth += horizontalSpacing * 1.5; // Increased spacing between children for better line visibility
         }
       });
       
@@ -233,9 +262,9 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     
     // Layout each root user with better spacing
     let currentX = 0;
-    rootUsers.forEach((rootUser, index) => {
+    rootUsers.forEach((rootUser) => {
       const result = layoutNodes(rootUser, 0, currentX);
-      currentX += result.width + 150; // Increased spacing between root users
+      currentX += result.width + 250; // Further increased spacing between root users for better visualization
     });
     
     return {
@@ -298,7 +327,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       </div>
       
       {/* React Flow Container */}
-      <div className="w-full h-[700px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
+      <div className="w-full h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
@@ -308,35 +337,36 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ 
-            padding: 0.3,
+            padding: 0.2,
             includeHiddenNodes: false,
-            minZoom: 0.5,
-            maxZoom: 1.2
+            minZoom: 0.3,
+            maxZoom: 1.0
           }}
-          minZoom={0.3}
+          minZoom={0.2}
           maxZoom={1.5}
-          defaultViewport={{ x: 0, y: 0, zoom: 0.9 }}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
           proOptions={{ hideAttribution: true }}
           nodesDraggable={false}
           nodesConnectable={false}
-          elementsSelectable={false}
+          elementsSelectable={true}
           panOnDrag={true}
           zoomOnScroll={true}
           zoomOnPinch={true}
-          zoomOnDoubleClick={false}
+          zoomOnDoubleClick={true}
           preventScrolling={true}
         >
           <Background 
             color="#e2e8f0" 
-            gap={30}
-            size={1}
-            className="opacity-50"
+            gap={40}
+            size={1.5}
+            className="opacity-30"
           />
           <Controls 
             showZoom={true}
             showFitView={true}
             showInteractive={false}
             position="bottom-left"
+            className="bg-white/90 border border-gray-200 rounded-lg shadow-sm"
           />
         </ReactFlow>
       </div>
