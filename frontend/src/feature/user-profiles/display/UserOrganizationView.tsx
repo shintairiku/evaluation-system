@@ -415,7 +415,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
             showZoom={true}
             showFitView={true}
             showInteractive={false}
-            position="bottom-left"
+            position="top-right"
             className="bg-white/90 border border-gray-200 rounded-lg shadow-sm"
           />
         </ReactFlow>
