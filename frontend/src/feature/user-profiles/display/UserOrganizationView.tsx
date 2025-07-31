@@ -109,6 +109,13 @@ const nodeTypes: NodeTypes = {
 };
 
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
+  // Debug: Log users data to check hierarchy
+  useEffect(() => {
+    console.log('UserOrganizationView - Users data:', users);
+    console.log('UserOrganizationView - Users with supervisors:', users.filter(u => u.supervisor));
+    console.log('UserOrganizationView - Users with subordinates:', users.filter(u => u.subordinates && u.subordinates.length > 0));
+  }, [users]);
+  
   // Build hierarchy from users data
   const { nodes, edges } = useMemo(() => {
     const nodeMap = new Map<string, Node>();
