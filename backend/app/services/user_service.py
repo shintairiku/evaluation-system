@@ -50,7 +50,7 @@ class UserService:
         stage_ids: Optional[list[UUID]] = None,
         role_ids: Optional[list[UUID]] = None,
         pagination: Optional[PaginationParams] = None
-    ) -> PaginatedResponse[User]:
+    ) -> PaginatedResponse[UserDetailResponse]:
         """
         Get users based on current user's permissions, with explicit multi-select filters.
         Uses permission-based access control from security module.
@@ -118,10 +118,10 @@ class UserService:
                 user_ids=user_ids_to_filter
             )
             
-            # Enrich users with schema conversion
+            # Enrich users with detailed data including supervisor/subordinates
             enriched_users = []
             for user_model in users:
-                enriched_user = await self._enrich_user_data(user_model)
+                enriched_user = await self._enrich_detailed_user_data(user_model)
                 enriched_users.append(enriched_user)
             
             # Create paginated response
