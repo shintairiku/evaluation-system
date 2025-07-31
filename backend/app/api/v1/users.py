@@ -52,7 +52,7 @@ async def get_profile_options(
         )
 
 
-@router.get("/organization", response_model=PaginatedResponse[UserDetailResponse])
+@router.get("/organization", response_model=PaginatedResponse[User])
 async def get_users_for_organization(
     context: AuthContext = Depends(get_auth_context),
     page: int = Query(1, ge=1, description="Page number"),
@@ -72,11 +72,18 @@ async def get_users_for_organization(
         pagination = PaginationParams(page=page, limit=limit)
         service = UserService(session)
         
-        result = await service.get_users_for_organization(
+        # Temporarily use the regular get_users method to test
+        result = await service.get_users(
             current_user_context=context,
+            search_term="",
+            statuses=None,
+            department_ids=None,
+            stage_ids=None,
+            role_ids=None,
             pagination=pagination
         )
         
+        # For now, just return the regular result to test
         return result
         
     except Exception as e:
