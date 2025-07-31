@@ -208,8 +208,8 @@ export async function checkUserExistsAction(clerkId: string): Promise<{
 }
 
 /**
- * Server action to get profile options for signup
- * Uses new user endpoint instead of auth endpoint
+ * Server action to get profile options for user creation/signup
+ * This function runs on the server side for SSR
  */
 export async function getProfileOptionsAction(): Promise<{
   success: boolean;
@@ -232,10 +232,41 @@ export async function getProfileOptionsAction(): Promise<{
     };
   } catch (error) {
     console.error('Get profile options action error:', error);
-
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching profile options',
+      error: 'An unexpected error occurred while fetching profile options',
+    };
+  }
+}
+
+/**
+ * Server action to get users with hierarchy data for organization view
+ * This function runs on the server side for SSR
+ */
+export async function getUsersForOrganizationAction(params?: PaginationParams): Promise<{
+  success: boolean;
+  data?: UserList;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.getUsersForOrganization(params);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to fetch users for organization',
+      };
+    }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get users for organization action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching users for organization',
     };
   }
 }

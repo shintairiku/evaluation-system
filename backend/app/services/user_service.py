@@ -144,6 +144,99 @@ class UserService:
             logger.error(f"Error in get_users: {e}")
             raise
     
+    async def get_users_for_organization(
+        self, 
+        current_user_context: AuthContext, 
+        pagination: Optional[PaginationParams] = None
+    ) -> PaginatedResponse[UserDetailResponse]:
+        """
+        Get users with hierarchy data specifically for organization view.
+        Uses permission-based access control and returns detailed user data with supervisor/subordinate relationships.
+        """
+        try:
+            # Ultra-simple permission-based access control
+            user_ids_to_filter = None
+            
+            if current_user_context.has_permission(Permission.USER_READ_ALL):
+                # Admin: Can see all users
+                user_ids_to_filter = None
+            elif current_user_context.has_permission(Permission.USER_READ_SUBORDINATES):
+                # Manager/Supervisor: Can see subordinates
+                subordinate_users = await self.user_repo.get_subordinates(
+                    current_user_context.user_id
+                )
+                user_ids_to_filter = [user.id for user in subordinate_users]
+            elif current_user_context.has_permission(Permission.USER_READ_SELF):
+                # Employee: Can only see themselves
+                user_ids_to_filter = [current_user_context.user_id]
+            else:
+                # No permission to read users - use helper method
+                current_user_context.require_any_permission([
+                    Permission.USER_READ_ALL,
+                    Permission.USER_READ_SUBORDINATES,
+                    Permission.USER_READ_SELF
+                ])
+            
+            # Generate cache key for organization view
+            cache_key_params = {
+                "user_ids": sorted([str(u) for u in user_ids_to_filter]) if user_ids_to_filter else None,
+                "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None,
+                "requesting_user_roles": sorted(current_user_context.role_names),
+                "view_type": "organization"
+            }
+            cache_key = self._generate_cache_key("get_users_for_organization", cache_key_params)
+            
+            # Check cache
+            cached_result = user_search_cache.get(cache_key)
+            if cached_result:
+                return PaginatedResponse.model_validate_json(cached_result)
+            
+            # Get all users (no filters for organization view to show complete hierarchy)
+            users = await self.user_repo.search_users(
+                search_term="",
+                statuses=None,
+                department_ids=None,
+                stage_ids=None,
+                role_ids=None,
+                user_ids=user_ids_to_filter,
+                pagination=pagination
+            )
+            
+            total_count = await self.user_repo.count_users(
+                search_term="",
+                statuses=None,
+                department_ids=None,
+                stage_ids=None,
+                role_ids=None,
+                user_ids=user_ids_to_filter
+            )
+            
+            # Enrich users with detailed data including hierarchy
+            enriched_users = []
+            for user_model in users:
+                enriched_user = await self._enrich_detailed_user_data(user_model)
+                enriched_users.append(enriched_user)
+            
+            # Create paginated response
+            total_pages = (total_count + pagination.limit - 1) // pagination.limit if pagination else 1
+            
+            result = PaginatedResponse(
+                items=enriched_users,
+                total=total_count,
+                page=pagination.page if pagination else 1,
+                limit=pagination.limit if pagination else len(enriched_users),
+                pages=total_pages
+            )
+            
+            # Cache the result
+            user_search_cache[cache_key] = result.model_dump_json()
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in get_users_for_organization: {e}")
+            raise
+    
     async def get_user_by_id(
         self, 
         user_id: UUID, 

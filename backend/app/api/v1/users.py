@@ -43,7 +43,7 @@ async def get_profile_options(
     No authentication required as this is needed for signup flow.
     """
     try:
-        user_service = UserService(session=session)
+        user_service = UserService(session)
         return await user_service.get_profile_options()
     except Exception as e:
         raise HTTPException(
@@ -52,6 +52,38 @@ async def get_profile_options(
         )
 
 
+@router.get("/organization", response_model=PaginatedResponse[UserDetailResponse])
+async def get_users_for_organization(
+    context: AuthContext = Depends(get_auth_context),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(50, ge=1, le=100, description="Items per page"),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get users with hierarchy data specifically for organization view.
+    
+    - **Admin/Viewer**: Can see all users with hierarchy
+    - **Manager/Supervisor**: Can see subordinates with hierarchy
+    - **Others**: No access to user listing
+    
+    Returns users with supervisor and subordinate relationships for organization chart.
+    """
+    try:
+        pagination = PaginationParams(page=page, limit=limit)
+        service = UserService(session)
+        
+        result = await service.get_users_for_organization(
+            current_user_context=context,
+            pagination=pagination
+        )
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching users for organization: {str(e)}"
+        )
 
 
 @router.get("/", response_model=PaginatedResponse[User])

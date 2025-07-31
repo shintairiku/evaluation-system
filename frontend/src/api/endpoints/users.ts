@@ -73,4 +73,19 @@ export const usersApi = {
   getProfileOptions: async (): Promise<ApiResponse<ProfileOptionsResponse>> => {
     return httpClient.get<ProfileOptionsResponse>(API_ENDPOINTS.USERS.PROFILE_OPTIONS);
   },
+
+  /**
+   * Get users with hierarchy data for organization view
+   */
+  getUsersForOrganization: async (params?: PaginationParams): Promise<ApiResponse<UserList>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    const endpoint = queryParams.toString() 
+      ? `${API_ENDPOINTS.USERS.ORGANIZATION}?${queryParams.toString()}`
+      : API_ENDPOINTS.USERS.ORGANIZATION;
+    
+    return httpClient.get<UserList>(endpoint);
+  },
 };
