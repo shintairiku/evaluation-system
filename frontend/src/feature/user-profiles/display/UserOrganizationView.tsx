@@ -78,7 +78,7 @@ const UserNode = ({ data }: { data: any }) => {
           borderRadius: '50%'
         }}
       />
-      <Card className={`w-72 group hover:shadow-md transition-shadow ${getCardStyle()}`}>
+      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-md transition-shadow ${getCardStyle()}`}>
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -227,7 +227,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       const subordinates = users.filter(u => u.supervisor?.id === user.id && nodeMap.has(u.id));
       
       // Improved spacing and layout for better visualization
-      const nodeWidth = 288; // w-72 = 288px
+      const nodeWidth = 288; // w-72 = 288px (sm:w-64 = 256px on mobile)
       const verticalSpacing = 450; // Increased for better line visibility
       const horizontalSpacing = 120; // Further increased to prevent overlaps
       const minNodeSpacing = 50; // Minimum spacing to prevent overlaps
@@ -377,7 +377,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       </div>
       
       {/* React Flow Container */}
-      <div className="w-full h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
+      <div className="w-full h-[900px] sm:h-[700px] md:h-[800px] lg:h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
