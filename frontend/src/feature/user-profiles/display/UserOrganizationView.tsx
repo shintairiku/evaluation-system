@@ -61,6 +61,11 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
     return buildHierarchyFromUsers(organizationUsers, options);
   }, [organizationUsers, options]);
 
+  // Node types for React Flow - memoized to prevent recreation
+  const nodeTypes = useMemo(() => ({
+    organizationNode: OrganizationNode,
+  }), []);
+
   // Loading state while profile options or organization data are being fetched
   if (isLoadingOptions || isPending || isPendingAction) {
     return <OrganizationViewSkeleton />;
@@ -102,11 +107,6 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
       </div>
     );
   }
-
-  // Node types for React Flow - memoized to prevent recreation
-  const nodeTypes = useMemo(() => ({
-    organizationNode: OrganizationNode,
-  }), []);
 
   return (
     <div className="h-[600px] w-full border rounded-lg">
