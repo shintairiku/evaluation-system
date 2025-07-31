@@ -854,20 +854,21 @@ class UserService:
         # Get basic enriched user data first
         base_user = await self._enrich_user_data(user)
         
-        # Get supervisor relationship
+        # Get supervisor relationship (without recursion to avoid infinite loop)
         supervisor_models = await self.user_repo.get_user_supervisors(user.id)
         supervisor = None
         if supervisor_models:
             supervisor_model = supervisor_models[0]  # Take first supervisor if multiple
-            supervisor_detail = await self._enrich_detailed_user_data(supervisor_model)
-            supervisor = supervisor_detail
+            # Use _enrich_user_data to avoid recursion
+            supervisor = await self._enrich_user_data(supervisor_model)
 
-        # Get subordinates relationship
+        # Get subordinates relationship (without recursion to avoid infinite loop)
         subordinate_models = await self.user_repo.get_subordinates(user.id)
         subordinates = []
         for subordinate_model in subordinate_models:
-            subordinate_detail = await self._enrich_detailed_user_data(subordinate_model)
-            subordinates.append(subordinate_detail)
+            # Use _enrich_user_data to avoid recursion
+            subordinate = await self._enrich_user_data(subordinate_model)
+            subordinates.append(subordinate)
 
         # Create detailed response with supervisor/subordinates
         user_detail_data = base_user.model_dump()
