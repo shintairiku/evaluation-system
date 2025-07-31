@@ -214,20 +214,23 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     const rootUsers = users.filter(user => !user.supervisor);
     const visited = new Set<string>();
     
-    const layoutNodes = (user: UserDetailResponse, level: number, xOffset: number) => {
+    const layoutNodes = (user: UserDetailResponse, level: number, xOffset: number): { width: number, center: number } => {
+      // Check if user exists in filtered set
+      if (!nodeMap.has(user.id)) return { width: 0, center: 0 };
       if (visited.has(user.id)) return { width: 0, center: 0 };
       visited.add(user.id);
       
       const node = nodeMap.get(user.id);
       if (!node) return { width: 0, center: 0 };
       
-      // Get subordinates
-      const subordinates = users.filter(u => u.supervisor?.id === user.id);
+      // Get subordinates that exist in the filtered users
+      const subordinates = users.filter(u => u.supervisor?.id === user.id && nodeMap.has(u.id));
       
       // Improved spacing and layout for better visualization
       const nodeWidth = 288; // w-72 = 288px
       const verticalSpacing = 450; // Increased for better line visibility
-      const horizontalSpacing = 80; // Increased spacing between nodes at same level
+      const horizontalSpacing = 120; // Further increased to prevent overlaps
+      const minNodeSpacing = 50; // Minimum spacing to prevent overlaps
       
       if (subordinates.length === 0) {
         // Leaf node
@@ -235,40 +238,87 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           x: xOffset,
           y: level * verticalSpacing,
         };
-        return { width: nodeWidth + horizontalSpacing, center: xOffset + (nodeWidth / 2) };
+        return { width: nodeWidth + minNodeSpacing, center: xOffset + (nodeWidth / 2) };
       }
       
       // Parent node - layout subordinates first
       let totalWidth = 0;
-      let minX = xOffset;
+      let childrenCenters: number[] = [];
       
-      subordinates.forEach((subordinate, index) => {
+      subordinates.forEach((subordinate) => {
         const result = layoutNodes(subordinate, level + 1, xOffset + totalWidth);
-        totalWidth += result.width;
-        if (index < subordinates.length - 1) {
-          totalWidth += horizontalSpacing * 1.5; // Increased spacing between children for better line visibility
+        if (result.width > 0) { // Only add if node exists
+          childrenCenters.push(result.center);
+          totalWidth += result.width;
+          // Add spacing between children
+          totalWidth += horizontalSpacing;
         }
       });
       
-      // Position parent node at center of children
-      const centerX = minX + (totalWidth / 2);
+      // Remove extra spacing from the last child
+      if (childrenCenters.length > 0) {
+        totalWidth -= horizontalSpacing;
+      }
+      
+      // Ensure minimum width for proper spacing
+      const actualWidth = Math.max(totalWidth, nodeWidth + minNodeSpacing);
+      
+      // Position parent node at center of children, or at current offset if no children
+      const centerX = childrenCenters.length > 0 
+        ? (childrenCenters[0] + childrenCenters[childrenCenters.length - 1]) / 2
+        : xOffset + (nodeWidth / 2);
+        
       node.position = {
-        x: centerX - (nodeWidth / 2), // Center the node
+        x: Math.max(xOffset, centerX - (nodeWidth / 2)), // Ensure minimum position
         y: level * verticalSpacing,
       };
       
-      return { width: Math.max(totalWidth, nodeWidth), center: centerX };
+      return { width: actualWidth, center: centerX };
     };
     
     // Layout each root user with better spacing
     let currentX = 0;
+    const minRootSpacing = 300; // Minimum spacing between root hierarchies
+    
     rootUsers.forEach((rootUser) => {
-      const result = layoutNodes(rootUser, 0, currentX);
-      currentX += result.width + 250; // Further increased spacing between root users for better visualization
+      if (nodeMap.has(rootUser.id)) { // Only layout if root user exists in filtered set
+        const result = layoutNodes(rootUser, 0, currentX);
+        if (result.width > 0) {
+          currentX += result.width + minRootSpacing; // Consistent spacing between root users
+        }
+      }
+    });
+    
+    // Post-process to fix any remaining overlaps
+    const allNodes = Array.from(nodeMap.values());
+    const nodesByLevel = new Map<number, Node[]>();
+    
+    // Group nodes by level
+    allNodes.forEach(node => {
+      const level = Math.round(node.position.y / 450); // verticalSpacing = 450
+      if (!nodesByLevel.has(level)) {
+        nodesByLevel.set(level, []);
+      }
+      nodesByLevel.get(level)!.push(node);
+    });
+    
+    // Fix overlaps within each level
+    nodesByLevel.forEach(levelNodes => {
+      levelNodes.sort((a, b) => a.position.x - b.position.x);
+      
+      for (let i = 1; i < levelNodes.length; i++) {
+        const prevNode = levelNodes[i - 1];
+        const currentNode = levelNodes[i];
+        const minDistance = 288 + 80; // nodeWidth + minSpacing
+        
+        if (currentNode.position.x < prevNode.position.x + minDistance) {
+          currentNode.position.x = prevNode.position.x + minDistance;
+        }
+      }
     });
     
     return {
-      nodes: Array.from(nodeMap.values()),
+      nodes: allNodes,
       edges: edgeList,
     };
   }, [users]);
