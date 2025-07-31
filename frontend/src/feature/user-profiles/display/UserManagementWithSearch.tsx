@@ -84,8 +84,8 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
 
       {/* 結果表示 */}
       <div className="space-y-4">
-        {/* Results summary */}
-        {users.length > 0 && (
+        {/* Results summary - Hide count for organization view as it has its own detailed header */}
+        {users.length > 0 && viewMode !== 'organization' && (
           <div className="text-sm text-muted-foreground px-1">
             {users.length}件のユーザー
           </div>
