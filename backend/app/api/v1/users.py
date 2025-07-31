@@ -10,7 +10,6 @@ from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
 from ...security import AuthContext, get_auth_context
 from ...dependencies.auth import get_current_user
-from ...dependencies.database import get_user_service
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -178,7 +177,7 @@ async def get_users_hierarchy(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=100, description="Number of items per page"),
     current_user: AuthContext = Depends(get_current_user),
-    user_service: UserService = Depends(get_user_service)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """
     Get users with hierarchy relationships for organization chart display.
@@ -187,6 +186,7 @@ async def get_users_hierarchy(
     try:
         # Temporarily return basic users without hierarchy to avoid validation issues
         pagination = PaginationParams(page=page, limit=limit)
+        user_service = UserService(session)
         result = await user_service.get_users(current_user, pagination=pagination)
         return result
     except Exception as e:
@@ -197,7 +197,7 @@ async def get_users_hierarchy(
 @router.get("/hierarchy-data", response_model=dict)
 async def get_hierarchy_data(
     current_user: AuthContext = Depends(get_current_user),
-    user_service: UserService = Depends(get_user_service)
+    session: AsyncSession = Depends(get_db_session)
 ):
     """
     Get hierarchy relationships from users_supervisors table.

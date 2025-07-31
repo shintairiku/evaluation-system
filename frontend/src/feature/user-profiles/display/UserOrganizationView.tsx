@@ -126,72 +126,86 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
     );
   }
 
-  // Empty state
-  if (!hierarchy || hierarchy.length === 0) {
+  // Error state for hierarchy data
+  if (hierarchyState && !hierarchyState.success) {
     return (
-      <div className="flex flex-col items-center justify-center h-[600px] border rounded-lg bg-gray-50">
-        <Users className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">組織図がありません</h3>
-        <p className="text-gray-500 text-center max-w-md">
-          ユーザーデータまたは階層関係が設定されていないため、組織図を表示できません。
-        </p>
-      </div>
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          エラー: {hierarchyState.error || '階層データの取得に失敗しました'}
+        </AlertDescription>
+      </Alert>
     );
   }
 
+  // Debug: Show data without ReactFlow
   return (
-    <div className="h-[600px] w-full border rounded-lg">
-      <ReactFlowProvider>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          attributionPosition="bottom-left"
-          proOptions={{ hideAttribution: true }}
-          minZoom={0.1}
-          maxZoom={2}
-          defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-        >
-          {/* Background grid */}
-          <Background 
-            color="#64748b" 
-            gap={20} 
-            size={1}
-            variant="dots"
-          />
-          
-          {/* Controls for zoom/pan */}
-          <Controls 
-            showZoom={true}
-            showFitView={true}
-            showInteractive={true}
-            position="bottom-right"
-          />
-          
-          {/* Mini map for navigation */}
-          <MiniMap 
-            nodeColor="#64748b"
-            nodeStrokeColor="#1e293b"
-            nodeStrokeWidth={2}
-            maskColor="rgba(0, 0, 0, 0.1)"
-            position="top-right"
-            size={150}
-          />
-          
-          {/* Info panel */}
-          <Panel position="top-left" className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm">
-            <div className="text-sm text-gray-600">
-              <div className="font-medium">組織図</div>
-              <div>{organizationUsers.length} ユーザー</div>
-            </div>
-          </Panel>
-        </ReactFlow>
-      </ReactFlowProvider>
+    <div className="p-4">
+      <h2 className="text-lg font-semibold mb-4">組織図 (Debug)</h2>
+      <div className="mb-4">
+        <p>Users: {organizationUsers?.length || 0}</p>
+        <p>Hierarchy Data: {hierarchyData ? 'Available' : 'Not available'}</p>
+        <p>Nodes: {nodes.length}</p>
+        <p>Edges: {edges.length}</p>
+      </div>
+      
+      {organizationUsers && organizationUsers.length > 0 && (
+        <div className="mb-4">
+          <h3 className="font-medium mb-2">Users:</h3>
+          <ul className="list-disc pl-4">
+            {organizationUsers.map(user => (
+              <li key={user.id}>{user.name} ({user.email})</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {hierarchyData && (
+        <div className="mb-4">
+          <h3 className="font-medium mb-2">Hierarchy:</h3>
+          <pre className="bg-gray-100 p-2 rounded text-sm">
+            {JSON.stringify(hierarchyData, null, 2)}
+          </pre>
+        </div>
+      )}
+      
+      {/* ReactFlow Component */}
+      <div className="h-[600px] w-full border rounded-lg">
+        <ReactFlowProvider>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            attributionPosition="bottom-left"
+            proOptions={{ hideAttribution: true }}
+            minZoom={0.1}
+            maxZoom={2}
+            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+          >
+            {/* Background grid */}
+            <Background />
+            
+            {/* Controls */}
+            <Controls />
+            
+            {/* Mini map */}
+            <MiniMap />
+            
+            {/* Panel for additional controls */}
+            <Panel position="top-right">
+              <div className="bg-white p-2 rounded shadow">
+                <p className="text-sm">Nodes: {nodes.length}</p>
+                <p className="text-sm">Edges: {edges.length}</p>
+              </div>
+            </Panel>
+          </ReactFlow>
+        </ReactFlowProvider>
+      </div>
     </div>
   );
 }
