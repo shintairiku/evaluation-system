@@ -367,3 +367,31 @@ export async function searchUsersAction(params: SearchUsersParams): Promise<{
     };
   }
 }
+
+export async function getUsersHierarchyAction(params?: PaginationParams): Promise<{
+  success: boolean;
+  data?: UserList;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.getUsersHierarchy(params);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to fetch users hierarchy',
+      };
+    }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Error fetching users hierarchy:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching users hierarchy',
+    };
+  }
+}

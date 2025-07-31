@@ -678,6 +678,70 @@ class UserService:
             users=users
         )
     
+    async def get_users_with_hierarchy(
+        self, 
+        current_user_context: AuthContext, 
+        pagination: Optional[PaginationParams] = None
+    ) -> PaginatedResponse[UserDetailResponse]:
+        """
+        Get users with hierarchy relationships from users_supervisors table.
+        This method is specifically for organization chart display.
+        """
+        try:
+            # Get users with hierarchy from repository
+            users_with_hierarchy = await self.user_repo.get_active_users_with_hierarchy()
+            
+            # Convert to UserDetailResponse with hierarchy data
+            enriched_users = []
+            for user in users_with_hierarchy:
+                user_response = await self._enrich_user_data(user)
+                
+                # Add hierarchy information from the custom attributes
+                supervisor = None
+                subordinates = []
+                
+                if hasattr(user, '_supervisor'):
+                    supervisor = await self._enrich_user_data(user._supervisor)
+                
+                if hasattr(user, '_subordinates'):
+                    subordinates = [await self._enrich_user_data(sub) for sub in user._subordinates]
+                
+                # Create UserDetailResponse with hierarchy
+                user_detail = UserDetailResponse(
+                    id=user_response.id,
+                    clerk_user_id=user_response.clerk_user_id,
+                    employee_code=user_response.employee_code,
+                    name=user_response.name,
+                    email=user_response.email,
+                    status=user_response.status,
+                    job_title=user_response.job_title,
+                    department=user_response.department,
+                    stage=user_response.stage,
+                    roles=user_response.roles,
+                    supervisor=supervisor,
+                    subordinates=subordinates
+                )
+                enriched_users.append(user_detail)
+            
+            # Apply pagination if provided
+            total = len(enriched_users)
+            if pagination:
+                start = pagination.offset
+                end = start + pagination.limit
+                enriched_users = enriched_users[start:end]
+            
+            return PaginatedResponse(
+                items=enriched_users,
+                total=total,
+                page=pagination.page if pagination else 1,
+                limit=pagination.limit if pagination else total,
+                pages=(total + (pagination.limit - 1)) // pagination.limit if pagination else 1
+            )
+            
+        except Exception as e:
+            logger.error(f"Error getting users with hierarchy: {e}")
+            raise
+    
     # Private helper methods
     
     def _generate_cache_key(

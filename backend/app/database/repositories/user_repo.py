@@ -290,6 +290,54 @@ class UserRepository:
             logger.error(f"Error fetching active users: {e}")
             raise
 
+    async def get_active_users_with_hierarchy(self) -> list[User]:
+        """Get all active users with hierarchy relationships from users_supervisors table."""
+        try:
+            # First, get all active users with basic details
+            result = await self.session.execute(
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.stage),
+                    joinedload(User.roles)
+                )
+                .filter(User.status == UserStatus.ACTIVE.value)
+                .order_by(User.name)
+            )
+            users = result.scalars().unique().all()
+            
+            # Create a dictionary to store users with their hierarchy info
+            users_dict = {user.id: user for user in users}
+            
+            # Get all current supervisor relationships (valid_to IS NULL)
+            supervisor_result = await self.session.execute(
+                select(UserSupervisor)
+                .filter(UserSupervisor.valid_to.is_(None))
+                .filter(UserSupervisor.user_id.in_([user.id for user in users]))
+                .filter(UserSupervisor.supervisor_id.in_([user.id for user in users]))
+            )
+            supervisor_relations = supervisor_result.scalars().all()
+            
+            # Build hierarchy relationships
+            for relation in supervisor_relations:
+                if relation.user_id in users_dict and relation.supervisor_id in users_dict:
+                    user = users_dict[relation.user_id]
+                    supervisor = users_dict[relation.supervisor_id]
+                    
+                    # Add supervisor to user
+                    if not hasattr(user, '_supervisor'):
+                        user._supervisor = supervisor
+                    
+                    # Add subordinate to supervisor
+                    if not hasattr(supervisor, '_subordinates'):
+                        supervisor._subordinates = []
+                    supervisor._subordinates.append(user)
+            
+            return list(users_dict.values())
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching active users with hierarchy: {e}")
+            raise
+
     async def search_users(
         self,
         search_term: str = "",

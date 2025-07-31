@@ -89,4 +89,12 @@ export const usersApi = {
     
     return httpClient.get<UserList>(endpoint);
   },
+
+  getUsersHierarchy: async (params?: PaginationParams): Promise<ApiResponse<UserList>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    return httpClient.get(`${API_ENDPOINTS.USERS.HIERARCHY}?${queryParams}`);
+  },
 };

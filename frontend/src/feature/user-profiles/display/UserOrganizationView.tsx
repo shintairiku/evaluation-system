@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
 import { useOrganizationFlow } from '../hooks/useOrganizationFlow';
-import { getUsersForOrganizationAction } from '@/api/server-actions/users';
+import { getUsersHierarchyAction } from '@/api/server-actions/users';
 import OrganizationNode from './components/OrganizationNode';
 import ReactFlow, { 
   Background, 
@@ -31,7 +31,7 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
   // Use useActionState for organization data fetching
   const [organizationState, organizationAction, isPendingAction] = useActionState(
     async (_prevState: unknown, _formData: FormData) => {
-      return await getUsersForOrganizationAction({ page: 1, limit: 50 });
+      return await getUsersHierarchyAction({ page: 1, limit: 50 });
     },
     null
   );
