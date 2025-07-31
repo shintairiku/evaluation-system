@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
 from ...database.session import get_db_session
 from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus, UserExistsResponse, ProfileOptionsResponse
@@ -72,19 +73,44 @@ async def get_users_for_organization(
         pagination = PaginationParams(page=page, limit=limit)
         service = UserService(session)
         
-        # Temporarily use the regular get_users method to test
-        result = await service.get_users(
-            current_user_context=context,
-            search_term="",
-            statuses=None,
-            department_ids=None,
-            stage_ids=None,
-            role_ids=None,
-            pagination=pagination
+        # Create a simple test response
+        from ...schemas.user import User, Department, Stage, Role
+        from ...schemas.common import PaginatedResponse
+        
+        # Create a simple test user
+        test_user = User(
+            id=UUID("00000000-0000-0000-0000-000000000001"),
+            clerk_user_id="test_user",
+            employee_code="TEST001",
+            name="Test User",
+            email="test@example.com",
+            status=UserStatus.ACTIVE,
+            job_title="Test Job",
+            department=Department(
+                id=UUID("00000000-0000-0000-0000-000000000002"),
+                name="Test Department",
+                description="Test Department Description"
+            ),
+            stage=Stage(
+                id=UUID("00000000-0000-0000-0000-000000000003"),
+                name="Test Stage",
+                description="Test Stage Description"
+            ),
+            roles=[],
+            created_at=datetime.now(),
+            updated_at=datetime.now()
         )
         
-        # For now, just return the regular result to test
-        return result
+        # Create a simple paginated response
+        test_result = PaginatedResponse(
+            items=[test_user],
+            total=1,
+            page=1,
+            limit=50,
+            pages=1
+        )
+        
+        return test_result
         
     except Exception as e:
         raise HTTPException(
