@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
 import { useOrganizationFlow } from '../hooks/useOrganizationFlow';
-import { getUsersHierarchyAction } from '@/api/server-actions/users';
+import { getUsersAction, getHierarchyDataAction } from '@/api/server-actions/users';
 import OrganizationNode from './components/OrganizationNode';
 import ReactFlow, { 
   Background, 
@@ -25,13 +25,23 @@ interface UserOrganizationViewProps {
 }
 
 export default function UserOrganizationView({ users }: UserOrganizationViewProps) {
+  console.log('🎯 UserOrganizationView - Props users:', users?.length || 0);
+  
   const { options, isLoading: isLoadingOptions, error: optionsError } = useProfileOptions();
   const [isPending, startTransition] = useTransition();
 
   // Use useActionState for organization data fetching
   const [organizationState, organizationAction, isPendingAction] = useActionState(
     async (_prevState: unknown, _formData: FormData) => {
-      return await getUsersHierarchyAction({ page: 1, limit: 50 });
+      return await getUsersAction({ page: 1, limit: 50 });
+    },
+    null
+  );
+
+  // Use useActionState for hierarchy data fetching
+  const [hierarchyState, hierarchyAction, isPendingHierarchy] = useActionState(
+    async (_prevState: unknown, _formData: FormData) => {
+      return await getHierarchyDataAction();
     },
     null
   );
@@ -46,15 +56,36 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
     }
   }, [organizationState, organizationAction, startTransition]);
 
+  // Fetch hierarchy data on component mount
+  useEffect(() => {
+    if (!hierarchyState) {
+      startTransition(() => {
+        const formData = new FormData();
+        hierarchyAction(formData);
+      });
+    }
+  }, [hierarchyState, hierarchyAction, startTransition]);
+
   // Use organization data if available, otherwise fall back to props
   const organizationUsers = organizationState?.success && organizationState.data 
     ? organizationState.data.items 
     : users;
 
+  // Use hierarchy data if available
+  const hierarchyData = hierarchyState?.success && hierarchyState.data 
+    ? hierarchyState.data.hierarchy 
+    : undefined;
+
+  console.log('🎯 UserOrganizationView - organizationUsers:', organizationUsers?.length || 0);
+  console.log('🎯 UserOrganizationView - hierarchyData:', hierarchyData);
+
   // Use React Flow hook for hierarchy management
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useOrganizationFlow({ 
-    users: organizationUsers 
+    users: organizationUsers,
+    hierarchyData: hierarchyData
   });
+
+  console.log('🎯 UserOrganizationView - ReactFlow nodes/edges:', { nodes: nodes.length, edges: edges.length });
 
   // Build hierarchy for empty state check
   const hierarchy = useMemo(() => {
@@ -67,7 +98,7 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
   }), []);
 
   // Loading state while profile options or organization data are being fetched
-  if (isLoadingOptions || isPending || isPendingAction) {
+  if (isLoadingOptions || isPending || isPendingAction || isPendingHierarchy) {
     return <OrganizationViewSkeleton />;
   }
 

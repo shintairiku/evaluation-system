@@ -171,7 +171,7 @@ async def get_users(
         )
 
 
-@router.get("/hierarchy", response_model=PaginatedResponse[UserDetailResponse])
+@router.get("/hierarchy", response_model=PaginatedResponse[User])
 async def get_users_hierarchy(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=100, description="Number of items per page"),
@@ -183,16 +183,27 @@ async def get_users_hierarchy(
     Uses data from users_supervisors table to build the organizational structure.
     """
     try:
-        # Get basic users first
+        # Temporarily return basic users without hierarchy to avoid validation issues
         pagination = PaginationParams(page=page, limit=limit)
         result = await user_service.get_users(current_user, pagination=pagination)
-        
-        # Get hierarchy data from users_supervisors table
-        from ..database.repositories.user_repo import UserRepository
+        return result
+    except Exception as e:
+        logger.error(f"Error in get_users_hierarchy: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/hierarchy-data", response_model=dict)
+async def get_hierarchy_data(
+    current_user: AuthContext = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Get hierarchy relationships from users_supervisors table.
+    Returns a simple mapping of user_id to supervisor_id.
+    """
+    try:
         from ..database.models.user import UserSupervisor
         from sqlalchemy import select
-        
-        user_repo = UserRepository(user_service.session)
         
         # Get all current supervisor relationships (valid_to IS NULL)
         supervisor_result = await user_service.session.execute(
@@ -201,88 +212,17 @@ async def get_users_hierarchy(
         )
         supervisor_relations = supervisor_result.scalars().all()
         
-        # Create a dictionary to map user_id to supervisor_id
-        user_supervisor_map = {}
-        supervisor_subordinates_map = {}
-        
+        # Create a simple mapping
+        hierarchy_data = {}
         for relation in supervisor_relations:
-            user_supervisor_map[relation.user_id] = relation.supervisor_id
-            
-            if relation.supervisor_id not in supervisor_subordinates_map:
-                supervisor_subordinates_map[relation.supervisor_id] = []
-            supervisor_subordinates_map[relation.supervisor_id].append(relation.user_id)
+            hierarchy_data[str(relation.user_id)] = str(relation.supervisor_id)
         
-        # Convert User to UserDetailResponse with hierarchy data
-        items = []
-        for user in result.items:
-            # Find supervisor
-            supervisor = None
-            if user.id in user_supervisor_map:
-                supervisor_id = user_supervisor_map[user.id]
-                supervisor_user = next((u for u in result.items if u.id == supervisor_id), None)
-                if supervisor_user:
-                    supervisor = User(
-                        id=supervisor_user.id,
-                        clerk_user_id=supervisor_user.clerk_user_id,
-                        employee_code=supervisor_user.employee_code,
-                        name=supervisor_user.name,
-                        email=supervisor_user.email,
-                        status=supervisor_user.status,
-                        job_title=supervisor_user.job_title,
-                        department=supervisor_user.department,
-                        stage=supervisor_user.stage,
-                        roles=supervisor_user.roles,
-                        created_at=supervisor_user.created_at,
-                        updated_at=supervisor_user.updated_at
-                    )
-            
-            # Find subordinates
-            subordinates = []
-            if user.id in supervisor_subordinates_map:
-                for subordinate_id in supervisor_subordinates_map[user.id]:
-                    subordinate_user = next((u for u in result.items if u.id == subordinate_id), None)
-                    if subordinate_user:
-                        subordinate = User(
-                            id=subordinate_user.id,
-                            clerk_user_id=subordinate_user.clerk_user_id,
-                            employee_code=subordinate_user.employee_code,
-                            name=subordinate_user.name,
-                            email=subordinate_user.email,
-                            status=subordinate_user.status,
-                            job_title=subordinate_user.job_title,
-                            department=subordinate_user.department,
-                            stage=subordinate_user.stage,
-                            roles=subordinate_user.roles,
-                            created_at=subordinate_user.created_at,
-                            updated_at=subordinate_user.updated_at
-                        )
-                        subordinates.append(subordinate)
-            
-            user_detail = UserDetailResponse(
-                id=user.id,
-                clerk_user_id=user.clerk_user_id,
-                employee_code=user.employee_code,
-                name=user.name,
-                email=user.email,
-                status=user.status,
-                job_title=user.job_title,
-                department=user.department,
-                stage=user.stage,
-                roles=user.roles,
-                supervisor=supervisor,
-                subordinates=subordinates
-            )
-            items.append(user_detail)
-        
-        return PaginatedResponse(
-            items=items,
-            total=result.total,
-            page=result.page,
-            limit=result.limit,
-            pages=result.pages
-        )
+        return {
+            "hierarchy": hierarchy_data,
+            "total_relations": len(supervisor_relations)
+        }
     except Exception as e:
-        logger.error(f"Error in get_users_hierarchy: {e}")
+        logger.error(f"Error in get_hierarchy_data: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

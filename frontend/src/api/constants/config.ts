@@ -62,6 +62,7 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/users/${id}`,
     ORGANIZATION: '/users/organization',
     HIERARCHY: '/users/hierarchy',
+    HIERARCHY_DATA: '/users/hierarchy-data',
   },
   DEPARTMENTS: {
     LIST: '/departments',

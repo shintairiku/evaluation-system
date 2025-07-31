@@ -7,6 +7,7 @@ import type { UserDetailResponse } from '@/api/types';
 
 interface UseOrganizationFlowProps {
   users: UserDetailResponse[];
+  hierarchyData?: Record<string, string>;
 }
 
 interface UseOrganizationFlowReturn {
@@ -17,20 +18,17 @@ interface UseOrganizationFlowReturn {
   onConnect: (params: any) => void;
 }
 
-export function useOrganizationFlow({ users }: UseOrganizationFlowProps): UseOrganizationFlowReturn {
+export function useOrganizationFlow({ users, hierarchyData }: UseOrganizationFlowProps): UseOrganizationFlowReturn {
   
   // Build hierarchy and create React Flow nodes/edges
   const { nodes, edges } = useMemo(() => {
+    console.log('🔍 useOrganizationFlow - Users received:', users?.length || 0);
+    console.log('🔍 useOrganizationFlow - Hierarchy data:', hierarchyData);
+    
     if (!users || users.length === 0) {
+      console.log('⚠️ No users provided to useOrganizationFlow');
       return { nodes: [], edges: [] };
     }
-
-    console.log('🔍 Debug - Users data:', users.map(u => ({
-      id: u.id,
-      name: u.name,
-      supervisor: u.supervisor ? { id: u.supervisor.id, name: u.supervisor.name } : null,
-      subordinates: u.subordinates ? u.subordinates.length : 0
-    })));
 
     const flowNodes: Node[] = [];
     const flowEdges: Edge[] = [];
@@ -46,28 +44,34 @@ export function useOrganizationFlow({ users }: UseOrganizationFlowProps): UseOrg
       });
     });
 
-    // Create edges from supervisor relationships
-    users.forEach(user => {
-      if (user.supervisor) {
-        console.log(`🔗 Creating edge: ${user.supervisor.name} -> ${user.name}`);
-        // Only create edge if supervisor is in the current user list
-        const supervisorInList = users.find(u => u.id === user.supervisor?.id);
-        if (supervisorInList) {
+    console.log(`📊 Created ${flowNodes.length} nodes`);
+
+    // Create edges from hierarchy data
+    if (hierarchyData) {
+      Object.entries(hierarchyData).forEach(([userId, supervisorId]) => {
+        console.log(`🔗 Creating edge from hierarchy data: ${supervisorId} -> ${userId}`);
+        
+        // Only create edge if both users are in the current user list
+        const supervisorInList = users.find(u => u.id === supervisorId);
+        const userInList = users.find(u => u.id === userId);
+        
+        if (supervisorInList && userInList) {
           flowEdges.push({
-            id: `${user.supervisor.id}-${user.id}`,
-            source: user.supervisor.id,
-            target: user.id,
+            id: `${supervisorId}-${userId}`,
+            source: supervisorId,
+            target: userId,
             type: 'smoothstep',
             animated: false,
             style: { stroke: '#64748b', strokeWidth: 2 },
           });
+          console.log(`✅ Edge created: ${supervisorInList.name} -> ${userInList.name}`);
         } else {
-          console.log(`⚠️ Supervisor ${user.supervisor.name} not found in current user list`);
+          console.log(`⚠️ Users not found in list: supervisor=${supervisorId}, user=${userId}`);
         }
-      } else {
-        console.log(`👤 User ${user.name} has no supervisor`);
-      }
-    });
+      });
+    } else {
+      console.log('⚠️ No hierarchy data provided');
+    }
 
     console.log(`📊 Created ${flowNodes.length} nodes and ${flowEdges.length} edges`);
 
@@ -104,8 +108,9 @@ export function useOrganizationFlow({ users }: UseOrganizationFlowProps): UseOrg
       };
     });
 
+    console.log('🎯 Final nodes and edges:', { nodes: flowNodes.length, edges: flowEdges.length });
     return { nodes: flowNodes, edges: flowEdges };
-  }, [users]);
+  }, [users, hierarchyData]);
 
   // Handle node changes (drag, etc.)
   const onNodesChange = useCallback((changes: any) => {

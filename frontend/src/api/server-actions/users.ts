@@ -395,3 +395,31 @@ export async function getUsersHierarchyAction(params?: PaginationParams): Promis
     };
   }
 }
+
+export async function getHierarchyDataAction(): Promise<{
+  success: boolean;
+  data?: { hierarchy: Record<string, string>; total_relations: number };
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.getHierarchyData();
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to fetch hierarchy data',
+      };
+    }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Error fetching hierarchy data:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching hierarchy data',
+    };
+  }
+}

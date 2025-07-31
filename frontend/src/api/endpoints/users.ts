@@ -97,4 +97,8 @@ export const usersApi = {
     
     return httpClient.get(`${API_ENDPOINTS.USERS.HIERARCHY}?${queryParams}`);
   },
+
+  getHierarchyData: async (): Promise<ApiResponse<{ hierarchy: Record<string, string>; total_relations: number }>> => {
+    return httpClient.get(API_ENDPOINTS.USERS.HIERARCHY_DATA);
+  },
 };
