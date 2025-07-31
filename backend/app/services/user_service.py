@@ -859,14 +859,15 @@ class UserService:
         supervisor = None
         if supervisor_models:
             supervisor_model = supervisor_models[0]  # Take first supervisor if multiple
-            supervisor = await self._enrich_user_data(supervisor_model)
+            supervisor_detail = await self._enrich_detailed_user_data(supervisor_model)
+            supervisor = supervisor_detail
 
         # Get subordinates relationship
         subordinate_models = await self.user_repo.get_subordinates(user.id)
         subordinates = []
         for subordinate_model in subordinate_models:
-            subordinate = await self._enrich_user_data(subordinate_model)
-            subordinates.append(subordinate)
+            subordinate_detail = await self._enrich_detailed_user_data(subordinate_model)
+            subordinates.append(subordinate_detail)
 
         # Create detailed response with supervisor/subordinates
         user_detail_data = base_user.model_dump()

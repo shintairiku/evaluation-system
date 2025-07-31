@@ -203,8 +203,8 @@ class UserDetailResponse(BaseModel):
     department: Optional[Department] = None
     stage: Optional[Stage] = None
     roles: List[Role] = []
-    supervisor: Optional["User"] = None
-    subordinates: Optional[List["User"]] = None
+    supervisor: Optional["UserDetailResponse"] = None
+    subordinates: Optional[List["UserDetailResponse"]] = None
 
     model_config = ConfigDict(from_attributes=True)
 
