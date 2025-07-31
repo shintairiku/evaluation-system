@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useTransition } from 'react';
+import { useMemo, useTransition, useEffect } from 'react';
 import { useActionState } from 'react';
 import type { UserDetailResponse } from '@/api/types';
 import { AlertCircle, Users } from 'lucide-react';
@@ -37,7 +37,7 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
   );
 
   // Fetch organization data on component mount
-  useMemo(() => {
+  useEffect(() => {
     if (!organizationState) {
       startTransition(() => {
         const formData = new FormData();
