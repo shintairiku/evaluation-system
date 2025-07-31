@@ -74,7 +74,8 @@ async def get_users_for_organization(
         service = UserService(session)
         
         # Create a simple test response
-        from ...schemas.user import User, Department, Stage, Role
+        from ...schemas.user import User, Department, Role
+        from ...schemas.stage_competency import Stage
         from ...schemas.common import PaginatedResponse
         
         # Create a simple test user
@@ -86,6 +87,10 @@ async def get_users_for_organization(
             email="test@example.com",
             status=UserStatus.ACTIVE,
             job_title="Test Job",
+            department_id=UUID("00000000-0000-0000-0000-000000000002"),
+            stage_id=UUID("00000000-0000-0000-0000-000000000003"),
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
             department=Department(
                 id=UUID("00000000-0000-0000-0000-000000000002"),
                 name="Test Department",
@@ -96,9 +101,7 @@ async def get_users_for_organization(
                 name="Test Stage",
                 description="Test Stage Description"
             ),
-            roles=[],
-            created_at=datetime.now(),
-            updated_at=datetime.now()
+            roles=[]
         )
         
         # Create a simple paginated response

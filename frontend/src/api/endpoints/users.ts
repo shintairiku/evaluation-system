@@ -82,9 +82,10 @@ export const usersApi = {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     
+    // Use the regular users endpoint for now
     const endpoint = queryParams.toString() 
-      ? `${API_ENDPOINTS.USERS.ORGANIZATION}?${queryParams.toString()}`
-      : API_ENDPOINTS.USERS.ORGANIZATION;
+      ? `${API_ENDPOINTS.USERS.LIST}?${queryParams.toString()}`
+      : API_ENDPOINTS.USERS.LIST;
     
     return httpClient.get<UserList>(endpoint);
   },
