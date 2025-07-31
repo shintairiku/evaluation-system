@@ -177,20 +177,6 @@ class UserService:
                     Permission.USER_READ_SELF
                 ])
             
-            # Generate cache key for organization view
-            cache_key_params = {
-                "user_ids": sorted([str(u) for u in user_ids_to_filter]) if user_ids_to_filter else None,
-                "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None,
-                "requesting_user_roles": sorted(current_user_context.role_names),
-                "view_type": "organization"
-            }
-            cache_key = self._generate_cache_key("get_users_for_organization", cache_key_params)
-            
-            # Check cache
-            cached_result = user_search_cache.get(cache_key)
-            if cached_result:
-                return PaginatedResponse.model_validate_json(cached_result)
-            
             # Get all users (no filters for organization view to show complete hierarchy)
             users = await self.user_repo.search_users(
                 search_term="",
@@ -214,8 +200,13 @@ class UserService:
             # Enrich users with detailed data including hierarchy
             enriched_users = []
             for user_model in users:
-                enriched_user = await self._enrich_detailed_user_data(user_model)
-                enriched_users.append(enriched_user)
+                try:
+                    enriched_user = await self._enrich_detailed_user_data(user_model)
+                    enriched_users.append(enriched_user)
+                except Exception as enrich_error:
+                    logger.error(f"Error enriching user {user_model.id}: {enrich_error}")
+                    # Skip this user and continue with others
+                    continue
             
             # Create paginated response
             total_pages = (total_count + pagination.limit - 1) // pagination.limit if pagination else 1
@@ -227,9 +218,6 @@ class UserService:
                 limit=pagination.limit if pagination else len(enriched_users),
                 pages=total_pages
             )
-            
-            # Cache the result
-            user_search_cache[cache_key] = result.model_dump_json()
             
             return result
             
