@@ -587,40 +587,45 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
               <span>• 承認待ち: {users.filter(u => u.status === 'pending_approval').length}人</span>
             </div>
           </div>
-          <div className="flex flex-col gap-4">
-            {/* Control buttons */}
-            <div className="flex gap-2">
-              <Button
-                onClick={handleUndo}
-                disabled={changeHistory.length === 0 || isUpdating}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Undo2 className="w-4 h-4" />
-                元に戻す ({changeHistory.length})
-              </Button>
-              {isUpdating && (
-                <div className="flex items-center gap-2 text-sm text-blue-600">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  更新中...
-                </div>
-              )}
-            </div>
-            <div className="text-right text-sm text-gray-600 space-y-1">
-              <p className="font-medium">操作方法:</p>
-              <p>🔍 ズーム: マウスホイール</p>
-              <p>🖱️ 移動: ドラッグ</p>
-              <p>👆 階層変更: ユーザーをドラッグして上司の下にドロップ</p>
-              <p>🎯 ドロップゾーン: 上司の上または下の近くにドロップ</p>
-              <p>📱 リセット: ダブルクリック</p>
-            </div>
+          <div className="text-right text-sm text-gray-600 space-y-1">
+            <p className="font-medium">操作方法:</p>
+            <p>🔍 ズーム: マウスホイール</p>
+            <p>🖱️ 移動: ドラッグ</p>
+            <p>👆 階層変更: ユーザーをドラッグして上司の下にドロップ</p>
+            <p>🎯 ドロップゾーン: 上司の上または下の近くにドロップ</p>
+            <p>📱 リセット: ダブルクリック</p>
           </div>
         </div>
       </div>
       
       {/* React Flow Container */}
       <div className="w-full h-[900px] sm:h-[700px] md:h-[800px] lg:h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg relative">
+        {/* Undo Button - appears in top-left when there are changes */}
+        {changeHistory.length > 0 && (
+          <div className="absolute top-4 left-4 z-50">
+            <Button
+              onClick={handleUndo}
+              disabled={isUpdating}
+              variant="secondary"
+              size="sm"
+              className="flex items-center gap-2 bg-white/90 backdrop-blur-sm shadow-lg border border-gray-200 hover:bg-white/95 transition-all duration-200"
+            >
+              <Undo2 className="w-4 h-4" />
+              元に戻す ({changeHistory.length})
+            </Button>
+          </div>
+        )}
+        
+        {/* Loading indicator - appears in top-right when updating */}
+        {isUpdating && (
+          <div className="absolute top-4 right-4 z-50">
+            <div className="flex items-center gap-2 text-sm text-blue-600 bg-white/90 backdrop-blur-sm shadow-lg border border-gray-200 rounded-md px-3 py-2">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              更新中...
+            </div>
+          </div>
+        )}
+        
         {/* Drop zone indicators - only show during drag */}
         {isDragging && (
           <style jsx>{`
