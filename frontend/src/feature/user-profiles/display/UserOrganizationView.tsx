@@ -694,12 +694,12 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           </div>
         )}
         
-        {/* Loading indicator - appears in top-right when updating */}
-        {isUpdating && (
+        {/* Loading indicator - appears in top-right when saving */}
+        {isSaving && (
           <div className="absolute top-4 right-4 z-50">
             <div className="flex items-center gap-2 text-sm text-blue-600 bg-white/90 backdrop-blur-sm shadow-lg border border-gray-200 rounded-md px-3 py-2">
               <RefreshCw className="w-4 h-4 animate-spin" />
-              更新中...
+              保存中...
             </div>
           </div>
         )}
