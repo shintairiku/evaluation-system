@@ -32,8 +32,8 @@ interface UserOrganizationViewProps {
 }
 
 // Custom node component for user cards
-const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailResponse }; selected?: boolean; dragging?: boolean }) => {
-  const { user } = data;
+const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailResponse; hasPendingChange?: boolean }; selected?: boolean; dragging?: boolean }) => {
+  const { user, hasPendingChange } = data;
   
   // Determine card styling based on user role, status, and drag state
   const getCardStyle = () => {
@@ -51,11 +51,13 @@ const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailRespon
       baseStyle = 'border-gray-200 bg-white';
     }
     
-    // Add drag feedback
+    // Add drag feedback and pending changes indicator
     if (dragging) {
       baseStyle += ' opacity-70 shadow-2xl scale-105 z-50';
     } else if (selected) {
       baseStyle += ' ring-2 ring-blue-400';
+    } else if (hasPendingChange) {
+      baseStyle += ' ring-2 ring-red-400 shadow-lg';
     }
     
     return baseStyle;
@@ -92,7 +94,12 @@ const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailRespon
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <CardTitle className="text-lg">{user.name}</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg">{user.name}</CardTitle>
+                {hasPendingChange && (
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="Mudança pendente" />
+                )}
+              </div>
               <CardDescription className="flex items-center gap-1 mt-1">
                 <User className="w-3 h-3" />
                 {user.employee_code}
@@ -217,17 +224,27 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     
     // Create nodes for all users (with pending changes applied)
     usersWithPendingChanges.forEach((user) => {
+      const hasPendingChange = pendingChanges.some(change => change.userId === user.id);
+      
       nodeMap.set(user.id, {
         id: user.id,
         type: 'userNode',
         position: { x: 0, y: 0 }, // Will be calculated by layout
-        data: { user },
+        data: { user, hasPendingChange },
       });
     });
     
     // Create edges for supervisor-subordinate relationships (with pending changes)
     usersWithPendingChanges.forEach((user) => {
       if (user.supervisor && user.supervisor.id && user.id) {
+        // Check if this user has pending changes
+        const hasPendingChange = pendingChanges.some(change => change.userId === user.id);
+        
+        // Use red color for users with pending changes, blue for normal
+        const edgeColor = hasPendingChange ? '#ef4444' : '#3b82f6'; // red-500 : blue-500
+        const edgeOpacity = hasPendingChange ? 0.9 : 0.8;
+        const strokeWidth = hasPendingChange ? 4 : 3;
+        
         edgeList.push({
           id: `${user.supervisor.id}-${user.id}`,
           source: user.supervisor.id,
@@ -236,16 +253,16 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           targetHandle: 'top',
           type: 'smoothstep',
           style: { 
-            stroke: '#3b82f6', 
-            strokeWidth: 3,
-            opacity: 0.8
+            stroke: edgeColor, 
+            strokeWidth: strokeWidth,
+            opacity: edgeOpacity
           },
-          animated: false,
+          animated: hasPendingChange, // Animate pending changes for extra visibility
           markerEnd: {
             type: MarkerType.Arrow,
             width: 20,
             height: 20,
-            color: '#3b82f6',
+            color: edgeColor,
           },
         });
       }
@@ -449,7 +466,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       : 'なし';
     
     toast.info("変更待機中", {
-      description: `${user.name}の上司を${supervisorName}に変更予定。「保存」をクリックして適用してください。`,
+      description: `${user.name}の上司を${supervisorName}に変更予定。赤い線で表示されます。「保存」をクリックして確定してください。`,
     });
   }, [users, pendingChanges, validateHierarchyChange]);
   
@@ -657,7 +674,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
             <p>🖱️ 移動: ドラッグ</p>
             <p>👆 階層変更: ユーザーをドラッグして上司の下にドロップ</p>
             <p>🎯 ドロップゾーン: 上司の上または下の近くにドロップ</p>
-            <p>📱 リセット: ダブルクリック</p>
+            <p>🔴 赤線: 保存待ちの変更 (アニメーション付き)</p>
+            <p>💾 保存: 左上の「保存」ボタンで確定</p>
           </div>
         </div>
       </div>
@@ -679,7 +697,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              保存 ({pendingChanges.length})
+              保存 ({pendingChanges.length}件)
             </Button>
             <Button
               onClick={handleUndo}
@@ -689,7 +707,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
               className="flex items-center gap-2 bg-white/90 backdrop-blur-sm shadow-lg border border-gray-200 hover:bg-white/95 transition-all duration-200"
             >
               <Undo2 className="w-4 h-4" />
-              元に戻す ({pendingChanges.length})
+              元に戻す ({pendingChanges.length}件)
             </Button>
           </div>
         )}
