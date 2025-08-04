@@ -207,3 +207,19 @@ export interface ProfileOptionsResponse {
   roles: Role[];
   users: UserProfileOption[];
 }
+
+// Role-based user selection types
+export type UserSelectionRole = 'employee' | 'parttime' | 'supervisor' | 'manager' | 'admin';
+
+export interface SupervisorSubordinateSelection {
+  supervisor_id?: UUID;      // Single select
+  subordinate_ids: UUID[];   // Multi select
+}
+
+export interface UserSelectionContext {
+  userRoles: Role[];
+  canSelectSubordinates: boolean;
+  canSelectSupervisor: boolean;
+  supervisorRoleIds: UUID[];    // Role IDs that can be supervisors
+  subordinateRoleIds: UUID[];   // Role IDs that can be subordinates
+}
