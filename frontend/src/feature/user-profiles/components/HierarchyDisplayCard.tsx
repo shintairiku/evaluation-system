@@ -75,9 +75,9 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
       <CardContent className="space-y-4">
         {/* Supervisor Section */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <div className="flex items-center gap-2">
             <Crown className="h-4 w-4" />
-            上司
+            <span>上司</span>
           </div>
           {user.supervisor ? (
             <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border">
@@ -111,9 +111,9 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
 
         {/* Current User Position */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <div className="flex items-center gap-2">
             <UserCheck className="h-4 w-4" />
-            現在のユーザー
+            <span>現在のユーザー</span>
           </div>
           <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border-2 border-green-200">
             <Avatar className="h-10 w-10">
@@ -140,9 +140,9 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
 
         {/* Subordinates Section */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <div className="flex items-center gap-2">
             <ChevronDown className="h-4 w-4" />
-            部下 ({user.subordinates?.length || 0}人)
+            <span>部下 ({user.subordinates?.length || 0}人)</span>
           </div>
           {user.subordinates && user.subordinates.length > 0 ? (
             <div className="space-y-2 max-h-32 overflow-y-auto">
@@ -179,9 +179,9 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
 
         {/* Summary Statistics */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <div className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            組織情報
+            <span>組織情報</span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-blue-50 rounded-lg text-center">
