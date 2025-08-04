@@ -32,7 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
-import { updateUserAction } from '@/api/server-actions/users';
+import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
 import HierarchyDisplayCard from '../components/HierarchyDisplayCard';
 
@@ -103,6 +103,10 @@ export default function UserEditViewModal({
   // Use cached profile options
   const { options, isLoading: isLoadingOptions, error: optionsError } = useProfileOptions();
 
+  // State for detailed user data with hierarchy
+  const [detailedUser, setDetailedUser] = useState<UserDetailResponse | null>(null);
+  const [isLoadingUserData, setIsLoadingUserData] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     employee_code: '',
@@ -112,6 +116,36 @@ export default function UserEditViewModal({
     stage_id: '',
     status: ''
   });
+
+  // Fetch detailed user data when modal opens
+  useEffect(() => {
+    const fetchDetailedUserData = async () => {
+      if (user && isOpen) {
+        setIsLoadingUserData(true);
+        try {
+          const result = await getUserByIdAction(user.id);
+          if (result.success && result.data) {
+            setDetailedUser(result.data);
+          } else {
+            console.error('Failed to load detailed user data:', result.error);
+            // Fallback to the basic user data
+            setDetailedUser(user);
+          }
+        } catch (error) {
+          console.error('Error loading detailed user data:', error);
+          // Fallback to the basic user data
+          setDetailedUser(user);
+        } finally {
+          setIsLoadingUserData(false);
+        }
+      } else if (!isOpen) {
+        // Reset when modal closes
+        setDetailedUser(null);
+      }
+    };
+
+    fetchDetailedUserData();
+  }, [user, isOpen]);
 
   // Initialize form data when user changes
   useEffect(() => {
@@ -359,8 +393,8 @@ export default function UserEditViewModal({
 
             {/* 階層関係カード */}
             <HierarchyDisplayCard 
-              user={user} 
-              isLoading={isLoadingOptions} 
+              user={detailedUser || user} 
+              isLoading={isLoadingOptions || isLoadingUserData} 
             />
           </div>
 

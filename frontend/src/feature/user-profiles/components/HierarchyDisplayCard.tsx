@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,6 +19,7 @@ interface HierarchyDisplayCardProps {
 }
 
 export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDisplayCardProps) {
+
   const getUserInitials = (name: string) => {
     return name.split(' ').map(part => part[0]).join('').toUpperCase();
   };
@@ -37,13 +37,6 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
     }
   };
 
-  // Get peers (colleagues at same level - subordinates of the same supervisor)
-  const peers = useMemo(() => {
-    // Since user.supervisor is of type User (not UserDetailResponse), it doesn't have subordinates
-    // For now, we'll return an empty array. In a real implementation, we'd need to fetch this data
-    // or ensure the supervisor data includes subordinates information
-    return [];
-  }, []);
 
   if (isLoading) {
     return (
