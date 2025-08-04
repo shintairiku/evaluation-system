@@ -5,6 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { 
   Users, 
   UserCheck, 
   Crown,
@@ -139,30 +145,44 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
             部下 ({user.subordinates?.length || 0}人)
           </Label>
           {user.subordinates && user.subordinates.length > 0 ? (
-            <div className="space-y-2 max-h-32 overflow-y-auto">
+            <div className="relative">
+              <div className={`grid gap-2 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 ${
+                user.subordinates.length >= 4 ? 'grid-cols-2' : 'grid-cols-1'
+              }`}>
               {user.subordinates.map((subordinate) => (
-                <div key={subordinate.id} className="flex items-center gap-3 p-2 bg-orange-50 rounded-lg border">
-                  <Avatar className="h-8 w-8">
+                <div key={subordinate.id} className="flex items-center gap-2 p-2 bg-orange-50 rounded-md border">
+                  <Avatar className="h-7 w-7 flex-shrink-0">
                     <AvatarFallback className="bg-orange-100 text-orange-700 text-xs">
                       {getUserInitials(subordinate.name)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-medium text-xs truncate">
                         {subordinate.name}
                       </span>
-                      <Badge variant="outline" className={`${getStatusColor(subordinate.status)} text-xs`}>
-                        {subordinate.status === 'active' ? 'アクティブ' : 
-                         subordinate.status === 'inactive' ? '非アクティブ' : '承認待ち'}
-                      </Badge>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className={`${getStatusColor(subordinate.status)} text-[10px] px-1 py-0 h-4 cursor-help`}>
+                              {subordinate.status === 'active' ? 'A' : 
+                               subordinate.status === 'inactive' ? 'I' : 'P'}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{subordinate.status === 'active' ? 'アクティブ' : 
+                               subordinate.status === 'inactive' ? '非アクティブ' : '承認待ち'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
-                    <div className="text-sm text-muted-foreground truncate">
+                    <div className="text-[10px] text-muted-foreground truncate">
                       {subordinate.employee_code} • {subordinate.job_title || '役職未設定'}
                     </div>
                   </div>
                 </div>
               ))}
+              </div>
             </div>
           ) : (
             <div className="p-3 text-center text-sm text-muted-foreground bg-gray-50 rounded-lg border-2 border-dashed">
