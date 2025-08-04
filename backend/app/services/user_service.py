@@ -244,6 +244,9 @@ class UserService:
                     valid_to=None
                 )
                 self.session.add(relationship)
+                
+                # Auto-promote supervisor to SUPERVISOR role if needed
+                await self.promote_user_role_if_needed(user_data.supervisor_id, is_supervisor=True)
             
             # Add subordinate relationships if provided
             if user_data.subordinate_ids:
@@ -256,6 +259,9 @@ class UserService:
                         valid_to=None
                     )
                     self.session.add(relationship)
+                
+                # Auto-promote user to SUPERVISOR role if they have subordinates
+                await self.promote_user_role_if_needed(user_id, is_supervisor=True)
             
             # Commit the transaction (Service controls the Unit of Work)
             await self.session.commit()
@@ -366,6 +372,9 @@ class UserService:
                         valid_to=None
                     )
                     self.session.add(relationship)
+                    
+                    # Auto-promote supervisor to SUPERVISOR role if needed
+                    await self.promote_user_role_if_needed(user_data.supervisor_id, is_supervisor=True)
             
             # Update subordinate relationships if provided
             if user_data.subordinate_ids is not None:
@@ -386,6 +395,9 @@ class UserService:
                             valid_to=None
                         )
                         self.session.add(relationship)
+                    
+                    # Auto-promote user to SUPERVISOR role if they have subordinates
+                    await self.promote_user_role_if_needed(user_id, is_supervisor=True)
             
             # Commit the transaction
             await self.session.commit()
