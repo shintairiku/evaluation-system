@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState, useEffect } from 'react';
-// @ts-ignore
 import ReactFlow, {
   Node,
   Edge,
@@ -11,18 +10,20 @@ import ReactFlow, {
   useEdgesState,
   addEdge,
   Connection,
-  EdgeTypes,
   NodeTypes,
   Handle,
   Position,
+  NodeDragHandler,
+  MarkerType,
 } from 'reactflow';
-// @ts-ignore
 import 'reactflow/dist/style.css';
 import type { UserDetailResponse } from '@/api/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Building2, Users, User, Mail } from 'lucide-react';
+import { Building2, Users, User, Mail, RefreshCw, Undo2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { updateUserSupervisorAction } from '@/api/server-actions/users';
 
 
 interface UserOrganizationViewProps {
@@ -31,24 +32,33 @@ interface UserOrganizationViewProps {
 }
 
 // Custom node component for user cards
-const UserNode = ({ data }: { data: any }) => {
+const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailResponse }; selected?: boolean; dragging?: boolean }) => {
   const { user } = data;
   
-  // Determine card styling based on user role and status
+  // Determine card styling based on user role, status, and drag state
   const getCardStyle = () => {
+    let baseStyle = '';
+    
     if (user.status === 'pending_approval') {
-      return 'border-orange-300 bg-orange-50/50';
+      baseStyle = 'border-orange-300 bg-orange-50/50';
+    } else if (user.roles?.some((role: any) => role.name.toLowerCase().includes('admin'))) {
+      baseStyle = 'border-blue-400 bg-blue-50/50';
+    } else if (user.roles?.some((role: any) => role.name.toLowerCase().includes('manager'))) {
+      baseStyle = 'border-green-400 bg-green-50/50';
+    } else if (user.roles?.some((role: any) => role.name.toLowerCase().includes('supervisor'))) {
+      baseStyle = 'border-purple-400 bg-purple-50/50';
+    } else {
+      baseStyle = 'border-gray-200 bg-white';
     }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('admin'))) {
-      return 'border-blue-400 bg-blue-50/50';
+    
+    // Add drag feedback
+    if (dragging) {
+      baseStyle += ' opacity-70 shadow-2xl scale-105 z-50';
+    } else if (selected) {
+      baseStyle += ' ring-2 ring-blue-400';
     }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('manager'))) {
-      return 'border-green-400 bg-green-50/50';
-    }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('supervisor'))) {
-      return 'border-purple-400 bg-purple-50/50';
-    }
-    return 'border-gray-200 bg-white';
+    
+    return baseStyle;
   };
 
   const getStatusBadge = (status: string) => {
@@ -78,7 +88,7 @@ const UserNode = ({ data }: { data: any }) => {
           borderRadius: '50%'
         }}
       />
-      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-md transition-shadow ${getCardStyle()}`}>
+      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${getCardStyle()}`}>
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -168,7 +178,21 @@ const nodeTypes: NodeTypes = {
   userNode: UserNode,
 };
 
+// Change history interface
+interface HierarchyChange {
+  userId: string;
+  oldSupervisorId: string | null;
+  newSupervisorId: string | null;
+  timestamp: number;
+}
+
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
+  // State for drag-and-drop functionality
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [changeHistory, setChangeHistory] = useState<HierarchyChange[]>([]);
+  const [layoutKey, setLayoutKey] = useState(0); // Force layout recalculation
+  
   // Build hierarchy from users data
   const { nodes, edges } = useMemo(() => {
     const nodeMap = new Map<string, Node>();
@@ -201,7 +225,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           },
           animated: false,
           markerEnd: {
-            type: 'arrowclosed',
+            type: MarkerType.Arrow,
             width: 20,
             height: 20,
             color: '#3b82f6',
@@ -243,7 +267,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       
       // Parent node - layout subordinates first
       let totalWidth = 0;
-      let childrenCenters: number[] = [];
+      const childrenCenters: number[] = [];
       
       subordinates.forEach((subordinate) => {
         const result = layoutNodes(subordinate, level + 1, xOffset + totalWidth);
@@ -327,15 +351,175 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
   const [edgesState, setEdges, onEdgesChange] = useEdgesState(edges);
   
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds: any) => addEdge(params, eds)),
+    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   );
   
-  // Update nodes and edges when users change
-  useMemo(() => {
+  // Validation functions
+  const validateHierarchyChange = useCallback((userId: string, newSupervisorId: string | null): string | null => {
+    // Cannot be supervisor of self
+    if (userId === newSupervisorId) {
+      return "ユーザーは自分自身の上司になることはできません";
+    }
+    
+    // Check for circular hierarchy (would create infinite loop)
+    if (newSupervisorId) {
+      const wouldCreateCircle = (checkUserId: string, targetSupervisorId: string): boolean => {
+        const user = users.find(u => u.id === checkUserId);
+        if (!user?.supervisor?.id) return false;
+        if (user.supervisor.id === targetSupervisorId) return true;
+        return wouldCreateCircle(user.supervisor.id, targetSupervisorId);
+      };
+      
+      if (wouldCreateCircle(newSupervisorId, userId)) {
+        return "この変更は循環参照を作成するため許可されません";
+      }
+    }
+    
+    return null;
+  }, [users]);
+  
+  // Handle supervisor change
+  const handleSupervisorChange = useCallback(async (userId: string, newSupervisorId: string | null) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    
+    const oldSupervisorId = user.supervisor?.id || null;
+    
+    // Skip if no change
+    if (oldSupervisorId === newSupervisorId) return;
+    
+    // Validate the change
+    const validationError = validateHierarchyChange(userId, newSupervisorId);
+    if (validationError) {
+      toast.error("階層変更エラー", {
+        description: validationError,
+      });
+      return;
+    }
+    
+    setIsUpdating(true);
+    
+    try {
+      const result = await updateUserSupervisorAction(userId, newSupervisorId);
+      
+      if (result.success && result.data) {
+        // Add to change history
+        const change: HierarchyChange = {
+          userId,
+          oldSupervisorId,
+          newSupervisorId,
+          timestamp: Date.now(),
+        };
+        setChangeHistory(prev => [...prev, change]);
+        
+        // Update the user data and trigger re-render
+        if (onUserUpdate) {
+          onUserUpdate(result.data);
+        }
+        
+        // Force recalculation of layout
+        setLayoutKey(prev => prev + 1);
+        
+        toast.success("階層更新完了", {
+          description: `${user.name}の上司が正常に更新されました`,
+        });
+      } else {
+        throw new Error(result.error || "更新に失敗しました");
+      }
+    } catch (error) {
+      console.error('Error updating supervisor:', error);
+      toast.error("更新エラー", {
+        description: "上司の更新中にエラーが発生しました",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [users, validateHierarchyChange, onUserUpdate]);
+  
+  // Handle undo last change
+  const handleUndo = useCallback(async () => {
+    if (changeHistory.length === 0) return;
+    
+    const lastChange = changeHistory[changeHistory.length - 1];
+    setIsUpdating(true);
+    
+    try {
+      const result = await updateUserSupervisorAction(lastChange.userId, lastChange.oldSupervisorId);
+      
+      if (result.success && result.data) {
+        // Remove from history
+        setChangeHistory(prev => prev.slice(0, -1));
+        
+        // Update the user data
+        if (onUserUpdate) {
+          onUserUpdate(result.data);
+        }
+        
+        // Force recalculation of layout
+        setLayoutKey(prev => prev + 1);
+        
+        toast.success("変更を元に戻しました", {
+          description: "最後の階層変更が取り消されました",
+        });
+      } else {
+        throw new Error(result.error || "元に戻す操作に失敗しました");
+      }
+    } catch (error) {
+      console.error('Error undoing change:', error);
+      toast.error("元に戻すエラー", {
+        description: "変更を元に戻す際にエラーが発生しました",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [changeHistory, onUserUpdate]);
+  
+  // Handle node drag start
+  const onNodeDragStart: NodeDragHandler = useCallback((_event, _node) => {
+    setIsDragging(true);
+  }, []);
+  
+  // Handle node drag stop
+  const onNodeDragStop: NodeDragHandler = useCallback(async (event, node) => {
+    setIsDragging(false);
+    
+    if (isUpdating) return;
+    
+    // Get all nodes under the drop point
+    const elementsBelow = document.elementsFromPoint(event.clientX, event.clientY);
+    
+    // Look for React Flow nodes specifically
+    const droppedOnElement = elementsBelow.find(el => {
+      // Check for React Flow node attributes
+      const nodeId = el.getAttribute('data-id');
+      const isReactFlowNode = el.classList.contains('react-flow__node') || 
+                              el.closest('.react-flow__node');
+      
+      return nodeId && nodeId !== node.id && isReactFlowNode;
+    });
+    
+    if (droppedOnElement) {
+      const droppedOnNodeId = droppedOnElement.getAttribute('data-id') || 
+                             droppedOnElement.closest('.react-flow__node')?.getAttribute('data-id');
+      
+      if (droppedOnNodeId && droppedOnNodeId !== node.id) {
+        await handleSupervisorChange(node.id, droppedOnNodeId);
+        return; // Don't reset position if we're processing a change
+      }
+    }
+    
+    // If not dropped on another node, reset to original position
+    // by regenerating the entire layout
     setNodes(nodes);
     setEdges(edges);
-  }, [nodes, edges, setNodes, setEdges]);
+  }, [isUpdating, handleSupervisorChange, nodes, edges, setNodes, setEdges]);
+  
+  // Update nodes and edges when users change or layout is forced
+  useEffect(() => {
+    setNodes(nodes);
+    setEdges(edges);
+  }, [nodes, edges, setNodes, setEdges, layoutKey]);
   
   if (users.length === 0) {
     return (
@@ -367,11 +551,33 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
               <span>• 承認待ち: {users.filter(u => u.status === 'pending_approval').length}人</span>
             </div>
           </div>
-          <div className="text-right text-sm text-gray-600 space-y-1">
-            <p className="font-medium">操作方法:</p>
-            <p>🔍 ズーム: マウスホイール</p>
-            <p>🖱️ 移動: ドラッグ</p>
-            <p>📱 リセット: ダブルクリック</p>
+          <div className="flex flex-col gap-4">
+            {/* Control buttons */}
+            <div className="flex gap-2">
+              <Button
+                onClick={handleUndo}
+                disabled={changeHistory.length === 0 || isUpdating}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Undo2 className="w-4 h-4" />
+                元に戻す ({changeHistory.length})
+              </Button>
+              {isUpdating && (
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  更新中...
+                </div>
+              )}
+            </div>
+            <div className="text-right text-sm text-gray-600 space-y-1">
+              <p className="font-medium">操作方法:</p>
+              <p>🔍 ズーム: マウスホイール</p>
+              <p>🖱️ 移動: ドラッグ</p>
+              <p>👆 階層変更: ユーザーをドラッグして他のユーザーにドロップ</p>
+              <p>📱 リセット: ダブルクリック</p>
+            </div>
           </div>
         </div>
       </div>
@@ -384,6 +590,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ 
@@ -396,10 +604,10 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           maxZoom={1.5}
           defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
+          nodesDraggable={true}
           nodesConnectable={false}
           elementsSelectable={true}
-          panOnDrag={true}
+          panOnDrag={!isDragging}
           zoomOnScroll={true}
           zoomOnPinch={true}
           zoomOnDoubleClick={true}

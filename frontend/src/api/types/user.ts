@@ -137,7 +137,7 @@ export interface UserUpdate {
   stage_id?: UUID;
   role_ids?: UUID[];
   supervisor_id?: UUID;
-  subordinate_ids: UUID[];
+  subordinate_ids?: UUID[];
   status?: UserStatus;
 }
 
