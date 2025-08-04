@@ -1,6 +1,6 @@
 'use server';
 
-import { usersApi } from '../endpoints/users';
+import { usersApi, type GetUsersParams } from '../endpoints/users';
 import type { 
   UserList, 
   UserDetailResponse, 
@@ -9,8 +9,10 @@ import type {
   PaginationParams,
   UUID,
   UserExistsResponse,
-  ProfileOptionsResponse
+  ProfileOptionsResponse,
+  UserProfileOption
 } from '../types';
+import { UserStatus } from '../types';
 
 // Search parameters interface for server-side search
 export interface SearchUsersParams extends PaginationParams {
@@ -22,10 +24,10 @@ export interface SearchUsersParams extends PaginationParams {
 }
 
 /**
- * Server action to get all users with pagination
+ * Server action to get all users with extended filtering and pagination
  * This function runs on the server side for SSR
  */
-export async function getUsersAction(params?: PaginationParams): Promise<{
+export async function getUsersAction(params?: GetUsersParams): Promise<{
   success: boolean;
   data?: UserList;
   error?: string;
@@ -49,6 +51,67 @@ export async function getUsersAction(params?: PaginationParams): Promise<{
     return {
       success: false,
       error: 'An unexpected error occurred while fetching users',
+    };
+  }
+}
+
+/**
+ * Server action to get users for selection dropdowns
+ * Optimized for role-based user selection with filtering and exclusion
+ */
+export async function getUsersForSelectionAction(params?: {
+  roleIds?: UUID[];
+  excludeUserId?: UUID;
+  search?: string;
+  statuses?: UserStatus[];
+}): Promise<{
+  success: boolean;
+  data?: UserProfileOption[];
+  error?: string;
+}> {
+  try {
+    // Set default parameters for selection use case
+    const selectionParams: GetUsersParams = {
+      role_ids: params?.roleIds,
+      search: params?.search,
+      statuses: params?.statuses || [UserStatus.ACTIVE], // Default to active users only
+      page: 1,
+      limit: 100, // Get more users for selection
+    };
+
+    const response = await usersApi.getUsers(selectionParams);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to fetch users for selection',
+      };
+    }
+
+    // Convert UserDetailResponse to UserProfileOption and exclude specified user
+    let users = response.data.items.map((user): UserProfileOption => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      employee_code: user.employee_code,
+      job_title: user.job_title,
+      roles: user.roles,
+    }));
+
+    // Filter out excluded user if specified
+    if (params?.excludeUserId) {
+      users = users.filter(user => user.id !== params.excludeUserId);
+    }
+    
+    return {
+      success: true,
+      data: users,
+    };
+  } catch (error) {
+    console.error('Get users for selection action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching users for selection',
     };
   }
 }
