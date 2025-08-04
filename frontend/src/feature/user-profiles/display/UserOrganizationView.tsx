@@ -41,11 +41,11 @@ const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailRespon
     
     if (user.status === 'pending_approval') {
       baseStyle = 'border-orange-300 bg-orange-50/50';
-    } else if (user.roles?.some((role: any) => role.name.toLowerCase().includes('admin'))) {
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
       baseStyle = 'border-blue-400 bg-blue-50/50';
-    } else if (user.roles?.some((role: any) => role.name.toLowerCase().includes('manager'))) {
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('manager'))) {
       baseStyle = 'border-green-400 bg-green-50/50';
-    } else if (user.roles?.some((role: any) => role.name.toLowerCase().includes('supervisor'))) {
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('supervisor'))) {
       baseStyle = 'border-purple-400 bg-purple-50/50';
     } else {
       baseStyle = 'border-gray-200 bg-white';
@@ -145,7 +145,7 @@ const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailRespon
             <div className="text-xs font-medium text-muted-foreground">ロール</div>
             <div className="flex flex-wrap gap-1">
               {user.roles && user.roles.length > 0 ? (
-                user.roles.map((role: any) => (
+                user.roles.map((role) => (
                   <Badge key={role.id} variant="outline" className="text-xs">
                     {role.name}
                   </Badge>
@@ -178,14 +178,6 @@ const nodeTypes: NodeTypes = {
   userNode: UserNode,
 };
 
-// Change history interface
-interface HierarchyChange {
-  userId: string;
-  oldSupervisorId: string | null;
-  newSupervisorId: string | null;
-  timestamp: number;
-}
-
 // Pending change interface for local state
 interface PendingChange {
   userId: string;
@@ -197,9 +189,7 @@ interface PendingChange {
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
   // State for drag-and-drop functionality
   const [isDragging, setIsDragging] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [changeHistory, setChangeHistory] = useState<HierarchyChange[]>([]);
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const [layoutKey, setLayoutKey] = useState(0); // Force layout recalculation
   
@@ -261,8 +251,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       }
     });
     
-    // Auto-layout: Find root nodes (users without supervisors)
-    const rootUsers = users.filter(user => !user.supervisor);
+    // Auto-layout: Find root nodes (users without supervisors) - use modified users with pending changes
+    const rootUsers = usersWithPendingChanges.filter(user => !user.supervisor);
     const visited = new Set<string>();
     
     const layoutNodes = (user: UserDetailResponse, level: number, xOffset: number): { width: number, center: number } => {
@@ -274,8 +264,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       const node = nodeMap.get(user.id);
       if (!node) return { width: 0, center: 0 };
       
-      // Get subordinates that exist in the filtered users
-      const subordinates = users.filter(u => u.supervisor?.id === user.id && nodeMap.has(u.id));
+      // Get subordinates that exist in the filtered users - use modified users with pending changes
+      const subordinates = usersWithPendingChanges.filter(u => u.supervisor?.id === user.id && nodeMap.has(u.id));
       
       // Improved spacing and layout for better visualization
       const nodeWidth = 288; // w-72 = 288px (sm:w-64 = 256px on mobile)
@@ -483,7 +473,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     if (pendingChanges.length === 0) return;
     
     setIsSaving(true);
-    const successfulChanges: HierarchyChange[] = [];
+    const successfulChanges: PendingChange[] = [];
     let hasErrors = false;
     
     try {
@@ -496,14 +486,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           );
           
           if (result.success && result.data) {
-            // Add to successful changes for history
-            const historyChange: HierarchyChange = {
-              userId: pendingChange.userId,
-              oldSupervisorId: pendingChange.originalSupervisorId,
-              newSupervisorId: pendingChange.newSupervisorId,
-              timestamp: Date.now(),
-            };
-            successfulChanges.push(historyChange);
+            // Add to successful changes
+            successfulChanges.push(pendingChange);
             
             // Update the user data
             if (onUserUpdate) {
@@ -526,10 +510,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
         }
       }
       
-      // Update history and clear pending changes for successful ones
+      // Clear pending changes for successful ones
       if (successfulChanges.length > 0) {
-        setChangeHistory(prev => [...prev, ...successfulChanges]);
-        
         // Remove successful changes from pending
         const successfulUserIds = successfulChanges.map(change => change.userId);
         setPendingChanges(prev => 
@@ -560,15 +542,13 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
   }, [pendingChanges, users, onUserUpdate]);
   
   // Handle node drag start
-  const onNodeDragStart: NodeDragHandler = useCallback((_event, _node) => {
+  const onNodeDragStart: NodeDragHandler = useCallback(() => {
     setIsDragging(true);
   }, []);
   
   // Handle node drag stop
   const onNodeDragStop: NodeDragHandler = useCallback(async (event, node) => {
     setIsDragging(false);
-    
-    if (isUpdating) return;
     
     // Get drop coordinates
     const dropX = event.clientX;
@@ -633,7 +613,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     // If not dropped near any node, reset to original position
     setNodes(nodes);
     setEdges(edges);
-  }, [isUpdating, handleSupervisorChange, nodes, edges, setNodes, setEdges]);
+  }, [handleSupervisorChange, nodes, edges, setNodes, setEdges]);
   
   // Update nodes and edges when users change or layout is forced
   useEffect(() => {
