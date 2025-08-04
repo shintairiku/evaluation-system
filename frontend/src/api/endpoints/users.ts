@@ -10,18 +10,49 @@ import type {
   UUID,
   UserExistsResponse,
   ProfileOptionsResponse,
+  UserStatus,
 } from '../types';
 
 const httpClient = getHttpClient();
 
+// Extended parameters interface for user filtering
+export interface GetUsersParams extends PaginationParams {
+  search?: string;
+  department_ids?: UUID[];
+  stage_ids?: UUID[];
+  role_ids?: UUID[];
+  statuses?: UserStatus[];
+  exclude_user_id?: UUID;  // For edit modal to exclude current user
+}
+
 export const usersApi = {
   /**
-   * Get all users with optional pagination
+   * Get all users with optional pagination and filtering
+   * Supports all backend filtering parameters
    */
-  getUsers: async (params?: PaginationParams): Promise<ApiResponse<UserList>> => {
+  getUsers: async (params?: GetUsersParams): Promise<ApiResponse<UserList>> => {
     const queryParams = new URLSearchParams();
+    
+    // Add pagination parameters
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    // Add search parameter
+    if (params?.search?.trim()) queryParams.append('search', params.search.trim());
+    
+    // Add multi-select filter parameters
+    if (params?.department_ids?.length) {
+      params.department_ids.forEach(id => queryParams.append('department_ids', id));
+    }
+    if (params?.stage_ids?.length) {
+      params.stage_ids.forEach(id => queryParams.append('stage_ids', id));
+    }
+    if (params?.role_ids?.length) {
+      params.role_ids.forEach(id => queryParams.append('role_ids', id));
+    }
+    if (params?.statuses?.length) {
+      params.statuses.forEach(status => queryParams.append('statuses', status));
+    }
     
     const endpoint = queryParams.toString() 
       ? `${API_ENDPOINTS.USERS.LIST}?${queryParams.toString()}`
