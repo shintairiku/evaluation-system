@@ -34,6 +34,7 @@ import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
 import { updateUserAction } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
+import HierarchyDisplayCard from '../components/HierarchyDisplayCard';
 
 interface UserEditViewModalProps {
   user: UserDetailResponse | null;
@@ -164,7 +165,7 @@ export default function UserEditViewModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl w-full">
+      <DialogContent className="sm:max-w-6xl w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <User className="h-5 w-5" />
@@ -176,7 +177,7 @@ export default function UserEditViewModal({
         </DialogHeader>
 
         <form action={formAction} className="space-y-4">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {/* ユーザー基本情報カード */}
             <Card>
               <CardHeader>
@@ -355,6 +356,12 @@ export default function UserEditViewModal({
                 </div>
               </CardContent>
             </Card>
+
+            {/* 階層関係カード */}
+            <HierarchyDisplayCard 
+              user={user} 
+              isLoading={isLoadingOptions} 
+            />
           </div>
 
           <DialogFooter className="gap-4">
