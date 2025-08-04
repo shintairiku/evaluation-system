@@ -20,7 +20,7 @@ import 'reactflow/dist/style.css';
 import type { UserDetailResponse } from '@/api/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, User, Mail, RefreshCw, Undo2 } from 'lucide-react';
+import { Building2, Users, User, Mail, RefreshCw, Undo2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { updateUserSupervisorAction } from '@/api/server-actions/users';
@@ -186,11 +186,21 @@ interface HierarchyChange {
   timestamp: number;
 }
 
+// Pending change interface for local state
+interface PendingChange {
+  userId: string;
+  newSupervisorId: string | null;
+  originalSupervisorId: string | null;
+  timestamp: number;
+}
+
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
   // State for drag-and-drop functionality
   const [isDragging, setIsDragging] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [changeHistory, setChangeHistory] = useState<HierarchyChange[]>([]);
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const [layoutKey, setLayoutKey] = useState(0); // Force layout recalculation
   
   // Build hierarchy from users data
@@ -198,8 +208,25 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     const nodeMap = new Map<string, Node>();
     const edgeList: Edge[] = [];
     
-    // Create nodes for all users
-    users.forEach((user) => {
+    // Apply pending changes to create a modified user list
+    const usersWithPendingChanges = users.map(user => {
+      const pendingChange = pendingChanges.find(change => change.userId === user.id);
+      if (pendingChange) {
+        // Find the new supervisor user object
+        const newSupervisor = pendingChange.newSupervisorId 
+          ? users.find(u => u.id === pendingChange.newSupervisorId) 
+          : null;
+        
+        return {
+          ...user,
+          supervisor: newSupervisor || null
+        };
+      }
+      return user;
+    });
+    
+    // Create nodes for all users (with pending changes applied)
+    usersWithPendingChanges.forEach((user) => {
       nodeMap.set(user.id, {
         id: user.id,
         type: 'userNode',
@@ -208,8 +235,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       });
     });
     
-    // Create edges for supervisor-subordinate relationships
-    users.forEach((user) => {
+    // Create edges for supervisor-subordinate relationships (with pending changes)
+    usersWithPendingChanges.forEach((user) => {
       if (user.supervisor && user.supervisor.id && user.id) {
         edgeList.push({
           id: `${user.supervisor.id}-${user.id}`,
@@ -345,7 +372,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       nodes: allNodes,
       edges: edgeList,
     };
-  }, [users]);
+  }, [users, pendingChanges]);
   
   const [nodesState, setNodes, onNodesChange] = useNodesState(nodes);
   const [edgesState, setEdges, onEdgesChange] = useEdgesState(edges);
@@ -379,15 +406,19 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     return null;
   }, [users]);
   
-  // Handle supervisor change
-  const handleSupervisorChange = useCallback(async (userId: string, newSupervisorId: string | null) => {
+  // Handle supervisor change (now only adds pending changes)
+  const handleSupervisorChange = useCallback((userId: string, newSupervisorId: string | null) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
     
-    const oldSupervisorId = user.supervisor?.id || null;
+    // Get the current supervisor (considering pending changes)
+    const existingPendingChange = pendingChanges.find(change => change.userId === userId);
+    const currentSupervisorId = existingPendingChange 
+      ? existingPendingChange.newSupervisorId 
+      : user.supervisor?.id || null;
     
     // Skip if no change
-    if (oldSupervisorId === newSupervisorId) return;
+    if (currentSupervisorId === newSupervisorId) return;
     
     // Validate the change
     const validationError = validateHierarchyChange(userId, newSupervisorId);
@@ -398,82 +429,135 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       return;
     }
     
-    setIsUpdating(true);
+    // Add or update pending change
+    const originalSupervisorId = user.supervisor?.id || null;
+    const pendingChange: PendingChange = {
+      userId,
+      newSupervisorId,
+      originalSupervisorId,
+      timestamp: Date.now(),
+    };
     
-    try {
-      const result = await updateUserSupervisorAction(userId, newSupervisorId);
+    setPendingChanges(prev => {
+      // Remove existing pending change for this user if any
+      const filtered = prev.filter(change => change.userId !== userId);
       
-      if (result.success && result.data) {
-        // Add to change history
-        const change: HierarchyChange = {
-          userId,
-          oldSupervisorId,
-          newSupervisorId,
-          timestamp: Date.now(),
-        };
-        setChangeHistory(prev => [...prev, change]);
-        
-        // Update the user data and trigger re-render
-        if (onUserUpdate) {
-          onUserUpdate(result.data);
-        }
-        
-        // Force recalculation of layout
-        setLayoutKey(prev => prev + 1);
-        
-        toast.success("階層更新完了", {
-          description: `${user.name}の上司が正常に更新されました`,
-        });
-      } else {
-        throw new Error(result.error || "更新に失敗しました");
+      // If the new supervisor is the same as original, don't add to pending
+      if (newSupervisorId === originalSupervisorId) {
+        return filtered;
       }
-    } catch (error) {
-      console.error('Error updating supervisor:', error);
-      toast.error("更新エラー", {
-        description: "上司の更新中にエラーが発生しました",
-      });
-    } finally {
-      setIsUpdating(false);
-    }
-  }, [users, validateHierarchyChange, onUserUpdate]);
+      
+      // Add the new pending change
+      return [...filtered, pendingChange];
+    });
+    
+    // Force layout recalculation to show visual changes
+    setLayoutKey(prev => prev + 1);
+    
+    const supervisorName = newSupervisorId 
+      ? users.find(u => u.id === newSupervisorId)?.name || '不明'
+      : 'なし';
+    
+    toast.info("変更待機中", {
+      description: `${user.name}の上司を${supervisorName}に変更予定。「保存」をクリックして適用してください。`,
+    });
+  }, [users, pendingChanges, validateHierarchyChange]);
   
-  // Handle undo last change
-  const handleUndo = useCallback(async () => {
-    if (changeHistory.length === 0) return;
+  // Handle undo last pending change
+  const handleUndo = useCallback(() => {
+    if (pendingChanges.length === 0) return;
     
-    const lastChange = changeHistory[changeHistory.length - 1];
-    setIsUpdating(true);
+    // Remove the last pending change
+    setPendingChanges(prev => prev.slice(0, -1));
+    
+    // Force layout recalculation
+    setLayoutKey(prev => prev + 1);
+    
+    toast.success("変更を取り消しました", {
+      description: "最後の保留中の変更が取り消されました",
+    });
+  }, [pendingChanges]);
+  
+  // Handle save all pending changes
+  const handleSaveChanges = useCallback(async () => {
+    if (pendingChanges.length === 0) return;
+    
+    setIsSaving(true);
+    const successfulChanges: HierarchyChange[] = [];
+    let hasErrors = false;
     
     try {
-      const result = await updateUserSupervisorAction(lastChange.userId, lastChange.oldSupervisorId);
-      
-      if (result.success && result.data) {
-        // Remove from history
-        setChangeHistory(prev => prev.slice(0, -1));
-        
-        // Update the user data
-        if (onUserUpdate) {
-          onUserUpdate(result.data);
+      // Process each pending change
+      for (const pendingChange of pendingChanges) {
+        try {
+          const result = await updateUserSupervisorAction(
+            pendingChange.userId, 
+            pendingChange.newSupervisorId
+          );
+          
+          if (result.success && result.data) {
+            // Add to successful changes for history
+            const historyChange: HierarchyChange = {
+              userId: pendingChange.userId,
+              oldSupervisorId: pendingChange.originalSupervisorId,
+              newSupervisorId: pendingChange.newSupervisorId,
+              timestamp: Date.now(),
+            };
+            successfulChanges.push(historyChange);
+            
+            // Update the user data
+            if (onUserUpdate) {
+              onUserUpdate(result.data);
+            }
+          } else {
+            hasErrors = true;
+            const user = users.find(u => u.id === pendingChange.userId);
+            toast.error("保存エラー", {
+              description: `${user?.name || '不明なユーザー'}の変更保存に失敗しました`,
+            });
+          }
+        } catch (error) {
+          hasErrors = true;
+          const user = users.find(u => u.id === pendingChange.userId);
+          console.error('Error saving change for user:', pendingChange.userId, error);
+          toast.error("保存エラー", {
+            description: `${user?.name || '不明なユーザー'}の変更保存中にエラーが発生しました`,
+          });
         }
+      }
+      
+      // Update history and clear pending changes for successful ones
+      if (successfulChanges.length > 0) {
+        setChangeHistory(prev => [...prev, ...successfulChanges]);
         
-        // Force recalculation of layout
+        // Remove successful changes from pending
+        const successfulUserIds = successfulChanges.map(change => change.userId);
+        setPendingChanges(prev => 
+          prev.filter(change => !successfulUserIds.includes(change.userId))
+        );
+        
+        // Force layout recalculation
         setLayoutKey(prev => prev + 1);
         
-        toast.success("変更を元に戻しました", {
-          description: "最後の階層変更が取り消されました",
-        });
-      } else {
-        throw new Error(result.error || "元に戻す操作に失敗しました");
+        if (!hasErrors) {
+          toast.success("変更保存完了", {
+            description: `${successfulChanges.length}件の階層変更が正常に保存されました`,
+          });
+        } else {
+          toast.warning("一部保存完了", {
+            description: `${successfulChanges.length}件中一部の変更が保存されました`,
+          });
+        }
       }
     } catch (error) {
-      console.error('Error undoing change:', error);
-      toast.error("元に戻すエラー", {
-        description: "変更を元に戻す際にエラーが発生しました",
+      console.error('Error saving changes:', error);
+      toast.error("保存エラー", {
+        description: "変更の保存中に予期しないエラーが発生しました",
       });
     } finally {
-      setIsUpdating(false);
+      setIsSaving(false);
     }
-  }, [changeHistory, onUserUpdate]);
+  }, [pendingChanges, users, onUserUpdate]);
   
   // Handle node drag start
   const onNodeDragStart: NodeDragHandler = useCallback((_event, _node) => {
@@ -600,18 +684,32 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       
       {/* React Flow Container */}
       <div className="w-full h-[900px] sm:h-[700px] md:h-[800px] lg:h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg relative">
-        {/* Undo Button - appears in top-left when there are changes */}
-        {changeHistory.length > 0 && (
-          <div className="absolute top-4 left-4 z-50">
+        {/* Save and Undo Buttons - appear in top-left when there are pending changes */}
+        {pendingChanges.length > 0 && (
+          <div className="absolute top-4 left-4 z-50 flex gap-2">
+            <Button
+              onClick={handleSaveChanges}
+              disabled={isSaving}
+              variant="default"
+              size="sm"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition-all duration-200"
+            >
+              {isSaving ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              保存 ({pendingChanges.length})
+            </Button>
             <Button
               onClick={handleUndo}
-              disabled={isUpdating}
+              disabled={isSaving}
               variant="secondary"
               size="sm"
               className="flex items-center gap-2 bg-white/90 backdrop-blur-sm shadow-lg border border-gray-200 hover:bg-white/95 transition-all duration-200"
             >
               <Undo2 className="w-4 h-4" />
-              元に戻す ({changeHistory.length})
+              元に戻す ({pendingChanges.length})
             </Button>
           </div>
         )}
