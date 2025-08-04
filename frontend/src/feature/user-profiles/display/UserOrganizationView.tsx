@@ -486,31 +486,67 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     
     if (isUpdating) return;
     
-    // Get all nodes under the drop point
-    const elementsBelow = document.elementsFromPoint(event.clientX, event.clientY);
+    // Get drop coordinates
+    const dropX = event.clientX;
+    const dropY = event.clientY;
     
-    // Look for React Flow nodes specifically
-    const droppedOnElement = elementsBelow.find(el => {
-      // Check for React Flow node attributes
-      const nodeId = el.getAttribute('data-id');
-      const isReactFlowNode = el.classList.contains('react-flow__node') || 
-                              el.closest('.react-flow__node');
-      
-      return nodeId && nodeId !== node.id && isReactFlowNode;
-    });
+    // Find the closest node to become supervisor
+    let closestSupervisor: string | null = null;
+    let closestDistance = Infinity;
     
-    if (droppedOnElement) {
-      const droppedOnNodeId = droppedOnElement.getAttribute('data-id') || 
-                             droppedOnElement.closest('.react-flow__node')?.getAttribute('data-id');
+    // Check all nodes in the React Flow
+    const reactFlowWrapper = document.querySelector('.react-flow');
+    if (reactFlowWrapper) {
+      const allNodes = reactFlowWrapper.querySelectorAll('.react-flow__node');
       
-      if (droppedOnNodeId && droppedOnNodeId !== node.id) {
-        await handleSupervisorChange(node.id, droppedOnNodeId);
-        return; // Don't reset position if we're processing a change
-      }
+      allNodes.forEach(nodeElement => {
+        const nodeId = nodeElement.getAttribute('data-id');
+        if (nodeId && nodeId !== node.id) {
+          const nodeRect = nodeElement.getBoundingClientRect();
+          const nodeCenterX = nodeRect.left + nodeRect.width / 2;
+          const nodeCenterY = nodeRect.top + nodeRect.height / 2;
+          
+          // Calculate distance from drop point to node center
+          const distance = Math.sqrt(
+            Math.pow(dropX - nodeCenterX, 2) + Math.pow(dropY - nodeCenterY, 2)
+          );
+          
+          // Define drop zones
+          const DROP_ZONE_RADIUS = 150; // pixels
+          const BELOW_ZONE_HEIGHT = 100; // Height of area below node to consider as "subordinate zone"
+          
+          // Check if dropped within reasonable distance
+          if (distance < DROP_ZONE_RADIUS) {
+            // Check if dropped below the node (subordinate position)
+            const isDroppedBelow = dropY > nodeRect.bottom && 
+                                  dropY < nodeRect.bottom + BELOW_ZONE_HEIGHT &&
+                                  dropX > nodeRect.left - 50 && 
+                                  dropX < nodeRect.right + 50;
+            
+            // Check if dropped directly on the node (any position)
+            const isDroppedOnNode = dropX >= nodeRect.left && 
+                                   dropX <= nodeRect.right && 
+                                   dropY >= nodeRect.top && 
+                                   dropY <= nodeRect.bottom;
+            
+            if (isDroppedBelow || isDroppedOnNode) {
+              if (distance < closestDistance) {
+                closestDistance = distance;
+                closestSupervisor = nodeId;
+              }
+            }
+          }
+        }
+      });
     }
     
-    // If not dropped on another node, reset to original position
-    // by regenerating the entire layout
+    // If found a potential supervisor, make the connection
+    if (closestSupervisor) {
+      await handleSupervisorChange(node.id, closestSupervisor);
+      return; // Don't reset position if we're processing a change
+    }
+    
+    // If not dropped near any node, reset to original position
     setNodes(nodes);
     setEdges(edges);
   }, [isUpdating, handleSupervisorChange, nodes, edges, setNodes, setEdges]);
@@ -575,7 +611,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
               <p className="font-medium">操作方法:</p>
               <p>🔍 ズーム: マウスホイール</p>
               <p>🖱️ 移動: ドラッグ</p>
-              <p>👆 階層変更: ユーザーをドラッグして他のユーザーにドロップ</p>
+              <p>👆 階層変更: ユーザーをドラッグして上司の下にドロップ</p>
+              <p>🎯 ドロップゾーン: 上司の上または下の近くにドロップ</p>
               <p>📱 リセット: ダブルクリック</p>
             </div>
           </div>
@@ -583,7 +620,29 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       </div>
       
       {/* React Flow Container */}
-      <div className="w-full h-[900px] sm:h-[700px] md:h-[800px] lg:h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
+      <div className="w-full h-[900px] sm:h-[700px] md:h-[800px] lg:h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg relative">
+        {/* Drop zone indicators - only show during drag */}
+        {isDragging && (
+          <style jsx>{`
+            .react-flow__node {
+              position: relative;
+            }
+            .react-flow__node::before {
+              content: '';
+              position: absolute;
+              top: -20px;
+              left: -10px;
+              right: -10px;
+              bottom: -60px;
+              border: 2px dashed #3b82f6;
+              border-radius: 8px;
+              background: rgba(59, 130, 246, 0.1);
+              opacity: 0.7;
+              pointer-events: none;
+              z-index: 1000;
+            }
+          `}</style>
+        )}
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
