@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Label } from "@/components/ui/label";
 import { 
   Users, 
   UserCheck, 
@@ -75,10 +76,10 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
       <CardContent className="space-y-4">
         {/* Supervisor Section */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
+          <Label className="flex items-center gap-2">
             <Crown className="h-4 w-4" />
-            <span>上司</span>
-          </div>
+            上司
+          </Label>
           {user.supervisor ? (
             <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border">
               <Avatar className="h-10 w-10">
@@ -96,7 +97,7 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
                      user.supervisor.status === 'inactive' ? '非アクティブ' : '承認待ち'}
                   </Badge>
                 </div>
-                <div className="text-xs text-muted-foreground truncate">
+                <div className="text-sm text-muted-foreground truncate">
                   {user.supervisor.employee_code} • {user.supervisor.job_title || '役職未設定'}
                 </div>
               </div>
@@ -111,10 +112,10 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
 
         {/* Current User Position */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
+          <Label className="flex items-center gap-2">
             <UserCheck className="h-4 w-4" />
-            <span>現在のユーザー</span>
-          </div>
+            現在のユーザー
+          </Label>
           <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border-2 border-green-200">
             <Avatar className="h-10 w-10">
               <AvatarFallback className="bg-green-100 text-green-700 text-sm">
@@ -131,7 +132,7 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
                    user.status === 'inactive' ? '非アクティブ' : '承認待ち'}
                 </Badge>
               </div>
-              <div className="text-xs text-muted-foreground truncate">
+              <div className="text-sm text-muted-foreground truncate">
                 {user.employee_code} • {user.job_title || '役職未設定'}
               </div>
             </div>
@@ -140,10 +141,10 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
 
         {/* Subordinates Section */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
+          <Label className="flex items-center gap-2">
             <ChevronDown className="h-4 w-4" />
-            <span>部下 ({user.subordinates?.length || 0}人)</span>
-          </div>
+            部下 ({user.subordinates?.length || 0}人)
+          </Label>
           {user.subordinates && user.subordinates.length > 0 ? (
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {user.subordinates.map((subordinate) => (
@@ -163,7 +164,7 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
                          subordinate.status === 'inactive' ? '非アクティブ' : '承認待ち'}
                       </Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground truncate">
+                    <div className="text-sm text-muted-foreground truncate">
                       {subordinate.employee_code} • {subordinate.job_title || '役職未設定'}
                     </div>
                   </div>
@@ -179,10 +180,10 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
 
         {/* Summary Statistics */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
+          <Label className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            <span>組織情報</span>
-          </div>
+            組織情報
+          </Label>
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-blue-50 rounded-lg text-center">
               <div className="text-lg font-semibold text-blue-700">
