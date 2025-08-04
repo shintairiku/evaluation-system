@@ -480,6 +480,66 @@ class UserService:
             logger.error(f"Error updating last login for {clerk_user_id}: {str(e)}")
             return False
 
+    async def promote_user_role_if_needed(self, user_id: UUID, is_supervisor: bool) -> bool:
+        """
+        Auto-promote user to SUPERVISOR role if they are selected as someone's supervisor
+        but only have EMPLOYEE or PARTTIME roles
+        
+        Args:
+            user_id: UUID of the user to potentially promote
+            is_supervisor: Boolean indicating if this user is being assigned subordinates
+            
+        Returns:
+            bool: True if user was promoted, False otherwise
+        """
+        try:
+            if not is_supervisor:
+                return False
+                
+            # Get user with their current roles
+            user = await self.user_repo.get_user_by_id_with_details(user_id)
+            if not user:
+                logger.error(f"User {user_id} not found for role promotion")
+                return False
+            
+            # Get current role names
+            current_role_names = [role.name.upper() for role in user.roles]
+            logger.info(f"User {user_id} current roles: {current_role_names}")
+            
+            # Check if user already has supervisor-level or higher roles
+            supervisor_plus_roles = ["SUPERVISOR", "MANAGER", "ADMIN"]
+            has_supervisor_plus = any(role in current_role_names for role in supervisor_plus_roles)
+            
+            if has_supervisor_plus:
+                logger.info(f"User {user_id} already has supervisor+ role, no promotion needed")
+                return False
+            
+            # Check if user only has lower-level roles
+            lower_level_roles = ["EMPLOYEE", "PARTTIME"]
+            has_only_lower_roles = all(role in lower_level_roles for role in current_role_names)
+            
+            if has_only_lower_roles and current_role_names:
+                # Get SUPERVISOR role
+                supervisor_role = await self.role_repo.get_by_name("SUPERVISOR")
+                if not supervisor_role:
+                    logger.error("SUPERVISOR role not found in database")
+                    return False
+                
+                # Add SUPERVISOR role to user
+                current_role_ids = [role.id for role in user.roles]
+                new_role_ids = current_role_ids + [supervisor_role.id]
+                
+                await self.user_repo.assign_roles_to_user(user_id, new_role_ids)
+                logger.info(f"✅ Promoted user {user_id} to SUPERVISOR role")
+                return True
+            else:
+                logger.info(f"User {user_id} promotion not needed: roles={current_role_names}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error promoting user {user_id}: {str(e)}")
+            return False
+
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
         """Check if user exists in database with enhanced fallback lookup."""
         try:
