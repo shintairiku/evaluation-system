@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
-// @ts-ignore
+import React, { useCallback, useMemo } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -11,17 +10,15 @@ import ReactFlow, {
   useEdgesState,
   addEdge,
   Connection,
-  EdgeTypes,
   NodeTypes,
   Handle,
   Position,
+  MarkerType,
 } from 'reactflow';
-// @ts-ignore
 import 'reactflow/dist/style.css';
 import type { UserDetailResponse } from '@/api/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Building2, Users, User, Mail } from 'lucide-react';
 
 
@@ -31,7 +28,7 @@ interface UserOrganizationViewProps {
 }
 
 // Custom node component for user cards
-const UserNode = ({ data }: { data: any }) => {
+const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
   const { user } = data;
   
   // Determine card styling based on user role and status
@@ -39,13 +36,13 @@ const UserNode = ({ data }: { data: any }) => {
     if (user.status === 'pending_approval') {
       return 'border-orange-300 bg-orange-50/50';
     }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('admin'))) {
+    if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
       return 'border-blue-400 bg-blue-50/50';
     }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('manager'))) {
+    if (user.roles?.some((role) => role.name.toLowerCase().includes('manager'))) {
       return 'border-green-400 bg-green-50/50';
     }
-    if (user.roles?.some((role: any) => role.name.toLowerCase().includes('supervisor'))) {
+    if (user.roles?.some((role) => role.name.toLowerCase().includes('supervisor'))) {
       return 'border-purple-400 bg-purple-50/50';
     }
     return 'border-gray-200 bg-white';
@@ -135,7 +132,7 @@ const UserNode = ({ data }: { data: any }) => {
             <div className="text-xs font-medium text-muted-foreground">ロール</div>
             <div className="flex flex-wrap gap-1">
               {user.roles && user.roles.length > 0 ? (
-                user.roles.map((role: any) => (
+                user.roles.map((role) => (
                   <Badge key={role.id} variant="outline" className="text-xs">
                     {role.name}
                   </Badge>
@@ -168,7 +165,7 @@ const nodeTypes: NodeTypes = {
   userNode: UserNode,
 };
 
-export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
+export default function UserOrganizationView({ users }: UserOrganizationViewProps) {
   // Build hierarchy from users data
   const { nodes, edges } = useMemo(() => {
     const nodeMap = new Map<string, Node>();
@@ -201,7 +198,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           },
           animated: false,
           markerEnd: {
-            type: 'arrowclosed',
+            type: MarkerType.ArrowClosed,
             width: 20,
             height: 20,
             color: '#3b82f6',
@@ -243,7 +240,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       
       // Parent node - layout subordinates first
       let totalWidth = 0;
-      let childrenCenters: number[] = [];
+      const childrenCenters: number[] = [];
       
       subordinates.forEach((subordinate) => {
         const result = layoutNodes(subordinate, level + 1, xOffset + totalWidth);
@@ -327,12 +324,12 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
   const [edgesState, setEdges, onEdgesChange] = useEdgesState(edges);
   
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds: any) => addEdge(params, eds)),
+    (params: Connection) => setEdges((eds: Edge[]) => addEdge(params, eds)),
     [setEdges]
   );
   
   // Update nodes and edges when users change
-  useMemo(() => {
+  React.useEffect(() => {
     setNodes(nodes);
     setEdges(edges);
   }, [nodes, edges, setNodes, setEdges]);
