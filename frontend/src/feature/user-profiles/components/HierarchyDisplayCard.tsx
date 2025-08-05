@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Tooltip,
   TooltipContent,
@@ -53,11 +54,82 @@ export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDispl
             階層関係
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4 animate-pulse">
-            <div className="h-16 bg-gray-200 rounded"></div>
-            <div className="h-16 bg-gray-200 rounded"></div>
-            <div className="h-16 bg-gray-200 rounded"></div>
+        <CardContent className="space-y-4">
+          {/* Supervisor Section Skeleton */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Crown className="h-4 w-4" />
+              上司
+            </Label>
+            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-32" />
+              </div>
+              <Skeleton className="h-4 w-4" />
+            </div>
+          </div>
+
+          {/* Current User Section Skeleton */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              現在のユーザー
+            </Label>
+            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border-2 border-green-200">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-5 w-18 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-36" />
+              </div>
+            </div>
+          </div>
+
+          {/* Subordinates Section Skeleton */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <ChevronDown className="h-4 w-4" />
+              <Skeleton className="h-4 w-16" />
+            </Label>
+            <div className="grid gap-2 grid-cols-1">
+              {[1, 2, 3].map((index) => (
+                <div key={index} className="flex items-center gap-2 p-2 bg-orange-50 rounded-md border">
+                  <Skeleton className="h-7 w-7 rounded-full" />
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-4 w-4 rounded-full" />
+                    </div>
+                    <Skeleton className="h-2 w-24" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Statistics Section Skeleton */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              組織情報
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-blue-50 rounded-lg text-center">
+                <Skeleton className="h-6 w-4 mx-auto mb-1" />
+                <Skeleton className="h-3 w-8 mx-auto" />
+              </div>
+              <div className="p-3 bg-orange-50 rounded-lg text-center">
+                <Skeleton className="h-6 w-4 mx-auto mb-1" />
+                <Skeleton className="h-3 w-8 mx-auto" />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

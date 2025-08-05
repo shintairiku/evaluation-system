@@ -83,6 +83,27 @@ export default function UserEditViewModal({
       const result = await updateUserAction(user.id, userData);
 
       if (result.success && result.data) {
+        // Check if hierarchy-related fields changed
+        const hierarchyFields = ['department_id', 'stage_id'];
+        const hasHierarchyChange = hierarchyFields.some(field => 
+          userData[field as keyof UserUpdate] !== undefined
+        );
+        
+        if (hasHierarchyChange) {
+          // Invalidate cache for current user and potentially affected users
+          const affectedUsers = [user.id];
+          
+          // If department changed, also invalidate supervisor/subordinates
+          if (userData.department_id && user.supervisor) {
+            affectedUsers.push(user.supervisor.id);
+          }
+          if (user.subordinates) {
+            affectedUsers.push(...user.subordinates.map(sub => sub.id));
+          }
+          
+          invalidateHierarchyCache(affectedUsers);
+        }
+        
         toast.success('プロフィールが正常に更新されました');
         onUserUpdate?.(result.data);
         onClose();
@@ -106,6 +127,40 @@ export default function UserEditViewModal({
   // State for detailed user data with hierarchy
   const [detailedUser, setDetailedUser] = useState<UserDetailResponse | null>(null);
   const [isLoadingUserData, setIsLoadingUserData] = useState(false);
+  
+  // Simple cache for user hierarchy data (5 minute TTL)
+  const [userCache] = useState(() => new Map<string, { data: UserDetailResponse; timestamp: number }>());
+  
+  // Function to invalidate cache when hierarchy changes
+  const invalidateHierarchyCache = (affectedUserIds: string[]) => {
+    affectedUserIds.forEach(userId => {
+      userCache.delete(userId);
+      console.log(`[UserEditModal] Cache invalidated for user ${userId} due to hierarchy change`);
+    });
+  };
+  
+  // Function to force refresh hierarchy data
+  const forceRefreshHierarchyData = async (userId: string) => {
+    userCache.delete(userId);
+    if (user && userId === user.id && isOpen) {
+      setIsLoadingUserData(true);
+      try {
+        const result = await getUserByIdAction(userId);
+        if (result.success && result.data) {
+          setDetailedUser(result.data);
+          userCache.set(userId, {
+            data: result.data,
+            timestamp: Date.now()
+          });
+          console.log(`[UserEditModal] Force refreshed hierarchy data for user ${userId}`);
+        }
+      } catch (error) {
+        console.error('Error force refreshing hierarchy data:', error);
+      } finally {
+        setIsLoadingUserData(false);
+      }
+    }
+  };
 
   const [formData, setFormData] = useState({
     name: '',
@@ -121,18 +176,53 @@ export default function UserEditViewModal({
   useEffect(() => {
     const fetchDetailedUserData = async () => {
       if (user && isOpen) {
+        // Check cache first (5 minute TTL)
+        const cacheKey = user.id;
+        const cached = userCache.get(cacheKey);
+        const now = Date.now();
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+        
+        if (cached && (now - cached.timestamp) < CACHE_TTL) {
+          console.log(`[UserEditModal] Using cached data for user ${user.name}`);
+          setDetailedUser(cached.data);
+          return;
+        }
+        
         setIsLoadingUserData(true);
+        const startTime = performance.now();
+        
         try {
           const result = await getUserByIdAction(user.id);
+          const endTime = performance.now();
+          const duration = endTime - startTime;
+          
+          // Log performance metrics for analysis
+          console.log(`[UserEditModal] API call duration: ${duration.toFixed(2)}ms`);
+          
           if (result.success && result.data) {
             setDetailedUser(result.data);
+            
+            // Cache the result
+            userCache.set(cacheKey, {
+              data: result.data,
+              timestamp: now
+            });
+            
+            console.log(`[UserEditModal] Successfully loaded hierarchy data`, {
+              hasSupervisor: !!result.data.supervisor,
+              subordinatesCount: result.data.subordinates?.length || 0,
+              loadTime: `${duration.toFixed(2)}ms`,
+              cached: false
+            });
           } else {
             console.error('Failed to load detailed user data:', result.error);
             // Fallback to the basic user data
             setDetailedUser(user);
           }
         } catch (error) {
-          console.error('Error loading detailed user data:', error);
+          const endTime = performance.now();
+          const duration = endTime - startTime;
+          console.error(`[UserEditModal] Error after ${duration.toFixed(2)}ms:`, error);
           // Fallback to the basic user data
           setDetailedUser(user);
         } finally {
@@ -145,7 +235,7 @@ export default function UserEditViewModal({
     };
 
     fetchDetailedUserData();
-  }, [user, isOpen]);
+  }, [user, isOpen, userCache]);
 
   // Initialize form data when user changes
   useEffect(() => {
