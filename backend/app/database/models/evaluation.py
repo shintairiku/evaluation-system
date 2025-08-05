@@ -3,6 +3,7 @@ from enum import Enum
 
 from sqlalchemy import Column, String, Text, DateTime, Date, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
+from sqlalchemy.orm import relationship
 
 from .base import Base
 
@@ -35,11 +36,8 @@ class EvaluationPeriod(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # TODO: Relationships will be added when other models are implemented
-    # goals = relationship("Goal", back_populates="evaluation_period")
-    # self_assessments = relationship("SelfAssessment", back_populates="evaluation_period")
-    # supervisor_reviews = relationship("SupervisorReview", back_populates="evaluation_period")
-    # supervisor_feedbacks = relationship("SupervisorFeedback", back_populates="evaluation_period")
+    # Relationships
+    goals = relationship("Goal", back_populates="period")
 
     def __repr__(self):
         return f"<EvaluationPeriod(id={self.id}, name='{self.name}', status='{self.status}')>"
