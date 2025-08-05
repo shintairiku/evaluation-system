@@ -48,6 +48,8 @@ class Permission(Enum):
     
     # Goal Management (Consolidated from 9 to 3)
     GOAL_READ = "goal:read"                  # Read goals (scope determined by role)
+    GOAL_READ_ALL = "goal:read:all"          # Read all goals (admin only)
+    GOAL_READ_SUBORDINATES = "goal:read:subordinates"  # Read subordinates' goals
     GOAL_MANAGE = "goal:manage"              # Create, update, delete goals
     GOAL_APPROVE = "goal:approve"            # Approve goals (supervisors and above)
     
@@ -101,6 +103,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Goal Management - Full Access
             Permission.GOAL_READ,
+            Permission.GOAL_READ_ALL,
             Permission.GOAL_MANAGE,
             Permission.GOAL_APPROVE,
             
@@ -139,6 +142,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Goal Management - Manage and approve
             Permission.GOAL_READ,
+            Permission.GOAL_READ_SUBORDINATES,
             Permission.GOAL_MANAGE,
             Permission.GOAL_APPROVE,
             
@@ -175,6 +179,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Goal Management - Approve subordinates
             Permission.GOAL_READ,
+            Permission.GOAL_READ_SUBORDINATES,
             Permission.GOAL_MANAGE,
             Permission.GOAL_APPROVE,
             
