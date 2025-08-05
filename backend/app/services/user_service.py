@@ -348,52 +348,50 @@ class UserService:
                 logger.info(f"Updating roles for user {user_id}: {user_data.role_ids}")
                 await self.user_repo.update_user_roles(user_id, user_data.role_ids)
             
-            # Update supervisor relationship if provided (requires HIERARCHY_MANAGE permission)
-            if user_data.supervisor_id is not None:
-                # Check hierarchy management permission
+            # Update hierarchy relationships if provided (requires HIERARCHY_MANAGE permission)
+            if user_data.supervisor_id is not None or user_data.subordinate_ids is not None:
+                # Check hierarchy management permission once
                 if not current_user_context.has_permission(Permission.HIERARCHY_MANAGE):
                     raise PermissionDeniedError("You do not have permission to manage hierarchy relationships")
                 
-                # Remove existing supervisor relationships
                 from sqlalchemy import delete
-                await self.session.execute(
-                    delete(UserSupervisor).where(UserSupervisor.user_id == user_id)
-                )
                 
-                # Add new supervisor if specified
-                if user_data.supervisor_id:
-                    logger.info(f"Updating supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
-                    relationship = UserSupervisor(
-                        user_id=user_id,
-                        supervisor_id=user_data.supervisor_id,
-                        valid_from=date.today(),
-                        valid_to=None
+                # Update supervisor relationship if provided
+                if user_data.supervisor_id is not None:
+                    # Remove existing supervisor relationships
+                    await self.session.execute(
+                        delete(UserSupervisor).where(UserSupervisor.user_id == user_id)
                     )
-                    self.session.add(relationship)
-            
-            # Update subordinate relationships if provided (requires HIERARCHY_MANAGE permission)
-            if user_data.subordinate_ids is not None:
-                # Check hierarchy management permission
-                if not current_user_context.has_permission(Permission.HIERARCHY_MANAGE):
-                    raise PermissionDeniedError("You do not have permission to manage hierarchy relationships")
-                
-                # Remove existing subordinate relationships where this user is supervisor
-                from sqlalchemy import delete
-                await self.session.execute(
-                    delete(UserSupervisor).where(UserSupervisor.supervisor_id == user_id)
-                )
-                
-                # Add new subordinate relationships
-                if user_data.subordinate_ids:
-                    logger.info(f"Updating subordinate relationships for supervisor {user_id}: {user_data.subordinate_ids}")
-                    for subordinate_id in user_data.subordinate_ids:
+                    
+                    # Add new supervisor if specified
+                    if user_data.supervisor_id:
+                        logger.info(f"Updating supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
                         relationship = UserSupervisor(
-                            user_id=subordinate_id,
-                            supervisor_id=user_id,
+                            user_id=user_id,
+                            supervisor_id=user_data.supervisor_id,
                             valid_from=date.today(),
                             valid_to=None
                         )
                         self.session.add(relationship)
+                
+                # Update subordinate relationships if provided
+                if user_data.subordinate_ids is not None:
+                    # Remove existing subordinate relationships where this user is supervisor
+                    await self.session.execute(
+                        delete(UserSupervisor).where(UserSupervisor.supervisor_id == user_id)
+                    )
+                    
+                    # Add new subordinate relationships
+                    if user_data.subordinate_ids:
+                        logger.info(f"Updating subordinate relationships for supervisor {user_id}: {user_data.subordinate_ids}")
+                        for subordinate_id in user_data.subordinate_ids:
+                            relationship = UserSupervisor(
+                                user_id=subordinate_id,
+                                supervisor_id=user_id,
+                                valid_from=date.today(),
+                                valid_to=None
+                            )
+                            self.session.add(relationship)
             
             # Commit the transaction
             await self.session.commit()
