@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -260,7 +260,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           },
           animated: hasPendingChange, // Animate pending changes for extra visibility
           markerEnd: {
-            type: MarkerType.Arrow,
+            type: MarkerType.ArrowClosed,
             width: 20,
             height: 20,
             color: edgeColor,
@@ -386,7 +386,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
   const [edgesState, setEdges, onEdgesChange] = useEdgesState(edges);
   
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
+    (params: Connection) => setEdges((eds: Edge[]) => addEdge(params, eds)),
     [setEdges]
   );
   
