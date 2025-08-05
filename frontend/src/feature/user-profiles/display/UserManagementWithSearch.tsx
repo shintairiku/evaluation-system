@@ -7,6 +7,7 @@ import ViewModeSelector from './ViewModeSelector';
 import UserSearch from '../components/UserSearch';
 import UserTableView from './UserTableView';
 import UserGalleryView from './UserGalleryView';
+import UserOrganizationView from './UserOrganizationView';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -52,6 +53,8 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
         return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
       case 'gallery':
         return <UserGalleryView users={users} onUserUpdate={handleUserUpdate} />;
+      case 'organization':
+        return <UserOrganizationView users={users} onUserUpdate={handleUserUpdate} />;
       default:
         return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
     }
@@ -73,7 +76,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
       {/* 表示モード選択 */}
       <ViewModeSelector viewMode={viewMode} onViewModeChange={setViewMode} />
 
-      {/* 検索・フィルター - New UserSearch with useActionState */}
+      {/* 検索・フィルター - Global search and filters for all views */}
       <UserSearch 
         onSearchResults={handleSearchResults}
         initialUsers={initialUsers}
@@ -81,8 +84,8 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
 
       {/* 結果表示 */}
       <div className="space-y-4">
-        {/* Results summary */}
-        {users.length > 0 && (
+        {/* Results summary - Hide count for organization view as it has its own detailed header */}
+        {users.length > 0 && viewMode !== 'organization' && (
           <div className="text-sm text-muted-foreground px-1">
             {users.length}件のユーザー
           </div>
