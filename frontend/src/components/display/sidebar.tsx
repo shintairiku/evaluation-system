@@ -13,6 +13,15 @@ import {
   UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield
 } from 'lucide-react';
 
+// Link interface to match the structure from routes.ts
+interface SidebarLink {
+  href: string;
+  label: string;
+  sublabel: string;
+  icon: string;
+  permission: string;
+}
+
 // アイコンマッピング
 const iconMap: Record<string, React.ReactElement> = {
   'home': <Home size={20} />,
@@ -35,7 +44,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   // 権限フィルタリング（現在はダミー実装）
-  const filterByPermission = (links: any[]) => {
+  const filterByPermission = (links: SidebarLink[]) => {
     // TODO: 実際の権限チェックロジックを実装
     return links; // 現在は全て表示
   };
