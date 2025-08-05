@@ -240,44 +240,7 @@ export async function getProfileOptionsAction(): Promise<{
   }
 }
 
-/**
- * Server action to update user supervisor for drag-and-drop functionality
- * This function updates only the supervisor relationship
- */
-export async function updateUserSupervisorAction(
-  userId: UUID, 
-  supervisorId: UUID | null
-): Promise<{
-  success: boolean;
-  data?: UserDetailResponse;
-  error?: string;
-}> {
-  try {
-    const updateData: UserUpdate = {
-      supervisor_id: supervisorId || undefined,
-    };
 
-    const response = await usersApi.updateUser(userId, updateData);
-    
-    if (!response.success || !response.data) {
-      return {
-        success: false,
-        error: response.errorMessage || 'Failed to update user supervisor',
-      };
-    }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Update user supervisor action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while updating user supervisor',
-    };
-  }
-}
 
 /**
  * Server action to search users with filters and pagination
