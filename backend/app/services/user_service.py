@@ -348,8 +348,12 @@ class UserService:
                 logger.info(f"Updating roles for user {user_id}: {user_data.role_ids}")
                 await self.user_repo.update_user_roles(user_id, user_data.role_ids)
             
-            # Update supervisor relationship if provided
+            # Update supervisor relationship if provided (requires HIERARCHY_MANAGE permission)
             if user_data.supervisor_id is not None:
+                # Check hierarchy management permission
+                if not current_user_context.has_permission(Permission.HIERARCHY_MANAGE):
+                    raise PermissionDeniedError("You do not have permission to manage hierarchy relationships")
+                
                 # Remove existing supervisor relationships
                 from sqlalchemy import delete
                 await self.session.execute(
@@ -367,8 +371,12 @@ class UserService:
                     )
                     self.session.add(relationship)
             
-            # Update subordinate relationships if provided
+            # Update subordinate relationships if provided (requires HIERARCHY_MANAGE permission)
             if user_data.subordinate_ids is not None:
+                # Check hierarchy management permission
+                if not current_user_context.has_permission(Permission.HIERARCHY_MANAGE):
+                    raise PermissionDeniedError("You do not have permission to manage hierarchy relationships")
+                
                 # Remove existing subordinate relationships where this user is supervisor
                 from sqlalchemy import delete
                 await self.session.execute(

@@ -71,6 +71,9 @@ class Permission(Enum):
     STAGE_READ_ALL = "stage:read:all"        # Admin can read all stages
     STAGE_READ_SELF = "stage:read:self"      # Users can read their own stage info
     STAGE_MANAGE = "stage:manage"            # Create, update, delete stages (admin only)
+    
+    # Hierarchy Management
+    HIERARCHY_MANAGE = "hierarchy:manage"    # Manage supervisor-subordinate relationships
 
 
 @dataclass
@@ -120,6 +123,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Stage Management - Full Access
             Permission.STAGE_READ_ALL,
             Permission.STAGE_MANAGE,
+            
+            # Hierarchy Management - Full Access
+            Permission.HIERARCHY_MANAGE,
         }
     ),
     
@@ -156,6 +162,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Stage Management - Read All
             Permission.STAGE_READ_ALL,
+            
+            # Hierarchy Management - Manage subordinates
+            Permission.HIERARCHY_MANAGE,
         }
     ),
     
@@ -192,6 +201,9 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Stage Management - Read All
             Permission.STAGE_READ_ALL,
+            
+            # Hierarchy Management - Manage subordinates
+            Permission.HIERARCHY_MANAGE,
         }
     ),
     

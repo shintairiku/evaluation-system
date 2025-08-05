@@ -24,6 +24,7 @@ import { Building2, Users, User, Mail, RefreshCw, Undo2, Save } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { updateUserSupervisorAction } from '@/api/server-actions/users';
+import { useUserPermissions } from '@/hooks/useUserPermissions';
 
 
 interface UserOrganizationViewProps {
@@ -194,6 +195,9 @@ interface PendingChange {
 }
 
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
+  // Check user permissions for hierarchy management
+  const { canManageHierarchy, isAdmin, isManager, isSupervisor } = useUserPermissions();
+  
   // State for drag-and-drop functionality
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -415,6 +419,14 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
   
   // Handle supervisor change (now only adds pending changes)
   const handleSupervisorChange = useCallback((userId: string, newSupervisorId: string | null) => {
+    // Check if user has permission to manage hierarchy
+    if (!canManageHierarchy) {
+      toast.error("権限エラー", {
+        description: "階層の変更を行う権限がありません。管理者、マネージャー、またはスーパーバイザーである必要があります。",
+      });
+      return;
+    }
+    
     const user = users.find(u => u.id === userId);
     if (!user) return;
     
@@ -468,7 +480,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     toast.info("変更待機中", {
       description: `${user.name}の上司を${supervisorName}に変更予定。赤い線で表示されます。「保存」をクリックして確定してください。`,
     });
-  }, [users, pendingChanges, validateHierarchyChange]);
+  }, [users, pendingChanges, validateHierarchyChange, canManageHierarchy]);
   
   // Handle undo last pending change
   const handleUndo = useCallback(() => {
@@ -672,10 +684,16 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
             <p className="font-medium">操作方法:</p>
             <p>🔍 ズーム: マウスホイール</p>
             <p>🖱️ 移動: ドラッグ</p>
-            <p>👆 階層変更: ユーザーをドラッグして上司の下にドロップ</p>
-            <p>🎯 ドロップゾーン: 上司の上または下の近くにドロップ</p>
-            <p>🔴 赤線: 保存待ちの変更 (アニメーション付き)</p>
-            <p>💾 保存: 左上の「保存」ボタンで確定</p>
+            {canManageHierarchy ? (
+              <>
+                <p>👆 階層変更: ユーザーをドラッグして上司の下にドロップ</p>
+                <p>🎯 ドロップゾーン: 上司の上または下の近くにドロップ</p>
+                <p>🔴 赤線: 保存待ちの変更 (アニメーション付き)</p>
+                <p>💾 保存: 左上の「保存」ボタンで確定</p>
+              </>
+            ) : (
+              <p>⚠️ 権限なし: 階層変更にはマネージャー以上の権限が必要</p>
+            )}
           </div>
         </div>
       </div>
@@ -764,7 +782,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           maxZoom={1.5}
           defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={true}
+          nodesDraggable={canManageHierarchy}
           nodesConnectable={false}
           elementsSelectable={true}
           panOnDrag={!isDragging}
