@@ -196,7 +196,7 @@ interface PendingChange {
 
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
   // Check user permissions for hierarchy management
-  const { canManageHierarchy, isAdmin, isManager, isSupervisor } = useUserPermissions();
+  const { canManageHierarchy } = useUserPermissions();
   
   // State for drag-and-drop functionality
   const [isDragging, setIsDragging] = useState(false);
