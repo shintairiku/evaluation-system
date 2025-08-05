@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, Users, User, Mail, RefreshCw, Undo2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { updateUserSupervisorAction } from '@/api/server-actions/users';
+import { updateUserAction } from '@/api/server-actions/users';
 
 
 interface UserOrganizationViewProps {
@@ -504,9 +504,9 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       // Process each pending change
       for (const pendingChange of changesToProcess) {
         try {
-          const result = await updateUserSupervisorAction(
+          const result = await updateUserAction(
             pendingChange.userId, 
-            pendingChange.newSupervisorId
+            { supervisor_id: pendingChange.newSupervisorId || undefined }
           );
           
           if (result.success && result.data) {
