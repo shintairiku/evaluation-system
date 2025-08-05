@@ -24,7 +24,6 @@ import { Building2, Users, User, Mail, RefreshCw, Undo2, Save } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { updateUserSupervisorAction } from '@/api/server-actions/users';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
 
 
 interface UserOrganizationViewProps {
@@ -195,8 +194,6 @@ interface PendingChange {
 }
 
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
-  // Check user permissions for hierarchy management
-  const { canManageHierarchy } = useUserPermissions();
   
   // State for drag-and-drop functionality
   const [isDragging, setIsDragging] = useState(false);
@@ -419,13 +416,6 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
   
   // Handle supervisor change (now only adds pending changes)
   const handleSupervisorChange = useCallback((userId: string, newSupervisorId: string | null) => {
-    // Check if user has permission to manage hierarchy
-    if (!canManageHierarchy) {
-      toast.error("権限エラー", {
-        description: "階層の変更を行う権限がありません。管理者、マネージャー、またはスーパーバイザーである必要があります。",
-      });
-      return;
-    }
     
     const user = users.find(u => u.id === userId);
     if (!user) return;
