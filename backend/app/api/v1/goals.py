@@ -95,6 +95,38 @@ async def create_goal(
             detail=f"Error creating goal: {str(e)}"
         )
 
+@router.get("/period/{period_id}", response_model=GoalList)
+async def get_goals_by_period(
+    period_id: UUID,
+    pagination: PaginationParams = Depends(),
+    user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
+    goal_category: Optional[str] = Query(None, alias="goalCategory", description="Filter by goal category"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get goals by evaluation period with optional filters."""
+    try:
+        service = GoalService(session)
+        
+        result = await service.get_goals(
+            current_user_context=context,
+            user_id=user_id,
+            period_id=period_id,
+            goal_category=goal_category,
+            status=status,
+            pagination=pagination
+        )
+        
+        return result
+        
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching goals by period: {str(e)}")
+
 @router.get("/{goal_id}", response_model=GoalDetail)
 async def get_goal(
     goal_id: UUID,
@@ -159,6 +191,31 @@ async def delete_goal(
     except Exception as e:
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting goal: {str(e)}")
 
+@router.post("/{goal_id}/submit", response_model=Goal)
+async def submit_goal(
+    goal_id: UUID,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Submit a goal for approval (goal owner only)."""
+    try:
+        service = GoalService(session)
+        
+        # Update goal status to pending_approval
+        from ...schemas.goal import GoalUpdate, GoalStatus
+        goal_update = GoalUpdate(status=GoalStatus.PENDING_APPROVAL)
+        result = await service.update_goal(goal_id, goal_update, context)
+        
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting goal: {str(e)}")
+
 # Optional api endpoints
 @router.post("/{goal_id}/approve", response_model=Goal)
 async def approve_goal(
@@ -218,4 +275,14 @@ async def get_pending_approvals(
         raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching pending approvals: {str(e)}")
+
+@router.get("/pending-approval", response_model=GoalList)
+async def get_pending_approval_alias(
+    pagination: PaginationParams = Depends(),
+    period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get goals pending approval (supervisor/admin only) - Alias endpoint."""
+    return await get_pending_approvals(pagination, period_id, context, session)
 
