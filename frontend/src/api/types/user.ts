@@ -180,9 +180,7 @@ export interface UserList {
   pages: number;
 }
 
-export interface UserProfile extends UserDetailResponse {
-  // Additional profile-specific fields can be added here
-}
+export type UserProfile = UserDetailResponse;
 
 export interface UserProfileOption {
   id: UUID;
