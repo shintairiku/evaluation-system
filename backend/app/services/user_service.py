@@ -22,11 +22,12 @@ from ..core.exceptions import (
     NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete
 
 logger = logging.getLogger(__name__)
 
-# Cache for user search results (100 items, 5-minute TTL)
-user_search_cache = TTLCache(maxsize=100, ttl=300)
+# Cache for user search results (100 items, 30-second TTL for faster hierarchy updates)
+user_search_cache = TTLCache(maxsize=100, ttl=30)
 
 
 
@@ -354,7 +355,6 @@ class UserService:
                 if not current_user_context.has_permission(Permission.HIERARCHY_MANAGE):
                     raise PermissionDeniedError("You do not have permission to manage hierarchy relationships")
                 
-                from sqlalchemy import delete
                 
                 # Update supervisor relationship if provided
                 if user_data.supervisor_id is not None:

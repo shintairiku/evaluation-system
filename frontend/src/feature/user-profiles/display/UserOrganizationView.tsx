@@ -505,9 +505,14 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     const successfulChanges: PendingChange[] = [];
     let hasErrors = false;
     
+    // Optimistic update: Clear pending changes immediately for better UX
+    const changesToProcess = [...pendingChanges];
+    setPendingChanges([]);
+    setLayoutKey(prev => prev + 1);
+    
     try {
       // Process each pending change
-      for (const pendingChange of pendingChanges) {
+      for (const pendingChange of changesToProcess) {
         try {
           const result = await updateUserSupervisorAction(
             pendingChange.userId, 
@@ -528,6 +533,9 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
             toast.error("保存エラー", {
               description: `${user?.name || '不明なユーザー'}の変更保存に失敗しました`,
             });
+            
+            // Revert this change on error
+            setPendingChanges(prev => [...prev, pendingChange]);
           }
         } catch (error) {
           hasErrors = true;
@@ -536,18 +544,15 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
           toast.error("保存エラー", {
             description: `${user?.name || '不明なユーザー'}の変更保存中にエラーが発生しました`,
           });
+          
+          // Revert this change on error
+          setPendingChanges(prev => [...prev, pendingChange]);
         }
       }
       
-      // Clear pending changes for successful ones
+      // Show success/warning messages
       if (successfulChanges.length > 0) {
-        // Remove successful changes from pending
-        const successfulUserIds = successfulChanges.map(change => change.userId);
-        setPendingChanges(prev => 
-          prev.filter(change => !successfulUserIds.includes(change.userId))
-        );
-        
-        // Force layout recalculation
+        // Force final layout recalculation after all updates
         setLayoutKey(prev => prev + 1);
         
         if (!hasErrors) {
@@ -559,12 +564,19 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
             description: `${successfulChanges.length}件中一部の変更が保存されました`,
           });
         }
+      } else if (hasErrors) {
+        // All changes failed, show error and force layout update
+        setLayoutKey(prev => prev + 1);
       }
     } catch (error) {
       console.error('Error saving changes:', error);
       toast.error("保存エラー", {
         description: "変更の保存中に予期しないエラーが発生しました",
       });
+      
+      // Revert all changes on unexpected error
+      setPendingChanges(changesToProcess);
+      setLayoutKey(prev => prev + 1);
     } finally {
       setIsSaving(false);
     }

@@ -20,9 +20,17 @@ interface UserPermissions {
 export function useUserPermissions(): UserPermissions {
   const { user } = useUser();
   const [backendUserData, setBackendUserData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch user data from backend to get roles
   useEffect(() => {
+    if (!user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    
     if (user?.publicMetadata?.users_table_id) {
       // Use users_table_id if available
       getUserByIdAction(user.publicMetadata.users_table_id as string)
@@ -30,8 +38,12 @@ export function useUserPermissions(): UserPermissions {
           if (result.success && result.data) {
             setBackendUserData(result.data);
           }
+          setIsLoading(false);
         })
-        .catch(err => console.error('Error fetching user data by ID:', err));
+        .catch(err => {
+          console.error('Error fetching user data by ID:', err);
+          setIsLoading(false);
+        });
     } else if (user?.id) {
       // Fallback: use existing backend endpoints to get user data
       // Step 1: Check if user exists and get user_id
@@ -49,9 +61,11 @@ export function useUserPermissions(): UserPermissions {
           if (userResult.success && userResult.data) {
             setBackendUserData(userResult.data);
           }
+          setIsLoading(false);
         })
         .catch(err => {
           console.error('Error fetching user via exists endpoint:', err);
+          setIsLoading(false);
         });
     }
   }, [user?.publicMetadata?.users_table_id, user?.id]);
@@ -69,6 +83,19 @@ export function useUserPermissions(): UserPermissions {
 
     if (!user) {
       return defaultPermissions;
+    }
+
+    // Optimistic permissions: Allow hierarchy management while loading backend data
+    // This reduces perceived delay for authenticated users
+    if (isLoading && user?.id) {
+      return {
+        canManageHierarchy: true, // Assume permission while loading
+        canManageUsers: false,
+        isAdmin: false,
+        isManager: false,
+        isSupervisor: false,
+        userRoles: [],
+      };
     }
     
     // Try to get roles from backend first, then fallback to Clerk metadata
@@ -106,7 +133,7 @@ export function useUserPermissions(): UserPermissions {
       isSupervisor,
       userRoles: roleNames,
     };
-  }, [user, backendUserData]);
+  }, [user, backendUserData, isLoading]);
 
   return permissions;
 }
