@@ -1,3 +1,0 @@
-2025-08-05 01:16:54,667 - root - INFO - setup_service_test_logging:73 - === Department Service Test Session Started ===
-2025-08-05 01:16:54,668 - root - INFO - setup_service_test_logging:74 - Log file: backend/tests/logs/department_service_test_20250805_011654.log
-2025-08-05 01:16:54,668 - root - INFO - setup_service_test_logging:75 - Testing business logic and repository interactions for department service

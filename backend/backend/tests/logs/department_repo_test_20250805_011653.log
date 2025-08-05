@@ -1,3 +1,0 @@
-2025-08-05 01:16:53,980 - root - INFO - setup_repository_test_logging:73 - === Department Repository Test Session Started ===
-2025-08-05 01:16:53,980 - root - INFO - setup_repository_test_logging:74 - Log file: backend/tests/logs/department_repo_test_20250805_011653.log
-2025-08-05 01:16:53,980 - root - INFO - setup_repository_test_logging:75 - Testing Supabase connectivity and data fetching for department repository

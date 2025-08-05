@@ -1,4 +1,0 @@
-2025-08-05 01:16:54,681 - root - INFO - setup_service_test_logging:73 - === User Service Test Session Started ===
-2025-08-05 01:16:54,681 - root - INFO - setup_service_test_logging:74 - Log file: backend/tests/logs/user_service_test_20250805_011654.log
-2025-08-05 01:16:54,682 - root - INFO - setup_service_test_logging:75 - Testing business logic and repository interactions for user service
-2025-08-05 01:16:55,080 - app.main - INFO - <module>:114 - Custom OpenAPI function assigned successfully
