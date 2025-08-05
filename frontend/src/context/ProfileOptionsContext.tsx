@@ -74,7 +74,7 @@ export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps
   // Auto-fetch on mount
   useEffect(() => {
     fetchOptions();
-  }, []);
+  }, [fetchOptions]);
 
   const value: ProfileOptionsContextType = {
     options,

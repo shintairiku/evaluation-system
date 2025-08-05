@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -13,13 +13,17 @@ import ReactFlow, {
   NodeTypes,
   Handle,
   Position,
+  NodeDragHandler,
   MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { UserDetailResponse } from '@/api/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, User, Mail } from 'lucide-react';
+import { Building2, Users, User, Mail, RefreshCw, Undo2, Save } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { updateUserAction } from '@/api/server-actions/users';
 
 
 interface UserOrganizationViewProps {
@@ -28,24 +32,35 @@ interface UserOrganizationViewProps {
 }
 
 // Custom node component for user cards
-const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
-  const { user } = data;
+const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailResponse; hasPendingChange?: boolean }; selected?: boolean; dragging?: boolean }) => {
+  const { user, hasPendingChange } = data;
   
-  // Determine card styling based on user role and status
+  // Determine card styling based on user role, status, and drag state
   const getCardStyle = () => {
+    let baseStyle = '';
+    
     if (user.status === 'pending_approval') {
-      return 'border-orange-300 bg-orange-50/50';
+      baseStyle = 'border-orange-300 bg-orange-50/50';
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
+      baseStyle = 'border-blue-400 bg-blue-50/50';
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('manager'))) {
+      baseStyle = 'border-green-400 bg-green-50/50';
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('supervisor'))) {
+      baseStyle = 'border-purple-400 bg-purple-50/50';
+    } else {
+      baseStyle = 'border-gray-200 bg-white';
     }
-    if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
-      return 'border-blue-400 bg-blue-50/50';
+    
+    // Add drag feedback and pending changes indicator
+    if (dragging) {
+      baseStyle += ' opacity-70 shadow-2xl scale-105 z-50';
+    } else if (selected) {
+      baseStyle += ' ring-2 ring-blue-400';
+    } else if (hasPendingChange) {
+      baseStyle += ' ring-2 ring-red-400 shadow-lg';
     }
-    if (user.roles?.some((role) => role.name.toLowerCase().includes('manager'))) {
-      return 'border-green-400 bg-green-50/50';
-    }
-    if (user.roles?.some((role) => role.name.toLowerCase().includes('supervisor'))) {
-      return 'border-purple-400 bg-purple-50/50';
-    }
-    return 'border-gray-200 bg-white';
+    
+    return baseStyle;
   };
 
   const getStatusBadge = (status: string) => {
@@ -75,11 +90,16 @@ const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
           borderRadius: '50%'
         }}
       />
-      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-md transition-shadow ${getCardStyle()}`}>
+      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${getCardStyle()}`}>
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <CardTitle className="text-lg">{user.name}</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg">{user.name}</CardTitle>
+                {hasPendingChange && (
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="Mudança pendente" />
+                )}
+              </div>
               <CardDescription className="flex items-center gap-1 mt-1">
                 <User className="w-3 h-3" />
                 {user.employee_code}
@@ -165,25 +185,67 @@ const nodeTypes: NodeTypes = {
   userNode: UserNode,
 };
 
-export default function UserOrganizationView({ users }: UserOrganizationViewProps) {
+// Pending change interface for local state
+interface PendingChange {
+  userId: string;
+  newSupervisorId: string | null;
+  originalSupervisorId: string | null;
+  timestamp: number;
+}
+
+export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
+  
+  // State for drag-and-drop functionality
+  const [isDragging, setIsDragging] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
+  const [layoutKey, setLayoutKey] = useState(0); // Force layout recalculation
+  
   // Build hierarchy from users data
   const { nodes, edges } = useMemo(() => {
     const nodeMap = new Map<string, Node>();
     const edgeList: Edge[] = [];
     
-    // Create nodes for all users
-    users.forEach((user) => {
+    // Apply pending changes to create a modified user list
+    const usersWithPendingChanges = users.map(user => {
+      const pendingChange = pendingChanges.find(change => change.userId === user.id);
+      if (pendingChange) {
+        // Find the new supervisor user object
+        const newSupervisor = pendingChange.newSupervisorId 
+          ? users.find(u => u.id === pendingChange.newSupervisorId) 
+          : null;
+        
+        return {
+          ...user,
+          supervisor: newSupervisor || null
+        };
+      }
+      return user;
+    });
+    
+    // Create nodes for all users (with pending changes applied)
+    usersWithPendingChanges.forEach((user) => {
+      const hasPendingChange = pendingChanges.some(change => change.userId === user.id);
+      
       nodeMap.set(user.id, {
         id: user.id,
         type: 'userNode',
         position: { x: 0, y: 0 }, // Will be calculated by layout
-        data: { user },
+        data: { user, hasPendingChange },
       });
     });
     
-    // Create edges for supervisor-subordinate relationships
-    users.forEach((user) => {
+    // Create edges for supervisor-subordinate relationships (with pending changes)
+    usersWithPendingChanges.forEach((user) => {
       if (user.supervisor && user.supervisor.id && user.id) {
+        // Check if this user has pending changes
+        const hasPendingChange = pendingChanges.some(change => change.userId === user.id);
+        
+        // Use red color for users with pending changes, blue for normal
+        const edgeColor = hasPendingChange ? '#ef4444' : '#3b82f6'; // red-500 : blue-500
+        const edgeOpacity = hasPendingChange ? 0.9 : 0.8;
+        const strokeWidth = hasPendingChange ? 4 : 3;
+        
         edgeList.push({
           id: `${user.supervisor.id}-${user.id}`,
           source: user.supervisor.id,
@@ -192,23 +254,23 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
           targetHandle: 'top',
           type: 'smoothstep',
           style: { 
-            stroke: '#3b82f6', 
-            strokeWidth: 3,
-            opacity: 0.8
+            stroke: edgeColor, 
+            strokeWidth: strokeWidth,
+            opacity: edgeOpacity
           },
-          animated: false,
+          animated: hasPendingChange, // Animate pending changes for extra visibility
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 20,
             height: 20,
-            color: '#3b82f6',
+            color: edgeColor,
           },
         });
       }
     });
     
-    // Auto-layout: Find root nodes (users without supervisors)
-    const rootUsers = users.filter(user => !user.supervisor);
+    // Auto-layout: Find root nodes (users without supervisors) - use modified users with pending changes
+    const rootUsers = usersWithPendingChanges.filter(user => !user.supervisor);
     const visited = new Set<string>();
     
     const layoutNodes = (user: UserDetailResponse, level: number, xOffset: number): { width: number, center: number } => {
@@ -220,8 +282,8 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
       const node = nodeMap.get(user.id);
       if (!node) return { width: 0, center: 0 };
       
-      // Get subordinates that exist in the filtered users
-      const subordinates = users.filter(u => u.supervisor?.id === user.id && nodeMap.has(u.id));
+      // Get subordinates that exist in the filtered users - use modified users with pending changes
+      const subordinates = usersWithPendingChanges.filter(u => u.supervisor?.id === user.id && nodeMap.has(u.id));
       
       // Improved spacing and layout for better visualization
       const nodeWidth = 288; // w-72 = 288px (sm:w-64 = 256px on mobile)
@@ -318,7 +380,7 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
       nodes: allNodes,
       edges: edgeList,
     };
-  }, [users]);
+  }, [users, pendingChanges]);
   
   const [nodesState, setNodes, onNodesChange] = useNodesState(nodes);
   const [edgesState, setEdges, onEdgesChange] = useEdgesState(edges);
@@ -328,11 +390,267 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
     [setEdges]
   );
   
-  // Update nodes and edges when users change
-  React.useEffect(() => {
+  // Validation functions
+  const validateHierarchyChange = useCallback((userId: string, newSupervisorId: string | null): string | null => {
+    // Cannot be supervisor of self
+    if (userId === newSupervisorId) {
+      return "ユーザーは自分自身の上司になることはできません";
+    }
+    
+    // Check for circular hierarchy (would create infinite loop)
+    if (newSupervisorId) {
+      const wouldCreateCircle = (checkUserId: string, targetSupervisorId: string): boolean => {
+        const user = users.find(u => u.id === checkUserId);
+        if (!user?.supervisor?.id) return false;
+        if (user.supervisor.id === targetSupervisorId) return true;
+        return wouldCreateCircle(user.supervisor.id, targetSupervisorId);
+      };
+      
+      if (wouldCreateCircle(newSupervisorId, userId)) {
+        return "この変更は循環参照を作成するため許可されません";
+      }
+    }
+    
+    return null;
+  }, [users]);
+  
+  // Handle supervisor change (now only adds pending changes)
+  const handleSupervisorChange = useCallback((userId: string, newSupervisorId: string | null) => {
+    
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    
+    // Get the current supervisor (considering pending changes)
+    const existingPendingChange = pendingChanges.find(change => change.userId === userId);
+    const currentSupervisorId = existingPendingChange 
+      ? existingPendingChange.newSupervisorId 
+      : user.supervisor?.id || null;
+    
+    // Skip if no change
+    if (currentSupervisorId === newSupervisorId) return;
+    
+    // Validate the change
+    const validationError = validateHierarchyChange(userId, newSupervisorId);
+    if (validationError) {
+      toast.error("階層変更エラー", {
+        description: validationError,
+      });
+      return;
+    }
+    
+    // Add or update pending change
+    const originalSupervisorId = user.supervisor?.id || null;
+    const pendingChange: PendingChange = {
+      userId,
+      newSupervisorId,
+      originalSupervisorId,
+      timestamp: Date.now(),
+    };
+    
+    setPendingChanges(prev => {
+      // Remove existing pending change for this user if any
+      const filtered = prev.filter(change => change.userId !== userId);
+      
+      // If the new supervisor is the same as original, don't add to pending
+      if (newSupervisorId === originalSupervisorId) {
+        return filtered;
+      }
+      
+      // Add the new pending change
+      return [...filtered, pendingChange];
+    });
+    
+    // Force layout recalculation to show visual changes
+    setLayoutKey(prev => prev + 1);
+    
+    const supervisorName = newSupervisorId 
+      ? users.find(u => u.id === newSupervisorId)?.name || '不明'
+      : 'なし';
+    
+    toast.info("変更待機中", {
+      description: `${user.name}の上司を${supervisorName}に変更予定。赤い線で表示されます。「保存」をクリックして確定してください。`,
+    });
+  }, [users, pendingChanges, validateHierarchyChange]);
+  
+  // Handle undo last pending change
+  const handleUndo = useCallback(() => {
+    if (pendingChanges.length === 0) return;
+    
+    // Remove the last pending change
+    setPendingChanges(prev => prev.slice(0, -1));
+    
+    // Force layout recalculation
+    setLayoutKey(prev => prev + 1);
+    
+    toast.success("変更を取り消しました", {
+      description: "最後の保留中の変更が取り消されました",
+    });
+  }, [pendingChanges]);
+  
+  // Handle save all pending changes
+  const handleSaveChanges = useCallback(async () => {
+    if (pendingChanges.length === 0) return;
+    
+    setIsSaving(true);
+    const successfulChanges: PendingChange[] = [];
+    let hasErrors = false;
+    
+    // Optimistic update: Clear pending changes immediately for better UX
+    const changesToProcess = [...pendingChanges];
+    setPendingChanges([]);
+    setLayoutKey(prev => prev + 1);
+    
+    try {
+      // Process each pending change
+      for (const pendingChange of changesToProcess) {
+        try {
+          const result = await updateUserAction(
+            pendingChange.userId, 
+            { supervisor_id: pendingChange.newSupervisorId || undefined }
+          );
+          
+          if (result.success && result.data) {
+            // Add to successful changes
+            successfulChanges.push(pendingChange);
+            
+            // Update the user data
+            if (onUserUpdate) {
+              onUserUpdate(result.data);
+            }
+          } else {
+            hasErrors = true;
+            const user = users.find(u => u.id === pendingChange.userId);
+            toast.error("保存エラー", {
+              description: `${user?.name || '不明なユーザー'}の変更保存に失敗しました`,
+            });
+            
+            // Revert this change on error
+            setPendingChanges(prev => [...prev, pendingChange]);
+          }
+        } catch (error) {
+          hasErrors = true;
+          const user = users.find(u => u.id === pendingChange.userId);
+          console.error('Error saving change for user:', pendingChange.userId, error);
+          toast.error("保存エラー", {
+            description: `${user?.name || '不明なユーザー'}の変更保存中にエラーが発生しました`,
+          });
+          
+          // Revert this change on error
+          setPendingChanges(prev => [...prev, pendingChange]);
+        }
+      }
+      
+      // Show success/warning messages
+      if (successfulChanges.length > 0) {
+        // Force final layout recalculation after all updates
+        setLayoutKey(prev => prev + 1);
+        
+        if (!hasErrors) {
+          toast.success("変更保存完了", {
+            description: `${successfulChanges.length}件の階層変更が正常に保存されました`,
+          });
+        } else {
+          toast.warning("一部保存完了", {
+            description: `${successfulChanges.length}件中一部の変更が保存されました`,
+          });
+        }
+      } else if (hasErrors) {
+        // All changes failed, show error and force layout update
+        setLayoutKey(prev => prev + 1);
+      }
+    } catch (error) {
+      console.error('Error saving changes:', error);
+      toast.error("保存エラー", {
+        description: "変更の保存中に予期しないエラーが発生しました",
+      });
+      
+      // Revert all changes on unexpected error
+      setPendingChanges(changesToProcess);
+      setLayoutKey(prev => prev + 1);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [pendingChanges, users, onUserUpdate]);
+  
+  // Handle node drag start
+  const onNodeDragStart: NodeDragHandler = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+  
+  // Handle node drag stop
+  const onNodeDragStop: NodeDragHandler = useCallback(async (event, node) => {
+    setIsDragging(false);
+    
+    // Get drop coordinates
+    const dropX = event.clientX;
+    const dropY = event.clientY;
+    
+    // Find the closest node to become supervisor
+    let closestSupervisor: string | null = null;
+    let closestDistance = Infinity;
+    
+    // Check all nodes in the React Flow
+    const reactFlowWrapper = document.querySelector('.react-flow');
+    if (reactFlowWrapper) {
+      const allNodes = reactFlowWrapper.querySelectorAll('.react-flow__node');
+      
+      allNodes.forEach(nodeElement => {
+        const nodeId = nodeElement.getAttribute('data-id');
+        if (nodeId && nodeId !== node.id) {
+          const nodeRect = nodeElement.getBoundingClientRect();
+          const nodeCenterX = nodeRect.left + nodeRect.width / 2;
+          const nodeCenterY = nodeRect.top + nodeRect.height / 2;
+          
+          // Calculate distance from drop point to node center
+          const distance = Math.sqrt(
+            Math.pow(dropX - nodeCenterX, 2) + Math.pow(dropY - nodeCenterY, 2)
+          );
+          
+          // Define drop zones
+          const DROP_ZONE_RADIUS = 150; // pixels
+          const BELOW_ZONE_HEIGHT = 100; // Height of area below node to consider as "subordinate zone"
+          
+          // Check if dropped within reasonable distance
+          if (distance < DROP_ZONE_RADIUS) {
+            // Check if dropped below the node (subordinate position)
+            const isDroppedBelow = dropY > nodeRect.bottom && 
+                                  dropY < nodeRect.bottom + BELOW_ZONE_HEIGHT &&
+                                  dropX > nodeRect.left - 50 && 
+                                  dropX < nodeRect.right + 50;
+            
+            // Check if dropped directly on the node (any position)
+            const isDroppedOnNode = dropX >= nodeRect.left && 
+                                   dropX <= nodeRect.right && 
+                                   dropY >= nodeRect.top && 
+                                   dropY <= nodeRect.bottom;
+            
+            if (isDroppedBelow || isDroppedOnNode) {
+              if (distance < closestDistance) {
+                closestDistance = distance;
+                closestSupervisor = nodeId;
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    // If found a potential supervisor, make the connection
+    if (closestSupervisor) {
+      await handleSupervisorChange(node.id, closestSupervisor);
+      return; // Don't reset position if we're processing a change
+    }
+    
+    // If not dropped near any node, reset to original position
     setNodes(nodes);
     setEdges(edges);
-  }, [nodes, edges, setNodes, setEdges]);
+  }, [handleSupervisorChange, nodes, edges, setNodes, setEdges]);
+  
+  // Update nodes and edges when users change or layout is forced
+  useEffect(() => {
+    setNodes(nodes);
+    setEdges(edges);
+  }, [nodes, edges, setNodes, setEdges, layoutKey]);
   
   if (users.length === 0) {
     return (
@@ -368,19 +686,88 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
             <p className="font-medium">操作方法:</p>
             <p>🔍 ズーム: マウスホイール</p>
             <p>🖱️ 移動: ドラッグ</p>
-            <p>📱 リセット: ダブルクリック</p>
+            <>
+              <p>👆 階層変更: ユーザーをドラッグして上司の下にドロップ</p>
+              <p>🎯 ドロップゾーン: 上司の上または下の近くにドロップ</p>
+              <p>🔴 赤線: 保存待ちの変更 (アニメーション付き)</p>
+              <p>💾 保存: 左上の「保存」ボタンで確定</p>
+            </>
           </div>
         </div>
       </div>
       
       {/* React Flow Container */}
-      <div className="w-full h-[900px] sm:h-[700px] md:h-[800px] lg:h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
+      <div className="w-full h-[900px] sm:h-[700px] md:h-[800px] lg:h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg relative">
+        {/* Save and Undo Buttons - appear in top-left when there are pending changes */}
+        {pendingChanges.length > 0 && (
+          <div className="absolute top-4 left-4 z-50 flex gap-2">
+            <Button
+              onClick={handleSaveChanges}
+              disabled={isSaving}
+              variant="default"
+              size="sm"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition-all duration-200"
+            >
+              {isSaving ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              保存 ({pendingChanges.length}件)
+            </Button>
+            <Button
+              onClick={handleUndo}
+              disabled={isSaving}
+              variant="secondary"
+              size="sm"
+              className="flex items-center gap-2 bg-white/90 backdrop-blur-sm shadow-lg border border-gray-200 hover:bg-white/95 transition-all duration-200"
+            >
+              <Undo2 className="w-4 h-4" />
+              元に戻す ({pendingChanges.length}件)
+            </Button>
+          </div>
+        )}
+        
+        {/* Loading indicator - appears in top-right when saving */}
+        {isSaving && (
+          <div className="absolute top-4 right-4 z-50">
+            <div className="flex items-center gap-2 text-sm text-blue-600 bg-white/90 backdrop-blur-sm shadow-lg border border-gray-200 rounded-md px-3 py-2">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              保存中...
+            </div>
+          </div>
+        )}
+        
+        {/* Drop zone indicators - only show during drag */}
+        {isDragging && (
+          <style jsx>{`
+            .react-flow__node {
+              position: relative;
+            }
+            .react-flow__node::before {
+              content: '';
+              position: absolute;
+              top: -20px;
+              left: -10px;
+              right: -10px;
+              bottom: -60px;
+              border: 2px dashed #3b82f6;
+              border-radius: 8px;
+              background: rgba(59, 130, 246, 0.1);
+              opacity: 0.7;
+              pointer-events: none;
+              z-index: 1000;
+            }
+          `}</style>
+        )}
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ 
@@ -393,10 +780,10 @@ export default function UserOrganizationView({ users }: UserOrganizationViewProp
           maxZoom={1.5}
           defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
+          nodesDraggable={true}
           nodesConnectable={false}
           elementsSelectable={true}
-          panOnDrag={true}
+          panOnDrag={!isDragging}
           zoomOnScroll={true}
           zoomOnPinch={true}
           zoomOnDoubleClick={true}
