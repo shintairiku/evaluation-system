@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, ForeignKey, text, DECIMAL, CheckConstraint, UniqueConstraint
+from sqlalchemy import Column, String, DateTime, ForeignKey, text, DECIMAL, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID, JSONB
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.schema import Index
@@ -121,7 +121,8 @@ class Goal(Base):
         
         # Validate specific field types
         if "performance_goal_type" in data and data["performance_goal_type"] is not None:
-            valid_types = ["定量目標", "定性目標", "プロセス目標", "学習目標"]
+            # Accept both English enum values and Japanese display names
+            valid_types = ["quantitative", "qualitative", "定量目標", "定性目標"]
             if data["performance_goal_type"] not in valid_types:
                 raise ValueError(f"Invalid performance_goal_type: {data['performance_goal_type']}")
         
