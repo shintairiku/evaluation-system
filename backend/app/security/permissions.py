@@ -46,10 +46,10 @@ class Permission(Enum):
     ROLE_READ_ALL = "role:read:all"          # Read all roles (admin, manager, supervisor, viewer, employee, parttime)
     ROLE_MANAGE = "role:manage"              # Manage roles (admin only)
     
-    # Goal Management (Consolidated from 9 to 3)
-    GOAL_READ = "goal:read"                  # Read goals (scope determined by role)
+    # Goal Management (Following Japanese feedback specification)
+    GOAL_READ_SELF = "goal:read:self"        # 自身のゴール(目標)のみ取得可能 (employee, parttime適用)
     GOAL_READ_ALL = "goal:read:all"          # Read all goals (admin only)
-    GOAL_READ_SUBORDINATES = "goal:read:subordinates"  # Read subordinates' goals
+    GOAL_READ_SUBORDINATES = "goal:read:subordinates"  # 部下の目標を取得可能 (部下を持つロール適用)
     GOAL_MANAGE = "goal:manage"              # Create, update, delete goals
     GOAL_APPROVE = "goal:approve"            # Approve goals (supervisors and above)
     
@@ -102,7 +102,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.ROLE_MANAGE,
             
             # Goal Management - Full Access
-            Permission.GOAL_READ,
+            Permission.GOAL_READ_SELF,
             Permission.GOAL_READ_ALL,
             Permission.GOAL_MANAGE,
             Permission.GOAL_APPROVE,
@@ -140,8 +140,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Role Management - Read access
             Permission.ROLE_READ_ALL,
             
-            # Goal Management - Manage and approve
-            Permission.GOAL_READ,
+            # Goal Management - Self and subordinates
+            Permission.GOAL_READ_SELF,
             Permission.GOAL_READ_SUBORDINATES,
             Permission.GOAL_MANAGE,
             Permission.GOAL_APPROVE,
@@ -177,8 +177,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Role Management - Read access
             Permission.ROLE_READ_ALL,
             
-            # Goal Management - Approve subordinates
-            Permission.GOAL_READ,
+            # Goal Management - Self and subordinates
+            Permission.GOAL_READ_SELF,
             Permission.GOAL_READ_SUBORDINATES,
             Permission.GOAL_MANAGE,
             Permission.GOAL_APPROVE,
@@ -213,8 +213,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Role Management - Read access
             Permission.ROLE_READ_ALL,
             
-            # Goal Management - Read only
-            Permission.GOAL_READ,
+            # Goal Management - Self only
+            Permission.GOAL_READ_SELF,
             
             # Evaluation Management - Read only
             Permission.EVALUATION_READ,
@@ -243,8 +243,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Role Management - Read access
             Permission.ROLE_READ_ALL,
             
-            # Goal Management - Own goals
-            Permission.GOAL_READ,
+            # Goal Management - Self only (自分の目標のみ)
+            Permission.GOAL_READ_SELF,
             Permission.GOAL_MANAGE,
             
             # Evaluation Management - Own evaluations
@@ -275,8 +275,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Role Management - Read access
             Permission.ROLE_READ_ALL,
             
-            # Goal Management - Basic functions
-            Permission.GOAL_READ,
+            # Goal Management - Self only (自分の目標のみ)
+            Permission.GOAL_READ_SELF,
             Permission.GOAL_MANAGE,
             
             # Evaluation Management - Basic functions
