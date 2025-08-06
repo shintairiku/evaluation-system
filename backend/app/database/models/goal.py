@@ -34,6 +34,37 @@ class Goal(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
+    # Database constraints
+    __table_args__ = (
+        # Unique constraint: one goal per user/period/category combination
+        UniqueConstraint('user_id', 'period_id', 'goal_category', name='unique_user_period_category'),
+        
+        # Weight validation: individual weight must be between 0 and 100
+        # Note: Business rule validation (sum of 業績目標 weights = 100%) handled in repository layer
+        CheckConstraint('weight >= 0 AND weight <= 100', name='check_individual_weight_bounds'),
+        
+        # Status validation
+        CheckConstraint(
+            "status IN ('draft', 'pending_approval', 'approved', 'rejected')", 
+            name='check_status_values'
+        ),
+        
+        # Goal category validation
+        CheckConstraint(
+            "goal_category IN ('業績目標', 'コンピテンシー', 'コアバリュー')", 
+            name='check_goal_category_values'
+        ),
+        
+        # Approval logic: approved goals must have approved_by and approved_at
+        CheckConstraint(
+            "(status != 'approved') OR (approved_by IS NOT NULL AND approved_at IS NOT NULL)",
+            name='check_approval_required'
+        ),
+        
+        # Performance index for common queries
+        Index('idx_goals_user_period', 'user_id', 'period_id'),
+        Index('idx_goals_status_category', 'status', 'goal_category'),
+    )
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="goals")
