@@ -302,8 +302,8 @@ class GoalRepository:
             if goal_data.weight is not None:
                 update_data["weight"] = Decimal(str(goal_data.weight))
             
-            if goal_data.status is not None:
-                update_data["status"] = goal_data.status.value
+            # Status updates are handled separately via update_goal_status method
+            # to ensure proper validation and business rules
             
             # Build target_data for category-specific fields
             target_data_updates = {}
