@@ -280,8 +280,22 @@ class GoalRepository:
     # ========================================
 
     async def update_goal(self, goal_id: UUID, goal_data: GoalUpdate) -> Optional[Goal]:
-        """Update a goal with new data."""
+        """Update a goal with new data, including validation and atomic operations."""
         try:
+            # Validate goal exists first
+            existing_goal = await self._validate_goal_exists(goal_id)
+            
+            # Validate weight constraints if weight is being updated
+            if goal_data.weight is not None:
+                new_weight = Decimal(str(goal_data.weight))
+                await self._validate_performance_goal_weight_constraints(
+                    existing_goal.user_id, 
+                    existing_goal.period_id, 
+                    new_weight,
+                    existing_goal.goal_category,
+                    exclude_goal_id=goal_id
+                )
+            
             # Build update dictionary
             update_data = {}
             
@@ -324,21 +338,31 @@ class GoalRepository:
                 
                 update_data["target_data"] = merged_target_data
             
-            if not update_data:
-                # No updates to apply
-                return await self.get_goal_by_id(goal_id)
+            # Execute update if there are changes
+            if update_data:
+                update_data["updated_at"] = datetime.now(timezone.utc)
+                await self.session.execute(
+                    update(Goal)
+                    .where(Goal.id == goal_id)
+                    .values(**update_data)
+                )
             
-            update_data["updated_at"] = datetime.utcnow()
-            
-            await self.session.execute(
-                update(Goal)
-                .where(Goal.id == goal_id)
-                .values(**update_data)
-            )
-            
+            # Return updated goal
             return await self.get_goal_by_id(goal_id)
+            
+        except IntegrityError as e:
+            logger.error(f"Integrity error updating goal {goal_id}: {e}")
+            if "check_individual_weight_bounds" in str(e):
+                raise ValidationError("Individual weight must be between 0 and 100")
+            elif "check_status_values" in str(e):
+                raise ValidationError("Invalid status value")
+            else:
+                raise ConflictError(f"Database constraint violation: {e}")
+        except ValueError as e:
+            logger.error(f"Validation error updating goal {goal_id}: {e}")
+            raise ValidationError(str(e))
         except SQLAlchemyError as e:
-            logger.error(f"Error updating goal {goal_id}: {e}")
+            logger.error(f"Database error updating goal {goal_id}: {e}")
             raise
 
     async def update_goal_status(
