@@ -257,6 +257,45 @@ class GoalService:
             logger.error(f"Error deleting goal {goal_id}: {str(e)}")
             raise
 
+    async def submit_goal_for_approval(
+        self,
+        goal_id: UUID,
+        current_user_context: AuthContext
+    ) -> Goal:
+        """Submit a goal for approval by changing status to pending_approval."""
+        try:
+            # Check if goal exists and user can update it
+            existing_goal = await self.goal_repo.get_goal_by_id(goal_id)
+            if not existing_goal:
+                raise NotFoundError(f"Goal with ID {goal_id} not found")
+            
+            # Permission check - only goal owner can submit
+            await self._check_goal_update_permission(existing_goal, current_user_context)
+            
+            # Business rule: can only submit draft or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only submit draft or rejected goals for approval")
+            
+            # Update status using dedicated method with validation
+            updated_goal = await self.goal_repo.update_goal_status(
+                goal_id, 
+                GoalStatus.PENDING_APPROVAL
+            )
+            
+            # Commit transaction
+            await self.session.commit()
+            
+            # Enrich response data
+            enriched_goal = await self._enrich_goal_data(updated_goal)
+            
+            logger.info(f"Goal submitted for approval: {goal_id} by {current_user_context.user_id}")
+            return enriched_goal
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error submitting goal {goal_id}: {str(e)}")
+            raise
+
     async def approve_goal(
         self,
         goal_id: UUID,
