@@ -76,5 +76,139 @@ class Goal(Base):
     # supervisor_reviews = relationship("SupervisorReview", back_populates="goal", cascade="all, delete-orphan")
     # supervisor_feedbacks = relationship("SupervisorFeedback", back_populates="goal", cascade="all, delete-orphan")
 
+    @validates('target_data')
+    def validate_target_data(self, key, target_data):
+        """Validate target_data JSON structure based on goal_category"""
+        if not isinstance(target_data, dict):
+            raise ValueError("target_data must be a dictionary")
+        
+        # Schema validation based on goal category
+        if hasattr(self, 'goal_category') and self.goal_category:
+            self._validate_target_data_schema(target_data, self.goal_category)
+        
+        return target_data
+
+    def _validate_target_data_schema(self, target_data: Dict[str, Any], category: str) -> None:
+        """Validate target_data schema for specific goal categories"""
+        if category == "業績目標":  # Performance Goal
+            required_fields = ["performance_goal_type", "specific_goal_text", "achievement_criteria_text"]
+            optional_fields = ["means_methods_text"]
+            self._validate_performance_goal_schema(target_data, required_fields, optional_fields)
+            
+        elif category == "コンピテンシー":  # Competency Goal
+            required_fields = ["competency_id"]
+            optional_fields = ["action_plan"]
+            self._validate_competency_goal_schema(target_data, required_fields, optional_fields)
+            
+        elif category == "コアバリュー":  # Core Value Goal
+            required_fields = ["core_value_plan"]
+            optional_fields = []
+            self._validate_core_value_goal_schema(target_data, required_fields, optional_fields)
+        else:
+            raise ValueError(f"Unknown goal_category: {category}")
+
+    def _validate_performance_goal_schema(self, data: Dict[str, Any], required: list, optional: list) -> None:
+        """Validate performance goal target_data schema"""
+        all_allowed = set(required + optional)
+        provided = set(data.keys())
+        
+        # Check for unknown fields
+        unknown = provided - all_allowed
+        if unknown:
+            raise ValueError(f"Unknown fields in performance goal target_data: {unknown}")
+        
+        # Check required fields
+        missing = set(required) - provided
+        if missing:
+            raise ValueError(f"Missing required fields in performance goal: {missing}")
+        
+        # Validate specific field types
+        if "performance_goal_type" in data and data["performance_goal_type"] is not None:
+            valid_types = ["定量目標", "定性目標", "プロセス目標", "学習目標"]
+            if data["performance_goal_type"] not in valid_types:
+                raise ValueError(f"Invalid performance_goal_type: {data['performance_goal_type']}")
+        
+        # Validate text fields are strings
+        text_fields = ["specific_goal_text", "achievement_criteria_text", "means_methods_text"]
+        for field in text_fields:
+            if field in data and data[field] is not None and not isinstance(data[field], str):
+                raise ValueError(f"{field} must be a string")
+
+    def _validate_competency_goal_schema(self, data: Dict[str, Any], required: list, optional: list) -> None:
+        """Validate competency goal target_data schema"""
+        all_allowed = set(required + optional)
+        provided = set(data.keys())
+        
+        # Check for unknown fields
+        unknown = provided - all_allowed
+        if unknown:
+            raise ValueError(f"Unknown fields in competency goal target_data: {unknown}")
+        
+        # Check required fields
+        missing = set(required) - provided
+        if missing:
+            raise ValueError(f"Missing required fields in competency goal: {missing}")
+        
+        # Validate competency_id is UUID string format
+        if "competency_id" in data and data["competency_id"] is not None:
+            try:
+                from uuid import UUID
+                UUID(str(data["competency_id"]))
+            except (ValueError, TypeError):
+                raise ValueError("competency_id must be a valid UUID string")
+        
+        # Validate action_plan is string
+        if "action_plan" in data and data["action_plan"] is not None:
+            if not isinstance(data["action_plan"], str):
+                raise ValueError("action_plan must be a string")
+
+    def _validate_core_value_goal_schema(self, data: Dict[str, Any], required: list, optional: list) -> None:
+        """Validate core value goal target_data schema"""
+        all_allowed = set(required + optional)
+        provided = set(data.keys())
+        
+        # Check for unknown fields
+        unknown = provided - all_allowed
+        if unknown:
+            raise ValueError(f"Unknown fields in core value goal target_data: {unknown}")
+        
+        # Check required fields
+        missing = set(required) - provided
+        if missing:
+            raise ValueError(f"Missing required fields in core value goal: {missing}")
+        
+        # Validate core_value_plan is string
+        if "core_value_plan" in data and data["core_value_plan"] is not None:
+            if not isinstance(data["core_value_plan"], str):
+                raise ValueError("core_value_plan must be a string")
+
+    @validates('weight')
+    def validate_weight(self, key, weight):
+        """Validate weight is within bounds"""
+        if weight is not None:
+            from decimal import Decimal
+            weight_decimal = Decimal(str(weight))
+            if weight_decimal < 0 or weight_decimal > 100:
+                raise ValueError(f"Weight must be between 0 and 100, got: {weight_decimal}")
+        return weight
+
+    @validates('status')
+    def validate_status(self, key, status):
+        """Validate status is one of allowed values"""
+        if status is not None:
+            valid_statuses = ['draft', 'pending_approval', 'approved', 'rejected']
+            if status not in valid_statuses:
+                raise ValueError(f"Invalid status: {status}. Must be one of: {valid_statuses}")
+        return status
+
+    @validates('goal_category')
+    def validate_goal_category(self, key, category):
+        """Validate goal_category is one of allowed values"""
+        if category is not None:
+            valid_categories = ['業績目標', 'コンピテンシー', 'コアバリュー']
+            if category not in valid_categories:
+                raise ValueError(f"Invalid goal_category: {category}. Must be one of: {valid_categories}")
+        return category
+
     def __repr__(self):
         return f"<Goal(id={self.id}, user_id={self.user_id}, category={self.goal_category}, status={self.status})>"
