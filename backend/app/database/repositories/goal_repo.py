@@ -371,16 +371,34 @@ class GoalRepository:
         status: GoalStatus,
         approved_by: Optional[UUID] = None
     ) -> Optional[Goal]:
-        """Update goal status and approval information."""
+        """Update goal status and approval information with validation."""
         try:
+            # Validate goal exists first
+            existing_goal = await self._validate_goal_exists(goal_id)
+            
+            # Validate approver exists if provided
+            if approved_by:
+                await self._validate_user_and_period(approved_by, existing_goal.period_id)
+            
+            # Validate status transition logic
+            self._validate_status_transition(existing_goal.status, status.value)
+            
+            # Special validation: When submitting for approval, ensure performance goals sum to 100%
+            if status == GoalStatus.PENDING_APPROVAL:
+                await self._validate_all_performance_goals_sum_to_100(
+                    existing_goal.user_id, existing_goal.period_id
+                )
+            
             update_data = {
                 "status": status.value,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.now(timezone.utc)
             }
             
-            if status == GoalStatus.APPROVED and approved_by:
+            if status == GoalStatus.APPROVED:
+                if not approved_by:
+                    raise ValidationError("approved_by is required when approving a goal")
                 update_data["approved_by"] = approved_by
-                update_data["approved_at"] = datetime.utcnow()
+                update_data["approved_at"] = datetime.now(timezone.utc)
             elif status == GoalStatus.REJECTED:
                 # Clear approval info on rejection
                 update_data["approved_by"] = None
@@ -392,10 +410,39 @@ class GoalRepository:
                 .values(**update_data)
             )
             
+            logger.info(f"Updated goal {goal_id} status to {status.value}")
             return await self.get_goal_by_id(goal_id)
+            
+        except IntegrityError as e:
+            logger.error(f"Integrity error updating goal status {goal_id}: {e}")
+            if "check_approval_required" in str(e):
+                raise ValidationError("Approved goals must have approved_by and approved_at")
+            elif "check_status_values" in str(e):
+                raise ValidationError(f"Invalid status value: {status}")
+            else:
+                raise ConflictError(f"Database constraint violation: {e}")
+        except ValueError as e:
+            logger.error(f"Validation error updating goal status {goal_id}: {e}")
+            raise ValidationError(str(e))
         except SQLAlchemyError as e:
-            logger.error(f"Error updating goal status {goal_id}: {e}")
+            logger.error(f"Database error updating goal status {goal_id}: {e}")
             raise
+
+    def _validate_status_transition(self, current_status: str, new_status: str) -> None:
+        """Validate that the status transition is allowed."""
+        valid_transitions = {
+            "draft": ["pending_approval", "rejected"],
+            "pending_approval": ["approved", "rejected", "draft"],
+            "approved": [],  # Approved goals cannot be changed
+            "rejected": ["draft", "pending_approval"]
+        }
+        
+        allowed_next_statuses = valid_transitions.get(current_status, [])
+        if new_status not in allowed_next_statuses:
+            raise ValidationError(
+                f"Invalid status transition from '{current_status}' to '{new_status}'. "
+                f"Allowed transitions: {allowed_next_statuses}"
+            )
 
     # ========================================
     # DELETE OPERATIONS
