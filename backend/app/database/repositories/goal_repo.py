@@ -40,6 +40,14 @@ class GoalRepository:
             # Validate user and period existence first
             await self._validate_user_and_period(user_id, goal_data.period_id)
             
+            # Validate weight constraints for performance goals
+            if goal_data.weight is not None:
+                await self._validate_performance_goal_weight_constraints(
+                    user_id, 
+                    goal_data.period_id, 
+                    Decimal(str(goal_data.weight)),
+                    goal_data.goal_category
+                )
             target_data = self._build_target_data(goal_data)
             
             goal = Goal(
@@ -384,6 +392,45 @@ class GoalRepository:
         )
         if not period_result.scalars().first():
             raise NotFoundError(f"Evaluation period not found: {period_id}")
+
+    async def _validate_performance_goal_weight_constraints(
+        self, user_id: UUID, period_id: UUID, new_weight: Decimal, 
+        goal_category: str, exclude_goal_id: Optional[UUID] = None
+    ) -> None:
+        """
+        Validate performance goal weight constraints.
+        
+        Business Rule: The sum of all 業績目標 (performance goals) weights 
+        for the same user and period must equal 100%.
+        """
+        if goal_category != "業績目標":
+            # Only performance goals have the 100% weight requirement
+            return
+            
+        # Get current weight totals for performance goals only
+        weight_totals = await self.get_weight_totals_by_category(
+            user_id, period_id, exclude_goal_id
+        )
+        
+        # Get current performance goal weight total
+        current_performance_weight = weight_totals.get("業績目標", Decimal("0"))
+        
+        # Calculate what the new total would be
+        new_total_weight = current_performance_weight + new_weight
+        
+        # For performance goals, the total must eventually equal 100%
+        # We allow temporary states during creation/editing, but warn about the requirement
+        if new_total_weight > 100:
+            raise ValidationError(
+                f"Performance goals total weight cannot exceed 100%: "
+                f"current {current_performance_weight}% + new {new_weight}% = {new_total_weight}%"
+            )
+        
+        logger.info(
+            f"Performance goal weight validation: user {user_id}, period {period_id} - "
+            f"current: {current_performance_weight}%, new goal: {new_weight}%, "
+            f"total: {new_total_weight}% (target: 100%)"
+        )
 
     def _build_target_data(self, goal_data: GoalCreate) -> Dict[str, Any]:
         """Build target_data JSON structure based on goal category."""
