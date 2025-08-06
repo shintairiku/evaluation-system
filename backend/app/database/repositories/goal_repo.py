@@ -33,11 +33,13 @@ class GoalRepository:
 
     async def create_goal(self, goal_data: GoalCreate, user_id: UUID) -> Goal:
         """
-        Create a new goal from GoalCreate schema.
+        Create a new goal from GoalCreate schema with validation and error handling.
         Adds to session (does not commit - let service layer handle transactions).
         """
         try:
-            # Build target_data based on goal category
+            # Validate user and period existence first
+            await self._validate_user_and_period(user_id, goal_data.period_id)
+            
             target_data = self._build_target_data(goal_data)
             
             goal = Goal(
@@ -366,6 +368,22 @@ class GoalRepository:
     # ========================================
     # HELPER METHODS
     # ========================================
+
+    async def _validate_user_and_period(self, user_id: UUID, period_id: UUID) -> None:
+        """Validate that user and evaluation period exist."""
+        # Check user exists
+        user_result = await self.session.execute(
+            select(User).filter(User.id == user_id)
+        )
+        if not user_result.scalars().first():
+            raise NotFoundError(f"User not found: {user_id}")
+        
+        # Check evaluation period exists
+        period_result = await self.session.execute(
+            select(EvaluationPeriod).filter(EvaluationPeriod.id == period_id)
+        )
+        if not period_result.scalars().first():
+            raise NotFoundError(f"Evaluation period not found: {period_id}")
 
     def _build_target_data(self, goal_data: GoalCreate) -> Dict[str, Any]:
         """Build target_data JSON structure based on goal category."""
