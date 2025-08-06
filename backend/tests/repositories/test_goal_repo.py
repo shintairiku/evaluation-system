@@ -230,13 +230,13 @@ class TestGoalRepository:
         
         # Create goal data
         goal_data = GoalCreate(
-            period_id=period_id,
-            goal_category="業績目標",
+            periodId=period_id,
+            goalCategory="業績目標",
             weight=25.0,
-            performance_goal_type=PerformanceGoalType.QUANTITATIVE,
-            specific_goal_text="Test goal creation",
-            achievement_criteria_text="Test criteria",
-            means_methods_text="Test methods",
+            performanceGoalType=PerformanceGoalType.QUANTITATIVE,
+            specificGoalText="Test goal creation",
+            achievementCriteriaText="Test criteria",
+            meansMethodsText="Test methods",
             status=GoalStatus.DRAFT
         )
         
@@ -282,13 +282,13 @@ class TestGoalRepository:
         period_id = self.EVALUATION_PERIOD_ID
         
         goal_data = GoalCreate(
-            period_id=period_id,
-            goal_category="業績目標",
+            periodId=period_id,
+            goalCategory="業績目標",
             weight=30.0,
-            performance_goal_type=PerformanceGoalType.QUANTITATIVE,
-            specific_goal_text="Original goal text",
-            achievement_criteria_text="Original criteria",
-            means_methods_text="Original methods",
+            performanceGoalType=PerformanceGoalType.QUANTITATIVE,
+            specificGoalText="Original goal text",
+            achievementCriteriaText="Original criteria",
+            meansMethodsText="Original methods",
             status=GoalStatus.DRAFT
         )
         
@@ -300,7 +300,7 @@ class TestGoalRepository:
             # Update goal
             update_data = GoalUpdate(
                 weight=35.0,
-                specific_goal_text="Updated goal text",
+                specificGoalText="Updated goal text",
                 status=GoalStatus.PENDING_APPROVAL
             )
             
@@ -338,13 +338,13 @@ class TestGoalRepository:
         period_id = self.EVALUATION_PERIOD_ID
         
         goal_data = GoalCreate(
-            period_id=period_id,
-            goal_category="業績目標",
+            periodId=period_id,
+            goalCategory="業績目標",
             weight=20.0,
-            performance_goal_type=PerformanceGoalType.QUANTITATIVE,
-            specific_goal_text="Goal to delete",
-            achievement_criteria_text="Delete criteria",
-            means_methods_text="Delete methods",
+            performanceGoalType=PerformanceGoalType.QUANTITATIVE,
+            specificGoalText="Goal to delete",
+            achievementCriteriaText="Delete criteria",
+            meansMethodsText="Delete methods",
             status=GoalStatus.DRAFT
         )
         

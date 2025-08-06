@@ -1,12 +1,12 @@
 import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, update, func, delete, and_, or_
+from sqlalchemy import select, update, func, delete, and_
 from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.goal import Goal
@@ -14,6 +14,9 @@ from ..models.user import User
 from ..models.evaluation import EvaluationPeriod
 from ...schemas.goal import GoalCreate, GoalUpdate, GoalStatus
 from ...schemas.common import PaginationParams
+from ...core.exceptions import (
+    NotFoundError, ConflictError, ValidationError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,27 +33,52 @@ class GoalRepository:
 
     async def create_goal(self, goal_data: GoalCreate, user_id: UUID) -> Goal:
         """
-        Create a new goal from GoalCreate schema.
+        Create a new goal from GoalCreate schema with validation and error handling.
         Adds to session (does not commit - let service layer handle transactions).
         """
         try:
-            # Build target_data based on goal category
+            # Validate user and period existence first
+            await self._validate_user_and_period(user_id, goal_data.period_id)
+            
+            # Validate weight constraints for performance goals
+            if goal_data.weight is not None:
+                await self._validate_performance_goal_weight_constraints(
+                    user_id, 
+                    goal_data.period_id, 
+                    Decimal(str(goal_data.weight)),
+                    goal_data.goal_category
+                )
+            
+            # Build and validate target_data based on goal category
             target_data = self._build_target_data(goal_data)
             
+            # Create goal with validated data
             goal = Goal(
                 user_id=user_id,
                 period_id=goal_data.period_id,
                 goal_category=goal_data.goal_category,
                 target_data=target_data,
-                weight=Decimal(str(goal_data.weight)),
+                weight=Decimal(str(goal_data.weight)) if goal_data.weight is not None else None,
                 status=goal_data.status.value if goal_data.status else GoalStatus.DRAFT.value
             )
             
             self.session.add(goal)
             logger.info(f"Added goal to session: user_id={user_id}, category={goal_data.goal_category}")
             return goal
+            
+        except IntegrityError as e:
+            logger.error(f"Integrity error creating goal for user {user_id}: {e}")
+            if "check_individual_weight_bounds" in str(e):
+                raise ValidationError("Individual weight must be between 0 and 100")
+            elif "check_status_values" in str(e):
+                raise ValidationError("Invalid status value")
+            else:
+                raise ConflictError(f"Database constraint violation: {e}")
+        except ValueError as e:
+            logger.error(f"Validation error creating goal for user {user_id}: {e}")
+            raise ValidationError(str(e))
         except SQLAlchemyError as e:
-            logger.error(f"Error creating goal for user {user_id}: {e}")
+            logger.error(f"Database error creating goal for user {user_id}: {e}")
             raise
 
     # ========================================
@@ -252,8 +280,22 @@ class GoalRepository:
     # ========================================
 
     async def update_goal(self, goal_id: UUID, goal_data: GoalUpdate) -> Optional[Goal]:
-        """Update a goal with new data."""
+        """Update a goal with new data, including validation and atomic operations."""
         try:
+            # Validate goal exists first
+            existing_goal = await self._validate_goal_exists(goal_id)
+            
+            # Validate weight constraints if weight is being updated
+            if goal_data.weight is not None:
+                new_weight = Decimal(str(goal_data.weight))
+                await self._validate_performance_goal_weight_constraints(
+                    existing_goal.user_id, 
+                    existing_goal.period_id, 
+                    new_weight,
+                    existing_goal.goal_category,
+                    exclude_goal_id=goal_id
+                )
+            
             # Build update dictionary
             update_data = {}
             
@@ -296,21 +338,31 @@ class GoalRepository:
                 
                 update_data["target_data"] = merged_target_data
             
-            if not update_data:
-                # No updates to apply
-                return await self.get_goal_by_id(goal_id)
+            # Execute update if there are changes
+            if update_data:
+                update_data["updated_at"] = datetime.now(timezone.utc)
+                await self.session.execute(
+                    update(Goal)
+                    .where(Goal.id == goal_id)
+                    .values(**update_data)
+                )
             
-            update_data["updated_at"] = datetime.utcnow()
-            
-            await self.session.execute(
-                update(Goal)
-                .where(Goal.id == goal_id)
-                .values(**update_data)
-            )
-            
+            # Return updated goal
             return await self.get_goal_by_id(goal_id)
+            
+        except IntegrityError as e:
+            logger.error(f"Integrity error updating goal {goal_id}: {e}")
+            if "check_individual_weight_bounds" in str(e):
+                raise ValidationError("Individual weight must be between 0 and 100")
+            elif "check_status_values" in str(e):
+                raise ValidationError("Invalid status value")
+            else:
+                raise ConflictError(f"Database constraint violation: {e}")
+        except ValueError as e:
+            logger.error(f"Validation error updating goal {goal_id}: {e}")
+            raise ValidationError(str(e))
         except SQLAlchemyError as e:
-            logger.error(f"Error updating goal {goal_id}: {e}")
+            logger.error(f"Database error updating goal {goal_id}: {e}")
             raise
 
     async def update_goal_status(
@@ -319,16 +371,34 @@ class GoalRepository:
         status: GoalStatus,
         approved_by: Optional[UUID] = None
     ) -> Optional[Goal]:
-        """Update goal status and approval information."""
+        """Update goal status and approval information with validation."""
         try:
+            # Validate goal exists first
+            existing_goal = await self._validate_goal_exists(goal_id)
+            
+            # Validate approver exists if provided
+            if approved_by:
+                await self._validate_user_and_period(approved_by, existing_goal.period_id)
+            
+            # Validate status transition logic
+            self._validate_status_transition(existing_goal.status, status.value)
+            
+            # Special validation: When submitting for approval, ensure performance goals sum to 100%
+            if status == GoalStatus.PENDING_APPROVAL:
+                await self._validate_all_performance_goals_sum_to_100(
+                    existing_goal.user_id, existing_goal.period_id
+                )
+            
             update_data = {
                 "status": status.value,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.now(timezone.utc)
             }
             
-            if status == GoalStatus.APPROVED and approved_by:
+            if status == GoalStatus.APPROVED:
+                if not approved_by:
+                    raise ValidationError("approved_by is required when approving a goal")
                 update_data["approved_by"] = approved_by
-                update_data["approved_at"] = datetime.utcnow()
+                update_data["approved_at"] = datetime.now(timezone.utc)
             elif status == GoalStatus.REJECTED:
                 # Clear approval info on rejection
                 update_data["approved_by"] = None
@@ -340,29 +410,180 @@ class GoalRepository:
                 .values(**update_data)
             )
             
+            logger.info(f"Updated goal {goal_id} status to {status.value}")
             return await self.get_goal_by_id(goal_id)
+            
+        except IntegrityError as e:
+            logger.error(f"Integrity error updating goal status {goal_id}: {e}")
+            if "check_approval_required" in str(e):
+                raise ValidationError("Approved goals must have approved_by and approved_at")
+            elif "check_status_values" in str(e):
+                raise ValidationError(f"Invalid status value: {status}")
+            else:
+                raise ConflictError(f"Database constraint violation: {e}")
+        except ValueError as e:
+            logger.error(f"Validation error updating goal status {goal_id}: {e}")
+            raise ValidationError(str(e))
         except SQLAlchemyError as e:
-            logger.error(f"Error updating goal status {goal_id}: {e}")
+            logger.error(f"Database error updating goal status {goal_id}: {e}")
             raise
+
+    def _validate_status_transition(self, current_status: str, new_status: str) -> None:
+        """Validate that the status transition is allowed."""
+        valid_transitions = {
+            "draft": ["pending_approval", "rejected"],
+            "pending_approval": ["approved", "rejected", "draft"],
+            "approved": [],  # Approved goals cannot be changed
+            "rejected": ["draft", "pending_approval"]
+        }
+        
+        allowed_next_statuses = valid_transitions.get(current_status, [])
+        if new_status not in allowed_next_statuses:
+            raise ValidationError(
+                f"Invalid status transition from '{current_status}' to '{new_status}'. "
+                f"Allowed transitions: {allowed_next_statuses}"
+            )
 
     # ========================================
     # DELETE OPERATIONS
     # ========================================
 
     async def delete_goal(self, goal_id: UUID) -> bool:
-        """Delete a goal by ID."""
+        """Delete a goal by ID with validation."""
         try:
+            # Validate goal exists first
+            existing_goal = await self._validate_goal_exists(goal_id)
+            
+            # Check if goal can be deleted (e.g., only draft or rejected goals)
+            if existing_goal.status == "approved":
+                raise ValidationError("Cannot delete approved goals")
+            
             result = await self.session.execute(
                 delete(Goal).where(Goal.id == goal_id)
             )
-            return result.rowcount > 0
+            
+            deleted = result.rowcount > 0
+            if deleted:
+                logger.info(f"Deleted goal {goal_id}")
+            
+            return deleted
+            
         except SQLAlchemyError as e:
-            logger.error(f"Error deleting goal {goal_id}: {e}")
+            logger.error(f"Database error deleting goal {goal_id}: {e}")
             raise
 
     # ========================================
     # HELPER METHODS
     # ========================================
+
+    async def _validate_user_and_period(self, user_id: UUID, period_id: UUID) -> None:
+        """Validate that user and evaluation period exist."""
+        # Check user exists
+        user_result = await self.session.execute(
+            select(User).filter(User.id == user_id)
+        )
+        if not user_result.scalars().first():
+            raise NotFoundError(f"User not found: {user_id}")
+        
+        # Check evaluation period exists
+        period_result = await self.session.execute(
+            select(EvaluationPeriod).filter(EvaluationPeriod.id == period_id)
+        )
+        if not period_result.scalars().first():
+            raise NotFoundError(f"Evaluation period not found: {period_id}")
+
+    
+
+    async def _validate_goal_exists(self, goal_id: UUID) -> Goal:
+        """Validate goal exists and return it, raise NotFoundError if not."""
+        goal = await self.get_goal_by_id(goal_id)
+        if not goal:
+            raise NotFoundError(f"Goal not found: {goal_id}")
+        return goal
+
+    async def _validate_performance_goal_weight_constraints(
+        self, user_id: UUID, period_id: UUID, new_weight: Decimal, 
+        goal_category: str, exclude_goal_id: Optional[UUID] = None
+    ) -> None:
+        """
+        Validate performance goal weight constraints.
+        
+        Business Rule: The sum of all 業績目標 (performance goals) weights 
+        for the same user and period must equal 100%.
+        """
+        if goal_category != "業績目標":
+            # Only performance goals have the 100% weight requirement
+            return
+            
+        # Get current weight totals for performance goals only
+        weight_totals = await self.get_weight_totals_by_category(
+            user_id, period_id, exclude_goal_id
+        )
+        
+        # Get current performance goal weight total
+        current_performance_weight = weight_totals.get("業績目標", Decimal("0"))
+        
+        # Calculate what the new total would be
+        new_total_weight = current_performance_weight + new_weight
+        
+        # For performance goals, the total must eventually equal 100%
+        # We allow temporary states during creation/editing, but warn about the requirement
+        if new_total_weight > 100:
+            raise ValidationError(
+                f"Performance goals total weight cannot exceed 100%: "
+                f"current {current_performance_weight}% + new {new_weight}% = {new_total_weight}%"
+            )
+        
+        logger.info(
+            f"Performance goal weight validation: user {user_id}, period {period_id} - "
+            f"current: {current_performance_weight}%, new goal: {new_weight}%, "
+            f"total: {new_total_weight}% (target: 100%)"
+        )
+
+    async def _validate_all_performance_goals_sum_to_100(
+        self, user_id: UUID, period_id: UUID
+    ) -> None:
+        """
+        Validate that all performance goals for a user/period sum to exactly 100%.
+        This should be called when submitting goals for approval.
+        """
+        weight_totals = await self.get_weight_totals_by_category(user_id, period_id)
+        performance_total = weight_totals.get("業績目標", Decimal("0"))
+        
+        if performance_total != 100:
+            raise ValidationError(
+                f"Performance goals must sum to exactly 100%. "
+                f"Current total: {performance_total}%. "
+                f"Please adjust goal weights before submitting for approval."
+            )
+
+    async def validate_user_goals_for_submission(
+        self, user_id: UUID, period_id: UUID
+    ) -> Dict[str, Any]:
+        """
+        Comprehensive validation for user goals before submission.
+        Returns validation status and detailed information.
+        """
+        weight_totals = await self.get_weight_totals_by_category(user_id, period_id)
+        performance_total = weight_totals.get("業績目標", Decimal("0"))
+        
+        validation_result = {
+            "valid": performance_total == 100,
+            "performance_goals_total": float(performance_total),
+            "target_total": 100.0,
+            "difference": float(performance_total - 100),
+            "weight_breakdown": {k: float(v) for k, v in weight_totals.items()},
+            "message": None
+        }
+        
+        if performance_total == 100:
+            validation_result["message"] = "✅ Performance goals correctly sum to 100%"
+        elif performance_total < 100:
+            validation_result["message"] = f"❌ Performance goals total {performance_total}% - need {100 - performance_total}% more"
+        else:
+            validation_result["message"] = f"❌ Performance goals total {performance_total}% - {performance_total - 100}% over limit"
+        
+        return validation_result
 
     def _build_target_data(self, goal_data: GoalCreate) -> Dict[str, Any]:
         """Build target_data JSON structure based on goal category."""
