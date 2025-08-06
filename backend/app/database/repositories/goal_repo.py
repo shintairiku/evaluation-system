@@ -479,6 +479,15 @@ class GoalRepository:
         if not period_result.scalars().first():
             raise NotFoundError(f"Evaluation period not found: {period_id}")
 
+    
+
+    async def _validate_goal_exists(self, goal_id: UUID) -> Goal:
+        """Validate goal exists and return it, raise NotFoundError if not."""
+        goal = await self.get_goal_by_id(goal_id)
+        if not goal:
+            raise NotFoundError(f"Goal not found: {goal_id}")
+        return goal
+
     async def _validate_performance_goal_weight_constraints(
         self, user_id: UUID, period_id: UUID, new_weight: Decimal, 
         goal_category: str, exclude_goal_id: Optional[UUID] = None
@@ -517,6 +526,51 @@ class GoalRepository:
             f"current: {current_performance_weight}%, new goal: {new_weight}%, "
             f"total: {new_total_weight}% (target: 100%)"
         )
+
+    async def _validate_all_performance_goals_sum_to_100(
+        self, user_id: UUID, period_id: UUID
+    ) -> None:
+        """
+        Validate that all performance goals for a user/period sum to exactly 100%.
+        This should be called when submitting goals for approval.
+        """
+        weight_totals = await self.get_weight_totals_by_category(user_id, period_id)
+        performance_total = weight_totals.get("業績目標", Decimal("0"))
+        
+        if performance_total != 100:
+            raise ValidationError(
+                f"Performance goals must sum to exactly 100%. "
+                f"Current total: {performance_total}%. "
+                f"Please adjust goal weights before submitting for approval."
+            )
+
+    async def validate_user_goals_for_submission(
+        self, user_id: UUID, period_id: UUID
+    ) -> Dict[str, Any]:
+        """
+        Comprehensive validation for user goals before submission.
+        Returns validation status and detailed information.
+        """
+        weight_totals = await self.get_weight_totals_by_category(user_id, period_id)
+        performance_total = weight_totals.get("業績目標", Decimal("0"))
+        
+        validation_result = {
+            "valid": performance_total == 100,
+            "performance_goals_total": float(performance_total),
+            "target_total": 100.0,
+            "difference": float(performance_total - 100),
+            "weight_breakdown": {k: float(v) for k, v in weight_totals.items()},
+            "message": None
+        }
+        
+        if performance_total == 100:
+            validation_result["message"] = "✅ Performance goals correctly sum to 100%"
+        elif performance_total < 100:
+            validation_result["message"] = f"❌ Performance goals total {performance_total}% - need {100 - performance_total}% more"
+        else:
+            validation_result["message"] = f"❌ Performance goals total {performance_total}% - {performance_total - 100}% over limit"
+        
+        return validation_result
 
     def _build_target_data(self, goal_data: GoalCreate) -> Dict[str, Any]:
         """Build target_data JSON structure based on goal category."""
