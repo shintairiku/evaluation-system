@@ -205,10 +205,8 @@ async def submit_goal(
     try:
         service = GoalService(session)
         
-        # Update goal status to pending_approval
-        from ...schemas.goal import GoalUpdate, GoalStatus
-        goal_update = GoalUpdate(status=GoalStatus.PENDING_APPROVAL)
-        result = await service.update_goal(goal_id, goal_update, context)
+        # Submit goal for approval using dedicated status update method
+        result = await service.submit_goal_for_approval(goal_id, context)
         
         return result
     except NotFoundError as e:
