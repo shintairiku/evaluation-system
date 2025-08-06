@@ -65,8 +65,20 @@ class GoalRepository:
             self.session.add(goal)
             logger.info(f"Added goal to session: user_id={user_id}, category={goal_data.goal_category}")
             return goal
+            
+        except IntegrityError as e:
+            logger.error(f"Integrity error creating goal for user {user_id}: {e}")
+            if "check_individual_weight_bounds" in str(e):
+                raise ValidationError("Individual weight must be between 0 and 100")
+            elif "check_status_values" in str(e):
+                raise ValidationError("Invalid status value")
+            else:
+                raise ConflictError(f"Database constraint violation: {e}")
+        except ValueError as e:
+            logger.error(f"Validation error creating goal for user {user_id}: {e}")
+            raise ValidationError(str(e))
         except SQLAlchemyError as e:
-            logger.error(f"Error creating goal for user {user_id}: {e}")
+            logger.error(f"Database error creating goal for user {user_id}: {e}")
             raise
 
     # ========================================
