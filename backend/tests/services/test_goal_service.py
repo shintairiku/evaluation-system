@@ -3,6 +3,7 @@ Test for GoalService with real Supabase data following project patterns.
 """
 import asyncio
 import logging
+import pytest
 from unittest.mock import MagicMock
 from uuid import UUID
 from decimal import Decimal
@@ -32,17 +33,18 @@ def create_mock_auth_context(user_id: str, role: str = "admin") -> AuthContext:
         mock_context.has_permission.return_value = True
     elif role == "supervisor":
         mock_context.has_permission.side_effect = lambda perm: perm in [
-            Permission.GOAL_READ, Permission.GOAL_READ_SUBORDINATES, 
+            Permission.GOAL_READ_SELF, Permission.GOAL_READ_SUBORDINATES, 
             Permission.GOAL_MANAGE, Permission.GOAL_APPROVE
         ]
     else:  # employee
         mock_context.has_permission.side_effect = lambda perm: perm in [
-            Permission.GOAL_READ, Permission.GOAL_MANAGE
+            Permission.GOAL_READ_SELF, Permission.GOAL_MANAGE
         ]
     
     return mock_context
 
 
+@pytest.mark.asyncio
 async def test_get_goals():
     """Test the get_goals method with real Supabase data"""
     logger.info("=== Testing GoalService.get_goals with Real Data ===")
@@ -95,6 +97,7 @@ async def test_get_goals():
         break  # Exit after first session
 
 
+@pytest.mark.asyncio
 async def test_get_goal_by_id():
     """Test getting a specific goal with permission checks"""
     logger.info("\n=== Testing GoalService.get_goal_by_id ===")
@@ -125,6 +128,7 @@ async def test_get_goal_by_id():
         break
 
 
+@pytest.mark.asyncio
 async def test_weight_validation():
     """Test weight validation business logic"""
     logger.info("\n=== Testing GoalService Weight Validation ===")
@@ -157,6 +161,7 @@ async def test_weight_validation():
         break
 
 
+@pytest.mark.asyncio
 async def test_goal_approval_workflow():
     """Test goal approval workflow"""
     logger.info("\n=== Testing GoalService Approval Workflow ===")
@@ -187,6 +192,7 @@ async def test_goal_approval_workflow():
         break
 
 
+@pytest.mark.asyncio
 async def test_create_goal_validation():
     """Test goal creation with business validation"""
     logger.info("\n=== Testing GoalService Goal Creation Validation ===")
