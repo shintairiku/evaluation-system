@@ -36,11 +36,8 @@ class Goal(Base):
 
     # Database constraints
     __table_args__ = (
-        # Unique constraint: one goal per user/period/category combination
-        UniqueConstraint('user_id', 'period_id', 'goal_category', name='unique_user_period_category'),
-        
         # Weight validation: individual weight must be between 0 and 100
-        # Note: Business rule validation (sum of 業績目標 weights = 100%) handled in repository layer
+        # Note: Multiple 業績目標 goals are allowed; sum validation handled in repository layer
         CheckConstraint('weight >= 0 AND weight <= 100', name='check_individual_weight_bounds'),
         
         # Status validation
