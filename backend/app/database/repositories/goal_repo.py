@@ -48,14 +48,17 @@ class GoalRepository:
                     Decimal(str(goal_data.weight)),
                     goal_data.goal_category
                 )
+            
+            # Build and validate target_data based on goal category
             target_data = self._build_target_data(goal_data)
             
+            # Create goal with validated data
             goal = Goal(
                 user_id=user_id,
                 period_id=goal_data.period_id,
                 goal_category=goal_data.goal_category,
                 target_data=target_data,
-                weight=Decimal(str(goal_data.weight)),
+                weight=Decimal(str(goal_data.weight)) if goal_data.weight is not None else None,
                 status=goal_data.status.value if goal_data.status else GoalStatus.DRAFT.value
             )
             
