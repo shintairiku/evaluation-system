@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
@@ -12,14 +12,13 @@ from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepos
 from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.models.goal import Goal as GoalModel
 from ..schemas.goal import (
-    GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus,
-    PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData
+    GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..core.exceptions import (
-    NotFoundError, ConflictError, PermissionDeniedError, BadRequestError, ValidationError
+    NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -130,9 +129,13 @@ class GoalService:
     ) -> Goal:
         """Create a new goal with validation and business rules."""
         try:
-            # Permission check - users can create goals for themselves
-            # Admins/supervisors can create goals for their subordinates
-            target_user_id = current_user_context.user_id  # Default to current user
+            # Permission check - must have goal management permissions
+            if not (current_user_context.has_permission(Permission.GOAL_MANAGE) or 
+                    current_user_context.has_permission(Permission.GOAL_MANAGE_SELF)):
+                raise PermissionDeniedError("You do not have permission to create goals")
+            
+            # Users create goals for themselves (admin can create for anyone, but we'll keep it simple for now)
+            target_user_id = current_user_context.user_id
             
             # Business validation
             await self._validate_goal_creation(goal_data, target_user_id)
@@ -472,10 +475,22 @@ class GoalService:
             if goal.user_id in subordinate_ids:
                 return
         
-        raise PermissionDeniedError(f"You do not have permission to access this goal")
+        raise PermissionDeniedError("You do not have permission to access this goal")
 
     async def _check_goal_update_permission(self, goal: GoalModel, current_user_context: AuthContext):
         """Check if user has permission to update this goal."""
+        # Admin can manage all goals
+        if current_user_context.has_permission(Permission.GOAL_MANAGE):
+            # Admin can manage any goal, but still check if goal is editable
+            if goal.status == GoalStatus.APPROVED.value:
+                raise BadRequestError("Cannot update approved goals")
+            return
+        
+        # Check if user has permission to manage their own goals
+        if not current_user_context.has_permission(Permission.GOAL_MANAGE_SELF):
+            raise PermissionDeniedError("You do not have permission to manage goals")
+        
+        # Other roles can only manage their own goals
         if goal.user_id != current_user_context.user_id:
             raise PermissionDeniedError("You can only update your own goals")
         
