@@ -1,12 +1,12 @@
 import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, update, func, delete, and_, or_
+from sqlalchemy import select, update, func, delete, and_
 from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.goal import Goal
@@ -14,6 +14,9 @@ from ..models.user import User
 from ..models.evaluation import EvaluationPeriod
 from ...schemas.goal import GoalCreate, GoalUpdate, GoalStatus
 from ...schemas.common import PaginationParams
+from ...core.exceptions import (
+    NotFoundError, ConflictError, ValidationError
+)
 
 logger = logging.getLogger(__name__)
 
