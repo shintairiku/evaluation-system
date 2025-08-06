@@ -397,7 +397,11 @@ class GoalService:
                 return [requested_user_id]
             return None  # All users
         
-        accessible_ids = [current_user_context.user_id]  # Can always see own goals
+        accessible_ids = []
+        
+        # Add self if user has GOAL_READ_SELF permission
+        if current_user_context.has_permission(Permission.GOAL_READ_SELF):
+            accessible_ids.append(current_user_context.user_id)
         
         if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
             # Supervisor: can see subordinates' goals
@@ -418,7 +422,9 @@ class GoalService:
             return  # Admin can access all
         
         if goal.user_id == current_user_context.user_id:
-            return  # Own goal
+            # Verify user has permission to read own goals
+            if current_user_context.has_permission(Permission.GOAL_READ_SELF):
+                return  # Own goal with proper permission
         
         if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
             # Check if goal owner is subordinate
