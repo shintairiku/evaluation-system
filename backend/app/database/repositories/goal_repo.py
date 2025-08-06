@@ -449,14 +449,27 @@ class GoalRepository:
     # ========================================
 
     async def delete_goal(self, goal_id: UUID) -> bool:
-        """Delete a goal by ID."""
+        """Delete a goal by ID with validation."""
         try:
+            # Validate goal exists first
+            existing_goal = await self._validate_goal_exists(goal_id)
+            
+            # Check if goal can be deleted (e.g., only draft or rejected goals)
+            if existing_goal.status == "approved":
+                raise ValidationError("Cannot delete approved goals")
+            
             result = await self.session.execute(
                 delete(Goal).where(Goal.id == goal_id)
             )
-            return result.rowcount > 0
+            
+            deleted = result.rowcount > 0
+            if deleted:
+                logger.info(f"Deleted goal {goal_id}")
+            
+            return deleted
+            
         except SQLAlchemyError as e:
-            logger.error(f"Error deleting goal {goal_id}: {e}")
+            logger.error(f"Database error deleting goal {goal_id}: {e}")
             raise
 
     # ========================================
