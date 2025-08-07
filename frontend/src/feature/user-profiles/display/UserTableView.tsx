@@ -152,6 +152,7 @@ export default function UserTableView({ users, onUserUpdate }: UserTableViewProp
       {/* ユーザー編集モーダル */}
       <UserEditViewModal
         user={selectedUser}
+        allUsers={users}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onUserUpdate={onUserUpdate}
