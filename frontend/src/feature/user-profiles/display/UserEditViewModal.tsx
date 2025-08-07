@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useActionState } from 'react';
+import { useState, useEffect, useActionState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -27,17 +27,19 @@ import {
   Mail, 
   Save,
   X,
-  Loader2
+  Loader2,
+  Undo2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
 import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
-import HierarchyDisplayCard from '../components/HierarchyDisplayCard';
+import HierarchyEditCard from '../components/HierarchyEditCard';
 
 interface UserEditViewModalProps {
   user: UserDetailResponse | null;
+  allUsers: UserDetailResponse[];
   isOpen: boolean;
   onClose: () => void;
   onUserUpdate?: (updatedUser: UserDetailResponse) => void;
@@ -53,6 +55,7 @@ const SelectSkeleton = () => (
 
 export default function UserEditViewModal({ 
   user, 
+  allUsers,
   isOpen, 
   onClose,
   onUserUpdate
@@ -62,6 +65,20 @@ export default function UserEditViewModal({
     if (!user) return { success: false, error: 'ユーザー情報が見つかりません' };
     
     try {
+      // Save hierarchy changes first if there are any pending
+      if (hierarchyPendingChanges && hierarchySaveHandler) {
+        try {
+          await hierarchySaveHandler();
+          // Reset hierarchy state after successful save
+          setHierarchyPendingChanges(false);
+          setHierarchySaveHandler(null);
+          setHierarchyUndoHandler(null);
+        } catch (hierarchyError) {
+          console.error('Hierarchy save error:', hierarchyError);
+          toast.error('階層変更の保存に失敗しました。プロフィール更新を続行します。');
+          // Continue with profile save even if hierarchy fails
+        }
+      }
       const userData: UserUpdate = {
         name: formData.get('name') as string,
         email: formData.get('email') as string,
@@ -172,6 +189,11 @@ export default function UserEditViewModal({
     status: ''
   });
 
+  // Hierarchy card state
+  const [hierarchyPendingChanges, setHierarchyPendingChanges] = useState(false);
+  const [hierarchySaveHandler, setHierarchySaveHandler] = useState<(() => Promise<void>) | null>(null);
+  const [hierarchyUndoHandler, setHierarchyUndoHandler] = useState<(() => void) | null>(null);
+
   // Fetch detailed user data when modal opens
   useEffect(() => {
     const fetchDetailedUserData = async () => {
@@ -267,6 +289,17 @@ export default function UserEditViewModal({
       [field]: value
     }));
   };
+
+  // Handle hierarchy pending changes
+  const handleHierarchyPendingChanges = useCallback((
+    hasPendingChanges: boolean,
+    saveHandler?: () => Promise<void>,
+    undoHandler?: () => void
+  ) => {
+    setHierarchyPendingChanges(hasPendingChanges);
+    setHierarchySaveHandler(() => saveHandler || null);
+    setHierarchyUndoHandler(() => undoHandler || null);
+  }, []);
 
   const getUserInitials = (name: string) => {
     return name.split(' ').map(part => part[0]).join('').toUpperCase();
@@ -482,9 +515,12 @@ export default function UserEditViewModal({
             </Card>
 
             {/* 階層関係カード */}
-            <HierarchyDisplayCard 
+            <HierarchyEditCard 
               user={detailedUser || user} 
-              isLoading={isLoadingOptions || isLoadingUserData} 
+              allUsers={allUsers}
+              isLoading={isLoadingOptions || isLoadingUserData}
+              onUserUpdate={onUserUpdate}
+              onPendingChanges={handleHierarchyPendingChanges}
             />
           </div>
 
@@ -498,22 +534,40 @@ export default function UserEditViewModal({
               <X className="h-4 w-4 mr-2" />
               キャンセル
             </Button>
-            <Button 
-              type="submit"
-              disabled={isPending || isLoadingOptions}
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  変更を保存
-                </>
+            <div className="flex items-center gap-2">
+              {hierarchyPendingChanges && hierarchyUndoHandler && (
+                <Button 
+                  type="button"
+                  variant="outline"
+                  onClick={hierarchyUndoHandler}
+                  disabled={isPending}
+                >
+                  <Undo2 className="h-4 w-4 mr-2" />
+                  階層変更を元に戻す
+                </Button>
               )}
-            </Button>
+              <Button 
+                type="submit"
+                disabled={isPending || isLoadingOptions}
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    変更を保存
+                    {hierarchyPendingChanges && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        階層変更含む
+                      </Badge>
+                    )}
+                  </>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
