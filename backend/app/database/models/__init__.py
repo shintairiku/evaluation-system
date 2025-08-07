@@ -2,6 +2,7 @@ from .base import Base
 from .user import User, Department, Role, UserSupervisor, user_roles
 from .stage_competency import Stage, Competency
 from .evaluation import EvaluationPeriod, EvaluationPeriodStatus, EvaluationPeriodType
+from .goal import Goal
 
 __all__ = [
     "Base",
@@ -14,5 +15,6 @@ __all__ = [
     "Competency",
     "EvaluationPeriod",
     "EvaluationPeriodStatus",
-    "EvaluationPeriodType"
+    "EvaluationPeriodType",
+    "Goal"
 ]

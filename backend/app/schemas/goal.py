@@ -91,9 +91,8 @@ class GoalCreate(BaseModel):
 
 
 class GoalUpdate(BaseModel):
-    """Schema for updating a goal via API"""
+    """Schema for updating a goal content via API (no status changes)"""
     weight: Optional[float] = Field(None, ge=0, le=100)
-    status: Optional[GoalStatus] = Field(None, description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
     # Performance Goal fields (goal_category = "業績目標")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
@@ -107,6 +106,11 @@ class GoalUpdate(BaseModel):
     
     # Core Value Goal fields (goal_category = "コアバリュー")
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
+
+
+class GoalStatusUpdate(BaseModel):
+    """Schema for updating goal status only"""
+    status: GoalStatus = Field(..., description="New goal status")
 
 
 class GoalInDB(BaseModel):
