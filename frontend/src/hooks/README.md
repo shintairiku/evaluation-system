@@ -24,6 +24,7 @@ This directory contains custom React hooks for the HR Evaluation System. These h
 |------|---------|----------|------------|
 | `useLoading` | Loading state management | `hooks/useLoading.ts` | 🟡 Medium |
 | `useOptimisticUpdate` | Optimistic UI updates | `hooks/useOptimisticUpdate.ts` | 🔴 Advanced |
+| `useHierarchyEdit` | User hierarchy management | `hooks/useHierarchyEdit.ts` | 🔴 Advanced |
 | `useProfileRedirect` | Profile completion routing | `hooks/useProfileRedirect.ts` | 🟢 Simple |
 | `useViewMode` | UI view state management | `feature/user-profiles/hooks/useViewMode.ts` | 🟢 Simple |
 | `useErrorHandler` | Error handling utilities | `utils/error-handling.ts` | 🟡 Medium |
@@ -225,6 +226,101 @@ interface OptimisticUpdateReturn<T> {
   reset: (newState: T) => void; // Reset to new initial state
 }
 ```
+
+---
+
+### useHierarchyEdit
+
+**Purpose**: Manages user hierarchy editing operations with optimistic updates and permission control.
+
+**Location**: `src/hooks/useHierarchyEdit.ts`
+
+**Key Features**:
+- Role-based permission checking (admin, manager, supervisor only)
+- Optimistic UI updates with automatic rollback
+- Circular hierarchy validation
+- Clerk authentication integration
+- Comprehensive error handling
+
+#### Usage
+
+```typescript
+import { useHierarchyEdit } from '@/hooks/useHierarchyEdit';
+
+function HierarchyManager({ user, allUsers, onUserUpdate }) {
+  const {
+    canEditHierarchy,
+    optimisticState,
+    hasPendingChanges,
+    changeSupervisor,
+    addSubordinate,
+    removeSubordinate,
+    getPotentialSupervisors,
+    rollbackChanges
+  } = useHierarchyEdit({
+    user,
+    allUsers,
+    onUserUpdate
+  });
+
+  const handleSupervisorChange = async (newSupervisorId) => {
+    try {
+      await changeSupervisor(newSupervisorId);
+      toast.success('上司を変更しました');
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  if (!canEditHierarchy) {
+    return <div>編集権限がありません</div>;
+  }
+
+  return (
+    <div>
+      <h3>{optimisticState.name}</h3>
+      {hasPendingChanges && (
+        <Button onClick={rollbackChanges}>変更を取り消す</Button>
+      )}
+      {/* UI components */}
+    </div>
+  );
+}
+```
+
+#### API Reference
+
+```typescript
+interface UseHierarchyEditReturn {
+  // Permission checking
+  canEditHierarchy: boolean;
+  currentUser: UserDetailResponse | null;
+  
+  // Optimistic state
+  optimisticState: UserDetailResponse;
+  hasPendingChanges: boolean;
+  isPending: boolean;
+  
+  // Actions
+  changeSupervisor: (newSupervisorId: string | null) => Promise<void>;
+  addSubordinate: (subordinateId: string) => Promise<void>;
+  removeSubordinate: (subordinateId: string) => Promise<void>;
+  rollbackChanges: () => void;
+  saveAllChanges: () => Promise<UserDetailResponse>;
+  
+  // Helpers
+  getPotentialSupervisors: () => UserDetailResponse[];
+  getPotentialSubordinates: () => UserDetailResponse[];
+  validateHierarchyChange: (targetUserId: string, newSupervisorId: string | null) => string | null;
+}
+```
+
+#### Validation Rules
+
+- Users cannot be their own supervisor
+- Circular hierarchy prevention (A → B → C → A)
+- Only active users can be assigned as supervisors/subordinates
+- Permission checking based on user roles
 
 ---
 
