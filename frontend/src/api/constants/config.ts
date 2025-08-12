@@ -112,6 +112,10 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/goals/${id}`,
     BY_USER: (userId: string) => `/goals/user/${userId}`,
     BY_PERIOD: (periodId: string) => `/goals/period/${periodId}`,
+    SUBMIT: (id: string) => `/goals/${id}/submit`,
+    APPROVE: (id: string) => `/goals/${id}/approve`,
+    REJECT: (id: string) => `/goals/${id}/reject`,
+    PENDING_SUPERVISOR: '/goals/supervisor/pending',
   },
   
   // Goal Category endpoints
