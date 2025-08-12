@@ -115,7 +115,7 @@ export const API_ENDPOINTS = {
     SUBMIT: (id: string) => `/goals/${id}/submit`,
     APPROVE: (id: string) => `/goals/${id}/approve`,
     REJECT: (id: string) => `/goals/${id}/reject`,
-    PENDING_SUPERVISOR: '/goals/supervisor/pending',
+    SUPERVISOR_GOALS: (supervisorId: string) => `/goals/supervisor/${supervisorId}`,
   },
   
   // Goal Category endpoints
