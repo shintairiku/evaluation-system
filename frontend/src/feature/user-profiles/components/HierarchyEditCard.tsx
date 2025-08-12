@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -147,20 +147,20 @@ export default function HierarchyEditCard({
     }
   }, [removeSubordinate, allUsers]);
 
-  // Notify parent about pending changes
+  // Keep latest handlers in refs to avoid effect churn
+  const saveRef = useRef(saveAllChanges);
+  const rollbackRef = useRef(rollbackChanges);
+  useEffect(() => { saveRef.current = saveAllChanges; }, [saveAllChanges]);
+  useEffect(() => { rollbackRef.current = rollbackChanges; }, [rollbackChanges]);
+
+  // Notify parent about pending changes with stable handler identities
   useEffect(() => {
-    if (onPendingChanges) {
-      const saveHandler = hasPendingChanges ? async () => {
-        await saveAllChanges();
-      } : undefined;
-      
-      onPendingChanges(
-        hasPendingChanges,
-        saveHandler,
-        hasPendingChanges ? rollbackChanges : undefined
-      );
-    }
-  }, [hasPendingChanges, onPendingChanges, saveAllChanges, rollbackChanges]);
+    if (!onPendingChanges) return;
+    const stableSave = hasPendingChanges ? () => saveRef.current() : undefined;
+    const stableUndo = hasPendingChanges ? () => rollbackRef.current() : undefined;
+    onPendingChanges(hasPendingChanges, stableSave, stableUndo);
+    // Only react to toggle and parent callback identity
+  }, [hasPendingChanges, onPendingChanges]);
 
   // Get current supervisor from optimistic state
   const currentSupervisor = currentUser_display.supervisor;
