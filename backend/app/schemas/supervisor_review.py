@@ -83,9 +83,9 @@ class SupervisorReviewDetail(SupervisorReviewInDB):
         populate_by_name = True
 
 
-class SupervisorReviewList(PaginatedResponse):
+class SupervisorReviewList(PaginatedResponse[SupervisorReview]):
     """Schema for paginated supervisor review list responses"""
-    data: List[SupervisorReview]
+    pass
 
 
 # ========================================
