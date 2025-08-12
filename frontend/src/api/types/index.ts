@@ -7,6 +7,9 @@ export * from './auth';
 // User types
 export * from './user';
 
+// Goal types
+export * from './goal';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;
