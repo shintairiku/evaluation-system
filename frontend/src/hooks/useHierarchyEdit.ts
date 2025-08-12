@@ -1,11 +1,16 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useOptimisticUpdate } from '@/hooks/useOptimisticUpdate';
 import { useErrorHandler } from '@/utils/error-handling';
 import { updateUserAction } from '@/api/server-actions/users';
 import type { UserDetailResponse } from '@/api/types';
+import {
+  validateHierarchyChange as validateHierarchyChangeUtil,
+  getPotentialSupervisors as getPotentialSupervisorsUtil,
+  getPotentialSubordinates as getPotentialSubordinatesUtil,
+} from '@/utils/hierarchy';
 
 
 interface UseHierarchyEditOptions {
@@ -70,84 +75,27 @@ export function useHierarchyEdit({
 
   // Get potential supervisors (excluding self and subordinates to prevent circular hierarchy)
   const getPotentialSupervisors = useCallback(() => {
-    const getSubordinateIds = (userId: string): Set<string> => {
-      const subordinateIds = new Set<string>();
-      const collectSubordinates = (currentUserId: string) => {
-        allUsers.forEach(u => {
-          if (u.supervisor?.id === currentUserId) {
-            subordinateIds.add(u.id);
-            collectSubordinates(u.id);
-          }
-        });
-      };
-      collectSubordinates(userId);
-      return subordinateIds;
-    };
-
-    const subordinateIds = getSubordinateIds(user.id);
-    
-    return allUsers.filter(u => 
-      u.id !== user.id && // Not self
-      !subordinateIds.has(u.id) && // Not a subordinate
-      u.status === 'active' // Only active users
-    );
+    return getPotentialSupervisorsUtil(allUsers, user.id);
   }, [user.id, allUsers]);
 
   // Get potential subordinates
   const getPotentialSubordinates = useCallback(() => {
-    const wouldCreateCircularHierarchy = (supervisorId: string, potentialSubordinateId: string): boolean => {
-      let currentId: string | undefined = supervisorId;
-      const visited = new Set<string>();
-      
-      while (currentId && !visited.has(currentId)) {
-        if (currentId === potentialSubordinateId) {
-          return true;
-        }
-        visited.add(currentId);
-        const currentUserData = allUsers.find(u => u.id === currentId);
-        currentId = currentUserData?.supervisor?.id;
-      }
-      
-      return false;
-    };
-
-    return allUsers.filter(u => 
-      u.id !== user.id && // Not self
-      u.supervisor?.id !== user.id && // Not already a subordinate
-      u.status === 'active' && // Only active users
-      !wouldCreateCircularHierarchy(user.id, u.id) // Prevent circular hierarchy
-    );
-  }, [user, allUsers]);
+    return getPotentialSubordinatesUtil(allUsers, user.id);
+  }, [user.id, allUsers]);
 
   // Validation function
   const validateHierarchyChange = useCallback((targetUserId: string, newSupervisorId: string | null): string | null => {
-    if (targetUserId === newSupervisorId) {
-      return "ユーザーは自分自身の上司になることはできません";
-    }
-
-    if (newSupervisorId) {
-      const wouldCreateCircle = (checkUserId: string, targetSupervisorId: string): boolean => {
-        const checkUser = allUsers.find(u => u.id === checkUserId);
-        if (!checkUser?.supervisor?.id) return false;
-        if (checkUser.supervisor.id === targetSupervisorId) return true;
-        return wouldCreateCircle(checkUser.supervisor.id, targetSupervisorId);
-      };
-
-      if (wouldCreateCircle(newSupervisorId, targetUserId)) {
-        return "この変更は循環参照を作成するため許可されません";
-      }
-    }
-
-    return null;
+    return validateHierarchyChangeUtil(allUsers, targetUserId, newSupervisorId);
   }, [allUsers]);
 
-  // Use optimistic update for comprehensive hierarchy changes
+  // Manage pending state and queued operations for deferred save
+  const [hasLocalPending, setHasLocalPending] = useState(false);
+  // Prepare a dynamic async operation via ref so each action can append its own operation
+  const nextOperationRef = useRef<() => Promise<UserDetailResponse>>(async () => user);
+  // Use optimistic update; asyncOperation delegates to the ref set by each action
   const hierarchyUpdate = useOptimisticUpdate(user, {
-    optimisticUpdate: (currentUser) => currentUser, // Will be set by specific actions
-    asyncOperation: async () => {
-      // Will be overridden by specific operations
-      return user;
-    },
+    optimisticUpdate: (currentUser) => currentUser,
+    asyncOperation: async () => nextOperationRef.current(),
     successMessage: '階層変更が正常に保存されました',
     errorMessage: '階層変更の保存に失敗しました',
     onSuccess: (updatedUser) => {
@@ -155,7 +103,7 @@ export function useHierarchyEdit({
     },
     onError: (error) => {
       handleError(error, 'hierarchy-edit');
-    }
+    },
   });
 
   // Change supervisor
@@ -169,22 +117,31 @@ export function useHierarchyEdit({
       throw new Error(validationError);
     }
 
-    const newSupervisor = newSupervisorId 
-      ? allUsers.find(u => u.id === newSupervisorId) || null
+    const newSupervisor = newSupervisorId
+      ? allUsers.find((u) => u.id === newSupervisorId) || null
       : null;
 
-    // Configure the optimistic update
-    hierarchyUpdate.reset({
+    const optimisticUser: UserDetailResponse = {
       ...user,
-      supervisor: newSupervisor as UserDetailResponse['supervisor'] // Type assertion to handle type mismatch
-    });
+      supervisor: (newSupervisor as UserDetailResponse['supervisor']) || undefined,
+    };
 
-    // Execute with the proper async operation
-    const result = await updateUserAction(user.id, { supervisor_id: newSupervisorId || undefined });
-    if (!result.success) {
-      throw new Error('上司の変更に失敗しました');
-    }
-    // Update callback handled by the hook's onSuccess
+    hierarchyUpdate.reset(optimisticUser);
+
+    // Chain operation for deferred save
+    const prevOp = nextOperationRef.current;
+    nextOperationRef.current = async () => {
+      const prevResult = await prevOp();
+      const result = await updateUserAction(user.id, {
+        supervisor_id: newSupervisorId || undefined,
+      });
+      if (!result.success || !result.data) {
+        throw new Error('上司の変更に失敗しました');
+      }
+      return result.data;
+    };
+
+    setHasLocalPending(true);
   }, [canEditHierarchy, validateHierarchyChange, user, allUsers, hierarchyUpdate]);
 
   // Add subordinate
@@ -203,17 +160,23 @@ export function useHierarchyEdit({
       throw new Error(validationError);
     }
 
-    // Execute API call to set this user as supervisor for the subordinate
-    const result = await updateUserAction(subordinateId, { supervisor_id: user.id });
-    
-    if (!result.success) {
-      throw new Error('部下の追加に失敗しました');
-    }
+    // No change to current user's own data structure unless we reflect subordinate list.
+    // For now, rely on parent to refresh, but still use optimistic pattern for consistency.
+    const optimisticUser: UserDetailResponse = { ...user };
+    hierarchyUpdate.reset(optimisticUser);
 
-    // Update local state optimistically - let the parent component handle the update
-    // The API call success will be handled by the optimistic update hook
-    onUserUpdate?.(user);
-  }, [canEditHierarchy, validateHierarchyChange, user, allUsers, onUserUpdate]);
+    const prevOp = nextOperationRef.current;
+    nextOperationRef.current = async () => {
+      await prevOp();
+      const result = await updateUserAction(subordinateId, { supervisor_id: user.id });
+      if (!result.success) {
+        throw new Error('部下の追加に失敗しました');
+      }
+      return optimisticUser;
+    };
+
+    setHasLocalPending(true);
+  }, [canEditHierarchy, validateHierarchyChange, user, allUsers, hierarchyUpdate, onUserUpdate]);
 
   // Remove subordinate
   const removeSubordinate = useCallback(async (subordinateId: string): Promise<void> => {
@@ -221,17 +184,40 @@ export function useHierarchyEdit({
       throw new Error('階層編集権限がありません');
     }
 
-    // Execute API call to remove supervisor for the subordinate
-    const result = await updateUserAction(subordinateId, { supervisor_id: undefined });
-    
-    if (!result.success) {
-      throw new Error('部下の削除に失敗しました');
-    }
+    const optimisticUser: UserDetailResponse = { ...user };
+    hierarchyUpdate.reset(optimisticUser);
 
-    // Update local state optimistically - let the parent component handle the update
-    // The API call success will be handled by the optimistic update hook
-    onUserUpdate?.(user);
-  }, [canEditHierarchy, user, onUserUpdate]);
+    const prevOp = nextOperationRef.current;
+    nextOperationRef.current = async () => {
+      await prevOp();
+      const result = await updateUserAction(subordinateId, { supervisor_id: undefined });
+      if (!result.success) {
+        throw new Error('部下の削除に失敗しました');
+      }
+      return optimisticUser;
+    };
+
+    setHasLocalPending(true);
+  }, [canEditHierarchy, user, hierarchyUpdate, onUserUpdate]);
+
+  const saveAllChanges = useCallback(async (): Promise<UserDetailResponse> => {
+    try {
+      const result = await hierarchyUpdate.execute();
+      setHasLocalPending(false);
+      // Reset the queue to a no-op that returns the latest state
+      nextOperationRef.current = async () => result;
+      return result;
+    } catch (e) {
+      // keep pending state until user resolves/undoes
+      throw e;
+    }
+  }, [hierarchyUpdate]);
+
+  const rollbackChanges = useCallback(() => {
+    hierarchyUpdate.rollback();
+    setHasLocalPending(false);
+    nextOperationRef.current = async () => hierarchyUpdate.state;
+  }, [hierarchyUpdate]);
 
   return {
     // Permission checking
@@ -240,15 +226,15 @@ export function useHierarchyEdit({
     
     // Optimistic state
     optimisticState: hierarchyUpdate.state,
-    hasPendingChanges: hierarchyUpdate.isPending,
+    hasPendingChanges: hasLocalPending,
     isPending: hierarchyUpdate.isPending,
     
     // Actions
     changeSupervisor,
     addSubordinate,
     removeSubordinate,
-    rollbackChanges: hierarchyUpdate.rollback,
-    saveAllChanges: hierarchyUpdate.execute,
+    rollbackChanges,
+    saveAllChanges,
     
     // Helpers
     getPotentialSupervisors,
