@@ -422,6 +422,73 @@ class GoalService:
             logger.error(f"Error getting pending approvals: {e}")
             raise
 
+    async def get_supervisor_subordinate_goals(
+        self,
+        current_user_context: AuthContext,
+        supervisor_id: UUID,
+        period_id: Optional[UUID] = None,
+        status: Optional[str] = None,
+        pagination: Optional[PaginationParams] = None
+    ) -> PaginatedResponse[Goal]:
+        """Get goals for a supervisor's subordinates with optional filters (period, status).
+
+        Rules:
+        - Admin (GOAL_READ_ALL): can view any supervisor's subordinates' goals
+        - Supervisors/Managers (GOAL_READ_SUBORDINATES):
+          - Can view their own subordinates' goals (supervisor_id == current_user_context.user_id)
+          - Managers can view a subordinate supervisor's subordinates' goals if that supervisor is in their subordinate list
+        - Employees/Part-time (no GOAL_READ_SUBORDINATES): cannot access (even for their own ID)
+        """
+        from ..core.exceptions import PermissionDeniedError
+        try:
+            # Admin can view any supervisor's subordinates
+            if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
+                # Must have subordinate-read permission (supervisors/managers)
+                if not current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
+                    raise PermissionDeniedError("You do not have permission to view subordinate goals")
+                # Allow own or supervised supervisor's teams
+                if supervisor_id != current_user_context.user_id:
+                    subs = await self.user_repo.get_subordinates(current_user_context.user_id)
+                    subordinate_ids = [sub.id for sub in subs]
+                    if supervisor_id not in subordinate_ids:
+                        raise PermissionDeniedError("You can only view subordinate goals for yourself or supervised supervisors")
+
+            # Determine subordinates of the requested supervisor
+            subs = await self.user_repo.get_subordinates(supervisor_id)
+            subordinate_user_ids = [sub.id for sub in subs]
+
+            # Fetch goals using generic search with filters
+            goals = await self.goal_repo.search_goals(
+                user_ids=subordinate_user_ids,
+                period_id=period_id,
+                goal_category=None,
+                status=status,
+                pagination=pagination
+            )
+            total_count = await self.goal_repo.count_goals(
+                user_ids=subordinate_user_ids,
+                period_id=period_id,
+                goal_category=None,
+                status=status
+            )
+
+            enriched_goals: list[Goal] = []
+            for goal_model in goals:
+                enriched_goal = await self._enrich_goal_data(goal_model)
+                enriched_goals.append(enriched_goal)
+
+            total_pages = (total_count + pagination.limit - 1) // pagination.limit if pagination else 1
+            return PaginatedResponse(
+                items=enriched_goals,
+                total=total_count,
+                page=pagination.page if pagination else 1,
+                limit=pagination.limit if pagination else len(enriched_goals),
+                pages=total_pages
+            )
+        except Exception as e:
+            logger.error(f"Error getting goals for supervisor {supervisor_id}: {e}")
+            raise
+
     # ========================================
     # PRIVATE HELPER METHODS
     # ========================================
