@@ -6,8 +6,37 @@ from ...security.dependencies import require_admin, get_auth_context, require_su
 from ...security.context import AuthContext
 from ...schemas.supervisor_review import SupervisorReview, SupervisorReviewDetail, SupervisorReviewList, SupervisorReviewCreate, SupervisorReviewUpdate
 from ...schemas.common import PaginationParams
+from ...database.session import get_db_session
+from sqlalchemy.ext.asyncio import AsyncSession
+from ...services.supervisor_review_service import SupervisorReviewService
+from ...core.exceptions import NotFoundError, PermissionDeniedError, ValidationError, BadRequestError, ConflictError
 
 router = APIRouter(prefix="/supervisor-reviews", tags=["supervisor-reviews"])
+
+@router.get("/goal/{goal_id}", response_model=SupervisorReviewList)
+async def get_reviews_for_goal(
+    goal_id: UUID,
+    pagination: PaginationParams = Depends(),
+    period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
+    status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get supervisor reviews for a specific goal (owner, supervisor, or admin)."""
+    try:
+        service = SupervisorReviewService(session)
+        result = await service.get_reviews(
+            current_user_context=context,
+            period_id=period_id,
+            goal_id=goal_id,
+            status=status,
+            pagination=pagination,
+        )
+        return SupervisorReviewList(items=result.items, total=result.total, page=result.page, limit=result.limit, pages=result.pages)
+    except (PermissionDeniedError, NotFoundError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching goal reviews: {str(e)}")
 
 @router.get("/", response_model=SupervisorReviewList)
 async def get_supervisor_reviews(
@@ -15,86 +44,107 @@ async def get_supervisor_reviews(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     goal_id: Optional[UUID] = Query(None, alias="goalId", description="Filter by goal ID"),
     status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
-    context: AuthContext = Depends(get_auth_context)
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Get supervisor reviews."""
-    # Access rules:
-    # - Supervisors: can view their own reviews
-    # - Users: can view reviews on their own goals
-    # - Admins: can view all reviews
-    
-    # TODO: Implement supervisor review service
-    # - If user is supervisor: return reviews they've created
-    # - If regular user: return reviews on their own goals
-    # - Apply period_id, goal_id, and status filters as appropriate
-    # - Use pagination.page, pagination.limit, pagination.offset for pagination
-    # - Use PaginatedResponse.create(reviews, total, pagination) to return result
-    return SupervisorReviewList.create([], 0, pagination)
+    try:
+        service = SupervisorReviewService(session)
+        result = await service.get_reviews(
+            current_user_context=context,
+            period_id=period_id,
+            goal_id=goal_id,
+            status=status,
+            pagination=pagination,
+        )
+        # Adapt to SupervisorReviewList schema signature
+        return SupervisorReviewList(items=result.items, total=result.total, page=result.page, limit=result.limit, pages=result.pages)
+    except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching supervisor reviews: {str(e)}")
 
 @router.post("/", response_model=SupervisorReview)
 async def create_supervisor_review(
     review_create: SupervisorReviewCreate,
-    context: AuthContext = Depends(get_auth_context)
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create a supervisor review for a goal."""
-    
-    # TODO: Implement supervisor review creation service
-    # - Verify current user is supervisor of the goal owner
-    # - Create review with action (approved/rejected/pending) and comment
-    # - Set status based on request (draft or submitted)
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Supervisor review service not implemented"
-    )
+    try:
+        service = SupervisorReviewService(session)
+        created = await service.create_review(review_create, context)
+        return created
+    except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating supervisor review: {str(e)}")
 
 @router.get("/{review_id}", response_model=SupervisorReviewDetail)
 async def get_supervisor_review(
     review_id: UUID,
-    context: AuthContext = Depends(get_auth_context)
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Get detailed supervisor review by ID with goal context."""
-    # TODO: Implement supervisor review service
-    # - Verify user has permission to view this review
-    # - Get review with the specific goal information it's linked to
-    # - Get employee information (goal owner)
-    # - Get evaluation period details
-    # - Get goal category information
-    # - Check if employee has submitted self-assessment for this goal
-    # - Include timeline information (overdue status, days until deadline)
-    # - Include workflow context (final review, requires acknowledgment)
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Supervisor review service not implemented"
-    )
+    try:
+        service = SupervisorReviewService(session)
+        return await service.get_review(review_id, context)
+    except (PermissionDeniedError, NotFoundError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching supervisor review: {str(e)}")
 
 @router.put("/{review_id}", response_model=SupervisorReview)
 async def update_supervisor_review(
     review_id: UUID,
     review_update: SupervisorReviewUpdate,
-    context: AuthContext = Depends(require_supervisor_or_above)
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Update a supervisor review."""
-    # TODO: Implement supervisor review update service
-    # - Verify current user created this review
-    # - Update action, comment, or status
-    # - Set reviewed_at when status changes to 'submitted'
-    # - Update goal status if review action changes goal approval
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Supervisor review service not implemented"
-    )
+    try:
+        service = SupervisorReviewService(session)
+        updated = await service.update_review(review_id, review_update, context)
+        return updated
+    except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error updating supervisor review: {str(e)}")
+
+@router.post("/{review_id}/submit", response_model=SupervisorReview)
+async def submit_supervisor_review(
+    review_id: UUID,
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Submit a supervisor review (set status=submitted and sync goal)."""
+    try:
+        service = SupervisorReviewService(session)
+        updated = await service.submit_review(review_id, context)
+        return updated
+    except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting supervisor review: {str(e)}")
 
 @router.delete("/{review_id}")
 async def delete_supervisor_review(
     review_id: UUID,
-    context: AuthContext = Depends(require_supervisor_or_above)
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Delete a supervisor review."""
-    # TODO: Implement supervisor review deletion service
-    # - Verify current user created this review
-    # - Check if review can be deleted (not submitted)
-    # - Revert goal status if needed
-    return {"message": "Supervisor review deleted successfully"}
+    try:
+        service = SupervisorReviewService(session)
+        success = await service.delete_review(review_id, context)
+        if success:
+            return {"message": "Supervisor review deleted successfully"}
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete supervisor review")
+    except (PermissionDeniedError, BadRequestError, NotFoundError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting supervisor review: {str(e)}")
 
 @router.post("/bulk-submit")
 async def bulk_submit_reviews(
@@ -117,13 +167,17 @@ async def bulk_submit_reviews(
 async def get_pending_reviews(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    context: AuthContext = Depends(require_supervisor_or_above)
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Get pending supervisor reviews that need attention (supervisor only)."""
-    
-    # TODO: Implement pending review service
-    # - Get all goals from subordinates with status 'pending_approval'
-    # - Filter those without supervisor review or with draft review
-    # - Use pagination.page, pagination.limit, pagination.offset for pagination
-    # - Use PaginatedResponse.create(reviews, total, pagination) to return result
-    return SupervisorReviewList.create([], 0, pagination)
+    try:
+        service = SupervisorReviewService(session)
+        result = await service.get_pending_reviews(
+            current_user_context=context, period_id=period_id, pagination=pagination
+        )
+        return SupervisorReviewList(items=result.items, total=result.total, page=result.page, limit=result.limit, pages=result.pages)
+    except (PermissionDeniedError, BadRequestError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching pending supervisor reviews: {str(e)}")

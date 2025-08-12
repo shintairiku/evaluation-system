@@ -10,6 +10,7 @@ from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.repositories.competency_repo import CompetencyRepository
+from ..database.repositories.supervisor_review_repository import SupervisorReviewRepository
 from ..database.models.goal import Goal as GoalModel
 from ..schemas.goal import (
     GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus
@@ -37,6 +38,7 @@ class GoalService:
         self.user_repo = UserRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.competency_repo = CompetencyRepository(session)
+        self.supervisor_review_repo = SupervisorReviewRepository(session)
     
     async def get_goals(
         self,
@@ -288,6 +290,24 @@ class GoalService:
             # Commit transaction
             await self.session.commit()
             
+            # Auto-create draft supervisor review(s) for current supervisor(s)
+            try:
+                # Get supervisors of goal owner
+                supervisors = await self.user_repo.get_user_supervisors(existing_goal.user_id)
+                for supervisor in supervisors:
+                    await self.supervisor_review_repo.create(
+                        goal_id=existing_goal.id,
+                        period_id=existing_goal.period_id,
+                        supervisor_id=supervisor.id,
+                        action="pending",
+                        comment="",
+                        status="draft",
+                    )
+                await self.session.commit()
+            except Exception as auto_create_error:
+                logger.error(f"Auto-create SupervisorReview failed for goal {goal_id}: {auto_create_error}")
+                # Do not rollback goal submission due to review auto-creation failure
+
             # Enrich response data
             enriched_goal = await self._enrich_goal_data(updated_goal)
             

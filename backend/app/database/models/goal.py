@@ -68,9 +68,9 @@ class Goal(Base):
     period = relationship("EvaluationPeriod", back_populates="goals")
     approver = relationship("User", foreign_keys=[approved_by])
     
-    # Related assessment records (TODO: Uncomment when these models are created)
+    # Related assessment records
     # self_assessments = relationship("SelfAssessment", back_populates="goal", cascade="all, delete-orphan")
-    # supervisor_reviews = relationship("SupervisorReview", back_populates="goal", cascade="all, delete-orphan")
+    supervisor_reviews = relationship("SupervisorReview", back_populates="goal", cascade="all, delete-orphan")
     # supervisor_feedbacks = relationship("SupervisorFeedback", back_populates="goal", cascade="all, delete-orphan")
 
     @validates('target_data')
