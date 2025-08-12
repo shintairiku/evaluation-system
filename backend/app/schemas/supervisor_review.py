@@ -14,6 +14,15 @@ class SupervisorAction(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     PENDING = "pending"
+    
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            # Handle case-insensitive matching
+            for member in cls:
+                if member.value.upper() == value.upper():
+                    return member
+        return None
 
 
 class SupervisorReviewBase(BaseModel):

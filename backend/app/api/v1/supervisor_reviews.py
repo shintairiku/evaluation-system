@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import status
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
@@ -36,7 +37,7 @@ async def get_reviews_for_goal(
     except (PermissionDeniedError, NotFoundError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching goal reviews: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching goal reviews: {str(e)}")
 
 @router.get("/", response_model=SupervisorReviewList)
 async def get_supervisor_reviews(
@@ -62,7 +63,7 @@ async def get_supervisor_reviews(
     except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching supervisor reviews: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching supervisor reviews: {str(e)}")
 
 @router.post("/", response_model=SupervisorReview)
 async def create_supervisor_review(
@@ -78,7 +79,7 @@ async def create_supervisor_review(
     except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating supervisor review: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating supervisor review: {str(e)}")
 
 @router.get("/{review_id}", response_model=SupervisorReviewDetail)
 async def get_supervisor_review(
@@ -93,7 +94,7 @@ async def get_supervisor_review(
     except (PermissionDeniedError, NotFoundError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching supervisor review: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching supervisor review: {str(e)}")
 
 @router.put("/{review_id}", response_model=SupervisorReview)
 async def update_supervisor_review(
@@ -110,7 +111,7 @@ async def update_supervisor_review(
     except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error updating supervisor review: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating supervisor review: {str(e)}")
 
 @router.post("/{review_id}/submit", response_model=SupervisorReview)
 async def submit_supervisor_review(
@@ -126,7 +127,7 @@ async def submit_supervisor_review(
     except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting supervisor review: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error submitting supervisor review: {str(e)}")
 
 @router.delete("/{review_id}")
 async def delete_supervisor_review(
@@ -140,11 +141,11 @@ async def delete_supervisor_review(
         success = await service.delete_review(review_id, context)
         if success:
             return {"message": "Supervisor review deleted successfully"}
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete supervisor review")
+        raise HTTPException(status_code=500, detail="Failed to delete supervisor review")
     except (PermissionDeniedError, BadRequestError, NotFoundError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting supervisor review: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting supervisor review: {str(e)}")
 
 @router.post("/bulk-submit")
 async def bulk_submit_reviews(
@@ -180,4 +181,4 @@ async def get_pending_reviews(
     except (PermissionDeniedError, BadRequestError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching pending supervisor reviews: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching pending supervisor reviews: {str(e)}")
