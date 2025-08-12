@@ -308,3 +308,30 @@ async def get_pending_approval_alias(
     """Get goals pending approval (supervisor/admin only) - Alias endpoint."""
     return await get_pending_approvals(pagination, period_id, context, session)
 
+@router.get("/supervisor/{supervisor_id}", response_model=GoalList)
+async def get_supervisor_subordinate_goals(
+    supervisor_id: UUID,
+    pagination: PaginationParams = Depends(),
+    period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
+    status: Optional[str] = Query(None, description="Filter by status (draft, pending_approval, approved, rejected)"),
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get goals for a specific supervisor's subordinates with optional filters (period, status)."""
+    try:
+        service = GoalService(session)
+        result = await service.get_supervisor_subordinate_goals(context, supervisor_id, period_id, status, pagination)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching pending approvals: {str(e)}")
+
