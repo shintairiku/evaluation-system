@@ -10,6 +10,9 @@ export * from './user';
 // Goal types
 export * from './goal';
 
+// Evaluation types
+export * from './evaluation';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;
