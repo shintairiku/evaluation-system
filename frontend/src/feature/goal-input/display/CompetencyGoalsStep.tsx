@@ -27,9 +27,12 @@ interface CompetencyGoalsStepProps {
   onGoalsChange: (goals: CompetencyGoal[]) => void;
   onNext: () => void;
   onPrevious: () => void;
+  periodId?: string;
+  serverId?: string;
+  onServerIdUpdate?: (serverId?: string) => void;
 }
 
-export function CompetencyGoalsStep({ goals, onGoalsChange, onNext, onPrevious }: CompetencyGoalsStepProps) {
+export function CompetencyGoalsStep({ goals, onGoalsChange, onNext, onPrevious, periodId, serverId, onServerIdUpdate }: CompetencyGoalsStepProps) {
   const [selectedCompetency, setSelectedCompetency] = useState<string>('');
   const [actionPlan, setActionPlan] = useState<string>('');
   const competencies: Competency[] = stage1Competencies.competencies;
