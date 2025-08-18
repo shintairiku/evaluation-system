@@ -7,7 +7,6 @@ import type {
   GoalListResponse,
 } from '../types/goal';
 import { getHttpClient } from '../client/http-client';
-import { getCurrentEvaluationPeriodId } from './evaluations';
 
 export async function createGoalAction(data: GoalCreateRequest): Promise<{
   success: boolean;
@@ -121,21 +120,8 @@ export async function createAndSubmitGoalsAction(payload: CreateAndSubmitPayload
 }> {
   const createdIds: UUID[] = [];
   try {
-    let periodId = payload.periodId;
-    if (!periodId) {
-      const periodRes = await getCurrentEvaluationPeriodId();
-      if (!periodRes.success || !periodRes.data) {
-        return { success: false, error: periodRes.error || 'Failed to resolve current period' };
-      }
-      periodId = periodRes.data.periodId;
-    }
-
-    const ensuredPeriodId = periodId as UUID;
-    const draftRes = await createGoalsDraftAction({
-      periodId: ensuredPeriodId,
-      performanceGoals: payload.performanceGoals,
-      competencyGoal: payload.competencyGoal,
-    });
+    // periodId is always provided since user selects evaluation period
+    const draftRes = await createGoalsDraftAction(payload);
     if (!draftRes.success || !draftRes.data) throw new Error(draftRes.error || 'Failed to create drafts');
     createdIds.push(...draftRes.data.createdGoalIds);
 
