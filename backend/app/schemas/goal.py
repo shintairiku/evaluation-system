@@ -78,6 +78,13 @@ class GoalCreate(BaseModel):
     def validate_goal_category_fields(cls, values):
         """Validate that required fields are present based on goal_category"""
         goal_category = values.get('goal_category')
+        status = values.get('status')
+        
+        # Skip strict validation for incomplete goals (relaxed validation)
+        if status == 'incomplete':
+            return values
+            
+        # Apply strict validation for draft, pending_approval, approved, rejected goals
         if goal_category == "業績目標":  # Performance goal
             required_fields = ['title', 'performance_goal_type', 'specific_goal_text', 
                              'achievement_criteria_text', 'means_methods_text']
