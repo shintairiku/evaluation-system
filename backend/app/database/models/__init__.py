@@ -19,6 +19,6 @@ __all__ = [
     "EvaluationPeriodStatus",
     "EvaluationPeriodType",
     "Goal",
-    "SelfAssessment"
+    "SelfAssessment",
     "SupervisorReview",
 ]
