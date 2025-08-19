@@ -43,6 +43,9 @@ class User(Base):
     goals = relationship("Goal", foreign_keys="Goal.user_id", back_populates="user")
     approved_goals = relationship("Goal", foreign_keys="Goal.approved_by", back_populates="approver")
     
+    # Supervisor feedback relationships
+    supervisor_feedbacks = relationship("SupervisorFeedback", foreign_keys="SupervisorFeedback.supervisor_id", back_populates="supervisor")
+    
     # Note: supervisor and subordinates properties removed to avoid sync operations in async context
     # Use async service methods to get current supervisor/subordinates instead
 

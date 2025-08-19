@@ -4,6 +4,7 @@ from .stage_competency import Stage, Competency
 from .evaluation import EvaluationPeriod, EvaluationPeriodStatus, EvaluationPeriodType
 from .goal import Goal
 from .supervisor_review import SupervisorReview
+from .supervisor_feedback import SupervisorFeedback
 
 __all__ = [
     "Base",
@@ -19,4 +20,5 @@ __all__ = [
     "EvaluationPeriodType",
     "Goal",
     "SupervisorReview",
+    "SupervisorFeedback",
 ]
