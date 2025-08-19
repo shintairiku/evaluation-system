@@ -1,41 +1,35 @@
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 from uuid import UUID
 from pydantic import BaseModel, Field
 from datetime import datetime
-from .common import SubmissionStatus
+from .common import SubmissionStatus, PaginatedResponse
 
 if TYPE_CHECKING:
     from .goal import Goal
-    from .supervisor_feedback import SupervisorFeedback
+    from .evaluation import EvaluationPeriod
+    from .user import UserProfileOption
 
 
 class SelfAssessmentBase(BaseModel):
-    """Base schema for self-assessment."""
-    self_rating: Optional[float] = Field(None, ge=0, le=100, alias="selfRating")
-    self_comment: str = Field(..., alias="selfComment")
+    self_rating: Optional[float] = Field(None, ge=0, le=100, alias="selfRating", description="Self-rating from 0-100")
+    self_comment: Optional[str] = Field(None, alias="selfComment", description="Self-assessment comment")
 
 
 class SelfAssessmentCreate(SelfAssessmentBase):
-    period_id: UUID = Field(..., alias="periodId")
-    goal_id: UUID = Field(..., alias="goalId")
+    """Request schema for creating a self-assessment, matches endpoints_v2.md."""
     status: SubmissionStatus = Field(..., description="Assessment status based on button clicked: 'draft' or 'submitted'")
 
 
 class SelfAssessmentUpdate(BaseModel):
-    """
-    Schema for updating a self-assessment.
-    All fields are optional, allowing for partial updates.
-    The status can be changed to 'submitted' to finalize the assessment.
-    """
-    self_rating: Optional[float] = Field(None, ge=0, le=100, alias="selfRating")
-    self_comment: Optional[str] = Field(None, alias="selfComment")
+    self_rating: Optional[float] = Field(None, ge=0, le=100, alias="selfRating", description="Self-rating from 0-100")
+    self_comment: Optional[str] = Field(None, alias="selfComment", description="Self-assessment comment")
     status: Optional[SubmissionStatus] = Field(None, description="Assessment status based on button clicked: 'draft' or 'submitted'")
 
 
 class SelfAssessmentInDB(SelfAssessmentBase):
     id: UUID
-    period_id: UUID
     goal_id: UUID
+    period_id: UUID
     status: SubmissionStatus = SubmissionStatus.DRAFT
     submitted_at: Optional[datetime] = None
     created_at: datetime
@@ -47,48 +41,61 @@ class SelfAssessmentInDB(SelfAssessmentBase):
 
 class SelfAssessment(SelfAssessmentInDB):
     """
-    Self-assessment schema for API responses.
-    Includes related goal and supervisor feedback information by default.
+    Basic self-assessment schema for API responses (list views, simple references).
+    Contains core self-assessment information without expensive joins.
     """
-    # Related goal information
-    # goal: Optional['Goal'] = Field(None, description="The goal this assessment is for")
+    goal_id: UUID = Field(..., alias="goalId")
+    period_id: UUID = Field(..., alias="periodId")
+    submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class SelfAssessmentDetail(SelfAssessmentInDB):
+    """
+    Detailed self-assessment schema for single item views.
+    Employee self-evaluation for a specific goal.
+    """
+    goal_id: UUID = Field(..., alias="goalId")
+    period_id: UUID = Field(..., alias="periodId")
+    submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
     
-    # Supervisor feedback if it exists
-    # supervisor_feedback: Optional['SupervisorFeedback'] = Field(
+    # Related goal information (the specific goal this assessment is for)
+    # goal: Optional['Goal'] = Field(None, description="The specific goal this assessment is for")
+    
+    # Related evaluation period information
+    # evaluation_period: Optional['EvaluationPeriod'] = Field(
     #     None, 
-    #     alias="supervisorFeedback",
-    #     description="Supervisor feedback on this assessment (if submitted)"
+    #     alias="evaluationPeriod",
+    #     description="The evaluation period this assessment belongs to"
     # )
     
-    # Assessment progress indicators
-    has_supervisor_feedback: bool = Field(
-        False, 
-        alias="hasSupervisorFeedback",
-        description="Whether supervisor feedback has been provided"
-    )
+    # Employee information (assessment owner)
+    # employee: Optional['UserProfileOption'] = Field(None, description="The employee who created this assessment")
     
-    # Evaluation period information (optional, for context)
-    period_name: Optional[str] = Field(None, alias="periodName", description="Name of the evaluation period")
-    period_status: Optional[str] = Field(None, alias="periodStatus", description="Status of the evaluation period")
+    # Assessment state information
+    is_editable: bool = Field(True, alias="isEditable", description="Whether this assessment can still be edited")
+    is_overdue: bool = Field(False, alias="isOverdue", description="Whether this assessment is past the deadline")
+    days_until_deadline: Optional[int] = Field(None, alias="daysUntilDeadline", description="Days remaining until assessment deadline")
+    
+    # Goal context
+    goal_category: Optional[str] = Field(None, alias="goalCategory", description="Category of the goal being assessed")
+    goal_status: Optional[str] = Field(None, alias="goalStatus", description="Current status of the goal")
     
     class Config:
         from_attributes = True
         populate_by_name = True
 
 
-class SelfAssessmentDetail(SelfAssessment):
-    """
-    Detailed self-assessment schema for future scalability.
-    Currently identical to SelfAssessment but can be extended with additional fields
-    without breaking existing API contracts.
-    """
-    pass
-
-
-class SelfAssessmentList(BaseModel):
+class SelfAssessmentList(PaginatedResponse[SelfAssessment]):
     """Schema for paginated self-assessment list responses"""
-    assessments: List[SelfAssessment]
-    total: int
+    pass
 
 
 # ========================================
@@ -99,9 +106,7 @@ class SelfAssessmentList(BaseModel):
 # This needs to be done after all models are defined
 try:
     # Rebuild models that have forward references
-    SelfAssessment.model_rebuild()
     SelfAssessmentDetail.model_rebuild()
-    SelfAssessmentList.model_rebuild()
 except Exception as e:
     # Log the error but don't fail the import
     print(f"Warning: Could not rebuild forward references in self_assessment schemas: {e}")

@@ -38,6 +38,7 @@ class EvaluationPeriod(Base):
 
     # Relationships
     goals = relationship("Goal", back_populates="period")
+    self_assessments = relationship("SelfAssessment", back_populates="period")
     supervisor_feedbacks = relationship("SupervisorFeedback", back_populates="period")
 
     def __repr__(self):
