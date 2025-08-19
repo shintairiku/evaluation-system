@@ -125,13 +125,14 @@ class SelfAssessmentRepository:
     ) -> List[SelfAssessment]:
         """Get all self-assessments for a user in a specific period."""
         try:
+            goal_alias = aliased(Goal)
             result = await self.session.execute(
                 select(SelfAssessment)
-                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(goal_alias, SelfAssessment.goal_id == goal_alias.id)
                 .options(joinedload(SelfAssessment.goal))
                 .filter(
                     and_(
-                        Goal.user_id == user_id,
+                        goal_alias.user_id == user_id,
                         SelfAssessment.period_id == period_id
                     )
                 )
