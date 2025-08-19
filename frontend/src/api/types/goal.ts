@@ -35,6 +35,21 @@ export type GoalCreateRequest =
   | (GoalBase & { goalCategory: 'コンピテンシー' } & CompetencyGoalFields)
   | (GoalBase & { goalCategory: 'コアバリュー' } & CoreValueGoalFields);
 
+export type GoalUpdateRequest = {
+  weight?: number;
+  // Performance goal fields
+  title?: string;
+  performanceGoalType?: PerformanceGoalType;
+  specificGoalText?: string;
+  achievementCriteriaText?: string;
+  meansMethodsText?: string;
+  // Competency goal fields
+  competencyId?: UUID;
+  actionPlan?: string;
+  // Core value goal fields
+  coreValuePlan?: string;
+};
+
 export interface GoalResponse {
   id: UUID;
   userId: UUID;
