@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select, update, delete, and_, func
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, aliased
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -210,7 +210,8 @@ class SelfAssessmentRepository:
             
             # Apply filters
             if user_ids:
-                query = query.join(Goal, SelfAssessment.goal_id == Goal.id).filter(Goal.user_id.in_(user_ids))
+                goal_alias = aliased(Goal)
+                query = query.join(goal_alias, SelfAssessment.goal_id == goal_alias.id).filter(goal_alias.user_id.in_(user_ids))
             
             if period_id:
                 query = query.filter(SelfAssessment.period_id == period_id)
@@ -243,7 +244,8 @@ class SelfAssessmentRepository:
             
             # Apply same filters as search_assessments
             if user_ids:
-                query = query.join(Goal, SelfAssessment.goal_id == Goal.id).filter(Goal.user_id.in_(user_ids))
+                goal_alias = aliased(Goal)
+                query = query.join(goal_alias, SelfAssessment.goal_id == goal_alias.id).filter(goal_alias.user_id.in_(user_ids))
             
             if period_id:
                 query = query.filter(SelfAssessment.period_id == period_id)
