@@ -89,7 +89,7 @@ class Goal(Base):
         """Validate target_data schema for specific goal categories"""
         if category == "業績目標":  # Performance Goal
             required_fields = ["performance_goal_type", "specific_goal_text", "achievement_criteria_text"]
-            optional_fields = ["means_methods_text"]
+            optional_fields = ["means_methods_text", "title"]
             self._validate_performance_goal_schema(target_data, required_fields, optional_fields)
             
         elif category == "コンピテンシー":  # Competency Goal
