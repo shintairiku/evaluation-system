@@ -112,4 +112,57 @@ export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{ 
   }
 }
 
+// Get goals with filters - maps directly to GET /goals backend endpoint
+export async function getGoalsAction(params?: {
+  periodId?: UUID;
+  userId?: UUID;
+  goalCategory?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
+  try {
+    const http = getHttpClient();
+    const query = new URLSearchParams();
+    
+    // Add all supported backend filters
+    if (params?.periodId) {
+      query.append('periodId', params.periodId);
+    }
+    if (params?.userId) {
+      query.append('userId', params.userId);
+    }
+    if (params?.goalCategory) {
+      query.append('goalCategory', params.goalCategory);
+    }
+    if (params?.status) {
+      query.append('status', params.status);
+    }
+    if (params?.page) {
+      query.append('page', String(params.page));
+    }
+    if (params?.limit) {
+      query.append('limit', String(params.limit));
+    }
+
+    // Construct final endpoint
+    const endpoint = query.toString() 
+      ? `${API_ENDPOINTS.GOALS.LIST}?${query.toString()}`
+      : API_ENDPOINTS.GOALS.LIST;
+
+    // Make the API call
+    const res = await http.get<GoalListResponse>(endpoint);
+    
+    if (!res.success || !res.data) {
+      return { success: false, error: res.errorMessage || 'Failed to fetch goals' };
+    }
+
+    return { success: true, data: res.data };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : 'Failed to fetch goals';
+    return { success: false, error };
+  }
+}
+
+
 
