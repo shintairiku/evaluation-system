@@ -29,6 +29,7 @@ class PerformanceGoalType(str, Enum):
 
 # Target data schemas for different goal categories
 class PerformanceGoalTargetData(BaseModel):
+    title: str = Field(..., description="目標タイトル")
     performance_goal_type: PerformanceGoalType
     specific_goal_text: str = Field(..., description="具体的な目標内容")
     achievement_criteria_text: str = Field(..., description="達成基準")
@@ -59,6 +60,7 @@ class GoalCreate(BaseModel):
     status: GoalStatus = Field(..., description="Goal status based on button clicked: 'draft' or 'pending_approval'")
     
     # Performance Goal fields (goal_category = "業績目標")
+    title: Optional[str] = Field(None, alias="title")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
@@ -77,10 +79,10 @@ class GoalCreate(BaseModel):
         """Validate that required fields are present based on goal_category"""
         goal_category = values.get('goal_category')
         if goal_category == "業績目標":  # Performance goal
-            required_fields = ['performance_goal_type', 'specific_goal_text', 
+            required_fields = ['title', 'performance_goal_type', 'specific_goal_text', 
                              'achievement_criteria_text', 'means_methods_text']
             if any(values.get(field) is None for field in required_fields):
-                raise ValueError("Performance goals require: performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText")
+                raise ValueError("Performance goals require: title, performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText")
         elif goal_category == "コンピテンシー":  # Competency goal
             if values.get('competency_id') is None or values.get('action_plan') is None:
                 raise ValueError("Competency goals require: competencyId, actionPlan")
@@ -96,6 +98,7 @@ class GoalUpdate(BaseModel):
     weight: Optional[float] = Field(None, ge=0, le=100)
     
     # Performance Goal fields (goal_category = "業績目標")
+    title: Optional[str] = Field(None, alias="title")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
@@ -177,6 +180,7 @@ class Goal(BaseModel):
     updated_at: datetime = Field(..., alias="updatedAt")
     
     # Performance Goal fields (goal_category = "業績目標")
+    title: Optional[str] = Field(None, alias="title")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")

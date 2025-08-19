@@ -309,6 +309,8 @@ class GoalRepository:
             target_data_updates = {}
             
             # Performance goal fields
+            if goal_data.title is not None:
+                target_data_updates["title"] = goal_data.title
             if goal_data.performance_goal_type is not None:
                 target_data_updates["performance_goal_type"] = goal_data.performance_goal_type.value
             if goal_data.specific_goal_text is not None:
@@ -591,6 +593,7 @@ class GoalRepository:
         
         if goal_data.goal_category == "業績目標":  # Performance goal
             target_data = {
+                "title": goal_data.title,
                 "performance_goal_type": goal_data.performance_goal_type.value if goal_data.performance_goal_type else None,
                 "specific_goal_text": goal_data.specific_goal_text,
                 "achievement_criteria_text": goal_data.achievement_criteria_text,
