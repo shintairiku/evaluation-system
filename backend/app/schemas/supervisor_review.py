@@ -14,6 +14,15 @@ class SupervisorAction(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     PENDING = "pending"
+    
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            # Handle case-insensitive matching
+            for member in cls:
+                if member.value.upper() == value.upper():
+                    return member
+        return None
 
 
 class SupervisorReviewBase(BaseModel):
@@ -25,7 +34,7 @@ class SupervisorReviewCreate(SupervisorReviewBase):
     """Request schema for creating a supervisor review, matches endpoints_v2.md."""
     goal_id: UUID = Field(..., alias="goalId")
     period_id: UUID = Field(..., alias="periodId")
-    status: SubmissionStatus = Field(..., description="Review status based on button clicked: 'draft' or 'submitted'")
+    status: Optional[SubmissionStatus] = Field(default=SubmissionStatus.INCOMPLETE, description="Review status: defaults to 'incomplete' until supervisor changes to 'draft' or 'submitted'")
 
 
 class SupervisorReviewUpdate(BaseModel):
@@ -83,9 +92,9 @@ class SupervisorReviewDetail(SupervisorReviewInDB):
         populate_by_name = True
 
 
-class SupervisorReviewList(PaginatedResponse):
+class SupervisorReviewList(PaginatedResponse[SupervisorReview]):
     """Schema for paginated supervisor review list responses"""
-    data: List[SupervisorReview]
+    pass
 
 
 # ========================================
