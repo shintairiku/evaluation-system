@@ -24,7 +24,7 @@ class Goal(Base):
     goal_category = Column(String(100), nullable=False)
     target_data = Column(JSONB, nullable=False)  # Validated JSON structure per category
     weight = Column(DECIMAL(5, 2), nullable=False)
-    status = Column(String(50), nullable=False, default="draft")
+    status = Column(String(50), nullable=False, default="incomplete")
     
     # Approval fields
     approved_by = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
@@ -42,7 +42,7 @@ class Goal(Base):
         
         # Status validation
         CheckConstraint(
-            "status IN ('draft', 'pending_approval', 'approved', 'rejected')", 
+            "status IN ('incomplete', 'draft', 'pending_approval', 'approved', 'rejected')", 
             name='check_status_values'
         ),
         
@@ -194,7 +194,7 @@ class Goal(Base):
     def validate_status(self, key, status):
         """Validate status is one of allowed values"""
         if status is not None:
-            valid_statuses = ['draft', 'pending_approval', 'approved', 'rejected']
+            valid_statuses = ['incomplete', 'draft', 'pending_approval', 'approved', 'rejected']
             if status not in valid_statuses:
                 raise ValueError(f"Invalid status: {status}. Must be one of: {valid_statuses}")
         return status

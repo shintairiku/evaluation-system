@@ -142,13 +142,14 @@ class GoalService:
             # Business validation
             await self._validate_goal_creation(goal_data, target_user_id)
             
-            # Validate weight limits
-            await self._validate_weight_limits(
-                target_user_id, 
-                goal_data.period_id, 
-                goal_data.goal_category,
-                goal_data.weight
-            )
+            # Validate weight limits (skip for incomplete status - relaxed validation)
+            if goal_data.status != GoalStatus.INCOMPLETE:
+                await self._validate_weight_limits(
+                    target_user_id, 
+                    goal_data.period_id, 
+                    goal_data.goal_category,
+                    goal_data.weight
+                )
             
             # Create goal
             created_goal = await self.goal_repo.create_goal(goal_data, target_user_id)
@@ -192,8 +193,8 @@ class GoalService:
             # Business validation
             await self._validate_goal_update(goal_data, existing_goal)
             
-            # Validate weight limits if weight is being changed
-            if goal_data.weight is not None:
+            # Validate weight limits if weight is being changed (skip for incomplete status)
+            if goal_data.weight is not None and goal_data.status != GoalStatus.INCOMPLETE:
                 await self._validate_weight_limits(
                     existing_goal.user_id,
                     existing_goal.period_id,
@@ -201,6 +202,10 @@ class GoalService:
                     goal_data.weight,
                     exclude_goal_id=goal_id
                 )
+            
+            # Validate status transitions (prevent direct incomplete->draft/pending_approval)
+            if goal_data.status is not None:
+                await self._validate_status_transition(existing_goal, goal_data.status)
             
             # Update goal
             updated_goal = await self.goal_repo.update_goal(goal_id, goal_data)

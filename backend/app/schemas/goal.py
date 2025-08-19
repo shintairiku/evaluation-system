@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 
 class GoalStatus(str, Enum):
+    INCOMPLETE = "incomplete"
     DRAFT = "draft"
     PENDING_APPROVAL = "pending_approval"
     APPROVED = "approved"
