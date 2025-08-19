@@ -646,6 +646,18 @@ class GoalService:
                 f"Current: {current_total}%, Adding: {new_weight}%, Total: {new_total}%"
             )
 
+    async def _validate_status_transition(self, existing_goal: GoalModel, new_status: str):
+        """Validate status transitions - prevent direct incomplete->draft/pending_approval."""
+        current_status = existing_goal.status
+        
+        # Prevent direct transition from incomplete to draft or pending_approval
+        if (current_status == GoalStatus.INCOMPLETE and 
+            new_status in [GoalStatus.DRAFT, GoalStatus.PENDING_APPROVAL]):
+            raise ValidationError(
+                "Cannot change status directly from 'incomplete' to 'draft' or 'pending_approval'. "
+                "Goals must meet validation requirements before submission."
+            )
+
     def _requires_reapproval(self, goal_data: GoalUpdate) -> bool:
         """Check if the update requires reapproval."""
         # Any change to content fields requires reapproval
