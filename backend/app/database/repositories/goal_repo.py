@@ -219,7 +219,11 @@ class GoalRepository:
                 and_(
                     Goal.user_id == user_id,
                     Goal.period_id == period_id,
-                    Goal.status != GoalStatus.REJECTED.value
+                    Goal.status.in_([
+                        GoalStatus.DRAFT.value,
+                        GoalStatus.PENDING_APPROVAL.value,
+                        GoalStatus.APPROVED.value
+                    ])
                 )
             )
             
