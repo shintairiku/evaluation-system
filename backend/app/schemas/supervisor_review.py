@@ -8,7 +8,7 @@ from .common import SubmissionStatus, PaginatedResponse
 if TYPE_CHECKING:
     from .goal import Goal
     from .evaluation import EvaluationPeriod
-    from .user import UserProfile
+    from .user import UserProfileOption
 
 class SupervisorAction(str, Enum):
     APPROVED = "approved"
@@ -81,7 +81,7 @@ class SupervisorReviewDetail(SupervisorReviewInDB):
     # )
     
     # Employee information (goal owner)
-    # employee: Optional['UserProfile'] = Field(None, description="The employee whose goal is being reviewed")
+    # employee: Optional['UserProfileOption'] = Field(None, description="The employee whose goal is being reviewed")
     
     # Timeline information
     is_overdue: bool = Field(False, alias="isOverdue", description="Whether this review is past the deadline")

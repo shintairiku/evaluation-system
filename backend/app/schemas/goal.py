@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from .evaluation import EvaluationPeriod
     from .self_assessment import SelfAssessment
     from .supervisor_feedback import SupervisorFeedback
-    from .user import UserProfile
+    from .user import UserProfileOption
     from .stage_competency import Competency
 
 
@@ -221,7 +221,7 @@ class GoalDetail(Goal):
     # )
     
     # User information (goal owner)
-    # user: Optional['UserProfile'] = Field(
+    # user: Optional['UserProfileOption'] = Field(
     #     None,
     #     description="The user who owns this goal"
     # )
