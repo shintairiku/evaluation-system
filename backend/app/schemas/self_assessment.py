@@ -7,7 +7,7 @@ from .common import SubmissionStatus, PaginatedResponse
 if TYPE_CHECKING:
     from .goal import Goal
     from .evaluation import EvaluationPeriod
-    from .user import UserProfile
+    from .user import UserProfileOption
 
 
 class SelfAssessmentBase(BaseModel):
@@ -77,7 +77,7 @@ class SelfAssessmentDetail(SelfAssessmentInDB):
     # )
     
     # Employee information (assessment owner)
-    # employee: Optional['UserProfile'] = Field(None, description="The employee who created this assessment")
+    # employee: Optional['UserProfileOption'] = Field(None, description="The employee who created this assessment")
     
     # Assessment state information
     is_editable: bool = Field(True, alias="isEditable", description="Whether this assessment can still be edited")
