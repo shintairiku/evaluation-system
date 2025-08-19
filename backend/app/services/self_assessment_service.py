@@ -171,6 +171,10 @@ class SelfAssessmentService:
     ) -> SelfAssessment:
         """Create a new self-assessment with validation and business rules."""
         try:
+            # Check if user has permission to manage self assessments
+            if not current_user_context.has_permission(Permission.ASSESSMENT_MANAGE_SELF):
+                raise PermissionDeniedError("You do not have permission to manage self-assessments")
+            
             # Check if goal exists and get goal details
             goal = await self.goal_repo.get_goal_by_id(goal_id)
             if not goal:
@@ -323,7 +327,7 @@ class SelfAssessmentService:
     ) -> Optional[List[UUID]]:
         """Determine which users' assessments the current user can access."""
         
-        if current_user_context.has_permission(Permission.GOAL_READ_ALL):
+        if current_user_context.has_permission(Permission.ASSESSMENT_READ_ALL):
             # Admin: can see all assessments
             if requested_user_id:
                 return [requested_user_id]
@@ -331,11 +335,11 @@ class SelfAssessmentService:
         
         accessible_ids = []
         
-        # Add self if user has GOAL_READ_SELF permission
-        if current_user_context.has_permission(Permission.GOAL_READ_SELF):
+        # Add self if user has ASSESSMENT_READ_SELF permission
+        if current_user_context.has_permission(Permission.ASSESSMENT_READ_SELF):
             accessible_ids.append(current_user_context.user_id)
         
-        if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
+        if current_user_context.has_permission(Permission.ASSESSMENT_READ_SUBORDINATES):
             # Supervisor: can see subordinates' assessments
             subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
             accessible_ids.extend([sub.id for sub in subordinates])
@@ -349,23 +353,23 @@ class SelfAssessmentService:
         return accessible_ids
 
     async def _check_goal_access_permission(self, goal, current_user_context: AuthContext):
-        """Check if user has permission to access this goal."""
-        if current_user_context.has_permission(Permission.GOAL_READ_ALL):
+        """Check if user has permission to access this goal's assessment."""
+        if current_user_context.has_permission(Permission.ASSESSMENT_READ_ALL):
             return  # Admin can access all
         
         if goal.user_id == current_user_context.user_id:
-            # Verify user has permission to read own goals
-            if current_user_context.has_permission(Permission.GOAL_READ_SELF):
+            # Verify user has permission to read own assessments
+            if current_user_context.has_permission(Permission.ASSESSMENT_READ_SELF):
                 return  # Own goal with proper permission
         
-        if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
+        if current_user_context.has_permission(Permission.ASSESSMENT_READ_SUBORDINATES):
             # Check if goal owner is subordinate
             subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
             subordinate_ids = [sub.id for sub in subordinates]
             if goal.user_id in subordinate_ids:
                 return
         
-        raise PermissionDeniedError("You do not have permission to access this goal")
+        raise PermissionDeniedError("You do not have permission to access this goal's assessment")
 
     async def _check_assessment_access_permission(self, assessment: SelfAssessmentModel, current_user_context: AuthContext):
         """Check if user has permission to access this assessment."""
@@ -378,6 +382,10 @@ class SelfAssessmentService:
 
     async def _check_assessment_update_permission(self, assessment: SelfAssessmentModel, current_user_context: AuthContext):
         """Check if user has permission to update this assessment."""
+        # Check if user has permission to manage self assessments
+        if not current_user_context.has_permission(Permission.ASSESSMENT_MANAGE_SELF):
+            raise PermissionDeniedError("You do not have permission to manage self-assessments")
+        
         # Get the related goal to check ownership
         goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
         if not goal:
