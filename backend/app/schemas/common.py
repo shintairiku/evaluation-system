@@ -6,6 +6,7 @@ T = TypeVar('T')
 
 # Submission Statues (used in self-assessment, supervisor review, and supervisor feedback)
 class SubmissionStatus(str, Enum):
+    INCOMPLETE = "incomplete"
     DRAFT = "draft"
     SUBMITTED = "submitted"
 

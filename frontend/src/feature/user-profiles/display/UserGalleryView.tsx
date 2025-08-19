@@ -169,6 +169,7 @@ export default function UserGalleryView({ users, onUserUpdate }: UserGalleryView
       {/* ユーザー編集モーダル */}
       <UserEditViewModal
         user={selectedUser}
+        allUsers={users}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onUserUpdate={onUserUpdate}

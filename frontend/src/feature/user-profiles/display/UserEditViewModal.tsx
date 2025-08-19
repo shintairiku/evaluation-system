@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useActionState } from 'react';
+import { useState, useEffect, useActionState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -27,16 +27,19 @@ import {
   Mail, 
   Save,
   X,
-  Loader2
+  Loader2,
+  Undo2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
-import { updateUserAction } from '@/api/server-actions/users';
+import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
+import HierarchyEditCard from '../components/HierarchyEditCard';
 
 interface UserEditViewModalProps {
   user: UserDetailResponse | null;
+  allUsers: UserDetailResponse[];
   isOpen: boolean;
   onClose: () => void;
   onUserUpdate?: (updatedUser: UserDetailResponse) => void;
@@ -52,6 +55,7 @@ const SelectSkeleton = () => (
 
 export default function UserEditViewModal({ 
   user, 
+  allUsers,
   isOpen, 
   onClose,
   onUserUpdate
@@ -61,6 +65,20 @@ export default function UserEditViewModal({
     if (!user) return { success: false, error: 'ユーザー情報が見つかりません' };
     
     try {
+      // Save hierarchy changes first if there are any pending
+      if (hierarchyPendingChanges && hierarchySaveHandler) {
+        try {
+          await hierarchySaveHandler();
+          // Reset hierarchy state after successful save
+          setHierarchyPendingChanges(false);
+          setHierarchySaveHandler(null);
+          setHierarchyUndoHandler(null);
+        } catch (hierarchyError) {
+          console.error('Hierarchy save error:', hierarchyError);
+          toast.error('階層変更の保存に失敗しました。プロフィール更新を続行します。');
+          // Continue with profile save even if hierarchy fails
+        }
+      }
       const userData: UserUpdate = {
         name: formData.get('name') as string,
         email: formData.get('email') as string,
@@ -82,6 +100,27 @@ export default function UserEditViewModal({
       const result = await updateUserAction(user.id, userData);
 
       if (result.success && result.data) {
+        // Check if hierarchy-related fields changed
+        const hierarchyFields = ['department_id', 'stage_id'];
+        const hasHierarchyChange = hierarchyFields.some(field => 
+          userData[field as keyof UserUpdate] !== undefined
+        );
+        
+        if (hasHierarchyChange) {
+          // Invalidate cache for current user and potentially affected users
+          const affectedUsers = [user.id];
+          
+          // If department changed, also invalidate supervisor/subordinates
+          if (userData.department_id && user.supervisor) {
+            affectedUsers.push(user.supervisor.id);
+          }
+          if (user.subordinates) {
+            affectedUsers.push(...user.subordinates.map(sub => sub.id));
+          }
+          
+          invalidateHierarchyCache(affectedUsers);
+        }
+        
         toast.success('プロフィールが正常に更新されました');
         onUserUpdate?.(result.data);
         onClose();
@@ -102,6 +141,44 @@ export default function UserEditViewModal({
   // Use cached profile options
   const { options, isLoading: isLoadingOptions, error: optionsError } = useProfileOptions();
 
+  // State for detailed user data with hierarchy
+  const [detailedUser, setDetailedUser] = useState<UserDetailResponse | null>(null);
+  const [isLoadingUserData, setIsLoadingUserData] = useState(false);
+  
+  // Simple cache for user hierarchy data (5 minute TTL)
+  const [userCache] = useState(() => new Map<string, { data: UserDetailResponse; timestamp: number }>());
+  
+  // Function to invalidate cache when hierarchy changes
+  const invalidateHierarchyCache = (affectedUserIds: string[]) => {
+    affectedUserIds.forEach(userId => {
+      userCache.delete(userId);
+      console.log(`[UserEditModal] Cache invalidated for user ${userId} due to hierarchy change`);
+    });
+  };
+  
+  // Function to force refresh hierarchy data
+  const forceRefreshHierarchyData = async (userId: string) => {
+    userCache.delete(userId);
+    if (user && userId === user.id && isOpen) {
+      setIsLoadingUserData(true);
+      try {
+        const result = await getUserByIdAction(userId);
+        if (result.success && result.data) {
+          setDetailedUser(result.data);
+          userCache.set(userId, {
+            data: result.data,
+            timestamp: Date.now()
+          });
+          console.log(`[UserEditModal] Force refreshed hierarchy data for user ${userId}`);
+        }
+      } catch (error) {
+        console.error('Error force refreshing hierarchy data:', error);
+      } finally {
+        setIsLoadingUserData(false);
+      }
+    }
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     employee_code: '',
@@ -111,6 +188,76 @@ export default function UserEditViewModal({
     stage_id: '',
     status: ''
   });
+
+  // Hierarchy card state
+  const [hierarchyPendingChanges, setHierarchyPendingChanges] = useState(false);
+  const [hierarchySaveHandler, setHierarchySaveHandler] = useState<(() => Promise<void>) | null>(null);
+  const [hierarchyUndoHandler, setHierarchyUndoHandler] = useState<(() => void) | null>(null);
+
+  // Fetch detailed user data when modal opens
+  useEffect(() => {
+    const fetchDetailedUserData = async () => {
+      if (user && isOpen) {
+        // Check cache first (5 minute TTL)
+        const cacheKey = user.id;
+        const cached = userCache.get(cacheKey);
+        const now = Date.now();
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+        
+        if (cached && (now - cached.timestamp) < CACHE_TTL) {
+          console.log(`[UserEditModal] Using cached data for user ${user.name}`);
+          setDetailedUser(cached.data);
+          return;
+        }
+        
+        setIsLoadingUserData(true);
+        const startTime = performance.now();
+        
+        try {
+          const result = await getUserByIdAction(user.id);
+          const endTime = performance.now();
+          const duration = endTime - startTime;
+          
+          // Log performance metrics for analysis
+          console.log(`[UserEditModal] API call duration: ${duration.toFixed(2)}ms`);
+          
+          if (result.success && result.data) {
+            setDetailedUser(result.data);
+            
+            // Cache the result
+            userCache.set(cacheKey, {
+              data: result.data,
+              timestamp: now
+            });
+            
+            console.log(`[UserEditModal] Successfully loaded hierarchy data`, {
+              hasSupervisor: !!result.data.supervisor,
+              subordinatesCount: result.data.subordinates?.length || 0,
+              loadTime: `${duration.toFixed(2)}ms`,
+              cached: false
+            });
+          } else {
+            console.error('Failed to load detailed user data:', result.error);
+            // Fallback to the basic user data
+            setDetailedUser(user);
+          }
+        } catch (error) {
+          const endTime = performance.now();
+          const duration = endTime - startTime;
+          console.error(`[UserEditModal] Error after ${duration.toFixed(2)}ms:`, error);
+          // Fallback to the basic user data
+          setDetailedUser(user);
+        } finally {
+          setIsLoadingUserData(false);
+        }
+      } else if (!isOpen) {
+        // Reset when modal closes
+        setDetailedUser(null);
+      }
+    };
+
+    fetchDetailedUserData();
+  }, [user, isOpen, userCache]);
 
   // Initialize form data when user changes
   useEffect(() => {
@@ -143,6 +290,17 @@ export default function UserEditViewModal({
     }));
   };
 
+  // Handle hierarchy pending changes
+  const handleHierarchyPendingChanges = useCallback((
+    hasPendingChanges: boolean,
+    saveHandler?: () => Promise<void>,
+    undoHandler?: () => void
+  ) => {
+    setHierarchyPendingChanges(hasPendingChanges);
+    setHierarchySaveHandler(() => saveHandler || null);
+    setHierarchyUndoHandler(() => undoHandler || null);
+  }, []);
+
   const getUserInitials = (name: string) => {
     return name.split(' ').map(part => part[0]).join('').toUpperCase();
   };
@@ -164,7 +322,7 @@ export default function UserEditViewModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl w-full">
+      <DialogContent className="sm:max-w-6xl w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <User className="h-5 w-5" />
@@ -176,7 +334,7 @@ export default function UserEditViewModal({
         </DialogHeader>
 
         <form action={formAction} className="space-y-4">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {/* ユーザー基本情報カード */}
             <Card>
               <CardHeader>
@@ -355,6 +513,15 @@ export default function UserEditViewModal({
                 </div>
               </CardContent>
             </Card>
+
+            {/* 階層関係カード */}
+            <HierarchyEditCard 
+              user={detailedUser || user} 
+              allUsers={allUsers}
+              isLoading={isLoadingOptions || isLoadingUserData}
+              onUserUpdate={onUserUpdate}
+              onPendingChanges={handleHierarchyPendingChanges}
+            />
           </div>
 
           <DialogFooter className="gap-4">
@@ -367,22 +534,40 @@ export default function UserEditViewModal({
               <X className="h-4 w-4 mr-2" />
               キャンセル
             </Button>
-            <Button 
-              type="submit"
-              disabled={isPending || isLoadingOptions}
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  変更を保存
-                </>
+            <div className="flex items-center gap-2">
+              {hierarchyPendingChanges && hierarchyUndoHandler && (
+                <Button 
+                  type="button"
+                  variant="outline"
+                  onClick={hierarchyUndoHandler}
+                  disabled={isPending}
+                >
+                  <Undo2 className="h-4 w-4 mr-2" />
+                  階層変更を元に戻す
+                </Button>
               )}
-            </Button>
+              <Button 
+                type="submit"
+                disabled={isPending || isLoadingOptions}
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    変更を保存
+                    {hierarchyPendingChanges && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        階層変更含む
+                      </Badge>
+                    )}
+                  </>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

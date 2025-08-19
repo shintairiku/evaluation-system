@@ -70,7 +70,7 @@ class Goal(Base):
     
     # Related assessment records
     self_assessments = relationship("SelfAssessment", back_populates="goal", cascade="all, delete-orphan")
-    # supervisor_reviews = relationship("SupervisorReview", back_populates="goal", cascade="all, delete-orphan")
+    supervisor_reviews = relationship("SupervisorReview", back_populates="goal", cascade="all, delete-orphan")
     # supervisor_feedbacks = relationship("SupervisorFeedback", back_populates="goal", cascade="all, delete-orphan")
 
     @validates('target_data')
