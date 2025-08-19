@@ -93,9 +93,9 @@ class SelfAssessmentDetail(SelfAssessmentInDB):
         populate_by_name = True
 
 
-class SelfAssessmentList(PaginatedResponse):
+class SelfAssessmentList(PaginatedResponse[SelfAssessment]):
     """Schema for paginated self-assessment list responses"""
-    data: List[SelfAssessment]
+    pass
 
 
 # ========================================
