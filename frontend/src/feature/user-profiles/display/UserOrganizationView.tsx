@@ -24,6 +24,7 @@ import { Building2, Users, User, Mail, RefreshCw, Undo2, Save } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { updateUserAction } from '@/api/server-actions/users';
+import { validateHierarchyChange as validateHierarchyChangeUtil } from '@/utils/hierarchy';
 
 
 interface UserOrganizationViewProps {
@@ -206,25 +207,17 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     const nodeMap = new Map<string, Node>();
     const edgeList: Edge[] = [];
     
-    // Apply pending changes to create a modified user list
-    const usersWithPendingChanges = users.map(user => {
-      const pendingChange = pendingChanges.find(change => change.userId === user.id);
-      if (pendingChange) {
-        // Find the new supervisor user object
-        const newSupervisor = pendingChange.newSupervisorId 
-          ? users.find(u => u.id === pendingChange.newSupervisorId) 
-          : null;
-        
-        return {
-          ...user,
-          supervisor: newSupervisor || null
-        };
+    // Helper: effective supervisor id considering pending changes
+    const getEffectiveSupervisorId = (u: UserDetailResponse): string | undefined => {
+      const pending = pendingChanges.find((c) => c.userId === u.id);
+      if (pending) {
+        return pending.newSupervisorId || undefined;
       }
-      return user;
-    });
+      return u.supervisor?.id;
+    };
     
-    // Create nodes for all users (with pending changes applied)
-    usersWithPendingChanges.forEach((user) => {
+    // Create nodes for all users
+    users.forEach((user) => {
       const hasPendingChange = pendingChanges.some(change => change.userId === user.id);
       
       nodeMap.set(user.id, {
@@ -235,9 +228,10 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       });
     });
     
-    // Create edges for supervisor-subordinate relationships (with pending changes)
-    usersWithPendingChanges.forEach((user) => {
-      if (user.supervisor && user.supervisor.id && user.id) {
+    // Create edges for supervisor-subordinate relationships using effective supervisor id
+    users.forEach((user) => {
+      const effectiveSupervisorId = getEffectiveSupervisorId(user);
+      if (effectiveSupervisorId && user.id) {
         // Check if this user has pending changes
         const hasPendingChange = pendingChanges.some(change => change.userId === user.id);
         
@@ -247,8 +241,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
         const strokeWidth = hasPendingChange ? 4 : 3;
         
         edgeList.push({
-          id: `${user.supervisor.id}-${user.id}`,
-          source: user.supervisor.id,
+          id: `${effectiveSupervisorId}-${user.id}`,
+          source: effectiveSupervisorId,
           target: user.id,
           sourceHandle: 'bottom',
           targetHandle: 'top',
@@ -269,8 +263,8 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       }
     });
     
-    // Auto-layout: Find root nodes (users without supervisors) - use modified users with pending changes
-    const rootUsers = usersWithPendingChanges.filter(user => !user.supervisor);
+    // Auto-layout: Find root nodes (users without effective supervisors)
+    const rootUsers = users.filter(user => !getEffectiveSupervisorId(user));
     const visited = new Set<string>();
     
     const layoutNodes = (user: UserDetailResponse, level: number, xOffset: number): { width: number, center: number } => {
@@ -282,8 +276,10 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       const node = nodeMap.get(user.id);
       if (!node) return { width: 0, center: 0 };
       
-      // Get subordinates that exist in the filtered users - use modified users with pending changes
-      const subordinates = usersWithPendingChanges.filter(u => u.supervisor?.id === user.id && nodeMap.has(u.id));
+      // Get subordinates by effective relationship and that exist in the filtered set
+      const subordinates = users.filter(
+        (u) => getEffectiveSupervisorId(u) === user.id && nodeMap.has(u.id)
+      );
       
       // Improved spacing and layout for better visualization
       const nodeWidth = 288; // w-72 = 288px (sm:w-64 = 256px on mobile)
@@ -391,28 +387,11 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
   );
   
   // Validation functions
-  const validateHierarchyChange = useCallback((userId: string, newSupervisorId: string | null): string | null => {
-    // Cannot be supervisor of self
-    if (userId === newSupervisorId) {
-      return "ユーザーは自分自身の上司になることはできません";
-    }
-    
-    // Check for circular hierarchy (would create infinite loop)
-    if (newSupervisorId) {
-      const wouldCreateCircle = (checkUserId: string, targetSupervisorId: string): boolean => {
-        const user = users.find(u => u.id === checkUserId);
-        if (!user?.supervisor?.id) return false;
-        if (user.supervisor.id === targetSupervisorId) return true;
-        return wouldCreateCircle(user.supervisor.id, targetSupervisorId);
-      };
-      
-      if (wouldCreateCircle(newSupervisorId, userId)) {
-        return "この変更は循環参照を作成するため許可されません";
-      }
-    }
-    
-    return null;
-  }, [users]);
+  const validateHierarchyChange = useCallback(
+    (userId: string, newSupervisorId: string | null): string | null =>
+      validateHierarchyChangeUtil(users, userId, newSupervisorId),
+    [users]
+  );
   
   // Handle supervisor change (now only adds pending changes)
   const handleSupervisorChange = useCallback((userId: string, newSupervisorId: string | null) => {
@@ -501,6 +480,55 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     setLayoutKey(prev => prev + 1);
     
     try {
+      // Determine final target supervisors map
+      const finalSupervisorMap = new Map<string, string | null>();
+      users.forEach(u => finalSupervisorMap.set(u.id, u.supervisor?.id || null));
+      changesToProcess.forEach(change => {
+        finalSupervisorMap.set(change.userId, change.newSupervisorId);
+      });
+
+      // Compute depths in final tree (roots depth 0)
+      const computeDepths = () => {
+        const depths = new Map<string, number>();
+        // Identify roots (users whose final supervisor is null or missing)
+        const roots = users
+          .map(u => u.id)
+          .filter(id => !finalSupervisorMap.get(id));
+
+        const childrenByParent = new Map<string, string[]>();
+        users.forEach(u => {
+          const sup = finalSupervisorMap.get(u.id);
+          if (sup) {
+            if (!childrenByParent.has(sup)) childrenByParent.set(sup, []);
+            childrenByParent.get(sup)!.push(u.id);
+          }
+        });
+
+        const queue: Array<{ id: string; depth: number }> = roots.map(id => ({ id, depth: 0 }));
+        const visited = new Set<string>();
+        while (queue.length) {
+          const { id, depth } = queue.shift()!;
+          if (visited.has(id)) continue;
+          visited.add(id);
+          depths.set(id, depth);
+          const children = childrenByParent.get(id) || [];
+          children.forEach(childId => queue.push({ id: childId, depth: depth + 1 }));
+        }
+        return depths;
+      };
+
+      const depths = computeDepths();
+
+      // Sort changes so that higher-level nodes are processed first (shallower depth first)
+      changesToProcess.sort((a, b) => {
+        const da = depths.get(a.userId) ?? Number.MAX_SAFE_INTEGER;
+        const db = depths.get(b.userId) ?? Number.MAX_SAFE_INTEGER;
+        // If one is becoming root (newSupervisorId null), process earlier
+        if (a.newSupervisorId === null && b.newSupervisorId !== null) return -1;
+        if (a.newSupervisorId !== null && b.newSupervisorId === null) return 1;
+        return da - db;
+      });
+
       // Process each pending change
       for (const pendingChange of changesToProcess) {
         try {
