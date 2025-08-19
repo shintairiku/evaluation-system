@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../constants/config';
 import type { UUID } from '../types/common';
 import type {
   GoalCreateRequest,
+  GoalUpdateRequest,
   GoalResponse,
   GoalListResponse,
 } from '../types/goal';
@@ -42,107 +43,23 @@ export async function submitGoalAction(id: UUID): Promise<{
   }
 }
 
-interface CreateGoalsDraftPayload {
-  periodId: UUID;
-  performanceGoals: Array<{
-    performanceGoalType: 'quantitative' | 'qualitative';
-    specificGoalText: string;
-    achievementCriteriaText: string;
-    meansMethodsText: string;
-    weight: number;
-  }>;
-  competencyGoal: {
-    competencyId: UUID;
-    actionPlan: string;
-  };
-}
-
-export async function createGoalsDraftAction(payload: CreateGoalsDraftPayload): Promise<{
+export async function updateGoalAction(id: UUID, data: GoalUpdateRequest): Promise<{
   success: boolean;
-  data?: { createdGoalIds: UUID[] };
+  data?: GoalResponse;
   error?: string;
 }> {
-  const createdIds: UUID[] = [];
   try {
-    // Create or update performance goals sequentially
-    for (const pg of payload.performanceGoals as any[]) {
-      const body: GoalCreateRequest = {
-        periodId: payload.periodId,
-        goalCategory: '業績目標',
-        weight: pg.weight,
-        status: 'incomplete',
-        performanceGoalType: pg.performanceGoalType,
-        specificGoalText: pg.specificGoalText,
-        achievementCriteriaText: pg.achievementCriteriaText,
-        meansMethodsText: pg.meansMethodsText,
-      };
-      // If serverId exists, update instead of create
-      const http = getHttpClient();
-      if (pg.serverId) {
-        const res = await http.put<GoalResponse>(API_ENDPOINTS.GOALS.UPDATE(pg.serverId), body);
-        if (!res.success || !res.data) throw new Error(res.errorMessage || 'Failed to update performance goal');
-        createdIds.push(res.data.id as UUID);
-      } else {
-        const res = await http.post<GoalResponse>(API_ENDPOINTS.GOALS.CREATE, body);
-        if (!res.success || !res.data) throw new Error(res.errorMessage || 'Failed to create performance goal');
-        createdIds.push(res.data.id);
-      }
-    }
-
-    // Create competency goal (weight is always 100 for competency category)
-    const cg: GoalCreateRequest = {
-      periodId: payload.periodId,
-      goalCategory: 'コンピテンシー',
-      weight: 100,
-      status: 'incomplete',
-      competencyId: payload.competencyGoal.competencyId,
-      actionPlan: payload.competencyGoal.actionPlan,
-    };
     const http = getHttpClient();
-    const cgRes = await http.post<GoalResponse>(API_ENDPOINTS.GOALS.CREATE, cg);
-    if (!cgRes.success || !cgRes.data) throw new Error(cgRes.errorMessage || 'Failed to create competency goal');
-    createdIds.push(cgRes.data.id);
-
-    return { success: true, data: { createdGoalIds: createdIds } };
+    const res = await http.put<GoalResponse>(API_ENDPOINTS.GOALS.UPDATE(id), data);
+    if (!res.success || !res.data) {
+      return { success: false, error: res.errorMessage || 'Failed to update goal' };
+    }
+    return { success: true, data: res.data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'Failed to create goals draft' };
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to update goal' };
   }
 }
 
-interface CreateAndSubmitPayload extends Omit<CreateGoalsDraftPayload, 'periodId'> {
-  periodId?: UUID;
-}
-
-export async function createAndSubmitGoalsAction(payload: CreateAndSubmitPayload): Promise<{
-  success: boolean;
-  data?: { submittedGoalIds: UUID[] };
-  error?: string;
-}> {
-  const createdIds: UUID[] = [];
-  try {
-    // periodId is always provided since user selects evaluation period
-    const draftRes = await createGoalsDraftAction(payload);
-    if (!draftRes.success || !draftRes.data) throw new Error(draftRes.error || 'Failed to create drafts');
-    createdIds.push(...draftRes.data.createdGoalIds);
-
-    const submittedIds: UUID[] = [];
-    const http = getHttpClient();
-    for (const id of createdIds) {
-      const submitRes = await http.post<GoalResponse>(API_ENDPOINTS.GOALS.SUBMIT(id));
-      if (!submitRes.success || !submitRes.data) throw new Error(submitRes.errorMessage || 'Failed to submit goal');
-      submittedIds.push(id);
-    }
-
-    return { success: true, data: { submittedGoalIds: submittedIds } };
-  } catch (e) {
-    // Best-effort rollback: delete created drafts
-    const http = getHttpClient();
-    for (const id of createdIds) {
-      try { await http.delete(API_ENDPOINTS.GOALS.DELETE(id)); } catch { /* ignore */ }
-    }
-    return { success: false, error: e instanceof Error ? e.message : 'Failed to create and submit goals' };
-  }
-}
 
 // Supervisor: list pending approvals
 export async function getSupervisorGoalsAction(params: {
