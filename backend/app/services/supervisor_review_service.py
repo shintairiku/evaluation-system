@@ -59,8 +59,10 @@ class SupervisorReviewService:
             await self._require_supervisor_of_goal_owner(goal, current_user_context)
 
             # Enforce business rule: one review per (goal, period, supervisor)
+            # Default to incomplete status if not specified
+            status_value = review_create.status.value if review_create.status else SubmissionStatus.INCOMPLETE.value
             reviewed_at = None
-            if review_create.status.value == "submitted":
+            if status_value == "submitted":
                 reviewed_at = datetime.now(timezone.utc)
 
             created = await self.repo.create(
@@ -69,12 +71,12 @@ class SupervisorReviewService:
                 supervisor_id=current_user_context.user_id,
                 action=review_create.action.value,
                 comment=review_create.comment,
-                status=review_create.status.value,
+                status=status_value,
                 reviewed_at=reviewed_at,
             )
 
             # If submitted and action implies status change, update goal
-            if review_create.status.value == "submitted":
+            if status_value == "submitted":
                 await self._sync_goal_status_with_review(created, current_user_context)
 
             await self.session.commit()
