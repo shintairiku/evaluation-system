@@ -427,7 +427,7 @@ class SelfAssessmentService:
             "id": assessment_model.id,
             "goal_id": assessment_model.goal_id,
             "period_id": assessment_model.period_id,
-            "self_rating": float(assessment_model.self_rating) if assessment_model.self_rating else None,
+            "self_rating": assessment_model.self_rating if assessment_model.self_rating is not None else None,
             "self_comment": assessment_model.self_comment,
             "status": SubmissionStatus(assessment_model.status),
             "submitted_at": assessment_model.submitted_at,
