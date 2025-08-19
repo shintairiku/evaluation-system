@@ -29,20 +29,20 @@ class PerformanceGoalType(str, Enum):
 
 # Target data schemas for different goal categories
 class PerformanceGoalTargetData(BaseModel):
-    title: str = Field(..., description="目標タイトル")
-    performance_goal_type: PerformanceGoalType
-    specific_goal_text: str = Field(..., description="具体的な目標内容")
-    achievement_criteria_text: str = Field(..., description="達成基準")
-    means_methods_text: str = Field(..., description="達成手段・方法")
+    title: Optional[str] = Field(None, description="目標タイトル")
+    performance_goal_type: Optional[PerformanceGoalType] = Field(None)
+    specific_goal_text: Optional[str] = Field(None, description="具体的な目標内容")
+    achievement_criteria_text: Optional[str] = Field(None, description="達成基準")
+    means_methods_text: Optional[str] = Field(None, description="達成手段・方法")
 
 
 class CompetencyGoalTargetData(BaseModel):
-    competency_id: UUID = Field(..., description="コンピテンシーID")
-    action_plan: str = Field(..., description="行動計画")
+    competency_id: Optional[UUID] = Field(None, description="コンピテンシーID")
+    action_plan: Optional[str] = Field(None, description="行動計画")
 
 
 class CoreValueGoalTargetData(BaseModel):
-    core_value_plan: str = Field(..., description="コアバリュー実践計画")
+    core_value_plan: Optional[str] = Field(None, description="コアバリュー実践計画")
 
 
 TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData]
