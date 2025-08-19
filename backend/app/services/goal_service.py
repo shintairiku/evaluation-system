@@ -681,16 +681,24 @@ class GoalService:
             "period_id": goal_model.period_id,
             "goal_category": goal_model.goal_category,
             "weight": float(goal_model.weight) if goal_model.weight else 0.0,
-            "status": GoalStatus(goal_model.status),
+            "status": goal_model.status,
             "approved_by": goal_model.approved_by,
             "approved_at": goal_model.approved_at,
             "created_at": goal_model.created_at,
             "updated_at": goal_model.updated_at
         }
         
-        # Add target_data fields directly (simplified)
+        # Add target_data fields with proper handling for incomplete goals
         if goal_model.target_data:
-            goal_dict.update(goal_model.target_data)
+            # Safely add target_data fields, handling potential missing fields for incomplete goals
+            target_data = goal_model.target_data
+            if isinstance(target_data, dict):
+                # For incomplete goals, some fields might be missing - add them as None
+                for field_name, value in target_data.items():
+                    goal_dict[field_name] = value
+            else:
+                # If target_data is already a Pydantic model, convert to dict
+                goal_dict.update(target_data.model_dump() if hasattr(target_data, 'model_dump') else target_data)
         
         return Goal(**goal_dict)
 
