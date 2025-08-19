@@ -25,7 +25,7 @@ class SupervisorReview(Base):
     # Business fields
     action = Column(String(50), nullable=False)  # approved | rejected | pending
     comment = Column(Text, nullable=True)
-    status = Column(String(50), nullable=False, default="draft")  # draft | submitted
+    status = Column(String(50), nullable=False, default="incomplete")  # incomplete | draft | submitted
 
     # Timeline
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
@@ -44,7 +44,7 @@ class SupervisorReview(Base):
         ),
         # Validate status values
         CheckConstraint(
-            "status IN ('draft', 'submitted')",
+            "status IN ('incomplete', 'draft', 'submitted')",
             name="check_supervisor_review_status_values",
         ),
         # When draft -> reviewed_at must be null; when submitted -> reviewed_at can be set (enforced in service layer)
