@@ -12,6 +12,7 @@ export interface GoalBase {
 
 // Performance goal specific fields
 export interface PerformanceGoalFields {
+  title: string;
   performanceGoalType: PerformanceGoalType;
   specificGoalText: string;
   achievementCriteriaText: string;
@@ -47,6 +48,7 @@ export interface GoalResponse {
   updatedAt: string;
 
   // Performance fields (when goalCategory is "業績目標")
+  title?: string;
   performanceGoalType?: PerformanceGoalType;
   specificGoalText?: string;
   achievementCriteriaText?: string;
