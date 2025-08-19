@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, ChevronLeft, Check, User, Brain } from 'lucide-react';
+import { AlertCircle, ChevronLeft, Check } from 'lucide-react';
 import stage1Competencies from '../data/stage1-competencies.json';
 
 interface Competency {
@@ -28,11 +27,9 @@ interface CompetencyGoalsStepProps {
   onNext: () => void;
   onPrevious: () => void;
   periodId?: string;
-  serverId?: string;
-  onServerIdUpdate?: (serverId?: string) => void;
 }
 
-export function CompetencyGoalsStep({ goals, onGoalsChange, onNext, onPrevious, periodId, serverId, onServerIdUpdate }: CompetencyGoalsStepProps) {
+export function CompetencyGoalsStep({ goals, onGoalsChange, onNext, onPrevious, periodId }: CompetencyGoalsStepProps) {
   const [selectedCompetency, setSelectedCompetency] = useState<string>('');
   const [actionPlan, setActionPlan] = useState<string>('');
   const competencies: Competency[] = stage1Competencies.competencies;
