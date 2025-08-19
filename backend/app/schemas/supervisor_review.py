@@ -34,7 +34,7 @@ class SupervisorReviewCreate(SupervisorReviewBase):
     """Request schema for creating a supervisor review, matches endpoints_v2.md."""
     goal_id: UUID = Field(..., alias="goalId")
     period_id: UUID = Field(..., alias="periodId")
-    status: SubmissionStatus = Field(..., description="Review status based on button clicked: 'draft' or 'submitted'")
+    status: Optional[SubmissionStatus] = Field(default=SubmissionStatus.INCOMPLETE, description="Review status: defaults to 'incomplete' until supervisor changes to 'draft' or 'submitted'")
 
 
 class SupervisorReviewUpdate(BaseModel):
