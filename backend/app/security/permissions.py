@@ -64,8 +64,11 @@ class Permission(Enum):
     COMPETENCY_READ_SELF = "competency:read:self"  # Read competencies for own stage
     COMPETENCY_MANAGE = "competency:manage"  # Create, update, delete competencies (admin only)
     
-    # Self Assessment (Kept as-is, 1 permission)
-    SELF_ASSESSMENT = "self_assessment"      # Create, update, submit self assessments
+    # Self Assessment Management (Updated for role-based access control)
+    ASSESSMENT_READ_SELF = "assessment:read:self"      # Read own self assessments
+    ASSESSMENT_READ_ALL = "assessment:read:all"        # Read all self assessments (admin)
+    ASSESSMENT_READ_SUBORDINATES = "assessment:read:subordinates"  # Read subordinates' assessments
+    ASSESSMENT_MANAGE_SELF = "assessment:manage:self"  # Create, update, submit, delete own assessments
     
     # Report Management (Kept as-is, 1 permission)
     REPORT_ACCESS = "report:access"          # Read and generate reports
@@ -122,7 +125,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.COMPETENCY_MANAGE,
             
             # Self Assessment & Reports
-            Permission.SELF_ASSESSMENT,
+            Permission.ASSESSMENT_READ_ALL,
+            Permission.ASSESSMENT_MANAGE_SELF,
             Permission.REPORT_ACCESS,
             
             # Stage Management - Full Access
@@ -163,7 +167,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment & Reports
-            Permission.SELF_ASSESSMENT,
+            Permission.ASSESSMENT_READ_SUBORDINATES,
+            Permission.ASSESSMENT_MANAGE_SELF,
             Permission.REPORT_ACCESS,
             
             # Stage Management - Read All
@@ -203,7 +208,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment & Reports
-            Permission.SELF_ASSESSMENT,
+            Permission.ASSESSMENT_READ_SUBORDINATES,
+            Permission.ASSESSMENT_MANAGE_SELF,
             Permission.REPORT_ACCESS,
             
             # Stage Management - Read All
@@ -237,7 +243,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment only
-            Permission.SELF_ASSESSMENT,
+            Permission.ASSESSMENT_READ_SELF,
+            Permission.ASSESSMENT_MANAGE_SELF,
             
             # Stage Management - Read All
             Permission.STAGE_READ_ALL,
@@ -269,7 +276,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment
-            Permission.SELF_ASSESSMENT,
+            Permission.ASSESSMENT_READ_SELF,
+            Permission.ASSESSMENT_MANAGE_SELF,
             
             # Stage Management - Read All
             Permission.STAGE_READ_ALL,
@@ -301,7 +309,8 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             Permission.COMPETENCY_READ_SELF,
             
             # Self Assessment
-            Permission.SELF_ASSESSMENT,
+            Permission.ASSESSMENT_READ_SELF,
+            Permission.ASSESSMENT_MANAGE_SELF,
             
             # Stage Management - Read All
             Permission.STAGE_READ_ALL,
