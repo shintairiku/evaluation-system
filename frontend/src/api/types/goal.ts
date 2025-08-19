@@ -1,6 +1,6 @@
 import { UUID, PaginatedResponse } from './common';
 
-export type GoalStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected';
+export type GoalStatus = 'incomplete' | 'draft' | 'pending_approval' | 'approved' | 'rejected';
 export type PerformanceGoalType = 'quantitative' | 'qualitative';
 
 export interface GoalBase {

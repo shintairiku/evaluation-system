@@ -70,7 +70,7 @@ export async function createGoalsDraftAction(payload: CreateGoalsDraftPayload): 
         periodId: payload.periodId,
         goalCategory: '業績目標',
         weight: pg.weight,
-        status: 'draft',
+        status: 'incomplete',
         performanceGoalType: pg.performanceGoalType,
         specificGoalText: pg.specificGoalText,
         achievementCriteriaText: pg.achievementCriteriaText,
@@ -94,7 +94,7 @@ export async function createGoalsDraftAction(payload: CreateGoalsDraftPayload): 
       periodId: payload.periodId,
       goalCategory: 'コンピテンシー',
       weight: 100,
-      status: 'draft',
+      status: 'incomplete',
       competencyId: payload.competencyGoal.competencyId,
       actionPlan: payload.competencyGoal.actionPlan,
     };
