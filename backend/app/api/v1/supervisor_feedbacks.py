@@ -1,119 +1,238 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import status as http_status
+from typing import Optional
 from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...security.dependencies import require_admin, get_auth_context, require_supervisor_or_above
+from ...database.session import get_db_session
+from ...security.dependencies import get_auth_context, require_supervisor_or_above
 from ...security.context import AuthContext
 from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate
+from ...schemas.common import PaginationParams, BaseResponse
+from ...services.supervisor_feedback_service import SupervisorFeedbackService
+from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/supervisor-feedbacks", tags=["supervisor-feedbacks"])
 
+
 @router.get("/", response_model=SupervisorFeedbackList)
 async def get_supervisor_feedbacks(
+    pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor only)"),
+    user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (assessment owner)"),
     status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    context: AuthContext = Depends(get_auth_context)
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
 ):
-    """Get supervisor feedbacks."""
-    # Access rules:
-    # - Supervisors: can view their own feedback for subordinates
-    # - Users: can view feedback on their own assessments
-    # - Admins: can view all feedback
-    
-    # TODO: Implement supervisor feedback service
-    # - If user is supervisor: return feedback they've given
-    # - If regular user: return feedback on their own assessments
-    # - Apply period_id, user_id, and status filters as appropriate
-    # - Implement pagination
-    return SupervisorFeedbackList(feedback_items=[], total=0)
+    """Get supervisor feedbacks for the current user or filtered feedbacks based on permissions."""
+    try:
+        service = SupervisorFeedbackService(session)
+        
+        result = await service.get_feedbacks(
+            current_user_context=context,
+            period_id=period_id,
+            user_id=user_id,
+            status=status,
+            pagination=pagination
+        )
+        
+        return result
+        
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except PermissionDeniedError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching supervisor feedbacks: {str(e)}"
+        )
+
 
 @router.post("/", response_model=SupervisorFeedback)
 async def create_supervisor_feedback(
     feedback_create: SupervisorFeedbackCreate,
-    context: AuthContext = Depends(require_supervisor_or_above)
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Create supervisor feedback on a self-assessment."""
-    # TODO: Implement supervisor feedback creation service
-    # - Verify current user is supervisor of the assessment owner
-    # - Create feedback with rating and comment
-    # - Set status based on request (draft or submitted)
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Supervisor feedback service not implemented"
-    )
+    try:
+        service = SupervisorFeedbackService(session)
+        
+        result = await service.create_feedback(feedback_create, context)
+        
+        return result
+        
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+    except BadRequestError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except PermissionDeniedError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except ConflictError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating supervisor feedback: {str(e)}"
+        )
+
+
+@router.get("/assessment/{self_assessment_id}", response_model=Optional[SupervisorFeedback])
+async def get_feedback_for_assessment(
+    self_assessment_id: UUID,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get supervisor feedback for a specific self-assessment."""
+    try:
+        service = SupervisorFeedbackService(session)
+        result = await service.get_feedback_for_assessment(self_assessment_id, context)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching feedback for assessment: {str(e)}")
+
+
+@router.get("/pending", response_model=SupervisorFeedbackList)
+async def get_pending_feedbacks(
+    pagination: PaginationParams = Depends(),
+    period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get pending supervisor feedbacks that need attention (supervisor only)."""
+    try:
+        service = SupervisorFeedbackService(session)
+        result = await service.get_pending_feedbacks(
+            current_user_context=context, 
+            period_id=period_id, 
+            pagination=pagination
+        )
+        return result
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching pending feedbacks: {str(e)}")
+
 
 @router.get("/{feedback_id}", response_model=SupervisorFeedbackDetail)
 async def get_supervisor_feedback(
     feedback_id: UUID,
-    context: AuthContext = Depends(get_auth_context)
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
 ):
-    """Get detailed supervisor feedback by ID."""
-    # TODO: Implement supervisor feedback service
-    # - Verify user has permission to view this feedback
-    # - Get feedback with related self-assessment information
-    # - Get evaluation period details
-    # - Include employee and goal context information
-    # - Calculate feedback timing information (overdue, days since submission)
-    # - Return comprehensive feedback details
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Supervisor feedback service not implemented"
-    )
+    """Get detailed supervisor feedback information by ID."""
+    try:
+        service = SupervisorFeedbackService(session)
+        result = await service.get_feedback_by_id(feedback_id, context)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching supervisor feedback: {str(e)}")
+
 
 @router.put("/{feedback_id}", response_model=SupervisorFeedback)
 async def update_supervisor_feedback(
     feedback_id: UUID,
     feedback_update: SupervisorFeedbackUpdate,
-    context: AuthContext = Depends(require_supervisor_or_above)
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Update supervisor feedback."""
-    # TODO: Implement supervisor feedback update service
-    # - Verify current user created this feedback
-    # - Update rating, comment, or status
-    # - Set submitted_at when status changes to 'submitted'
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Supervisor feedback service not implemented"
-    )
+    try:
+        service = SupervisorFeedbackService(session)
+        result = await service.update_feedback(feedback_id, feedback_update, context)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error updating supervisor feedback: {str(e)}")
 
-@router.delete("/{feedback_id}")
+
+@router.post("/{feedback_id}/submit", response_model=SupervisorFeedback)
+async def submit_supervisor_feedback(
+    feedback_id: UUID,
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Submit supervisor feedback (feedback creator only)."""
+    try:
+        service = SupervisorFeedbackService(session)
+        
+        # Submit feedback using dedicated method
+        result = await service.submit_feedback(feedback_id, context)
+        
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting supervisor feedback: {str(e)}")
+
+
+@router.delete("/{feedback_id}", response_model=BaseResponse)
 async def delete_supervisor_feedback(
     feedback_id: UUID,
-    context: AuthContext = Depends(require_supervisor_or_above)
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
 ):
     """Delete supervisor feedback."""
-    # TODO: Implement supervisor feedback deletion service
-    # - Verify current user created this feedback
-    # - Check if feedback can be deleted (not submitted)
-    return {"message": "Supervisor feedback deleted successfully"}
-
-@router.get("/pending", response_model=List[SupervisorFeedback])
-async def get_pending_feedbacks(
-    period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    context: AuthContext = Depends(require_supervisor_or_above)
-):
-    """Get pending supervisor feedbacks that need attention (supervisor only)."""
-    
-    # TODO: Implement pending feedback service
-    # - Get all submitted self-assessments from subordinates
-    # - Filter those without supervisor feedback or with draft feedback
-    # - Return pending feedback items
-    return []
-
-@router.post("/bulk-submit")
-async def bulk_submit_feedbacks(
-    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
-    assessment_ids: Optional[List[UUID]] = Query(None, alias="assessmentIds", description="Specific assessment IDs"),
-    context: AuthContext = Depends(require_supervisor_or_above)
-):
-    """Submit multiple supervisor feedbacks at once."""
-    
-    # TODO: Implement bulk feedback submission service
-    # - Submit all supervisor's draft feedbacks for the period
-    # - Or submit only specified assessment feedbacks
-    # - Change status from 'draft' to 'submitted'
-    # - Set submitted_at timestamp
-    return {"message": "Supervisor feedbacks submitted successfully"}
+    try:
+        service = SupervisorFeedbackService(session)
+        success = await service.delete_feedback(feedback_id, context)
+        if success:
+            return BaseResponse(message="Supervisor feedback deleted successfully")
+        else:
+            raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete supervisor feedback")
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting supervisor feedback: {str(e)}")
