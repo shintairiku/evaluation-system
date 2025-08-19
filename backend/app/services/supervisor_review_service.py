@@ -204,12 +204,18 @@ class SupervisorReviewService:
             # Only the creating supervisor or admin can update
             if not (current_user_context.has_permission(Permission.GOAL_READ_ALL) or review.supervisor_id == current_user_context.user_id):
                 raise PermissionDeniedError("You do not have permission to update this review")
+            
+            # Additional check: if not admin, verify supervisor still has authority over the goal owner
+            if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
+                goal = await self.goal_repo.get_goal_by_id(review.goal_id)
+                if goal:
+                    await self._require_supervisor_of_goal_owner(goal, current_user_context)
 
             reviewed_at = review.reviewed_at
             status_value = review_update.status.value if review_update.status is not None else None
             if status_value == "submitted" and reviewed_at is None:
                 reviewed_at = datetime.now(timezone.utc)
-            if status_value == "draft":
+            if status_value in ["incomplete", "draft"]:
                 reviewed_at = None
 
             updated = await self.repo.update(
@@ -245,11 +251,18 @@ class SupervisorReviewService:
         review = await self.repo.get_by_id(review_id)
         if not review:
             raise NotFoundError(f"Supervisor review with ID {review_id} not found")
-        # Only the creating supervisor or admin can delete; only if draft
+        # Only the creating supervisor or admin can delete; only if incomplete or draft
         if not (current_user_context.has_permission(Permission.GOAL_READ_ALL) or review.supervisor_id == current_user_context.user_id):
             raise PermissionDeniedError("You do not have permission to delete this review")
-        if review.status != "draft":
-            raise BadRequestError("Only draft reviews can be deleted")
+        
+        # Additional check: if not admin, verify supervisor still has authority over the goal owner
+        if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
+            goal = await self.goal_repo.get_goal_by_id(review.goal_id)
+            if goal:
+                await self._require_supervisor_of_goal_owner(goal, current_user_context)
+        
+        if review.status not in ["incomplete", "draft"]:
+            raise BadRequestError("Only incomplete or draft reviews can be deleted")
         success = await self.repo.delete(review_id)
         if success:
             await self.session.commit()
