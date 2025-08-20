@@ -247,9 +247,18 @@ class SupervisorFeedbackService:
             if existing_feedback.status != SubmissionStatus.DRAFT.value:
                 raise BadRequestError("Can only submit draft feedbacks")
             
-            # Validate required rating is provided for submission (optional based on business rules)
-            if existing_feedback.rating is None:
-                raise ValidationError("Rating is required before submission")
+            # CRITICAL: Validate goal category rating rules before submission
+            assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id)
+            if assessment:
+                goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
+                if goal:
+                    # Create temp object for submission validation
+                    temp_feedback = SupervisorFeedbackUpdate(
+                        rating=float(existing_feedback.rating) if existing_feedback.rating else None,
+                        comment=existing_feedback.comment,
+                        status=SubmissionStatus.SUBMITTED
+                    )
+                    await self._validate_goal_category_rating_rules(goal, temp_feedback)
             
             # Update status using dedicated method
             updated_feedback = await self.supervisor_feedback_repo.submit_feedback(feedback_id)
@@ -488,11 +497,67 @@ class SupervisorFeedbackService:
         period = await self.evaluation_period_repo.get_by_id(feedback_data.period_id)
         if not period:
             raise BadRequestError(f"Evaluation period {feedback_data.period_id} not found")
+        
+        # CRITICAL: Validate rating requirements based on goal category
+        await self._validate_goal_category_rating_rules(goal, feedback_data)
 
     async def _validate_feedback_update(self, feedback_data: SupervisorFeedbackUpdate, existing_feedback: SupervisorFeedbackModel):
         """Validate supervisor feedback update business rules."""
-        # Additional business validations can be added here
-        pass
+        # CRITICAL: Validate rating rules for goal category during updates
+        if feedback_data.rating is not None or feedback_data.status == SubmissionStatus.SUBMITTED:
+            # Get goal via assessment to validate category rules
+            assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id)
+            if assessment:
+                goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
+                if goal:
+                    # Create temp object for validation
+                    temp_feedback = SupervisorFeedbackUpdate(
+                        rating=feedback_data.rating if feedback_data.rating is not None else existing_feedback.rating,
+                        comment=feedback_data.comment,
+                        status=feedback_data.status
+                    )
+                    await self._validate_goal_category_rating_rules(goal, temp_feedback)
+
+    async def _validate_goal_category_rating_rules(self, goal, feedback_data):
+        """
+        Validate rating requirements based on goal category.
+        
+        Business Rules from strategy document:
+        - コアバリュー (Core Values): rating MUST be null, only comment allowed
+        - 業績目標 (Performance): rating 0-100 REQUIRED when submitting
+        - コンピテンシー (Competency): rating 0-100 REQUIRED when submitting
+        """
+        goal_category = goal.goal_category
+        
+        if goal_category == "コアバリュー":  # Core Values
+            if feedback_data.rating is not None:
+                raise ValidationError(
+                    f"Core Value goals (コアバリュー) cannot have numeric ratings. "
+                    f"Please remove the rating and provide only comments for goal category: {goal_category}"
+                )
+        
+        elif goal_category in ["業績目標", "コンピテンシー"]:  # Performance or Competency
+            # For draft status, rating is optional
+            if hasattr(feedback_data, 'status') and feedback_data.status == SubmissionStatus.SUBMITTED:
+                if feedback_data.rating is None:
+                    goal_type_name = "Performance" if goal_category == "業績目標" else "Competency"
+                    raise ValidationError(
+                        f"{goal_type_name} goals ({goal_category}) require a numeric rating (0-100) when submitting feedback. "
+                        f"Please provide a rating for goal category: {goal_category}"
+                    )
+                
+                # Additional validation: rating must be within 0-100 (handled by schema, but double-check)
+                if not (0 <= feedback_data.rating <= 100):
+                    raise ValidationError(
+                        f"Rating for {goal_category} goals must be between 0 and 100, got: {feedback_data.rating}"
+                    )
+        
+        else:
+            # Unknown goal category
+            raise ValidationError(
+                f"Unknown goal category: {goal_category}. "
+                f"Valid categories are: 業績目標, コンピテンシー, コアバリュー"
+            )
 
     async def _enrich_feedback_data(self, feedback_model: SupervisorFeedbackModel) -> SupervisorFeedback:
         """Convert SupervisorFeedbackModel to SupervisorFeedback response schema with enriched data."""
