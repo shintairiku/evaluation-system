@@ -7,7 +7,7 @@ export interface GoalBase {
   periodId: UUID;
   goalCategory: string; // "業績目標" | "コンピテンシー" | "コアバリュー"
   weight: number; // 0-100
-  status: GoalStatus; // 'draft' | 'pending_approval'
+  status: GoalStatus;
 }
 
 // Performance goal specific fields
