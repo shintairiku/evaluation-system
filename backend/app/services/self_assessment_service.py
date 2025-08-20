@@ -9,10 +9,12 @@ from ..database.repositories.self_assessment_repo import SelfAssessmentRepositor
 from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
+from ..database.repositories.supervisor_feedback_repo import SupervisorFeedbackRepository
 from ..database.models.self_assessment import SelfAssessment as SelfAssessmentModel
 from ..schemas.self_assessment import (
     SelfAssessmentCreate, SelfAssessmentUpdate, SelfAssessment, SelfAssessmentDetail
 )
+from ..schemas.supervisor_feedback import SupervisorFeedbackCreate
 from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
@@ -36,6 +38,7 @@ class SelfAssessmentService:
         self.goal_repo = GoalRepository(session)
         self.user_repo = UserRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
+        self.supervisor_feedback_repo = SupervisorFeedbackRepository(session)
     
     async def get_assessments(
         self,
@@ -269,6 +272,10 @@ class SelfAssessmentService:
             # Update status using dedicated method
             updated_assessment = await self.self_assessment_repo.submit_assessment(assessment_id)
             
+            # CRITICAL: Auto-create SupervisorFeedback when self-assessment is submitted
+            # This implements the trigger: SelfAssessments (submitted) → SupervisorFeedback auto-creation
+            await self._auto_create_supervisor_feedback(updated_assessment)
+            
             # Commit transaction
             await self.session.commit()
             
@@ -456,3 +463,54 @@ class SelfAssessmentService:
         })
         
         return SelfAssessmentDetail(**detail_dict)
+    
+    async def _auto_create_supervisor_feedback(self, assessment: SelfAssessmentModel):
+        """
+        Auto-create SupervisorFeedback when self-assessment is submitted.
+        
+        Implements strategy document requirement:
+        'SelfAssessments (submitted) → SupervisorFeedback auto-creation'
+        """
+        try:
+            # Check if feedback already exists (avoid duplicates)
+            existing_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment.id)
+            if existing_feedback:
+                logger.info(f"SupervisorFeedback already exists for assessment {assessment.id}, skipping auto-creation")
+                return
+            
+            # Get the goal to find the employee's supervisor
+            goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
+            if not goal:
+                logger.error(f"Cannot auto-create feedback: Goal {assessment.goal_id} not found")
+                return
+            
+            # Get employee's current supervisor(s)
+            supervisors = await self.user_repo.get_supervisors(goal.user_id)
+            if not supervisors:
+                logger.warning(f"Cannot auto-create feedback: No supervisors found for user {goal.user_id}")
+                return
+            
+            # Use the primary supervisor (first in list)
+            primary_supervisor = supervisors[0]
+            
+            # Create draft supervisor feedback
+            feedback_create = SupervisorFeedbackCreate(
+                self_assessment_id=assessment.id,
+                period_id=assessment.period_id,
+                rating=None,  # Will be set based on goal category rules
+                comment=None,  # Empty initially
+                status=SubmissionStatus.DRAFT  # Start as draft
+            )
+            
+            # Create the feedback
+            created_feedback = await self.supervisor_feedback_repo.create_feedback(
+                feedback_create, 
+                primary_supervisor.id
+            )
+            
+            logger.info(f"Auto-created SupervisorFeedback {created_feedback.id} for assessment {assessment.id} assigned to supervisor {primary_supervisor.id}")
+            
+        except Exception as e:
+            logger.error(f"Error auto-creating supervisor feedback for assessment {assessment.id}: {str(e)}")
+            # Don't re-raise - we don't want auto-creation failure to block assessment submission
+            # This follows the pattern from goal_service.py: "Do not rollback goal submission due to review auto-creation failure"
