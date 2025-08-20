@@ -143,14 +143,13 @@ class GoalService:
             # Business validation
             await self._validate_goal_creation(goal_data, target_user_id)
             
-            # Validate weight limits (skip for incomplete status - relaxed validation)
-            if goal_data.status != GoalStatus.INCOMPLETE:
-                await self._validate_weight_limits(
-                    target_user_id, 
-                    goal_data.period_id, 
-                    goal_data.goal_category,
-                    goal_data.weight
-                )
+            # Validate weight limits
+            await self._validate_weight_limits(
+                target_user_id, 
+                goal_data.period_id, 
+                goal_data.goal_category,
+                goal_data.weight
+            )
             
             # Create goal
             created_goal = await self.goal_repo.create_goal(goal_data, target_user_id)
@@ -194,8 +193,8 @@ class GoalService:
             # Business validation
             await self._validate_goal_update(goal_data, existing_goal)
             
-            # Validate weight limits if weight is being changed (skip for incomplete status)
-            if goal_data.weight is not None and existing_goal.status != GoalStatus.INCOMPLETE.value:
+            # Validate weight limits if weight is being changed
+            if goal_data.weight is not None:
                 await self._validate_weight_limits(
                     existing_goal.user_id,
                     existing_goal.period_id,
@@ -238,9 +237,9 @@ class GoalService:
             # Permission check
             await self._check_goal_update_permission(existing_goal, current_user_context)
             
-            # Business rule: can only delete draft goals or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only delete draft or rejected goals")
+            # Business rule: can only delete draft, incomplete, or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only delete draft, incomplete, or rejected goals")
             
             # Delete goal
             success = await self.goal_repo.delete_goal(goal_id)
@@ -271,9 +270,9 @@ class GoalService:
             # Permission check - only goal owner can submit
             await self._check_goal_update_permission(existing_goal, current_user_context)
             
-            # Business rule: can only submit draft or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only submit draft or rejected goals for approval")
+            # Business rule: can only submit draft, incomplete, or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only submit draft, incomplete, or rejected goals for approval")
             
             # Update status using dedicated method with validation
             updated_goal = await self.goal_repo.update_goal_status(
@@ -436,73 +435,6 @@ class GoalService:
             logger.error(f"Error getting pending approvals: {e}")
             raise
 
-    async def get_supervisor_subordinate_goals(
-        self,
-        current_user_context: AuthContext,
-        supervisor_id: UUID,
-        period_id: Optional[UUID] = None,
-        status: Optional[str] = None,
-        pagination: Optional[PaginationParams] = None
-    ) -> PaginatedResponse[Goal]:
-        """Get goals for a supervisor's subordinates with optional filters (period, status).
-
-        Rules:
-        - Admin (GOAL_READ_ALL): can view any supervisor's subordinates' goals
-        - Supervisors/Managers (GOAL_READ_SUBORDINATES):
-          - Can view their own subordinates' goals (supervisor_id == current_user_context.user_id)
-          - Managers can view a subordinate supervisor's subordinates' goals if that supervisor is in their subordinate list
-        - Employees/Part-time (no GOAL_READ_SUBORDINATES): cannot access (even for their own ID)
-        """
-        from ..core.exceptions import PermissionDeniedError
-        try:
-            # Admin can view any supervisor's subordinates
-            if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
-                # Must have subordinate-read permission (supervisors/managers)
-                if not current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
-                    raise PermissionDeniedError("You do not have permission to view subordinate goals")
-                # Allow own or supervised supervisor's teams
-                if supervisor_id != current_user_context.user_id:
-                    subs = await self.user_repo.get_subordinates(current_user_context.user_id)
-                    subordinate_ids = [sub.id for sub in subs]
-                    if supervisor_id not in subordinate_ids:
-                        raise PermissionDeniedError("You can only view subordinate goals for yourself or supervised supervisors")
-
-            # Determine subordinates of the requested supervisor
-            subs = await self.user_repo.get_subordinates(supervisor_id)
-            subordinate_user_ids = [sub.id for sub in subs]
-
-            # Fetch goals using generic search with filters
-            goals = await self.goal_repo.search_goals(
-                user_ids=subordinate_user_ids,
-                period_id=period_id,
-                goal_category=None,
-                status=status,
-                pagination=pagination
-            )
-            total_count = await self.goal_repo.count_goals(
-                user_ids=subordinate_user_ids,
-                period_id=period_id,
-                goal_category=None,
-                status=status
-            )
-
-            enriched_goals: list[Goal] = []
-            for goal_model in goals:
-                enriched_goal = await self._enrich_goal_data(goal_model)
-                enriched_goals.append(enriched_goal)
-
-            total_pages = (total_count + pagination.limit - 1) // pagination.limit if pagination else 1
-            return PaginatedResponse(
-                items=enriched_goals,
-                total=total_count,
-                page=pagination.page if pagination else 1,
-                limit=pagination.limit if pagination else len(enriched_goals),
-                pages=total_pages
-            )
-        except Exception as e:
-            logger.error(f"Error getting goals for supervisor {supervisor_id}: {e}")
-            raise
-
     # ========================================
     # PRIVATE HELPER METHODS
     # ========================================
@@ -651,17 +583,9 @@ class GoalService:
             "updated_at": goal_model.updated_at
         }
         
-        # Add target_data fields with proper handling for incomplete goals
+        # Add target_data fields directly (simplified)
         if goal_model.target_data:
-            # Safely add target_data fields, handling potential missing fields for incomplete goals
-            target_data = goal_model.target_data
-            if isinstance(target_data, dict):
-                # For incomplete goals, some fields might be missing - add them as None
-                for field_name, value in target_data.items():
-                    goal_dict[field_name] = value
-            else:
-                # If target_data is already a Pydantic model, convert to dict
-                goal_dict.update(target_data.model_dump() if hasattr(target_data, 'model_dump') else target_data)
+            goal_dict.update(goal_model.target_data)
         
         return Goal(**goal_dict)
 
@@ -675,7 +599,7 @@ class GoalService:
         detail_dict.update({
             "has_self_assessment": False,  # Placeholder for future assessment integration
             "has_supervisor_feedback": False,  # Placeholder for future feedback integration
-            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value],
+            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value],
             "is_assessment_open": False,  # Placeholder for future period status check
             "is_overdue": False,  # Placeholder for future deadline check
         })
