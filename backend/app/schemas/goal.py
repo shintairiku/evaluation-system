@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from .evaluation import EvaluationPeriod
     from .self_assessment import SelfAssessment
     from .supervisor_feedback import SupervisorFeedback
-    from .user import UserProfile
+    from .user import UserProfileOption
     from .stage_competency import Competency
 
 
@@ -29,20 +29,20 @@ class PerformanceGoalType(str, Enum):
 
 # Target data schemas for different goal categories
 class PerformanceGoalTargetData(BaseModel):
-    title: Optional[str] = Field(None, description="目標タイトル")
-    performance_goal_type: Optional[PerformanceGoalType] = Field(None)
-    specific_goal_text: Optional[str] = Field(None, description="具体的な目標内容")
-    achievement_criteria_text: Optional[str] = Field(None, description="達成基準")
-    means_methods_text: Optional[str] = Field(None, description="達成手段・方法")
+    title: str = Field(..., description="目標タイトル")
+    performance_goal_type: PerformanceGoalType
+    specific_goal_text: str = Field(..., description="具体的な目標内容")
+    achievement_criteria_text: str = Field(..., description="達成基準")
+    means_methods_text: str = Field(..., description="達成手段・方法")
 
 
 class CompetencyGoalTargetData(BaseModel):
-    competency_id: Optional[UUID] = Field(None, description="コンピテンシーID")
-    action_plan: Optional[str] = Field(None, description="行動計画")
+    competency_id: UUID = Field(..., description="コンピテンシーID")
+    action_plan: str = Field(..., description="行動計画")
 
 
 class CoreValueGoalTargetData(BaseModel):
-    core_value_plan: Optional[str] = Field(None, description="コアバリュー実践計画")
+    core_value_plan: str = Field(..., description="コアバリュー実践計画")
 
 
 TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData]
@@ -52,39 +52,26 @@ TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValu
 # Note: Goal categories are now stored as simple string values rather than a separate table
 
 
-class GoalCreate(BaseModel):
+class GoalCreate(PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData):
     """Schema for creating a goal via API"""
     period_id: UUID = Field(..., alias="periodId")
     goal_category: str = Field(..., min_length=1, max_length=100, alias="goalCategory")
     weight: float = Field(..., ge=0, le=100)
-    status: GoalStatus = Field(..., description="Goal status based on button clicked: 'draft' or 'pending_approval'")
+    status: GoalStatus = Field(GoalStatus.INCOMPLETE, description="Goal status: only 'incomplete' allowed for creation (auto-save)")
     
-    # Performance Goal fields (goal_category = "業績目標")
-    title: Optional[str] = Field(None, alias="title")
-    performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
-    specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
-    achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
-    means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
-    
-    # Competency Goal fields (goal_category = "コンピテンシー")
-    competency_id: Optional[UUID] = Field(None, alias="competencyId")
-    action_plan: Optional[str] = Field(None, alias="actionPlan")
-    
-    # Core Value Goal fields (goal_category = "コアバリュー") 
-    core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
+    @model_validator(mode='after')
+    @classmethod
+    def validate_status_restrictions(cls, values):
+        """Restrict status for goal creation - only incomplete allowed"""
+        if values.status != GoalStatus.INCOMPLETE:
+            raise ValueError("Goal creation only allows status: 'incomplete'")
+        return values
     
     @model_validator(mode='before')
     @classmethod
     def validate_goal_category_fields(cls, values):
         """Validate that required fields are present based on goal_category"""
         goal_category = values.get('goal_category')
-        status = values.get('status')
-        
-        # Skip strict validation for incomplete goals (relaxed validation)
-        if status == 'incomplete':
-            return values
-            
-        # Apply strict validation for draft, pending_approval, approved, rejected goals
         if goal_category == "業績目標":  # Performance goal
             required_fields = ['title', 'performance_goal_type', 'specific_goal_text', 
                              'achievement_criteria_text', 'means_methods_text']
@@ -241,7 +228,7 @@ class GoalDetail(Goal):
     # )
     
     # User information (goal owner)
-    # user: Optional['UserProfile'] = Field(
+    # user: Optional['UserProfileOption'] = Field(
     #     None,
     #     description="The user who owns this goal"
     # )
