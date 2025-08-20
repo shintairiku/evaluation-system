@@ -24,7 +24,7 @@ class Goal(Base):
     goal_category = Column(String(100), nullable=False)
     target_data = Column(JSONB, nullable=False)  # Validated JSON structure per category
     weight = Column(DECIMAL(5, 2), nullable=False)
-    status = Column(String(50), nullable=False, default="draft")
+    status = Column(String(50), nullable=False, default="incomplete")
     
     # Approval fields
     approved_by = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
@@ -42,7 +42,7 @@ class Goal(Base):
         
         # Status validation
         CheckConstraint(
-            "status IN ('draft', 'pending_approval', 'approved', 'rejected')", 
+            "status IN ('draft', 'incomplete', 'pending_approval', 'approved', 'rejected')", 
             name='check_status_values'
         ),
         
@@ -88,13 +88,13 @@ class Goal(Base):
     def _validate_target_data_schema(self, target_data: Dict[str, Any], category: str) -> None:
         """Validate target_data schema for specific goal categories"""
         if category == "業績目標":  # Performance Goal
-            required_fields = ["performance_goal_type", "specific_goal_text", "achievement_criteria_text"]
-            optional_fields = ["means_methods_text"]
+            required_fields = ["title", "performance_goal_type", "specific_goal_text", "achievement_criteria_text", "means_methods_text"]
+            optional_fields = []
             self._validate_performance_goal_schema(target_data, required_fields, optional_fields)
             
         elif category == "コンピテンシー":  # Competency Goal
-            required_fields = ["competency_id"]
-            optional_fields = ["action_plan"]
+            required_fields = ["competency_id", "action_plan"]
+            optional_fields = []
             self._validate_competency_goal_schema(target_data, required_fields, optional_fields)
             
         elif category == "コアバリュー":  # Core Value Goal
@@ -127,7 +127,7 @@ class Goal(Base):
                 raise ValueError(f"Invalid performance_goal_type: {data['performance_goal_type']}")
         
         # Validate text fields are strings
-        text_fields = ["specific_goal_text", "achievement_criteria_text", "means_methods_text"]
+        text_fields = ["title", "specific_goal_text", "achievement_criteria_text", "means_methods_text"]
         for field in text_fields:
             if field in data and data[field] is not None and not isinstance(data[field], str):
                 raise ValueError(f"{field} must be a string")
@@ -194,7 +194,7 @@ class Goal(Base):
     def validate_status(self, key, status):
         """Validate status is one of allowed values"""
         if status is not None:
-            valid_statuses = ['draft', 'pending_approval', 'approved', 'rejected']
+            valid_statuses = ['draft', 'incomplete', 'pending_approval', 'approved', 'rejected']
             if status not in valid_statuses:
                 raise ValueError(f"Invalid status: {status}. Must be one of: {valid_statuses}")
         return status
