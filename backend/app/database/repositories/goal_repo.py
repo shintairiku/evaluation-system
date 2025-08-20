@@ -62,7 +62,7 @@ class GoalRepository:
                 goal_category=goal_data.goal_category,
                 target_data=target_data,
                 weight=Decimal(str(goal_data.weight)) if goal_data.weight is not None else None,
-                status=goal_data.status.value if goal_data.status else GoalStatus.DRAFT.value
+                status=goal_data.status.value if goal_data.status else GoalStatus.INCOMPLETE.value
             )
             
             self.session.add(goal)
@@ -601,7 +601,8 @@ class GoalRepository:
         
         if goal_data.goal_category == "業績目標":  # Performance goal
             target_data = {
-                "performance_goal_type": goal_data.performance_goal_type.value if goal_data.performance_goal_type else None,
+                "title": goal_data.title,
+                "performance_goal_type": goal_data.performance_goal_type.value,
                 "specific_goal_text": goal_data.specific_goal_text,
                 "achievement_criteria_text": goal_data.achievement_criteria_text,
                 "means_methods_text": goal_data.means_methods_text
