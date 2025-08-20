@@ -208,14 +208,6 @@ class GoalService:
             if not updated_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found after update")
             
-            # Reset approval if substantial changes made
-            if self._requires_reapproval(goal_data):
-                await self.goal_repo.update_goal_status(
-                    goal_id, 
-                    GoalStatus.DRAFT if updated_goal.status == GoalStatus.APPROVED.value else GoalStatus(updated_goal.status)
-                )
-                updated_goal = await self.goal_repo.get_goal_by_id(goal_id)
-            
             # Commit transaction
             await self.session.commit()
             
@@ -641,20 +633,6 @@ class GoalService:
                 f"Total weight for {goal_category} would exceed 100%. "
                 f"Current: {current_total}%, Adding: {new_weight}%, Total: {new_total}%"
             )
-
-    def _requires_reapproval(self, goal_data: GoalUpdate) -> bool:
-        """Check if the update requires reapproval."""
-        # Any change to content fields requires reapproval
-        content_fields = [
-            'specific_goal_text', 'achievement_criteria_text', 'means_methods_text',
-            'action_plan', 'core_value_plan', 'weight'
-        ]
-        
-        for field in content_fields:
-            if getattr(goal_data, field, None) is not None:
-                return True
-        
-        return False
 
     async def _enrich_goal_data(self, goal_model: GoalModel) -> Goal:
         """Convert GoalModel to Goal response schema with enriched data."""
