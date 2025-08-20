@@ -90,6 +90,29 @@ class GoalCreate(BaseModel):
         return values
 
 
+class PerformanceGoalUpdate(BaseModel):
+    """Schema for updating performance goals only"""
+    weight: Optional[float] = Field(None, ge=0, le=100)
+    title: Optional[str] = Field(None, alias="title")
+    performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
+    specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
+    achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
+    means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
+
+
+class CompetencyGoalUpdate(BaseModel):
+    """Schema for updating competency goals only"""
+    weight: Optional[float] = Field(None, ge=0, le=100)
+    competency_id: Optional[UUID] = Field(None, alias="competencyId")
+    action_plan: Optional[str] = Field(None, alias="actionPlan")
+
+
+class CoreValueGoalUpdate(BaseModel):
+    """Schema for updating core value goals only"""
+    weight: Optional[float] = Field(None, ge=0, le=100)
+    core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
+
+
 class GoalUpdate(BaseModel):
     """Schema for updating a goal content via API (no status changes)"""
     weight: Optional[float] = Field(None, ge=0, le=100)
