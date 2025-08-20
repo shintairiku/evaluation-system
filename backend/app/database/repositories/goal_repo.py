@@ -12,7 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.goal import Goal
 from ..models.user import User
 from ..models.evaluation import EvaluationPeriod
-from ...schemas.goal import GoalCreate, GoalUpdate, GoalStatus
+from ...schemas.goal import (
+    GoalCreate, GoalUpdate, GoalStatus,
+    PerformanceGoalUpdate, CompetencyGoalUpdate, CoreValueGoalUpdate
+)
 from ...schemas.common import PaginationParams
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
@@ -308,25 +311,31 @@ class GoalRepository:
             # Build target_data for category-specific fields
             target_data_updates = {}
             
-            # Performance goal fields
-            if goal_data.performance_goal_type is not None:
-                target_data_updates["performance_goal_type"] = goal_data.performance_goal_type.value
-            if goal_data.specific_goal_text is not None:
-                target_data_updates["specific_goal_text"] = goal_data.specific_goal_text
-            if goal_data.achievement_criteria_text is not None:
-                target_data_updates["achievement_criteria_text"] = goal_data.achievement_criteria_text
-            if goal_data.means_methods_text is not None:
-                target_data_updates["means_methods_text"] = goal_data.means_methods_text
+            # Check the type of goal_data and handle accordingly
+            if isinstance(goal_data, PerformanceGoalUpdate):
+                # Performance goal fields
+                if goal_data.title is not None:
+                    target_data_updates["title"] = goal_data.title
+                if goal_data.performance_goal_type is not None:
+                    target_data_updates["performance_goal_type"] = goal_data.performance_goal_type.value
+                if goal_data.specific_goal_text is not None:
+                    target_data_updates["specific_goal_text"] = goal_data.specific_goal_text
+                if goal_data.achievement_criteria_text is not None:
+                    target_data_updates["achievement_criteria_text"] = goal_data.achievement_criteria_text
+                if goal_data.means_methods_text is not None:
+                    target_data_updates["means_methods_text"] = goal_data.means_methods_text
             
-            # Competency goal fields
-            if goal_data.competency_id is not None:
-                target_data_updates["competency_id"] = str(goal_data.competency_id)
-            if goal_data.action_plan is not None:
-                target_data_updates["action_plan"] = goal_data.action_plan
+            elif isinstance(goal_data, CompetencyGoalUpdate):
+                # Competency goal fields
+                if goal_data.competency_id is not None:
+                    target_data_updates["competency_id"] = str(goal_data.competency_id)
+                if goal_data.action_plan is not None:
+                    target_data_updates["action_plan"] = goal_data.action_plan
             
-            # Core value goal fields
-            if goal_data.core_value_plan is not None:
-                target_data_updates["core_value_plan"] = goal_data.core_value_plan
+            elif isinstance(goal_data, CoreValueGoalUpdate):
+                # Core value goal fields
+                if goal_data.core_value_plan is not None:
+                    target_data_updates["core_value_plan"] = goal_data.core_value_plan
             
             if target_data_updates:
                 # Get current goal to merge target_data
@@ -431,8 +440,9 @@ class GoalRepository:
     def _validate_status_transition(self, current_status: str, new_status: str) -> None:
         """Validate that the status transition is allowed."""
         valid_transitions = {
-            "draft": ["pending_approval", "rejected"],
-            "pending_approval": ["approved", "rejected", "draft"],
+            "incomplete": ["draft", "pending_approval"],  # Incomplete goals can be moved to draft or submitted
+            "draft": ["pending_approval"],
+            "pending_approval": ["approved", "rejected"],
             "approved": [],  # Approved goals cannot be changed
             "rejected": ["draft", "pending_approval"]
         }

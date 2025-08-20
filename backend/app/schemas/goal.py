@@ -90,22 +90,31 @@ class GoalCreate(BaseModel):
         return values
 
 
-class GoalUpdate(BaseModel):
-    """Schema for updating a goal content via API (no status changes)"""
+class PerformanceGoalUpdate(BaseModel):
+    """Schema for updating performance goals only"""
     weight: Optional[float] = Field(None, ge=0, le=100)
-    
-    # Performance Goal fields (goal_category = "業績目標")
+    title: Optional[str] = Field(None, alias="title")
     performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
     specific_goal_text: Optional[str] = Field(None, alias="specificGoalText")
     achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText")
     means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
-    
-    # Competency Goal fields (goal_category = "コンピテンシー")
+
+
+class CompetencyGoalUpdate(BaseModel):
+    """Schema for updating competency goals only"""
+    weight: Optional[float] = Field(None, ge=0, le=100)
     competency_id: Optional[UUID] = Field(None, alias="competencyId")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
-    
-    # Core Value Goal fields (goal_category = "コアバリュー")
+
+
+class CoreValueGoalUpdate(BaseModel):
+    """Schema for updating core value goals only"""
+    weight: Optional[float] = Field(None, ge=0, le=100)
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
+
+
+# Union type for goal updates based on category
+GoalUpdate = Union[PerformanceGoalUpdate, CompetencyGoalUpdate, CoreValueGoalUpdate]
 
 
 class GoalStatusUpdate(BaseModel):
