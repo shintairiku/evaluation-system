@@ -13,7 +13,8 @@ from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.repositories.supervisor_review_repository import SupervisorReviewRepository
 from ..database.models.goal import Goal as GoalModel
 from ..schemas.goal import (
-    GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus
+    GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus,
+    PerformanceGoalUpdate, CompetencyGoalUpdate, CoreValueGoalUpdate
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -538,7 +539,7 @@ class GoalService:
     async def _validate_goal_update(self, goal_data: GoalUpdate, existing_goal: GoalModel):
         """Validate goal update business rules."""
         # Check if competency exists (for competency goals)
-        if goal_data.competency_id:
+        if isinstance(goal_data, CompetencyGoalUpdate) and goal_data.competency_id:
             competency = await self.competency_repo.get_by_id(goal_data.competency_id)
             if not competency:
                 raise BadRequestError(f"Competency {goal_data.competency_id} not found")
