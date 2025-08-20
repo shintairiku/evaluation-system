@@ -431,8 +431,9 @@ class GoalRepository:
     def _validate_status_transition(self, current_status: str, new_status: str) -> None:
         """Validate that the status transition is allowed."""
         valid_transitions = {
-            "draft": ["pending_approval", "rejected"],
-            "pending_approval": ["approved", "rejected", "draft"],
+            "incomplete": ["draft", "pending_approval"],  # Incomplete goals can be moved to draft or submitted
+            "draft": ["pending_approval"],
+            "pending_approval": ["approved", "rejected"],
             "approved": [],  # Approved goals cannot be changed
             "rejected": ["draft", "pending_approval"]
         }
