@@ -35,20 +35,30 @@ export type GoalCreateRequest =
   | (GoalBase & { goalCategory: 'コンピテンシー' } & CompetencyGoalFields)
   | (GoalBase & { goalCategory: 'コアバリュー' } & CoreValueGoalFields);
 
-export type GoalUpdateRequest = {
-  weight?: number;
-  // Performance goal fields
+// Performance goal update fields - all optional since it's an update
+export interface PerformanceGoalUpdateFields {
   title?: string;
   performanceGoalType?: PerformanceGoalType;
   specificGoalText?: string;
   achievementCriteriaText?: string;
   meansMethodsText?: string;
-  // Competency goal fields
+}
+
+// Competency goal update fields - all optional since it's an update
+export interface CompetencyGoalUpdateFields {
   competencyId?: UUID;
   actionPlan?: string;
-  // Core value goal fields
+}
+
+// Core value goal update fields - all optional since it's an update
+export interface CoreValueGoalUpdateFields {
   coreValuePlan?: string;
-};
+}
+
+export type GoalUpdateRequest =
+  | ({ weight?: number } & PerformanceGoalUpdateFields)
+  | ({ weight?: number } & CompetencyGoalUpdateFields)
+  | ({ weight?: number } & CoreValueGoalUpdateFields);
 
 export interface GoalResponse {
   id: UUID;
