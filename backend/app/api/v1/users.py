@@ -62,6 +62,7 @@ async def get_users(
     stage_ids: Optional[list[UUID]] = Query(None, alias="stage_ids", description="Filter by stage IDs (multi-select)"),
     role_ids: Optional[list[UUID]] = Query(None, alias="role_ids", description="Filter by role IDs (multi-select)"),
     statuses: Optional[list[UserStatus]] = Query(None, alias="statuses", description="Filter by user statuses (multi-select)"),
+    supervisor_id: Optional[UUID] = Query(None, alias="supervisor_id", description="Task #168: Filter by supervisor ID to get subordinates"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(10, ge=1, le=100, description="Items per page"),
     session: AsyncSession = Depends(get_db_session)
@@ -91,6 +92,7 @@ async def get_users(
             department_ids=department_ids,
             stage_ids=stage_ids,
             role_ids=role_ids,
+            supervisor_id=supervisor_id,  # Task #168: Pass supervisor_id to service
             pagination=pagination
         )
         

@@ -50,6 +50,7 @@ class UserService:
         department_ids: Optional[list[UUID]] = None,
         stage_ids: Optional[list[UUID]] = None,
         role_ids: Optional[list[UUID]] = None,
+        supervisor_id: Optional[UUID] = None,  # Task #168: Filter by supervisor to get subordinates
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[UserDetailResponse]:
         """
@@ -88,6 +89,7 @@ class UserService:
                 "department_ids": sorted([str(d) for d in department_ids]) if department_ids else None,
                 "stage_ids": sorted([str(s) for s in stage_ids]) if stage_ids else None,
                 "role_ids": sorted([str(r) for r in role_ids]) if role_ids else None,
+                "supervisor_id": str(supervisor_id) if supervisor_id else None,  # Task #168: Include supervisor_id in cache key
                 "user_ids": sorted([str(u) for u in user_ids_to_filter]) if user_ids_to_filter else None,
                 "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None,
                 "requesting_user_roles": sorted(current_user_context.role_names)
@@ -99,6 +101,19 @@ class UserService:
             if cached_result:
                 return PaginatedResponse.model_validate_json(cached_result)
             
+            # Task #168: Handle supervisor_id filtering specifically
+            final_user_ids_to_filter = user_ids_to_filter
+            if supervisor_id:
+                # Get subordinates of the specified supervisor
+                subordinate_users = await self.user_repo.get_subordinates(supervisor_id)
+                subordinate_ids = [user.id for user in subordinate_users]
+                
+                # If we already have user_ids_to_filter, intersect them
+                if final_user_ids_to_filter:
+                    final_user_ids_to_filter = list(set(final_user_ids_to_filter) & set(subordinate_ids))
+                else:
+                    final_user_ids_to_filter = subordinate_ids
+            
             # Get data from repository
             users = await self.user_repo.search_users(
                 search_term=search_term,
@@ -106,7 +121,7 @@ class UserService:
                 department_ids=department_ids,
                 stage_ids=stage_ids,
                 role_ids=role_ids,
-                user_ids=user_ids_to_filter,
+                user_ids=final_user_ids_to_filter,
                 pagination=pagination
             )
             
@@ -116,7 +131,7 @@ class UserService:
                 department_ids=department_ids,
                 stage_ids=stage_ids,
                 role_ids=role_ids,
-                user_ids=user_ids_to_filter
+                user_ids=final_user_ids_to_filter  # Task #168: Use final filtered user IDs
             )
             
             # Enrich users with detailed data including supervisor/subordinates
