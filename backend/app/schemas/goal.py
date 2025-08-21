@@ -41,11 +41,11 @@ class CompetencyGoalTargetData(BaseModel):
     action_plan: str = Field(..., description="行動計画")
 
 
-class CoreValueGoalTargetData(BaseModel):
-    core_value_plan: str = Field(..., description="コアバリュー実践計画")
+# class CoreValueGoalTargetData(BaseModel):
+#     core_value_plan: str = Field(..., description="コアバリュー実践計画")
 
 
-TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData]
+TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData]
 
 
 # === Goal Schemas ===
@@ -149,8 +149,8 @@ class GoalInDB(BaseModel):
                 data['target_data'] = PerformanceGoalTargetData(**target_data_dict)
             elif goal_category == "コンピテンシー":
                 data['target_data'] = CompetencyGoalTargetData(**target_data_dict)
-            elif goal_category == "コアバリュー":
-                data['target_data'] = CoreValueGoalTargetData(**target_data_dict)
+            # elif goal_category == "コアバリュー":
+            #     data['target_data'] = CoreValueGoalTargetData(**target_data_dict)
         except Exception:
             # Let the default validation handle the error
             pass
