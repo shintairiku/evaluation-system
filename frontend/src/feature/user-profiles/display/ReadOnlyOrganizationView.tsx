@@ -23,7 +23,8 @@ import {
   getDepartmentManagersAction, 
   getDepartmentSupervisorsAction, 
   getSubordinatesAction, 
-  getProfileOptionsAction 
+  getProfileOptionsAction,
+  searchUsersAction
 } from '@/api/server-actions/users';
 
 interface ReadOnlyOrganizationViewProps {
@@ -285,8 +286,21 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       const managers = managersResult.success ? managersResult.data?.items || [] : [];
       const supervisors = supervisorsResult.success ? supervisorsResult.data?.items || [] : [];
       
+      // If no managers/supervisors found, fallback to all users in department
+      let allLeaders = [...managers, ...supervisors];
+      if (allLeaders.length === 0) {
+        const allDeptUsersResult = await searchUsersAction({
+          department_id: departmentId,
+          page: 1,
+          limit: 100
+        });
+        
+        if (allDeptUsersResult.success) {
+          allLeaders = allDeptUsersResult.data?.items || [];
+        }
+      }
+      
       // Combine and deduplicate users
-      const allLeaders = [...managers, ...supervisors];
       const uniqueLeaders = allLeaders.filter((user, index, self) => 
         index === self.findIndex(u => u.id === user.id)
       );
