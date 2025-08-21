@@ -52,12 +52,26 @@ TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData]
 # Note: Goal categories are now stored as simple string values rather than a separate table
 
 
-class GoalCreate(PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData):
+class GoalCreate(BaseModel):
     """Schema for creating a goal via API"""
+    # Common fields for all goal types (4 fields)
     period_id: UUID = Field(..., alias="periodId")
     goal_category: str = Field(..., min_length=1, max_length=100, alias="goalCategory")
     weight: float = Field(..., ge=0, le=100)
     status: GoalStatus = Field(GoalStatus.INCOMPLETE, description="Goal status: only 'incomplete' allowed for creation (auto-save)")
+    
+    # Performance goal fields (5 fields) - required when goal_category = "業績目標"
+    title: Optional[str] = Field(None, description="目標タイトル")
+    performance_goal_type: Optional[PerformanceGoalType] = Field(None, alias="performanceGoalType")
+    specific_goal_text: Optional[str] = Field(None, alias="specificGoalText", description="具体的な目標内容")
+    achievement_criteria_text: Optional[str] = Field(None, alias="achievementCriteriaText", description="達成基準")
+    means_methods_text: Optional[str] = Field(None, alias="meansMethodsText", description="達成手段・方法")
+    
+    model_config = {"populate_by_name": True}
+    
+    # Competency goal fields (2 fields) - required when goal_category = "コンピテンシー"
+    competency_id: Optional[UUID] = Field(None, alias="competencyId", description="コンピテンシーID")
+    action_plan: Optional[str] = Field(None, alias="actionPlan", description="行動計画")
     
     @model_validator(mode='after')
     @classmethod
