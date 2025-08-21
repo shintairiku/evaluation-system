@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -16,170 +16,37 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import type { UserDetailResponse, Department } from '@/api/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Building2, Users, User, Mail, ArrowLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Building2, Users, User } from 'lucide-react';
 import { 
-  getDepartmentManagersAction, 
-  getDepartmentSupervisorsAction, 
-  getSubordinatesAction, 
-  getProfileOptionsAction,
-  searchUsersAction
+  getProfileOptionsAction
 } from '@/api/server-actions/users';
 
 interface ReadOnlyOrganizationViewProps {
   users: UserDetailResponse[];
 }
 
-// Navigation state types for task #168
-type NavigationLevel = 'departments' | 'managers' | 'subordinates';
 
-interface NavigationState {
-  level: NavigationLevel;
-  currentDepartment?: Department;
-  currentSupervisor?: UserDetailResponse;
-  breadcrumb: string[];
-}
-
-// Custom node component for department blocks (Task #168)
-const DepartmentNode = ({ 
+// Organization node component - represents departments or teams
+const OrgNode = ({ 
   data
 }: { 
-  data: { department: Department; userCount: number; onDepartmentClick: (departmentId: string) => void };
+  data: { 
+    name: string; 
+    userCount: number; 
+    isDepartment?: boolean;
+    users?: UserDetailResponse[];
+  };
 }) => {
-  const { department, userCount, onDepartmentClick } = data;
+  const { name, userCount, isDepartment = false, users = [] } = data;
   
-  return (
-    <Card 
-      className="w-80 cursor-pointer hover:shadow-lg transition-all duration-200 border-blue-300 bg-blue-50/80"
-      onClick={() => onDepartmentClick(department.id)}
-    >
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <CardTitle className="text-lg">{department.name}</CardTitle>
-              <CardDescription className="flex items-center gap-1 mt-1">
-                <Users className="w-3 h-3" />
-                {userCount}人
-              </CardDescription>
-            </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-blue-500" />
-        </div>
-      </CardHeader>
-    </Card>
-  );
-};
-
-// Custom node component for managers/supervisors (Task #168)
-const ManagerNode = ({ 
-  data
-}: { 
-  data: { user: UserDetailResponse; onManagerClick?: (userId: string) => void };
-}) => {
-  const { user, onManagerClick } = data;
-  
-  const getCardStyle = () => {
-    if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
-      return 'border-blue-400 bg-blue-50/50';
-    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('manager'))) {
-      return 'border-green-400 bg-green-50/50';
-    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('supervisor'))) {
-      return 'border-purple-400 bg-purple-50/50';
+  const getNodeStyle = () => {
+    if (isDepartment) {
+      return 'bg-blue-500 text-white border-blue-600';
     } else {
-      return 'border-gray-200 bg-white';
+      return 'bg-blue-100 text-blue-900 border-blue-300';
     }
   };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge variant="default" className="bg-green-100 text-green-800">アクティブ</Badge>;
-      case 'inactive':
-        return <Badge variant="secondary" className="bg-red-100 text-red-800">非アクティブ</Badge>;
-      case 'pending_approval':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">承認待ち</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  return (
-    <Card 
-      className={`w-72 ${onManagerClick ? 'cursor-pointer hover:shadow-lg' : ''} transition-all duration-200 ${getCardStyle()}`}
-      onClick={() => onManagerClick?.(user.id)}
-    >
-      <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-lg">{user.name}</CardTitle>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-            </div>
-            <CardDescription className="flex items-center gap-1 mt-1">
-              <User className="w-3 h-3" />
-              {user.employee_code}
-            </CardDescription>
-            {user.job_title && (
-              <CardDescription className="mt-1 font-medium">
-                {user.job_title}
-              </CardDescription>
-            )}
-          </div>
-          {getStatusBadge(user.status)}
-        </div>
-      </CardHeader>
-      
-      <CardContent className="space-y-3">
-        {/* メールアドレス */}
-        <div className="flex items-center gap-2 text-sm">
-          <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <span className="truncate" title={user.email}>
-            {user.email}
-          </span>
-        </div>
-
-        {/* ロール */}
-        <div className="space-y-1">
-          <div className="text-xs font-medium text-muted-foreground">ロール</div>
-          <div className="flex flex-wrap gap-1">
-            {user.roles && user.roles.length > 0 ? (
-              user.roles.map((role) => (
-                <Badge key={role.id} variant="outline" className="text-xs">
-                  {role.name}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-xs text-muted-foreground">ロール未設定</span>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-// Custom node component for subordinates (Task #168)
-const SubordinateNode = ({ data }: { data: { user: UserDetailResponse } }) => {
-  const { user } = data;
   
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge variant="default" className="bg-green-100 text-green-800">アクティブ</Badge>;
-      case 'inactive':
-        return <Badge variant="secondary" className="bg-red-100 text-red-800">非アクティブ</Badge>;
-      case 'pending_approval':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">承認待ち</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
   return (
     <div className="relative">
       <Handle
@@ -194,342 +61,275 @@ const SubordinateNode = ({ data }: { data: { user: UserDetailResponse } }) => {
           borderRadius: '50%'
         }}
       />
-      <Card className="w-64 border-gray-200 bg-white">
-        <CardHeader className="pb-4">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-lg">{user.name}</CardTitle>
-              <CardDescription className="flex items-center gap-1 mt-1">
-                <User className="w-3 h-3" />
-                {user.employee_code}
+      <Card className={`w-48 transition-all duration-200 ${getNodeStyle()}`}>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-5 h-5" />
+            <div className="text-center flex-1">
+              <CardTitle className="text-sm font-bold">{name}</CardTitle>
+              <CardDescription className={`text-xs mt-1 ${isDepartment ? 'text-blue-100' : 'text-blue-700'}`}>
+                {userCount}人
               </CardDescription>
-              {user.job_title && (
-                <CardDescription className="mt-1 font-medium">
-                  {user.job_title}
-                </CardDescription>
-              )}
             </div>
-            {getStatusBadge(user.status)}
           </div>
         </CardHeader>
         
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <span className="truncate" title={user.email}>
-              {user.email}
-            </span>
-          </div>
-
-          {/* ステージ */}
-          {user.stage && (
-            <div className="flex items-center gap-2 text-sm">
-              <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <Badge variant="secondary" className="text-xs">
-                {user.stage.name}
-              </Badge>
+        {/* Show users in the node for smaller teams/departments */}
+        {!isDepartment && users.length > 0 && users.length <= 3 && (
+          <CardContent className="pt-0 pb-2">
+            <div className="space-y-1">
+              {users.map((user) => (
+                <div key={user.id} className="text-xs flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  <span className="truncate">{user.name}</span>
+                </div>
+              ))}
             </div>
-          )}
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="bottom"
+        style={{ 
+          background: '#3b82f6',
+          width: 8,
+          height: 8,
+          border: '2px solid #ffffff',
+          borderRadius: '50%'
+        }}
+      />
     </div>
   );
 };
 
-// Node types for different navigation levels
+// Node types for organization chart
 const nodeTypes: NodeTypes = {
-  departmentNode: DepartmentNode,
-  managerNode: ManagerNode,
-  subordinateNode: SubordinateNode,
+  orgNode: OrgNode,
 };
 
 export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganizationViewProps) {
-  // Task #168: Navigation state for drill-down functionality
-  const [navigationState, setNavigationState] = useState<NavigationState>({
-    level: 'departments',
-    breadcrumb: ['部署一覧']
-  });
-  
-  const [currentUsers, setCurrentUsers] = useState<UserDetailResponse[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(false);
 
   // Load departments on mount
   useEffect(() => {
     const loadDepartments = async () => {
       try {
         const result = await getProfileOptionsAction();
-        if (result.success && result.data) {
+        if (result && result.success && result.data && result.data.departments) {
           setDepartments(result.data.departments);
+        } else {
+          console.warn('Failed to load departments:', result);
+          // Fallback: extract departments from users
+          const uniqueDepartments = users
+            .filter(user => user.department)
+            .map(user => user.department!)
+            .filter((dept, index, self) => 
+              index === self.findIndex(d => d.id === dept.id)
+            );
+          setDepartments(uniqueDepartments);
         }
       } catch (error) {
         console.error('Error loading departments:', error);
+        // Fallback: extract departments from users
+        const uniqueDepartments = users
+          .filter(user => user.department)
+          .map(user => user.department!)
+          .filter((dept, index, self) => 
+            index === self.findIndex(d => d.id === dept.id)
+          );
+        setDepartments(uniqueDepartments);
       }
     };
     
     loadDepartments();
-  }, []);
+  }, [users]);
 
-  // Task #168: Handle department click - show managers/supervisors
-  const handleDepartmentClick = useCallback(async (departmentId: string) => {
-    setLoading(true);
-    try {
-      const department = departments.find(d => d.id === departmentId);
-      if (!department) return;
+  // Build organization hierarchy structure
+  const organizationStructure = useMemo(() => {
+    // Group users by department
+    const departmentUsers = new Map<string, UserDetailResponse[]>();
+    
+    departments.forEach(dept => {
+      const deptUsers = users.filter(u => u.department?.id === dept.id);
+      departmentUsers.set(dept.id, deptUsers);
+    });
+    
+    return departmentUsers;
+  }, [users, departments]);
 
-      // Get both managers and supervisors for this department
-      const [managersResult, supervisorsResult] = await Promise.all([
-        getDepartmentManagersAction(departmentId),
-        getDepartmentSupervisorsAction(departmentId)
-      ]);
-
-      const managers = managersResult.success ? managersResult.data?.items || [] : [];
-      const supervisors = supervisorsResult.success ? supervisorsResult.data?.items || [] : [];
-      
-      // If no managers/supervisors found, fallback to all users in department
-      let allLeaders = [...managers, ...supervisors];
-      if (allLeaders.length === 0) {
-        const allDeptUsersResult = await searchUsersAction({
-          department_id: departmentId,
-          page: 1,
-          limit: 100
-        });
-        
-        if (allDeptUsersResult.success) {
-          allLeaders = allDeptUsersResult.data?.items || [];
-        }
-      }
-      
-      // Combine and deduplicate users
-      const uniqueLeaders = allLeaders.filter((user, index, self) => 
-        index === self.findIndex(u => u.id === user.id)
-      );
-
-      setCurrentUsers(uniqueLeaders);
-      setNavigationState({
-        level: 'managers',
-        currentDepartment: department,
-        breadcrumb: ['部署一覧', department.name]
-      });
-    } catch (error) {
-      console.error('Error loading department managers:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [departments]);
-
-  // Task #168: Handle manager/supervisor click - show subordinates
-  const handleManagerClick = useCallback(async (userId: string) => {
-    setLoading(true);
-    try {
-      const manager = currentUsers.find(u => u.id === userId);
-      if (!manager) return;
-
-      const subordinatesResult = await getSubordinatesAction(userId);
-      const subordinates = subordinatesResult.success ? subordinatesResult.data?.items || [] : [];
-
-      setCurrentUsers(subordinates);
-      setNavigationState(prev => ({
-        level: 'subordinates',
-        currentDepartment: prev.currentDepartment,
-        currentSupervisor: manager,
-        breadcrumb: [...prev.breadcrumb, manager.name, '部下一覧']
-      }));
-    } catch (error) {
-      console.error('Error loading subordinates:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUsers]);
-
-  // Handle navigation back
-  const handleBack = useCallback(() => {
-    if (navigationState.level === 'subordinates') {
-      // Go back to managers level
-      handleDepartmentClick(navigationState.currentDepartment!.id);
-    } else if (navigationState.level === 'managers') {
-      // Go back to departments level
-      setNavigationState({
-        level: 'departments',
-        breadcrumb: ['部署一覧']
-      });
-      setCurrentUsers([]);
-    }
-  }, [navigationState.level, navigationState.currentDepartment, handleDepartmentClick]);
-
-  // Memoized functions to avoid infinite loops
-  const memoizedHandleDepartmentClick = useMemo(() => handleDepartmentClick, [handleDepartmentClick]);
-  const memoizedHandleManagerClick = useMemo(() => handleManagerClick, [handleManagerClick]);
-
-  // Generate nodes and edges based on current navigation level
+  // Generate organization chart nodes and edges
   const { nodes, edges } = useMemo(() => {
     const nodeList: Node[] = [];
     const edgeList: Edge[] = [];
 
-    if (navigationState.level === 'departments') {
-      // Show department blocks
-      departments.forEach((department, index) => {
-        const userCount = users.filter(u => u.department?.id === department.id).length;
-        
-        nodeList.push({
-          id: department.id,
-          type: 'departmentNode',
-          position: { x: (index % 3) * 350, y: Math.floor(index / 3) * 200 },
-          data: { 
-            department, 
-            userCount,
-            onDepartmentClick: memoizedHandleDepartmentClick
-          }
-        });
-      });
-    } else if (navigationState.level === 'managers') {
-      // Show managers/supervisors in grid layout
-      currentUsers.forEach((user, index) => {
-        nodeList.push({
-          id: user.id,
-          type: 'managerNode',
-          position: { x: (index % 3) * 300, y: Math.floor(index / 3) * 220 },
-          data: { 
-            user,
-            onManagerClick: memoizedHandleManagerClick
-          }
-        });
-      });
-    } else if (navigationState.level === 'subordinates') {
-      // Show subordinates in hierarchical layout
-      const supervisor = navigationState.currentSupervisor;
+    // Add company root node
+    const companyName = '株式会社新大陸';
+    nodeList.push({
+      id: 'company-root',
+      type: 'orgNode',
+      position: { x: 400, y: 0 },
+      data: { 
+        name: companyName,
+        userCount: users.length,
+        isDepartment: true
+      }
+    });
+
+    // Add department nodes
+    departments.forEach((department, index) => {
+      const deptUsers = organizationStructure.get(department.id) || [];
+      const userCount = deptUsers.length;
       
-      if (supervisor) {
-        // Add supervisor node at top
-        nodeList.push({
-          id: supervisor.id,
-          type: 'managerNode',
-          position: { x: Math.max(0, (currentUsers.length - 1) * 150), y: 0 },
-          data: { 
-            user: supervisor
-            // No onManagerClick for subordinates view
+      // Position departments horizontally below company
+      const xPosition = (index * 250) + (400 - ((departments.length - 1) * 125));
+      
+      nodeList.push({
+        id: department.id,
+        type: 'orgNode',
+        position: { x: xPosition, y: 150 },
+        data: { 
+          name: department.name,
+          userCount,
+          isDepartment: false,
+          users: deptUsers
+        }
+      });
+      
+      // Add edge from company to department
+      edgeList.push({
+        id: `company-${department.id}`,
+        source: 'company-root',
+        target: department.id,
+        type: 'smoothstep',
+        style: { 
+          stroke: '#3b82f6', 
+          strokeWidth: 2,
+          opacity: 0.8
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 15,
+          height: 15,
+          color: '#3b82f6',
+        },
+      });
+      
+      // Group users by teams/supervisors within department if there are many users
+      if (deptUsers.length > 5) {
+        // Group by supervisor
+        const supervisorGroups = new Map<string, UserDetailResponse[]>();
+        const noSupervisorUsers: UserDetailResponse[] = [];
+        
+        deptUsers.forEach(user => {
+          if (user.supervisor) {
+            const supervisorId = user.supervisor.id;
+            if (!supervisorGroups.has(supervisorId)) {
+              supervisorGroups.set(supervisorId, []);
+            }
+            supervisorGroups.get(supervisorId)!.push(user);
+          } else {
+            noSupervisorUsers.push(user);
           }
         });
         
-        // Add subordinates below
-        currentUsers.forEach((user, index) => {
-          nodeList.push({
-            id: user.id,
-            type: 'subordinateNode',
-            position: { x: index * 300, y: 250 },
-            data: { user }
-          });
-          
-          // Add edge from supervisor to subordinate
-          edgeList.push({
-            id: `${supervisor.id}-${user.id}`,
-            source: supervisor.id,
-            target: user.id,
-            type: 'smoothstep',
-            style: { 
-              stroke: '#3b82f6', 
-              strokeWidth: 3,
-              opacity: 0.8
-            },
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              width: 20,
-              height: 20,
-              color: '#3b82f6',
-            },
-          });
+        // Add team nodes for groups with supervisors
+        Array.from(supervisorGroups.entries()).forEach(([supervisorId, teamMembers], teamIndex) => {
+          const supervisor = users.find(u => u.id === supervisorId);
+          if (supervisor) {
+            const teamName = `${supervisor.name}チーム`;
+            const teamNodeId = `${department.id}-team-${supervisorId}`;
+            
+            nodeList.push({
+              id: teamNodeId,
+              type: 'orgNode',
+              position: { 
+                x: xPosition + (teamIndex * 150) - ((supervisorGroups.size - 1) * 75), 
+                y: 300 
+              },
+              data: { 
+                name: teamName,
+                userCount: teamMembers.length + 1, // +1 for supervisor
+                isDepartment: false,
+                users: [supervisor, ...teamMembers]
+              }
+            });
+            
+            // Add edge from department to team
+            edgeList.push({
+              id: `${department.id}-${teamNodeId}`,
+              source: department.id,
+              target: teamNodeId,
+              type: 'smoothstep',
+              style: { 
+                stroke: '#3b82f6', 
+                strokeWidth: 2,
+                opacity: 0.6
+              },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                width: 12,
+                height: 12,
+                color: '#3b82f6',
+              },
+            });
+          }
         });
       }
-    }
+    });
 
     return { nodes: nodeList, edges: edgeList };
-  }, [navigationState, departments, currentUsers, users, memoizedHandleDepartmentClick, memoizedHandleManagerClick]);
+  }, [departments, users, organizationStructure]);
 
   const [nodesState, setNodes] = useNodesState(nodes);
   const [edgesState] = useEdgesState(edges);
 
-  // Update nodes when navigation changes
+  // Update nodes when organization changes
   useEffect(() => {
     setNodes(nodes);
   }, [nodes, setNodes]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">読み込み中...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header with breadcrumb navigation */}
-      <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-lg p-6 border border-green-200">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h3 className="text-2xl font-bold text-gray-900">組織構造ナビゲーション</h3>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              {navigationState.breadcrumb.map((item, index) => (
-                <React.Fragment key={index}>
-                  <span className={index === navigationState.breadcrumb.length - 1 ? 'font-semibold text-gray-900' : ''}>
-                    {item}
-                  </span>
-                  {index < navigationState.breadcrumb.length - 1 && (
-                    <ChevronRight className="w-4 h-4" />
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+        <div className="space-y-2">
+          <h3 className="text-2xl font-bold text-gray-900">組織図</h3>
+          <p className="text-gray-600">
+            {departments.length}部署 • {users.length}人のユーザー
+          </p>
+          <div className="flex gap-4 text-sm text-gray-600">
+            <span>• 管理者: {users.filter(u => u.roles?.some(r => r.name.toLowerCase().includes('admin'))).length}人</span>
+            <span>• マネージャー: {users.filter(u => u.roles?.some(r => r.name.toLowerCase().includes('manager'))).length}人</span>
+            <span>• 承認待ち: {users.filter(u => u.status === 'pending_approval').length}人</span>
           </div>
-          
-          {/* Back button */}
-          {navigationState.level !== 'departments' && (
-            <Button
-              onClick={handleBack}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              戻る
-            </Button>
-          )}
         </div>
         
         <div className="mt-4 text-sm text-gray-600">
-          {navigationState.level === 'departments' && (
-            <p>🏢 部署をクリックして、その部署の管理者・監督者を表示</p>
-          )}
-          {navigationState.level === 'managers' && (
-            <p>👥 管理者・監督者をクリックして、その部下を表示</p>
-          )}
-          {navigationState.level === 'subordinates' && (
-            <p>👤 {navigationState.currentSupervisor?.name} の部下一覧</p>
-          )}
+          <p>🏢 会社の組織構造を階層的に表示しています</p>
         </div>
       </div>
       
-      {/* React Flow Container */}
-      <div className="w-full h-[600px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
+      {/* Organization Chart */}
+      <div className="w-full h-[700px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ 
-            padding: 0.2,
+            padding: 0.1,
             includeHiddenNodes: false,
-            minZoom: 0.3,
-            maxZoom: 1.0
+            minZoom: 0.4,
+            maxZoom: 1.2
           }}
-          minZoom={0.2}
+          minZoom={0.3}
           maxZoom={1.5}
-          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}  // Read-only: no dragging
-          nodesConnectable={false}  // Read-only: no connections
+          nodesDraggable={false}
+          nodesConnectable={false}
           elementsSelectable={true}
           panOnDrag={true}
           zoomOnScroll={true}
@@ -538,9 +338,9 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
         >
           <Background 
             color="#e2e8f0" 
-            gap={40}
-            size={1.5}
-            className="opacity-30"
+            gap={30}
+            size={1}
+            className="opacity-20"
           />
           <Controls 
             showZoom={true}
