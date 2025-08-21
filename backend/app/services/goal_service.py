@@ -237,9 +237,9 @@ class GoalService:
             # Permission check
             await self._check_goal_update_permission(existing_goal, current_user_context)
             
-            # Business rule: can only delete draft goals or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only delete draft or rejected goals")
+            # Business rule: can only delete draft, incomplete, or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only delete draft, incomplete, or rejected goals")
             
             # Delete goal
             success = await self.goal_repo.delete_goal(goal_id)
@@ -270,9 +270,9 @@ class GoalService:
             # Permission check - only goal owner can submit
             await self._check_goal_update_permission(existing_goal, current_user_context)
             
-            # Business rule: can only submit draft or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only submit draft or rejected goals for approval")
+            # Business rule: can only submit draft, incomplete, or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only submit draft, incomplete, or rejected goals for approval")
             
             # Update status using dedicated method with validation
             updated_goal = await self.goal_repo.update_goal_status(
@@ -576,7 +576,7 @@ class GoalService:
             "period_id": goal_model.period_id,
             "goal_category": goal_model.goal_category,
             "weight": float(goal_model.weight) if goal_model.weight else 0.0,
-            "status": GoalStatus(goal_model.status),
+            "status": goal_model.status,
             "approved_by": goal_model.approved_by,
             "approved_at": goal_model.approved_at,
             "created_at": goal_model.created_at,
@@ -599,7 +599,7 @@ class GoalService:
         detail_dict.update({
             "has_self_assessment": False,  # Placeholder for future assessment integration
             "has_supervisor_feedback": False,  # Placeholder for future feedback integration
-            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value],
+            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value],
             "is_assessment_open": False,  # Placeholder for future period status check
             "is_overdue": False,  # Placeholder for future deadline check
         })
