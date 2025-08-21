@@ -19,6 +19,7 @@ export interface SearchUsersParams extends PaginationParams {
   stage_id?: string;
   role_id?: string;
   status?: string;
+  supervisor_id?: string; // Task #168: For getting subordinates of a specific supervisor
 }
 
 /**
@@ -273,6 +274,9 @@ export async function searchUsersAction(params: SearchUsersParams): Promise<{
     if (params.status && params.status !== 'all') {
       queryParams.append('status', params.status);
     }
+    if (params.supervisor_id) {
+      queryParams.append('supervisor_id', params.supervisor_id);
+    }
     
     // Use existing getUsersAction as base but extend it for search
     // For now, we'll use the existing API and filter server-side
@@ -318,6 +322,11 @@ export async function searchUsersAction(params: SearchUsersParams): Promise<{
       filteredUsers = filteredUsers.filter(user => user.status === params.status);
     }
     
+    // Task #168: Filter by supervisor_id to get subordinates
+    if (params.supervisor_id) {
+      filteredUsers = filteredUsers.filter(user => user.supervisor?.id === params.supervisor_id);
+    }
+    
     const searchResult: UserList = {
       items: filteredUsers,
       total: filteredUsers.length,
@@ -335,6 +344,80 @@ export async function searchUsersAction(params: SearchUsersParams): Promise<{
     return {
       success: false,
       error: 'An unexpected error occurred while searching users',
+    };
+  }
+}
+
+/**
+ * Task #168: Server action to get managers/supervisors by department
+ * Specifically for the drill-down organization navigation
+ */
+export async function getDepartmentManagersAction(departmentId: string): Promise<{
+  success: boolean;
+  data?: UserList;
+  error?: string;
+}> {
+  try {
+    return await searchUsersAction({
+      department_id: departmentId,
+      role_id: '2', // Force role_id to 2 (manager) as specified in task #168
+      page: 1,
+      limit: 100
+    });
+  } catch (error) {
+    console.error('Get department managers action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching department managers',
+    };
+  }
+}
+
+/**
+ * Task #168: Server action to get supervisors by department
+ * Specifically for the drill-down organization navigation
+ */
+export async function getDepartmentSupervisorsAction(departmentId: string): Promise<{
+  success: boolean;
+  data?: UserList;
+  error?: string;
+}> {
+  try {
+    return await searchUsersAction({
+      department_id: departmentId,
+      role_id: '3', // Force role_id to 3 (supervisor) as specified in task #168
+      page: 1,
+      limit: 100
+    });
+  } catch (error) {
+    console.error('Get department supervisors action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching department supervisors',
+    };
+  }
+}
+
+/**
+ * Task #168: Server action to get subordinates of a specific supervisor
+ * Uses the supervisor_id parameter added for task #168
+ */
+export async function getSubordinatesAction(supervisorId: string): Promise<{
+  success: boolean;
+  data?: UserList;
+  error?: string;
+}> {
+  try {
+    return await searchUsersAction({
+      supervisor_id: supervisorId,
+      page: 1,
+      limit: 100
+    });
+  } catch (error) {
+    console.error('Get subordinates action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching subordinates',
     };
   }
 }
