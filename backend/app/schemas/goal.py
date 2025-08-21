@@ -85,19 +85,44 @@ class GoalCreate(BaseModel):
     @classmethod
     def validate_goal_category_fields(cls, values):
         """Validate that required fields are present based on goal_category"""
-        goal_category = values.get('goal_category')
+        goal_category = values.get('goal_category') or values.get('goalCategory')
+        
         if goal_category == "業績目標":  # Performance goal
+            # Check for 5 performance goal specific fields
             required_fields = ['title', 'performance_goal_type', 'specific_goal_text', 
                              'achievement_criteria_text', 'means_methods_text']
-            if any(values.get(field) is None for field in required_fields):
-                raise ValueError("Performance goals require: title, performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText")
+            # Handle both snake_case and camelCase field names
+            field_map = {
+                'performance_goal_type': 'performanceGoalType',
+                'specific_goal_text': 'specificGoalText',
+                'achievement_criteria_text': 'achievementCriteriaText',
+                'means_methods_text': 'meansMethodsText'
+            }
+            
+            missing_fields = []
+            for field in required_fields:
+                snake_case_value = values.get(field)
+                camel_case_value = values.get(field_map.get(field, field))
+                if snake_case_value is None and camel_case_value is None:
+                    missing_fields.append(field_map.get(field, field))
+            
+            if missing_fields:
+                raise ValueError(f"Performance goals require: {', '.join(missing_fields)}")
+                
         elif goal_category == "コンピテンシー":  # Competency goal
-            if values.get('competency_id') is None or values.get('action_plan') is None:
-                raise ValueError("Competency goals require: competencyId, actionPlan")
-        # NOTE: Core value goal should be automatically created by the system
-        elif goal_category == "コアバリュー":  # Core value goal
-            if values.get('core_value_plan') is None:
-                raise ValueError("Core value goals require: coreValuePlan")
+            # Check for 2 competency goal specific fields
+            competency_id_value = values.get('competency_id') or values.get('competencyId')
+            action_plan_value = values.get('action_plan') or values.get('actionPlan')
+            
+            missing_fields = []
+            if competency_id_value is None:
+                missing_fields.append('competencyId')
+            if action_plan_value is None:
+                missing_fields.append('actionPlan')
+                
+            if missing_fields:
+                raise ValueError(f"Competency goals require: {', '.join(missing_fields)}")
+        
         return values
 
 
