@@ -313,7 +313,7 @@ async def get_supervisor_subordinate_goals(
     supervisor_id: UUID,
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    status: Optional[str] = Query(None, description="Filter by status (draft, pending_approval, approved, rejected)"),
+    status: Optional[str] = Query(None, description="Filter by status (draft, incomplete, pending_approval, approved, rejected)"),
     context: AuthContext = Depends(require_supervisor_or_above),
     session: AsyncSession = Depends(get_db_session)
 ):

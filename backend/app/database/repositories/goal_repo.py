@@ -62,7 +62,7 @@ class GoalRepository:
                 goal_category=goal_data.goal_category,
                 target_data=target_data,
                 weight=Decimal(str(goal_data.weight)) if goal_data.weight is not None else None,
-                status=goal_data.status.value if goal_data.status else GoalStatus.DRAFT.value
+                status=goal_data.status.value if goal_data.status else GoalStatus.INCOMPLETE.value
             )
             
             self.session.add(goal)
@@ -214,6 +214,7 @@ class GoalRepository:
         exclude_goal_id: Optional[UUID] = None
     ) -> Dict[str, Decimal]:
         """Get total weight by category for weight validation."""
+        # TODO: Need to reconsider more about not including rejected goals in filter
         try:
             query = select(
                 Goal.goal_category,
@@ -222,11 +223,7 @@ class GoalRepository:
                 and_(
                     Goal.user_id == user_id,
                     Goal.period_id == period_id,
-                    Goal.status.in_([
-                        GoalStatus.DRAFT.value,
-                        GoalStatus.PENDING_APPROVAL.value,
-                        GoalStatus.APPROVED.value
-                    ])
+                    Goal.status != GoalStatus.REJECTED.value
                 )
             )
             
@@ -606,7 +603,7 @@ class GoalRepository:
         if goal_data.goal_category == "業績目標":  # Performance goal
             target_data = {
                 "title": goal_data.title,
-                "performance_goal_type": goal_data.performance_goal_type.value if goal_data.performance_goal_type else None,
+                "performance_goal_type": goal_data.performance_goal_type.value,
                 "specific_goal_text": goal_data.specific_goal_text,
                 "achievement_criteria_text": goal_data.achievement_criteria_text,
                 "means_methods_text": goal_data.means_methods_text
