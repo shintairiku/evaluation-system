@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -42,18 +42,16 @@ interface NavigationState {
 
 // Custom node component for department blocks (Task #168)
 const DepartmentNode = ({ 
-  data, 
-  onClick 
+  data
 }: { 
-  data: { department: Department; userCount: number }; 
-  onClick: (departmentId: string) => void;
+  data: { department: Department; userCount: number; onDepartmentClick: (departmentId: string) => void };
 }) => {
-  const { department, userCount } = data;
+  const { department, userCount, onDepartmentClick } = data;
   
   return (
     <Card 
       className="w-80 cursor-pointer hover:shadow-lg transition-all duration-200 border-blue-300 bg-blue-50/80"
-      onClick={() => onClick(department.id)}
+      onClick={() => onDepartmentClick(department.id)}
     >
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
@@ -78,13 +76,11 @@ const DepartmentNode = ({
 
 // Custom node component for managers/supervisors (Task #168)
 const ManagerNode = ({ 
-  data, 
-  onClick 
+  data
 }: { 
-  data: { user: UserDetailResponse }; 
-  onClick: (userId: string) => void;
+  data: { user: UserDetailResponse; onManagerClick?: (userId: string) => void };
 }) => {
-  const { user } = data;
+  const { user, onManagerClick } = data;
   
   const getCardStyle = () => {
     if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
@@ -113,8 +109,8 @@ const ManagerNode = ({
 
   return (
     <Card 
-      className={`w-72 cursor-pointer hover:shadow-lg transition-all duration-200 ${getCardStyle()}`}
-      onClick={() => onClick(user.id)}
+      className={`w-72 ${onManagerClick ? 'cursor-pointer hover:shadow-lg' : ''} transition-all duration-200 ${getCardStyle()}`}
+      onClick={() => onManagerClick?.(user.id)}
     >
       <CardHeader className="pb-4">
         <div className="flex items-start justify-between">
@@ -274,7 +270,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
   }, []);
 
   // Task #168: Handle department click - show managers/supervisors
-  const handleDepartmentClick = async (departmentId: string) => {
+  const handleDepartmentClick = useCallback(async (departmentId: string) => {
     setLoading(true);
     try {
       const department = departments.find(d => d.id === departmentId);
@@ -306,10 +302,10 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
     } finally {
       setLoading(false);
     }
-  };
+  }, [departments]);
 
   // Task #168: Handle manager/supervisor click - show subordinates
-  const handleManagerClick = async (userId: string) => {
+  const handleManagerClick = useCallback(async (userId: string) => {
     setLoading(true);
     try {
       const manager = currentUsers.find(u => u.id === userId);
@@ -319,21 +315,21 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       const subordinates = subordinatesResult.success ? subordinatesResult.data?.items || [] : [];
 
       setCurrentUsers(subordinates);
-      setNavigationState({
+      setNavigationState(prev => ({
         level: 'subordinates',
-        currentDepartment: navigationState.currentDepartment,
+        currentDepartment: prev.currentDepartment,
         currentSupervisor: manager,
-        breadcrumb: [...navigationState.breadcrumb, manager.name, '部下一覧']
-      });
+        breadcrumb: [...prev.breadcrumb, manager.name, '部下一覧']
+      }));
     } catch (error) {
       console.error('Error loading subordinates:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUsers]);
 
   // Handle navigation back
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (navigationState.level === 'subordinates') {
       // Go back to managers level
       handleDepartmentClick(navigationState.currentDepartment!.id);
@@ -345,7 +341,11 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       });
       setCurrentUsers([]);
     }
-  };
+  }, [navigationState.level, navigationState.currentDepartment, handleDepartmentClick]);
+
+  // Memoized functions to avoid infinite loops
+  const memoizedHandleDepartmentClick = useMemo(() => handleDepartmentClick, [handleDepartmentClick]);
+  const memoizedHandleManagerClick = useMemo(() => handleManagerClick, [handleManagerClick]);
 
   // Generate nodes and edges based on current navigation level
   const { nodes, edges } = useMemo(() => {
@@ -364,7 +364,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           data: { 
             department, 
             userCount,
-            onClick: handleDepartmentClick
+            onDepartmentClick: memoizedHandleDepartmentClick
           }
         });
       });
@@ -377,7 +377,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           position: { x: (index % 3) * 300, y: Math.floor(index / 3) * 220 },
           data: { 
             user,
-            onClick: handleManagerClick
+            onManagerClick: memoizedHandleManagerClick
           }
         });
       });
@@ -392,8 +392,8 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           type: 'managerNode',
           position: { x: Math.max(0, (currentUsers.length - 1) * 150), y: 0 },
           data: { 
-            user: supervisor,
-            onClick: () => {} // No click for subordinates view
+            user: supervisor
+            // No onManagerClick for subordinates view
           }
         });
         
@@ -429,7 +429,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
     }
 
     return { nodes: nodeList, edges: edgeList };
-  }, [navigationState, departments, currentUsers, users, handleDepartmentClick, handleManagerClick]);
+  }, [navigationState, departments, currentUsers, users, memoizedHandleDepartmentClick, memoizedHandleManagerClick]);
 
   const [nodesState, setNodes] = useNodesState(nodes);
   const [edgesState] = useEdgesState(edges);
