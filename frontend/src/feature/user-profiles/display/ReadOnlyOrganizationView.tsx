@@ -816,7 +816,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           fitView={false}
           minZoom={0.1}
           maxZoom={1.2}
-          defaultViewport={{ x: 100, y: 50, zoom: 0.9 }}
+          defaultViewport={{ x: 200, y: 50, zoom: 0.8 }}
           proOptions={{ hideAttribution: true }}
           nodesDraggable={false}
           nodesConnectable={false}
