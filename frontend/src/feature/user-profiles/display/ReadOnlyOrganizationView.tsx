@@ -314,7 +314,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       const deptUsers = organizationStructure.get(department.id) || [];
       const userCount = deptUsers.length;
       
-      // Position departments horizontally below company - adjusted for w-64 cards
+      // Position departments horizontally below company
       const xPosition = (index * 280) + (400 - ((departments.length - 1) * 140));
       
       nodeList.push({
@@ -344,7 +344,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
             leftBound: number, 
             rightBound: number 
           } => {
-            const nodeWidth = 320; // Card width + reasonable padding
+            const nodeWidth = 288; // w-72 user card actual width
             const verticalSpacing = 400; // Keep vertical spacing
             const minHorizontalSpacing = 60; // Reduce horizontal spacing between siblings
             const userY = 350 + level * verticalSpacing;
@@ -408,24 +408,37 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
             };
           };
           
-          // Layout each root user tree with proper spacing
-          let currentX = xPosition - 400; // Reduce initial offset
-          roots.forEach((rootUser, index) => {
-            if (index > 0) {
-              currentX += 100; // Reduce spacing between root hierarchies
-            }
-            
-            const result = layoutHierarchy(rootUser, 0, currentX);
-            currentX = result.rightBound + 100; // Reduce space to right of this hierarchy
+          // Layout each root user tree centered below department
+          const departmentCenterX = xPosition + 128; // Center of w-64 department card (256/2 = 128)
+          
+          if (roots.length === 1) {
+            // Single root user - center it directly below department
+            // Adjust for user card width (w-72 = 288px, so center at departmentCenterX - 144)
+            const userCenterX = departmentCenterX;
+            layoutHierarchy(roots[0], 0, userCenterX);
+          } else {
+            // Multiple roots - start from department center and spread out
+            let currentX = departmentCenterX - ((roots.length - 1) * 200); // Distribute around center
+            roots.forEach((rootUser) => {
+              layoutHierarchy(rootUser, 0, currentX);
+              currentX += 400; // Space between multiple roots
+            });
+          }
+          
+          // Create edges for all roots
+          roots.forEach((rootUser) => {
             
             // Add edge from department to root user
+            // Use straight line when user is centered, smoothstep for others
+            const edgeType = (roots.length === 1) ? 'straight' : 'smoothstep';
+            
             edgeList.push({
               id: `${department.id}-user-${rootUser.id}`,
               source: department.id,
               target: `user-${rootUser.id}`,
               sourceHandle: 'bottom',
               targetHandle: 'top',
-              type: 'smoothstep',
+              type: edgeType,
               style: { 
                 stroke: '#3b82f6', 
                 strokeWidth: 3,
