@@ -253,31 +253,36 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
   // Load departments on mount
   useEffect(() => {
     const loadDepartments = async () => {
+      // First, immediately extract departments from users for instant display
+      const userDepartments = users
+        .filter(user => user.department)
+        .map(user => user.department!)
+        .filter((dept, index, self) => 
+          index === self.findIndex(d => d.id === dept.id)
+        );
+      
+      // Set departments immediately from users
+      setDepartments(userDepartments);
+      
+      // Then try to load additional departments from API in background
       try {
         const result = await getProfileOptionsAction();
         if (result && result.success && result.data && result.data.departments) {
-          setDepartments(result.data.departments);
-        } else {
-          console.warn('Failed to load departments:', result);
-          // Fallback: extract departments from users
-          const uniqueDepartments = users
-            .filter(user => user.department)
-            .map(user => user.department!)
-            .filter((dept, index, self) => 
-              index === self.findIndex(d => d.id === dept.id)
-            );
-          setDepartments(uniqueDepartments);
+          // Merge API departments with user departments
+          const apiDepartments = result.data.departments;
+          const allDepartments = [...userDepartments];
+          
+          apiDepartments.forEach(apiDept => {
+            if (!allDepartments.find(userDept => userDept.id === apiDept.id)) {
+              allDepartments.push(apiDept);
+            }
+          });
+          
+          setDepartments(allDepartments);
         }
       } catch (error) {
-        console.error('Error loading departments:', error);
-        // Fallback: extract departments from users
-        const uniqueDepartments = users
-          .filter(user => user.department)
-          .map(user => user.department!)
-          .filter((dept, index, self) => 
-            index === self.findIndex(d => d.id === dept.id)
-          );
-        setDepartments(uniqueDepartments);
+        console.error('Error loading departments from API:', error);
+        // Keep the user departments that were set immediately
       }
     };
     
