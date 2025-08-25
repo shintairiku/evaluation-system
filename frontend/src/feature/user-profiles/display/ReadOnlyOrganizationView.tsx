@@ -378,13 +378,13 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           } else {
             // Multiple users - calculate exact width needed to prevent overlaps
             const nodeWidth = 288; // w-72 user card width
-            const minSpacing = 50; // Minimum spacing between cards
+            const minSpacing = 30; // Much smaller spacing between cards
             const totalSpacing = (roots.length - 1) * (nodeWidth + minSpacing);
             const totalWidth = (roots.length * nodeWidth) + totalSpacing;
             
-            // Add extra padding for visual comfort
-            const requiredWidth = totalWidth + 200; // Extra padding
-            departmentWidths.push(Math.max(600, requiredWidth));
+            // Add minimal padding to keep table compact
+            const requiredWidth = totalWidth + 100; // Minimal extra padding
+            departmentWidths.push(Math.max(500, requiredWidth));
           }
         } else {
           // Collapsed department needs minimal width
@@ -461,8 +461,8 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
             rightBound: number 
           } => {
             const nodeWidth = 288; // w-72 user card actual width
-            const verticalSpacing = 500; // Increased vertical spacing between levels
-            const minHorizontalSpacing = 100; // Increased horizontal spacing to prevent overlap
+            const verticalSpacing = 500; // Keep vertical spacing
+            const minHorizontalSpacing = 40; // Further reduced horizontal spacing between users
             const userY = 450 + level * verticalSpacing; // Increased starting position for more space from department
             
             // Find subordinates first to calculate positioning
@@ -821,7 +821,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           fitView={false}
           minZoom={0.1}
           maxZoom={1.2}
-          defaultViewport={{ x: 200, y: 50, zoom: 0.8 }}
+          defaultViewport={{ x: 150, y: 50, zoom: 0.85 }}
           proOptions={{ hideAttribution: true }}
           nodesDraggable={false}
           nodesConnectable={false}
