@@ -808,21 +808,15 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       </div>
       
       {/* Organization Chart */}
-      <div className="w-full h-[1800px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-xl">
+      <div className="w-full h-[800px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-xl">
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
           nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ 
-            padding: 0.02,
-            includeHiddenNodes: false,
-            minZoom: 0.05,
-            maxZoom: 1.0
-          }}
-          minZoom={0.02}
+          fitView={false}
+          minZoom={0.1}
           maxZoom={1.2}
-          defaultViewport={{ x: 0, y: 0, zoom: 0.4 }}
+          defaultViewport={{ x: 100, y: 50, zoom: 0.9 }}
           proOptions={{ hideAttribution: true }}
           nodesDraggable={false}
           nodesConnectable={false}
