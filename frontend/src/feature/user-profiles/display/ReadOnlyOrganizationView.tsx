@@ -320,7 +320,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           // Simulate the hierarchy layout algorithm to get actual width needed
           const simulateHierarchyWidth = (user: UserDetailResponse): { width: number, leftBound: number, rightBound: number } => {
             const nodeWidth = 288; // w-72 user card actual width
-            const minHorizontalSpacing = 60; // spacing between siblings
+            const minHorizontalSpacing = 100; // spacing between siblings
             
             // Find subordinates
             const subordinates = deptUsers.filter(u => u.supervisor?.id === user.id);
@@ -351,24 +351,25 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
             };
           };
           
-          // Calculate total width needed for all root hierarchies
-          let totalDepartmentWidth = 256; // Department card width (w-64)
-          
-          if (roots.length === 1) {
+          // Width calculation with better spacing for overlap prevention
+          if (roots.length === 0) {
+            // No users - minimal width
+            departmentWidths.push(320);
+          } else if (roots.length === 1) {
+            // Single user - enough space for hierarchy, minimum to allow visual centering
             const rootWidth = simulateHierarchyWidth(roots[0]);
-            totalDepartmentWidth = Math.max(totalDepartmentWidth, rootWidth.width + 100); // Extra padding
+            departmentWidths.push(Math.max(500, rootWidth.width + 150));
           } else {
-            // Multiple roots - calculate combined width
-            let combinedWidth = 0;
-            roots.forEach((rootUser, index) => {
-              const rootWidth = simulateHierarchyWidth(rootUser);
-              combinedWidth += rootWidth.width;
-              if (index > 0) combinedWidth += 200; // Space between root hierarchies
-            });
-            totalDepartmentWidth = Math.max(totalDepartmentWidth, combinedWidth + 100);
+            // Multiple users - calculate exact width needed to prevent overlaps
+            const nodeWidth = 288; // w-72 user card width
+            const minSpacing = 50; // Minimum spacing between cards
+            const totalSpacing = (roots.length - 1) * (nodeWidth + minSpacing);
+            const totalWidth = (roots.length * nodeWidth) + totalSpacing;
+            
+            // Add extra padding for visual comfort
+            const requiredWidth = totalWidth + 200; // Extra padding
+            departmentWidths.push(Math.max(600, requiredWidth));
           }
-          
-          departmentWidths.push(totalDepartmentWidth);
         } else {
           // Collapsed department needs minimal width
           departmentWidths.push(280); // Just department width
@@ -380,9 +381,12 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
     
     const departmentWidths = calculateDepartmentSpacing();
     
-    // Calculate company position to center above departments
-    const totalWidth = departmentWidths.reduce((sum, width) => sum + width, 0);
-    const companyX = Math.max(400, totalWidth / 2);
+    // Calculate department layout positions
+    const startX = 200; // Start position for departments
+    const totalDepartmentsWidth = departmentWidths.reduce((sum, width) => sum + width, 0);
+    
+    // Calculate company position to center above all departments
+    const companyX = startX + (totalDepartmentsWidth / 2) - 128; // Center company above departments (128 = half of company card width)
 
     // Add company root node
     const companyName = '株式会社新大陸';
@@ -398,7 +402,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
     });
     
     // Position departments with dynamic spacing
-    let currentX = 200; // Start position
+    let currentX = startX;
     const departmentPositions: { [key: string]: number } = {};
     
     // Add department nodes with calculated positions
@@ -442,7 +446,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           } => {
             const nodeWidth = 288; // w-72 user card actual width
             const verticalSpacing = 400; // Keep vertical spacing
-            const minHorizontalSpacing = 60; // Reduce horizontal spacing between siblings
+            const minHorizontalSpacing = 100; // Increased horizontal spacing to prevent overlap
             const userY = 350 + level * verticalSpacing;
             
             // Find subordinates first to calculate positioning
@@ -464,31 +468,38 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
               };
             }
             
-            // Layout subordinates first with improved spacing
-            const subordinateResults: Array<{ width: number, leftBound: number, rightBound: number }> = [];
-            let currentSubordinateX = xCenter;
-            
-            // First pass: calculate all subordinate layouts
-            subordinates.forEach((subordinate) => {
-              const subResult = layoutHierarchy(subordinate, level + 1, currentSubordinateX);
-              subordinateResults.push(subResult);
-              
-              // Position next subordinate to the right with spacing
-              currentSubordinateX = subResult.rightBound + minHorizontalSpacing;
+            // Calculate total width needed for all subordinates first
+            const subordinateWidths = subordinates.map(sub => {
+              return simulateHierarchyWidth(sub);
             });
             
-            // Calculate total width needed
-            const totalSubordinateWidth = subordinateResults.length > 0 
-              ? subordinateResults[subordinateResults.length - 1].rightBound - subordinateResults[0].leftBound
-              : nodeWidth;
+            const totalSubordinateWidth = subordinateWidths.reduce((sum, sub) => sum + sub.width, 0) + 
+                                        (subordinates.length - 1) * minHorizontalSpacing;
             
-            // Calculate final position for parent
-            const leftmostChild = subordinateResults[0].leftBound;
-            const rightmostChild = subordinateResults[subordinateResults.length - 1].rightBound;
-            const childrenCenter = (leftmostChild + rightmostChild) / 2;
+            // Start position for subordinates (centered under parent)
+            const subordinatesStartX = xCenter - (totalSubordinateWidth / 2);
             
-            // Position parent centered above children
-            const parentX = Math.max(xCenter - nodeWidth/2, childrenCenter - nodeWidth/2);
+            // Layout subordinates with proper spacing
+            const subordinateResults: Array<{ width: number, leftBound: number, rightBound: number }> = [];
+            let currentSubordinateX = subordinatesStartX;
+            
+            subordinates.forEach((subordinate, subIndex) => {
+              const subWidth = subordinateWidths[subIndex];
+              const subCenterX = currentSubordinateX + (subWidth.width / 2);
+              const subResult = layoutHierarchy(subordinate, level + 1, subCenterX);
+              subordinateResults.push(subResult);
+              
+              // Move to next subordinate position
+              currentSubordinateX += subWidth.width + minHorizontalSpacing;
+            });
+            
+            // Calculate final position for parent (center above children)
+            const leftmostChild = subordinateResults.length > 0 ? subordinateResults[0].leftBound : xCenter - nodeWidth/2;
+            const rightmostChild = subordinateResults.length > 0 ? subordinateResults[subordinateResults.length - 1].rightBound : xCenter + nodeWidth/2;
+            
+            // Position parent at the provided xCenter
+            const parentX = xCenter - nodeWidth/2;
+            const finalTotalWidth = Math.max(nodeWidth, totalSubordinateWidth);
             
             nodeList.push({
               id: `user-${user.id}`,
@@ -498,67 +509,47 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
             });
             
             return {
-              width: Math.max(nodeWidth, totalSubordinateWidth),
+              width: finalTotalWidth,
               leftBound: Math.min(parentX, leftmostChild),
               rightBound: Math.max(parentX + nodeWidth, rightmostChild)
             };
           };
           
-          // Layout users within the allocated department width
-          const departmentCenterX = xPosition + 128; // Center of w-64 department card (256/2 = 128)
-          const departmentAllocatedWidth = departmentWidths[index]; // Width allocated for this department
-          const departmentLeftBound = xPosition;
-          const departmentRightBound = xPosition + departmentAllocatedWidth;
+          // Hybrid approach: Center users within the allocated space while respecting boundaries
+          const departmentCenterX = xPosition + 128; // Visual center of department card
+          const departmentAllocatedWidth = departmentWidths[index]; // Space allocated for this department
+          const allocatedSpaceCenter = xPosition + (departmentAllocatedWidth / 2); // Center of allocated space
+          
+          // Choose the best centering point: prefer visual center but respect boundaries
+          const safeCenterX = departmentAllocatedWidth > 400 ? departmentCenterX : allocatedSpaceCenter;
           
           if (roots.length === 1) {
-            // Single root user - center it within department bounds
-            const userCenterX = departmentCenterX;
-            layoutHierarchy(roots[0], 0, userCenterX);
+            // Single root user - center it at the safe center point
+            layoutHierarchy(roots[0], 0, safeCenterX);
           } else {
-            // Multiple roots - distribute within department bounds
-            const availableWidth = departmentAllocatedWidth - 256; // Subtract department card width
-            const totalRootsWidth = roots.reduce((sum, root) => {
-              const rootSimulation = simulateHierarchyWidth(root);
-              return sum + rootSimulation.width;
-            }, 0);
-            const spacingBetweenRoots = Math.max(100, (availableWidth - totalRootsWidth) / (roots.length + 1));
+            // Multiple roots - ensure proper spacing to prevent overlaps
+            const nodeWidth = 288; // w-72 user card width
+            const minSpacing = 50; // Minimum spacing between cards
+            const totalSpacing = (roots.length - 1) * (nodeWidth + minSpacing);
             
-            let currentX = departmentLeftBound + spacingBetweenRoots;
-            roots.forEach((rootUser) => {
-              const rootSimulation = simulateHierarchyWidth(rootUser);
-              layoutHierarchy(rootUser, 0, currentX + rootSimulation.width/2);
-              currentX += rootSimulation.width + spacingBetweenRoots;
+            // Calculate the total width needed for all root users
+            const totalWidth = (roots.length * nodeWidth) + totalSpacing;
+            
+            // Ensure we don't exceed the allocated department width
+            const maxAvailableWidth = departmentAllocatedWidth - 100; // Leave some padding
+            const actualSpacing = totalWidth <= maxAvailableWidth 
+              ? minSpacing 
+              : Math.max(20, (maxAvailableWidth - (roots.length * nodeWidth)) / (roots.length - 1));
+            
+            // Calculate starting position to center the group
+            const groupWidth = (roots.length * nodeWidth) + ((roots.length - 1) * actualSpacing);
+            const startX = safeCenterX - (groupWidth / 2) + (nodeWidth / 2);
+            
+            // Position each root user with proper spacing
+            roots.forEach((rootUser, rootIndex) => {
+              const userX = startX + (rootIndex * (nodeWidth + actualSpacing));
+              layoutHierarchy(rootUser, 0, userX);
             });
-          }
-          
-          // Simulate hierarchy width function (moved here to be accessible)
-          function simulateHierarchyWidth(user: UserDetailResponse): { width: number, leftBound: number, rightBound: number } {
-            const nodeWidth = 288;
-            const minHorizontalSpacing = 60;
-            
-            const subordinates = deptUsers.filter(u => u.supervisor?.id === user.id);
-            
-            if (subordinates.length === 0) {
-              return { 
-                width: nodeWidth, 
-                leftBound: 0, 
-                rightBound: nodeWidth 
-              };
-            }
-            
-            let totalSubordinateWidth = 0;
-            subordinates.forEach(subordinate => {
-              const result = simulateHierarchyWidth(subordinate);
-              totalSubordinateWidth += result.width;
-            });
-            
-            totalSubordinateWidth += (subordinates.length - 1) * minHorizontalSpacing;
-            
-            return {
-              width: Math.max(nodeWidth, totalSubordinateWidth),
-              leftBound: 0,
-              rightBound: Math.max(nodeWidth, totalSubordinateWidth)
-            };
           }
           
           // Create edges for all roots
@@ -588,6 +579,36 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
               },
             });
           });
+          
+          // Simulate hierarchy width function (moved here to be accessible)
+          function simulateHierarchyWidth(user: UserDetailResponse): { width: number, leftBound: number, rightBound: number } {
+            const nodeWidth = 288;
+            const minHorizontalSpacing = 100;
+            
+            const subordinates = deptUsers.filter(u => u.supervisor?.id === user.id);
+            
+            if (subordinates.length === 0) {
+              return { 
+                width: nodeWidth, 
+                leftBound: 0, 
+                rightBound: nodeWidth 
+              };
+            }
+            
+            let totalSubordinateWidth = 0;
+            subordinates.forEach(subordinate => {
+              const result = simulateHierarchyWidth(subordinate);
+              totalSubordinateWidth += result.width;
+            });
+            
+            totalSubordinateWidth += (subordinates.length - 1) * minHorizontalSpacing;
+            
+            return {
+              width: Math.max(nodeWidth, totalSubordinateWidth),
+              leftBound: 0,
+              rightBound: Math.max(nodeWidth, totalSubordinateWidth)
+            };
+          }
           
         };
         
