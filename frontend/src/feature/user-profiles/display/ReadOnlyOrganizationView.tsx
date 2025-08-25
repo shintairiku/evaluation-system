@@ -35,11 +35,10 @@ const OrgNode = ({
     name: string; 
     userCount: number; 
     isDepartment?: boolean;
-    users?: UserDetailResponse[];
     onClick?: () => void;
   };
 }) => {
-  const { name, userCount, isDepartment = false, users = [], onClick } = data;
+  const { name, userCount, isDepartment = false, onClick } = data;
   
   const getNodeStyle = () => {
     if (isDepartment) {
@@ -76,19 +75,6 @@ const OrgNode = ({
           </div>
         </CardHeader>
         
-        {/* Show users in the node for smaller teams/departments */}
-        {!isDepartment && users.length > 0 && users.length <= 3 && (
-          <CardContent className="pt-0 pb-2">
-            <div className="space-y-1">
-              {users.map((user) => (
-                <div key={user.id} className="text-xs flex items-center gap-1">
-                  <User className="w-3 h-3" />
-                  <span className="truncate">{user.name}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        )}
       </Card>
       <Handle
         type="source"
@@ -227,6 +213,18 @@ const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
           </div>
         </CardContent>
       </Card>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="bottom"
+        style={{ 
+          background: '#3b82f6',
+          width: 8,
+          height: 8,
+          border: '2px solid #ffffff',
+          borderRadius: '50%'
+        }}
+      />
     </div>
   );
 };
@@ -327,122 +325,143 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           name: department.name,
           userCount,
           isDepartment: false,
-          users: deptUsers,
           onClick: () => handleDepartmentClick(department.id)
         }
       });
       
       // Add user nodes if department is expanded - arranged in hierarchy
       if (expandedDepartment === department.id && deptUsers.length > 0) {
-        // Build hierarchy within department
+        // Build hierarchy within department using improved spacing algorithm
         const buildUserHierarchy = (users: UserDetailResponse[]) => {
           // Find root users (no supervisor within this department or supervisor outside department)
           const roots = users.filter(user => 
             !user.supervisor || !users.find(u => u.id === user.supervisor?.id)
           );
           
-          // Function to recursively layout users in hierarchy
-          const layoutHierarchy = (user: UserDetailResponse, level: number, xOffset: number): { width: number, nextY: number } => {
-            const userY = 350 + level * 250; // Vertical spacing between levels
+          // Function to recursively layout users in hierarchy with better spacing
+          const layoutHierarchy = (user: UserDetailResponse, level: number, xCenter: number): { 
+            width: number, 
+            leftBound: number, 
+            rightBound: number 
+          } => {
+            const nodeWidth = 320; // Card width + reasonable padding
+            const verticalSpacing = 400; // Keep vertical spacing
+            const minHorizontalSpacing = 60; // Reduce horizontal spacing between siblings
+            const userY = 350 + level * verticalSpacing;
             
-            // Position current user
-            nodeList.push({
-              id: `user-${user.id}`,
-              type: 'userNode',
-              position: { x: xPosition + xOffset, y: userY },
-              data: { user }
-            });
-            
-            // Add edge from department to root users, or from supervisor to subordinate
-            if (level === 0) {
-              // Connect department to root users
-              edgeList.push({
-                id: `${department.id}-user-${user.id}`,
-                source: department.id,
-                target: `user-${user.id}`,
-                type: 'smoothstep',
-                style: { 
-                  stroke: '#10b981', 
-                  strokeWidth: 2,
-                  opacity: 0.7
-                },
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  width: 12,
-                  height: 12,
-                  color: '#10b981',
-                },
-              });
-            } else {
-              // Find supervisor and connect
-              const supervisor = users.find(u => u.id === user.supervisor?.id);
-              if (supervisor) {
-                edgeList.push({
-                  id: `user-${supervisor.id}-user-${user.id}`,
-                  source: `user-${supervisor.id}`,
-                  target: `user-${user.id}`,
-                  type: 'smoothstep',
-                  style: { 
-                    stroke: '#10b981', 
-                    strokeWidth: 2,
-                    opacity: 0.7
-                  },
-                  markerEnd: {
-                    type: MarkerType.ArrowClosed,
-                    width: 12,
-                    height: 12,
-                    color: '#10b981',
-                  },
-                });
-              }
-            }
-            
-            // Find subordinates
+            // Find subordinates first to calculate positioning
             const subordinates = users.filter(u => u.supervisor?.id === user.id);
             
             if (subordinates.length === 0) {
-              return { width: 300, nextY: userY + 250 };
+              // Leaf node - position at xCenter
+              nodeList.push({
+                id: `user-${user.id}`,
+                type: 'userNode',
+                position: { x: xCenter - nodeWidth/2, y: userY },
+                data: { user }
+              });
+              
+              return { 
+                width: nodeWidth, 
+                leftBound: xCenter - nodeWidth/2, 
+                rightBound: xCenter + nodeWidth/2 
+              };
             }
             
-            // Layout subordinates
-            let totalWidth = 0;
-            let maxY = userY + 250;
+            // Layout subordinates first with improved spacing
+            const subordinateResults: Array<{ width: number, leftBound: number, rightBound: number }> = [];
+            let currentSubordinateX = xCenter;
             
+            // First pass: calculate all subordinate layouts
             subordinates.forEach((subordinate, index) => {
-              const subResult = layoutHierarchy(subordinate, level + 1, xOffset + totalWidth);
-              totalWidth += subResult.width;
-              maxY = Math.max(maxY, subResult.nextY);
+              const subResult = layoutHierarchy(subordinate, level + 1, currentSubordinateX);
+              subordinateResults.push(subResult);
+              
+              // Position next subordinate to the right with spacing
+              currentSubordinateX = subResult.rightBound + minHorizontalSpacing;
             });
             
-            return { width: Math.max(300, totalWidth), nextY: maxY };
+            // Calculate total width needed
+            const totalSubordinateWidth = subordinateResults.length > 0 
+              ? subordinateResults[subordinateResults.length - 1].rightBound - subordinateResults[0].leftBound
+              : nodeWidth;
+            
+            // Calculate final position for parent
+            const leftmostChild = subordinateResults[0].leftBound;
+            const rightmostChild = subordinateResults[subordinateResults.length - 1].rightBound;
+            const childrenCenter = (leftmostChild + rightmostChild) / 2;
+            
+            // Position parent centered above children
+            const parentX = Math.max(xCenter - nodeWidth/2, childrenCenter - nodeWidth/2);
+            
+            nodeList.push({
+              id: `user-${user.id}`,
+              type: 'userNode',
+              position: { x: parentX, y: userY },
+              data: { user }
+            });
+            
+            return {
+              width: Math.max(nodeWidth, totalSubordinateWidth),
+              leftBound: Math.min(parentX, leftmostChild),
+              rightBound: Math.max(parentX + nodeWidth, rightmostChild)
+            };
           };
           
-          // Layout each root user tree
-          let currentX = -200; // Start offset from department center
-          roots.forEach(rootUser => {
+          // Layout each root user tree with proper spacing
+          let currentX = xPosition - 400; // Reduce initial offset
+          roots.forEach((rootUser, index) => {
+            if (index > 0) {
+              currentX += 100; // Reduce spacing between root hierarchies
+            }
+            
             const result = layoutHierarchy(rootUser, 0, currentX);
-            currentX += result.width + 100; // Spacing between different hierarchy trees
+            currentX = result.rightBound + 100; // Reduce space to right of this hierarchy
+            
+            // Add edge from department to root user
+            edgeList.push({
+              id: `${department.id}-user-${rootUser.id}`,
+              source: department.id,
+              target: `user-${rootUser.id}`,
+              sourceHandle: 'bottom',
+              targetHandle: 'top',
+              type: 'smoothstep',
+              style: { 
+                stroke: '#3b82f6', 
+                strokeWidth: 3,
+                opacity: 0.8
+              },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                width: 20,
+                height: 20,
+                color: '#3b82f6',
+              },
+            });
           });
+          
         };
         
         buildUserHierarchy(deptUsers);
       }
       
-      // Add edge from company to department
+      // Add edge from company to department (matching edit view style)
       edgeList.push({
         id: `company-${department.id}`,
         source: 'company-root',
         target: department.id,
+        sourceHandle: 'bottom',
+        targetHandle: 'top',
         type: 'smoothstep',
         style: { 
           stroke: '#3b82f6', 
-          strokeWidth: 2,
+          strokeWidth: 3,
           opacity: 0.8
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          width: 15,
-          height: 15,
+          width: 20,
+          height: 20,
           color: '#3b82f6',
         },
       });
@@ -510,16 +529,48 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       }
     });
 
+    // Add edges between supervisors and subordinates for expanded department
+    if (expandedDepartment) {
+      const expandedDeptUsers = organizationStructure.get(expandedDepartment) || [];
+      expandedDeptUsers.forEach(user => {
+        if (user.supervisor) {
+          const supervisor = expandedDeptUsers.find(u => u.id === user.supervisor?.id);
+          if (supervisor) {
+            edgeList.push({
+              id: `user-${supervisor.id}-user-${user.id}`,
+              source: `user-${supervisor.id}`,
+              target: `user-${user.id}`,
+              sourceHandle: 'bottom',
+              targetHandle: 'top',
+              type: 'smoothstep',
+              style: { 
+                stroke: '#3b82f6', 
+                strokeWidth: 3,
+                opacity: 0.8
+              },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                width: 20,
+                height: 20,
+                color: '#3b82f6',
+              },
+            });
+          }
+        }
+      });
+    }
+
     return { nodes: nodeList, edges: edgeList };
   }, [departments, users, organizationStructure, expandedDepartment, handleDepartmentClick]);
 
   const [nodesState, setNodes] = useNodesState(nodes);
-  const [edgesState] = useEdgesState(edges);
+  const [edgesState, setEdges] = useEdgesState(edges);
 
-  // Update nodes when organization changes
+  // Update nodes and edges when organization changes
   useEffect(() => {
     setNodes(nodes);
-  }, [nodes, setNodes]);
+    setEdges(edges);
+  }, [nodes, edges, setNodes, setEdges]);
 
   return (
     <div className="space-y-6">
@@ -543,21 +594,21 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       </div>
       
       {/* Organization Chart */}
-      <div className="w-full h-[900px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
+      <div className="w-full h-[1400px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ 
-            padding: 0.1,
+            padding: 0.02,
             includeHiddenNodes: false,
-            minZoom: 0.4,
-            maxZoom: 1.2
+            minZoom: 0.05,
+            maxZoom: 1.0
           }}
-          minZoom={0.3}
-          maxZoom={1.5}
-          defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
+          minZoom={0.02}
+          maxZoom={1.2}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.4 }}
           proOptions={{ hideAttribution: true }}
           nodesDraggable={false}
           nodesConnectable={false}
