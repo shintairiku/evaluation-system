@@ -839,7 +839,8 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
             className="opacity-30"
           />
           <Controls 
-            className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg"
+            position="top-right"
+            className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg z-10"
             showZoom={true}
             showFitView={true}
             showInteractive={false}
