@@ -462,7 +462,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           } => {
             const nodeWidth = 288; // w-72 user card actual width
             const verticalSpacing = 500; // Keep vertical spacing
-            const minHorizontalSpacing = 40; // Further reduced horizontal spacing between users
+            const minHorizontalSpacing = 25; // Further reduced horizontal spacing between users in same department
             const userY = 450 + level * verticalSpacing; // Increased starting position for more space from department
             
             // Find subordinates first to calculate positioning
