@@ -304,26 +304,66 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
     const nodeList: Node[] = [];
     const edgeList: Edge[] = [];
 
+    // Calculate dynamic spacing for departments based on expanded content
+    const calculateDepartmentSpacing = () => {
+      const departmentWidths: number[] = [];
+      
+      departments.forEach((department) => {
+        const deptUsers = organizationStructure.get(department.id) || [];
+        
+        if (expandedDepartments.has(department.id) && deptUsers.length > 0) {
+          // Calculate width needed for this department's users
+          const roots = deptUsers.filter(user => 
+            !user.supervisor || !deptUsers.find(u => u.id === user.supervisor?.id)
+          );
+          
+          if (roots.length === 1) {
+            // Single user needs minimal width
+            departmentWidths.push(400); // Department + single user space
+          } else {
+            // Multiple users need more width
+            departmentWidths.push(Math.max(500, roots.length * 350)); // More space for multiple users
+          }
+        } else {
+          // Collapsed department needs minimal width
+          departmentWidths.push(280); // Just department width
+        }
+      });
+      
+      return departmentWidths;
+    };
+    
+    const departmentWidths = calculateDepartmentSpacing();
+    
+    // Calculate company position to center above departments
+    const totalWidth = departmentWidths.reduce((sum, width) => sum + width, 0);
+    const companyX = Math.max(400, totalWidth / 2);
+
     // Add company root node
     const companyName = '株式会社新大陸';
     nodeList.push({
       id: 'company-root',
       type: 'orgNode',
-      position: { x: 400, y: 0 },
+      position: { x: companyX, y: 0 },
       data: { 
         name: companyName,
         userCount: users.length,
         isDepartment: true
       }
     });
-
-    // Add department nodes
+    
+    // Position departments with dynamic spacing
+    let currentX = 200; // Start position
+    const departmentPositions: { [key: string]: number } = {};
+    
+    // Add department nodes with calculated positions
     departments.forEach((department, index) => {
       const deptUsers = organizationStructure.get(department.id) || [];
       const userCount = deptUsers.length;
       
-      // Position departments horizontally below company
-      const xPosition = (index * 280) + (400 - ((departments.length - 1) * 140));
+      // Store position for this department
+      departmentPositions[department.id] = currentX;
+      const xPosition = currentX;
       
       nodeList.push({
         id: department.id,
@@ -336,6 +376,9 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           onClick: () => handleDepartmentClick(department.id)
         }
       });
+      
+      // Move to next position for next department
+      currentX += departmentWidths[index];
       
       // Add user nodes if department is expanded - arranged in hierarchy
       if (expandedDepartments.has(department.id) && deptUsers.length > 0) {
@@ -381,7 +424,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
             let currentSubordinateX = xCenter;
             
             // First pass: calculate all subordinate layouts
-            subordinates.forEach((subordinate, index) => {
+            subordinates.forEach((subordinate) => {
               const subResult = layoutHierarchy(subordinate, level + 1, currentSubordinateX);
               subordinateResults.push(subResult);
               
@@ -549,6 +592,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
         });
       }
     });
+
 
     // Add edges between supervisors and subordinates for all expanded departments
     expandedDepartments.forEach(expandedDeptId => {
