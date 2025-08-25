@@ -114,3 +114,47 @@ try {
     return { success: false, error: e instanceof Error ? e.message : 'Failed to delete goal' };
 }
 }
+
+// Submit goal
+export async function submitGoalAction(id: UUID): Promise<{
+    success: boolean;
+    data?: GoalResponse;
+    error?: string;
+  }> {
+    try {
+      const http = getHttpClient();
+      const res = await http.post<GoalResponse>(API_ENDPOINTS.GOALS.SUBMIT(id));
+      if (!res.success || !res.data) {
+        return { success: false, error: res.errorMessage || 'Failed to submit goal' };
+      }
+      return { success: true, data: res.data };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Failed to submit goal' };
+    }
+  }
+
+// Supervisor: approve pending goal
+export async function approveGoalAction(goalId: UUID): Promise<{ success: boolean; data?: GoalResponse; error?: string }> {
+    try {
+      const http = getHttpClient();
+      const res = await http.post<GoalResponse>(API_ENDPOINTS.GOALS.APPROVE(goalId));
+      if (!res.success || !res.data) return { success: false, error: res.errorMessage || 'Failed to approve goal' };
+      return { success: true, data: res.data };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Failed to approve goal' };
+    }
+  }
+  
+  // Supervisor: reject pending goal
+  export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{ success: boolean; data?: GoalResponse; error?: string }> {
+    try {
+      const http = getHttpClient();
+      const endpoint = `${API_ENDPOINTS.GOALS.REJECT(goalId)}?reason=${encodeURIComponent(reason)}`;
+      const res = await http.post<GoalResponse>(endpoint);
+      if (!res.success || !res.data) return { success: false, error: res.errorMessage || 'Failed to reject goal' };
+      return { success: true, data: res.data };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Failed to reject goal' };
+    }
+  }
+  
