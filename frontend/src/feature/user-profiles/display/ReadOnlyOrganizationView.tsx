@@ -757,7 +757,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
   return (
     <div className="space-y-6">
       {/* Enhanced Header */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-xl p-6 border border-blue-300 shadow-xl">
+      <div className="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-950 rounded-xl p-6 border border-slate-700 shadow-xl">
         <div className="flex items-center justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
