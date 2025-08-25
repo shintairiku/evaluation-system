@@ -42,9 +42,9 @@ const OrgNode = ({
   
   const getNodeStyle = () => {
     if (isDepartment) {
-      return 'bg-blue-500 text-white border-blue-600';
+      return 'bg-gradient-to-br from-blue-600 to-blue-700 text-white border-blue-800 shadow-lg';
     } else {
-      return 'bg-blue-100 text-blue-900 border-blue-300 hover:bg-blue-200 cursor-pointer';
+      return 'bg-gradient-to-br from-blue-50 to-blue-100 text-blue-900 border-blue-300 hover:from-blue-100 hover:to-blue-200 cursor-pointer shadow-md hover:shadow-lg transition-all duration-300';
     }
   };
   
@@ -56,25 +56,29 @@ const OrgNode = ({
         id="top"
         style={{ 
           background: '#3b82f6',
-          width: 8,
-          height: 8,
-          border: '2px solid #ffffff',
-          borderRadius: '50%'
+          width: 10,
+          height: 10,
+          border: '3px solid #ffffff',
+          borderRadius: '50%',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
       />
-      <Card className={`w-64 transition-all duration-200 ${getNodeStyle()}`} onClick={onClick}>
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <Building2 className="w-5 h-5" />
+      <Card className={`w-64 transition-all duration-300 ${getNodeStyle()}`} onClick={onClick}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${isDepartment ? 'bg-blue-500/20' : 'bg-blue-200/50'}`}>
+              <Building2 className={`w-6 h-6 ${isDepartment ? 'text-white' : 'text-blue-700'}`} />
+            </div>
             <div className="text-center flex-1">
-              <CardTitle className="text-sm font-bold">{name}</CardTitle>
-              <CardDescription className={`text-xs mt-1 ${isDepartment ? 'text-blue-100' : 'text-blue-700'}`}>
+              <CardTitle className={`text-base font-bold ${isDepartment ? 'text-white' : 'text-blue-900'}`}>
+                {name}
+              </CardTitle>
+              <CardDescription className={`text-sm mt-1 font-medium ${isDepartment ? 'text-blue-100' : 'text-blue-700'}`}>
                 {userCount}人
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        
       </Card>
       <Handle
         type="source"
@@ -82,10 +86,11 @@ const OrgNode = ({
         id="bottom"
         style={{ 
           background: '#3b82f6',
-          width: 8,
-          height: 8,
-          border: '2px solid #ffffff',
-          borderRadius: '50%'
+          width: 10,
+          height: 10,
+          border: '3px solid #ffffff',
+          borderRadius: '50%',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
       />
     </div>
@@ -101,15 +106,15 @@ const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
     let baseStyle = '';
     
     if (user.status === 'pending_approval') {
-      baseStyle = 'border-orange-300 bg-orange-50/50';
+      baseStyle = 'border-orange-300 bg-orange-50/50 shadow-md hover:shadow-lg';
     } else if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
-      baseStyle = 'border-blue-400 bg-blue-50/50';
+      baseStyle = 'border-blue-400 bg-blue-50/50 shadow-md hover:shadow-lg';
     } else if (user.roles?.some((role) => role.name.toLowerCase().includes('manager'))) {
-      baseStyle = 'border-green-400 bg-green-50/50';
+      baseStyle = 'border-green-400 bg-green-50/50 shadow-md hover:shadow-lg';
     } else if (user.roles?.some((role) => role.name.toLowerCase().includes('supervisor'))) {
-      baseStyle = 'border-purple-400 bg-purple-50/50';
+      baseStyle = 'border-purple-400 bg-purple-50/50 shadow-md hover:shadow-lg';
     } else {
-      baseStyle = 'border-gray-200 bg-white';
+      baseStyle = 'border-gray-200 bg-white shadow-md hover:shadow-lg';
     }
     
     return baseStyle;
@@ -118,13 +123,13 @@ const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <Badge variant="default" className="bg-green-100 text-green-800">アクティブ</Badge>;
+        return <Badge variant="default" className="bg-green-100 text-green-800 font-medium px-2 py-1">アクティブ</Badge>;
       case 'inactive':
-        return <Badge variant="secondary" className="bg-red-100 text-red-800">非アクティブ</Badge>;
+        return <Badge variant="secondary" className="bg-red-100 text-red-800 font-medium px-2 py-1">非アクティブ</Badge>;
       case 'pending_approval':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">承認待ち</Badge>;
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 font-medium px-2 py-1">承認待ち</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary" className="font-medium px-2 py-1">{status}</Badge>;
     }
   };
 
@@ -136,78 +141,83 @@ const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
         id="top"
         style={{ 
           background: '#3b82f6',
-          width: 8,
-          height: 8,
-          border: '2px solid #ffffff',
-          borderRadius: '50%'
+          width: 10,
+          height: 10,
+          border: '3px solid #ffffff',
+          borderRadius: '50%',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
       />
-      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-md transition-all duration-200 ${getCardStyle()}`}>
+      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-xl transition-all duration-300 ${getCardStyle()}`}>
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <CardTitle className="text-lg">{user.name}</CardTitle>
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <CardTitle className="text-lg font-bold text-gray-900">{user.name}</CardTitle>
               </div>
-              <CardDescription className="flex items-center gap-1 mt-1">
-                <User className="w-3 h-3" />
-                {user.employee_code}
+              <CardDescription className="flex items-center gap-1 mt-2 text-sm font-medium text-gray-600">
+                <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">{user.employee_code}</span>
               </CardDescription>
               {user.job_title && (
-                <CardDescription className="mt-1 font-medium">
+                <CardDescription className="mt-2 font-semibold text-gray-700 bg-gray-50 px-3 py-1 rounded-lg">
                   {user.job_title}
                 </CardDescription>
               )}
             </div>
-            {getStatusBadge(user.status)}
+            <div className="ml-2">
+              {getStatusBadge(user.status)}
+            </div>
           </div>
         </CardHeader>
         
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {/* メールアドレス */}
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <span className="truncate" title={user.email}>
+          <div className="flex items-center gap-3 text-sm bg-white/50 p-2 rounded-lg">
+            <Mail className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="truncate font-medium text-gray-700" title={user.email}>
               {user.email}
             </span>
           </div>
 
           {/* 部署 */}
-          <div className="flex items-center gap-2 text-sm">
-            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <div className="flex items-center gap-3 text-sm">
+            <Building2 className="w-4 h-4 text-gray-500 flex-shrink-0" />
             {user.department ? (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200">
                 {user.department.name}
               </Badge>
             ) : (
-              <span className="text-muted-foreground">部署未設定</span>
+              <span className="text-gray-500 text-sm">部署未設定</span>
             )}
           </div>
 
           {/* ステージ */}
-          <div className="flex items-center gap-2 text-sm">
-            <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <div className="flex items-center gap-3 text-sm">
+            <Users className="w-4 h-4 text-gray-500 flex-shrink-0" />
             {user.stage ? (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs font-medium bg-gray-100 text-gray-700">
                 {user.stage.name}
               </Badge>
             ) : (
-              <span className="text-muted-foreground">ステージ未設定</span>
+              <span className="text-gray-500 text-sm">ステージ未設定</span>
             )}
           </div>
 
           {/* ロール */}
-          <div className="space-y-1">
-            <div className="text-xs font-medium text-muted-foreground">ロール</div>
-            <div className="flex flex-wrap gap-1">
+          <div className="space-y-2">
+            <div className="text-xs font-bold text-gray-700 uppercase tracking-wide">ロール</div>
+            <div className="flex flex-wrap gap-1.5">
               {user.roles && user.roles.length > 0 ? (
                 user.roles.map((role) => (
-                  <Badge key={role.id} variant="outline" className="text-xs">
+                  <Badge key={role.id} variant="outline" className="text-xs font-medium bg-white/70 border-gray-300 text-gray-700">
                     {role.name}
                   </Badge>
                 ))
               ) : (
-                <span className="text-xs text-muted-foreground">ロール未設定</span>
+                <span className="text-xs text-gray-500">ロール未設定</span>
               )}
             </div>
           </div>
@@ -219,10 +229,11 @@ const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
         id="bottom"
         style={{ 
           background: '#3b82f6',
-          width: 8,
-          height: 8,
-          border: '2px solid #ffffff',
-          borderRadius: '50%'
+          width: 10,
+          height: 10,
+          border: '3px solid #ffffff',
+          borderRadius: '50%',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
       />
     </div>
@@ -445,9 +456,9 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
             rightBound: number 
           } => {
             const nodeWidth = 288; // w-72 user card actual width
-            const verticalSpacing = 400; // Keep vertical spacing
+            const verticalSpacing = 500; // Increased vertical spacing between levels
             const minHorizontalSpacing = 100; // Increased horizontal spacing to prevent overlap
-            const userY = 350 + level * verticalSpacing;
+            const userY = 450 + level * verticalSpacing; // Increased starting position for more space from department
             
             // Find subordinates first to calculate positioning
             const subordinates = users.filter(u => u.supervisor?.id === user.id);
@@ -745,27 +756,59 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
-        <div className="space-y-2">
-          <h3 className="text-2xl font-bold text-gray-900">組織図</h3>
-          <p className="text-gray-600">
-            {departments.length}部署 • {users.length}人のユーザー
-          </p>
-          <div className="flex gap-4 text-sm text-gray-600">
-            <span>• 管理者: {users.filter(u => u.roles?.some(r => r.name.toLowerCase().includes('admin'))).length}人</span>
-            <span>• マネージャー: {users.filter(u => u.roles?.some(r => r.name.toLowerCase().includes('manager'))).length}人</span>
-            <span>• 承認待ち: {users.filter(u => u.status === 'pending_approval').length}人</span>
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-xl p-6 border border-blue-300 shadow-xl">
+        <div className="flex items-center justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-white">組織図</h3>
+                <p className="text-blue-100 text-sm">Organization Chart</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-white font-bold text-lg">{departments.length}</div>
+                <div className="text-blue-100 text-xs">部署</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-white font-bold text-lg">{users.length}</div>
+                <div className="text-blue-100 text-xs">ユーザー</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-white font-bold text-lg">
+                  {users.filter(u => u.roles?.some(r => r.name.toLowerCase().includes('admin') || r.name.toLowerCase().includes('manager'))).length}
+                </div>
+                <div className="text-blue-100 text-xs">管理者・マネージャー</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-white font-bold text-lg">
+                  {users.filter(u => u.status === 'pending_approval').length}
+                </div>
+                <div className="text-blue-100 text-xs">承認待ち</div>
+              </div>
+            </div>
           </div>
-        </div>
-        
-        <div className="mt-4 text-sm text-gray-600">
-          <p>🏢 部署をクリックしてメンバーを表示・非表示できます</p>
+          
+          <div className="hidden md:block">
+            <div className="bg-white/10 rounded-lg p-4 text-center">
+              <div className="text-white font-bold text-sm mb-2">操作ガイド</div>
+              <div className="text-blue-100 text-xs space-y-1">
+                <div>🏢 部署をクリック</div>
+                <div>👥 メンバー表示・非表示</div>
+                <div>🔍 ズーム・パン操作</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
       {/* Organization Chart */}
-      <div className="w-full h-[1400px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-lg">
+      <div className="w-full h-[1800px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-xl">
         <ReactFlow
           nodes={nodesState}
           edges={edgesState}
@@ -791,16 +834,15 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
         >
           <Background 
             color="#e2e8f0" 
-            gap={30}
+            gap={40}
             size={1}
-            className="opacity-20"
+            className="opacity-30"
           />
           <Controls 
+            className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg"
             showZoom={true}
             showFitView={true}
             showInteractive={false}
-            position="top-right"
-            className="bg-white/90 border border-gray-200 rounded-lg shadow-sm"
           />
         </ReactFlow>
       </div>
