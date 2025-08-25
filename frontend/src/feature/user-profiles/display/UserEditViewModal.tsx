@@ -152,7 +152,6 @@ export default function UserEditViewModal({
   const invalidateHierarchyCache = (affectedUserIds: string[]) => {
     affectedUserIds.forEach(userId => {
       userCache.delete(userId);
-      console.log(`[UserEditModal] Cache invalidated for user ${userId} due to hierarchy change`);
     });
   };
   
@@ -169,7 +168,6 @@ export default function UserEditViewModal({
             data: result.data,
             timestamp: Date.now()
           });
-          console.log(`[UserEditModal] Force refreshed hierarchy data for user ${userId}`);
         }
       } catch (error) {
         console.error('Error force refreshing hierarchy data:', error);
@@ -205,21 +203,14 @@ export default function UserEditViewModal({
         const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
         
         if (cached && (now - cached.timestamp) < CACHE_TTL) {
-          console.log(`[UserEditModal] Using cached data for user ${user.name}`);
           setDetailedUser(cached.data);
           return;
         }
         
         setIsLoadingUserData(true);
-        const startTime = performance.now();
         
         try {
           const result = await getUserByIdAction(user.id);
-          const endTime = performance.now();
-          const duration = endTime - startTime;
-          
-          // Log performance metrics for analysis
-          console.log(`[UserEditModal] API call duration: ${duration.toFixed(2)}ms`);
           
           if (result.success && result.data) {
             setDetailedUser(result.data);
@@ -230,21 +221,13 @@ export default function UserEditViewModal({
               timestamp: now
             });
             
-            console.log(`[UserEditModal] Successfully loaded hierarchy data`, {
-              hasSupervisor: !!result.data.supervisor,
-              subordinatesCount: result.data.subordinates?.length || 0,
-              loadTime: `${duration.toFixed(2)}ms`,
-              cached: false
-            });
           } else {
             console.error('Failed to load detailed user data:', result.error);
             // Fallback to the basic user data
             setDetailedUser(user);
           }
         } catch (error) {
-          const endTime = performance.now();
-          const duration = endTime - startTime;
-          console.error(`[UserEditModal] Error after ${duration.toFixed(2)}ms:`, error);
+          console.error(`[UserEditModal] Error loading user data:`, error);
           // Fallback to the basic user data
           setDetailedUser(user);
         } finally {
