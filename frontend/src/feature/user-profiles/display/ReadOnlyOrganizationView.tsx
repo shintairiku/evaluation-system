@@ -62,7 +62,7 @@ const OrgNode = ({
           borderRadius: '50%'
         }}
       />
-      <Card className={`w-48 transition-all duration-200 ${getNodeStyle()}`} onClick={onClick}>
+      <Card className={`w-64 transition-all duration-200 ${getNodeStyle()}`} onClick={onClick}>
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5" />
@@ -314,8 +314,8 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       const deptUsers = organizationStructure.get(department.id) || [];
       const userCount = deptUsers.length;
       
-      // Position departments horizontally below company
-      const xPosition = (index * 250) + (400 - ((departments.length - 1) * 125));
+      // Position departments horizontally below company - adjusted for w-64 cards
+      const xPosition = (index * 280) + (400 - ((departments.length - 1) * 140));
       
       nodeList.push({
         id: department.id,
