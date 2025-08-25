@@ -237,7 +237,7 @@ const nodeTypes: NodeTypes = {
 
 export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganizationViewProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [expandedDepartment, setExpandedDepartment] = useState<string | null>(null);
+  const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
 
   // Load departments on mount
   useEffect(() => {
@@ -273,9 +273,17 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
     loadDepartments();
   }, [users]);
 
-  // Handle department click to expand/collapse user cards
+  // Handle department click to expand/collapse user cards - individual toggle
   const handleDepartmentClick = useCallback((departmentId: string) => {
-    setExpandedDepartment(prev => prev === departmentId ? null : departmentId);
+    setExpandedDepartments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(departmentId)) {
+        newSet.delete(departmentId); // Close if already open
+      } else {
+        newSet.add(departmentId); // Open if closed
+      }
+      return newSet;
+    });
   }, []);
 
   // Build organization hierarchy structure
@@ -320,7 +328,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       nodeList.push({
         id: department.id,
         type: 'orgNode',
-        position: { x: xPosition, y: 150 },
+        position: { x: xPosition, y: 200 },
         data: { 
           name: department.name,
           userCount,
@@ -330,7 +338,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       });
       
       // Add user nodes if department is expanded - arranged in hierarchy
-      if (expandedDepartment === department.id && deptUsers.length > 0) {
+      if (expandedDepartments.has(department.id) && deptUsers.length > 0) {
         // Build hierarchy within department using improved spacing algorithm
         const buildUserHierarchy = (users: UserDetailResponse[]) => {
           // Find root users (no supervisor within this department or supervisor outside department)
@@ -542,9 +550,9 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
       }
     });
 
-    // Add edges between supervisors and subordinates for expanded department
-    if (expandedDepartment) {
-      const expandedDeptUsers = organizationStructure.get(expandedDepartment) || [];
+    // Add edges between supervisors and subordinates for all expanded departments
+    expandedDepartments.forEach(expandedDeptId => {
+      const expandedDeptUsers = organizationStructure.get(expandedDeptId) || [];
       expandedDeptUsers.forEach(user => {
         if (user.supervisor) {
           const supervisor = expandedDeptUsers.find(u => u.id === user.supervisor?.id);
@@ -571,10 +579,10 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           }
         }
       });
-    }
+    });
 
     return { nodes: nodeList, edges: edgeList };
-  }, [departments, users, organizationStructure, expandedDepartment, handleDepartmentClick]);
+  }, [departments, users, organizationStructure, expandedDepartments, handleDepartmentClick]);
 
   const [nodesState, setNodes] = useNodesState(nodes);
   const [edgesState, setEdges] = useEdgesState(edges);
