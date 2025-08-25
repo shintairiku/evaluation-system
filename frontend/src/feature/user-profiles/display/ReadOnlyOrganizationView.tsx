@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -16,7 +16,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import type { UserDetailResponse, Department } from '@/api/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Building2, Users, User } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Building2, Users, User, Mail } from 'lucide-react';
 import { 
   getProfileOptionsAction
 } from '@/api/server-actions/users';
@@ -35,15 +36,16 @@ const OrgNode = ({
     userCount: number; 
     isDepartment?: boolean;
     users?: UserDetailResponse[];
+    onClick?: () => void;
   };
 }) => {
-  const { name, userCount, isDepartment = false, users = [] } = data;
+  const { name, userCount, isDepartment = false, users = [], onClick } = data;
   
   const getNodeStyle = () => {
     if (isDepartment) {
       return 'bg-blue-500 text-white border-blue-600';
     } else {
-      return 'bg-blue-100 text-blue-900 border-blue-300';
+      return 'bg-blue-100 text-blue-900 border-blue-300 hover:bg-blue-200 cursor-pointer';
     }
   };
   
@@ -61,7 +63,7 @@ const OrgNode = ({
           borderRadius: '50%'
         }}
       />
-      <Card className={`w-48 transition-all duration-200 ${getNodeStyle()}`}>
+      <Card className={`w-48 transition-all duration-200 ${getNodeStyle()}`} onClick={onClick}>
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5" />
@@ -104,13 +106,140 @@ const OrgNode = ({
   );
 };
 
+// User card node component matching hierarchy edit view style
+const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
+  const { user } = data;
+  
+  // Determine card styling based on user role and status
+  const getCardStyle = () => {
+    let baseStyle = '';
+    
+    if (user.status === 'pending_approval') {
+      baseStyle = 'border-orange-300 bg-orange-50/50';
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
+      baseStyle = 'border-blue-400 bg-blue-50/50';
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('manager'))) {
+      baseStyle = 'border-green-400 bg-green-50/50';
+    } else if (user.roles?.some((role) => role.name.toLowerCase().includes('supervisor'))) {
+      baseStyle = 'border-purple-400 bg-purple-50/50';
+    } else {
+      baseStyle = 'border-gray-200 bg-white';
+    }
+    
+    return baseStyle;
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge variant="default" className="bg-green-100 text-green-800">アクティブ</Badge>;
+      case 'inactive':
+        return <Badge variant="secondary" className="bg-red-100 text-red-800">非アクティブ</Badge>;
+      case 'pending_approval':
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">承認待ち</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="relative">
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="top"
+        style={{ 
+          background: '#3b82f6',
+          width: 8,
+          height: 8,
+          border: '2px solid #ffffff',
+          borderRadius: '50%'
+        }}
+      />
+      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-md transition-all duration-200 ${getCardStyle()}`}>
+        <CardHeader className="pb-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg">{user.name}</CardTitle>
+              </div>
+              <CardDescription className="flex items-center gap-1 mt-1">
+                <User className="w-3 h-3" />
+                {user.employee_code}
+              </CardDescription>
+              {user.job_title && (
+                <CardDescription className="mt-1 font-medium">
+                  {user.job_title}
+                </CardDescription>
+              )}
+            </div>
+            {getStatusBadge(user.status)}
+          </div>
+        </CardHeader>
+        
+        <CardContent className="space-y-3">
+          {/* メールアドレス */}
+          <div className="flex items-center gap-2 text-sm">
+            <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <span className="truncate" title={user.email}>
+              {user.email}
+            </span>
+          </div>
+
+          {/* 部署 */}
+          <div className="flex items-center gap-2 text-sm">
+            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            {user.department ? (
+              <Badge variant="outline" className="text-xs">
+                {user.department.name}
+              </Badge>
+            ) : (
+              <span className="text-muted-foreground">部署未設定</span>
+            )}
+          </div>
+
+          {/* ステージ */}
+          <div className="flex items-center gap-2 text-sm">
+            <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            {user.stage ? (
+              <Badge variant="secondary" className="text-xs">
+                {user.stage.name}
+              </Badge>
+            ) : (
+              <span className="text-muted-foreground">ステージ未設定</span>
+            )}
+          </div>
+
+          {/* ロール */}
+          <div className="space-y-1">
+            <div className="text-xs font-medium text-muted-foreground">ロール</div>
+            <div className="flex flex-wrap gap-1">
+              {user.roles && user.roles.length > 0 ? (
+                user.roles.map((role) => (
+                  <Badge key={role.id} variant="outline" className="text-xs">
+                    {role.name}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">ロール未設定</span>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 // Node types for organization chart
 const nodeTypes: NodeTypes = {
   orgNode: OrgNode,
+  userNode: UserNode,
 };
 
 export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganizationViewProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [expandedDepartment, setExpandedDepartment] = useState<string | null>(null);
 
   // Load departments on mount
   useEffect(() => {
@@ -145,6 +274,11 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
     
     loadDepartments();
   }, [users]);
+
+  // Handle department click to expand/collapse user cards
+  const handleDepartmentClick = useCallback((departmentId: string) => {
+    setExpandedDepartment(prev => prev === departmentId ? null : departmentId);
+  }, []);
 
   // Build organization hierarchy structure
   const organizationStructure = useMemo(() => {
@@ -193,9 +327,44 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
           name: department.name,
           userCount,
           isDepartment: false,
-          users: deptUsers
+          users: deptUsers,
+          onClick: () => handleDepartmentClick(department.id)
         }
       });
+      
+      // Add user nodes if department is expanded
+      if (expandedDepartment === department.id && deptUsers.length > 0) {
+        deptUsers.forEach((user, userIndex) => {
+          const userXPosition = xPosition + (userIndex % 3) * 300 - ((Math.min(deptUsers.length, 3) - 1) * 150);
+          const userYPosition = 350 + Math.floor(userIndex / 3) * 220;
+          
+          nodeList.push({
+            id: `user-${user.id}`,
+            type: 'userNode',
+            position: { x: userXPosition, y: userYPosition },
+            data: { user }
+          });
+          
+          // Add edge from department to user
+          edgeList.push({
+            id: `${department.id}-user-${user.id}`,
+            source: department.id,
+            target: `user-${user.id}`,
+            type: 'smoothstep',
+            style: { 
+              stroke: '#10b981', 
+              strokeWidth: 2,
+              opacity: 0.7
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 12,
+              height: 12,
+              color: '#10b981',
+            },
+          });
+        });
+      }
       
       // Add edge from company to department
       edgeList.push({
@@ -280,7 +449,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
     });
 
     return { nodes: nodeList, edges: edgeList };
-  }, [departments, users, organizationStructure]);
+  }, [departments, users, organizationStructure, expandedDepartment, handleDepartmentClick]);
 
   const [nodesState, setNodes] = useNodesState(nodes);
   const [edgesState] = useEdgesState(edges);
@@ -307,7 +476,7 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
         </div>
         
         <div className="mt-4 text-sm text-gray-600">
-          <p>🏢 会社の組織構造を階層的に表示しています</p>
+          <p>🏢 部署をクリックしてメンバーを表示・非表示できます</p>
         </div>
       </div>
       
