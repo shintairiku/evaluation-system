@@ -95,11 +95,11 @@ export default function HierarchyEditCard({
   const potentialSupervisors = getPotentialSupervisors();
   const potentialSubordinates = getPotentialSubordinates();
   
-  // Use the optimistic state from the hook
+  // Use the optimistic state from the hook + temporary subordinates for preview
   const currentUser_display = optimisticState;
   const currentSubordinates = currentUser_display.subordinates || [];
   
-  // Combine current subordinates with temporary ones for display
+  // Combine optimistic state with temporary subordinates for immediate preview
   const allSubordinatesForDisplay = [...currentSubordinates, ...temporarySubordinates];
 
   // Handle supervisor change
@@ -120,7 +120,7 @@ export default function HierarchyEditCard({
     }
   }, [changeSupervisor, user.name, allUsers]);
 
-  // Handle add subordinate to temporary list (no API call)
+  // Handle add subordinate to temporary list for immediate preview (no API call)
   const handleAddTemporarySubordinate = useCallback((subordinateId: string) => {
     const subordinate = allUsers.find(u => u.id === subordinateId);
     if (subordinate && !temporarySubordinates.find(s => s.id === subordinateId)) {
@@ -131,7 +131,7 @@ export default function HierarchyEditCard({
     }
   }, [allUsers, temporarySubordinates]);
 
-  // Handle remove temporary subordinate
+  // Handle remove temporary subordinate from preview list
   const handleRemoveTemporarySubordinate = useCallback((subordinateId: string) => {
     const subordinate = temporarySubordinates.find(s => s.id === subordinateId);
     setTemporarySubordinates(prev => prev.filter(s => s.id !== subordinateId));
@@ -158,17 +158,17 @@ export default function HierarchyEditCard({
     }
   }, [removeSubordinate, allUsers]);
 
-  // Custom save handler - SIMPLIFIED like working 組織図
+  // Hybrid save handler - supervisor changes via hook, subordinates via direct API calls
   const handleSaveWithTemporary = useCallback(async () => {
     try {
       let successCount = 0;
       
-      // First save any supervisor changes
+      // First save any supervisor changes via hook
       if (hasPendingChanges) {
         await saveAllChanges();
       }
       
-      // Process each temporary subordinate ONE BY ONE (like 組織図)
+      // Process each temporary subordinate ONE BY ONE (like working 組織図)
       for (const tempSubordinate of temporarySubordinates) {
         try {
           // Direct API call - exactly like 組織図
@@ -211,7 +211,7 @@ export default function HierarchyEditCard({
     }
   }, [temporarySubordinates, user.id, onUserUpdate, hasPendingChanges, saveAllChanges]);
 
-  // Custom rollback handler
+  // Hybrid rollback handler - clear temporary subordinates and hook changes
   const handleRollbackWithTemporary = useCallback(() => {
     setTemporarySubordinates([]);
     rollbackChanges();
@@ -226,7 +226,7 @@ export default function HierarchyEditCard({
   useEffect(() => { saveRef.current = handleSaveWithTemporary; }, [handleSaveWithTemporary]);
   useEffect(() => { rollbackRef.current = handleRollbackWithTemporary; }, [handleRollbackWithTemporary]);
 
-  // Check if there are any changes (either pending changes or temporary subordinates)
+  // Check if there are any changes (hook changes OR temporary subordinates)
   const hasAnyChanges = hasPendingChanges || temporarySubordinates.length > 0;
 
   // Notify parent about pending changes with stable handler identities
