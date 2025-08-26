@@ -602,3 +602,37 @@ class UserRepository:
         except SQLAlchemyError as e:
             logger.error(f"Error counting users: {e}")
             raise
+
+    async def get_users_for_org_chart(
+        self,
+        department_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
+        user_ids: Optional[list[UUID]] = None,
+    ) -> list[User]:
+        """
+        Efficient query for organization chart - single query with necessary joins.
+        Always returns only ACTIVE users.
+        """
+        try:
+            
+            query = (
+                select(User)
+                .options(
+                    joinedload(User.department),
+                    joinedload(User.roles)
+                )
+                .filter(User.status == "active")
+            )
+            
+            if department_ids:
+                query = query.filter(User.department_id.in_(department_ids))
+            if role_ids:
+                query = query.join(user_roles).filter(user_roles.c.role_id.in_(role_ids))
+            if user_ids:
+                query = query.filter(User.id.in_(user_ids))
+            
+            result = await self.session.execute(query)
+            return result.scalars().unique().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error getting users for org chart: {e}")
+            raise
