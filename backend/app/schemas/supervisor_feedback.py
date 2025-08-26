@@ -25,7 +25,6 @@ class SupervisorFeedbackCreate(SupervisorFeedbackBase):
 class SupervisorFeedbackUpdate(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=100, description="Supervisor rating from 0-100")
     comment: Optional[str] = Field(None, description="Supervisor feedback comment")
-    status: Optional[SubmissionStatus] = Field(None, description="Feedback status based on button clicked: 'draft' or 'submitted'")
 
 
 class SupervisorFeedbackInDB(SupervisorFeedbackBase):
