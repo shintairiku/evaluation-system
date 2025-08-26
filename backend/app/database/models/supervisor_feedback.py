@@ -35,8 +35,8 @@ class SupervisorFeedback(Base):
 
     # Database constraints
     __table_args__ = (
-        # Rating validation: must be between 0 and 100 if provided
-        CheckConstraint('rating >= 0 AND rating <= 100', name='check_feedback_rating_bounds'),
+        # Rating validation: must be between 0 and 100 if provided (NULL allowed)
+        CheckConstraint('rating IS NULL OR (rating >= 0 AND rating <= 100)', name='check_feedback_rating_bounds'),
         
         # Status validation
         CheckConstraint(
@@ -75,11 +75,15 @@ class SupervisorFeedback(Base):
 
     @validates('status')
     def validate_status(self, key, status):
-        """Validate status is one of allowed values"""
+        """Validate status is one of allowed values and handle submitted_at timestamp"""
         if status is not None:
             valid_statuses = ['draft', 'submitted']
             if status not in valid_statuses:
                 raise ValueError(f"Invalid status: {status}. Must be one of: {valid_statuses}")
+            
+            # Auto-set submitted_at when status changes to submitted
+            if status == 'submitted' and self.submitted_at is None:
+                self.submitted_at = datetime.now(timezone.utc)
         return status
 
     def __repr__(self):
