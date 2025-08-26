@@ -191,6 +191,10 @@ class User(UserInDB):
     stage: Stage
     roles: List[Role] = []
 
+class SimpleUser(UserInDB):
+    """Minimal user information; no use stage and user-to-user relationship"""
+    department: Department
+    roles: List[Role] = []
 
 class UserDetailResponse(BaseModel):
     id: UUID
