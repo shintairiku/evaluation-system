@@ -169,30 +169,51 @@ export default function HierarchyEditCard({
       }
       
       // Process each temporary subordinate ONE BY ONE (like working 組織図)
+      console.log(`[HierarchyCard] Processing ${temporarySubordinates.length} temporary subordinates for user ${user.name}`);
+      
       for (const tempSubordinate of temporarySubordinates) {
         try {
+          console.log(`[HierarchyCard] Updating subordinate ${tempSubordinate.name} (${tempSubordinate.id}) to have supervisor ${user.name} (${user.id})`);
+          
           // Direct API call - exactly like 組織図
           const result = await updateUserAction(tempSubordinate.id, { supervisor_id: user.id });
           
+          console.log(`[HierarchyCard] API result for ${tempSubordinate.name}:`, { 
+            success: result.success, 
+            hasData: !!result.data,
+            error: result.error 
+          });
+          
           if (result.success && result.data) {
             successCount++;
+            console.log(`[HierarchyCard] Successfully updated ${tempSubordinate.name}, calling onUserUpdate`);
             
             // Update the subordinate data in the parent list (like 組織図)
             if (onUserUpdate) {
               onUserUpdate(result.data);
             }
           } else {
-            console.error('Failed to add subordinate:', tempSubordinate.name, result.error);
+            console.error(`[HierarchyCard] Failed to add subordinate ${tempSubordinate.name}:`, result.error);
           }
         } catch (error) {
-          console.error('Error adding subordinate:', tempSubordinate.name, error);
+          console.error(`[HierarchyCard] Error adding subordinate ${tempSubordinate.name}:`, error);
         }
       }
       
       // Also get fresh current user data to see ALL updated subordinates (like 組織図)
+      console.log(`[HierarchyCard] Fetching fresh data for supervisor ${user.name}. successCount: ${successCount}, hasPendingChanges: ${hasPendingChanges}`);
+      
       if (onUserUpdate && (successCount > 0 || hasPendingChanges)) {
         const userResult = await getUserByIdAction(user.id);
+        console.log(`[HierarchyCard] Fresh supervisor data result:`, { 
+          success: userResult.success, 
+          hasData: !!userResult.data,
+          subordinatesCount: userResult.data?.subordinates?.length || 0,
+          error: userResult.error 
+        });
+        
         if (userResult.success && userResult.data) {
+          console.log(`[HierarchyCard] Calling onUserUpdate with fresh supervisor data`);
           onUserUpdate(userResult.data);
         }
       }
