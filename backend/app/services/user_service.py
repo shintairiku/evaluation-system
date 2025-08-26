@@ -13,7 +13,7 @@ from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
-    Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate
+    Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate, SimpleUser
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -158,6 +158,47 @@ class UserService:
             
         except Exception as e:
             logger.error(f"Error in get_users: {e}")
+            raise
+    
+    async def get_users_for_org_chart(
+        self,
+        current_user_context: AuthContext,
+        department_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
+        supervisor_id: Optional[UUID] = None
+    ) -> list[SimpleUser]:
+        """
+        Get users for organization chart display - requires authentication but NO RBAC permission checks.
+        Always filters to active users only.
+        Returns a simple list of SimpleUser objects (no stage info).
+        
+        Args:
+            current_user_context: Authentication context (required but no permissions checked)
+            department_ids: Optional filter by department IDs
+            role_ids: Optional filter by role IDs  
+            supervisor_id: Optional filter by supervisor ID to get subordinates
+            
+        Returns:
+            List of SimpleUser objects for active users matching filters
+        """
+        try:
+            # Handle supervisor_id filtering
+            user_ids_to_filter = None
+            if supervisor_id:
+                subordinate_users = await self.user_repo.get_subordinates(supervisor_id)
+                user_ids_to_filter = [user.id for user in subordinate_users]
+            
+            # Use efficient repository method with joins
+            users = await self.user_repo.get_users_for_org_chart(
+                department_ids=department_ids,
+                role_ids=role_ids,
+                user_ids=user_ids_to_filter
+            )
+            
+            return users
+            
+        except Exception as e:
+            logger.error(f"Error in get_users_for_organization_chart: {e}")
             raise
     
     async def get_user_by_id(
