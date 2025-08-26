@@ -160,8 +160,8 @@ export function useHierarchyEdit({
       throw new Error(validationError);
     }
 
-    // Optimistic update ONLY - don't execute API calls yet
-    const currentSubordinates = hierarchyUpdate.state.subordinates || [];
+    // Optimistic update: use SAME structure as supervisor (use ...user base)
+    const currentSubordinates = user.subordinates || [];
     const subordinateWithSupervisor = {
       ...subordinate,
       supervisor: {
@@ -177,7 +177,7 @@ export function useHierarchyEdit({
     };
     
     const optimisticUser: UserDetailResponse = {
-      ...hierarchyUpdate.state,
+      ...user,
       subordinates: [...currentSubordinates, subordinateWithSupervisor] as any
     };
     hierarchyUpdate.reset(optimisticUser);
@@ -211,11 +211,10 @@ export function useHierarchyEdit({
       throw new Error('階層編集権限がありません');
     }
 
-    // Optimistic update: remove subordinate from current user's subordinates list
-    // Use hierarchyUpdate.state instead of user to preserve other changes
-    const currentSubordinates = hierarchyUpdate.state.subordinates || [];
+    // Optimistic update: use SAME structure as supervisor (use ...user base)
+    const currentSubordinates = user.subordinates || [];
     const optimisticUser: UserDetailResponse = {
-      ...hierarchyUpdate.state,
+      ...user,
       subordinates: currentSubordinates.filter(sub => sub.id !== subordinateId)
     };
     hierarchyUpdate.reset(optimisticUser);

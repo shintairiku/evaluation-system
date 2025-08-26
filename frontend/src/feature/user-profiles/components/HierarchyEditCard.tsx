@@ -32,6 +32,7 @@ import {
 import { toast } from 'sonner';
 import type { UserDetailResponse } from '@/api/types';
 import { useHierarchyEdit } from '@/hooks/useHierarchyEdit';
+import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
 
 interface HierarchyEditCardProps {
   user: UserDetailResponse;
@@ -157,22 +158,50 @@ export default function HierarchyEditCard({
     }
   }, [removeSubordinate, allUsers]);
 
-  // Custom save handler that includes temporary subordinates
+  // Custom save handler - SIMPLIFIED like working 組織図
   const handleSaveWithTemporary = useCallback(async () => {
     try {
-      // First add all temporary subordinates
-      for (const tempSubordinate of temporarySubordinates) {
-        await addSubordinate(tempSubordinate.id);
+      let successCount = 0;
+      
+      // First save any supervisor changes
+      if (hasPendingChanges) {
+        await saveAllChanges();
       }
       
-      // Then call the original save function
-      await saveAllChanges();
+      // Process each temporary subordinate ONE BY ONE (like 組織図)
+      for (const tempSubordinate of temporarySubordinates) {
+        try {
+          // Direct API call - exactly like 組織図
+          const result = await updateUserAction(tempSubordinate.id, { supervisor_id: user.id });
+          
+          if (result.success && result.data) {
+            successCount++;
+            
+            // Update the subordinate data in the parent list (like 組織図)
+            if (onUserUpdate) {
+              onUserUpdate(result.data);
+            }
+          } else {
+            console.error('Failed to add subordinate:', tempSubordinate.name, result.error);
+          }
+        } catch (error) {
+          console.error('Error adding subordinate:', tempSubordinate.name, error);
+        }
+      }
+      
+      // Also get fresh current user data to see ALL updated subordinates (like 組織図)
+      if (onUserUpdate && (successCount > 0 || hasPendingChanges)) {
+        const userResult = await getUserByIdAction(user.id);
+        if (userResult.success && userResult.data) {
+          onUserUpdate(userResult.data);
+        }
+      }
       
       // Clear temporary subordinates after successful save
       setTemporarySubordinates([]);
       
       toast.success("階層変更保存", {
-        description: `${temporarySubordinates.length > 0 ? `${temporarySubordinates.length}人の部下を含む` : ''}階層変更を保存しました`,
+        description: `${successCount}人の部下を含む階層変更を保存しました`,
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '階層変更の保存に失敗しました';
@@ -180,7 +209,7 @@ export default function HierarchyEditCard({
         description: errorMsg,
       });
     }
-  }, [temporarySubordinates, addSubordinate, saveAllChanges]);
+  }, [temporarySubordinates, user.id, onUserUpdate, hasPendingChanges, saveAllChanges]);
 
   // Custom rollback handler
   const handleRollbackWithTemporary = useCallback(() => {
