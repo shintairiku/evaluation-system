@@ -96,9 +96,9 @@ class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
         populate_by_name = True
 
 
-class SupervisorFeedbackList(PaginatedResponse):
+class SupervisorFeedbackList(PaginatedResponse[SupervisorFeedback]):
     """Schema for paginated supervisor feedback list responses"""
-    data: List[SupervisorFeedback]
+    pass
 
 
 # ========================================
