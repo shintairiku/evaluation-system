@@ -107,10 +107,25 @@ class SupervisorFeedbackList(PaginatedResponse):
 
 # Update forward references for models with forward references (Pydantic v2)
 # This needs to be done after all models are defined
-try:
-    # Rebuild models that have forward references
-    SupervisorFeedbackDetail.model_rebuild()
-except Exception as e:
-    # Log the error but don't fail the import
-    print(f"Warning: Could not rebuild forward references in supervisor_feedback schemas: {e}")
-    pass
+def rebuild_models():
+    """Rebuild models with forward references when all schemas are loaded."""
+    try:
+        # Import the actual classes to ensure they're available
+        from .self_assessment import SelfAssessment
+        from .evaluation import EvaluationPeriod  
+        from .user import UserProfileOption
+        
+        # Use the imports to satisfy the linter
+        _ = SelfAssessment, EvaluationPeriod, UserProfileOption
+        
+        # Rebuild the model
+        SupervisorFeedbackDetail.model_rebuild()
+    except ImportError:
+        # Models not available yet, will be rebuilt later
+        pass
+    except Exception as e:
+        # Log the error but don't fail the import
+        print(f"Warning: Could not rebuild forward references in supervisor_feedback schemas: {e}")
+
+# Try to rebuild immediately
+rebuild_models()
