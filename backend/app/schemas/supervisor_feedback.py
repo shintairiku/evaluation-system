@@ -7,7 +7,7 @@ from .common import SubmissionStatus, PaginatedResponse
 if TYPE_CHECKING:
     from .self_assessment import SelfAssessment
     from .evaluation import EvaluationPeriod
-    from .user import UserProfile
+    from .user import UserProfileOption
 
 
 class SupervisorFeedbackBase(BaseModel):
@@ -47,16 +47,11 @@ class SupervisorFeedback(SupervisorFeedbackInDB):
     Basic supervisor feedback schema for API responses (list views, simple references).
     Contains core supervisor feedback information without expensive joins.
     """
-    self_assessment_id: UUID = Field(..., alias="selfAssessmentId")
-    period_id: UUID = Field(..., alias="periodId")
-    supervisor_id: UUID = Field(..., alias="supervisorId")
-    submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
-    created_at: datetime = Field(..., alias="createdAt")
-    updated_at: datetime = Field(..., alias="updatedAt")
-
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    # Add aliases for API compatibility without duplicating fields
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True
+    }
 
 
 class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
@@ -64,25 +59,27 @@ class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
     Detailed supervisor feedback schema for single item views.
     Supervisor evaluation feedback on employee self-assessment.
     """
+    # Field aliases for API compatibility
     self_assessment_id: UUID = Field(..., alias="selfAssessmentId")
-    period_id: UUID = Field(..., alias="periodId")
+    period_id: UUID = Field(..., alias="periodId") 
     supervisor_id: UUID = Field(..., alias="supervisorId")
     submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
     
     # Related self-assessment information (the specific assessment this feedback is for)
-    # self_assessment: Optional['SelfAssessment'] = Field(None, description="The self-assessment this feedback is for")
+    self_assessment: Optional['SelfAssessment'] = Field(None, alias="selfAssessment", description="The self-assessment this feedback is for")
     
     # Related evaluation period information
-    # evaluation_period: Optional['EvaluationPeriod'] = Field(
-    #     None, 
-    #     alias="evaluationPeriod",
-    #     description="The evaluation period this feedback belongs to"
-    # )
+    evaluation_period: Optional['EvaluationPeriod'] = Field(
+        None, 
+        alias="evaluationPeriod",
+        description="The evaluation period this feedback belongs to"
+    )
     
-    # Employee information (assessment owner)
-    # employee: Optional['UserProfile'] = Field(None, description="The employee who created the self-assessment")
+    # User information
+    subordinate: Optional['UserProfileOption'] = Field(None, description="The subordinate who created the self-assessment")
+    supervisor: Optional['UserProfileOption'] = Field(None, description="The supervisor providing the feedback")
     
     # Feedback state information
     is_editable: bool = Field(True, alias="isEditable", description="Whether this feedback can still be edited")
@@ -90,9 +87,10 @@ class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
     days_until_deadline: Optional[int] = Field(None, alias="daysUntilDeadline", description="Days remaining until feedback deadline")
     
     # Assessment context
-    employee_name: Optional[str] = Field(None, alias="employeeName", description="Name of the employee being evaluated")
     goal_category: Optional[str] = Field(None, alias="goalCategory", description="Category of the goal being evaluated")
     goal_title: Optional[str] = Field(None, alias="goalTitle", description="Title of the goal being evaluated")
+    goal_description: Optional[str] = Field(None, alias="goalDescription", description="Description of the goal for better context")
+    evaluation_period_name: Optional[str] = Field(None, alias="evaluationPeriodName", description="Name of the evaluation period")
     
     class Config:
         from_attributes = True
