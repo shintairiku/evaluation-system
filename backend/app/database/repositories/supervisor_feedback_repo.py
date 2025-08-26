@@ -94,13 +94,16 @@ class SupervisorFeedbackRepository:
             raise
 
     async def get_by_id_with_details(self, feedback_id: UUID) -> Optional[SupervisorFeedback]:
-        """Get supervisor feedback by ID with all related data."""
+        """Get supervisor feedback by ID with all related data for SupervisorFeedbackDetail response."""
         try:
             result = await self.session.execute(
                 select(SupervisorFeedback)
                 .options(
+                    # Self-assessment with complete goal and user details
                     joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
+                    # Evaluation period for context
                     joinedload(SupervisorFeedback.period),
+                    # Supervisor user data
                     joinedload(SupervisorFeedback.supervisor)
                 )
                 .filter(SupervisorFeedback.id == feedback_id)
