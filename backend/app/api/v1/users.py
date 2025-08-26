@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus, UserExistsResponse, ProfileOptionsResponse
+from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus, UserExistsResponse, ProfileOptionsResponse, SimpleUser
 from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
 from ...security import AuthContext, get_auth_context
@@ -102,6 +102,43 @@ async def get_users(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching users: {str(e)}"
+        )
+
+
+@router.get("/org-chart", response_model=list[SimpleUser])
+async def get_users_for_org_chart(
+    context: AuthContext = Depends(get_auth_context),
+    department_ids: Optional[list[UUID]] = Query(None, alias="department_ids", description="Filter by department IDs"),
+    role_ids: Optional[list[UUID]] = Query(None, alias="role_ids", description="Filter by role IDs"),
+    supervisor_id: Optional[UUID] = Query(None, alias="supervisor_id", description="Filter by supervisor ID to get subordinates"),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get users for organization chart display.
+    
+    - **No RBAC permissions required** - anyone authenticated can view organization chart
+    - **Always returns active users only**
+    - **Returns simple list of SimpleUser objects** (not paginated, no stage info)
+    
+    Supports filtering by:
+    - Department IDs
+    - Role IDs  
+    - Supervisor ID (to get subordinates)
+    """
+    try:
+        service = UserService(session)
+        users = await service.get_users_for_org_chart(
+            current_user_context=context,
+            department_ids=department_ids,
+            role_ids=role_ids,
+            supervisor_id=supervisor_id
+        )
+        return users
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching users for organization chart: {str(e)}"
         )
 
 

@@ -13,7 +13,7 @@ from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
-    Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate
+    Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate, SimpleUser
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -50,7 +50,7 @@ class UserService:
         department_ids: Optional[list[UUID]] = None,
         stage_ids: Optional[list[UUID]] = None,
         role_ids: Optional[list[UUID]] = None,
-        supervisor_id: Optional[UUID] = None,  # Task #168: Filter by supervisor to get subordinates
+        supervisor_id: Optional[UUID] = None,
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[UserDetailResponse]:
         """
@@ -88,8 +88,8 @@ class UserService:
                 "statuses": sorted(statuses) if statuses else None,
                 "department_ids": sorted([str(d) for d in department_ids]) if department_ids else None,
                 "stage_ids": sorted([str(s) for s in stage_ids]) if stage_ids else None,
-                "role_ids": sorted([str(r) for r in role_ids]) if role_ids else None,
-                "supervisor_id": str(supervisor_id) if supervisor_id else None,  # Task #168: Include supervisor_id in cache key
+                "role_ids": sorted([r(r) for r in role_ids]) if role_ids else None,
+                "supervisor_id": str(supervisor_id) if supervisor_id else None, 
                 "user_ids": sorted([str(u) for u in user_ids_to_filter]) if user_ids_to_filter else None,
                 "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None,
                 "requesting_user_roles": sorted(current_user_context.role_names)
@@ -101,7 +101,7 @@ class UserService:
             if cached_result:
                 return PaginatedResponse.model_validate_json(cached_result)
             
-            # Task #168: Handle supervisor_id filtering specifically
+            # Handle supervisor_id filtering specifically
             final_user_ids_to_filter = user_ids_to_filter
             if supervisor_id:
                 # Get subordinates of the specified supervisor
@@ -131,7 +131,7 @@ class UserService:
                 department_ids=department_ids,
                 stage_ids=stage_ids,
                 role_ids=role_ids,
-                user_ids=final_user_ids_to_filter  # Task #168: Use final filtered user IDs
+                user_ids=final_user_ids_to_filter 
             )
             
             # Enrich users with detailed data including supervisor/subordinates
@@ -158,6 +158,47 @@ class UserService:
             
         except Exception as e:
             logger.error(f"Error in get_users: {e}")
+            raise
+    
+    async def get_users_for_org_chart(
+        self,
+        current_user_context: AuthContext,
+        department_ids: Optional[list[UUID]] = None,
+        role_ids: Optional[list[UUID]] = None,
+        supervisor_id: Optional[UUID] = None
+    ) -> list[SimpleUser]:
+        """
+        Get users for organization chart display - requires authentication but NO RBAC permission checks.
+        Always filters to active users only.
+        Returns a simple list of SimpleUser objects (no stage info).
+        
+        Args:
+            current_user_context: Authentication context (required but no permissions checked)
+            department_ids: Optional filter by department IDs
+            role_ids: Optional filter by role IDs  
+            supervisor_id: Optional filter by supervisor ID to get subordinates
+            
+        Returns:
+            List of SimpleUser objects for active users matching filters
+        """
+        try:
+            # Handle supervisor_id filtering
+            user_ids_to_filter = None
+            if supervisor_id:
+                subordinate_users = await self.user_repo.get_subordinates(supervisor_id)
+                user_ids_to_filter = [user.id for user in subordinate_users]
+            
+            # Use efficient repository method with joins
+            users = await self.user_repo.get_users_for_org_chart(
+                department_ids=department_ids,
+                role_ids=role_ids,
+                user_ids=user_ids_to_filter
+            )
+            
+            return users
+            
+        except Exception as e:
+            logger.error(f"Error in get_users_for_organization_chart: {e}")
             raise
     
     async def get_user_by_id(
