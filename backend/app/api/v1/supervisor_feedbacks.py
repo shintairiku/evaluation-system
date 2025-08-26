@@ -136,29 +136,6 @@ async def get_feedback_for_assessment(
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching feedback for assessment: {str(e)}")
 
 
-@router.get("/pending", response_model=SupervisorFeedbackList)
-async def get_pending_feedbacks(
-    pagination: PaginationParams = Depends(),
-    period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    context: AuthContext = Depends(require_supervisor_or_above),
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Get pending supervisor feedbacks that need attention (supervisor only)."""
-    try:
-        service = SupervisorFeedbackService(session)
-        result = await service.get_pending_feedbacks(
-            current_user_context=context, 
-            period_id=period_id, 
-            pagination=pagination
-        )
-        return result
-    except PermissionDeniedError as e:
-        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
-    except BadRequestError as e:
-        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching pending feedbacks: {str(e)}")
-
 
 @router.get("/{feedback_id}", response_model=SupervisorFeedbackDetail)
 async def get_supervisor_feedback(
