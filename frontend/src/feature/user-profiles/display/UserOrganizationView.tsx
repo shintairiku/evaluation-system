@@ -289,7 +289,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       
       // Improved spacing and layout for better visualization
       const nodeWidth = 288; // w-72 = 288px (sm:w-64 = 256px on mobile)
-      const verticalSpacing = 450; // Increased for better line visibility
+      const verticalSpacing = 600; // Increased for better line visibility and drag operations
       const horizontalSpacing = 120; // Further increased to prevent overlaps
       const minNodeSpacing = 50; // Minimum spacing to prevent overlaps
       
@@ -356,7 +356,7 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     
     // Group nodes by level
     allNodes.forEach(node => {
-      const level = Math.round(node.position.y / 450); // verticalSpacing = 450
+      const level = Math.round(node.position.y / 600); // verticalSpacing = 600
       if (!nodesByLevel.has(level)) {
         nodesByLevel.set(level, []);
       }
@@ -370,13 +370,36 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
       for (let i = 1; i < levelNodes.length; i++) {
         const prevNode = levelNodes[i - 1];
         const currentNode = levelNodes[i];
-        const minDistance = 288 + 80; // nodeWidth + minSpacing
+        const minDistance = 288 + 120; // nodeWidth + increased minSpacing for better visibility
         
         if (currentNode.position.x < prevNode.position.x + minDistance) {
           currentNode.position.x = prevNode.position.x + minDistance;
         }
       }
     });
+    
+    // Additional check for vertical spacing to ensure proper line visibility
+    const allLevels = Array.from(nodesByLevel.keys()).sort((a, b) => a - b);
+    for (let i = 1; i < allLevels.length; i++) {
+      const prevLevel = allLevels[i - 1];
+      const currentLevel = allLevels[i];
+      const minVerticalDistance = 600; // Ensure minimum vertical spacing
+      
+      const prevLevelNodes = nodesByLevel.get(prevLevel) || [];
+      const currentLevelNodes = nodesByLevel.get(currentLevel) || [];
+      
+      if (prevLevelNodes.length > 0 && currentLevelNodes.length > 0) {
+        const prevLevelMaxY = Math.max(...prevLevelNodes.map(n => n.position.y));
+        const currentLevelMinY = Math.min(...currentLevelNodes.map(n => n.position.y));
+        
+        if (currentLevelMinY - prevLevelMaxY < minVerticalDistance) {
+          const adjustment = minVerticalDistance - (currentLevelMinY - prevLevelMaxY);
+          currentLevelNodes.forEach(node => {
+            node.position.y += adjustment;
+          });
+        }
+      }
+    }
     
     return {
       nodes: allNodes,
@@ -672,6 +695,12 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     // If found a potential supervisor, make the connection
     if (closestSupervisor) {
       await handleSupervisorChange(node.id, closestSupervisor);
+      
+      // Force immediate layout recalculation to ensure proper spacing
+      setTimeout(() => {
+        setLayoutKey(prev => prev + 1);
+      }, 100);
+      
       return; // Don't reset position if we're processing a change
     }
     
