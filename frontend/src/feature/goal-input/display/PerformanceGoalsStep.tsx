@@ -1,6 +1,4 @@
 'use client';
-
-import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, X, AlertCircle, TrendingUp, BarChart3, Zap, Save, Cloud, CloudOff, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, TrendingUp, BarChart3, Zap } from 'lucide-react';
 
 interface PerformanceGoal {
   id: string;
@@ -26,75 +24,21 @@ interface PerformanceGoal {
 interface PerformanceGoalsStepProps {
   goals: PerformanceGoal[];
   onGoalsChange: (goals: PerformanceGoal[]) => void;
+  goalTracking?: {
+    trackGoalChange: (goalId: string, goalType: 'performance' | 'competency', data: unknown) => void;
+  };
   onNext: () => void;
+  periodId?: string;
 }
 
-export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: PerformanceGoalsStepProps) {
-  const [currentGoals, setCurrentGoals] = useState<PerformanceGoal[]>(goals);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  // Autosave functionality
-  const autosave = useCallback(async () => {
-    setSaveStatus('saving');
-    setHasUnsavedChanges(false);
-    
-    try {
-      // Simulate API call for autosave
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      setSaveStatus('saved');
-      setLastSaved(new Date());
-      
-      toast.success('目標を自動保存しました', {
-        duration: 2000
-      });
-      
-      // Reset to idle after showing saved status
-      setTimeout(() => setSaveStatus('idle'), 2000);
-      
-    } catch {
-      setSaveStatus('error');
-      toast.error('自動保存に失敗しました', {
-        duration: 3000
-      });
-      setHasUnsavedChanges(true);
-    }
-  }, []);
-
-  // Debounced autosave
-  useEffect(() => {
-    if (hasUnsavedChanges && currentGoals.length > 0) {
-      const timeoutId = setTimeout(() => {
-        autosave();
-      }, 2000); // Autosave after 2 seconds of inactivity
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [currentGoals, hasUnsavedChanges, autosave]);
-
-  useEffect(() => {
-    // 初期設定：目標がない場合は1つ追加
-    if (goals.length === 0) {
-      const initialGoal: PerformanceGoal = {
-        id: Date.now().toString(),
-        type: 'quantitative',
-        title: '',
-        specificGoal: '',
-        achievementCriteria: '',
-        method: '',
-        weight: 50
-      };
-      setCurrentGoals([initialGoal]);
-      onGoalsChange([initialGoal]);
-    }
-  }, [goals, onGoalsChange]);
+export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, periodId: _periodId }: PerformanceGoalsStepProps) {
+  // Derive values directly from props to avoid local-state divergence
+  const currentGoals = goals;
 
   const addGoal = () => {
     const remainingWeight = 100 - getTotalWeight();
     const newGoal: PerformanceGoal = {
-      id: Date.now().toString(),
+      id: Date.now().toString(), // Temporary ID for new goals
       type: 'quantitative',
       title: '',
       specificGoal: '',
@@ -103,9 +47,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
       weight: Math.min(remainingWeight, 30)
     };
     const updatedGoals = [...currentGoals, newGoal];
-    setCurrentGoals(updatedGoals);
     onGoalsChange(updatedGoals);
-    setHasUnsavedChanges(true);
     
     // Show immediate feedback
     toast.success('新しい目標を追加しました', {
@@ -118,10 +60,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
     
     const goalToRemove = currentGoals.find(goal => goal.id === id);
     const updatedGoals = currentGoals.filter(goal => goal.id !== id);
-    
-    setCurrentGoals(updatedGoals);
     onGoalsChange(updatedGoals);
-    setHasUnsavedChanges(true);
     
     // Show immediate feedback with undo option
     const goalTitle = goalToRemove?.title || '目標';
@@ -130,7 +69,6 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
       action: {
         label: '元に戻す',
         onClick: () => {
-          setCurrentGoals(currentGoals);
           onGoalsChange(currentGoals);
           toast.success('削除を取り消しました', { duration: 1500 });
         },
@@ -142,9 +80,13 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
     const updatedGoals = currentGoals.map(goal =>
       goal.id === id ? { ...goal, [field]: value } : goal
     );
-    setCurrentGoals(updatedGoals);
     onGoalsChange(updatedGoals);
-    setHasUnsavedChanges(true);
+    
+    // Track the specific goal that was changed for auto-save
+    const updatedGoal = updatedGoals.find(goal => goal.id === id);
+    if (updatedGoal && goalTracking) {
+      goalTracking.trackGoalChange(id, 'performance', updatedGoal);
+    }
     
     // Show subtle feedback for important field updates
     if (field === 'weight') {
@@ -175,41 +117,6 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
 
   const weightStatus = getWeightStatus();
 
-  const getSaveStatusIndicator = () => {
-    switch (saveStatus) {
-      case 'saving':
-        return (
-          <div className="flex items-center gap-2 text-blue-600">
-            <Cloud className="h-4 w-4 animate-pulse" />
-            <span className="text-sm">保存中...</span>
-          </div>
-        );
-      case 'saved':
-        return (
-          <div className="flex items-center gap-2 text-green-600">
-            <CheckCircle className="h-4 w-4" />
-            <span className="text-sm">
-              保存済み {lastSaved && `(${lastSaved.toLocaleTimeString()})`}
-            </span>
-          </div>
-        );
-      case 'error':
-        return (
-          <div className="flex items-center gap-2 text-red-600">
-            <CloudOff className="h-4 w-4" />
-            <span className="text-sm">保存失敗</span>
-          </div>
-        );
-      default:
-        return hasUnsavedChanges ? (
-          <div className="flex items-center gap-2 text-yellow-600">
-            <Save className="h-4 w-4" />
-            <span className="text-sm">未保存の変更</span>
-          </div>
-        ) : null;
-    }
-  };
-
   return (
     <div className="space-y-6">
 
@@ -221,7 +128,6 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">重み配分の進捗</span>
               <div className="flex items-center gap-3">
-                {getSaveStatusIndicator()}
                 <Badge variant={weightStatus.status === 'success' ? "default" : 
                                weightStatus.status === 'error' ? "destructive" : "secondary"}>
                   {getTotalWeight()}% / 100%
@@ -287,9 +193,10 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, onNext }: Performan
                       variant="ghost"
                       size="sm"
                       onClick={() => removeGoal(goal.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      className="text-gray-400 hover:text-destructive hover:bg-destructive/10 opacity-50 hover:opacity-100"
+                      title="この目標を削除"
                     >
-                      <X className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
