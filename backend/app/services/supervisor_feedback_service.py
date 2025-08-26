@@ -395,11 +395,7 @@ class SupervisorFeedbackService:
             
             # Permission check
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
-            
-            # Business rule: can only delete draft feedbacks
-            if existing_feedback.status != SubmissionStatus.DRAFT.value:
-                raise BadRequestError("Can only delete draft feedbacks")
-            
+                        
             # Delete feedback
             success = await self.supervisor_feedback_repo.delete_feedback(feedback_id)
             
@@ -555,10 +551,6 @@ class SupervisorFeedbackService:
         if feedback.supervisor_id != current_user_context.user_id:
             raise PermissionDeniedError("You can only update/delete your own supervisor feedbacks")
         
-        # Check if feedback is still editable
-        if feedback.status == SubmissionStatus.SUBMITTED.value:
-            raise BadRequestError("Cannot update submitted feedbacks")
-
     async def _validate_feedback_creation(self, assessment, feedback_data: SupervisorFeedbackCreate, current_user_context: AuthContext):
         """Validate supervisor feedback creation business rules."""
         # Check if assessment is submitted (can only give feedback on submitted assessments)
