@@ -19,19 +19,40 @@ router = APIRouter(prefix="/supervisor-feedbacks", tags=["supervisor-feedbacks"]
 async def get_supervisor_feedbacks(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (assessment owner)"),
+    supervisor_id: Optional[UUID] = Query(None, alias="supervisorId", description="Filter by supervisor ID (feedback creator)"),
+    subordinate_id: Optional[UUID] = Query(None, alias="subordinateId", description="Filter by subordinate ID (feedback recipient)"),
     status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
-    """Get supervisor feedbacks for the current user or filtered feedbacks based on permissions."""
+    """
+    Get supervisor feedbacks based on current user's permissions and filters.
+    
+    Supports filtering by:
+    - supervisorId: Get feedbacks created by a specific supervisor
+    - subordinateId: Get feedbacks received by a specific subordinate/employee
+    - userId: Legacy parameter (deprecated, use subordinateId instead)
+    - periodId: Filter by evaluation period
+    - status: Filter by feedback status (draft/submitted)
+    
+    Role-based default behavior when no supervisorId/subordinateId specified:
+    - Admin: Shows all feedbacks
+    - Manager/Supervisor: Shows feedbacks they created (supervisorId=self)
+    - Employee/Part-time: Shows feedbacks they received (subordinateId=self)
+    
+    Role-based filtering restrictions:
+    - Admin: Can filter by any supervisorId or subordinateId
+    - Manager/Supervisor: Can only use their own supervisorId, subordinateId limited to their subordinates
+    - Employee/Part-time: Cannot use supervisorId, can only use their own subordinateId
+    """
     try:
         service = SupervisorFeedbackService(session)
         
         result = await service.get_feedbacks(
             current_user_context=context,
             period_id=period_id,
-            user_id=user_id,
+            supervisor_id=supervisor_id,
+            subordinate_id=subordinate_id,
             status=status,
             pagination=pagination
         )
