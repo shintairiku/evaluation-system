@@ -87,7 +87,7 @@ export default function UserEditViewModal({
         department_id: formData.get('department_id') === 'unset' ? undefined : formData.get('department_id') as UUID,
         stage_id: formData.get('stage_id') === 'unset' ? undefined : formData.get('stage_id') as UUID,
         status: formData.get('status') as UserStatus,
-        subordinate_ids: [], // Keep empty for profile edit
+        // subordinate_ids: [], // REMOVED - This was causing subordinates to be deleted!
       };
 
       // Filter out empty values

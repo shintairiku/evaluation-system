@@ -158,76 +158,77 @@ export default function HierarchyEditCard({
     }
   }, [removeSubordinate, allUsers]);
 
-  // Hybrid save handler - supervisor changes via hook, subordinates via direct API calls
+  // EXACT SAME LOGIC AS 組織図 - Convert temporarySubordinates to pendingChanges format
   const handleSaveWithTemporary = useCallback(async () => {
     try {
       let successCount = 0;
+      let hasErrors = false;
       
-      // First save any supervisor changes via hook
+      // Convert temporarySubordinates to pendingChanges format (like 組織図)
+      const pendingChanges = temporarySubordinates.map(tempSub => ({
+        userId: tempSub.id,
+        newSupervisorId: user.id,
+        originalSupervisorId: tempSub.supervisor?.id || null,
+        timestamp: Date.now()
+      }));
+      
+      // Add supervisor changes if any
+      const allChangesToProcess = [...pendingChanges];
       if (hasPendingChanges) {
         await saveAllChanges();
       }
       
-      // Process each temporary subordinate ONE BY ONE (like working 組織図)
-      console.log(`[HierarchyCard] Processing ${temporarySubordinates.length} temporary subordinates for user ${user.name}`);
-      
-      for (const tempSubordinate of temporarySubordinates) {
+      // EXACT SAME PROCESSING LOGIC AS 組織図
+      for (const pendingChange of allChangesToProcess) {
         try {
-          console.log(`[HierarchyCard] Updating subordinate ${tempSubordinate.name} (${tempSubordinate.id}) to have supervisor ${user.name} (${user.id})`);
-          
-          // Direct API call - exactly like 組織図
-          const result = await updateUserAction(tempSubordinate.id, { supervisor_id: user.id });
-          
-          console.log(`[HierarchyCard] API result for ${tempSubordinate.name}:`, { 
-            success: result.success, 
-            hasData: !!result.data,
-            error: result.error 
-          });
+          const result = await updateUserAction(
+            pendingChange.userId,
+            { supervisor_id: pendingChange.newSupervisorId || undefined }
+          );
           
           if (result.success && result.data) {
             successCount++;
-            console.log(`[HierarchyCard] Successfully updated ${tempSubordinate.name}, calling onUserUpdate`);
-            
-            // Update the subordinate data in the parent list (like 組織図)
+            // Update the user data - EXACT SAME AS 組織図
             if (onUserUpdate) {
               onUserUpdate(result.data);
             }
           } else {
-            console.error(`[HierarchyCard] Failed to add subordinate ${tempSubordinate.name}:`, result.error);
+            hasErrors = true;
+            const subordinateUser = temporarySubordinates.find(u => u.id === pendingChange.userId);
+            toast.error("保存エラー", {
+              description: `${subordinateUser?.name || '不明なユーザー'}の変更保存に失敗しました`,
+            });
           }
         } catch (error) {
-          console.error(`[HierarchyCard] Error adding subordinate ${tempSubordinate.name}:`, error);
+          hasErrors = true;
+          const subordinateUser = temporarySubordinates.find(u => u.id === pendingChange.userId);
+          console.error('Error saving change for user:', pendingChange.userId, error);
+          toast.error("保存エラー", {
+            description: `${subordinateUser?.name || '不明なユーザー'}の変更保存中にエラーが発生しました`,
+          });
         }
       }
       
-      // Also get fresh current user data to see ALL updated subordinates (like 組織図)
-      console.log(`[HierarchyCard] Fetching fresh data for supervisor ${user.name}. successCount: ${successCount}, hasPendingChanges: ${hasPendingChanges}`);
-      
-      if (onUserUpdate && (successCount > 0 || hasPendingChanges)) {
-        const userResult = await getUserByIdAction(user.id);
-        console.log(`[HierarchyCard] Fresh supervisor data result:`, { 
-          success: userResult.success, 
-          hasData: !!userResult.data,
-          subordinatesCount: userResult.data?.subordinates?.length || 0,
-          error: userResult.error 
-        });
-        
-        if (userResult.success && userResult.data) {
-          console.log(`[HierarchyCard] Calling onUserUpdate with fresh supervisor data`);
-          onUserUpdate(userResult.data);
-        }
-      }
-      
-      // Clear temporary subordinates after successful save
+      // Clear temporary subordinates after processing
       setTemporarySubordinates([]);
       
-      toast.success("階層変更保存", {
-        description: `${successCount}人の部下を含む階層変更を保存しました`,
-      });
+      // Show success/warning messages - EXACT SAME AS 組織図
+      if (successCount > 0) {
+        if (!hasErrors) {
+          toast.success("変更保存完了", {
+            description: `${successCount}件の階層変更が正常に保存されました`,
+          });
+        } else {
+          toast.warning("一部保存完了", {
+            description: `${successCount}件中一部の変更が保存されました`,
+          });
+        }
+      }
+      
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : '階層変更の保存に失敗しました';
+      console.error('Error saving changes:', error);
       toast.error("保存エラー", {
-        description: errorMsg,
+        description: "変更の保存中に予期しないエラーが発生しました",
       });
     }
   }, [temporarySubordinates, user.id, onUserUpdate, hasPendingChanges, saveAllChanges]);
