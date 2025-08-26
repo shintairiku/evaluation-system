@@ -414,67 +414,6 @@ class SupervisorFeedbackService:
             logger.error(f"Error deleting feedback {feedback_id}: {str(e)}")
             raise
 
-    async def get_pending_feedbacks(
-        self,
-        current_user_context: AuthContext,
-        period_id: Optional[UUID] = None,
-        pagination: Optional[PaginationParams] = None
-    ) -> PaginatedResponse[SupervisorFeedback]:
-        """Get pending supervisor feedbacks that need attention (supervisor only)."""
-        try:
-            # Permission check
-            if not current_user_context.has_permission(Permission.GOAL_APPROVE):
-                raise PermissionDeniedError("You do not have permission to view pending feedbacks")
-            
-            # For supervisors, get submitted assessments from subordinates without feedback
-            # This requires a more complex query that we'll implement as a business logic check
-            
-            # Get all submitted assessments from subordinates
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            subordinate_ids = [sub.id for sub in subordinates]
-            
-            if not subordinate_ids:
-                # No subordinates, return empty result
-                return PaginatedResponse(items=[], total=0, page=1, limit=0, pages=0)
-            
-            # Get assessments that need feedback
-            assessments = await self.self_assessment_repo.search_assessments(
-                user_ids=subordinate_ids,
-                period_id=period_id,
-                status=SubmissionStatus.SUBMITTED.value,
-                pagination=pagination
-            )
-            
-            # Filter to those without supervisor feedback or with draft feedback only
-            pending_feedbacks = []
-            for assessment in assessments:
-                feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment.id)
-                if not feedback or feedback.status == SubmissionStatus.DRAFT.value:
-                    # Create a placeholder feedback response or actual draft if exists
-                    if feedback:
-                        enriched_feedback = await self._enrich_feedback_data(feedback)
-                        pending_feedbacks.append(enriched_feedback)
-            
-            # Count for pagination
-            total_count = len(pending_feedbacks)
-            
-            # Create response
-            if pagination:
-                total_pages = (total_count + pagination.limit - 1) // pagination.limit
-            else:
-                total_pages = 1
-            
-            return PaginatedResponse(
-                items=pending_feedbacks,
-                total=total_count,
-                page=pagination.page if pagination else 1,
-                limit=pagination.limit if pagination else len(pending_feedbacks),
-                pages=total_pages
-            )
-            
-        except Exception as e:
-            logger.error(f"Error getting pending feedbacks: {e}")
-            raise
 
     # ========================================
     # PRIVATE HELPER METHODS
