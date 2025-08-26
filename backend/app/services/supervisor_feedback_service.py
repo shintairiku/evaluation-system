@@ -1,8 +1,7 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID
-from datetime import datetime
 from cachetools import TTLCache
 
 from ..database.repositories.supervisor_feedback_repo import SupervisorFeedbackRepository
@@ -14,11 +13,14 @@ from ..database.models.supervisor_feedback import SupervisorFeedback as Supervis
 from ..schemas.supervisor_feedback import (
     SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedback, SupervisorFeedbackDetail
 )
+from ..schemas.self_assessment import SelfAssessment
+from ..schemas.evaluation import EvaluationPeriod
+from ..schemas.user import UserProfileOption
 from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..core.exceptions import (
-    NotFoundError, PermissionDeniedError, BadRequestError, ValidationError, ConflictError
+    NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,26 +45,92 @@ class SupervisorFeedbackService:
         self,
         current_user_context: AuthContext,
         period_id: Optional[UUID] = None,
-        user_id: Optional[UUID] = None,
+        supervisor_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
         status: Optional[str] = None,
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[SupervisorFeedback]:
         """
         Get supervisor feedbacks based on current user's permissions and filters.
         
+        Args:
+            current_user_context: Authentication context for permission checks
+            period_id: Filter by specific evaluation period
+            user_id: Legacy parameter - filter by assessment owner (subordinate)
+            supervisor_id: Filter by specific supervisor who created feedbacks
+            subordinate_id: Filter by specific subordinate who received feedbacks
+            status: Filter by feedback status (draft/submitted)
+            pagination: Pagination parameters
+        
         Access rules:
         - Supervisors: can view their own feedbacks + feedbacks on their subordinates' assessments
         - Employees: can view feedbacks on their own assessments
         - Admins: can view all feedbacks
+        
+        Notes:
+        - supervisor_id: Returns feedbacks created by the specified supervisor
+        - subordinate_id: Returns feedbacks received by the specified subordinate
+        - user_id is deprecated, use subordinate_id instead
+        
+        Role-based default behavior when both supervisor_id and subordinate_id are None:
+        - Admin: Can see all feedbacks (no defaults applied)
+        - Manager/Supervisor: Defaults to supervisor_id=current_user (their own created feedbacks)
+        - Employee/Part-time: Defaults to subordinate_id=current_user (feedbacks they received)
+        
+        Role-based filtering restrictions:
+        - Admin: Can filter by any supervisor_id or subordinate_id
+        - Manager/Supervisor: Can only filter by their own supervisor_id, and subordinate_id of their actual subordinates
+        - Employee/Part-time: Cannot filter by supervisor_id, can only filter by their own subordinate_id
         """
         try:
-            # Determine which feedbacks the current user can access
-            accessible_filters = await self._get_accessible_filters(current_user_context, user_id)
+            # First, apply validation for non-admin users who cannot assign arbitrary supervisor_id/subordinate_id
+            await self._validate_filtering_permissions(current_user_context, supervisor_id, subordinate_id)
+            
+            # Apply conditional defaults when both supervisor_id and subordinate_id are None
+            actual_supervisor_id = supervisor_id
+            actual_subordinate_id = subordinate_id
+
+            if actual_supervisor_id is None and actual_subordinate_id is None:
+                # Apply role-based defaults
+                if current_user_context.is_admin():
+                    # Admin: no change - can see all feedbacks
+                    pass
+                elif current_user_context.has_any_role(["manager", "supervisor"]) and not current_user_context.is_admin():
+                    # Manager/Supervisor (but not admin): default to their own supervisor feedbacks
+                    actual_supervisor_id = current_user_context.user_id
+                elif current_user_context.has_any_role(["employee", "parttime"]) and not current_user_context.is_admin():
+                    # Employee/Part-time (but not admin): default to their own subordinate feedbacks
+                    actual_subordinate_id = current_user_context.user_id
+            
+            # Determine base accessible filters based on user permissions
+            accessible_filters = await self._get_accessible_filters(current_user_context, actual_subordinate_id)
+            
+            # Apply specific supervisor_id and subordinate_id filters with permission checks
+            final_supervisor_ids = accessible_filters.get("supervisor_ids")
+            final_user_ids = accessible_filters.get("user_ids")
+            
+            # Handle supervisor_id filter
+            if actual_supervisor_id:
+                # Check if user has permission to view this supervisor's feedbacks
+                if not current_user_context.is_admin():
+                    # Non-admin users can only view their own supervisor feedbacks or those they have access to
+                    if final_supervisor_ids is None or actual_supervisor_id not in final_supervisor_ids:
+                        raise PermissionDeniedError(f"You do not have permission to access feedbacks from supervisor {actual_supervisor_id}")
+                final_supervisor_ids = [actual_supervisor_id]
+            
+            # Handle subordinate_id filter
+            if actual_subordinate_id:
+                # Check if user has permission to view this subordinate's feedbacks
+                if not current_user_context.is_admin():
+                    # Non-admin users can only view feedbacks for users they have access to
+                    if final_user_ids is None or actual_subordinate_id not in final_user_ids:
+                        raise PermissionDeniedError(f"You do not have permission to access feedbacks for user {actual_subordinate_id}")
+                final_user_ids = [actual_subordinate_id]
             
             # Search feedbacks with filters
             feedbacks = await self.supervisor_feedback_repo.search_feedbacks(
-                supervisor_ids=accessible_filters.get("supervisor_ids"),
-                user_ids=accessible_filters.get("user_ids"),
+                supervisor_ids=final_supervisor_ids,
+                user_ids=final_user_ids,
                 period_id=period_id,
                 status=status,
                 pagination=pagination
@@ -70,8 +138,8 @@ class SupervisorFeedbackService:
             
             # Get total count for pagination
             total_count = await self.supervisor_feedback_repo.count_feedbacks(
-                supervisor_ids=accessible_filters.get("supervisor_ids"),
-                user_ids=accessible_filters.get("user_ids"),
+                supervisor_ids=final_supervisor_ids,
+                user_ids=final_user_ids,
                 period_id=period_id,
                 status=status
             )
@@ -418,6 +486,49 @@ class SupervisorFeedbackService:
         
         return filters
 
+    async def _validate_filtering_permissions(
+        self,
+        current_user_context: AuthContext,
+        supervisor_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None
+    ):
+        """
+        Validate that non-admin users cannot assign arbitrary supervisor_id/subordinate_id values.
+        
+        Business rules:
+        - Admin: can assign any supervisor_id or subordinate_id
+        - Manager/Supervisor: cannot assign supervisor_id other than their own, cannot assign subordinate_id to users who aren't their subordinates
+        - Employee/Part-time: cannot assign supervisor_id, can only assign subordinate_id to themselves
+        """
+        if current_user_context.is_admin():
+            return  # Admin can assign any values
+        
+        # Validation for supervisor_id parameter
+        if supervisor_id:
+            if current_user_context.has_any_role(["manager", "supervisor"]):
+                # Manager/Supervisor: can only assign their own user_id to supervisor_id
+                if supervisor_id != current_user_context.user_id:
+                    raise PermissionDeniedError("Managers and supervisors can only filter by their own supervisor feedbacks")
+            elif current_user_context.has_any_role(["employee", "parttime"]):
+                # Employee/Part-time: cannot assign supervisor_id at all
+                raise PermissionDeniedError("Employees and part-time users cannot filter by supervisor_id")
+        
+        # Validation for subordinate_id parameter
+        if subordinate_id:
+            if current_user_context.has_any_role(["manager", "supervisor"]):
+                # Manager/Supervisor: can only assign subordinate_id to their actual subordinates
+                subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
+                subordinate_ids = [sub.id for sub in subordinates]
+                subordinate_ids.append(current_user_context.user_id)  # Can also view their own
+                
+                if subordinate_id not in subordinate_ids:
+                    raise PermissionDeniedError("You can only filter by feedbacks for your subordinates or yourself")
+                    
+            elif current_user_context.has_any_role(["employee", "parttime"]):
+                # Employee/Part-time: can only assign their own user_id to subordinate_id
+                if subordinate_id != current_user_context.user_id:
+                    raise PermissionDeniedError("Employees and part-time users can only filter by their own received feedbacks")
+
     async def _check_assessment_access_permission(self, assessment, current_user_context: AuthContext):
         """Check if user has permission to access this assessment (reuse from self-assessment service)."""
         # Get the related goal to check ownership
@@ -583,24 +694,89 @@ class SupervisorFeedbackService:
         base_feedback = await self._enrich_feedback_data(feedback_model)
         detail_dict = base_feedback.model_dump()
         
-        # Get related assessment and goal for context
-        assessment = await self.self_assessment_repo.get_by_id_with_details(feedback_model.self_assessment_id)
+        # Get related data using the loaded relationships (from get_by_id_with_details)
+        assessment_data = None
+        evaluation_period_data = None
+        subordinate_data = None
+        supervisor_data = None
         goal = None
-        employee_name = None
         
-        if assessment:
-            goal = await self.goal_repo.get_goal_by_id_with_details(assessment.goal_id)
-            if goal and goal.user:
-                employee_name = goal.user.display_name or f"{goal.user.first_name} {goal.user.last_name}"
+        # Extract self-assessment data if available
+        if feedback_model.self_assessment:
+            assessment_data = await self._convert_assessment_to_schema(feedback_model.self_assessment)
+            
+            # Extract goal and subordinate data from assessment
+            if feedback_model.self_assessment.goal:
+                goal = feedback_model.self_assessment.goal
+                if goal.user:
+                    subordinate_data = await self._convert_user_to_profile_option(goal.user)
         
-        # Add detail fields
+        # Extract evaluation period data if available
+        if feedback_model.period:
+            evaluation_period_data = await self._convert_period_to_schema(feedback_model.period)
+        
+        # Extract supervisor data if available
+        if feedback_model.supervisor:
+            supervisor_data = await self._convert_user_to_profile_option(feedback_model.supervisor)
+        
+        # Add all enhanced detail fields
         detail_dict.update({
+            # Related object data
+            "self_assessment": assessment_data,
+            "evaluation_period": evaluation_period_data,
+            "subordinate": subordinate_data,
+            "supervisor": supervisor_data,
+            
+            # Status and editability
             "is_editable": feedback_model.status == SubmissionStatus.DRAFT.value,
             "is_overdue": False,  # Placeholder for future deadline check
             "days_until_deadline": None,  # Placeholder for future deadline calculation
-            "employee_name": employee_name,
+            
+            # Context fields
             "goal_category": goal.goal_category if goal else None,
-            "goal_title": f"{goal.goal_category} Goal" if goal else None,  # Simplified title
+            "goal_title": goal.title if goal else None,
+            "goal_description": goal.description if goal else None,
+            "evaluation_period_name": feedback_model.period.name if feedback_model.period else None,
         })
         
         return SupervisorFeedbackDetail(**detail_dict)
+
+    async def _convert_assessment_to_schema(self, assessment_model) -> SelfAssessment:
+        """Convert SelfAssessment database model to SelfAssessment schema."""
+        return SelfAssessment(
+            id=assessment_model.id,
+            goalId=assessment_model.goal_id,
+            periodId=assessment_model.period_id,
+            selfRating=float(assessment_model.self_rating) if assessment_model.self_rating else None,
+            selfComment=assessment_model.self_comment,
+            status=SubmissionStatus(assessment_model.status),
+            submittedAt=assessment_model.submitted_at,
+            createdAt=assessment_model.created_at,
+            updatedAt=assessment_model.updated_at
+        )
+    
+    async def _convert_period_to_schema(self, period_model) -> EvaluationPeriod:
+        """Convert EvaluationPeriod database model to EvaluationPeriod schema."""
+        return EvaluationPeriod(
+            id=period_model.id,
+            name=period_model.name,
+            description=period_model.description,
+            start_date=period_model.start_date,
+            end_date=period_model.end_date,
+            status=period_model.status,
+            created_at=period_model.created_at,
+            updated_at=period_model.updated_at
+        )
+    
+    async def _convert_user_to_profile_option(self, user_model) -> UserProfileOption:
+        """Convert User database model to UserProfileOption schema."""
+        return UserProfileOption(
+            id=user_model.id,
+            first_name=user_model.first_name,
+            last_name=user_model.last_name,
+            display_name=user_model.display_name,
+            email=user_model.email,
+            employee_code=user_model.employee_code,
+            job_title=user_model.job_title,
+            roles=[]  # Roles would need to be loaded separately if needed
+        )
