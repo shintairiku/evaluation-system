@@ -345,6 +345,42 @@ class SupervisorFeedbackService:
             logger.error(f"Error submitting feedback {feedback_id}: {str(e)}")
             raise
 
+    async def draft_feedback(
+        self,
+        feedback_id: UUID,
+        current_user_context: AuthContext
+    ) -> SupervisorFeedback:
+        """Change a supervisor feedback status to draft."""
+        try:
+            # Check if feedback exists and user can update it
+            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id)
+            if not existing_feedback:
+                raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
+            
+            # Permission check - only feedback creator can change to draft
+            await self._check_feedback_update_permission(existing_feedback, current_user_context)
+            
+            # Business rule: can only draft submitted feedbacks (to revert back to draft)
+            if existing_feedback.status != SubmissionStatus.SUBMITTED.value:
+                raise BadRequestError("Can only draft submitted feedbacks")
+            
+            # Update status using dedicated method
+            updated_feedback = await self.supervisor_feedback_repo.draft_feedback(feedback_id)
+            
+            # Commit transaction
+            await self.session.commit()
+            
+            # Enrich response data
+            enriched_feedback = await self._enrich_feedback_data(updated_feedback)
+            
+            logger.info(f"Supervisor feedback changed to draft: {feedback_id} by {current_user_context.user_id}")
+            return enriched_feedback
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error drafting feedback {feedback_id}: {str(e)}")
+            raise
+
     async def delete_feedback(
         self,
         feedback_id: UUID,
@@ -572,15 +608,13 @@ class SupervisorFeedbackService:
 
     async def _check_feedback_update_permission(self, feedback: SupervisorFeedbackModel, current_user_context: AuthContext):
         """Check if user has permission to update this feedback."""
-        # Admin can manage all feedbacks
-        if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            if feedback.status == SubmissionStatus.SUBMITTED.value:
-                raise BadRequestError("Cannot update submitted feedbacks")
-            return
+        # Business Rule: Only manager and supervisor roles can update/delete feedback
+        if not current_user_context.has_any_role(["manager", "supervisor"]):
+            raise PermissionDeniedError("Only managers and supervisors can update supervisor feedback")
         
-        # Only feedback creator can update their feedback
+        # Business Rule: supervisor_id MUST be same as current_user_context.user_id
         if feedback.supervisor_id != current_user_context.user_id:
-            raise PermissionDeniedError("You can only update your own supervisor feedbacks")
+            raise PermissionDeniedError("You can only update/delete your own supervisor feedbacks")
         
         # Check if feedback is still editable
         if feedback.status == SubmissionStatus.SUBMITTED.value:
@@ -615,17 +649,16 @@ class SupervisorFeedbackService:
     async def _validate_feedback_update(self, feedback_data: SupervisorFeedbackUpdate, existing_feedback: SupervisorFeedbackModel):
         """Validate supervisor feedback update business rules."""
         # CRITICAL: Validate rating rules for goal category during updates
-        if feedback_data.rating is not None or feedback_data.status == SubmissionStatus.SUBMITTED:
+        if feedback_data.rating is not None:
             # Get goal via assessment to validate category rules
             assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id)
             if assessment:
                 goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
                 if goal:
-                    # Create temp object for validation
+                    # Create temp object for validation (without status field)
                     temp_feedback = SupervisorFeedbackUpdate(
                         rating=feedback_data.rating if feedback_data.rating is not None else existing_feedback.rating,
-                        comment=feedback_data.comment,
-                        status=feedback_data.status
+                        comment=feedback_data.comment
                     )
                     await self._validate_goal_category_rating_rules(goal, temp_feedback)
 
@@ -648,20 +681,21 @@ class SupervisorFeedbackService:
                 )
         
         elif goal_category in ["業績目標", "コンピテンシー"]:  # Performance or Competency
-            # For draft status, rating is optional
-            if hasattr(feedback_data, 'status') and feedback_data.status == SubmissionStatus.SUBMITTED:
-                if feedback_data.rating is None:
-                    goal_type_name = "Performance" if goal_category == "業績目標" else "Competency"
-                    raise ValidationError(
-                        f"{goal_type_name} goals ({goal_category}) require a numeric rating (0-100) when submitting feedback. "
-                        f"Please provide a rating for goal category: {goal_category}"
-                    )
+            # For submission validation, check if this is a submission context
+            is_submission_context = hasattr(feedback_data, 'status') and feedback_data.status == SubmissionStatus.SUBMITTED
+            
+            if is_submission_context and feedback_data.rating is None:
+                goal_type_name = "Performance" if goal_category == "業績目標" else "Competency"
+                raise ValidationError(
+                    f"{goal_type_name} goals ({goal_category}) require a numeric rating (0-100) when submitting feedback. "
+                    f"Please provide a rating for goal category: {goal_category}"
+                )
                 
-                # Additional validation: rating must be within 0-100 (handled by schema, but double-check)
-                if not (0 <= feedback_data.rating <= 100):
-                    raise ValidationError(
-                        f"Rating for {goal_category} goals must be between 0 and 100, got: {feedback_data.rating}"
-                    )
+            # Additional validation: rating must be within 0-100 (handled by schema, but double-check)
+            if feedback_data.rating is not None and not (0 <= feedback_data.rating <= 100):
+                raise ValidationError(
+                    f"Rating for {goal_category} goals must be between 0 and 100, got: {feedback_data.rating}"
+                )
         
         else:
             # Unknown goal category

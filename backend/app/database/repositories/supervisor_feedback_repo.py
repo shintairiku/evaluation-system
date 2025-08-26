@@ -12,8 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.supervisor_feedback import SupervisorFeedback
 from ..models.self_assessment import SelfAssessment
 from ..models.goal import Goal
-from ..models.user import User
-from ..models.evaluation import EvaluationPeriod
 from ...schemas.supervisor_feedback import SupervisorFeedbackCreate, SupervisorFeedbackUpdate
 from ...schemas.common import PaginationParams, SubmissionStatus
 from ...core.exceptions import (
@@ -303,15 +301,6 @@ class SupervisorFeedbackRepository:
             if feedback_data.comment is not None:
                 update_data["comment"] = feedback_data.comment
             
-            if feedback_data.status is not None:
-                update_data["status"] = feedback_data.status.value
-                
-                # Set submitted_at when status changes to submitted
-                if feedback_data.status == SubmissionStatus.SUBMITTED:
-                    update_data["submitted_at"] = datetime.now(timezone.utc)
-                elif feedback_data.status == SubmissionStatus.DRAFT:
-                    update_data["submitted_at"] = None
-            
             # Execute update if there are changes
             if update_data:
                 update_data["updated_at"] = datetime.now(timezone.utc)
@@ -368,6 +357,35 @@ class SupervisorFeedbackRepository:
             
         except SQLAlchemyError as e:
             logger.error(f"Database error submitting supervisor feedback {feedback_id}: {e}")
+            raise
+
+    async def draft_feedback(self, feedback_id: UUID) -> Optional[SupervisorFeedback]:
+        """Change a supervisor feedback status to draft."""
+        try:
+            # Validate feedback exists and is in submitted status
+            existing_feedback = await self._validate_feedback_exists(feedback_id)
+            
+            if existing_feedback.status != SubmissionStatus.SUBMITTED.value:
+                raise ValidationError("Can only draft submitted feedbacks")
+            
+            # Update status and clear submitted_at
+            update_data = {
+                "status": SubmissionStatus.DRAFT.value,
+                "submitted_at": None,
+                "updated_at": datetime.now(timezone.utc)
+            }
+            
+            await self.session.execute(
+                update(SupervisorFeedback)
+                .where(SupervisorFeedback.id == feedback_id)
+                .values(**update_data)
+            )
+            
+            logger.info(f"Changed supervisor feedback {feedback_id} to draft")
+            return await self.get_by_id(feedback_id)
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Database error drafting supervisor feedback {feedback_id}: {e}")
             raise
 
     # ========================================

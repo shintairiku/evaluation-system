@@ -233,6 +233,34 @@ async def submit_supervisor_feedback(
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting supervisor feedback: {str(e)}")
 
 
+@router.post("/{feedback_id}/draft", response_model=SupervisorFeedback)
+async def draft_supervisor_feedback(
+    feedback_id: UUID,
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Change supervisor feedback status to draft (feedback creator only)."""
+    try:
+        service = SupervisorFeedbackService(session)
+        
+        # Change feedback to draft using dedicated method
+        result = await service.draft_feedback(feedback_id, context)
+        
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error changing supervisor feedback to draft: {str(e)}")
+
+
 @router.delete("/{feedback_id}", response_model=BaseResponse)
 async def delete_supervisor_feedback(
     feedback_id: UUID,
