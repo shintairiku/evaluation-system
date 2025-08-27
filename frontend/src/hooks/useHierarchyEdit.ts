@@ -17,6 +17,7 @@ interface UseHierarchyEditOptions {
   user: UserDetailResponse;
   allUsers: UserDetailResponse[];
   onUserUpdate?: (user: UserDetailResponse) => void;
+  forceCanEdit?: boolean; // Allow forcing edit permission for setup context
 }
 
 interface UseHierarchyEditReturn {
@@ -49,7 +50,8 @@ interface UseHierarchyEditReturn {
 export function useHierarchyEdit({
   user,
   allUsers,
-  onUserUpdate
+  onUserUpdate,
+  forceCanEdit = false
 }: UseHierarchyEditOptions): UseHierarchyEditReturn {
   const { user: clerkUser } = useUser();
   const { handleError } = useErrorHandler();
@@ -63,6 +65,9 @@ export function useHierarchyEdit({
 
   // Check if current user can edit hierarchies
   const canEditHierarchy = useMemo(() => {
+    // Allow editing if forced (for setup context)
+    if (forceCanEdit) return true;
+    
     if (!currentUser?.roles) return false;
     
     return currentUser.roles.some(role => {
@@ -71,7 +76,7 @@ export function useHierarchyEdit({
              roleName.includes('manager') || 
              roleName.includes('supervisor');
     });
-  }, [currentUser]);
+  }, [currentUser, forceCanEdit]);
 
   // Get potential supervisors (excluding self and subordinates to prevent circular hierarchy)
   const getPotentialSupervisors = useCallback(() => {
