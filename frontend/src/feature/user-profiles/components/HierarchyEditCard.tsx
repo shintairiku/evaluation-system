@@ -32,7 +32,6 @@ import {
 import { toast } from 'sonner';
 import type { UserDetailResponse } from '@/api/types';
 import { useHierarchyEdit } from '@/hooks/useHierarchyEdit';
-import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
 
 interface HierarchyEditCardProps {
   user: UserDetailResponse;
@@ -50,9 +49,8 @@ export default function HierarchyEditCard({
   onPendingChanges 
 }: HierarchyEditCardProps) {
   const [isEditMode, setIsEditMode] = useState(false);
-  const [temporarySubordinates, setTemporarySubordinates] = useState<UserDetailResponse[]>([]);
 
-  // Use the custom hierarchy editing hook
+  // Use the custom hierarchy editing hook for all hierarchy operations
   const {
     canEditHierarchy,
     currentUser,
@@ -95,12 +93,9 @@ export default function HierarchyEditCard({
   const potentialSupervisors = getPotentialSupervisors();
   const potentialSubordinates = getPotentialSubordinates();
   
-  // Use the optimistic state from the hook + temporary subordinates for preview
+  // Use the optimistic state from the hook
   const currentUser_display = optimisticState;
   const currentSubordinates = currentUser_display.subordinates || [];
-  
-  // Combine optimistic state with temporary subordinates for immediate preview
-  const allSubordinatesForDisplay = [...currentSubordinates, ...temporarySubordinates];
 
   // Handle supervisor change
   const handleSupervisorChange = useCallback(async (newSupervisorId: string | null) => {
@@ -120,27 +115,22 @@ export default function HierarchyEditCard({
     }
   }, [changeSupervisor, user.name, allUsers]);
 
-  // Handle add subordinate to temporary list for immediate preview (no API call)
-  const handleAddTemporarySubordinate = useCallback((subordinateId: string) => {
-    const subordinate = allUsers.find(u => u.id === subordinateId);
-    if (subordinate && !temporarySubordinates.find(s => s.id === subordinateId)) {
-      setTemporarySubordinates(prev => [...prev, subordinate]);
-      toast.info("部下を仮選択", {
-        description: `${subordinate.name}を部下候補として追加しました（保存まで仮選択）`,
+  // Handle add subordinate using the hook
+  const handleAddSubordinate = useCallback(async (subordinateId: string) => {
+    try {
+      await addSubordinate(subordinateId);
+      const subordinate = allUsers.find(u => u.id === subordinateId);
+      toast.info("部下追加", {
+        description: `${subordinate?.name || '不明なユーザー'}を部下として追加しました`,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : '部下の追加に失敗しました';
+      toast.error("部下追加エラー", {
+        description: errorMsg,
       });
     }
-  }, [allUsers, temporarySubordinates]);
+  }, [addSubordinate, allUsers]);
 
-  // Handle remove temporary subordinate from preview list
-  const handleRemoveTemporarySubordinate = useCallback((subordinateId: string) => {
-    const subordinate = temporarySubordinates.find(s => s.id === subordinateId);
-    setTemporarySubordinates(prev => prev.filter(s => s.id !== subordinateId));
-    if (subordinate) {
-      toast.info("仮選択を解除", {
-        description: `${subordinate.name}の仮選択を解除しました`,
-      });
-    }
-  }, [temporarySubordinates]);
 
   // Handle remove actual subordinate
   const handleRemoveSubordinate = useCallback(async (subordinateId: string) => {
@@ -158,84 +148,23 @@ export default function HierarchyEditCard({
     }
   }, [removeSubordinate, allUsers]);
 
-  // EXACT SAME LOGIC AS 組織図 - Convert temporarySubordinates to pendingChanges format
-  const handleSaveWithTemporary = useCallback(async () => {
+  // Handle save all changes using the hook
+  const handleSaveAllChanges = useCallback(async () => {
     try {
-      let successCount = 0;
-      let hasErrors = false;
-      
-      // Convert temporarySubordinates to pendingChanges format (like 組織図)
-      const pendingChanges = temporarySubordinates.map(tempSub => ({
-        userId: tempSub.id,
-        newSupervisorId: user.id,
-        originalSupervisorId: tempSub.supervisor?.id || null,
-        timestamp: Date.now()
-      }));
-      
-      // Add supervisor changes if any
-      const allChangesToProcess = [...pendingChanges];
-      if (hasPendingChanges) {
-        await saveAllChanges();
-      }
-      
-      // EXACT SAME PROCESSING LOGIC AS 組織図
-      for (const pendingChange of allChangesToProcess) {
-        try {
-          const result = await updateUserAction(
-            pendingChange.userId,
-            { supervisor_id: pendingChange.newSupervisorId || undefined }
-          );
-          
-          if (result.success && result.data) {
-            successCount++;
-            // Update the user data - EXACT SAME AS 組織図
-            if (onUserUpdate) {
-              onUserUpdate(result.data);
-            }
-          } else {
-            hasErrors = true;
-            const subordinateUser = temporarySubordinates.find(u => u.id === pendingChange.userId);
-            toast.error("保存エラー", {
-              description: `${subordinateUser?.name || '不明なユーザー'}の変更保存に失敗しました`,
-            });
-          }
-        } catch (error) {
-          hasErrors = true;
-          const subordinateUser = temporarySubordinates.find(u => u.id === pendingChange.userId);
-          console.error('Error saving change for user:', pendingChange.userId, error);
-          toast.error("保存エラー", {
-            description: `${subordinateUser?.name || '不明なユーザー'}の変更保存中にエラーが発生しました`,
-          });
-        }
-      }
-      
-      // Clear temporary subordinates after processing
-      setTemporarySubordinates([]);
-      
-      // Show success/warning messages - EXACT SAME AS 組織図
-      if (successCount > 0) {
-        if (!hasErrors) {
-          toast.success("変更保存完了", {
-            description: `${successCount}件の階層変更が正常に保存されました`,
-          });
-        } else {
-          toast.warning("一部保存完了", {
-            description: `${successCount}件中一部の変更が保存されました`,
-          });
-        }
-      }
-      
+      await saveAllChanges();
+      toast.success("変更保存完了", {
+        description: "階層変更が正常に保存されました",
+      });
     } catch (error) {
-      console.error('Error saving changes:', error);
+      const errorMsg = error instanceof Error ? error.message : '変更の保存に失敗しました';
       toast.error("保存エラー", {
-        description: "変更の保存中に予期しないエラーが発生しました",
+        description: errorMsg,
       });
     }
-  }, [temporarySubordinates, user.id, onUserUpdate, hasPendingChanges, saveAllChanges]);
+  }, [saveAllChanges]);
 
-  // Hybrid rollback handler - clear temporary subordinates and hook changes
-  const handleRollbackWithTemporary = useCallback(() => {
-    setTemporarySubordinates([]);
+  // Handle rollback changes using the hook
+  const handleRollbackChanges = useCallback(() => {
     rollbackChanges();
     toast.info("変更をリセット", {
       description: "すべての変更をリセットしました",
@@ -243,22 +172,18 @@ export default function HierarchyEditCard({
   }, [rollbackChanges]);
 
   // Keep latest handlers in refs to avoid effect churn
-  const saveRef = useRef(handleSaveWithTemporary);
-  const rollbackRef = useRef(handleRollbackWithTemporary);
-  useEffect(() => { saveRef.current = handleSaveWithTemporary; }, [handleSaveWithTemporary]);
-  useEffect(() => { rollbackRef.current = handleRollbackWithTemporary; }, [handleRollbackWithTemporary]);
-
-  // Check if there are any changes (hook changes OR temporary subordinates)
-  const hasAnyChanges = hasPendingChanges || temporarySubordinates.length > 0;
+  const saveRef = useRef(handleSaveAllChanges);
+  const rollbackRef = useRef(handleRollbackChanges);
+  useEffect(() => { saveRef.current = handleSaveAllChanges; }, [handleSaveAllChanges]);
+  useEffect(() => { rollbackRef.current = handleRollbackChanges; }, [handleRollbackChanges]);
 
   // Notify parent about pending changes with stable handler identities
   useEffect(() => {
     if (!onPendingChanges) return;
-    const stableSave = hasAnyChanges ? async () => { await saveRef.current(); } : undefined;
-    const stableUndo = hasAnyChanges ? () => rollbackRef.current() : undefined;
-    onPendingChanges(hasAnyChanges, stableSave, stableUndo);
-    // Only react to toggle and parent callback identity
-  }, [hasAnyChanges, onPendingChanges]);
+    const stableSave = hasPendingChanges ? async () => { await saveRef.current(); } : undefined;
+    const stableUndo = hasPendingChanges ? () => rollbackRef.current() : undefined;
+    onPendingChanges(hasPendingChanges, stableSave, stableUndo);
+  }, [hasPendingChanges, onPendingChanges]);
 
   // Get current supervisor from optimistic state
   const currentSupervisor = currentUser_display.supervisor;
@@ -436,8 +361,8 @@ export default function HierarchyEditCard({
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2">
               <ChevronDown className="h-4 w-4" />
-              部下 ({allSubordinatesForDisplay.length}人)
-              {(hasAnyChanges) && (
+              部下 ({currentSubordinates.length}人)
+              {hasPendingChanges && (
                 <Badge variant="destructive" className="text-xs animate-pulse ml-2">
                   変更待機中
                 </Badge>
@@ -446,7 +371,7 @@ export default function HierarchyEditCard({
             {isEditMode && canEditHierarchy && potentialSubordinates.length > 0 && (
               <Select
                 value=""
-                onValueChange={handleAddTemporarySubordinate}
+                onValueChange={handleAddSubordinate}
                 disabled={isPending}
               >
                 <SelectTrigger className="w-auto">
@@ -469,23 +394,17 @@ export default function HierarchyEditCard({
             )}
           </div>
           
-          {allSubordinatesForDisplay && allSubordinatesForDisplay.length > 0 ? (
+          {currentSubordinates && currentSubordinates.length > 0 ? (
             <div className="relative">
               <div className={`grid gap-2 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 ${
-                allSubordinatesForDisplay.length >= 4 ? 'grid-cols-2' : 'grid-cols-1'
+                currentSubordinates.length >= 4 ? 'grid-cols-2' : 'grid-cols-1'
               }`}>
-              {allSubordinatesForDisplay.map((subordinate) => {
-                const isTemporary = temporarySubordinates.some(temp => temp.id === subordinate.id);
-                const isActual = currentSubordinates.some(actual => actual.id === subordinate.id);
+              {currentSubordinates.map((subordinate) => {
                 
                 return (
-                  <div key={subordinate.id} className={`flex items-center gap-2 p-2 rounded-md border ${
-                    isTemporary ? 'bg-yellow-50 border-yellow-200' : 'bg-orange-50'
-                  }`}>
+                  <div key={subordinate.id} className="flex items-center gap-2 p-2 rounded-md border bg-orange-50">
                     <Avatar className="h-7 w-7 flex-shrink-0">
-                      <AvatarFallback className={`text-xs ${
-                        isTemporary ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'
-                      }`}>
+                      <AvatarFallback className="text-xs bg-orange-100 text-orange-700">
                         {getUserInitials(subordinate.name)}
                       </AvatarFallback>
                     </Avatar>
@@ -495,11 +414,6 @@ export default function HierarchyEditCard({
                           {subordinate.name}
                         </span>
                         <div className="flex items-center gap-1">
-                          {isTemporary && (
-                            <Badge variant="default" className="bg-yellow-100 text-yellow-800 text-[10px] px-1 py-0 h-4">
-                              仮選択
-                            </Badge>
-                          )}
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -519,10 +433,7 @@ export default function HierarchyEditCard({
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => isTemporary ? 
-                                handleRemoveTemporarySubordinate(subordinate.id) : 
-                                handleRemoveSubordinate(subordinate.id)
-                              }
+                              onClick={() => handleRemoveSubordinate(subordinate.id)}
                               disabled={isPending}
                               className="h-4 w-4 p-0 hover:bg-red-100"
                             >
@@ -570,18 +481,18 @@ export default function HierarchyEditCard({
               }`}>上司</div>
             </div>
             <div className={`p-3 rounded-lg text-center ${
-              hasAnyChanges ? 'bg-red-50' : 'bg-orange-50'
+              hasPendingChanges ? 'bg-red-50' : 'bg-orange-50'
             }`}>
               <div className={`text-lg font-semibold ${
-                hasAnyChanges ? 'text-red-700' : 'text-orange-700'
+                hasPendingChanges ? 'text-red-700' : 'text-orange-700'
               }`}>
-                {allSubordinatesForDisplay.length}
-                {hasAnyChanges && (
+                {currentSubordinates.length}
+                {hasPendingChanges && (
                   <span className="text-xs ml-1 text-red-500">*</span>
                 )}
               </div>
               <div className={`text-xs ${
-                hasAnyChanges ? 'text-red-600' : 'text-orange-600'
+                hasPendingChanges ? 'text-red-600' : 'text-orange-600'
               }`}>部下</div>
             </div>
           </div>
