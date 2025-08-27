@@ -39,6 +39,8 @@ interface HierarchyEditCardProps {
   isLoading?: boolean;
   onUserUpdate?: (user: UserDetailResponse) => void;
   onPendingChanges?: (hasPendingChanges: boolean, saveHandler?: () => Promise<void>, undoHandler?: () => void) => void;
+  initialEditMode?: boolean; // Allow starting in edit mode for setup
+  forceCanEdit?: boolean; // Allow forcing edit permission for setup context
 }
 
 export default function HierarchyEditCard({ 
@@ -46,9 +48,11 @@ export default function HierarchyEditCard({
   allUsers, 
   isLoading,
   onUserUpdate,
-  onPendingChanges 
+  onPendingChanges,
+  initialEditMode = false,
+  forceCanEdit = false
 }: HierarchyEditCardProps) {
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(initialEditMode);
 
   // Use the custom hierarchy editing hook for all hierarchy operations
   const {
@@ -67,7 +71,8 @@ export default function HierarchyEditCard({
   } = useHierarchyEdit({
     user,
     allUsers,
-    onUserUpdate
+    onUserUpdate,
+    forceCanEdit
   });
 
 
