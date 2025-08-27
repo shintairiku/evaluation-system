@@ -157,6 +157,11 @@ export interface User extends UserInDB {
   roles: Role[];
 }
 
+export interface SimpleUser extends UserInDB {
+  department: Department;
+  roles: Role[];
+}
+
 export interface UserDetailResponse {
   id: UUID;
   clerk_user_id: string;
