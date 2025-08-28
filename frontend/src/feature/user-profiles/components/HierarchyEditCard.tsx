@@ -8,11 +8,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger 
-} from "@/components/ui/select";
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   Tooltip,
   TooltipContent,
@@ -57,6 +60,8 @@ export default function HierarchyEditCard({
   customGetPotentialSubordinates
 }: HierarchyEditCardProps) {
   const [isEditMode, setIsEditMode] = useState(initialEditMode);
+  const [supervisorPopoverOpen, setSupervisorPopoverOpen] = useState(false);
+  const [subordinatePopoverOpen, setSubordinatePopoverOpen] = useState(false);
 
   // Use the custom hierarchy editing hook for all hierarchy operations
   const {
@@ -123,6 +128,17 @@ export default function HierarchyEditCard({
     }
   }, [changeSupervisor, user.name, allUsers]);
 
+  // Handle supervisor selection from popover
+  const handleSupervisorSelect = useCallback(async (supervisorId: string) => {
+    setSupervisorPopoverOpen(false);
+    await handleSupervisorChange(supervisorId);
+  }, [handleSupervisorChange]);
+
+  // Handle supervisor removal
+  const handleSupervisorRemove = useCallback(async () => {
+    await handleSupervisorChange(null);
+  }, [handleSupervisorChange]);
+
   // Handle add subordinate using the hook
   const handleAddSubordinate = useCallback(async (subordinateId: string) => {
     try {
@@ -138,6 +154,12 @@ export default function HierarchyEditCard({
       });
     }
   }, [addSubordinate, allUsers]);
+
+  // Handle subordinate selection from popover
+  const handleSubordinateSelect = useCallback(async (subordinateId: string) => {
+    setSubordinatePopoverOpen(false);
+    await handleAddSubordinate(subordinateId);
+  }, [handleAddSubordinate]);
 
 
   // Handle remove actual subordinate
@@ -268,29 +290,59 @@ export default function HierarchyEditCard({
               )}
             </Label>
             {isEditMode && canEditHierarchy && (
-              <Select
-                value={currentSupervisor?.id || 'none'}
-                onValueChange={(value) => handleSupervisorChange(value === 'none' ? null : value)}
-                disabled={isPending}
-              >
-                <SelectTrigger className="w-auto">
-                  <Crown className="h-4 w-4 mr-2" />
-                  上司を変更
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">上司なし</SelectItem>
-                  {getPotentialSupervisors().map((supervisor) => (
-                    <SelectItem key={supervisor.id} value={supervisor.id}>
-                      <div className="flex items-center gap-2">
-                        <span>{supervisor.name}</span>
-                        <span className="text-sm text-muted-foreground">
-                          ({supervisor.employee_code})
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={supervisorPopoverOpen} onOpenChange={setSupervisorPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isPending}
+                  >
+                    <Crown className="h-4 w-4 mr-2" />
+                    上司を変更
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="上司を検索..." />
+                    <CommandList>
+                      <CommandEmpty>該当する上司がいません</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem onSelect={() => handleSupervisorRemove()}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                              <span className="text-xs text-gray-500">×</span>
+                            </div>
+                            <span>上司なし</span>
+                          </div>
+                        </CommandItem>
+                        {getPotentialSupervisors().map((supervisor) => (
+                          <CommandItem
+                            key={supervisor.id}
+                            value={`${supervisor.name} ${supervisor.employee_code} ${supervisor.job_title || ''}`}
+                            onSelect={() => handleSupervisorSelect(supervisor.id)}
+                          >
+                            <div className="flex items-center gap-3 w-full">
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
+                                  {getUserInitials(supervisor.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex flex-col flex-1">
+                                <span className="font-medium text-sm">{supervisor.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {supervisor.employee_code}
+                                  {supervisor.job_title && ` • ${supervisor.job_title}`}
+                                </span>
+                              </div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
           
@@ -377,28 +429,51 @@ export default function HierarchyEditCard({
               )}
             </Label>
             {isEditMode && canEditHierarchy && getPotentialSubordinates().length > 0 && (
-              <Select
-                value=""
-                onValueChange={handleAddSubordinate}
-                disabled={isPending}
-              >
-                <SelectTrigger className="w-auto">
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  部下を追加
-                </SelectTrigger>
-                <SelectContent>
-                  {getPotentialSubordinates().map((potential) => (
-                    <SelectItem key={potential.id} value={potential.id}>
-                      <div className="flex items-center gap-2">
-                        <span>{potential.name}</span>
-                        <span className="text-sm text-muted-foreground">
-                          ({potential.employee_code})
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={subordinatePopoverOpen} onOpenChange={setSubordinatePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isPending}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    部下を追加
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="部下を検索..." />
+                    <CommandList>
+                      <CommandEmpty>該当する部下がいません</CommandEmpty>
+                      <CommandGroup>
+                        {getPotentialSubordinates().map((potential) => (
+                          <CommandItem
+                            key={potential.id}
+                            value={`${potential.name} ${potential.employee_code} ${potential.job_title || ''}`}
+                            onSelect={() => handleSubordinateSelect(potential.id)}
+                          >
+                            <div className="flex items-center gap-3 w-full">
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className="bg-orange-100 text-orange-700 text-xs">
+                                  {getUserInitials(potential.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex flex-col flex-1">
+                                <span className="font-medium text-sm">{potential.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {potential.employee_code}
+                                  {potential.job_title && ` • ${potential.job_title}`}
+                                </span>
+                              </div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
           
