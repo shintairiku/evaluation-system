@@ -73,8 +73,7 @@ export default function UserEditViewModal({
           setHierarchyPendingChanges(false);
           setHierarchySaveHandler(null);
           setHierarchyUndoHandler(null);
-        } catch (hierarchyError) {
-          console.error('Hierarchy save error:', hierarchyError);
+        } catch {
           toast.error('階層変更の保存に失敗しました。プロフィール更新を続行します。');
           // Continue with profile save even if hierarchy fails
         }
@@ -202,12 +201,10 @@ export default function UserEditViewModal({
             });
             
           } else {
-            console.error('Failed to load detailed user data:', result.error);
             // Fallback to the basic user data
             setDetailedUser(user);
           }
-        } catch (error) {
-          console.error('Error loading detailed user data:', error);
+        } catch {
           // Fallback to the basic user data
           setDetailedUser(user);
         } finally {
