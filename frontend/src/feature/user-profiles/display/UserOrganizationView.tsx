@@ -555,10 +555,9 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
             // Revert this change on error
             setPendingChanges(prev => [...prev, pendingChange]);
           }
-        } catch (error) {
+        } catch {
           hasErrors = true;
           const user = users.find(u => u.id === pendingChange.userId);
-          console.error('Error saving change for user:', pendingChange.userId, error);
           toast.error("保存エラー", {
             description: `${user?.name || '不明なユーザー'}の変更保存中にエラーが発生しました`,
           });
@@ -587,7 +586,6 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
         setLayoutKey(prev => prev + 1);
       }
     } catch (error) {
-      console.error('Error saving changes:', error);
       toast.error("保存エラー", {
         description: "変更の保存中に予期しないエラーが発生しました",
       });
