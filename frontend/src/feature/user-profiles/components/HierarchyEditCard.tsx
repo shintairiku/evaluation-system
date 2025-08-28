@@ -41,6 +41,8 @@ interface HierarchyEditCardProps {
   onPendingChanges?: (hasPendingChanges: boolean, saveHandler?: () => Promise<void>, undoHandler?: () => void) => void;
   initialEditMode?: boolean; // Allow starting in edit mode for setup
   forceCanEdit?: boolean; // Allow forcing edit permission for setup context
+  customGetPotentialSupervisors?: () => UserDetailResponse[]; // Custom role-based filtering for setup
+  customGetPotentialSubordinates?: () => UserDetailResponse[]; // Custom role-based filtering for setup
 }
 
 export default function HierarchyEditCard({ 
@@ -50,7 +52,9 @@ export default function HierarchyEditCard({
   onUserUpdate,
   onPendingChanges,
   initialEditMode = false,
-  forceCanEdit = false
+  forceCanEdit = false,
+  customGetPotentialSupervisors,
+  customGetPotentialSubordinates
 }: HierarchyEditCardProps) {
   const [isEditMode, setIsEditMode] = useState(initialEditMode);
 
@@ -66,8 +70,8 @@ export default function HierarchyEditCard({
     removeSubordinate,
     rollbackChanges,
     saveAllChanges,
-    getPotentialSupervisors,
-    getPotentialSubordinates
+    getPotentialSupervisors: defaultGetPotentialSupervisors,
+    getPotentialSubordinates: defaultGetPotentialSubordinates
   } = useHierarchyEdit({
     user,
     allUsers,
@@ -75,6 +79,9 @@ export default function HierarchyEditCard({
     forceCanEdit
   });
 
+  // Use custom filtering functions if provided, otherwise use default ones
+  const getPotentialSupervisors = customGetPotentialSupervisors || defaultGetPotentialSupervisors;
+  const getPotentialSubordinates = customGetPotentialSubordinates || defaultGetPotentialSubordinates;
 
   // Helper functions
   const getUserInitials = (name: string) => {
@@ -93,10 +100,6 @@ export default function HierarchyEditCard({
         return 'bg-gray-100 text-gray-800';
     }
   };
-
-  // Get potential supervisors and subordinates from the hook
-  const potentialSupervisors = getPotentialSupervisors();
-  const potentialSubordinates = getPotentialSubordinates();
   
   // Use the optimistic state from the hook
   const currentUser_display = optimisticState;
@@ -276,7 +279,7 @@ export default function HierarchyEditCard({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">上司なし</SelectItem>
-                  {potentialSupervisors.map((supervisor) => (
+                  {getPotentialSupervisors().map((supervisor) => (
                     <SelectItem key={supervisor.id} value={supervisor.id}>
                       <div className="flex items-center gap-2">
                         <span>{supervisor.name}</span>
@@ -373,7 +376,7 @@ export default function HierarchyEditCard({
                 </Badge>
               )}
             </Label>
-            {isEditMode && canEditHierarchy && potentialSubordinates.length > 0 && (
+            {isEditMode && canEditHierarchy && getPotentialSubordinates().length > 0 && (
               <Select
                 value=""
                 onValueChange={handleAddSubordinate}
@@ -384,7 +387,7 @@ export default function HierarchyEditCard({
                   部下を追加
                 </SelectTrigger>
                 <SelectContent>
-                  {potentialSubordinates.map((potential) => (
+                  {getPotentialSubordinates().map((potential) => (
                     <SelectItem key={potential.id} value={potential.id}>
                       <div className="flex items-center gap-2">
                         <span>{potential.name}</span>
