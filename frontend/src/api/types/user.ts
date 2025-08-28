@@ -191,6 +191,22 @@ export interface UserProfileOption {
   roles: Role[];
 }
 
+// Setup-specific user type that extends UserProfileOption with hierarchy info
+export interface SetupUserDetail extends UserProfileOption {
+  supervisor?: {
+    id: UUID;
+    name: string;
+    email: string;
+    employee_code: string;
+  };
+  subordinates?: Array<{
+    id: UUID;
+    name: string;
+    email: string;
+    employee_code: string;
+  }>;
+}
+
 export interface UserExistsResponse {
   exists: boolean;
   user_id?: UUID;
