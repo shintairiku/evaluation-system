@@ -1,4 +1,4 @@
-import type { UserDetailResponse } from '@/api/types';
+import type { UserDetailResponse, Role } from '@/api/types';
 
 /**
  * Returns a set of all subordinate ids (transitive) for a given user id.
@@ -106,4 +106,85 @@ export function getPotentialSubordinates(
   );
 }
 
+/**
+ * Role hierarchy mapping for role-based restrictions.
+ * Lower numbers represent higher authority levels.
+ */
+export function getRoleHierarchyLevel(roleName: string): number {
+  const hierarchyMap: Record<string, number> = {
+    'admin': 1,      // 管理者 - highest authority
+    'manager': 2,    // 部門マネジャー
+    'supervisor': 3, // 上司・チームリーダー  
+    'employee': 4,   // 従業員
+    'viewer': 5,     // 閲覧者
+    'parttime': 6    // パートタイム - lowest authority
+  };
+  return hierarchyMap[roleName.toLowerCase()] || 999;
+}
+
+/**
+ * Get the highest hierarchy level (lowest number) from a list of roles.
+ */
+export function getHighestRoleHierarchyLevel(roles: Role[]): number {
+  if (roles.length === 0) return 999;
+  
+  const hierarchyLevels = roles.map(role => getRoleHierarchyLevel(role.name));
+  return Math.min(...hierarchyLevels);
+}
+
+/**
+ * Role-based potential supervisors for setup context.
+ * Applies role hierarchy rules in addition to basic hierarchy rules.
+ */
+export function getRoleBasedPotentialSupervisors(
+  allUsers: UserDetailResponse[],
+  userId: string,
+  currentUserRoles: Role[]
+): UserDetailResponse[] {
+  const currentUserHierarchy = getHighestRoleHierarchyLevel(currentUserRoles);
+  
+  // Admin users cannot have supervisors (top level)
+  if (currentUserHierarchy === 1) return [];
+  
+  // Get base potential supervisors
+  const baseSupervisors = getPotentialSupervisors(allUsers, userId);
+  
+  // Apply role-based filtering
+  return baseSupervisors.filter(potentialSupervisor => {
+    if (!potentialSupervisor.roles || potentialSupervisor.roles.length === 0) return false;
+    
+    const supervisorHierarchy = getHighestRoleHierarchyLevel(potentialSupervisor.roles);
+    
+    // Only users with higher or equal hierarchy can be supervisors
+    return supervisorHierarchy <= currentUserHierarchy;
+  });
+}
+
+/**
+ * Role-based potential subordinates for setup context.
+ * Applies role hierarchy rules in addition to basic hierarchy rules.
+ */
+export function getRoleBasedPotentialSubordinates(
+  allUsers: UserDetailResponse[],
+  userId: string,
+  currentUserRoles: Role[]
+): UserDetailResponse[] {
+  const currentUserHierarchy = getHighestRoleHierarchyLevel(currentUserRoles);
+  
+  // Employee/Viewer/Parttime users cannot have subordinates (bottom level)
+  if (currentUserHierarchy >= 4) return [];
+  
+  // Get base potential subordinates
+  const baseSubordinates = getPotentialSubordinates(allUsers, userId);
+  
+  // Apply role-based filtering
+  return baseSubordinates.filter(potentialSubordinate => {
+    if (!potentialSubordinate.roles || potentialSubordinate.roles.length === 0) return false;
+    
+    const subordinateHierarchy = getHighestRoleHierarchyLevel(potentialSubordinate.roles);
+    
+    // Only users with lower hierarchy can be subordinates
+    return subordinateHierarchy > currentUserHierarchy;
+  });
+}
 
