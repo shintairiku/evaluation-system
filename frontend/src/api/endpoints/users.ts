@@ -77,7 +77,7 @@ export const usersApi = {
 
   /**
    * Get users for organization chart - no role-based access restrictions
-   * Returns SimpleUser[] format for organization chart display
+   * Returns SimpleUser[] format with supervisor/subordinates for organization chart display
    */
   getUsersForOrgChart: async (): Promise<ApiResponse<SimpleUser[]>> => {
     return httpClient.get<SimpleUser[]>(API_ENDPOINTS.USERS.ORG_CHART);
