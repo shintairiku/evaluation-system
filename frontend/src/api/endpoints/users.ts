@@ -10,6 +10,7 @@ import type {
   UUID,
   UserExistsResponse,
   ProfileOptionsResponse,
+  SimpleUser,
 } from '../types';
 
 const httpClient = getHttpClient();
@@ -72,5 +73,13 @@ export const usersApi = {
    */
   getProfileOptions: async (): Promise<ApiResponse<ProfileOptionsResponse>> => {
     return httpClient.get<ProfileOptionsResponse>(API_ENDPOINTS.USERS.PROFILE_OPTIONS);
+  },
+
+  /**
+   * Get users for organization chart - no role-based access restrictions
+   * Returns SimpleUser[] format for organization chart display
+   */
+  getUsersForOrgChart: async (): Promise<ApiResponse<SimpleUser[]>> => {
+    return httpClient.get<SimpleUser[]>(API_ENDPOINTS.USERS.ORG_CHART);
   },
 };
