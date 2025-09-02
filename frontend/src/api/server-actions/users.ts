@@ -124,7 +124,6 @@ export async function updateUserAction(userId: UUID, updateData: UserUpdate): Pr
   error?: string;
 }> {
   try {
-    console.log(`[updateUserAction] Calling API with userId: ${userId}, updateData:`, JSON.stringify(updateData, null, 2));
     const response = await usersApi.updateUser(userId, updateData);
     
     if (!response.success || !response.data) {
