@@ -160,6 +160,8 @@ export interface User extends UserInDB {
 export interface SimpleUser extends UserInDB {
   department: Department;
   roles: Role[];
+  supervisor?: SimpleUser;
+  subordinates?: SimpleUser[];
 }
 
 export interface UserDetailResponse {
