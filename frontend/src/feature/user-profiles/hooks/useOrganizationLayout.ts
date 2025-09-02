@@ -72,19 +72,34 @@ export function useOrganizationLayout({
       }
     });
 
-    // Position company and departments with adaptive spacing
+    // Calculate dynamic spacing based on department count for better scalability
+    const calculateOptimalSpacing = (deptCount: number): number => {
+      if (deptCount <= 3) return 150;      // Few departments: comfortable spacing
+      if (deptCount <= 6) return 120;      // Medium departments: moderate spacing
+      if (deptCount <= 10) return 100;     // Many departments: compact spacing
+      if (deptCount <= 15) return 80;      // Very many departments: tight spacing
+      return 60;                           // Extremely many departments: minimal spacing
+    };
+    
+    // Position company and departments with scalable fixed spacing
     const startX = 200;
+    const baseSpacing = calculateOptimalSpacing(departments.length);
     
-    // Calculate adaptive spacing based on department count and expansion state
-    const expandedCount = departments.filter(dept => expandedDepartments.has(dept.id)).length;
-    const DEPARTMENT_SPACING = expandedCount > 2 ? 100 : 150; // Reduce spacing when many expanded
-    
-    // Calculate total width including consistent spacing
-    const totalSpacing = (departmentWidths.length - 1) * DEPARTMENT_SPACING;
+    // Calculate total width including dynamic spacing with overflow protection
+    const totalSpacing = (departmentWidths.length - 1) * baseSpacing;
     const totalDepartmentsWidth = departmentWidths.reduce((sum, width) => sum + width, 0);
     const totalLayoutWidth = totalDepartmentsWidth + totalSpacing;
     
-    const companyX = startX + (totalLayoutWidth / 2) - 128; // Center company above departments
+    // Prevent layout from becoming too wide (overflow protection)
+    const MAX_LAYOUT_WIDTH = 5000; // Maximum layout width to prevent overflow
+    const adjustedLayoutWidth = Math.min(totalLayoutWidth, MAX_LAYOUT_WIDTH);
+    
+    // Adjust spacing if layout is too wide
+    const adjustedSpacing = totalLayoutWidth > MAX_LAYOUT_WIDTH 
+      ? Math.max(50, (MAX_LAYOUT_WIDTH - totalDepartmentsWidth) / (departmentWidths.length - 1))
+      : baseSpacing;
+
+    const companyX = startX + (adjustedLayoutWidth / 2) - 128; // Center company above departments
 
     // Add company node
     nodeList.push({
@@ -226,7 +241,7 @@ export function useOrganizationLayout({
         });
       }
 
-      currentX += departmentWidths[index] + DEPARTMENT_SPACING;
+      currentX += departmentWidths[index] + adjustedSpacing; // Add adjusted spacing
     });
 
     return { nodes: nodeList, edges: edgeList };
