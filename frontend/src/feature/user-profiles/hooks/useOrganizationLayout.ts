@@ -4,15 +4,17 @@
 import { useMemo } from 'react';
 import type { Node, Edge } from 'reactflow';
 import { MarkerType } from 'reactflow';
-import type { UserDetailResponse, Department } from '@/api/types';
+import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
 import { 
   calculateDepartmentWidth, 
   findRootUsers, 
   LAYOUT_CONSTANTS 
 } from '../utils/hierarchyLayoutUtils';
 
+type OrganizationUser = UserDetailResponse | SimpleUser;
+
 interface UseOrganizationLayoutParams {
-  users: UserDetailResponse[];
+  users: OrganizationUser[];
   departments: Department[];
   expandedDepartments: Set<string>;
   onDepartmentClick: (departmentId: string) => void;
@@ -33,7 +35,7 @@ export function useOrganizationLayout({
   
   // Group users by department
   const organizationStructure = useMemo(() => {
-    const departmentUsers = new Map<string, UserDetailResponse[]>();
+    const departmentUsers = new Map<string, OrganizationUser[]>();
     
     departments.forEach(dept => {
       const deptUsers = users.filter(u => u.department?.id === dept.id);
@@ -216,10 +218,10 @@ export function useOrganizationLayout({
 
 // Helper function to layout user hierarchies
 function layoutUserHierarchy(
-  user: UserDetailResponse,
+  user: OrganizationUser,
   level: number,
   xCenter: number,
-  departmentUsers: UserDetailResponse[],
+  departmentUsers: OrganizationUser[],
   nodeList: Node[],
   edgeList: Edge[]
 ): LayoutResult {

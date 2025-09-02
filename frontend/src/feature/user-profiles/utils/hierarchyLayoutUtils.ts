@@ -1,7 +1,9 @@
 /**
  * Utility functions for calculating hierarchy layouts in organization charts
  */
-import type { UserDetailResponse } from '@/api/types';
+import type { UserDetailResponse, SimpleUser } from '@/api/types';
+
+type OrganizationUser = UserDetailResponse | SimpleUser;
 
 export interface HierarchyDimensions {
   width: number;
@@ -29,8 +31,8 @@ export const LAYOUT_CONSTANTS: LayoutConstants = {
  * Calculates the width needed for a user hierarchy
  */
 export function calculateHierarchyWidth(
-  user: UserDetailResponse,
-  departmentUsers: UserDetailResponse[]
+  user: OrganizationUser,
+  departmentUsers: OrganizationUser[]
 ): HierarchyDimensions {
   const { NODE_WIDTH, MIN_HORIZONTAL_SPACING } = LAYOUT_CONSTANTS;
   
@@ -67,8 +69,8 @@ export function calculateHierarchyWidth(
  * Calculates the required width for a department based on its user hierarchies
  */
 export function calculateDepartmentWidth(
-  rootUsers: UserDetailResponse[],
-  departmentUsers: UserDetailResponse[]
+  rootUsers: OrganizationUser[],
+  departmentUsers: OrganizationUser[]
 ): number {
   const { NODE_WIDTH, MIN_DEPARTMENT_WIDTH, DEPARTMENT_PADDING } = LAYOUT_CONSTANTS;
   
@@ -94,7 +96,7 @@ export function calculateDepartmentWidth(
 /**
  * Finds root users (users without supervisors within the department)
  */
-export function findRootUsers(departmentUsers: UserDetailResponse[]): UserDetailResponse[] {
+export function findRootUsers(departmentUsers: OrganizationUser[]): OrganizationUser[] {
   return departmentUsers.filter(user => 
     !user.supervisor || !departmentUsers.find(u => u.id === user.supervisor?.id)
   );
