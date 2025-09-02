@@ -9,14 +9,14 @@ import ReactFlow, {
   NodeTypes,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import type { UserDetailResponse, Department } from '@/api/types';
+import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
 import { Building2 } from 'lucide-react';
 import { getProfileOptionsAction } from '@/api/server-actions/users';
 import { OrgNode, UserNode } from '../components/OrganizationNodes';
 import { useOrganizationLayout } from '../hooks/useOrganizationLayout';
 
 interface ReadOnlyOrganizationViewProps {
-  users: UserDetailResponse[];
+  users: UserDetailResponse[] | SimpleUser[];
 }
 
 // Node types for React Flow

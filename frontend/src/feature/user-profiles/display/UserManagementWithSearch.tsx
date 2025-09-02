@@ -7,7 +7,7 @@ import ViewModeSelector from './ViewModeSelector';
 import UserSearch from '../components/UserSearch';
 import UserTableView from './UserTableView';
 import UserGalleryView from './UserGalleryView';
-import OrganizationViewContainer from './OrganizationViewContainer';
+import OrganizationViewWithOrgChart from './OrganizationViewWithOrgChart';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -18,7 +18,7 @@ interface UserManagementWithSearchProps {
 export default function UserManagementWithSearch({ initialUsers }: UserManagementWithSearchProps) {
   // Initialize with initialUsers directly to avoid race condition
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
-  const [totalUsers, setTotalUsers] = useState<number>(initialUsers.length);
+  const [, setTotalUsers] = useState<number>(initialUsers.length);
   const [error, setError] = useState<string | null>(null);
 
   const { viewMode, setViewMode } = useViewMode('table');
@@ -54,7 +54,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
       case 'gallery':
         return <UserGalleryView users={users} onUserUpdate={handleUserUpdate} />;
       case 'organization':
-        return <OrganizationViewContainer users={users} onUserUpdate={handleUserUpdate} />;
+        return <OrganizationViewWithOrgChart users={users} onUserUpdate={handleUserUpdate} />;
       default:
         return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
     }
