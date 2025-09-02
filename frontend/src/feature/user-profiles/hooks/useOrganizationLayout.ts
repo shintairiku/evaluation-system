@@ -8,7 +8,9 @@ import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
 import { 
   calculateDepartmentWidth, 
   findRootUsers, 
-  LAYOUT_CONSTANTS 
+  LAYOUT_CONSTANTS,
+  calculateDynamicSpacing,
+  getOptimalLayoutStrategy
 } from '../utils/hierarchyLayoutUtils';
 
 type OrganizationUser = UserDetailResponse | SimpleUser;
@@ -133,15 +135,16 @@ export function useOrganizationLayout({
           // Single user - center it
           layoutUserHierarchy(roots[0], 0, safeCenterX, deptUsers, nodeList, edgeList);
         } else {
-          // Multiple users - distribute evenly with proper spacing
-          const { NODE_WIDTH, MIN_HORIZONTAL_SPACING } = LAYOUT_CONSTANTS;
-          const totalSpacing = (roots.length - 1) * MIN_HORIZONTAL_SPACING;
+          // Multiple users - distribute evenly with dynamic spacing
+          const { NODE_WIDTH } = LAYOUT_CONSTANTS;
+          const dynamicSpacing = calculateDynamicSpacing(roots.length);
+          const totalSpacing = (roots.length - 1) * dynamicSpacing;
           const totalWidth = (roots.length * NODE_WIDTH) + totalSpacing;
           
-          const maxAvailableWidth = departmentAllocatedWidth - 200; // Increased padding for better spacing
+          const maxAvailableWidth = departmentAllocatedWidth - 250; // Adaptive padding
           const actualSpacing = totalWidth <= maxAvailableWidth 
-            ? MIN_HORIZONTAL_SPACING 
-            : Math.max(80, (maxAvailableWidth - (roots.length * NODE_WIDTH)) / (roots.length - 1));
+            ? dynamicSpacing 
+            : Math.max(60, (maxAvailableWidth - (roots.length * NODE_WIDTH)) / (roots.length - 1));
           
           const groupWidth = (roots.length * NODE_WIDTH) + ((roots.length - 1) * actualSpacing);
           const startX = safeCenterX - (groupWidth / 2) + (NODE_WIDTH / 2);
@@ -246,12 +249,13 @@ function layoutUserHierarchy(
     };
   }
   
-  // Layout subordinates first with proper spacing
+  // Layout subordinates first with dynamic spacing
   const subordinateResults: LayoutResult[] = [];
   
-  // Calculate total width needed for subordinates including spacing
+  // Calculate total width needed for subordinates including dynamic spacing
+  const dynamicSpacing = calculateDynamicSpacing(subordinates.length);
   const totalSubordinateWidth = subordinates.reduce((sum, _, index) => {
-    return sum + NODE_WIDTH + (index > 0 ? MIN_HORIZONTAL_SPACING : 0);
+    return sum + NODE_WIDTH + (index > 0 ? dynamicSpacing : 0);
   }, 0);
   
   const subordinatesStartX = xCenter - (totalSubordinateWidth / 2);
