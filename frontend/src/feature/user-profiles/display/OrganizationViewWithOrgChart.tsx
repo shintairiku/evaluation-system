@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Edit, Eye, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
-import type { UserDetailResponse } from '@/api/types';
+import type { UserDetailResponse, SimpleUser } from '@/api/types';
+import { getUsersForOrgChartAction } from '@/api/server-actions';
 import UserOrganizationView from './UserOrganizationView';
-import ReadOnlyOrganizationDataLoader from './ReadOnlyOrganizationDataLoader';
+import ReadOnlyOrganizationView from './ReadOnlyOrganizationView';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 interface OrganizationViewWithOrgChartProps {
   users: UserDetailResponse[];
@@ -14,9 +17,73 @@ interface OrganizationViewWithOrgChartProps {
 
 export default function OrganizationViewWithOrgChart({ users, onUserUpdate }: OrganizationViewWithOrgChartProps) {
   const [editMode, setEditMode] = useState(false);
+  const [orgChartUsers, setOrgChartUsers] = useState<SimpleUser[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load org chart data when switching to readonly mode
+  useEffect(() => {
+    if (!editMode) {
+      setLoading(true);
+      setError(null);
+      
+      getUsersForOrgChartAction()
+        .then(result => {
+          if (result.success && result.data) {
+            setOrgChartUsers(result.data);
+          } else {
+            setError(result.error || '組織図データの取得に失敗しました');
+          }
+        })
+        .catch(err => {
+          console.error('Failed to load org chart data:', err);
+          setError('組織図データの取得中にエラーが発生しました');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [editMode]);
 
   const toggleEditMode = () => {
     setEditMode(!editMode);
+  };
+
+  const renderReadOnlyView = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            組織図を読み込み中...
+          </div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            エラー: {error}
+          </AlertDescription>
+        </Alert>
+      );
+    }
+
+    if (!orgChartUsers || orgChartUsers.length === 0) {
+      return (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            組織図に表示するユーザーが見つかりませんでした。
+          </AlertDescription>
+        </Alert>
+      );
+    }
+
+    return <ReadOnlyOrganizationView users={orgChartUsers} />;
   };
 
   return (
@@ -67,18 +134,7 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate }: Or
       {editMode ? (
         <UserOrganizationView users={users} onUserUpdate={onUserUpdate} />
       ) : (
-        <Suspense 
-          fallback={
-            <div className="flex items-center justify-center h-64">
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin" />
-                組織図を読み込み中...
-              </div>
-            </div>
-          }
-        >
-          <ReadOnlyOrganizationDataLoader />
-        </Suspense>
+        renderReadOnlyView()
       )}
     </div>
   );
