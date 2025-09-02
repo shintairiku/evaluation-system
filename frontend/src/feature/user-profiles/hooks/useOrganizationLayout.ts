@@ -52,22 +52,39 @@ export function useOrganizationLayout({
     const nodeList: Node[] = [];
     const edgeList: Edge[] = [];
 
-    // Calculate department widths
+    // Calculate department widths with normalization for better spacing
     const departmentWidths = departments.map(department => {
       const deptUsers = organizationStructure.get(department.id) || [];
       
       if (expandedDepartments.has(department.id) && deptUsers.length > 0) {
         const roots = findRootUsers(deptUsers);
-        return calculateDepartmentWidth(roots, deptUsers);
+        const calculatedWidth = calculateDepartmentWidth(roots, deptUsers);
+        
+        // Normalize expanded department widths to reduce extreme variations
+        // This prevents some departments from being much wider than others
+        const userCount = deptUsers.length;
+        if (userCount <= 3) return Math.min(calculatedWidth, 1000);  // Cap small departments
+        if (userCount <= 6) return Math.min(calculatedWidth, 1400);  // Cap medium departments  
+        if (userCount <= 10) return Math.min(calculatedWidth, 1800); // Cap large departments
+        return Math.min(calculatedWidth, 2200); // Cap very large departments
       } else {
         return 280; // Collapsed department width
       }
     });
 
-    // Position company and departments
+    // Position company and departments with adaptive spacing
     const startX = 200;
+    
+    // Calculate adaptive spacing based on department count and expansion state
+    const expandedCount = departments.filter(dept => expandedDepartments.has(dept.id)).length;
+    const DEPARTMENT_SPACING = expandedCount > 2 ? 100 : 150; // Reduce spacing when many expanded
+    
+    // Calculate total width including consistent spacing
+    const totalSpacing = (departmentWidths.length - 1) * DEPARTMENT_SPACING;
     const totalDepartmentsWidth = departmentWidths.reduce((sum, width) => sum + width, 0);
-    const companyX = startX + (totalDepartmentsWidth / 2) - 128; // Center company above departments
+    const totalLayoutWidth = totalDepartmentsWidth + totalSpacing;
+    
+    const companyX = startX + (totalLayoutWidth / 2) - 128; // Center company above departments
 
     // Add company node
     nodeList.push({
@@ -209,7 +226,7 @@ export function useOrganizationLayout({
         });
       }
 
-      currentX += departmentWidths[index];
+      currentX += departmentWidths[index] + DEPARTMENT_SPACING;
     });
 
     return { nodes: nodeList, edges: edgeList };
