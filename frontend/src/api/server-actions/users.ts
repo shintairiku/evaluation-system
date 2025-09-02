@@ -426,6 +426,7 @@ export async function getSubordinatesAction(supervisorId: string): Promise<{
 /**
  * Server action to get users for organization chart
  * Uses the new /users/org-chart endpoint without role-based access restrictions
+ * Returns SimpleUser[] with supervisor/subordinates for hierarchy display
  */
 export async function getUsersForOrgChartAction(): Promise<{
   success: boolean;
