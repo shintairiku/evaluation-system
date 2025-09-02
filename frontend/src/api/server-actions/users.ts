@@ -9,7 +9,8 @@ import type {
   PaginationParams,
   UUID,
   UserExistsResponse,
-  ProfileOptionsResponse
+  ProfileOptionsResponse,
+  SimpleUser
 } from '../types';
 
 // Search parameters interface for server-side search
@@ -418,6 +419,38 @@ export async function getSubordinatesAction(supervisorId: string): Promise<{
     return {
       success: false,
       error: 'An unexpected error occurred while fetching subordinates',
+    };
+  }
+}
+
+/**
+ * Server action to get users for organization chart
+ * Uses the new /users/org-chart endpoint without role-based access restrictions
+ */
+export async function getUsersForOrgChartAction(): Promise<{
+  success: boolean;
+  data?: SimpleUser[];
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.getUsersForOrgChart();
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || response.error || 'Failed to fetch users for organization chart',
+      };
+    }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get users for org chart action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching users for organization chart',
     };
   }
 }
