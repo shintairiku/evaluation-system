@@ -103,39 +103,15 @@ export function findRootUsers(departmentUsers: OrganizationUser[]): Organization
 }
 
 /**
- * Calculates dynamic spacing based on user count to prevent overlap
+ * Calculates dynamic spacing based on item count to prevent overlap
  * Adapts spacing based on density for better scalability
+ * Can be used for both users and departments
  */
-export function calculateDynamicSpacing(userCount: number): number {
-  if (userCount <= 3) return 120;        // Few users: comfortable spacing
-  if (userCount <= 6) return 100;        // Medium quantity: moderate spacing
-  if (userCount <= 10) return 80;        // Many users: compact spacing
-  if (userCount <= 15) return 60;        // Very many users: tight spacing
-  return 40;                             // Extremely many users: minimal spacing
+export function calculateDynamicSpacing(itemCount: number): number {
+  if (itemCount <= 3) return 150;        // Few items: comfortable spacing
+  if (itemCount <= 6) return 120;        // Medium quantity: moderate spacing
+  if (itemCount <= 10) return 100;       // Many items: compact spacing
+  if (itemCount <= 15) return 80;        // Very many items: tight spacing
+  return 60;                             // Extremely many items: minimal spacing
 }
 
-/**
- * Calculates adaptive department width based on user count
- * Ensures adequate space for different department sizes
- */
-export function calculateAdaptiveDepartmentWidth(
-  userCount: number,
-  baseWidth: number = LAYOUT_CONSTANTS.MIN_DEPARTMENT_WIDTH
-): number {
-  if (userCount <= 3) return baseWidth;
-  if (userCount <= 6) return baseWidth + 200;
-  if (userCount <= 10) return baseWidth + 400;
-  if (userCount <= 15) return baseWidth + 600;
-  return baseWidth + 800; // For very large departments
-}
-
-/**
- * Determines optimal layout strategy based on user count
- * Provides different layout approaches for scalability
- */
-export function getOptimalLayoutStrategy(userCount: number): 'horizontal' | 'grid-2' | 'grid-3' | 'compact' {
-  if (userCount <= 4) return 'horizontal';      // Single row layout
-  if (userCount <= 8) return 'grid-2';          // 2-column grid
-  if (userCount <= 12) return 'grid-3';         // 3-column grid
-  return 'compact';                              // Compact layout for many users
-}
