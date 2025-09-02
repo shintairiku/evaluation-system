@@ -21,10 +21,10 @@ export interface LayoutConstants {
 
 export const LAYOUT_CONSTANTS: LayoutConstants = {
   NODE_WIDTH: 288, // w-72 user card width
-  MIN_HORIZONTAL_SPACING: 25, // Minimum spacing between user cards
+  MIN_HORIZONTAL_SPACING: 100, // Increased minimum spacing between user cards to prevent overlap
   VERTICAL_SPACING: 500, // Vertical spacing between hierarchy levels
-  DEPARTMENT_PADDING: 150, // Padding around department content
-  MIN_DEPARTMENT_WIDTH: 500, // Minimum department width
+  DEPARTMENT_PADDING: 250, // Increased padding around department content
+  MIN_DEPARTMENT_WIDTH: 700, // Increased minimum department width for better spacing
 } as const;
 
 /**
@@ -72,7 +72,7 @@ export function calculateDepartmentWidth(
   rootUsers: OrganizationUser[],
   departmentUsers: OrganizationUser[]
 ): number {
-  const { NODE_WIDTH, MIN_DEPARTMENT_WIDTH, DEPARTMENT_PADDING } = LAYOUT_CONSTANTS;
+  const { NODE_WIDTH, MIN_DEPARTMENT_WIDTH, DEPARTMENT_PADDING, MIN_HORIZONTAL_SPACING } = LAYOUT_CONSTANTS;
   
   if (rootUsers.length === 0) {
     return 320; // Minimal width for empty departments
@@ -84,11 +84,11 @@ export function calculateDepartmentWidth(
     return Math.max(MIN_DEPARTMENT_WIDTH, rootWidth.width + DEPARTMENT_PADDING);
   }
   
-  // Multiple users - calculate compact layout
-  const minSpacing = 30;
+  // Multiple users - calculate layout with proper spacing
+  const minSpacing = MIN_HORIZONTAL_SPACING;
   const totalSpacing = (rootUsers.length - 1) * (NODE_WIDTH + minSpacing);
   const totalWidth = (rootUsers.length * NODE_WIDTH) + totalSpacing;
-  const requiredWidth = totalWidth + 100; // Minimal padding
+  const requiredWidth = totalWidth + 200; // Increased padding for better spacing
   
   return Math.max(MIN_DEPARTMENT_WIDTH, requiredWidth);
 }

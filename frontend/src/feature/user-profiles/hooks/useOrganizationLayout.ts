@@ -133,16 +133,15 @@ export function useOrganizationLayout({
           // Single user - center it
           layoutUserHierarchy(roots[0], 0, safeCenterX, deptUsers, nodeList, edgeList);
         } else {
-          // Multiple users - distribute evenly
-          const { NODE_WIDTH } = LAYOUT_CONSTANTS;
-          const minSpacing = 50;
-          const totalSpacing = (roots.length - 1) * (NODE_WIDTH + minSpacing);
+          // Multiple users - distribute evenly with proper spacing
+          const { NODE_WIDTH, MIN_HORIZONTAL_SPACING } = LAYOUT_CONSTANTS;
+          const totalSpacing = (roots.length - 1) * MIN_HORIZONTAL_SPACING;
           const totalWidth = (roots.length * NODE_WIDTH) + totalSpacing;
           
-          const maxAvailableWidth = departmentAllocatedWidth - 100;
+          const maxAvailableWidth = departmentAllocatedWidth - 200; // Increased padding for better spacing
           const actualSpacing = totalWidth <= maxAvailableWidth 
-            ? minSpacing 
-            : Math.max(20, (maxAvailableWidth - (roots.length * NODE_WIDTH)) / (roots.length - 1));
+            ? MIN_HORIZONTAL_SPACING 
+            : Math.max(80, (maxAvailableWidth - (roots.length * NODE_WIDTH)) / (roots.length - 1));
           
           const groupWidth = (roots.length * NODE_WIDTH) + ((roots.length - 1) * actualSpacing);
           const startX = safeCenterX - (groupWidth / 2) + (NODE_WIDTH / 2);
@@ -247,12 +246,13 @@ function layoutUserHierarchy(
     };
   }
   
-  // Layout subordinates first
+  // Layout subordinates first with proper spacing
   const subordinateResults: LayoutResult[] = [];
-  const totalSubordinateWidth = subordinates.reduce((sum) => {
-    // Simulate subordinate width (simplified calculation)
-    return sum + NODE_WIDTH;
-  }, 0) + (subordinates.length - 1) * MIN_HORIZONTAL_SPACING;
+  
+  // Calculate total width needed for subordinates including spacing
+  const totalSubordinateWidth = subordinates.reduce((sum, _, index) => {
+    return sum + NODE_WIDTH + (index > 0 ? MIN_HORIZONTAL_SPACING : 0);
+  }, 0);
   
   const subordinatesStartX = xCenter - (totalSubordinateWidth / 2);
   let currentSubordinateX = subordinatesStartX;
