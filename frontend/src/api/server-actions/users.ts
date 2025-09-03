@@ -424,17 +424,21 @@ export async function getSubordinatesAction(supervisorId: string): Promise<{
 }
 
 /**
- * Server action to get users for organization chart
- * Uses the new /users/org-chart endpoint without role-based access restrictions
- * Returns SimpleUser[] with supervisor/subordinates for hierarchy display
+ * Server action to get users for organization chart with optional filters
+ * Uses the /users/org-chart endpoint with support for dynamic filtering
+ * Returns SimpleUser[] based on department_ids, role_ids, or supervisor_id filters
  */
-export async function getUsersForOrgChartAction(): Promise<{
+export async function getUsersForOrgChartAction(filters?: {
+  department_ids?: string[];
+  role_ids?: string[];
+  supervisor_id?: string;
+}): Promise<{
   success: boolean;
   data?: SimpleUser[];
   error?: string;
 }> {
   try {
-    const response = await usersApi.getUsersForOrgChart();
+    const response = await usersApi.getUsersForOrgChart(filters);
     
     if (!response.success || !response.data) {
       return {
