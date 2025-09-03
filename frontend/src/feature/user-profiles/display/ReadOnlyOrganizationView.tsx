@@ -141,18 +141,27 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     setLoadingNodes(prev => new Set(prev).add(userId));
     
     try {
+      // Find clicked user's department to constrain hierarchy internally
+      const parentUser = allUsers.find(u => u.id === userId);
+      const parentDeptId = parentUser?.department?.id as string | undefined;
+      
       const result = await getUsersForOrgChartAction({
         supervisor_id: userId
       });
       
       if (result.success && result.data && result.data.length > 0) {
-        // Cache the loaded subordinates
-        setLoadedUsers(prev => new Map(prev).set(cacheKey, result.data!));
+        // Keep ONLY subordinates within the same department (internal hierarchy only)
+        const filtered = parentDeptId
+          ? result.data.filter(u => u.department?.id === parentDeptId)
+          : result.data;
+        
+        // Cache the filtered subordinates
+        setLoadedUsers(prev => new Map(prev).set(cacheKey, filtered));
         
         // Add subordinates to current users list
         setAllUsers(prev => {
           const existingIds = new Set(prev.map(u => u.id));
-          const newUsers = result.data!.filter(u => !existingIds.has(u.id));
+          const newUsers = filtered.filter(u => !existingIds.has(u.id));
           return [...prev, ...newUsers];
         });
       }

@@ -116,26 +116,28 @@ export function useOrganizationLayout({
         }
       });
 
-      // Add company to department edge
-      edgeList.push({
-        id: `company-${department.id}`,
-        source: 'company-root',
-        target: department.id,
-        sourceHandle: 'bottom',
-        targetHandle: 'top',
-        type: 'smoothstep',
-        style: { 
-          stroke: '#3b82f6', 
-          strokeWidth: 3,
-          opacity: 0.8
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 20,
-          height: 20,
-          color: '#3b82f6',
-        },
-      });
+      // Add company to department edge (keep this single structural edge)
+      if (!edgeList.some(e => e.id === `company-${department.id}`)) {
+        edgeList.push({
+          id: `company-${department.id}`,
+          source: 'company-root',
+          target: department.id,
+          sourceHandle: 'bottom',
+          targetHandle: 'top',
+          type: 'smoothstep',
+          style: { 
+            stroke: '#3b82f6', 
+            strokeWidth: 3,
+            opacity: 0.8
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 20,
+            height: 20,
+            color: '#3b82f6',
+          },
+        });
+      }
 
       // Add user nodes if department is expanded
       if (expandedDepartments.has(department.id) && currentDeptUsers.length > 0) {
@@ -174,29 +176,32 @@ export function useOrganizationLayout({
           });
         }
 
-        // Add department to root user edges
+        // Draw department → user root edges with safe routing and dedupe
         roots.forEach((rootUser) => {
-          const edgeType = roots.length === 1 ? 'straight' : 'smoothstep';
-          
-          edgeList.push({
-            id: `${department.id}-user-${rootUser.id}`,
-            source: department.id,
-            target: `user-${rootUser.id}`,
-            sourceHandle: 'bottom',
-            targetHandle: 'top',
-            type: edgeType,
-            style: { 
-              stroke: '#3b82f6', 
-              strokeWidth: 3,
-              opacity: 0.8
-            },
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              width: 20,
-              height: 20,
-              color: '#3b82f6',
-            },
-          });
+          const edgeType = 'smoothstep';
+          const edgeId = `${department.id}-user-${rootUser.id}`;
+          if (!edgeList.some(e => e.id === edgeId)) {
+            edgeList.push({
+              id: edgeId,
+              source: department.id,
+              target: `user-${rootUser.id}`,
+              sourceHandle: 'bottom',
+              targetHandle: 'top',
+              type: edgeType,
+              pathOptions: { offset: 60, borderRadius: 12 },
+              style: { 
+                stroke: '#3b82f6', 
+                strokeWidth: 3,
+                opacity: 0.8
+              },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                width: 20,
+                height: 20,
+                color: '#3b82f6',
+              },
+            });
+          }
         });
 
         // Add dynamically loaded subordinates for users that have been clicked
@@ -230,52 +235,63 @@ function addDynamicSubordinates(
     const parentNode = nodeList.find(n => n.id === `user-${userId}`);
     
     if (parentNode && subordinates.length > 0) {
-      // Find the lowest Y position in the current layout to avoid overlap
-      const maxY = Math.max(...nodeList.map(n => n.position.y));
-      const dynamicSubordinateY = maxY + VERTICAL_SPACING;
+      // Constrain edges to internal hierarchy only (same department as parent if available)
+      // Determine parent department by inspecting existing user node's data
+      const parentUser: any = (parentNode as any).data?.user;
+      const parentDeptId: string | undefined = parentUser?.department?.id;
+      const internalSubs = parentDeptId ? subordinates.filter(s => (s as any)?.department?.id === parentDeptId) : subordinates;
+      if (internalSubs.length === 0) return;
+      
+      // Position subordinates directly one level below parent for stable layout
+      const dynamicSubordinateY = parentNode.position.y + VERTICAL_SPACING;
       
       // Position subordinates horizontally around parent
-      const subordinateSpacing = calculateDynamicSpacing(subordinates.length);
-      const totalWidth = (subordinates.length * NODE_WIDTH) + ((subordinates.length - 1) * subordinateSpacing);
+      const subordinateSpacing = calculateDynamicSpacing(internalSubs.length);
+      const totalWidth = (internalSubs.length * NODE_WIDTH) + ((internalSubs.length - 1) * subordinateSpacing);
       const startX = parentNode.position.x + (NODE_WIDTH / 2) - (totalWidth / 2) + (NODE_WIDTH / 2);
       
-      subordinates.forEach((subordinate, index) => {
+      internalSubs.forEach((subordinate, index) => {
         const subX = startX + (index * (NODE_WIDTH + subordinateSpacing)) - NODE_WIDTH/2;
         
         // Add subordinate node
         const isLoading = loadingNodes.has(subordinate.id);
-        nodeList.push({
-          id: `user-${subordinate.id}`,
-          type: 'userNode',
-          position: { x: subX, y: dynamicSubordinateY },
-          data: { 
-            user: subordinate, 
-            isLoading,
-            onClick: onUserClick ? () => onUserClick(subordinate.id) : undefined 
-          }
-        });
+        const subNodeId = `user-${subordinate.id}`;
+        if (!nodeList.some(n => n.id === subNodeId)) {
+          nodeList.push({
+            id: subNodeId,
+            type: 'userNode',
+            position: { x: subX, y: dynamicSubordinateY },
+            data: { 
+              user: subordinate, 
+              isLoading,
+              onClick: onUserClick ? () => onUserClick(subordinate.id) : undefined 
+            }
+          });
+        }
         
-        // Add edge from parent to subordinate
-        edgeList.push({
-          id: `dynamic-${userId}-${subordinate.id}`,
-          source: `user-${userId}`,
-          target: `user-${subordinate.id}`,
-          sourceHandle: 'bottom',
-          targetHandle: 'top',
-          type: 'smoothstep',
-          style: { 
-            stroke: '#10b981', // Green color to distinguish from internal hierarchy
-            strokeWidth: 3,
-            opacity: 0.8,
-            strokeDasharray: '5,5' // Dashed line to show it's dynamically loaded
-          },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            width: 20,
-            height: 20,
-            color: '#10b981',
-          },
-        });
+        // Add edge from parent to subordinate using standard blue style in read-only mode
+        const dynEdgeId = `dynamic-${userId}-${subordinate.id}`;
+        if (!edgeList.some(e => e.id === dynEdgeId)) {
+          edgeList.push({
+            id: dynEdgeId,
+            source: `user-${userId}`,
+            target: `user-${subordinate.id}`,
+            sourceHandle: 'bottom',
+            targetHandle: 'top',
+            type: 'smoothstep',
+            style: { 
+              stroke: '#3b82f6',
+              strokeWidth: 3,
+              opacity: 0.8
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 20,
+              height: 20,
+              color: '#3b82f6',
+            },
+          });
+        }
       });
     }
   });
