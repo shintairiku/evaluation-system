@@ -329,8 +329,8 @@ class PermissionManager:
             role_enum = Role(role.lower())
             return ROLE_PERMISSIONS[role_enum].permissions
         except (ValueError, KeyError):
-            # Default to employee permissions for unknown roles
-            return ROLE_PERMISSIONS[Role.EMPLOYEE].permissions
+            # Return empty permissions for unknown roles
+            return set()
     
     @staticmethod
     def has_permission(user_role: str, required_permission: Permission) -> bool:
