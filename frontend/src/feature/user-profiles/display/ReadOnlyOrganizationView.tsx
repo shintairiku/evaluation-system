@@ -11,12 +11,12 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
 import { Building2 } from 'lucide-react';
-import { getProfileOptionsAction } from '@/api/server-actions/users';
+import { getProfileOptionsAction, getUsersForOrgChartAction } from '@/api/server-actions/users';
 import { OrgNode, UserNode } from '../components/OrganizationNodes';
 import { useOrganizationLayout } from '../hooks/useOrganizationLayout';
 
 interface ReadOnlyOrganizationViewProps {
-  users: UserDetailResponse[] | SimpleUser[];
+  users?: UserDetailResponse[] | SimpleUser[]; // Make optional for backward compatibility
 }
 
 // Node types for React Flow
@@ -25,68 +25,158 @@ const nodeTypes: NodeTypes = {
   userNode: UserNode,
 };
 
-export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganizationViewProps) {
+export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganizationViewProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
+  const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map()); // Cache loaded users by key
+  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set()); // Track loading states
+  const [allUsers, setAllUsers] = useState<(UserDetailResponse | SimpleUser)[]>(users); // Current users to display
 
-  // Load departments on mount
+  // Load initial data on mount
   useEffect(() => {
-    const loadDepartments = async () => {
-      // First, immediately extract departments from users for instant display
-      const userDepartments = users
-        .filter(user => user.department)
-        .map(user => user.department!)
-        .filter((dept, index, self) => 
-          index === self.findIndex(d => d.id === dept.id)
-        );
-      
-      // Set departments immediately from users
-      setDepartments(userDepartments);
-      
-      // Then try to load additional departments from API in background
+    const loadInitialData = async () => {
       try {
+        // Load departments first
         const result = await getProfileOptionsAction();
         if (result && result.success && result.data && result.data.departments) {
-          // Merge API departments with user departments
-          const apiDepartments = result.data.departments;
-          const allDepartments = [...userDepartments];
-          
-          apiDepartments.forEach(apiDept => {
-            if (!allDepartments.find(userDept => userDept.id === apiDept.id)) {
-              allDepartments.push(apiDept);
-            }
+          setDepartments(result.data.departments);
+        }
+
+        // If no users provided, load top-level users (users without supervisor)
+        if (users.length === 0) {
+          setLoadingNodes(prev => new Set(prev).add('initial'));
+          const topLevelResult = await getUsersForOrgChartAction({
+            supervisor_id: undefined // Load users without supervisor
           });
           
-          setDepartments(allDepartments);
+          if (topLevelResult.success && topLevelResult.data) {
+            setAllUsers(topLevelResult.data);
+            setLoadedUsers(prev => new Map(prev).set('top-level', topLevelResult.data!));
+          }
+          setLoadingNodes(prev => {
+            const newSet = new Set(prev);
+            newSet.delete('initial');
+            return newSet;
+          });
+        } else {
+          // Use provided users (backward compatibility)
+          setAllUsers(users);
         }
       } catch (error) {
-        console.error('Error loading departments from API:', error);
-        // Keep the user departments that were set immediately
+        console.error('Error loading initial organization data:', error);
+        setLoadingNodes(prev => {
+          const newSet = new Set(prev);
+          newSet.delete('initial');
+          return newSet;
+        });
       }
     };
     
-    loadDepartments();
+    loadInitialData();
   }, [users]);
 
-  // Handle department click to expand/collapse user cards
-  const handleDepartmentClick = useCallback((departmentId: string) => {
-    setExpandedDepartments(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(departmentId)) {
+  // Handle department click to dynamically load and expand department users
+  const handleDepartmentClick = useCallback(async (departmentId: string) => {
+    const isCurrentlyExpanded = expandedDepartments.has(departmentId);
+    
+    if (isCurrentlyExpanded) {
+      // Collapse - just remove from expanded set
+      setExpandedDepartments(prev => {
+        const newSet = new Set(prev);
         newSet.delete(departmentId);
+        return newSet;
+      });
+    } else {
+      // Expand - check if we need to load users for this department
+      const cacheKey = `dept-${departmentId}`;
+      const cached = loadedUsers.get(cacheKey);
+      
+      if (cached) {
+        // Use cached data
+        setExpandedDepartments(prev => new Set(prev).add(departmentId));
       } else {
-        newSet.add(departmentId);
+        // Load users for this department
+        setLoadingNodes(prev => new Set(prev).add(departmentId));
+        
+        try {
+          const result = await getUsersForOrgChartAction({
+            department_ids: [departmentId]
+          });
+          
+          if (result.success && result.data) {
+            // Cache the loaded users
+            setLoadedUsers(prev => new Map(prev).set(cacheKey, result.data!));
+            
+            // Add users to current users list
+            setAllUsers(prev => {
+              const existingIds = new Set(prev.map(u => u.id));
+              const newUsers = result.data!.filter(u => !existingIds.has(u.id));
+              return [...prev, ...newUsers];
+            });
+            
+            // Mark as expanded
+            setExpandedDepartments(prev => new Set(prev).add(departmentId));
+          }
+        } catch (error) {
+          console.error('Error loading department users:', error);
+        } finally {
+          setLoadingNodes(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(departmentId);
+            return newSet;
+          });
+        }
       }
-      return newSet;
-    });
-  }, []);
+    }
+  }, [expandedDepartments, loadedUsers]);
+
+  // Add user click handler for loading subordinates  
+  const handleUserClick = useCallback(async (userId: string) => {
+    const cacheKey = `user-${userId}`;
+    const cached = loadedUsers.get(cacheKey);
+    
+    if (cached) {
+      // Already loaded subordinates - could implement expand/collapse UI here
+      return;
+    }
+    
+    setLoadingNodes(prev => new Set(prev).add(userId));
+    
+    try {
+      const result = await getUsersForOrgChartAction({
+        supervisor_id: userId
+      });
+      
+      if (result.success && result.data && result.data.length > 0) {
+        // Cache the loaded subordinates
+        setLoadedUsers(prev => new Map(prev).set(cacheKey, result.data!));
+        
+        // Add subordinates to current users list
+        setAllUsers(prev => {
+          const existingIds = new Set(prev.map(u => u.id));
+          const newUsers = result.data!.filter(u => !existingIds.has(u.id));
+          return [...prev, ...newUsers];
+        });
+      }
+    } catch (error) {
+      console.error('Error loading subordinates:', error);
+    } finally {
+      setLoadingNodes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
+  }, [loadedUsers]);
 
   // Get layout from custom hook
   const { nodes, edges } = useOrganizationLayout({
-    users,
+    users: allUsers,
     departments,
     expandedDepartments,
-    onDepartmentClick: handleDepartmentClick
+    loadingNodes,
+    onDepartmentClick: handleDepartmentClick,
+    onUserClick: handleUserClick
   });
 
   const [nodesState, setNodes] = useNodesState(nodes);
@@ -101,14 +191,14 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
   // Calculate statistics for header
   const stats = {
     departments: departments.length,
-    totalUsers: users.length,
-    adminsAndManagers: users.filter(u => 
+    totalUsers: allUsers.length,
+    adminsAndManagers: allUsers.filter(u => 
       u.roles?.some(r => 
         r.name.toLowerCase().includes('admin') || 
         r.name.toLowerCase().includes('manager')
       )
     ).length,
-    pendingApproval: users.filter(u => u.status === 'pending_approval').length
+    pendingApproval: allUsers.filter(u => u.status === 'pending_approval').length
   };
 
   return (

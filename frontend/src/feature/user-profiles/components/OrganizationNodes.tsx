@@ -6,7 +6,7 @@ import { Handle, Position } from 'reactflow';
 import type { UserDetailResponse } from '@/api/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, User, Mail } from 'lucide-react';
+import { Building2, Users, User, Mail, Loader2 } from 'lucide-react';
 
 // Organization node component - represents departments or teams
 export const OrgNode = ({ 
@@ -16,10 +16,11 @@ export const OrgNode = ({
     name: string; 
     userCount: number; 
     isDepartment?: boolean;
+    isLoading?: boolean;
     onClick?: () => void;
   };
 }) => {
-  const { name, userCount, isDepartment = false, onClick } = data;
+  const { name, userCount, isDepartment = false, isLoading = false, onClick } = data;
   
   const getNodeStyle = () => {
     if (isDepartment) {
@@ -45,14 +46,18 @@ export const OrgNode = ({
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-lg ${isDepartment ? 'bg-blue-500/20' : 'bg-blue-200/50'}`}>
-              <Building2 className={`w-6 h-6 ${isDepartment ? 'text-white' : 'text-blue-700'}`} />
+              {isLoading ? (
+                <Loader2 className={`w-6 h-6 animate-spin ${isDepartment ? 'text-white' : 'text-blue-700'}`} />
+              ) : (
+                <Building2 className={`w-6 h-6 ${isDepartment ? 'text-white' : 'text-blue-700'}`} />
+              )}
             </div>
             <div className="text-center flex-1">
               <CardTitle className={`text-base font-bold ${isDepartment ? 'text-white' : 'text-blue-900'}`}>
                 {name}
               </CardTitle>
               <CardDescription className={`text-sm mt-1 font-medium ${isDepartment ? 'text-blue-100' : 'text-blue-700'}`}>
-                {userCount}人
+                {isLoading ? 'Loading...' : `${userCount}人`}
               </CardDescription>
             </div>
           </div>
@@ -64,21 +69,31 @@ export const OrgNode = ({
 };
 
 // User card node component
-export const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
-  const { user } = data;
+export const UserNode = ({ data }: { 
+  data: { 
+    user: UserDetailResponse; 
+    isLoading?: boolean;
+    onClick?: () => void;
+  } 
+}) => {
+  const { user, isLoading = false, onClick } = data;
   
   const getCardStyle = () => {
+    let baseStyle = '';
     if (user.status === 'pending_approval') {
-      return 'border-orange-300 bg-orange-50/50 shadow-md hover:shadow-lg';
+      baseStyle = 'border-orange-300 bg-orange-50/50';
     } else if (user.roles?.some((role) => role.name.toLowerCase().includes('admin'))) {
-      return 'border-blue-400 bg-blue-50/50 shadow-md hover:shadow-lg';
+      baseStyle = 'border-blue-400 bg-blue-50/50';
     } else if (user.roles?.some((role) => role.name.toLowerCase().includes('manager'))) {
-      return 'border-green-400 bg-green-50/50 shadow-md hover:shadow-lg';
+      baseStyle = 'border-green-400 bg-green-50/50';
     } else if (user.roles?.some((role) => role.name.toLowerCase().includes('supervisor'))) {
-      return 'border-purple-400 bg-purple-50/50 shadow-md hover:shadow-lg';
+      baseStyle = 'border-purple-400 bg-purple-50/50';
     } else {
-      return 'border-gray-200 bg-white shadow-md hover:shadow-lg';
+      baseStyle = 'border-gray-200 bg-white';
     }
+    
+    const interactiveStyle = onClick ? 'cursor-pointer hover:shadow-xl' : 'hover:shadow-lg';
+    return `${baseStyle} shadow-md ${interactiveStyle} transition-all duration-300`;
   };
 
   const getStatusBadge = (status: string) => {
@@ -107,15 +122,24 @@ export const UserNode = ({ data }: { data: { user: UserDetailResponse } }) => {
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} id="top" style={handleStyle} />
-      <Card className={`w-72 sm:w-64 md:w-72 group hover:shadow-xl transition-all duration-300 ${getCardStyle()}`}>
+      <Card className={`w-72 sm:w-64 md:w-72 group ${getCardStyle()}`} onClick={onClick}>
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 text-white animate-spin" />
+                  ) : (
+                    <User className="w-4 h-4 text-white" />
+                  )}
                 </div>
                 <CardTitle className="text-lg font-bold text-gray-900">{user.name}</CardTitle>
+                {onClick && !isLoading && (
+                  <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-xs text-gray-500">Click to expand</span>
+                  </div>
+                )}
               </div>
               <CardDescription className="flex items-center gap-1 mt-2 text-sm font-medium text-gray-600">
                 <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">{user.employee_code}</span>
