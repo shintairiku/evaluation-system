@@ -12,6 +12,7 @@ import 'reactflow/dist/style.css';
 import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
 import { Building2 } from 'lucide-react';
 import { getProfileOptionsAction, getUsersForOrgChartAction } from '@/api/server-actions/users';
+import { getTopUsersByRole } from '../utils/hierarchyLayoutUtils';
 import { OrgNode, UserNode } from '../components/OrganizationNodes';
 import { useOrganizationLayout } from '../hooks/useOrganizationLayout';
 
@@ -29,6 +30,7 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
   const [departments, setDepartments] = useState<Department[]>([]);
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
   const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map()); // Cache loaded users by key
+  const [departmentUserCounts, setDepartmentUserCounts] = useState<Map<string, number>>(new Map()); // Total users per department
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set()); // Track loading states
   const [allUsers, setAllUsers] = useState<(UserDetailResponse | SimpleUser)[]>(users); // Current users to display
 
@@ -104,17 +106,13 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
           });
           
           if (result.success && result.data) {
-            // Cache the loaded users
-            setLoadedUsers(prev => new Map(prev).set(cacheKey, result.data!));
+            // Filter to show only top users by role hierarchy
+            const topUsers = getTopUsersByRole(result.data) as SimpleUser[];
+            // Save total user count for the department
+            setDepartmentUserCounts(prev => new Map(prev).set(departmentId, result.data.length));
             
-            // Add users to current users list
-            setAllUsers(prev => {
-              const existingIds = new Set(prev.map(u => u.id));
-              const newUsers = result.data!.filter(u => !existingIds.has(u.id));
-              return [...prev, ...newUsers];
-            });
-            
-            // Mark as expanded
+            // Cache the filtered top users
+            setLoadedUsers(prev => new Map(prev).set(cacheKey, topUsers));
             setExpandedDepartments(prev => new Set(prev).add(departmentId));
           }
         } catch (error) {
@@ -176,6 +174,7 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     expandedDepartments,
     loadingNodes,
     loadedUsers,
+    departmentUserCounts,
     onDepartmentClick: handleDepartmentClick,
     onUserClick: handleUserClick
   });
