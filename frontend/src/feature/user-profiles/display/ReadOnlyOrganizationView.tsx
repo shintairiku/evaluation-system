@@ -175,6 +175,7 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     departments,
     expandedDepartments,
     loadingNodes,
+    loadedUsers,
     onDepartmentClick: handleDepartmentClick,
     onUserClick: handleUserClick
   });

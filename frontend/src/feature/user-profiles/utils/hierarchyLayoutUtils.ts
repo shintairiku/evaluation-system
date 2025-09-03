@@ -94,12 +94,15 @@ export function calculateDepartmentWidth(
 }
 
 /**
- * Finds root users (users without supervisors within the department)
+ * Returns all department users for flat layout display
+ * In the new approach, we don't use supervisor-subordinate relationships for initial layout
+ * All users in a department are shown at the same level initially
+ * Hierarchy is built dynamically via click actions and API calls
  */
 export function findRootUsers(departmentUsers: OrganizationUser[]): OrganizationUser[] {
-  return departmentUsers.filter(user => 
-    !user.supervisor || !departmentUsers.find(u => u.id === user.supervisor?.id)
-  );
+  // Return ALL users in the department for flat layout
+  // Hierarchy will be built dynamically through user clicks and API calls
+  return departmentUsers;
 }
 
 /**
