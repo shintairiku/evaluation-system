@@ -19,15 +19,11 @@ interface UseOrganizationLayoutParams {
   departments: Department[];
   expandedDepartments: Set<string>;
   loadingNodes?: Set<string>;
+  loadedUsers?: Map<string, OrganizationUser[]>;
   onDepartmentClick: (departmentId: string) => void;
   onUserClick?: (userId: string) => void;
 }
 
-interface LayoutResult {
-  width: number;
-  leftBound: number;
-  rightBound: number;
-}
 
 export function useOrganizationLayout({
   users,
@@ -35,7 +31,8 @@ export function useOrganizationLayout({
   expandedDepartments,
   loadingNodes = new Set(),
   onDepartmentClick,
-  onUserClick
+  onUserClick,
+  loadedUsers = new Map()
 }: UseOrganizationLayoutParams) {
   
   // Group users by department
@@ -150,13 +147,18 @@ export function useOrganizationLayout({
         // Choose centering strategy based on available space
         const safeCenterX = departmentAllocatedWidth > 400 ? departmentCenterX : allocatedSpaceCenter;
 
+        // Layout all department users in a flat grid (no supervisor hierarchy)
+        // Subordinates will be loaded and displayed dynamically via user clicks
+        const { NODE_WIDTH } = LAYOUT_CONSTANTS;
+        const dynamicSpacing = calculateDynamicSpacing(roots.length);
+        
         if (roots.length === 1) {
           // Single user - center it
-          layoutUserHierarchy(roots[0], 0, safeCenterX, deptUsers, nodeList, edgeList, loadingNodes, onUserClick);
+          const userX = safeCenterX - NODE_WIDTH/2;
+          const userY = 450; // Standard first level position
+          createFlatUserNode(roots[0], userX, userY, nodeList, loadingNodes, onUserClick);
         } else {
-          // Multiple users - distribute evenly with dynamic spacing
-          const { NODE_WIDTH } = LAYOUT_CONSTANTS;
-          const dynamicSpacing = calculateDynamicSpacing(roots.length);
+          // Multiple users - distribute evenly in flat layout
           const totalSpacing = (roots.length - 1) * dynamicSpacing;
           const totalWidth = (roots.length * NODE_WIDTH) + totalSpacing;
           
@@ -167,10 +169,11 @@ export function useOrganizationLayout({
           
           const groupWidth = (roots.length * NODE_WIDTH) + ((roots.length - 1) * actualSpacing);
           const startX = safeCenterX - (groupWidth / 2) + (NODE_WIDTH / 2);
+          const userY = 450; // Same Y level for all department users
           
-          roots.forEach((rootUser, rootIndex) => {
-            const userX = startX + (rootIndex * (NODE_WIDTH + actualSpacing));
-            layoutUserHierarchy(rootUser, 0, userX, deptUsers, nodeList, edgeList, loadingNodes, onUserClick);
+          roots.forEach((user, userIndex) => {
+            const userX = startX + (userIndex * (NODE_WIDTH + actualSpacing)) - NODE_WIDTH/2;
+            createFlatUserNode(user, userX, userY, nodeList, loadingNodes, onUserClick);
           });
         }
 
@@ -199,29 +202,42 @@ export function useOrganizationLayout({
           });
         });
 
-        // Add supervisor-subordinate edges
-        deptUsers.forEach(user => {
-          if (user.supervisor) {
-            const supervisor = deptUsers.find(u => u.id === user.supervisor?.id);
-            if (supervisor) {
-              edgeList.push({
-                id: `user-${supervisor.id}-user-${user.id}`,
-                source: `user-${supervisor.id}`,
-                target: `user-${user.id}`,
-                sourceHandle: 'bottom',
-                targetHandle: 'top',
-                type: 'smoothstep',
-                style: { 
-                  stroke: '#3b82f6', 
-                  strokeWidth: 3,
-                  opacity: 0.8
-                },
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  width: 20,
-                  height: 20,
-                  color: '#3b82f6',
-                },
+        // Add subordinates for users that have been expanded (clicked)
+        roots.forEach(user => {
+          const subordinatesKey = `user-${user.id}`;
+          const loadedSubordinates = loadedUsers.get(subordinatesKey);
+          
+          if (loadedSubordinates && loadedSubordinates.length > 0) {
+            // Position subordinates below the user
+            const userNode = nodeList.find(n => n.id === `user-${user.id}`);
+            if (userNode) {
+              const subordinateY = userNode.position.y + 600; // Position below user
+              
+              loadedSubordinates.forEach((subordinate, subIndex) => {
+                const subordinateX = userNode.position.x + (subIndex - (loadedSubordinates.length - 1) / 2) * (NODE_WIDTH + 50);
+                
+                createFlatUserNode(subordinate, subordinateX, subordinateY, nodeList, loadingNodes, onUserClick);
+                
+                // Add edge from user to subordinate
+                edgeList.push({
+                  id: `user-${user.id}-subordinate-${subordinate.id}`,
+                  source: `user-${user.id}`,
+                  target: `user-${subordinate.id}`,
+                  sourceHandle: 'bottom',
+                  targetHandle: 'top',
+                  type: 'smoothstep',
+                  style: { 
+                    stroke: '#3b82f6', 
+                    strokeWidth: 3,
+                    opacity: 0.8
+                  },
+                  markerEnd: {
+                    type: MarkerType.ArrowClosed,
+                    width: 20,
+                    height: 20,
+                    color: '#3b82f6',
+                  },
+                });
               });
             }
           }
@@ -232,88 +248,31 @@ export function useOrganizationLayout({
     });
 
     return { nodes: nodeList, edges: edgeList };
-  }, [departments, users, organizationStructure, expandedDepartments, loadingNodes, onDepartmentClick, onUserClick]);
+  }, [departments, users, organizationStructure, expandedDepartments, loadingNodes, loadedUsers, onDepartmentClick, onUserClick]);
 
   return { nodes, edges };
 }
 
-// Helper function to layout user hierarchies
-function layoutUserHierarchy(
+// Helper function to create a flat user node (no hierarchical positioning)
+function createFlatUserNode(
   user: OrganizationUser,
-  level: number,
-  xCenter: number,
-  departmentUsers: OrganizationUser[],
+  x: number,
+  y: number,
   nodeList: Node[],
-  edgeList: Edge[],
-  loadingNodes: Set<string> = new Set(),
+  loadingNodes: Set<string>,
   onUserClick?: (userId: string) => void
-): LayoutResult {
-  const { NODE_WIDTH, MIN_HORIZONTAL_SPACING, VERTICAL_SPACING } = LAYOUT_CONSTANTS;
-  const userY = 450 + level * VERTICAL_SPACING;
-  
-  // Find subordinates
-  const subordinates = departmentUsers.filter(u => u.supervisor?.id === user.id);
-  
-  if (subordinates.length === 0) {
-    // Leaf node with loading state and click handler
-    const isLoading = loadingNodes.has(user.id);
-    nodeList.push({
-      id: `user-${user.id}`,
-      type: 'userNode',
-      position: { x: xCenter - NODE_WIDTH/2, y: userY },
-      data: { 
-        user, 
-        isLoading,
-        onClick: onUserClick ? () => onUserClick(user.id) : undefined 
-      }
-    });
-    
-    return { 
-      width: NODE_WIDTH, 
-      leftBound: xCenter - NODE_WIDTH/2, 
-      rightBound: xCenter + NODE_WIDTH/2 
-    };
-  }
-  
-  // Layout subordinates first with dynamic spacing
-  const subordinateResults: LayoutResult[] = [];
-  
-  // Calculate total width needed for subordinates including dynamic spacing
-  const dynamicSpacing = calculateDynamicSpacing(subordinates.length);
-  const totalSubordinateWidth = subordinates.reduce((sum, _, index) => {
-    return sum + NODE_WIDTH + (index > 0 ? dynamicSpacing : 0);
-  }, 0);
-  
-  const subordinatesStartX = xCenter - (totalSubordinateWidth / 2);
-  let currentSubordinateX = subordinatesStartX;
-  
-  subordinates.forEach((subordinate) => {
-    const subCenterX = currentSubordinateX + (NODE_WIDTH / 2);
-    const subResult = layoutUserHierarchy(subordinate, level + 1, subCenterX, departmentUsers, nodeList, edgeList, loadingNodes, onUserClick);
-    subordinateResults.push(subResult);
-    currentSubordinateX += NODE_WIDTH + MIN_HORIZONTAL_SPACING;
-  });
-  
-  // Position parent with loading state and click handler
-  const parentX = xCenter - NODE_WIDTH/2;
+): void {
   const isLoading = loadingNodes.has(user.id);
+  
   nodeList.push({
     id: `user-${user.id}`,
     type: 'userNode',
-    position: { x: parentX, y: userY },
+    position: { x, y },
     data: { 
       user, 
       isLoading,
       onClick: onUserClick ? () => onUserClick(user.id) : undefined 
     }
   });
-  
-  const leftmostChild = subordinateResults.length > 0 ? subordinateResults[0].leftBound : parentX;
-  const rightmostChild = subordinateResults.length > 0 ? subordinateResults[subordinateResults.length - 1].rightBound : parentX + NODE_WIDTH;
-  
-  return {
-    width: Math.max(NODE_WIDTH, totalSubordinateWidth),
-    leftBound: Math.min(parentX, leftmostChild),
-    rightBound: Math.max(parentX + NODE_WIDTH, rightmostChild)
-  };
 }
+
