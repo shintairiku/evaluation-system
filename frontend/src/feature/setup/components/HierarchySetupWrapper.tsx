@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useMemo, useCallback } from 'react';
-import HierarchyEditCard from '@/feature/user-profiles/components/HierarchyEditCard';
-import type { UserDetailResponse, UserProfileOption, Role } from '@/api/types/user';
+import { HierarchySetupCard } from '@/components/hierarchy';
+import type { UserProfileOption, Role } from '@/api/types/user';
+import { UserStatus } from '@/api/types/user';
 import { useUser } from '@clerk/nextjs';
 import { 
   getRoleBasedPotentialSupervisors, 
   getRoleBasedPotentialSubordinates 
 } from '@/utils/hierarchy';
-import { convertToUserDetailResponse, createSetupUserMock } from '@/utils/userConversions';
 
 interface HierarchySetupWrapperProps {
   users: UserProfileOption[];
@@ -36,7 +36,20 @@ export default function HierarchySetupWrapper({
 
   // Convert UserProfileOption[] to UserDetailResponse[] for compatibility
   const convertedUsers = useMemo(() => {
-    return users.map(user => convertToUserDetailResponse(user));
+    return users.map(user => ({
+      id: user.id,
+      clerk_user_id: '',
+      employee_code: user.employee_code,
+      name: user.name,
+      email: user.email,
+      status: UserStatus.ACTIVE,
+      job_title: user.job_title,
+      department: undefined,
+      stage: undefined,
+      roles: user.roles,
+      supervisor: undefined,
+      subordinates: undefined
+    }));
   }, [users]);
 
   // Get selected role objects
@@ -44,55 +57,20 @@ export default function HierarchySetupWrapper({
     return allRoles.filter(role => selectedRoles.includes(role.id));
   }, [allRoles, selectedRoles]);
 
-  // Find supervisor and subordinate users for hierarchy construction
-  const supervisorUser = selectedSupervisor 
-    ? users.find(u => u.id === selectedSupervisor) 
-    : undefined;
-  
-  const subordinateUsers = users.filter(u => 
-    selectedSubordinates.includes(u.id)
-  );
-
-  // Create a mock "current user" for setup context using type-safe conversion
-  const mockCurrentUser = useMemo((): UserDetailResponse => {
-    const userName = clerkUser?.firstName && clerkUser?.lastName
-      ? `${clerkUser.lastName} ${clerkUser.firstName}` 
-      : clerkUser?.fullName || 'Setup User';
-    const userEmail = clerkUser?.primaryEmailAddress?.emailAddress || '';
-    
-    return createSetupUserMock(
-      clerkUser?.id || '',
-      userName,
-      userEmail,
-      selectedRoleObjects,
-      supervisorUser,
-      subordinateUsers
-    );
-  }, [selectedRoleObjects, supervisorUser, subordinateUsers, clerkUser]);
+  // Get current user info
+  const userName = clerkUser?.firstName && clerkUser?.lastName
+    ? `${clerkUser.lastName} ${clerkUser.firstName}` 
+    : clerkUser?.fullName || 'Setup User';
+  const userEmail = clerkUser?.primaryEmailAddress?.emailAddress || '';
 
   // Use centralized role-based hierarchy functions
   const getPotentialSupervisors = useCallback(() => {
-    return getRoleBasedPotentialSupervisors(convertedUsers, mockCurrentUser.id, selectedRoleObjects);
-  }, [convertedUsers, mockCurrentUser.id, selectedRoleObjects]);
+    return getRoleBasedPotentialSupervisors(convertedUsers, 'setup-user-mock', selectedRoleObjects);
+  }, [convertedUsers, selectedRoleObjects]);
 
   const getPotentialSubordinates = useCallback(() => {
-    return getRoleBasedPotentialSubordinates(convertedUsers, mockCurrentUser.id, selectedRoleObjects);
-  }, [convertedUsers, mockCurrentUser.id, selectedRoleObjects]);
-
-  // Handle updates from HierarchyEditCard
-  const handleUserUpdate = useCallback((updatedUser: UserDetailResponse) => {
-    // Extract supervisor change
-    const newSupervisorId = updatedUser.supervisor?.id || '';
-    if (newSupervisorId !== selectedSupervisor) {
-      onSupervisorChange(newSupervisorId);
-    }
-
-    // Extract subordinate changes
-    const newSubordinateIds = updatedUser.subordinates?.map(sub => sub.id) || [];
-    if (JSON.stringify(newSubordinateIds.sort()) !== JSON.stringify(selectedSubordinates.sort())) {
-      onSubordinatesChange(newSubordinateIds);
-    }
-  }, [selectedSupervisor, selectedSubordinates, onSupervisorChange, onSubordinatesChange]);
+    return getRoleBasedPotentialSubordinates(convertedUsers, 'setup-user-mock', selectedRoleObjects);
+  }, [convertedUsers, selectedRoleObjects]);
 
   // Don't render if no roles selected
   if (selectedRoles.length === 0) {
@@ -104,15 +82,19 @@ export default function HierarchySetupWrapper({
   }
 
   return (
-    <HierarchyEditCard
-      user={mockCurrentUser}
+    <HierarchySetupCard
+      mode="setup"
+      userName={userName}
+      userEmail={userEmail}
+      selectedRoles={selectedRoleObjects}
       allUsers={convertedUsers}
-      isLoading={disabled}
-      onUserUpdate={handleUserUpdate}
-      forceCanEdit={true} // Force edit permission for setup context
-      customGetPotentialSupervisors={getPotentialSupervisors}
-      customGetPotentialSubordinates={getPotentialSubordinates}
-      // Don't need onPendingChanges for setup - changes are immediate
+      selectedSupervisorId={selectedSupervisor}
+      selectedSubordinateIds={selectedSubordinates}
+      onSupervisorChange={onSupervisorChange}
+      onSubordinatesChange={onSubordinatesChange}
+      getPotentialSupervisors={getPotentialSupervisors}
+      getPotentialSubordinates={getPotentialSubordinates}
+      disabled={disabled}
     />
   );
 }
