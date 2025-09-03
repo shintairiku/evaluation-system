@@ -93,7 +93,8 @@ export const UserNode = ({ data }: {
     }
     
     const interactiveStyle = onClick ? 'cursor-pointer hover:shadow-xl' : 'hover:shadow-lg';
-    return `${baseStyle} shadow-md ${interactiveStyle} transition-all duration-300`;
+    // Keep visuals the same, only ensure this node sits above edges
+    return `${baseStyle} shadow-md ${interactiveStyle} transition-all duration-300 relative z-10`;
   };
 
   const getStatusBadge = (status: string) => {

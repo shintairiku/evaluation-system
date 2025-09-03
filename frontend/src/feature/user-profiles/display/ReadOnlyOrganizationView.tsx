@@ -149,12 +149,21 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
         supervisor_id: userId
       });
       
-      if (result.success && result.data && result.data.length > 0) {
-        // Keep ONLY subordinates within the same department (internal hierarchy only)
-        const filtered = parentDeptId
-          ? result.data.filter(u => u.department?.id === parentDeptId)
-          : result.data;
-        
+      if (result.success && result.data) {
+        // API já filtra por supervisor_id; alguns registros podem não trazer o campo supervisor populado.
+        // Estratégia: confiar na resposta da API e apenas garantir hierarquia interna por departamento.
+        // Se o campo supervisor vier populado, validamos; caso contrário, mantemos.
+        const sameDept = (result.data || []).filter(u => (parentDeptId ? u.department?.id === parentDeptId : true));
+        const hasSupervisorField = sameDept.some(u => (u as any)?.supervisor);
+        const filtered = hasSupervisorField
+          ? sameDept.filter(u => (u as any)?.supervisor?.id === userId)
+          : sameDept;
+
+        // If there are no valid subordinates, do nothing
+        if (!filtered || filtered.length === 0) {
+          return;
+        }
+
         // Cache the filtered subordinates
         setLoadedUsers(prev => new Map(prev).set(cacheKey, filtered));
         
