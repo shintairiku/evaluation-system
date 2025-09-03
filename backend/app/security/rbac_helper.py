@@ -165,7 +165,7 @@ class RBACHelper:
         Returns:
             bool: True if user can access the resource, False otherwise
         """
-        cache_key = f"can_access_{resource_type.value}_{resource_id}_{auth_context.user_id}"
+        cache_key = f"can_access_{resource_type.value}_{resource_id}_{auth_context.user_id}_{owner_user_id}"
         
         # Check cache first
         if cached_result := resource_access_cache.get(cache_key):
