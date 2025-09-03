@@ -72,7 +72,7 @@ export function calculateDepartmentWidth(
   rootUsers: OrganizationUser[],
   departmentUsers: OrganizationUser[]
 ): number {
-  const { NODE_WIDTH, MIN_DEPARTMENT_WIDTH, DEPARTMENT_PADDING, MIN_HORIZONTAL_SPACING } = LAYOUT_CONSTANTS;
+  const { NODE_WIDTH, MIN_DEPARTMENT_WIDTH, DEPARTMENT_PADDING } = LAYOUT_CONSTANTS;
   
   if (rootUsers.length === 0) {
     return 320; // Minimal width for empty departments
@@ -116,5 +116,47 @@ export function calculateDynamicSpacing(itemCount: number): number {
   if (itemCount <= 10) return 100;       // Many items: compact spacing
   if (itemCount <= 15) return 80;        // Very many items: tight spacing
   return 60;                             // Extremely many items: minimal spacing
+}
+
+/**
+ * Gets all top users from department based on role hierarchy
+ * Priority: Admin → Manager → Supervisor → Employee → Part-time
+ * Returns ALL users of the highest priority level found in the department
+ * Example: If department has 2 admins and 3 managers, returns the 2 admins
+ */
+export function getTopUsersByRole(departmentUsers: OrganizationUser[]): OrganizationUser[] {
+  if (!departmentUsers || departmentUsers.length === 0) {
+    return [];
+  }
+
+  // Role hierarchy from highest to lowest priority
+  const rolePriority = ['admin', 'manager', 'supervisor', 'employee', 'part-time'];
+  
+  // Search for users by role priority and return ALL users of the first matching level
+  for (const roleType of rolePriority) {
+    const usersWithRole = departmentUsers.filter(user => 
+      user.roles?.some(role => 
+        role.name.toLowerCase().includes(roleType)
+      )
+    );
+    
+    // If we found users with this role, return ALL of them
+    if (usersWithRole.length > 0) {
+      return usersWithRole;
+    }
+  }
+  
+  // Fallback: return only the first user if no specific role found
+  return departmentUsers.length > 0 ? [departmentUsers[0]] : [];
+}
+
+/**
+ * Gets the top user from department based on role hierarchy (legacy single user version)
+ * Priority: Admin → Manager → Supervisor → Employee → Part-time
+ * Returns the first user of the highest priority level found in the department
+ */
+export function getTopUserByRole(departmentUsers: OrganizationUser[]): OrganizationUser | null {
+  const topUsers = getTopUsersByRole(departmentUsers);
+  return topUsers.length > 0 ? topUsers[0] : null;
 }
 
