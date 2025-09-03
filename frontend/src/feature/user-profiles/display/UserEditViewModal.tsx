@@ -35,7 +35,7 @@ import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
 import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
-import HierarchyEditCard from '../components/HierarchyEditCard';
+import { HierarchyEditCard } from '@/components/hierarchy';
 
 interface UserEditViewModalProps {
   user: UserDetailResponse | null;
