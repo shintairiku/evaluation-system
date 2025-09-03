@@ -101,15 +101,23 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
         setLoadingNodes(prev => new Set(prev).add(departmentId));
         
         try {
+          console.log(`🏢 Loading users for department: ${departmentId}`);
+          
           const result = await getUsersForOrgChartAction({
             department_ids: [departmentId]
           });
           
           if (result.success && result.data) {
-            // Filter to show only top users by role hierarchy
+            console.log(`📊 API returned ${result.data.length} users for department ${departmentId}`);
+            
+            // Filter to show only top users by role hierarchy (department expansion logic)
             const topUsers = getTopUsersByRole(result.data) as SimpleUser[];
+            console.log(`🔝 Filtered to ${topUsers.length} top users:`, 
+              topUsers.map(u => ({ id: u.id, name: u.name, roles: u.roles?.map(r => r.name) }))
+            );
+            
             // Save total user count for the department
-            setDepartmentUserCounts(prev => new Map(prev).set(departmentId, result.data.length));
+            setDepartmentUserCounts(prev => new Map(prev).set(departmentId, result.data?.length || 0));
             
             // Cache the filtered top users
             setLoadedUsers(prev => new Map(prev).set(cacheKey, topUsers));
@@ -141,38 +149,38 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     setLoadingNodes(prev => new Set(prev).add(userId));
     
     try {
-      // Find clicked user's department to constrain hierarchy internally
-      const parentUser = allUsers.find(u => u.id === userId);
-      const parentDeptId = parentUser?.department?.id as string | undefined;
+      console.log(`🔍 Loading subordinates for user: ${userId}`);
       
       const result = await getUsersForOrgChartAction({
         supervisor_id: userId
       });
       
       if (result.success && result.data) {
-        // API já filtra por supervisor_id; alguns registros podem não trazer o campo supervisor populado.
-        // Estratégia: confiar na resposta da API e apenas garantir hierarquia interna por departamento.
-        // Se o campo supervisor vier populado, validamos; caso contrário, mantemos.
-        const sameDept = (result.data || []).filter(u => (parentDeptId ? u.department?.id === parentDeptId : true));
-        const hasSupervisorField = sameDept.some(u => (u as any)?.supervisor);
-        const filtered = hasSupervisorField
-          ? sameDept.filter(u => (u as any)?.supervisor?.id === userId)
-          : sameDept;
+        console.log(`✅ API returned ${result.data.length} subordinates for user ${userId}:`, 
+          result.data.map(u => ({ id: u.id, name: u.name, roles: u.roles?.map(r => r.name) }))
+        );
 
-        // If there are no valid subordinates, do nothing
-        if (!filtered || filtered.length === 0) {
+        // Trust the API response completely - it already filtered by supervisor_id
+        const subordinates = result.data;
+
+        // If there are no subordinates, do nothing
+        if (!subordinates || subordinates.length === 0) {
+          console.log(`ℹ️ No subordinates found for user ${userId}`);
           return;
         }
 
-        // Cache the filtered subordinates
-        setLoadedUsers(prev => new Map(prev).set(cacheKey, filtered));
+        // Cache the subordinates
+        setLoadedUsers(prev => new Map(prev).set(cacheKey, subordinates));
         
         // Add subordinates to current users list
         setAllUsers(prev => {
           const existingIds = new Set(prev.map(u => u.id));
-          const newUsers = filtered.filter(u => !existingIds.has(u.id));
+          const newUsers = subordinates.filter(u => !existingIds.has(u.id));
+          console.log(`➕ Adding ${newUsers.length} new users to display`);
           return [...prev, ...newUsers];
         });
+      } else {
+        console.log(`❌ API call failed or returned no data for user ${userId}`);
       }
     } catch (error) {
       console.error('Error loading subordinates:', error);
@@ -183,7 +191,7 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
         return newSet;
       });
     }
-  }, [loadedUsers]);
+  }, [loadedUsers, allUsers]);
 
   // Get layout from custom hook
   const { nodes, edges } = useOrganizationLayout({
