@@ -4,7 +4,7 @@ import { useMemo, useCallback, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useOptimisticUpdate } from '@/hooks/useOptimisticUpdate';
 import { useErrorHandler } from '@/utils/error-handling';
-import { updateUserAction } from '@/api/server-actions/users';
+import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
 import type { UserDetailResponse } from '@/api/types';
 import {
   validateHierarchyChange as validateHierarchyChangeUtil,
@@ -131,7 +131,7 @@ export function useHierarchyEdit({
     // Chain operation for deferred save
     const prevOp = nextOperationRef.current;
     nextOperationRef.current = async () => {
-      const prevResult = await prevOp();
+      await prevOp();
       const result = await updateUserAction(user.id, {
         supervisor_id: newSupervisorId || undefined,
       });
@@ -144,7 +144,7 @@ export function useHierarchyEdit({
     setHasLocalPending(true);
   }, [canEditHierarchy, validateHierarchyChange, user, allUsers, hierarchyUpdate]);
 
-  // Add subordinate
+  // Add subordinate - simple immediate execution like supervisor
   const addSubordinate = useCallback(async (subordinateId: string): Promise<void> => {
     if (!canEditHierarchy) {
       throw new Error('階層編集権限がありません');
@@ -160,11 +160,29 @@ export function useHierarchyEdit({
       throw new Error(validationError);
     }
 
-    // No change to current user's own data structure unless we reflect subordinate list.
-    // For now, rely on parent to refresh, but still use optimistic pattern for consistency.
-    const optimisticUser: UserDetailResponse = { ...user };
+    // Optimistic update for immediate UI feedback
+    const currentSubordinates = hierarchyUpdate.state.subordinates || [];
+    const subordinateWithSupervisor = {
+      ...subordinate,
+      supervisor: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        employee_code: user.employee_code,
+        department: user.department,
+        stage: user.stage,
+        roles: user.roles,
+        status: user.status
+      }
+    };
+    
+    const optimisticUser: UserDetailResponse = {
+      ...hierarchyUpdate.state,
+      subordinates: [...currentSubordinates, subordinateWithSupervisor] as UserDetailResponse['subordinates']
+    };
     hierarchyUpdate.reset(optimisticUser);
 
+    // Queue operation for batch execution
     const prevOp = nextOperationRef.current;
     nextOperationRef.current = async () => {
       await prevOp();
@@ -172,21 +190,31 @@ export function useHierarchyEdit({
       if (!result.success) {
         throw new Error('部下の追加に失敗しました');
       }
-      return optimisticUser;
+      const userResult = await getUserByIdAction(user.id);
+      if (!userResult.success || !userResult.data) {
+        throw new Error('ユーザー情報の更新に失敗しました');
+      }
+      return userResult.data;
     };
 
     setHasLocalPending(true);
-  }, [canEditHierarchy, validateHierarchyChange, user, allUsers, hierarchyUpdate, onUserUpdate]);
+  }, [canEditHierarchy, validateHierarchyChange, user, allUsers, hierarchyUpdate]);
 
-  // Remove subordinate
+  // Remove subordinate - consistent with addSubordinate pattern
   const removeSubordinate = useCallback(async (subordinateId: string): Promise<void> => {
     if (!canEditHierarchy) {
       throw new Error('階層編集権限がありません');
     }
 
-    const optimisticUser: UserDetailResponse = { ...user };
+    // Optimistic update for immediate UI feedback
+    const currentSubordinates = hierarchyUpdate.state.subordinates || [];
+    const optimisticUser: UserDetailResponse = {
+      ...hierarchyUpdate.state,
+      subordinates: currentSubordinates.filter(sub => sub.id !== subordinateId)
+    };
     hierarchyUpdate.reset(optimisticUser);
 
+    // Queue operation for batch execution
     const prevOp = nextOperationRef.current;
     nextOperationRef.current = async () => {
       await prevOp();
@@ -194,11 +222,15 @@ export function useHierarchyEdit({
       if (!result.success) {
         throw new Error('部下の削除に失敗しました');
       }
-      return optimisticUser;
+      const userResult = await getUserByIdAction(user.id);
+      if (!userResult.success || !userResult.data) {
+        throw new Error('ユーザー情報の更新に失敗しました');
+      }
+      return userResult.data;
     };
 
     setHasLocalPending(true);
-  }, [canEditHierarchy, user, hierarchyUpdate, onUserUpdate]);
+  }, [canEditHierarchy, hierarchyUpdate, user.id]);
 
   const saveAllChanges = useCallback(async (): Promise<UserDetailResponse> => {
     try {
