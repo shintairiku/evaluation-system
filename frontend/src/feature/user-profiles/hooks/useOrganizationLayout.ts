@@ -18,7 +18,9 @@ interface UseOrganizationLayoutParams {
   users: OrganizationUser[];
   departments: Department[];
   expandedDepartments: Set<string>;
+  loadingNodes?: Set<string>;
   onDepartmentClick: (departmentId: string) => void;
+  onUserClick?: (userId: string) => void;
 }
 
 interface LayoutResult {
@@ -31,7 +33,9 @@ export function useOrganizationLayout({
   users,
   departments,
   expandedDepartments,
-  onDepartmentClick
+  loadingNodes = new Set(),
+  onDepartmentClick,
+  onUserClick
 }: UseOrganizationLayoutParams) {
   
   // Group users by department
@@ -100,7 +104,8 @@ export function useOrganizationLayout({
       const deptUsers = organizationStructure.get(department.id) || [];
       const userCount = deptUsers.length;
 
-      // Add department node
+      // Add department node with loading state
+      const isLoading = loadingNodes.has(department.id);
       nodeList.push({
         id: department.id,
         type: 'orgNode',
@@ -109,6 +114,7 @@ export function useOrganizationLayout({
           name: department.name,
           userCount,
           isDepartment: false,
+          isLoading,
           onClick: () => onDepartmentClick(department.id)
         }
       });
@@ -146,7 +152,7 @@ export function useOrganizationLayout({
 
         if (roots.length === 1) {
           // Single user - center it
-          layoutUserHierarchy(roots[0], 0, safeCenterX, deptUsers, nodeList, edgeList);
+          layoutUserHierarchy(roots[0], 0, safeCenterX, deptUsers, nodeList, edgeList, loadingNodes, onUserClick);
         } else {
           // Multiple users - distribute evenly with dynamic spacing
           const { NODE_WIDTH } = LAYOUT_CONSTANTS;
@@ -164,7 +170,7 @@ export function useOrganizationLayout({
           
           roots.forEach((rootUser, rootIndex) => {
             const userX = startX + (rootIndex * (NODE_WIDTH + actualSpacing));
-            layoutUserHierarchy(rootUser, 0, userX, deptUsers, nodeList, edgeList);
+            layoutUserHierarchy(rootUser, 0, userX, deptUsers, nodeList, edgeList, loadingNodes, onUserClick);
           });
         }
 
@@ -226,7 +232,7 @@ export function useOrganizationLayout({
     });
 
     return { nodes: nodeList, edges: edgeList };
-  }, [departments, users, organizationStructure, expandedDepartments, onDepartmentClick]);
+  }, [departments, users, organizationStructure, expandedDepartments, loadingNodes, onDepartmentClick, onUserClick]);
 
   return { nodes, edges };
 }
@@ -238,7 +244,9 @@ function layoutUserHierarchy(
   xCenter: number,
   departmentUsers: OrganizationUser[],
   nodeList: Node[],
-  edgeList: Edge[]
+  edgeList: Edge[],
+  loadingNodes: Set<string> = new Set(),
+  onUserClick?: (userId: string) => void
 ): LayoutResult {
   const { NODE_WIDTH, MIN_HORIZONTAL_SPACING, VERTICAL_SPACING } = LAYOUT_CONSTANTS;
   const userY = 450 + level * VERTICAL_SPACING;
@@ -247,12 +255,17 @@ function layoutUserHierarchy(
   const subordinates = departmentUsers.filter(u => u.supervisor?.id === user.id);
   
   if (subordinates.length === 0) {
-    // Leaf node
+    // Leaf node with loading state and click handler
+    const isLoading = loadingNodes.has(user.id);
     nodeList.push({
       id: `user-${user.id}`,
       type: 'userNode',
       position: { x: xCenter - NODE_WIDTH/2, y: userY },
-      data: { user }
+      data: { 
+        user, 
+        isLoading,
+        onClick: onUserClick ? () => onUserClick(user.id) : undefined 
+      }
     });
     
     return { 
@@ -276,18 +289,23 @@ function layoutUserHierarchy(
   
   subordinates.forEach((subordinate) => {
     const subCenterX = currentSubordinateX + (NODE_WIDTH / 2);
-    const subResult = layoutUserHierarchy(subordinate, level + 1, subCenterX, departmentUsers, nodeList, edgeList);
+    const subResult = layoutUserHierarchy(subordinate, level + 1, subCenterX, departmentUsers, nodeList, edgeList, loadingNodes, onUserClick);
     subordinateResults.push(subResult);
     currentSubordinateX += NODE_WIDTH + MIN_HORIZONTAL_SPACING;
   });
   
-  // Position parent
+  // Position parent with loading state and click handler
   const parentX = xCenter - NODE_WIDTH/2;
+  const isLoading = loadingNodes.has(user.id);
   nodeList.push({
     id: `user-${user.id}`,
     type: 'userNode',
     position: { x: parentX, y: userY },
-    data: { user }
+    data: { 
+      user, 
+      isLoading,
+      onClick: onUserClick ? () => onUserClick(user.id) : undefined 
+    }
   });
   
   const leftmostChild = subordinateResults.length > 0 ? subordinateResults[0].leftBound : parentX;
