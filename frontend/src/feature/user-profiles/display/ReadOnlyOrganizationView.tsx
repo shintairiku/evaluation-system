@@ -153,7 +153,7 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
         return newSet;
       });
     }
-  }, [loadedUsers, allUsers]);
+  }, [loadedUsers]);
 
   // Get layout from custom hook
   const { nodes, edges } = useOrganizationLayout({

@@ -212,7 +212,7 @@ export function useOrganizationLayout({
     });
 
     return { nodes: nodeList, edges: edgeList };
-  }, [departments, users, expandedDepartments, loadingNodes, loadedUsers, onDepartmentClick, onUserClick]);
+  }, [departments, users, expandedDepartments, loadingNodes, loadedUsers, departmentUserCounts, onDepartmentClick, onUserClick]);
 
   return { nodes, edges };
 }
@@ -237,9 +237,9 @@ function addDynamicSubordinates(
     if (parentNode && subordinates.length > 0) {
       // Constrain edges to internal hierarchy only (same department as parent if available)
       // Determine parent department by inspecting existing user node's data
-      const parentUser: any = (parentNode as any).data?.user;
+      const parentUser = (parentNode as any).data?.user as OrganizationUser;
       const parentDeptId: string | undefined = parentUser?.department?.id;
-      const internalSubs = parentDeptId ? subordinates.filter(s => (s as any)?.department?.id === parentDeptId) : subordinates;
+      const internalSubs = parentDeptId ? subordinates.filter(s => s?.department?.id === parentDeptId) : subordinates;
       if (internalSubs.length === 0) return;
       
       // Position subordinates directly one level below parent for stable layout
