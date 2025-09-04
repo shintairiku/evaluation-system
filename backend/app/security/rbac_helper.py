@@ -333,3 +333,63 @@ class RBACHelper:
             resource_access_cache.clear()
             subordinate_cache.clear()
             logger.info("Cleared all RBAC caches")
+    
+    @staticmethod
+    def validate_user_update_fields(auth_context: AuthContext, user_data: Dict[str, Any], target_user_id: UUID) -> None:
+        """
+        Validate that the user can update the specified fields in UserUpdate based on their permissions.
+        
+        Permission levels:
+        - USER_MANAGE: Can update all fields (admin only)
+        - USER_MANAGE_PLUS: Can update basic fields + subordinate_ids (manager/supervisor)
+        - USER_MANAGE_BASIC: Can update only name, job_title, department_id (employee/parttime)
+        
+        Args:
+            auth_context: Current user's authorization context
+            user_data: Dictionary of fields to be updated
+            target_user_id: ID of user being updated
+            
+        Raises:
+            PermissionDeniedError: If user lacks permission to update specified fields
+        """
+        # Remove None values to only check fields that are actually being updated
+        updating_fields = {k: v for k, v in user_data.items() if v is not None}
+        
+        if not updating_fields:
+            return  # No fields to update
+        
+        # Define field permission groups
+        basic_fields = {"name", "job_title", "department_id"}
+        plus_fields = basic_fields | {"subordinate_ids"}
+        # all_fields = plus_fields | {"email", "employee_code", "stage_id", "role_ids", "supervisor_id", "status"}
+        
+        # Check permission levels
+        if auth_context.has_permission(Permission.USER_MANAGE):
+            # Admin can update all fields
+            return
+        elif auth_context.has_permission(Permission.USER_MANAGE_PLUS):
+            # Manager/Supervisor can update basic + subordinate_ids
+            # But only on subordinates, not on themselves for subordinate_ids
+            if "subordinate_ids" in updating_fields and target_user_id == auth_context.user_id:
+                raise PermissionDeniedError("Cannot modify your own subordinate relationships")
+            
+            forbidden_fields = set(updating_fields.keys()) - plus_fields
+            if forbidden_fields:
+                raise PermissionDeniedError(
+                    f"Insufficient permission to update fields: {', '.join(forbidden_fields)}. "
+                    f"USER_MANAGE_PLUS allows only: {', '.join(plus_fields)}"
+                )
+        elif auth_context.has_permission(Permission.USER_MANAGE_BASIC):
+            # Employee/Parttime can update only basic fields, and only on themselves
+            if target_user_id != auth_context.user_id:
+                raise PermissionDeniedError("USER_MANAGE_BASIC permission only allows updating your own profile")
+            
+            forbidden_fields = set(updating_fields.keys()) - basic_fields
+            if forbidden_fields:
+                raise PermissionDeniedError(
+                    f"Insufficient permission to update fields: {', '.join(forbidden_fields)}. "
+                    f"USER_MANAGE_BASIC allows only: {', '.join(basic_fields)}"
+                )
+        else:
+            # No update permission at all
+            raise PermissionDeniedError("No permission to update user information")
