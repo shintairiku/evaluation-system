@@ -25,6 +25,56 @@ interface UseOrganizationLayoutParams {
   onUserClick?: (userId: string) => void;
 }
 
+type FilterType = 'none' | 'department' | 'stage' | 'role' | 'status' | 'mixed';
+
+// Utility function to detect filter type based on users and available departments
+function detectFilterType(users: OrganizationUser[], _allDepartments: Department[]): FilterType {
+  if (!users || users.length === 0) return 'none';
+  
+  // Get unique departments from users
+  const userDepartmentIds = new Set(users.map(u => u.department?.id).filter(Boolean));
+  
+  // Check for specific attribute filters (prioritize these over department analysis)
+  const stages = new Set(users.map(u => (u as UserDetailResponse).stage?.id).filter(Boolean));
+  const statuses = new Set(users.map(u => u.status).filter(Boolean));
+  
+  // Stage filter: all users have same stage
+  if (stages.size === 1 && users.length > 0) {
+    return 'stage';
+  }
+  
+  // Status filter: all users have same status  
+  if (statuses.size === 1 && users.length > 0) {
+    return 'status';
+  }
+  
+  // Role filter: check if all users share exactly one common role
+  if (users.length > 0 && users.every(u => u.roles && u.roles.length > 0)) {
+    const allUserRoles = users.map(u => u.roles?.map(r => r.id) || []);
+    const firstUserRoles = new Set(allUserRoles[0]);
+    const commonRoles = Array.from(firstUserRoles).filter(roleId => 
+      allUserRoles.every(userRoles => userRoles.includes(roleId))
+    );
+    
+    // If users share exactly one role in common, likely role filter
+    if (commonRoles.length >= 1) {
+      return 'role';
+    }
+  }
+  
+  // Department filter: users from single department (and no uniform attributes above)  
+  if (userDepartmentIds.size === 1) {
+    return 'department';
+  }
+  
+  // Mixed or none
+  if (userDepartmentIds.size > 1) {
+    return 'mixed';
+  }
+  
+  return 'none';
+}
+
 
 export function useOrganizationLayout({
   users,
@@ -43,8 +93,42 @@ export function useOrganizationLayout({
     const nodeList: Node[] = [];
     const edgeList: Edge[] = [];
 
+    // Detect filter type to adapt layout strategy
+    const filterType = detectFilterType(users, departments);
+    
+    // Debug logging (remove after testing)
+    if (users.length > 0) {
+      const allUserRoles = users.map(u => u.roles?.map(r => r.name) || []);
+      const firstUserRoles = new Set(users[0]?.roles?.map(r => r.name) || []);
+      const commonRoles = Array.from(firstUserRoles).filter(roleName => 
+        allUserRoles.every(userRoles => userRoles.includes(roleName))
+      );
+      
+      console.log('🔍 Filter Detection Debug:', {
+        filterType,
+        userCount: users.length,
+        departments: [...new Set(users.map(u => u.department?.name).filter(Boolean))],
+        stages: [...new Set(users.map(u => (u as UserDetailResponse).stage?.name).filter(Boolean))],
+        allRoles: [...new Set(users.flatMap(u => u.roles?.map(r => r.name) || []))],
+        commonRoles: commonRoles,
+        userRoleMatrix: allUserRoles.slice(0, 3), // Show first 3 users' roles
+        statuses: [...new Set(users.map(u => u.status).filter(Boolean))]
+      });
+    }
+    
+    // Filter departments based on detected filter type
+    let filteredDepartments = departments;
+    if (filterType === 'department') {
+      // Show only the department(s) that have users in filtered data
+      const userDepartmentIds = new Set(users.map(u => u.department?.id).filter(Boolean));
+      filteredDepartments = departments.filter(dept => userDepartmentIds.has(dept.id));
+    } else if (filterType === 'stage' || filterType === 'role' || filterType === 'status') {
+      // For stage/role/status filters, don't show department cards - users go directly under company
+      filteredDepartments = [];
+    }
+
     // Calculate department widths with normalization for better spacing
-    const departmentWidths = departments.map(department => {
+    const departmentWidths = filteredDepartments.map(department => {
       // Prefer loadedUsers cache (filtered top users) when department is expanded
       const cacheKey = `dept-${department.id}`;
       const cachedUsers = loadedUsers.get(cacheKey);
@@ -70,14 +154,17 @@ export function useOrganizationLayout({
 
     // Position company and departments using utils functions
     const startX = 200;
-    const departmentSpacing = calculateDynamicSpacing(departments.length);
+    const departmentSpacing = calculateDynamicSpacing(filteredDepartments.length);
     
-    // Calculate total layout dimensions
-    const totalSpacing = (departmentWidths.length - 1) * departmentSpacing;
+    // Calculate total layout dimensions based on filtered departments
+    const totalSpacing = Math.max(0, (departmentWidths.length - 1) * departmentSpacing);
     const totalDepartmentsWidth = departmentWidths.reduce((sum, width) => sum + width, 0);
     const totalLayoutWidth = totalDepartmentsWidth + totalSpacing;
     
-    const companyX = startX + (totalLayoutWidth / 2) - 128;
+    // For flat layouts (stage/role/status), center company differently
+    const companyX = totalLayoutWidth > 0 
+      ? startX + (totalLayoutWidth / 2) - 128
+      : 400; // Center company when no departments
 
     // Add company node
     nodeList.push({
@@ -91,125 +178,131 @@ export function useOrganizationLayout({
       }
     });
 
-    // Add department nodes and user hierarchies
-    let currentX = startX;
-    departments.forEach((department, index) => {
-      // Use cached filtered users for expanded departments if available
-      const cacheKey = `dept-${department.id}`;
-      const cachedUsers = loadedUsers.get(cacheKey);
-      const isExpanded = expandedDepartments.has(department.id);
-      const currentDeptUsers = isExpanded && cachedUsers ? cachedUsers : users.filter(u => u.department?.id === department.id);
-      const userCount = currentDeptUsers.length;
+    // Handle flat layout for stage/role/status filters
+    if (filterType === 'stage' || filterType === 'role' || filterType === 'status') {
+      // Add users directly under company in flat layout
+      addFlatUserLayout(users, nodeList, edgeList, companyX, onUserClick, loadingNodes);
+    } else {
+      // Add department nodes and user hierarchies (normal + department filter)
+      let currentX = startX;
+      filteredDepartments.forEach((department, index) => {
+        // Use cached filtered users for expanded departments if available
+        const cacheKey = `dept-${department.id}`;
+        const cachedUsers = loadedUsers.get(cacheKey);
+        const isExpanded = expandedDepartments.has(department.id);
+        const currentDeptUsers = isExpanded && cachedUsers ? cachedUsers : users.filter(u => u.department?.id === department.id);
+        const userCount = currentDeptUsers.length;
 
-      // Add department node with loading state
-      const isLoading = loadingNodes.has(department.id);
-      nodeList.push({
-        id: department.id,
-        type: 'orgNode',
-        position: { x: currentX, y: 200 },
-        data: { 
-          name: department.name,
-          userCount: departmentUserCounts.get(department.id) ?? userCount,
-          isDepartment: false,
-          isLoading,
-          onClick: () => onDepartmentClick(department.id)
-        }
-      });
-
-      // Add company to department edge (keep this single structural edge)
-      if (!edgeList.some(e => e.id === `company-${department.id}`)) {
-        edgeList.push({
-          id: `company-${department.id}`,
-          source: 'company-root',
-          target: department.id,
-          sourceHandle: 'bottom',
-          targetHandle: 'top',
-          type: 'smoothstep',
-          style: { 
-            stroke: '#3b82f6', 
-            strokeWidth: 3,
-            opacity: 0.8
-          },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            width: 20,
-            height: 20,
-            color: '#3b82f6',
-          },
-        });
-      }
-
-      // Add user nodes if department is expanded
-      if (expandedDepartments.has(department.id) && currentDeptUsers.length > 0) {
-        // This ensures we show only the top user initially, not all department users
-        const roots = findRootUsers(currentDeptUsers);
-        const departmentCenterX = currentX + 128; // Center of department card
-        const departmentAllocatedWidth = departmentWidths[index];
-        const allocatedSpaceCenter = currentX + (departmentAllocatedWidth / 2);
-        
-        // Choose centering strategy based on available space
-        const safeCenterX = departmentAllocatedWidth > 400 ? departmentCenterX : allocatedSpaceCenter;
-
-        // Layout department users with proper hierarchy and subordinate expansion
-        const { NODE_WIDTH } = LAYOUT_CONSTANTS;
-        const dynamicSpacing = calculateDynamicSpacing(roots.length);
-        
-        if (roots.length === 1) {
-          // Single user - center it and build hierarchy
-          layoutUserHierarchy(roots[0], 0, safeCenterX, currentDeptUsers, nodeList, edgeList, loadingNodes, onUserClick);
-        } else {
-          // Multiple users - distribute evenly with hierarchy support
-          const totalSpacing = (roots.length - 1) * dynamicSpacing;
-          const totalWidth = (roots.length * NODE_WIDTH) + totalSpacing;
-          
-          const maxAvailableWidth = departmentAllocatedWidth - 250; // Adaptive padding
-          const actualSpacing = totalWidth <= maxAvailableWidth 
-            ? dynamicSpacing 
-            : Math.max(60, (maxAvailableWidth - (roots.length * NODE_WIDTH)) / (roots.length - 1));
-          
-          const groupWidth = (roots.length * NODE_WIDTH) + ((roots.length - 1) * actualSpacing);
-          const startX = safeCenterX - (groupWidth / 2) + (NODE_WIDTH / 2);
-          
-          roots.forEach((user, userIndex) => {
-            const userX = startX + (userIndex * (NODE_WIDTH + actualSpacing));
-            layoutUserHierarchy(user, 0, userX, currentDeptUsers, nodeList, edgeList, loadingNodes, onUserClick);
-          });
-        }
-
-        // Draw department → user root edges with safe routing and dedupe
-        roots.forEach((rootUser) => {
-          const edgeType = 'smoothstep';
-          const edgeId = `${department.id}-user-${rootUser.id}`;
-          if (!edgeList.some(e => e.id === edgeId)) {
-            edgeList.push({
-              id: edgeId,
-              source: department.id,
-              target: `user-${rootUser.id}`,
-              sourceHandle: 'bottom',
-              targetHandle: 'top',
-              type: edgeType,
-              pathOptions: { offset: 60, borderRadius: 12 },
-              style: { 
-                stroke: '#3b82f6', 
-                strokeWidth: 3,
-                opacity: 0.8
-              },
-              markerEnd: {
-                type: MarkerType.ArrowClosed,
-                width: 20,
-                height: 20,
-                color: '#3b82f6',
-              },
-            });
+        // Add department node with loading state
+        const isLoading = loadingNodes.has(department.id);
+        nodeList.push({
+          id: department.id,
+          type: 'orgNode',
+          position: { x: currentX, y: 200 },
+          data: { 
+            name: department.name,
+            userCount: departmentUserCounts.get(department.id) ?? userCount,
+            isDepartment: false,
+            isLoading,
+            onClick: () => onDepartmentClick(department.id)
           }
         });
 
-        // Add dynamically loaded subordinates for users that have been clicked
-        addDynamicSubordinates(nodeList, edgeList, loadedUsers, loadingNodes, onUserClick);
-      }
+        // Add company to department edge (keep this single structural edge)
+        if (!edgeList.some(e => e.id === `company-${department.id}`)) {
+          edgeList.push({
+            id: `company-${department.id}`,
+            source: 'company-root',
+            target: department.id,
+            sourceHandle: 'bottom',
+            targetHandle: 'top',
+            type: 'smoothstep',
+            style: { 
+              stroke: '#3b82f6', 
+              strokeWidth: 3,
+              opacity: 0.8
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 20,
+              height: 20,
+              color: '#3b82f6',
+            },
+          });
+        }
 
-      currentX += departmentWidths[index] + departmentSpacing;
-    });
+        // Add user nodes if department is expanded
+        if (expandedDepartments.has(department.id) && currentDeptUsers.length > 0) {
+          // This ensures we show only the top user initially, not all department users
+          const roots = findRootUsers(currentDeptUsers);
+          const departmentCenterX = currentX + 128; // Center of department card
+          const departmentAllocatedWidth = departmentWidths[index];
+          const allocatedSpaceCenter = currentX + (departmentAllocatedWidth / 2);
+          
+          // Choose centering strategy based on available space
+          const safeCenterX = departmentAllocatedWidth > 400 ? departmentCenterX : allocatedSpaceCenter;
+
+          // Layout department users with proper hierarchy and subordinate expansion
+          const { NODE_WIDTH } = LAYOUT_CONSTANTS;
+          const dynamicSpacing = calculateDynamicSpacing(roots.length);
+          
+          if (roots.length === 1) {
+            // Single user - center it and build hierarchy
+            layoutUserHierarchy(roots[0], 0, safeCenterX, currentDeptUsers, nodeList, edgeList, loadingNodes, onUserClick);
+          } else {
+            // Multiple users - distribute evenly with hierarchy support
+            const totalSpacing = (roots.length - 1) * dynamicSpacing;
+            const totalWidth = (roots.length * NODE_WIDTH) + totalSpacing;
+            
+            const maxAvailableWidth = departmentAllocatedWidth - 250; // Adaptive padding
+            const actualSpacing = totalWidth <= maxAvailableWidth 
+              ? dynamicSpacing 
+              : Math.max(60, (maxAvailableWidth - (roots.length * NODE_WIDTH)) / (roots.length - 1));
+            
+            const groupWidth = (roots.length * NODE_WIDTH) + ((roots.length - 1) * actualSpacing);
+            const startX = safeCenterX - (groupWidth / 2) + (NODE_WIDTH / 2);
+            
+            roots.forEach((user, userIndex) => {
+              const userX = startX + (userIndex * (NODE_WIDTH + actualSpacing));
+              layoutUserHierarchy(user, 0, userX, currentDeptUsers, nodeList, edgeList, loadingNodes, onUserClick);
+            });
+          }
+
+          // Draw department → user root edges with safe routing and dedupe
+          roots.forEach((rootUser) => {
+            const edgeType = 'smoothstep';
+            const edgeId = `${department.id}-user-${rootUser.id}`;
+            if (!edgeList.some(e => e.id === edgeId)) {
+              edgeList.push({
+                id: edgeId,
+                source: department.id,
+                target: `user-${rootUser.id}`,
+                sourceHandle: 'bottom',
+                targetHandle: 'top',
+                type: edgeType,
+                pathOptions: { offset: 60, borderRadius: 12 },
+                style: { 
+                  stroke: '#3b82f6', 
+                  strokeWidth: 3,
+                  opacity: 0.8
+                },
+                markerEnd: {
+                  type: MarkerType.ArrowClosed,
+                  width: 20,
+                  height: 20,
+                  color: '#3b82f6',
+                },
+              });
+            }
+          });
+
+          // Add dynamically loaded subordinates for users that have been clicked
+          addDynamicSubordinates(nodeList, edgeList, loadedUsers, loadingNodes, onUserClick);
+        }
+
+        currentX += departmentWidths[index] + departmentSpacing;
+      });
+    }
 
     return { nodes: nodeList, edges: edgeList };
   }, [departments, users, expandedDepartments, loadingNodes, loadedUsers, departmentUserCounts, onDepartmentClick, onUserClick]);
@@ -359,5 +452,65 @@ function layoutUserHierarchy(
       });
     });
   }
+}
+
+// Helper function for flat user layout (stage/role/status filters)
+function addFlatUserLayout(
+  users: OrganizationUser[],
+  nodeList: Node[],
+  edgeList: Edge[],
+  companyX: number,
+  onUserClick?: (userId: string) => void,
+  loadingNodes: Set<string> = new Set()
+): void {
+  if (!users || users.length === 0) return;
+
+  const { NODE_WIDTH } = LAYOUT_CONSTANTS;
+  const userY = 300; // Position users below company
+  
+  // Calculate spacing and positioning for flat layout
+  const userSpacing = calculateDynamicSpacing(users.length);
+  const totalWidth = (users.length * NODE_WIDTH) + ((users.length - 1) * userSpacing);
+  
+  // Center users under company
+  const startX = companyX + 128 - (totalWidth / 2) + (NODE_WIDTH / 2); // 128 is half company width
+  
+  users.forEach((user, index) => {
+    const userX = startX + (index * (NODE_WIDTH + userSpacing)) - NODE_WIDTH/2;
+    const isLoading = loadingNodes.has(user.id);
+    
+    // Add user node
+    nodeList.push({
+      id: `user-${user.id}`,
+      type: 'userNode', 
+      position: { x: userX, y: userY },
+      data: { 
+        user, 
+        isLoading,
+        onClick: onUserClick ? () => onUserClick(user.id) : undefined 
+      }
+    });
+    
+    // Add edge from company to user
+    edgeList.push({
+      id: `company-user-${user.id}`,
+      source: 'company-root',
+      target: `user-${user.id}`,
+      sourceHandle: 'bottom',
+      targetHandle: 'top',
+      type: 'smoothstep',
+      style: { 
+        stroke: '#3b82f6', 
+        strokeWidth: 3,
+        opacity: 0.8
+      },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 20,
+        height: 20,
+        color: '#3b82f6',
+      },
+    });
+  });
 }
 

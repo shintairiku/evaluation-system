@@ -21,35 +21,53 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate }: Or
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load org chart data when switching to readonly mode
+  // Load org chart data when switching to readonly mode (only if no filtered users)
   useEffect(() => {
     if (!editMode) {
-      setLoading(true);
-      setError(null);
+      const hasFilteredUsers = users && users.length > 0;
       
-      getUsersForOrgChartAction()
-        .then(result => {
-          if (result.success && result.data) {
-            setOrgChartUsers(result.data);
-          } else {
-            setError(result.error || '組織図データの取得に失敗しました');
-          }
-        })
-        .catch(err => {
-          console.error('Failed to load org chart data:', err);
-          setError('組織図データの取得中にエラーが発生しました');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+      if (hasFilteredUsers) {
+        // Skip loading org chart data if we have filtered users from search
+        setOrgChartUsers(null);
+        setLoading(false);
+        setError(null);
+      } else {
+        // Load org chart data only when no filtered users
+        setLoading(true);
+        setError(null);
+        
+        getUsersForOrgChartAction()
+          .then(result => {
+            if (result.success && result.data) {
+              setOrgChartUsers(result.data);
+            } else {
+              setError(result.error || '組織図データの取得に失敗しました');
+            }
+          })
+          .catch(err => {
+            console.error('Failed to load org chart data:', err);
+            setError('組織図データの取得中にエラーが発生しました');
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
     }
-  }, [editMode]);
+  }, [editMode, users]);
 
   const toggleEditMode = () => {
     setEditMode(!editMode);
   };
 
   const renderReadOnlyView = () => {
+    // Priority: Use filtered users from search if available
+    const hasFilteredUsers = users && users.length > 0;
+    
+    if (hasFilteredUsers) {
+      return <ReadOnlyOrganizationView users={users} />;
+    }
+
+    // Fallback: Use org chart users when no filtered data
     if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
