@@ -198,6 +198,7 @@ export interface UserProfileOption {
   roles: Role[];
 }
 
+
 export interface UserExistsResponse {
   exists: boolean;
   user_id?: UUID;

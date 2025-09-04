@@ -60,6 +60,7 @@ class SelfAssessment(Base):
     # Relationships
     goal = relationship("Goal", back_populates="self_assessments")
     period = relationship("EvaluationPeriod", back_populates="self_assessments")
+    supervisor_feedback = relationship("SupervisorFeedback", back_populates="self_assessment", uselist=False)
 
     @validates('self_rating')
     def validate_self_rating(self, key, self_rating):

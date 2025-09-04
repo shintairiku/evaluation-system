@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Edit, User, Mail, Building, Trophy } from "lucide-react";
+import { Edit, User, Mail, Building, Trophy } from "lucide-react";
 import type { UserDetailResponse } from '@/api/types';
 import UserEditViewModal from './UserEditViewModal';
 
@@ -35,13 +35,6 @@ export default function UserGalleryView({ users, onUserUpdate }: UserGalleryView
     }
   };
 
-  const handleUserClick = (userId: string) => {
-    // Abrir modal de detalhes do usuário  
-    const selectedUser = users.find(user => user.id === userId);
-    if (selectedUser) {
-      // Implementação futura do modal de detalhes
-    }
-  };
 
   const handleEditUser = (userId: string) => {
     const user = users.find(u => u.id === userId);
@@ -146,17 +139,8 @@ export default function UserGalleryView({ users, onUserUpdate }: UserGalleryView
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleUserClick(user.id)}
-                className="flex-1"
-              >
-                <Eye className="w-4 h-4 mr-1" />
-                詳細
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
                 onClick={() => handleEditUser(user.id)}
-                className="flex-1"
+                className="w-full"
               >
                 <Edit className="w-4 h-4 mr-1" />
                 編集

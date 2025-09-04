@@ -15,16 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MultiSelectRoles } from '@/components/ui/multi-select-roles';
-import { 
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
+import HierarchySetupWrapper from '../components/HierarchySetupWrapper';
 import { createUserAction } from '@/api/server-actions/users';
 import type { Department, Stage, Role, UserCreate } from '@/api/types/user';
 import type { UserProfileOption } from '@/api/types/user';
@@ -45,7 +36,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
   const [selectedStage, setSelectedStage] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
-  const [supervisorPopoverOpen, setSupervisorPopoverOpen] = useState(false);
+  const [selectedSubordinates, setSelectedSubordinates] = useState<string[]>([]);
 
   // Server action wrapper for useActionState
   const formActionWrapper = async (prevState: any, formData: FormData) => {
@@ -59,7 +50,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
       stage_id: formData.get('stage_id') as string,
       role_ids: JSON.parse(formData.get('role_ids') as string || '[]'),
       supervisor_id: formData.get('supervisor_id') as string || undefined,
-      subordinate_ids: []
+      subordinate_ids: JSON.parse(formData.get('subordinate_ids') as string || '[]')
     };
     
     return await createUserAction(userData);
@@ -100,19 +91,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
     }
   };
 
-  const handleSupervisorSelect = (userId: string) => {
-    setSelectedSupervisor(userId);
-    setSupervisorPopoverOpen(false);
-    
-    const selectedUser = users.find(u => u.id === userId);
-    if (selectedUser) {
-      toast.success(`上司を選択しました: ${selectedUser.name}`, {
-        duration: 1500
-      });
-    }
-  };
-
-  const selectedSupervisorUser = users.find(u => u.id === selectedSupervisor);
+  // Removed handleSupervisorSelect and selectedSupervisorUser - now handled by RoleBasedHierarchySelection
 
   return (
     <Card>
@@ -133,6 +112,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
           <input type="hidden" name="stage_id" value={selectedStage} />
           <input type="hidden" name="role_ids" value={JSON.stringify(selectedRoles)} />
           <input type="hidden" name="supervisor_id" value={selectedSupervisor} />
+          <input type="hidden" name="subordinate_ids" value={JSON.stringify(selectedSubordinates)} />
 
           {actionState?.error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
@@ -237,85 +217,17 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">上司の選択（任意）</label>
-            <div className="space-y-2">
-              {selectedSupervisorUser ? (
-                <div className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
-                  <div className="flex flex-col">
-                    <span className="font-medium">{selectedSupervisorUser.name}</span>
-                    <span className="text-sm text-gray-500">
-                      社員番号: {selectedSupervisorUser.employee_code}
-                      {selectedSupervisorUser.job_title && ` | 役職: ${selectedSupervisorUser.job_title}`}
-                    </span>
-                    {selectedSupervisorUser.roles.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedSupervisorUser.roles.map(role => (
-                          <Badge key={role.id} variant="secondary" className="text-xs">
-                            {role.description}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedSupervisor('')}
-                  >
-                    ×
-                  </Button>
-                </div>
-              ) : (
-                <Popover open={supervisorPopoverOpen} onOpenChange={setSupervisorPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      上司を選択してください...
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="名前、社員番号、役職で検索..." />
-                      <CommandList>
-                        <CommandEmpty>検索結果がありません</CommandEmpty>
-                        <CommandGroup>
-                          {users.map((user) => (
-                            <CommandItem
-                              key={user.id}
-                              value={`${user.name} ${user.employee_code} ${user.job_title || ''} ${user.roles.map(r => r.name).join(' ')}`}
-                              onSelect={() => handleSupervisorSelect(user.id)}
-                            >
-                              <div className="flex flex-col w-full">
-                                <span className="font-medium">{user.name}</span>
-                                <span className="text-sm text-gray-500">
-                                  社員番号: {user.employee_code}
-                                  {user.job_title && ` | 役職: ${user.job_title}`}
-                                </span>
-                                {user.roles.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {user.roles.map(role => (
-                                      <Badge key={role.id} variant="outline" className="text-xs">
-                                        {role.description}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
-          </div>
+          {/* Role-based Hierarchy Selection using existing HierarchyEditCard */}
+          <HierarchySetupWrapper
+            users={users}
+            selectedRoles={selectedRoles}
+            allRoles={roles}
+            selectedSupervisor={selectedSupervisor}
+            selectedSubordinates={selectedSubordinates}
+            onSupervisorChange={setSelectedSupervisor}
+            onSubordinatesChange={setSelectedSubordinates}
+            disabled={isPending}
+          />
 
           <Button
             type="submit"

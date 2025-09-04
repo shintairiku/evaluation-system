@@ -414,14 +414,17 @@ class UserService:
                 
                 # Update supervisor relationship if provided
                 if user_data.supervisor_id is not None:
+                    logger.info(f"Processing supervisor update for user {user_id}: supervisor_id = {user_data.supervisor_id}")
+                    
                     # Remove existing supervisor relationships
-                    await self.session.execute(
+                    delete_result = await self.session.execute(
                         delete(UserSupervisor).where(UserSupervisor.user_id == user_id)
                     )
+                    logger.info(f"Deleted {delete_result.rowcount} existing supervisor relationships for user {user_id}")
                     
                     # Add new supervisor if specified
                     if user_data.supervisor_id:
-                        logger.info(f"Updating supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
+                        logger.info(f"Adding new supervisor relationship: user {user_id} -> supervisor {user_data.supervisor_id}")
                         relationship = UserSupervisor(
                             user_id=user_id,
                             supervisor_id=user_data.supervisor_id,
@@ -429,6 +432,9 @@ class UserService:
                             valid_to=None
                         )
                         self.session.add(relationship)
+                        logger.info(f"Added UserSupervisor relationship to session")
+                    else:
+                        logger.info(f"supervisor_id is None, removing supervisor for user {user_id}")
                 
                 # Update subordinate relationships if provided
                 if user_data.subordinate_ids is not None:
@@ -450,8 +456,12 @@ class UserService:
                             self.session.add(relationship)
             
             # Commit the transaction
+            logger.info(f"Committing transaction for user {user_id}")
             await self.session.commit()
+            logger.info(f"Transaction committed successfully for user {user_id}")
+            
             await self.session.refresh(updated_user)
+            logger.info(f"User {user_id} refreshed from database")
             
             # Enrich user data for detailed response
             enriched_user = await self._enrich_detailed_user_data(updated_user)

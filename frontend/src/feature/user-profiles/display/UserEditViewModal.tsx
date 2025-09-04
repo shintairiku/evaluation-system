@@ -35,7 +35,7 @@ import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
 import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
-import HierarchyEditCard from '../components/HierarchyEditCard';
+import { HierarchyEditCard } from '@/components/hierarchy';
 
 interface UserEditViewModalProps {
   user: UserDetailResponse | null;
@@ -73,8 +73,7 @@ export default function UserEditViewModal({
           setHierarchyPendingChanges(false);
           setHierarchySaveHandler(null);
           setHierarchyUndoHandler(null);
-        } catch (hierarchyError) {
-          console.error('Hierarchy save error:', hierarchyError);
+        } catch {
           toast.error('階層変更の保存に失敗しました。プロフィール更新を続行します。');
           // Continue with profile save even if hierarchy fails
         }
@@ -87,7 +86,7 @@ export default function UserEditViewModal({
         department_id: formData.get('department_id') === 'unset' ? undefined : formData.get('department_id') as UUID,
         stage_id: formData.get('stage_id') === 'unset' ? undefined : formData.get('stage_id') as UUID,
         status: formData.get('status') as UserStatus,
-        subordinate_ids: [], // Keep empty for profile edit
+        // subordinate_ids: [], // REMOVED - This was causing subordinates to be deleted!
       };
 
       // Filter out empty values
@@ -222,7 +221,6 @@ export default function UserEditViewModal({
             });
             
           } else {
-            console.error('Failed to load detailed user data:', result.error);
             // Fallback to the basic user data
             setDetailedUser(user);
           }

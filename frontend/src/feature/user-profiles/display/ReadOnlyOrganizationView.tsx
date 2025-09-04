@@ -155,7 +155,6 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     }
   }, [loadedUsers]);
 
-  // Get layout from custom hook
   const { nodes, edges } = useOrganizationLayout({
     users: allUsers,
     departments,
