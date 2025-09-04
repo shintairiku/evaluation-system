@@ -1,9 +1,13 @@
 /**
  * Utility functions for calculating hierarchy layouts in organization charts
  */
-import type { UserDetailResponse, SimpleUser } from '@/api/types';
+import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
+import type { Node, Edge } from 'reactflow';
+import { MarkerType } from 'reactflow';
 
 type OrganizationUser = UserDetailResponse | SimpleUser;
+
+export type FilterType = 'none' | 'department' | 'stage' | 'role' | 'status' | 'mixed';
 
 export interface HierarchyDimensions {
   width: number;
@@ -158,5 +162,113 @@ export function getTopUsersByRole(departmentUsers: OrganizationUser[]): Organiza
 export function getTopUserByRole(departmentUsers: OrganizationUser[]): OrganizationUser | null {
   const topUsers = getTopUsersByRole(departmentUsers);
   return topUsers.length > 0 ? topUsers[0] : null;
+}
+
+/**
+ * Detects the type of filter applied to users to adapt layout accordingly
+ */
+export function detectFilterType(users: OrganizationUser[]): FilterType {
+  if (!users || users.length === 0) return 'none';
+  
+  const userDepartmentIds = new Set(users.map(u => u.department?.id).filter(Boolean));
+  const stages = new Set(users.map(u => getStageId(u)).filter(Boolean));
+  const statuses = new Set(users.map(u => u.status).filter(Boolean));
+  
+  // Priority order: stage > status > role > department
+  if (stages.size === 1 && users.length > 0) {
+    return 'stage';
+  }
+  
+  if (statuses.size === 1 && users.length > 0) {
+    return 'status';
+  }
+  
+  if (hasCommonRole(users)) {
+    return 'role';
+  }
+  
+  if (userDepartmentIds.size === 1) {
+    return 'department';
+  }
+  
+  return userDepartmentIds.size > 1 ? 'mixed' : 'none';
+}
+
+/**
+ * Creates flat user layout for stage/role/status filters
+ */
+export function createFlatUserLayout(
+  users: OrganizationUser[],
+  companyX: number,
+  loadingNodes: Set<string> = new Set(),
+  onUserClick?: (userId: string) => void
+): { nodes: Node[], edges: Edge[] } {
+  if (!users || users.length === 0) return { nodes: [], edges: [] };
+
+  const { NODE_WIDTH } = LAYOUT_CONSTANTS;
+  const userY = 300;
+  const userSpacing = calculateDynamicSpacing(users.length);
+  const totalWidth = (users.length * NODE_WIDTH) + ((users.length - 1) * userSpacing);
+  const startX = companyX + 128 - (totalWidth / 2) + (NODE_WIDTH / 2);
+  
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+  
+  users.forEach((user, index) => {
+    const userX = startX + (index * (NODE_WIDTH + userSpacing)) - NODE_WIDTH/2;
+    const isLoading = loadingNodes.has(user.id);
+    
+    nodes.push({
+      id: `user-${user.id}`,
+      type: 'userNode', 
+      position: { x: userX, y: userY },
+      data: { 
+        user, 
+        isLoading,
+        onClick: onUserClick ? () => onUserClick(user.id) : undefined 
+      }
+    });
+    
+    edges.push({
+      id: `company-user-${user.id}`,
+      source: 'company-root',
+      target: `user-${user.id}`,
+      sourceHandle: 'bottom',
+      targetHandle: 'top',
+      type: 'smoothstep',
+      style: { 
+        stroke: '#3b82f6', 
+        strokeWidth: 3,
+        opacity: 0.8
+      },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 20,
+        height: 20,
+        color: '#3b82f6',
+      },
+    });
+  });
+
+  return { nodes, edges };
+}
+
+// Helper functions
+function getStageId(user: OrganizationUser): string | undefined {
+  return (user as UserDetailResponse).stage?.id;
+}
+
+function hasCommonRole(users: OrganizationUser[]): boolean {
+  if (users.length === 0 || !users.every(u => u.roles && u.roles.length > 0)) {
+    return false;
+  }
+  
+  const allUserRoles = users.map(u => u.roles?.map(r => r.id) || []);
+  const firstUserRoles = new Set(allUserRoles[0]);
+  const commonRoles = Array.from(firstUserRoles).filter(roleId => 
+    allUserRoles.every(userRoles => userRoles.includes(roleId))
+  );
+  
+  return commonRoles.length >= 1;
 }
 
