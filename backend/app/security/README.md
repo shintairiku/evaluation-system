@@ -349,6 +349,23 @@ async def manager_function(self, auth_context: AuthContext):
     # Rest of method logic...
 ```
 
+### Method 4: Field-Level Permission Validation (Advanced)
+```python
+# For granular field-level permissions (e.g., UserUpdate validation)
+from app.security.rbac_helper import RBACHelper
+
+async def update_user(self, user_id: UUID, user_data: UserUpdate, auth_context: AuthContext):
+    # Validate field-level permissions before update
+    RBACHelper.validate_user_update_fields(
+        auth_context, 
+        user_data.model_dump(exclude_none=True), 
+        user_id
+    )
+    
+    # Proceed with update - permissions already validated
+    return await self.user_repo.update_user(user_id, user_data)
+```
+
 ### Role Hierarchy Checks
 ```python
 # Check role hierarchy
@@ -368,6 +385,39 @@ SUPERVISOR  → Team leadership and goal approval (11 permissions)
 VIEWER      → Read-only access to assigned areas (5 permissions)
 EMPLOYEE    → Self-management and work tasks (7 permissions)
 PARTTIME    → Limited employee access (6 permissions)
+```
+
+### Granular User Update Permissions
+
+The system implements three levels of user update permissions:
+
+**🔹 USER_MANAGE (Admin only)**
+- Can update **all fields** in UserUpdate schema
+- No restrictions on target users
+
+**🔹 USER_MANAGE_PLUS (Manager/Supervisor)**
+- Can update: `name`, `job_title`, `department_id`, `subordinate_ids`
+- Cannot modify their own subordinate relationships
+- Only applies to subordinates and self
+
+**🔹 USER_MANAGE_BASIC (Employee/Parttime)**
+- Can update: `name`, `job_title`, `department_id`
+- **Only on their own profile**
+- Cannot modify: `email`, `employee_code`, `stage_id`, `role_ids`, `supervisor_id`, `subordinate_ids`, `status`
+
+**Example Usage:**
+```python
+# Automatically validated in update_user service method
+update_data = UserUpdate(
+    name="Updated Name",           # ✅ Allowed for all update permissions
+    job_title="New Position",      # ✅ Allowed for all update permissions  
+    department_id=new_dept_id,     # ✅ Allowed for all update permissions
+    employee_code="NEW123",        # ❌ Only USER_MANAGE (admin)
+    status="active"                # ❌ Only USER_MANAGE (admin)
+)
+
+# RBACHelper validates fields automatically
+RBACHelper.validate_user_update_fields(auth_context, update_data.model_dump(), target_user_id)
 ```
 
 ## 🧪 Testing Permission Changes
@@ -454,6 +504,28 @@ async def endpoint():
 
 ### Issue: Tests failing after permission changes
 **Solution**: Update test expectations to match the new permission structure.
+
+### Issue: Frontend sending forbidden fields in user update requests
+**Symptom**: Error like `"Insufficient permission to update fields: employee_code, status, stage_id, email"`
+**Cause**: Frontend is sending all form fields instead of only changed fields
+**Solution**: Modify frontend to filter fields before sending:
+```typescript
+// ❌ BAD - Sends all fields
+const userData: UserUpdate = {
+  name: formData.get('name') as string,
+  email: formData.get('email') as string,     // Always sent!
+  employee_code: formData.get('employee_code') as string,  // Always sent!
+  // ... all fields always sent
+};
+
+// ✅ GOOD - Only send changed fields
+const userData: UserUpdate = {};
+const name = formData.get('name') as string;
+if (name && name !== user.name) {
+  userData.name = name;  // Only if changed
+}
+// ... repeat for all fields
+```
 
 ## 🎯 Key Design Principle
 
