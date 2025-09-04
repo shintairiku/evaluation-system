@@ -17,10 +17,9 @@ import { OrgNode, UserNode } from '../components/OrganizationNodes';
 import { useOrganizationLayout } from '../hooks/useOrganizationLayout';
 
 interface ReadOnlyOrganizationViewProps {
-  users?: UserDetailResponse[] | SimpleUser[]; // Make optional for backward compatibility
+  users?: UserDetailResponse[] | SimpleUser[];
 }
 
-// Node types for React Flow
 const nodeTypes: NodeTypes = {
   orgNode: OrgNode,
   userNode: UserNode,
@@ -29,26 +28,23 @@ const nodeTypes: NodeTypes = {
 export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganizationViewProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
-  const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map()); // Cache loaded users by key
-  const [departmentUserCounts, setDepartmentUserCounts] = useState<Map<string, number>>(new Map()); // Total users per department
-  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set()); // Track loading states
-  const [allUsers, setAllUsers] = useState<(UserDetailResponse | SimpleUser)[]>(users); // Current users to display
+  const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map());
+  const [departmentUserCounts, setDepartmentUserCounts] = useState<Map<string, number>>(new Map());
+  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
+  const [allUsers, setAllUsers] = useState<(UserDetailResponse | SimpleUser)[]>(users);
 
-  // Load initial data on mount
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Load departments first
         const result = await getProfileOptionsAction();
         if (result && result.success && result.data && result.data.departments) {
           setDepartments(result.data.departments);
         }
 
-        // If no users provided, load top-level users (users without supervisor)
         if (users.length === 0) {
           setLoadingNodes(prev => new Set(prev).add('initial'));
           const topLevelResult = await getUsersForOrgChartAction({
-            supervisor_id: undefined // Load users without supervisor
+            supervisor_id: undefined
           });
           
           if (topLevelResult.success && topLevelResult.data) {
@@ -61,7 +57,6 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
             return newSet;
           });
         } else {
-          // Use provided users (backward compatibility)
           setAllUsers(users);
         }
       } catch (error) {
@@ -77,49 +72,32 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     loadInitialData();
   }, [users]);
 
-  // Handle department click to dynamically load and expand department users
   const handleDepartmentClick = useCallback(async (departmentId: string) => {
     const isCurrentlyExpanded = expandedDepartments.has(departmentId);
     
     if (isCurrentlyExpanded) {
-      // Collapse - just remove from expanded set
       setExpandedDepartments(prev => {
         const newSet = new Set(prev);
         newSet.delete(departmentId);
         return newSet;
       });
     } else {
-      // Expand - check if we need to load users for this department
       const cacheKey = `dept-${departmentId}`;
       const cached = loadedUsers.get(cacheKey);
       
       if (cached) {
-        // Use cached data
         setExpandedDepartments(prev => new Set(prev).add(departmentId));
       } else {
-        // Load users for this department
         setLoadingNodes(prev => new Set(prev).add(departmentId));
         
         try {
-          console.log(`🏢 Loading users for department: ${departmentId}`);
-          
           const result = await getUsersForOrgChartAction({
             department_ids: [departmentId]
           });
           
           if (result.success && result.data) {
-            console.log(`📊 API returned ${result.data.length} users for department ${departmentId}`);
-            
-            // Filter to show only top users by role hierarchy (department expansion logic)
             const topUsers = getTopUsersByRole(result.data) as SimpleUser[];
-            console.log(`🔝 Filtered to ${topUsers.length} top users:`, 
-              topUsers.map(u => ({ id: u.id, name: u.name, roles: u.roles?.map(r => r.name) }))
-            );
-            
-            // Save total user count for the department
             setDepartmentUserCounts(prev => new Map(prev).set(departmentId, result.data?.length || 0));
-            
-            // Cache the filtered top users
             setLoadedUsers(prev => new Map(prev).set(cacheKey, topUsers));
             setExpandedDepartments(prev => new Set(prev).add(departmentId));
           }
@@ -136,51 +114,35 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     }
   }, [expandedDepartments, loadedUsers]);
 
-  // Add user click handler for loading subordinates  
   const handleUserClick = useCallback(async (userId: string) => {
     const cacheKey = `user-${userId}`;
     const cached = loadedUsers.get(cacheKey);
     
     if (cached) {
-      // Already loaded subordinates - could implement expand/collapse UI here
       return;
     }
     
     setLoadingNodes(prev => new Set(prev).add(userId));
     
     try {
-      console.log(`🔍 Loading subordinates for user: ${userId}`);
-      
       const result = await getUsersForOrgChartAction({
         supervisor_id: userId
       });
       
       if (result.success && result.data) {
-        console.log(`✅ API returned ${result.data.length} subordinates for user ${userId}:`, 
-          result.data.map(u => ({ id: u.id, name: u.name, roles: u.roles?.map(r => r.name) }))
-        );
-
-        // Trust the API response completely - it already filtered by supervisor_id
         const subordinates = result.data;
 
-        // If there are no subordinates, do nothing
         if (!subordinates || subordinates.length === 0) {
-          console.log(`ℹ️ No subordinates found for user ${userId}`);
           return;
         }
 
-        // Cache the subordinates
         setLoadedUsers(prev => new Map(prev).set(cacheKey, subordinates));
         
-        // Add subordinates to current users list
         setAllUsers(prev => {
           const existingIds = new Set(prev.map(u => u.id));
           const newUsers = subordinates.filter(u => !existingIds.has(u.id));
-          console.log(`➕ Adding ${newUsers.length} new users to display`);
           return [...prev, ...newUsers];
         });
-      } else {
-        console.log(`❌ API call failed or returned no data for user ${userId}`);
       }
     } catch (error) {
       console.error('Error loading subordinates:', error);
@@ -208,13 +170,11 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
   const [nodesState, setNodes] = useNodesState(nodes);
   const [edgesState, setEdges] = useEdgesState(edges);
 
-  // Update nodes and edges when organization changes
   useEffect(() => {
     setNodes(nodes);
     setEdges(edges);
   }, [nodes, edges, setNodes, setEdges]);
 
-  // Calculate statistics for header
   const stats = {
     departments: departments.length,
     totalUsers: allUsers.length,
@@ -229,7 +189,6 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
 
   return (
     <div className="space-y-6">
-      {/* Enhanced Header */}
       <div className="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-950 rounded-xl p-6 border border-slate-700 shadow-xl">
         <div className="flex items-center justify-between">
           <div className="space-y-3">
@@ -276,7 +235,6 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
         </div>
       </div>
       
-      {/* Organization Chart */}
       <div className="w-full h-[800px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-xl">
         <ReactFlow
           nodes={nodesState}
