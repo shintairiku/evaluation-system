@@ -37,7 +37,9 @@ class Permission(Enum):
     USER_READ_SUBORDINATES = "user:read:subordinates"  # Managers/Supervisors read subordinates
     USER_READ_SELF = "user:read:self"        # Everyone can read own profile
     USER_MANAGE = "user:manage"              # Create, update, delete users (admin only)
-    
+    USER_MANAGE_BASIC = "user:manage:basic"  # Permissive update 'name', 'job_title', 'department_id' in UserUpdate schema
+    USER_MANAGE_PLUS = "user:manage:plus"    # Permissive update 'subordinate_ids' in UserUpdate schema (+ USER_MANAGE_BASIC)
+
     # Department Management (Consolidated from 7 to 2)
     DEPARTMENT_READ = "department:read"      # Read department info (scope determined by role)
     DEPARTMENT_MANAGE = "department:manage"  # Create, update, delete departments (admin only)
@@ -145,6 +147,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # User Management - Subordinates
             Permission.USER_READ_SUBORDINATES,
             Permission.USER_READ_SELF,
+            Permission.USER_MANAGE_PLUS,
             
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
@@ -186,6 +189,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # User Management - Read subordinates
             Permission.USER_READ_SUBORDINATES,
             Permission.USER_READ_SELF,
+            Permission.USER_MANAGE_PLUS,
             
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
@@ -257,6 +261,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
         permissions={
             # User Management - Self only
             Permission.USER_READ_SELF,
+            Permission.USER_MANAGE_BASIC,
             
             # Department Management - Read own
             Permission.DEPARTMENT_READ,
@@ -290,6 +295,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
         permissions={
             # User Management - Self only
             Permission.USER_READ_SELF,
+            Permission.USER_MANAGE_BASIC,
             
             # Department Management - Read own
             Permission.DEPARTMENT_READ,
