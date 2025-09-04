@@ -9,7 +9,9 @@ import {
   calculateDepartmentWidth, 
   findRootUsers, 
   LAYOUT_CONSTANTS,
-  calculateDynamicSpacing
+  calculateDynamicSpacing,
+  detectFilterType,
+  createFlatUserLayout
 } from '../utils/hierarchyLayoutUtils';
 
 type OrganizationUser = UserDetailResponse | SimpleUser;
@@ -25,55 +27,6 @@ interface UseOrganizationLayoutParams {
   onUserClick?: (userId: string) => void;
 }
 
-type FilterType = 'none' | 'department' | 'stage' | 'role' | 'status' | 'mixed';
-
-// Utility function to detect filter type based on users and available departments
-function detectFilterType(users: OrganizationUser[], _allDepartments: Department[]): FilterType {
-  if (!users || users.length === 0) return 'none';
-  
-  // Get unique departments from users
-  const userDepartmentIds = new Set(users.map(u => u.department?.id).filter(Boolean));
-  
-  // Check for specific attribute filters (prioritize these over department analysis)
-  const stages = new Set(users.map(u => (u as UserDetailResponse).stage?.id).filter(Boolean));
-  const statuses = new Set(users.map(u => u.status).filter(Boolean));
-  
-  // Stage filter: all users have same stage
-  if (stages.size === 1 && users.length > 0) {
-    return 'stage';
-  }
-  
-  // Status filter: all users have same status  
-  if (statuses.size === 1 && users.length > 0) {
-    return 'status';
-  }
-  
-  // Role filter: check if all users share exactly one common role
-  if (users.length > 0 && users.every(u => u.roles && u.roles.length > 0)) {
-    const allUserRoles = users.map(u => u.roles?.map(r => r.id) || []);
-    const firstUserRoles = new Set(allUserRoles[0]);
-    const commonRoles = Array.from(firstUserRoles).filter(roleId => 
-      allUserRoles.every(userRoles => userRoles.includes(roleId))
-    );
-    
-    // If users share exactly one role in common, likely role filter
-    if (commonRoles.length >= 1) {
-      return 'role';
-    }
-  }
-  
-  // Department filter: users from single department (and no uniform attributes above)  
-  if (userDepartmentIds.size === 1) {
-    return 'department';
-  }
-  
-  // Mixed or none
-  if (userDepartmentIds.size > 1) {
-    return 'mixed';
-  }
-  
-  return 'none';
-}
 
 
 export function useOrganizationLayout({
@@ -94,27 +47,8 @@ export function useOrganizationLayout({
     const edgeList: Edge[] = [];
 
     // Detect filter type to adapt layout strategy
-    const filterType = detectFilterType(users, departments);
+    const filterType = detectFilterType(users);
     
-    // Debug logging (remove after testing)
-    if (users.length > 0) {
-      const allUserRoles = users.map(u => u.roles?.map(r => r.name) || []);
-      const firstUserRoles = new Set(users[0]?.roles?.map(r => r.name) || []);
-      const commonRoles = Array.from(firstUserRoles).filter(roleName => 
-        allUserRoles.every(userRoles => userRoles.includes(roleName))
-      );
-      
-      console.log('🔍 Filter Detection Debug:', {
-        filterType,
-        userCount: users.length,
-        departments: [...new Set(users.map(u => u.department?.name).filter(Boolean))],
-        stages: [...new Set(users.map(u => (u as UserDetailResponse).stage?.name).filter(Boolean))],
-        allRoles: [...new Set(users.flatMap(u => u.roles?.map(r => r.name) || []))],
-        commonRoles: commonRoles,
-        userRoleMatrix: allUserRoles.slice(0, 3), // Show first 3 users' roles
-        statuses: [...new Set(users.map(u => u.status).filter(Boolean))]
-      });
-    }
     
     // Filter departments based on detected filter type
     let filteredDepartments = departments;
@@ -180,8 +114,9 @@ export function useOrganizationLayout({
 
     // Handle flat layout for stage/role/status filters
     if (filterType === 'stage' || filterType === 'role' || filterType === 'status') {
-      // Add users directly under company in flat layout
-      addFlatUserLayout(users, nodeList, edgeList, companyX, onUserClick, loadingNodes);
+      const flatLayout = createFlatUserLayout(users, companyX, loadingNodes, onUserClick);
+      nodeList.push(...flatLayout.nodes);
+      edgeList.push(...flatLayout.edges);
     } else {
       // Add department nodes and user hierarchies (normal + department filter)
       let currentX = startX;
@@ -454,63 +389,4 @@ function layoutUserHierarchy(
   }
 }
 
-// Helper function for flat user layout (stage/role/status filters)
-function addFlatUserLayout(
-  users: OrganizationUser[],
-  nodeList: Node[],
-  edgeList: Edge[],
-  companyX: number,
-  onUserClick?: (userId: string) => void,
-  loadingNodes: Set<string> = new Set()
-): void {
-  if (!users || users.length === 0) return;
-
-  const { NODE_WIDTH } = LAYOUT_CONSTANTS;
-  const userY = 300; // Position users below company
-  
-  // Calculate spacing and positioning for flat layout
-  const userSpacing = calculateDynamicSpacing(users.length);
-  const totalWidth = (users.length * NODE_WIDTH) + ((users.length - 1) * userSpacing);
-  
-  // Center users under company
-  const startX = companyX + 128 - (totalWidth / 2) + (NODE_WIDTH / 2); // 128 is half company width
-  
-  users.forEach((user, index) => {
-    const userX = startX + (index * (NODE_WIDTH + userSpacing)) - NODE_WIDTH/2;
-    const isLoading = loadingNodes.has(user.id);
-    
-    // Add user node
-    nodeList.push({
-      id: `user-${user.id}`,
-      type: 'userNode', 
-      position: { x: userX, y: userY },
-      data: { 
-        user, 
-        isLoading,
-        onClick: onUserClick ? () => onUserClick(user.id) : undefined 
-      }
-    });
-    
-    // Add edge from company to user
-    edgeList.push({
-      id: `company-user-${user.id}`,
-      source: 'company-root',
-      target: `user-${user.id}`,
-      sourceHandle: 'bottom',
-      targetHandle: 'top',
-      type: 'smoothstep',
-      style: { 
-        stroke: '#3b82f6', 
-        strokeWidth: 3,
-        opacity: 0.8
-      },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        width: 20,
-        height: 20,
-        color: '#3b82f6',
-      },
-    });
-  });
-}
 
