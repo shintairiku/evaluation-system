@@ -10,6 +10,7 @@ from app.services.user_service import UserService
 from app.schemas.user import UserStatus, UserCreate, UserUpdate
 from app.schemas.common import PaginationParams
 from app.database.session import get_db_session
+from app.security.context import AuthContext, RoleInfo
 from tests.services.test_logging_utils import setup_service_test_logging
 
 # Set up proper logging with file output
@@ -25,20 +26,24 @@ async def test_get_users():
         # Create service with real session
         service = UserService(session)
         
-        # Mock current_user_roles (since role-based control is commented out)
-        mock_current_user_roles = MagicMock()
-        mock_current_user_roles.role_names = ["admin"]
+        # Create admin AuthContext for testing
+        admin_role = RoleInfo(id=1, name="admin", description="Administrator")
+        admin_context = AuthContext(
+            user_id=UUID("00000000-0000-0000-0000-000000000001"),
+            roles=[admin_role],
+            clerk_user_id="test_admin_clerk_id"
+        )
         
         # Test 1: Get all users (no filters)
         logger.info("--- Test 1: Get all users ---")
-        result = await service.get_users(current_user_roles=mock_current_user_roles)
+        result = await service.get_users(current_user_context=admin_context)
         logger.info("✅ All users result:")
         print(result.model_dump_json(indent=2))
         
         # Test 2: Search for "山田"
         logger.info("\n--- Test 2: Search for '山田' ---")
         result = await service.get_users(
-            current_user_roles=mock_current_user_roles,
+            current_user_context=admin_context,
             search_term="山田"
         )
         logger.info("✅ Search '山田' result:")
@@ -47,7 +52,7 @@ async def test_get_users():
         # Test 3: Filter by status
         logger.info("\n--- Test 3: Filter by ACTIVE status ---")
         result = await service.get_users(
-            current_user_roles=mock_current_user_roles,
+            current_user_context=admin_context,
             statuses=[UserStatus.ACTIVE]
         )
         logger.info("✅ ACTIVE users result:")
@@ -57,7 +62,7 @@ async def test_get_users():
         logger.info("\n--- Test 4: Filter by Sales department ---")
         sales_dept_id = UUID('650e8400-e29b-41d4-a716-446655440001')
         result = await service.get_users(
-            current_user_roles=mock_current_user_roles,
+            current_user_context=admin_context,
             department_ids=[sales_dept_id]
         )
         logger.info("✅ Sales department result:")
@@ -66,7 +71,7 @@ async def test_get_users():
         # Test 5: Pagination
         logger.info("\n--- Test 5: Pagination (page 1, limit 2) ---")
         result = await service.get_users(
-            current_user_roles=mock_current_user_roles,
+            current_user_context=admin_context,
             pagination=PaginationParams(page=1, limit=2)
         )
         logger.info("✅ Paginated result:")
@@ -85,17 +90,20 @@ async def test_get_user_by_id():
         # Create service with real session
         service = UserService(session)
         
-        # Mock current_user_roles
-        mock_current_user_roles = MagicMock()
-        mock_current_user_roles.role_names = ["admin"]
-        mock_current_user_roles.user_id = UUID('650e8400-e29b-41d4-a716-446655440000')
+        # Create admin AuthContext for testing
+        admin_role = RoleInfo(id=1, name="admin", description="Administrator")
+        admin_context = AuthContext(
+            user_id=UUID("650e8400-e29b-41d4-a716-446655440000"),
+            roles=[admin_role],
+            clerk_user_id="test_admin_clerk_id"
+        )
         
         # Test with a known user ID (avoiding the get_users call that's causing issues)
         known_user_id = UUID('223e4567-e89b-12d3-a456-426614174001')  # Sato Hanako from the logs
         
         try:
             logger.info(f"--- Test 1: Get user by known ID {known_user_id} ---")
-            user_detail = await service.get_user_by_id(known_user_id, mock_current_user_roles)
+            user_detail = await service.get_user_by_id(known_user_id, admin_context)
             
             logger.info("✅ User detail result:")
             print(user_detail.model_dump_json(indent=2))
@@ -119,14 +127,14 @@ async def test_get_user_by_id():
             # Fallback: try to get a user from get_users
             try:
                 users_result = await service.get_users(
-                    current_user_roles=mock_current_user_roles, 
+                    current_user_context=admin_context, 
                     pagination=PaginationParams(page=1, limit=1)
                 )
                 
                 if users_result.items:
                     test_user_id = users_result.items[0].id
                     logger.info(f"--- Testing with available user ID {test_user_id} ---")
-                    user_detail = await service.get_user_by_id(test_user_id, mock_current_user_roles)
+                    user_detail = await service.get_user_by_id(test_user_id, admin_context)
                     logger.info("✅ Alternative test passed!")
                 else:
                     logger.warning("No users found in database - skipping test")
@@ -140,7 +148,7 @@ async def test_get_user_by_id():
         logger.info("\n--- Test 2: Get non-existent user ---")
         non_existent_id = UUID('00000000-0000-0000-0000-000000000000')
         try:
-            await service.get_user_by_id(non_existent_id, mock_current_user_roles)
+            await service.get_user_by_id(non_existent_id, admin_context)
             logger.error("❌ Should have raised NotFoundError for non-existent user")
             return False
         except Exception as e:

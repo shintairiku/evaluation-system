@@ -14,6 +14,7 @@ from ..schemas.stage_competency import (
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.decorators import require_permission, require_any_permission
 from ..core.exceptions import (
     NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
@@ -37,6 +38,7 @@ class CompetencyService:
         self.stage_repo = StageRepository(session)
         self.user_repo = UserRepository(session)
     
+    @require_any_permission([Permission.COMPETENCY_READ, Permission.COMPETENCY_READ_SELF])
     async def get_competencies(
         self, 
         current_user_context: AuthContext,
@@ -55,11 +57,7 @@ class CompetencyService:
         - Cache results for performance
         """
         try:
-            # Permission check
-            if current_user_context.is_admin():
-                current_user_context.require_permission(Permission.COMPETENCY_READ)
-            else:
-                current_user_context.require_permission(Permission.COMPETENCY_READ_SELF)
+            # Permission check handled by @require_any_permission decorator
             
             # Apply stage-based filtering for non-admin users
             filtered_stage_ids = stage_ids
@@ -127,6 +125,7 @@ class CompetencyService:
             logger.error(f"Error in get_competencies: {e}")
             raise
     
+    @require_any_permission([Permission.COMPETENCY_READ, Permission.COMPETENCY_READ_SELF])
     async def get_competency(
         self, 
         competency_id: UUID, 
@@ -140,11 +139,7 @@ class CompetencyService:
         - Other roles: can only get competencies from their stage, CompetencyDetail.users is empty
         """
         try:
-            # Permission check
-            if current_user_context.is_admin():
-                current_user_context.require_permission(Permission.COMPETENCY_READ)
-            else:
-                current_user_context.require_permission(Permission.COMPETENCY_READ_SELF)
+            # Permission check handled by @require_any_permission decorator
             
             # Get competency from repository
             competency = await self.competency_repo.get_competency_by_id_with_stage(competency_id)
@@ -162,6 +157,7 @@ class CompetencyService:
             logger.error(f"Error getting competency {competency_id}: {str(e)}")
             raise
     
+    @require_permission(Permission.COMPETENCY_MANAGE)
     async def create_competency(
         self, 
         competency_data: CompetencyCreate, 
@@ -177,8 +173,7 @@ class CompetencyService:
         - Name must be unique across all competencies
         """
         try:
-            # Permission check - only admin can create competencies
-            current_user_context.require_permission(Permission.COMPETENCY_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Validate stage exists
             stage = await self.stage_repo.get_by_id(competency_data.stage_id)
@@ -213,6 +208,7 @@ class CompetencyService:
             logger.error(f"Error creating competency: {str(e)}")
             raise
     
+    @require_permission(Permission.COMPETENCY_MANAGE)
     async def update_competency(
         self, 
         competency_id: UUID, 
@@ -229,8 +225,7 @@ class CompetencyService:
         - Name must remain unique across all competencies
         """
         try:
-            # Permission check - only admin can update competencies
-            current_user_context.require_permission(Permission.COMPETENCY_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Get existing competency
             existing_competency = await self.competency_repo.get_competency_by_id(competency_id)
@@ -275,6 +270,7 @@ class CompetencyService:
             logger.error(f"Error updating competency {competency_id}: {str(e)}")
             raise
     
+    @require_permission(Permission.COMPETENCY_MANAGE)
     async def delete_competency(
         self, 
         competency_id: UUID, 
@@ -289,8 +285,7 @@ class CompetencyService:
         - Prevent deletion if competency is referenced by other entities
         """
         try:
-            # Permission check - only admin can delete competencies
-            current_user_context.require_permission(Permission.COMPETENCY_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Get existing competency
             existing_competency = await self.competency_repo.get_competency_by_id(competency_id)
@@ -321,6 +316,7 @@ class CompetencyService:
             logger.error(f"Error deleting competency {competency_id}: {str(e)}")
             raise
     
+    @require_any_permission([Permission.COMPETENCY_READ, Permission.COMPETENCY_READ_SELF])
     async def get_all_competencies(
         self, 
         current_user_context: AuthContext
@@ -333,11 +329,7 @@ class CompetencyService:
         - Other roles: can only see competencies for their own stage
         """
         try:
-            # Permission check
-            if current_user_context.is_admin():
-                current_user_context.require_permission(Permission.COMPETENCY_READ)
-            else:
-                current_user_context.require_permission(Permission.COMPETENCY_READ_SELF)
+            # Permission check handled by @require_any_permission decorator
             
             # Apply stage-based filtering for non-admin users
             if current_user_context.is_admin():
@@ -362,6 +354,7 @@ class CompetencyService:
             logger.error(f"Error getting all competencies: {str(e)}")
             raise
 
+    @require_any_permission([Permission.COMPETENCY_READ, Permission.COMPETENCY_READ_SELF])
     async def get_competencies_by_stage(
         self, 
         stage_id: UUID, 
@@ -375,11 +368,7 @@ class CompetencyService:
         - Other roles: can only get competencies for their own stage
         """
         try:
-            # Permission check
-            if current_user_context.is_admin():
-                current_user_context.require_permission(Permission.COMPETENCY_READ)
-            else:
-                current_user_context.require_permission(Permission.COMPETENCY_READ_SELF)
+            # Permission check handled by @require_any_permission decorator
             
             # Validate stage access
             await self._validate_stage_access(current_user_context, stage_id)

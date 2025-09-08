@@ -19,6 +19,9 @@ from ..schemas.user import UserProfileOption
 from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.decorators import require_permission, require_any_permission
+from ..security.rbac_helper import RBACHelper
+from ..security.rbac_types import ResourceType
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
@@ -40,7 +43,11 @@ class SupervisorFeedbackService:
         self.goal_repo = GoalRepository(session)
         self.user_repo = UserRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
+        
+        # Initialize RBAC Helper with user repository for subordinate queries
+        RBACHelper.initialize_with_repository(self.user_repo)
     
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_READ_SUBORDINATES, Permission.GOAL_READ_SELF])
     async def get_feedbacks(
         self,
         current_user_context: AuthContext,
@@ -83,49 +90,52 @@ class SupervisorFeedbackService:
         - Employee/Part-time: Cannot filter by supervisor_id, can only filter by their own subordinate_id
         """
         try:
-            # First, apply validation for non-admin users who cannot assign arbitrary supervisor_id/subordinate_id
-            await self._validate_filtering_permissions(current_user_context, supervisor_id, subordinate_id)
+            # Permission check handled by @require_any_permission decorator
             
-            # Apply conditional defaults when both supervisor_id and subordinate_id are None
+            # Use RBACHelper to determine accessible user IDs for data filtering
+            accessible_user_ids = await RBACHelper.get_accessible_user_ids(
+                auth_context=current_user_context,
+                resource_type=ResourceType.ASSESSMENT,
+                permission_context="supervisor_feedback_access"
+            )
+            
+            # Apply role-based defaults when both supervisor_id and subordinate_id are None
             actual_supervisor_id = supervisor_id
             actual_subordinate_id = subordinate_id
 
             if actual_supervisor_id is None and actual_subordinate_id is None:
-                # Apply role-based defaults
-                if current_user_context.is_admin():
-                    # Admin: no change - can see all feedbacks
+                # Apply role-based defaults using RBAC framework
+                if current_user_context.has_permission(Permission.GOAL_READ_ALL):
+                    # Admin: no filtering needed
                     pass
-                elif current_user_context.has_any_role(["manager", "supervisor"]) and not current_user_context.is_admin():
-                    # Manager/Supervisor (but not admin): default to their own supervisor feedbacks
+                elif current_user_context.has_permission(Permission.GOAL_APPROVE):
+                    # Manager/Supervisor: default to their own supervisor feedbacks
                     actual_supervisor_id = current_user_context.user_id
-                elif current_user_context.has_any_role(["employee", "parttime"]) and not current_user_context.is_admin():
-                    # Employee/Part-time (but not admin): default to their own subordinate feedbacks
+                elif current_user_context.has_permission(Permission.GOAL_READ_SELF):
+                    # Employee/Part-time: default to their own received feedbacks
                     actual_subordinate_id = current_user_context.user_id
             
-            # Determine base accessible filters based on user permissions
-            accessible_filters = await self._get_accessible_filters(current_user_context, actual_subordinate_id)
-            
-            # Apply specific supervisor_id and subordinate_id filters with permission checks
-            final_supervisor_ids = accessible_filters.get("supervisor_ids")
-            final_user_ids = accessible_filters.get("user_ids")
+            # Validate specific filters against accessible users
+            final_supervisor_ids = None
+            final_user_ids = None
             
             # Handle supervisor_id filter
             if actual_supervisor_id:
-                # Check if user has permission to view this supervisor's feedbacks
-                if not current_user_context.is_admin():
-                    # Non-admin users can only view their own supervisor feedbacks or those they have access to
-                    if final_supervisor_ids is None or actual_supervisor_id not in final_supervisor_ids:
-                        raise PermissionDeniedError(f"You do not have permission to access feedbacks from supervisor {actual_supervisor_id}")
+                if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
+                    if actual_supervisor_id != current_user_context.user_id:
+                        raise PermissionDeniedError(f"You can only access your own supervisor feedbacks")
                 final_supervisor_ids = [actual_supervisor_id]
             
-            # Handle subordinate_id filter
+            # Handle subordinate_id filter  
             if actual_subordinate_id:
-                # Check if user has permission to view this subordinate's feedbacks
-                if not current_user_context.is_admin():
-                    # Non-admin users can only view feedbacks for users they have access to
-                    if final_user_ids is None or actual_subordinate_id not in final_user_ids:
+                if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
+                    if accessible_user_ids and actual_subordinate_id not in accessible_user_ids:
                         raise PermissionDeniedError(f"You do not have permission to access feedbacks for user {actual_subordinate_id}")
                 final_user_ids = [actual_subordinate_id]
+            else:
+                # Apply accessible user filtering for non-admin users
+                if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
+                    final_user_ids = accessible_user_ids
             
             # Search feedbacks with filters
             feedbacks = await self.supervisor_feedback_repo.search_feedbacks(
@@ -168,6 +178,7 @@ class SupervisorFeedbackService:
             logger.error(f"Error in get_feedbacks: {e}")
             raise
 
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_READ_SUBORDINATES, Permission.GOAL_READ_SELF])
     async def get_feedback_by_id(
         self,
         feedback_id: UUID,
@@ -190,6 +201,7 @@ class SupervisorFeedbackService:
             logger.error(f"Error getting feedback {feedback_id}: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_READ_SUBORDINATES, Permission.GOAL_READ_SELF])
     async def get_feedback_for_assessment(
         self,
         self_assessment_id: UUID,
@@ -218,6 +230,7 @@ class SupervisorFeedbackService:
             logger.error(f"Error getting feedback for assessment {self_assessment_id}: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
     async def create_feedback(
         self,
         feedback_data: SupervisorFeedbackCreate,
@@ -225,10 +238,7 @@ class SupervisorFeedbackService:
     ) -> SupervisorFeedback:
         """Create a new supervisor feedback with validation and business rules."""
         try:
-            # Permission check - must be supervisor or admin
-            if not (current_user_context.has_permission(Permission.GOAL_APPROVE) or 
-                    current_user_context.has_permission(Permission.GOAL_READ_ALL)):
-                raise PermissionDeniedError("You do not have permission to create supervisor feedback")
+            # Permission check handled by @require_any_permission decorator
             
             # Check if self-assessment exists and get assessment details
             assessment = await self.self_assessment_repo.get_by_id_with_details(feedback_data.self_assessment_id)
@@ -258,6 +268,7 @@ class SupervisorFeedbackService:
             logger.error(f"Error creating supervisor feedback: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
     async def update_feedback(
         self,
         feedback_id: UUID,
@@ -296,6 +307,7 @@ class SupervisorFeedbackService:
             logger.error(f"Error updating feedback {feedback_id}: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
     async def submit_feedback(
         self,
         feedback_id: UUID,
@@ -345,6 +357,7 @@ class SupervisorFeedbackService:
             logger.error(f"Error submitting feedback {feedback_id}: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
     async def draft_feedback(
         self,
         feedback_id: UUID,
@@ -381,6 +394,7 @@ class SupervisorFeedbackService:
             logger.error(f"Error drafting feedback {feedback_id}: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
     async def delete_feedback(
         self,
         feedback_id: UUID,
@@ -420,7 +434,7 @@ class SupervisorFeedbackService:
         current_user_context: AuthContext,
         requested_user_id: Optional[UUID] = None
     ) -> dict:
-        """Determine which feedbacks the current user can access."""
+        """Determine which feedbacks the current user can access using RBACHelper."""
         
         filters = {"supervisor_ids": None, "user_ids": None}
         
@@ -430,25 +444,22 @@ class SupervisorFeedbackService:
                 filters["user_ids"] = [requested_user_id]
             return filters  # No restrictions
         
+        # Use RBACHelper to get accessible user IDs
+        accessible_user_ids = await RBACHelper.get_accessible_user_ids(
+            auth_context=current_user_context,
+            resource_type=ResourceType.ASSESSMENT,
+            permission_context="feedback_access"
+        )
+        
         accessible_supervisor_ids = []
-        accessible_user_ids = []
         
         # Add self as supervisor if user has feedback creation permissions
         if current_user_context.has_permission(Permission.GOAL_APPROVE):
             accessible_supervisor_ids.append(current_user_context.user_id)
         
-        # Add self as user if user has goal read permissions (can see feedback on own assessments)
-        if current_user_context.has_permission(Permission.GOAL_READ_SELF):
-            accessible_user_ids.append(current_user_context.user_id)
-        
-        if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
-            # Supervisor: can see feedback on subordinates' assessments
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            accessible_user_ids.extend([sub.id for sub in subordinates])
-        
-        # If specific user requested, check if accessible
+        # If specific user requested, validate access
         if requested_user_id:
-            if requested_user_id not in accessible_user_ids:
+            if accessible_user_ids and requested_user_id not in accessible_user_ids:
                 raise PermissionDeniedError(f"You do not have permission to access feedbacks for user {requested_user_id}")
             filters["user_ids"] = [requested_user_id]
         else:
@@ -464,65 +475,54 @@ class SupervisorFeedbackService:
         subordinate_id: Optional[UUID] = None
     ):
         """
-        Validate that non-admin users cannot assign arbitrary supervisor_id/subordinate_id values.
+        Validate that non-admin users cannot assign arbitrary supervisor_id/subordinate_id values using RBAC framework.
         
         Business rules:
         - Admin: can assign any supervisor_id or subordinate_id
-        - Manager/Supervisor: cannot assign supervisor_id other than their own, cannot assign subordinate_id to users who aren't their subordinates
+        - Manager/Supervisor: cannot assign supervisor_id other than their own, can only assign subordinate_id to accessible users
         - Employee/Part-time: cannot assign supervisor_id, can only assign subordinate_id to themselves
         """
-        if current_user_context.is_admin():
+        if current_user_context.has_permission(Permission.GOAL_READ_ALL):
             return  # Admin can assign any values
         
         # Validation for supervisor_id parameter
         if supervisor_id:
-            if current_user_context.has_any_role(["manager", "supervisor"]):
+            if current_user_context.has_permission(Permission.GOAL_APPROVE):
                 # Manager/Supervisor: can only assign their own user_id to supervisor_id
                 if supervisor_id != current_user_context.user_id:
                     raise PermissionDeniedError("Managers and supervisors can only filter by their own supervisor feedbacks")
-            elif current_user_context.has_any_role(["employee", "parttime"]):
+            elif current_user_context.has_permission(Permission.GOAL_READ_SELF):
                 # Employee/Part-time: cannot assign supervisor_id at all
                 raise PermissionDeniedError("Employees and part-time users cannot filter by supervisor_id")
         
-        # Validation for subordinate_id parameter
+        # Validation for subordinate_id parameter using RBACHelper
         if subordinate_id:
-            if current_user_context.has_any_role(["manager", "supervisor"]):
-                # Manager/Supervisor: can only assign subordinate_id to their actual subordinates
-                subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-                subordinate_ids = [sub.id for sub in subordinates]
-                subordinate_ids.append(current_user_context.user_id)  # Can also view their own
-                
-                if subordinate_id not in subordinate_ids:
-                    raise PermissionDeniedError("You can only filter by feedbacks for your subordinates or yourself")
-                    
-            elif current_user_context.has_any_role(["employee", "parttime"]):
-                # Employee/Part-time: can only assign their own user_id to subordinate_id
-                if subordinate_id != current_user_context.user_id:
-                    raise PermissionDeniedError("Employees and part-time users can only filter by their own received feedbacks")
+            accessible_user_ids = await RBACHelper.get_accessible_user_ids(
+                auth_context=current_user_context,
+                resource_type=ResourceType.ASSESSMENT,
+                permission_context="feedback_filter_validation"
+            )
+            
+            if accessible_user_ids and subordinate_id not in accessible_user_ids:
+                raise PermissionDeniedError("You can only filter by feedbacks for users you have access to")
 
     async def _check_assessment_access_permission(self, assessment, current_user_context: AuthContext):
-        """Check if user has permission to access this assessment (reuse from self-assessment service)."""
+        """Check if user has permission to access this assessment using RBAC framework."""
         # Get the related goal to check ownership
         goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
         if not goal:
             raise NotFoundError("Related goal not found")
         
-        if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            return  # Admin can access all
+        # Use RBACHelper for resource access validation
+        can_access = await RBACHelper.can_access_resource(
+            auth_context=current_user_context,
+            resource_id=goal.id,
+            resource_type=ResourceType.GOAL,
+            owner_user_id=goal.user_id
+        )
         
-        if goal.user_id == current_user_context.user_id:
-            # Verify user has permission to read own goals
-            if current_user_context.has_permission(Permission.GOAL_READ_SELF):
-                return  # Own assessment with proper permission
-        
-        if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
-            # Check if assessment owner is subordinate
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            subordinate_ids = [sub.id for sub in subordinates]
-            if goal.user_id in subordinate_ids:
-                return
-        
-        raise PermissionDeniedError("You do not have permission to access this assessment")
+        if not can_access:
+            raise PermissionDeniedError("You do not have permission to access this assessment")
 
     async def _check_feedback_access_permission(self, feedback: SupervisorFeedbackModel, current_user_context: AuthContext):
         """Check if user has permission to access this feedback."""
@@ -552,22 +552,26 @@ class SupervisorFeedbackService:
             raise PermissionDeniedError("You can only update/delete your own supervisor feedbacks")
         
     async def _validate_feedback_creation(self, assessment, feedback_data: SupervisorFeedbackCreate, current_user_context: AuthContext):
-        """Validate supervisor feedback creation business rules."""
+        """Validate supervisor feedback creation business rules using RBAC framework."""
         # Check if assessment is submitted (can only give feedback on submitted assessments)
         if assessment.status != SubmissionStatus.SUBMITTED.value:
             raise BadRequestError("Can only create feedback for submitted self-assessments")
         
-        # Check if current user is supervisor of assessment owner
+        # Check if current user has access to the assessment's goal
         goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
         if not goal:
             raise BadRequestError("Related goal not found")
         
-        # Verify supervisor relationship (unless admin)
-        if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            subordinate_ids = [sub.id for sub in subordinates]
-            if goal.user_id not in subordinate_ids:
-                raise PermissionDeniedError("You can only provide feedback for your subordinates")
+        # Use RBACHelper to verify supervisor relationship
+        can_access = await RBACHelper.can_access_resource(
+            auth_context=current_user_context,
+            resource_id=goal.id,
+            resource_type=ResourceType.GOAL,
+            owner_user_id=goal.user_id
+        )
+        
+        if not can_access:
+            raise PermissionDeniedError("You can only provide feedback for goals you have access to")
         
         # Check if evaluation period allows feedback
         period = await self.evaluation_period_repo.get_by_id(feedback_data.period_id)

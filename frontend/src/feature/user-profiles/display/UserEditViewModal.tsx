@@ -78,23 +78,50 @@ export default function UserEditViewModal({
           // Continue with profile save even if hierarchy fails
         }
       }
-      const userData: UserUpdate = {
-        name: formData.get('name') as string,
-        email: formData.get('email') as string,
-        employee_code: formData.get('employee_code') as string,
-        job_title: formData.get('job_title') as string || '',
-        department_id: formData.get('department_id') === 'unset' ? undefined : formData.get('department_id') as UUID,
-        stage_id: formData.get('stage_id') === 'unset' ? undefined : formData.get('stage_id') as UUID,
-        status: formData.get('status') as UserStatus,
-        // subordinate_ids: [], // REMOVED - This was causing subordinates to be deleted!
-      };
-
-      // Filter out empty values
-      Object.keys(userData).forEach(key => {
-        if (userData[key as keyof UserUpdate] === '' || userData[key as keyof UserUpdate] === null) {
-          delete userData[key as keyof UserUpdate];
-        }
-      });
+      // Create UserUpdate object with only changed fields to avoid permission issues
+      const userData: UserUpdate = {};
+      
+      // Only include fields that have actually changed from original values
+      const name = formData.get('name') as string;
+      if (name && name !== user.name) {
+        userData.name = name;
+      }
+      
+      const email = formData.get('email') as string;
+      if (email && email !== user.email) {
+        userData.email = email;
+      }
+      
+      const employee_code = formData.get('employee_code') as string;
+      if (employee_code && employee_code !== user.employee_code) {
+        userData.employee_code = employee_code;
+      }
+      
+      const job_title = formData.get('job_title') as string || '';
+      if (job_title !== (user.job_title || '')) {
+        userData.job_title = job_title;
+      }
+      
+      const department_id = formData.get('department_id') === 'unset' ? undefined : formData.get('department_id') as UUID;
+      const currentDepartmentId = user.department?.id;
+      if (department_id !== currentDepartmentId) {
+        userData.department_id = department_id;
+      }
+      
+      const stage_id = formData.get('stage_id') === 'unset' ? undefined : formData.get('stage_id') as UUID;
+      const currentStageId = user.stage?.id;
+      if (stage_id !== currentStageId) {
+        userData.stage_id = stage_id;
+      }
+      
+      const status = formData.get('status') as UserStatus;
+      if (status && status !== user.status) {
+        userData.status = status;
+      }
+      
+      // Log what we're actually sending for debugging
+      console.log('🔍 Sending only changed fields:', Object.keys(userData));
+      console.log('🔍 UserUpdate data:', userData);
 
       const result = await updateUserAction(user.id, userData);
 

@@ -10,10 +10,14 @@ from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
+from ..security.rbac_helper import RBACHelper
+from ..security.decorators import require_permission
+from ..security.rbac_types import ResourceType
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
-    Department, Stage, Role, UserStatus, UserExistsResponse, ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate, SimpleUser
+    Department, Stage, Role, UserStatus, UserExistsResponse, 
+    ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -41,6 +45,9 @@ class UserService:
         self.department_repo = DepartmentRepository(session)
         self.stage_repo = StageRepository(session)
         self.role_repo = RoleRepository(session)
+        
+        # Initialize RBACHelper with user repository for standardized permissions
+        RBACHelper.initialize_with_repository(self.user_repo)
     
     async def get_users(
         self, 
@@ -59,28 +66,10 @@ class UserService:
         """
         try:
             
-            # Ultra-simple permission-based access control
-            user_ids_to_filter = None
-            
-            if current_user_context.has_permission(Permission.USER_READ_ALL):
-                # Admin: Can see all users
-                user_ids_to_filter = None
-            elif current_user_context.has_permission(Permission.USER_READ_SUBORDINATES):
-                # Manager/Supervisor: Can see subordinates
-                subordinate_users = await self.user_repo.get_subordinates(
-                    current_user_context.user_id
-                )
-                user_ids_to_filter = [user.id for user in subordinate_users]
-            elif current_user_context.has_permission(Permission.USER_READ_SELF):
-                # Employee: Can only see themselves
-                user_ids_to_filter = [current_user_context.user_id]
-            else:
-                # No permission to read users - use helper method
-                current_user_context.require_any_permission([
-                    Permission.USER_READ_ALL,
-                    Permission.USER_READ_SUBORDINATES,
-                    Permission.USER_READ_SELF
-                ])
+            # Use RBACHelper for standardized permission-based access control
+            user_ids_to_filter = await RBACHelper.get_accessible_user_ids(
+                current_user_context
+            )
             
             # Generate cache key including role information for proper caching
             cache_key_params = {
@@ -215,21 +204,15 @@ class UserService:
             if not user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Permission-based access control - Crystal clear business logic
-            if current_user_context.has_permission(Permission.USER_READ_ALL):
-                # Admin: Can access any user
-                pass
-            elif current_user_context.has_permission(Permission.USER_READ_SUBORDINATES):
-                # Manager/Supervisor: Can access subordinates - check if user_id is a subordinate
-                subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-                subordinate_ids = [sub.id for sub in subordinates]
-                if user_id not in subordinate_ids:
-                    raise PermissionDeniedError(f"You do not have permission to access user {user_id} (not your subordinate)")
-            elif current_user_context.user_id == user_id:
-                # Self-access: User can access their own profile (requires USER_READ_SELF permission)
-                current_user_context.require_permission(Permission.USER_READ_SELF)
-            else:
-                # No access: User cannot access this profile
+            # Use RBACHelper for standardized permission-based access control
+            can_access = await RBACHelper.can_access_resource(
+                current_user_context,
+                user_id,
+                ResourceType.USER,
+                owner_user_id=user_id
+            )
+            
+            if not can_access:
                 raise PermissionDeniedError(f"You do not have permission to access user {user_id}")
             
             # Enrich user data for detail response with supervisor/subordinates
@@ -256,7 +239,7 @@ class UserService:
         - Assign roles and supervisor relationships
         """
         try:
-            # Permission-based access control
+            # Permission-based access control - Allow admin creation or self-registration
             is_admin = current_user_context.has_permission(Permission.USER_MANAGE)
             is_self_registration = (user_data.clerk_user_id == current_user_context.clerk_user_id)
             
@@ -347,7 +330,7 @@ class UserService:
             if not fresh_user:
                 # This should not happen since we just created the user successfully
                 logger.error(f"Created user {user_id} not found after commit - this indicates a serious database issue")
-                raise NotFoundError(f"User was created successfully but could not be retrieved from database")
+                raise NotFoundError("User was created successfully but could not be retrieved from database")
             
             # Enrich user data for detailed response
             enriched_user = await self._enrich_detailed_user_data(fresh_user)
@@ -381,16 +364,12 @@ class UserService:
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
-            # Permission-based access control - ultra-simple with helper method
-            if current_user_context.has_permission(Permission.USER_MANAGE):
-                # Admin can modify any user
-                pass
-            elif current_user_context.user_id == user_id:
-                # User can modify their own profile - no additional permission needed
-                pass
-            else:
-                # Use helper method for consistent error handling
-                current_user_context.require_permission(Permission.USER_MANAGE)
+            # Use RBACHelper for granular field-level permission checking
+            RBACHelper.validate_user_update_fields(
+                current_user_context, 
+                user_data.model_dump(), 
+                user_id
+            )
             
             # Business validation
             await self._validate_user_update(user_data, existing_user)
@@ -432,7 +411,7 @@ class UserService:
                             valid_to=None
                         )
                         self.session.add(relationship)
-                        logger.info(f"Added UserSupervisor relationship to session")
+                        logger.info("Added UserSupervisor relationship to session")
                     else:
                         logger.info(f"supervisor_id is None, removing supervisor for user {user_id}")
                 
@@ -474,6 +453,7 @@ class UserService:
             logger.error(f"Error updating user {user_id}: {str(e)}")
             raise
     
+    @require_permission(Permission.USER_MANAGE)
     async def delete_user(
         self,
         user_id: UUID,
@@ -485,9 +465,6 @@ class UserService:
         NOTE: Hard delete is permanent and irreversible.
         """
         try:
-            # Permission-based access control - ultra-simple with helper method
-            current_user_context.require_permission(Permission.USER_MANAGE)
-
             # Check if user exists
             existing_user = await self.user_repo.get_user_by_id(user_id)
             if not existing_user:
@@ -614,9 +591,9 @@ class UserService:
                 updated_user = await self.user_repo.update_user_clerk_id(user.id, clerk_update)
                 
                 if updated_user:
-                    logger.info(f"📄 Repository returned updated user, committing transaction...")
+                    logger.info("📄 Repository returned updated user, committing transaction...")
                     await self.session.commit()
-                    logger.info(f"✅ Transaction committed! Refreshing user...")
+                    logger.info("✅ Transaction committed! Refreshing user...")
                     # Refresh the user to get the latest data from database
                     await self.session.refresh(updated_user)
                     logger.info(f"🎉 SUCCESS! Updated user {user.id} clerk_id from '{old_clerk_id}' to '{updated_user.clerk_user_id}'")
@@ -629,7 +606,7 @@ class UserService:
                 logger.error(f"💥 EXCEPTION during clerk_id update for user {user.id}: {update_error}")
                 logger.error(f"💥 Exception type: {type(update_error)}")
                 await self.session.rollback()
-                logger.error(f"💥 Transaction rolled back")
+                logger.error("💥 Transaction rolled back")
                 return user
             
         except Exception as e:

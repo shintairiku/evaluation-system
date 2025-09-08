@@ -18,6 +18,9 @@ from ..schemas.supervisor_feedback import SupervisorFeedbackCreate
 from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.rbac_helper import RBACHelper
+from ..security.rbac_types import ResourceType
+from ..security.decorators import require_permission, require_any_permission
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError, ConflictError
 )
@@ -39,6 +42,9 @@ class SelfAssessmentService:
         self.user_repo = UserRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.supervisor_feedback_repo = SupervisorFeedbackRepository(session)
+        
+        # Initialize RBAC Helper with user repository for subordinate queries
+        RBACHelper.initialize_with_repository(self.user_repo)
     
     async def get_assessments(
         self,
@@ -58,7 +64,9 @@ class SelfAssessmentService:
         """
         try:
             # Determine which users' assessments the current user can access
-            accessible_user_ids = await self._get_accessible_user_ids(current_user_context, user_id)
+            accessible_user_ids = await self._get_accessible_assessment_user_ids(
+                current_user_context, user_id
+            )
             
             # Search assessments with filters
             assessments = await self.self_assessment_repo.search_assessments(
@@ -128,8 +136,15 @@ class SelfAssessmentService:
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check
-            await self._check_goal_access_permission(goal, current_user_context)
+            # Permission check using RBACHelper
+            can_access = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal_id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=goal.user_id
+            )
+            if not can_access:
+                raise PermissionDeniedError("You do not have permission to access this goal's assessment")
             
             # Get assessment for goal
             assessment = await self.self_assessment_repo.get_by_goal(goal_id)
@@ -155,8 +170,15 @@ class SelfAssessmentService:
             if not assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
             
-            # Permission check
-            await self._check_assessment_access_permission(assessment, current_user_context)
+            # Permission check using RBACHelper
+            can_access = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=assessment_id,
+                resource_type=ResourceType.ASSESSMENT,
+                owner_user_id=assessment.goal.user_id
+            )
+            if not can_access:
+                raise PermissionDeniedError("You do not have permission to access this assessment")
             
             # Enrich with detailed information
             enriched_assessment = await self._enrich_assessment_detail_data(assessment)
@@ -166,6 +188,7 @@ class SelfAssessmentService:
             logger.error(f"Error getting assessment {assessment_id}: {str(e)}")
             raise
 
+    @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
     async def create_assessment(
         self,
         goal_id: UUID,
@@ -174,17 +197,19 @@ class SelfAssessmentService:
     ) -> SelfAssessment:
         """Create a new self-assessment with validation and business rules."""
         try:
-            # Check if user has permission to manage self assessments
-            if not current_user_context.has_permission(Permission.ASSESSMENT_MANAGE_SELF):
-                raise PermissionDeniedError("You do not have permission to manage self-assessments")
-            
             # Check if goal exists and get goal details
             goal = await self.goal_repo.get_goal_by_id(goal_id)
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check - only goal owner can create self-assessment
-            if goal.user_id != current_user_context.user_id:
+            # Permission check - only goal owner can create self-assessment (using RBACHelper)
+            can_create = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal_id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=goal.user_id
+            )
+            if not can_create:
                 raise PermissionDeniedError("You can only create self-assessments for your own goals")
             
             # Business validation
@@ -208,6 +233,7 @@ class SelfAssessmentService:
             logger.error(f"Error creating self-assessment for goal {goal_id}: {str(e)}")
             raise
 
+    @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
     async def update_assessment(
         self,
         assessment_id: UUID,
@@ -222,7 +248,14 @@ class SelfAssessmentService:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
             
             # Permission check - only assessment owner can update
-            await self._check_assessment_update_permission(existing_assessment, current_user_context)
+            can_update = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=assessment_id,
+                resource_type=ResourceType.ASSESSMENT,
+                owner_user_id=existing_assessment.goal.user_id
+            )
+            if not can_update:
+                raise PermissionDeniedError("You can only update your own assessments")
             
             # Business validation
             await self._validate_assessment_update(assessment_data, existing_assessment)
@@ -246,6 +279,7 @@ class SelfAssessmentService:
             logger.error(f"Error updating assessment {assessment_id}: {str(e)}")
             raise
 
+    @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
     async def submit_assessment(
         self,
         assessment_id: UUID,
@@ -259,7 +293,14 @@ class SelfAssessmentService:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
             
             # Permission check - only assessment owner can submit
-            await self._check_assessment_update_permission(existing_assessment, current_user_context)
+            can_submit = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=assessment_id,
+                resource_type=ResourceType.ASSESSMENT,
+                owner_user_id=existing_assessment.goal.user_id
+            )
+            if not can_submit:
+                raise PermissionDeniedError("You can only submit your own assessments")
             
             # Business rule: can only submit draft assessments
             if existing_assessment.status != SubmissionStatus.DRAFT.value:
@@ -290,6 +331,7 @@ class SelfAssessmentService:
             logger.error(f"Error submitting assessment {assessment_id}: {str(e)}")
             raise
 
+    @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
     async def delete_assessment(
         self,
         assessment_id: UUID,
@@ -302,8 +344,15 @@ class SelfAssessmentService:
             if not existing_assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
             
-            # Permission check
-            await self._check_assessment_update_permission(existing_assessment, current_user_context)
+            # Permission check - only assessment owner can delete
+            can_delete = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=assessment_id,
+                resource_type=ResourceType.ASSESSMENT,
+                owner_user_id=existing_assessment.goal.user_id
+            )
+            if not can_delete:
+                raise PermissionDeniedError("You can only delete your own assessments")
             
             # Business rule: can only delete draft assessments
             if existing_assessment.status != SubmissionStatus.DRAFT.value:
@@ -327,7 +376,7 @@ class SelfAssessmentService:
     # PRIVATE HELPER METHODS
     # ========================================
 
-    async def _get_accessible_user_ids(
+    async def _get_accessible_assessment_user_ids(
         self,
         current_user_context: AuthContext,
         requested_user_id: Optional[UUID] = None
@@ -348,8 +397,10 @@ class SelfAssessmentService:
         
         if current_user_context.has_permission(Permission.ASSESSMENT_READ_SUBORDINATES):
             # Supervisor: can see subordinates' assessments
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            accessible_ids.extend([sub.id for sub in subordinates])
+            subordinate_ids = await RBACHelper._get_subordinate_user_ids(
+                current_user_context.user_id, self.user_repo
+            )
+            accessible_ids.extend(subordinate_ids)
         
         # If specific user requested, check if accessible
         if requested_user_id:
@@ -359,52 +410,6 @@ class SelfAssessmentService:
         
         return accessible_ids
 
-    async def _check_goal_access_permission(self, goal, current_user_context: AuthContext):
-        """Check if user has permission to access this goal's assessment."""
-        if current_user_context.has_permission(Permission.ASSESSMENT_READ_ALL):
-            return  # Admin can access all
-        
-        if goal.user_id == current_user_context.user_id:
-            # Verify user has permission to read own assessments
-            if current_user_context.has_permission(Permission.ASSESSMENT_READ_SELF):
-                return  # Own goal with proper permission
-        
-        if current_user_context.has_permission(Permission.ASSESSMENT_READ_SUBORDINATES):
-            # Check if goal owner is subordinate
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            subordinate_ids = [sub.id for sub in subordinates]
-            if goal.user_id in subordinate_ids:
-                return
-        
-        raise PermissionDeniedError("You do not have permission to access this goal's assessment")
-
-    async def _check_assessment_access_permission(self, assessment: SelfAssessmentModel, current_user_context: AuthContext):
-        """Check if user has permission to access this assessment."""
-        # Get the related goal to check ownership
-        goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
-        if not goal:
-            raise NotFoundError("Related goal not found")
-        
-        await self._check_goal_access_permission(goal, current_user_context)
-
-    async def _check_assessment_update_permission(self, assessment: SelfAssessmentModel, current_user_context: AuthContext):
-        """Check if user has permission to update this assessment."""
-        # Check if user has permission to manage self assessments
-        if not current_user_context.has_permission(Permission.ASSESSMENT_MANAGE_SELF):
-            raise PermissionDeniedError("You do not have permission to manage self-assessments")
-        
-        # Get the related goal to check ownership
-        goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
-        if not goal:
-            raise NotFoundError("Related goal not found")
-        
-        # Only goal owner can update their self-assessment
-        if goal.user_id != current_user_context.user_id:
-            raise PermissionDeniedError("You can only update your own self-assessments")
-        
-        # Check if assessment is still editable
-        if assessment.status == SubmissionStatus.SUBMITTED.value:
-            raise BadRequestError("Cannot update submitted assessments")
 
     async def _validate_assessment_creation(self, goal, assessment_data: SelfAssessmentCreate):
         """Validate self-assessment creation business rules."""
