@@ -209,20 +209,29 @@
 ### 9. その他サービスへの順次展開
 > 残りのサービス（評価、部門、レポート等）にフレームワークを適用します。
 
-- [ ] **9.1. evaluation_service.pyへの展開**
-  > 評価管理サービスに権限チェックとデータフィルタリングを統合する。
+- [x] **9.1. stage_service.pyとcompetency_service.pyへの展開**
+  > ステージ・コンピテンシー管理サービスに権限チェック（Admin full CRUD, others read-only）を統合する。
   >
-  > **関連要件:** 要件2, 要件3, 要件4
+  > **関連要件:** 要件1, 要件2, 要件3
+  > **完了日:** 2025-09-08
 
-- [ ] **9.2. department_service.pyへの展開**
-  > 部門管理サービスに権限チェックを統合する。
+- [x] **9.2. role_service.pyへの展開**
+  > ロール管理サービスに権限チェック（Admin-only CRUD）を統合する。
   >
   > **関連要件:** 要件1, 要件3
+  > **完了日:** 2025-09-08
 
-- [ ] **9.3. assessment_service.pyへの展開**
-  > 自己評価サービスに権限チェックとフィルタリングを統合する。
+- [x] **9.3. supervisor_review_service.pyとsupervisor_feedback_service.pyへの展開**
+  > 上司レビュー・フィードバックサービスに複雑な権限チェック（Admin GET all, manager/supervisor CRUD for subordinates, employee/parttime GET own）を統合する。
   >
-  > **関連要件:** 要件2, 要件3
+  > **関連要件:** 要件2, 要件3, 要件4
+  > **完了日:** 2025-09-08
+
+- [x] **9.4. department_service.pyとself_assessment_service.pyへの展開**
+  > 部門・自己評価サービスに権限チェックとフィルタリングを統合する（Phase 3で完了済み）。
+  >
+  > **関連要件:** 要件1, 要件2, 要件3
+  > **完了日:** 2025-09-04
 
 ## 全般タスク
 
