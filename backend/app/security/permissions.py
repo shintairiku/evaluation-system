@@ -100,7 +100,11 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
         permissions={
             # User Management - Full Access
             Permission.USER_READ_ALL,
+            Permission.USER_READ_SUBORDINATES,
+            Permission.USER_READ_SELF,
             Permission.USER_MANAGE,
+            Permission.USER_MANAGE_BASIC,
+            Permission.USER_MANAGE_PLUS,
             
             # Department Management - Full Access
             Permission.DEPARTMENT_READ,
@@ -113,6 +117,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Goal Management - Full Access
             Permission.GOAL_READ_SELF,
             Permission.GOAL_READ_ALL,
+            Permission.GOAL_READ_SUBORDINATES,
             Permission.GOAL_MANAGE,
             Permission.GOAL_MANAGE_SELF,
             Permission.GOAL_APPROVE,
@@ -124,10 +129,13 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Competency Management - Full Access
             Permission.COMPETENCY_READ,
+            Permission.COMPETENCY_READ_SELF,
             Permission.COMPETENCY_MANAGE,
             
             # Self Assessment & Reports
             Permission.ASSESSMENT_READ_ALL,
+            Permission.ASSESSMENT_READ_SUBORDINATES,
+            Permission.ASSESSMENT_READ_SELF,
             Permission.ASSESSMENT_MANAGE_SELF,
             Permission.REPORT_ACCESS,
             

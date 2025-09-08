@@ -10,6 +10,7 @@ from ..schemas.stage_competency import (
 )
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.decorators import require_permission
 from ..core.exceptions import NotFoundError, ConflictError, BadRequestError
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class StageService:
         self.stage_repo = StageRepository(session)
         self.competency_repo = CompetencyRepository(session)
     
+    @require_permission(Permission.STAGE_MANAGE)
     async def create_stage(self, current_user_context: AuthContext, stage_data: StageCreate) -> StageDetail:
         """
         Create a new stage.
@@ -37,9 +39,7 @@ class StageService:
             ConflictError: If stage name already exists
         """
         try:
-            # Check permissions
-            if not current_user_context.has_permission(Permission.STAGE_MANAGE):
-                raise BadRequestError("Insufficient permissions to create stages")
+            # Permission check handled by @require_permission decorator
             
             # Check if stage name already exists
             existing_stage = await self.stage_repo.get_by_name(stage_data.name)
@@ -75,6 +75,7 @@ class StageService:
             logger.error(f"Error creating stage: {e}")
             raise BadRequestError("Failed to create stage")
     
+    @require_permission(Permission.STAGE_READ_ALL)
     async def get_stage(self, current_user_context: AuthContext, stage_id: UUID) -> StageDetail:
         """
         Get stage by ID with detailed information.
@@ -88,9 +89,7 @@ class StageService:
         Raises:
             NotFoundError: If stage not found
         """
-        # Check permissions - all roles can read stages
-        if not current_user_context.has_permission(Permission.STAGE_READ_ALL):
-            raise BadRequestError("Insufficient permissions to view stages")
+        # Permission check handled by @require_permission decorator
             
         stage_model = await self.stage_repo.get_by_id(stage_id)
         if not stage_model:
@@ -113,6 +112,7 @@ class StageService:
             competencies=competencies
         )
     
+    @require_permission(Permission.STAGE_READ_ALL)
     async def get_all_stages(self, current_user_context: AuthContext) -> List[Stage]:
         """
         Get all stages for selection purposes.
@@ -120,9 +120,7 @@ class StageService:
         Returns:
             List[Stage]: All available stages
         """
-        # Check permissions - all roles can read stages
-        if not current_user_context.has_permission(Permission.STAGE_READ_ALL):
-            raise BadRequestError("Insufficient permissions to view stages")
+        # Permission check handled by @require_permission decorator
             
         stage_models = await self.stage_repo.get_all()
         
@@ -135,6 +133,7 @@ class StageService:
             for stage in stage_models
         ]
     
+    @require_permission(Permission.STAGE_MANAGE)
     async def get_stages_with_user_count(self, current_user_context: AuthContext) -> List[StageWithUserCount]:
         """
         Get all stages with user count for administrative views.
@@ -142,9 +141,7 @@ class StageService:
         Returns:
             List[StageWithUserCount]: Stages with user counts
         """
-        # Check permissions - admin only for user count data
-        if not current_user_context.has_permission(Permission.STAGE_MANAGE):
-            raise BadRequestError("Insufficient permissions to view stage user counts")
+        # Permission check handled by @require_permission decorator
             
         stage_models = await self.stage_repo.get_all()
         stages_with_count = []
@@ -164,6 +161,7 @@ class StageService:
         
         return stages_with_count
     
+    @require_permission(Permission.STAGE_MANAGE)
     async def update_stage(self, current_user_context: AuthContext, stage_id: UUID, stage_data: StageUpdate) -> StageDetail:
         """
         Update an existing stage.
@@ -180,9 +178,7 @@ class StageService:
             ConflictError: If updated name conflicts with existing stage
         """
         try:
-            # Check permissions
-            if not current_user_context.has_permission(Permission.STAGE_MANAGE):
-                raise BadRequestError("Insufficient permissions to update stages")
+            # Permission check handled by @require_permission decorator
             
             # Check if stage exists
             existing_stage = await self.stage_repo.get_by_id(stage_id)
@@ -230,6 +226,7 @@ class StageService:
             logger.error(f"Error updating stage {stage_id}: {e}")
             raise BadRequestError("Failed to update stage")
     
+    @require_permission(Permission.STAGE_MANAGE)
     async def delete_stage(self, current_user_context: AuthContext, stage_id: UUID) -> Dict[str, str]:
         """
         Delete a stage.
@@ -245,9 +242,7 @@ class StageService:
             BadRequestError: If stage has assigned users
         """
         try:
-            # Check permissions
-            if not current_user_context.has_permission(Permission.STAGE_MANAGE):
-                raise BadRequestError("Insufficient permissions to delete stages")
+            # Permission check handled by @require_permission decorator
             
             # Check if stage exists
             existing_stage = await self.stage_repo.get_by_id(stage_id)

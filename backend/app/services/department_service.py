@@ -14,6 +14,9 @@ from ..schemas.department import (
 from ..schemas.user import Department as DepartmentSchema
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.rbac_helper import RBACHelper
+from ..security.rbac_types import ResourceType
+from ..security.decorators import require_permission
 from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, 
     PermissionDeniedError, BadRequestError
@@ -34,6 +37,9 @@ class DepartmentService:
         self.session = session
         self.dept_repo = DepartmentRepository(session)
         self.user_repo = UserRepository(session)
+        
+        # Initialize RBAC Helper with user repository for subordinate queries
+        RBACHelper.initialize_with_repository(self.user_repo)
 
     async def get_departments_for_dropdown(self) -> List[DepartmentSchema]:
         """
@@ -55,6 +61,7 @@ class DepartmentService:
             for dept in departments
         ]
 
+    @require_permission(Permission.DEPARTMENT_READ)
     async def get_department_by_id(
         self, 
         dept_id: UUID, 
@@ -68,25 +75,24 @@ class DepartmentService:
         - Supervisor, Employee, Part-time can view their own department only
         """
         try:
-            # Permission check: Must have department read permission
-            current_user_context.require_permission(Permission.DEPARTMENT_READ)
+            # Permission check handled by @require_permission decorator
             
             # Check if department exists
             department = await self.dept_repo.get_by_id(dept_id)
             if not department:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
             
-            # Conditional access check based on role
-            if current_user_context.has_any_role(["admin", "manager", "viewer"]):
-                # Admin, Manager, Viewer can access any department
-                pass
-            else:
-                # Supervisor, Employee, Part-time can only access their own department
+            # Access check using RBACHelper - department access is role-based
+            can_access = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=dept_id,
+                resource_type=ResourceType.DEPARTMENT,
+                owner_user_id=None  # Departments don't have single owners
+            )
+            if not can_access:
+                # For departments, check if user can at least access their own department
                 current_user = await self.user_repo.get_user_by_id(current_user_context.user_id)
-                if not current_user:
-                    raise PermissionDeniedError("Current user not found")
-                
-                if current_user.department_id != dept_id:
+                if not current_user or current_user.department_id != dept_id:
                     raise PermissionDeniedError("You can only access your own department")
             
             # Enrich department data with metadata
@@ -97,6 +103,7 @@ class DepartmentService:
             logger.error(f"Error getting department {dept_id}: {str(e)}")
             raise
     
+    @require_permission(Permission.DEPARTMENT_MANAGE)
     async def create_department(
         self, 
         dept_data: DepartmentCreate, 
@@ -111,8 +118,7 @@ class DepartmentService:
         - Validate department data
         """
         try:
-            # Permission check: Only admin can create departments
-            current_user_context.require_permission(Permission.DEPARTMENT_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Validate department data
             await self._validate_department_creation(dept_data)
@@ -130,6 +136,7 @@ class DepartmentService:
             logger.error(f"Error creating department: {str(e)}")
             raise
 
+    @require_permission(Permission.DEPARTMENT_MANAGE)
     async def update_department(
         self, 
         dept_id: UUID, 
@@ -145,10 +152,7 @@ class DepartmentService:
         - Validate update data
         """
         try:
-            # Permission check: Supervisor or above can update departments
-            current_user_context.require_permission(Permission.DEPARTMENT_READ)
-            if not current_user_context.is_supervisor_or_above():
-                raise PermissionDeniedError("Only supervisors and above can update departments")
+            # Permission check handled by @require_permission decorator
             
             # Check if department exists
             existing_dept = await self.dept_repo.get_by_id(dept_id)
@@ -173,6 +177,7 @@ class DepartmentService:
             logger.error(f"Error updating department {dept_id}: {str(e)}")
             raise
     
+    @require_permission(Permission.DEPARTMENT_MANAGE)
     async def delete_department(
         self, 
         dept_id: UUID, 
@@ -187,8 +192,7 @@ class DepartmentService:
         - Cannot delete department with active users
         """
         try:
-            # Permission check: Only admin can delete departments
-            current_user_context.require_permission(Permission.DEPARTMENT_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Check if department exists
             existing_dept = await self.dept_repo.get_by_id(dept_id)

@@ -19,6 +19,9 @@ from ..schemas.goal import (
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.rbac_helper import RBACHelper
+from ..security.rbac_types import ResourceType
+from ..security.decorators import require_permission, require_any_permission
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
@@ -40,6 +43,9 @@ class GoalService:
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.competency_repo = CompetencyRepository(session)
         self.supervisor_review_repo = SupervisorReviewRepository(session)
+        
+        # Initialize RBAC Helper with user repository for subordinate queries
+        RBACHelper.initialize_with_repository(self.user_repo)
     
     async def get_goals(
         self,
@@ -60,7 +66,9 @@ class GoalService:
         """
         try:
             # Determine which users' goals the current user can access
-            accessible_user_ids = await self._get_accessible_user_ids(current_user_context, user_id)
+            accessible_user_ids = await self._get_accessible_goal_user_ids(
+                current_user_context, user_id
+            )
             
             # Search goals with filters
             goals = await self.goal_repo.search_goals(
@@ -114,8 +122,15 @@ class GoalService:
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check
-            await self._check_goal_access_permission(goal, current_user_context)
+            # Permission check using RBACHelper
+            can_access = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal_id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=goal.user_id
+            )
+            if not can_access:
+                raise PermissionDeniedError("You do not have permission to access this goal")
             
             # Enrich with detailed information
             enriched_goal = await self._enrich_goal_detail_data(goal)
@@ -125,6 +140,7 @@ class GoalService:
             logger.error(f"Error getting goal {goal_id}: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_MANAGE, Permission.GOAL_MANAGE_SELF])
     async def create_goal(
         self,
         goal_data: GoalCreate,
@@ -132,11 +148,6 @@ class GoalService:
     ) -> Goal:
         """Create a new goal with validation and business rules."""
         try:
-            # Permission check - must have goal management permissions
-            if not (current_user_context.has_permission(Permission.GOAL_MANAGE) or 
-                    current_user_context.has_permission(Permission.GOAL_MANAGE_SELF)):
-                raise PermissionDeniedError("You do not have permission to create goals")
-            
             # Users create goals for themselves (admin can create for anyone, but we'll keep it simple for now)
             target_user_id = current_user_context.user_id
             
@@ -174,6 +185,7 @@ class GoalService:
             logger.error(f"Error creating goal: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_MANAGE, Permission.GOAL_MANAGE_SELF])
     async def update_goal(
         self,
         goal_id: UUID,
@@ -187,8 +199,15 @@ class GoalService:
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check - only goal owner can update
-            await self._check_goal_update_permission(existing_goal, current_user_context)
+            # Permission check - only goal owner can update (unless admin)
+            can_update = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal_id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=existing_goal.user_id
+            )
+            if not can_update:
+                raise PermissionDeniedError("You can only update your own goals")
             
             # Business validation
             await self._validate_goal_update(goal_data, existing_goal)
@@ -222,6 +241,7 @@ class GoalService:
             logger.error(f"Error updating goal {goal_id}: {str(e)}")
             raise
 
+    @require_any_permission([Permission.GOAL_MANAGE, Permission.GOAL_MANAGE_SELF])
     async def delete_goal(
         self,
         goal_id: UUID,
@@ -234,8 +254,15 @@ class GoalService:
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check
-            await self._check_goal_update_permission(existing_goal, current_user_context)
+            # Permission check - only goal owner can delete (unless admin)
+            can_delete = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal_id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=existing_goal.user_id
+            )
+            if not can_delete:
+                raise PermissionDeniedError("You can only delete your own goals")
             
             # Business rule: can only delete draft, incomplete, or rejected goals
             if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
@@ -267,8 +294,15 @@ class GoalService:
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check - only goal owner can submit
-            await self._check_goal_update_permission(existing_goal, current_user_context)
+            # Permission check - only goal owner can submit (unless admin)
+            can_submit = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal_id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=existing_goal.user_id
+            )
+            if not can_submit:
+                raise PermissionDeniedError("You can only submit your own goals")
             
             # Business rule: can only submit draft, incomplete, or rejected goals
             if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
@@ -312,6 +346,7 @@ class GoalService:
             logger.error(f"Error submitting goal {goal_id}: {str(e)}")
             raise
 
+    @require_permission(Permission.GOAL_APPROVE)
     async def approve_goal(
         self,
         goal_id: UUID,
@@ -323,8 +358,15 @@ class GoalService:
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check - must be supervisor of goal owner or admin
-            await self._check_goal_approval_permission(goal, current_user_context)
+            # Additional permission check - must be supervisor of goal owner or admin
+            can_approve = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal_id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=goal.user_id
+            )
+            if not can_approve:
+                raise PermissionDeniedError("You can only approve goals for your subordinates")
             
             # Business validation
             if goal.status != GoalStatus.PENDING_APPROVAL.value:
@@ -351,6 +393,7 @@ class GoalService:
             logger.error(f"Error approving goal {goal_id}: {str(e)}")
             raise
 
+    @require_permission(Permission.GOAL_APPROVE)
     async def reject_goal(
         self,
         goal_id: UUID,
@@ -363,8 +406,15 @@ class GoalService:
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check
-            await self._check_goal_approval_permission(goal, current_user_context)
+            # Additional permission check - must be supervisor of goal owner or admin
+            can_reject = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal_id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=goal.user_id
+            )
+            if not can_reject:
+                raise PermissionDeniedError("You can only reject goals for your subordinates")
             
             # Business validation
             if goal.status != GoalStatus.PENDING_APPROVAL.value:
@@ -389,6 +439,7 @@ class GoalService:
             logger.error(f"Error rejecting goal {goal_id}: {str(e)}")
             raise
 
+    @require_permission(Permission.GOAL_APPROVE)
     async def get_pending_approvals(
         self,
         current_user_context: AuthContext,
@@ -397,10 +448,6 @@ class GoalService:
     ) -> PaginatedResponse[Goal]:
         """Get goals pending approval for current supervisor."""
         try:
-            # Permission check
-            if not current_user_context.has_permission(Permission.GOAL_APPROVE):
-                raise PermissionDeniedError("You do not have permission to view pending approvals")
-            
             # Get pending goals for supervisor's subordinates
             goals = await self.goal_repo.get_pending_approvals_for_supervisor(
                 current_user_context.user_id,
@@ -439,7 +486,7 @@ class GoalService:
     # PRIVATE HELPER METHODS
     # ========================================
 
-    async def _get_accessible_user_ids(
+    async def _get_accessible_goal_user_ids(
         self,
         current_user_context: AuthContext,
         requested_user_id: Optional[UUID] = None
@@ -460,8 +507,10 @@ class GoalService:
         
         if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
             # Supervisor: can see subordinates' goals
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            accessible_ids.extend([sub.id for sub in subordinates])
+            subordinate_ids = await RBACHelper._get_subordinate_user_ids(
+                current_user_context.user_id, self.user_repo
+            )
+            accessible_ids.extend(subordinate_ids)
         
         # If specific user requested, check if accessible
         if requested_user_id:
@@ -470,58 +519,6 @@ class GoalService:
             return [requested_user_id]
         
         return accessible_ids
-
-    async def _check_goal_access_permission(self, goal: GoalModel, current_user_context: AuthContext):
-        """Check if user has permission to access this goal."""
-        if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            return  # Admin can access all
-        
-        if goal.user_id == current_user_context.user_id:
-            # Verify user has permission to read own goals
-            if current_user_context.has_permission(Permission.GOAL_READ_SELF):
-                return  # Own goal with proper permission
-        
-        if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
-            # Check if goal owner is subordinate
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            subordinate_ids = [sub.id for sub in subordinates]
-            if goal.user_id in subordinate_ids:
-                return
-        
-        raise PermissionDeniedError("You do not have permission to access this goal")
-
-    async def _check_goal_update_permission(self, goal: GoalModel, current_user_context: AuthContext):
-        """Check if user has permission to update this goal."""
-        # Admin can manage all goals
-        if current_user_context.has_permission(Permission.GOAL_MANAGE):
-            # Admin can manage any goal, but still check if goal is editable
-            if goal.status == GoalStatus.APPROVED.value:
-                raise BadRequestError("Cannot update approved goals")
-            return
-        
-        # Check if user has permission to manage their own goals
-        if not current_user_context.has_permission(Permission.GOAL_MANAGE_SELF):
-            raise PermissionDeniedError("You do not have permission to manage goals")
-        
-        # Other roles can only manage their own goals
-        if goal.user_id != current_user_context.user_id:
-            raise PermissionDeniedError("You can only update your own goals")
-        
-        # Check if goal is still editable
-        if goal.status == GoalStatus.APPROVED.value:
-            raise BadRequestError("Cannot update approved goals")
-
-    async def _check_goal_approval_permission(self, goal: GoalModel, current_user_context: AuthContext):
-        """Check if user has permission to approve/reject this goal."""
-        if not current_user_context.has_permission(Permission.GOAL_APPROVE):
-            raise PermissionDeniedError("You do not have permission to approve goals")
-        
-        # Must be supervisor of goal owner (unless admin)
-        if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-            subordinate_ids = [sub.id for sub in subordinates]
-            if goal.user_id not in subordinate_ids:
-                raise PermissionDeniedError("You can only approve goals for your subordinates")
 
     async def _validate_goal_creation(self, goal_data: GoalCreate, user_id: UUID):
         """Validate goal creation business rules."""
