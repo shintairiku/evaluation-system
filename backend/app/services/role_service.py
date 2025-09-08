@@ -13,6 +13,7 @@ from ..core.exceptions import (
 )
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.decorators import require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class RoleService:
         self.session = session
         self.role_repo = RoleRepository(session)
     
+    @require_permission(Permission.ROLE_MANAGE)
     async def create_role(
         self,
         role_data: RoleCreate,
@@ -40,8 +42,7 @@ class RoleService:
         try:
             logger.info(f"Starting role creation for name: {role_data.name}")
             
-            # Permission check - only admin can manage roles
-            current_user_context.require_permission(Permission.ROLE_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Business validation
             await self._validate_role_creation(role_data)
@@ -64,6 +65,7 @@ class RoleService:
             logger.error(f"Error creating role: {str(e)}")
             raise
     
+    @require_permission(Permission.ROLE_MANAGE)
     async def reorder_roles(
         self,
         role_orders: List[RoleReorderItem],
@@ -83,8 +85,7 @@ class RoleService:
         try:
             logger.info("Reordering all roles based on frontend drag-and-drop state")
             
-            # Permission check - only admin can manage roles
-            current_user_context.require_permission(Permission.ROLE_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Execute reorder through repository
             updated_roles = await self.role_repo.reorder_roles(role_orders)
@@ -100,6 +101,7 @@ class RoleService:
             logger.error(f"Error reordering roles: {str(e)}")
             raise
     
+    @require_permission(Permission.ROLE_READ_ALL)
     async def get_by_id(
         self,
         role_id: UUID,
@@ -109,8 +111,7 @@ class RoleService:
         Get a specific role by ID
         """
         try:
-            # Permission check - require read access
-            current_user_context.require_permission(Permission.ROLE_READ_ALL)
+            # Permission check handled by @require_permission decorator
             
             # Get role from repository
             role = await self.role_repo.get_by_id(role_id)
@@ -125,6 +126,7 @@ class RoleService:
             logger.error(f"Error getting role {role_id}: {str(e)}")
             raise
     
+    @require_permission(Permission.ROLE_READ_ALL)
     async def get_all(
         self,
         current_user_context: AuthContext
@@ -133,8 +135,7 @@ class RoleService:
         Get all roles ordered by hierarchy
         """
         try:
-            # Permission check - require read access
-            current_user_context.require_permission(Permission.ROLE_READ_ALL)
+            # Permission check handled by @require_permission decorator
             
             # Get all roles from repository (ordered by hierarchy_order)
             roles = await self.role_repo.get_all()
@@ -151,6 +152,7 @@ class RoleService:
             logger.error(f"Error getting all roles: {str(e)}")
             raise
     
+    @require_permission(Permission.ROLE_MANAGE)
     async def update_role(
         self,
         role_id: UUID,
@@ -166,8 +168,7 @@ class RoleService:
         - Check role exists
         """
         try:
-            # Permission check - only admin can manage roles
-            current_user_context.require_permission(Permission.USER_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Check if role exists
             existing_role = await self.role_repo.get_by_id(role_id)
@@ -197,6 +198,7 @@ class RoleService:
             logger.error(f"Error updating role {role_id}: {str(e)}")
             raise
     
+    @require_permission(Permission.ROLE_MANAGE)
     async def delete_role(
         self,
         role_id: UUID,
@@ -212,8 +214,7 @@ class RoleService:
         - Automatically adjust hierarchy_order of remaining roles
         """
         try:
-            # Permission check - only admin can manage roles
-            current_user_context.require_permission(Permission.USER_MANAGE)
+            # Permission check handled by @require_permission decorator
             
             # Check if role exists
             existing_role = await self.role_repo.get_by_id(role_id)
