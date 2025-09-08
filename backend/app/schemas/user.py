@@ -150,13 +150,13 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    """Schema for updating user information"""
+    """Schema for updating user information (stage_id removed for RBAC safety)"""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     email: Optional[EmailStr] = None
     employee_code: Optional[str] = Field(None, min_length=1, max_length=20)
     job_title: Optional[str] = Field(None, max_length=100)
     department_id: Optional[UUID] = None
-    stage_id: Optional[UUID] = None
+    # stage_id removed - use dedicated admin-only endpoint PATCH /users/{user_id}/stage
     role_ids: Optional[List[UUID]] = Field(None, min_items=0, max_items=10)
     supervisor_id: Optional[UUID] = None
     subordinate_ids: Optional[List[UUID]] = Field(None, min_items=0)  # Changed: None means don't update subordinates
@@ -166,6 +166,11 @@ class UserUpdate(BaseModel):
 class UserClerkIdUpdate(BaseModel):
     """Internal schema for updating clerk_user_id only (used by fallback system)"""
     clerk_user_id: str = Field(min_length=1, max_length=100)
+
+
+class UserStageUpdate(BaseModel):
+    """Schema for updating user's stage (admin only)"""
+    stage_id: UUID = Field(..., description="New stage ID for the user")
 
 
 class UserInDB(UserBase):
