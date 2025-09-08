@@ -37,7 +37,9 @@ class Permission(Enum):
     USER_READ_SUBORDINATES = "user:read:subordinates"  # Managers/Supervisors read subordinates
     USER_READ_SELF = "user:read:self"        # Everyone can read own profile
     USER_MANAGE = "user:manage"              # Create, update, delete users (admin only)
-    
+    USER_MANAGE_BASIC = "user:manage:basic"  # Permissive update 'name', 'job_title', 'department_id' in UserUpdate schema
+    USER_MANAGE_PLUS = "user:manage:plus"    # Permissive update 'subordinate_ids' in UserUpdate schema (+ USER_MANAGE_BASIC)
+
     # Department Management (Consolidated from 7 to 2)
     DEPARTMENT_READ = "department:read"      # Read department info (scope determined by role)
     DEPARTMENT_MANAGE = "department:manage"  # Create, update, delete departments (admin only)
@@ -98,7 +100,11 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
         permissions={
             # User Management - Full Access
             Permission.USER_READ_ALL,
+            Permission.USER_READ_SUBORDINATES,
+            Permission.USER_READ_SELF,
             Permission.USER_MANAGE,
+            Permission.USER_MANAGE_BASIC,
+            Permission.USER_MANAGE_PLUS,
             
             # Department Management - Full Access
             Permission.DEPARTMENT_READ,
@@ -111,6 +117,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # Goal Management - Full Access
             Permission.GOAL_READ_SELF,
             Permission.GOAL_READ_ALL,
+            Permission.GOAL_READ_SUBORDINATES,
             Permission.GOAL_MANAGE,
             Permission.GOAL_MANAGE_SELF,
             Permission.GOAL_APPROVE,
@@ -122,10 +129,13 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             
             # Competency Management - Full Access
             Permission.COMPETENCY_READ,
+            Permission.COMPETENCY_READ_SELF,
             Permission.COMPETENCY_MANAGE,
             
             # Self Assessment & Reports
             Permission.ASSESSMENT_READ_ALL,
+            Permission.ASSESSMENT_READ_SUBORDINATES,
+            Permission.ASSESSMENT_READ_SELF,
             Permission.ASSESSMENT_MANAGE_SELF,
             Permission.REPORT_ACCESS,
             
@@ -145,6 +155,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # User Management - Subordinates
             Permission.USER_READ_SUBORDINATES,
             Permission.USER_READ_SELF,
+            Permission.USER_MANAGE_PLUS,
             
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
@@ -186,6 +197,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
             # User Management - Read subordinates
             Permission.USER_READ_SUBORDINATES,
             Permission.USER_READ_SELF,
+            Permission.USER_MANAGE_PLUS,
             
             # Department Management - Read access
             Permission.DEPARTMENT_READ,
@@ -257,6 +269,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
         permissions={
             # User Management - Self only
             Permission.USER_READ_SELF,
+            Permission.USER_MANAGE_BASIC,
             
             # Department Management - Read own
             Permission.DEPARTMENT_READ,
@@ -290,6 +303,7 @@ ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
         permissions={
             # User Management - Self only
             Permission.USER_READ_SELF,
+            Permission.USER_MANAGE_BASIC,
             
             # Department Management - Read own
             Permission.DEPARTMENT_READ,
@@ -329,8 +343,8 @@ class PermissionManager:
             role_enum = Role(role.lower())
             return ROLE_PERMISSIONS[role_enum].permissions
         except (ValueError, KeyError):
-            # Default to employee permissions for unknown roles
-            return ROLE_PERMISSIONS[Role.EMPLOYEE].permissions
+            # Return empty permissions for unknown roles
+            return set()
     
     @staticmethod
     def has_permission(user_role: str, required_permission: Permission) -> bool:

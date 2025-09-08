@@ -20,6 +20,9 @@ from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStat
 from ..schemas.goal import GoalStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.decorators import require_permission, require_any_permission
+from ..security.rbac_helper import RBACHelper
+from ..security.rbac_types import ResourceType
 from ..core.exceptions import (
     NotFoundError,
     PermissionDeniedError,
@@ -38,17 +41,19 @@ class SupervisorReviewService:
         self.repo = SupervisorReviewRepository(session)
         self.goal_repo = GoalRepository(session)
         self.user_repo = UserRepository(session)
+        
+        # Initialize RBAC Helper with user repository for subordinate queries
+        RBACHelper.initialize_with_repository(self.user_repo)
 
     # ========================================
     # CREATE
     # ========================================
+    @require_permission(Permission.GOAL_APPROVE)
     async def create_review(
         self, review_create: SupervisorReviewCreate, current_user_context: AuthContext
     ) -> SupervisorReviewSchema:
         try:
-            # Permission: must be supervisor or above
-            if not current_user_context.has_permission(Permission.GOAL_APPROVE):
-                raise PermissionDeniedError("You do not have permission to create supervisor reviews")
+            # Permission check handled by @require_permission decorator
 
             # Validate goal exists
             goal = await self.goal_repo.get_goal_by_id(review_create.goal_id)
@@ -90,6 +95,7 @@ class SupervisorReviewService:
     # ========================================
     # READ
     # ========================================
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_READ_SUBORDINATES, Permission.GOAL_READ_SELF])
     async def get_review(
         self, review_id: UUID, current_user_context: AuthContext
     ) -> SupervisorReviewDetailSchema:
@@ -108,6 +114,7 @@ class SupervisorReviewService:
             days_until_deadline=days_until_deadline,
         )
 
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_READ_SUBORDINATES, Permission.GOAL_READ_SELF])
     async def get_reviews(
         self,
         current_user_context: AuthContext,
@@ -118,7 +125,15 @@ class SupervisorReviewService:
         pagination: PaginationParams,
     ) -> PaginatedResponse[SupervisorReviewSchema]:
         try:
-            # Admin can view all via owner path or supervisor path; others limited
+            # Permission check handled by @require_any_permission decorator
+            # Use RBACHelper to determine accessible user IDs for data filtering
+            accessible_user_ids = await RBACHelper.get_accessible_user_ids(
+                auth_context=current_user_context,
+                resource_type=ResourceType.GOAL,
+                permission_context="supervisor_review_access"
+            )
+            
+            # Admin can view all; others are filtered by accessible users
             if current_user_context.has_permission(Permission.GOAL_READ_ALL):
                 items = await self.repo.search(
                     period_id=period_id,
@@ -173,6 +188,7 @@ class SupervisorReviewService:
             logger.error(f"Error getting supervisor reviews: {e}")
             raise
 
+    @require_permission(Permission.GOAL_APPROVE)
     async def get_pending_reviews(
         self,
         current_user_context: AuthContext,
@@ -180,8 +196,7 @@ class SupervisorReviewService:
         period_id: Optional[UUID] = None,
         pagination: PaginationParams,
     ) -> PaginatedResponse[SupervisorReviewSchema]:
-        if not current_user_context.has_permission(Permission.GOAL_APPROVE):
-            raise PermissionDeniedError("You do not have permission to view pending supervisor reviews")
+        # Permission check handled by @require_permission decorator
         items = await self.repo.get_pending_reviews(
             current_user_context.user_id, period_id=period_id, pagination=pagination
         )
@@ -193,6 +208,7 @@ class SupervisorReviewService:
     # ========================================
     # UPDATE / SUBMIT
     # ========================================
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_APPROVE])
     async def update_review(
         self, review_id: UUID, review_update: SupervisorReviewUpdate, current_user_context: AuthContext
     ) -> SupervisorReviewSchema:
@@ -237,6 +253,7 @@ class SupervisorReviewService:
             logger.error(f"Error updating supervisor review {review_id}: {e}")
             raise
 
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_APPROVE])
     async def submit_review(self, review_id: UUID, current_user_context: AuthContext) -> SupervisorReviewSchema:
         return await self.update_review(
             review_id,
@@ -247,6 +264,7 @@ class SupervisorReviewService:
     # ========================================
     # DELETE
     # ========================================
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_APPROVE])
     async def delete_review(self, review_id: UUID, current_user_context: AuthContext) -> bool:
         review = await self.repo.get_by_id(review_id)
         if not review:
@@ -272,22 +290,36 @@ class SupervisorReviewService:
     # PRIVATE HELPERS
     # ========================================
     async def _require_supervisor_of_goal_owner(self, goal: GoalModel, current_user_context: AuthContext) -> None:
-        if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            return
-        subordinates = await self.user_repo.get_subordinates(current_user_context.user_id)
-        subordinate_ids = [s.id for s in subordinates]
-        if goal.user_id not in subordinate_ids:
+        """Validate user can access this goal using RBAC framework"""
+        # Use RBACHelper for resource access validation
+        can_access = await RBACHelper.can_access_resource(
+            auth_context=current_user_context,
+            resource_id=goal.id,
+            resource_type=ResourceType.GOAL,
+            owner_user_id=goal.user_id
+        )
+        if not can_access:
             raise PermissionDeniedError("You can only review goals for your subordinates")
 
     async def _require_can_view_review(self, review, current_user_context: AuthContext) -> None:
+        """Validate user can view this review using RBAC framework"""
         if current_user_context.has_permission(Permission.GOAL_READ_ALL):
             return
         if review.supervisor_id == current_user_context.user_id:
             return
-        # Allow goal owner to view
+        
+        # Use RBACHelper to check if user can access the related goal
         goal = await self.goal_repo.get_goal_by_id(review.goal_id)
-        if goal and goal.user_id == current_user_context.user_id:
-            return
+        if goal:
+            can_access = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=goal.id,
+                resource_type=ResourceType.GOAL,
+                owner_user_id=goal.user_id
+            )
+            if can_access:
+                return
+                
         raise PermissionDeniedError("You do not have permission to view this review")
 
     async def _sync_goal_status_with_review(self, review, current_user_context: AuthContext) -> None:
