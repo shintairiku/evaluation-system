@@ -50,6 +50,13 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
           if (topLevelResult.success && topLevelResult.data) {
             setAllUsers(topLevelResult.data);
             setLoadedUsers(prev => new Map(prev).set('top-level', topLevelResult.data!));
+            // Precompute department counts so department cards show numbers immediately
+            const counts = new Map<string, number>();
+            topLevelResult.data.forEach(u => {
+              const deptId = u.department?.id;
+              if (deptId) counts.set(deptId, (counts.get(deptId) || 0) + 1);
+            });
+            setDepartmentUserCounts(counts);
           }
           setLoadingNodes(prev => {
             const newSet = new Set(prev);
@@ -58,6 +65,13 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
           });
         } else {
           setAllUsers(users);
+          // If users are provided (e.g., from search), also precompute department counts
+          const counts = new Map<string, number>();
+          users.forEach(u => {
+            const deptId = u.department?.id;
+            if (deptId) counts.set(deptId, (counts.get(deptId) || 0) + 1);
+          });
+          if (counts.size > 0) setDepartmentUserCounts(counts);
         }
       } catch (error) {
         console.error('Error loading initial organization data:', error);
@@ -163,7 +177,9 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     loadedUsers,
     departmentUserCounts,
     onDepartmentClick: handleDepartmentClick,
-    onUserClick: handleUserClick
+    onUserClick: handleUserClick,
+    // Force department-first layout for read-only browsing so employees see company -> departments -> users
+    forceDepartmentLayout: true
   });
 
   const [nodesState, setNodes] = useNodesState(nodes);

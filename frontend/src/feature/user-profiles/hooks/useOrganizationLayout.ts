@@ -25,6 +25,9 @@ interface UseOrganizationLayoutParams {
   departmentUserCounts?: Map<string, number>;
   onDepartmentClick: (departmentId: string) => void;
   onUserClick?: (userId: string) => void;
+  // When true, always render department-first layout even if users share the same status/role/stage
+  // This is used for the read-only organization chart browsing experience for all roles
+  forceDepartmentLayout?: boolean;
 }
 
 
@@ -38,7 +41,8 @@ export function useOrganizationLayout({
   onUserClick,
   loadedUsers = new Map(),
   // Optional total counts per department; when provided, display total even if showing only top users
-  departmentUserCounts = new Map<string, number>()
+  departmentUserCounts = new Map<string, number>(),
+  forceDepartmentLayout = false
 }: UseOrganizationLayoutParams) {
   
   // Generate nodes and edges for the organization chart
@@ -48,6 +52,8 @@ export function useOrganizationLayout({
 
     // Detect filter type to adapt layout strategy
     const filterType = detectFilterType(users);
+    // In read-only browsing mode, we want department-first layout regardless of uniform status
+    const isFlatLayout = !forceDepartmentLayout && (filterType === 'stage' || filterType === 'role' || filterType === 'status');
     
     
     // Filter departments based on detected filter type
@@ -56,7 +62,7 @@ export function useOrganizationLayout({
       // Show only the department(s) that have users in filtered data
       const userDepartmentIds = new Set(users.map(u => u.department?.id).filter(Boolean));
       filteredDepartments = departments.filter(dept => userDepartmentIds.has(dept.id));
-    } else if (filterType === 'stage' || filterType === 'role' || filterType === 'status') {
+    } else if (isFlatLayout) {
       // For stage/role/status filters, don't show department cards - users go directly under company
       filteredDepartments = [];
     }
@@ -113,7 +119,7 @@ export function useOrganizationLayout({
     });
 
     // Handle flat layout for stage/role/status filters
-    if (filterType === 'stage' || filterType === 'role' || filterType === 'status') {
+    if (isFlatLayout) {
       const flatLayout = createFlatUserLayout(users, companyX, loadingNodes, onUserClick);
       nodeList.push(...flatLayout.nodes);
       edgeList.push(...flatLayout.edges);
