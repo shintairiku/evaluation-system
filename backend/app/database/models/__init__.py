@@ -5,6 +5,7 @@ from .evaluation import EvaluationPeriod, EvaluationPeriodStatus, EvaluationPeri
 from .goal import Goal
 from .self_assessment import SelfAssessment
 from .supervisor_review import SupervisorReview
+from .supervisor_feedback import SupervisorFeedback
 
 __all__ = [
     "Base",
@@ -21,4 +22,5 @@ __all__ = [
     "Goal",
     "SelfAssessment",
     "SupervisorReview",
+    "SupervisorFeedback",
 ]
