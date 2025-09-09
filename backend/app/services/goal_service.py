@@ -593,7 +593,7 @@ class GoalService:
             try:
                 competency_names = {}
                 for competency_id in goal_model.target_data["competency_ids"]:
-                    competency = await self.competency_repo.get_competency_by_id(competency_id)
+                    competency = await self.competency_repo.get_by_id(competency_id)
                     if competency:
                         competency_names[str(competency_id)] = competency.name
                 
