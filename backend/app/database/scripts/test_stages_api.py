@@ -40,7 +40,7 @@ async def test_stages_api():
         # Verify if data is in the format expected by the API
         for stage in stages:
             if not stage['id'] or not stage['name']:
-                print(f"❌ Stage com dados inválidos: {stage}")
+                print(f"❌ Stage with invalid data: {stage}")
                 return False
         
         print("✅ All stages have valid data")
