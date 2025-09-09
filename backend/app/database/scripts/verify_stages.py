@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script para verificar se os stages foram criados corretamente
+Script to verify if stages were created correctly
 """
 import asyncio
 import asyncpg
@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv('../../../../.env.local')
 
 async def verify_stages():
-    """Verificar se os 9 stages foram criados corretamente"""
+    """Verify if all 9 stages were created correctly"""
     
     database_url = os.getenv('SUPABASE_DATABASE_URL')
     if not database_url:
@@ -19,47 +19,47 @@ async def verify_stages():
         return False
     
     try:
-        print("🔍 Verificando stages no banco de dados...")
+        print("🔍 Verifying stages in database...")
         conn = await asyncpg.connect(database_url)
         
-        # Verificar quantos stages existem
+        # Verify how many stages exist
         stage_count = await conn.fetchval("SELECT COUNT(*) FROM stages")
-        print(f"📊 Total de stages encontrados: {stage_count}")
+        print(f"📊 Total stages found: {stage_count}")
         
-        # Listar todos os stages
+        # List all stages
         stages = await conn.fetch("""
             SELECT id, name, description, created_at, updated_at 
             FROM stages 
             ORDER BY name
         """)
         
-        print(f"\n📋 Stages encontrados:")
+        print(f"\n📋 Stages found:")
         print("-" * 80)
         for stage in stages:
             print(f"ID: {stage['id']}")
-            print(f"Nome: {stage['name']}")
-            print(f"Descrição: {stage['description'][:100]}...")
-            print(f"Criado em: {stage['created_at']}")
-            print(f"Atualizado em: {stage['updated_at']}")
+            print(f"Name: {stage['name']}")
+            print(f"Description: {stage['description'][:100]}...")
+            print(f"Created at: {stage['created_at']}")
+            print(f"Updated at: {stage['updated_at']}")
             print("-" * 80)
         
-        # Verificar se temos exatamente 9 stages
+        # Verify we have exactly 9 stages
         if stage_count == 9:
-            print("✅ Sucesso! Todos os 9 stages foram criados corretamente!")
+            print("✅ Success! All 9 stages were created correctly!")
             return True
         else:
-            print(f"⚠️  Esperado 9 stages, mas encontrado {stage_count}")
+            print(f"⚠️  Expected 9 stages, but found {stage_count}")
             return False
             
         await conn.close()
         
     except Exception as e:
-        print(f"❌ Erro ao verificar stages: {e}")
+        print(f"❌ Error verifying stages: {e}")
         return False
 
 if __name__ == "__main__":
     success = asyncio.run(verify_stages())
     if success:
-        print("\n🎉 Verificação concluída com sucesso!")
+        print("\n🎉 Verification completed successfully!")
     else:
-        print("\n❌ Verificação falhou!")
+        print("\n❌ Verification failed!")

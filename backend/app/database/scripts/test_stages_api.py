@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script para testar a API de stages após a implementação
+Script to test the stages API after implementation
 """
 import asyncio
 import asyncpg
@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv('../../../../.env.local')
 
 async def test_stages_api():
-    """Testar se a API de stages funciona com os novos dados"""
+    """Test if the stages API works with the new data"""
     
     database_url = os.getenv('SUPABASE_DATABASE_URL')
     if not database_url:
@@ -19,10 +19,10 @@ async def test_stages_api():
         return False
     
     try:
-        print("🧪 Testando API de stages...")
+        print("🧪 Testing stages API...")
         conn = await asyncpg.connect(database_url)
         
-        # Simular a query que a API faz
+        # Simulate the query that the API makes
         stages = await conn.fetch("""
             SELECT 
                 id,
@@ -34,24 +34,24 @@ async def test_stages_api():
             ORDER BY name
         """)
         
-        print(f"✅ API Query executada com sucesso!")
-        print(f"📊 Retornou {len(stages)} stages")
+        print(f"✅ API Query executed successfully!")
+        print(f"📊 Returned {len(stages)} stages")
         
-        # Verificar se os dados estão no formato esperado pela API
+        # Verify if data is in the format expected by the API
         for stage in stages:
             if not stage['id'] or not stage['name']:
                 print(f"❌ Stage com dados inválidos: {stage}")
                 return False
         
-        print("✅ Todos os stages têm dados válidos")
+        print("✅ All stages have valid data")
         
-        # Verificar se temos exatamente 9 stages
+        # Verify we have exactly 9 stages
         if len(stages) == 9:
-            print("✅ API retorna exatamente 9 stages como esperado!")
+            print("✅ API returns exactly 9 stages as expected!")
         else:
-            print(f"⚠️  API retorna {len(stages)} stages, esperado 9")
+            print(f"⚠️  API returns {len(stages)} stages, expected 9")
         
-        # Verificar se os nomes estão corretos
+        # Verify if names are correct
         expected_names = [
             'Stage1: スタート',
             'Stage2: 自己完結', 
@@ -67,24 +67,24 @@ async def test_stages_api():
         actual_names = [stage['name'] for stage in stages]
         
         if actual_names == expected_names:
-            print("✅ Todos os nomes dos stages estão corretos!")
+            print("✅ All stage names are correct!")
         else:
-            print("⚠️  Nomes dos stages não coincidem:")
+            print("⚠️  Stage names do not match:")
             for i, (expected, actual) in enumerate(zip(expected_names, actual_names)):
                 if expected != actual:
-                    print(f"   Stage {i+1}: Esperado '{expected}', Encontrado '{actual}'")
+                    print(f"   Stage {i+1}: Expected '{expected}', Found '{actual}'")
         
         await conn.close()
         return True
         
     except Exception as e:
-        print(f"❌ Erro ao testar API: {e}")
+        print(f"❌ Error testing API: {e}")
         return False
 
 if __name__ == "__main__":
     success = asyncio.run(test_stages_api())
     if success:
-        print("\n🎉 Teste da API concluído com sucesso!")
-        print("✅ Os stages estão prontos para uso na API!")
+        print("\n🎉 API test completed successfully!")
+        print("✅ Stages are ready for API use!")
     else:
-        print("\n❌ Teste da API falhou!")
+        print("\n❌ API test failed!")
