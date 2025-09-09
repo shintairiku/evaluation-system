@@ -1,0 +1,80 @@
+-- =============================================================================
+-- STAGE COMPETENCY MANAGEMENT - UPDATE STAGES DATA
+-- =============================================================================
+-- 
+-- BACKGROUND:
+-- This migration updates the existing stages table with the new 9-stage career
+-- progression system, replacing the old 3-stage system with detailed role
+-- descriptions and competency frameworks.
+--
+-- CHANGES:
+-- 1. Updates existing stages with new names and descriptions
+-- 2. Adds new stages (4-9) to complete the 9-stage career progression
+-- 3. Maintains existing stage IDs to preserve user relationships
+-- 4. Uses ON CONFLICT to safely update existing data
+--
+-- STAGE PROGRESSION:
+-- Stage 1: スタート (Start) - New employees
+-- Stage 2: 自己完結 (Self-completion) - Independent workers  
+-- Stage 3: 品質基準のクリア (Quality standards clearance) - Quality achievers
+-- Stage 4: 成果創出＆小チームリーダー (Results creation & small team leader)
+-- Stage 5: 成果創出＆チームリーダー (Results creation & team leader)
+-- Stage 6: 成果創出＆部門マネジメント (Results creation & department management)
+-- Stage 7: 成果創出＆複数部門マネジメント (Results creation & multi-department management)
+-- Stage 8: 全社マネジメント (Company-wide management)
+-- Stage 9: グループ経営 (Group management)
+-- =============================================================================
+
+-- Update existing stages with new names and descriptions
+UPDATE stages SET 
+    name = 'Stage1: スタート',
+    description = '役割・責任: 成長意欲をもち、新しいことにチャレンジし、習得に継続して努力することができます。仕事を選ぶことなく、ルールを守り、最後までやり抜こうとする責任感を持っています。先輩のサポートのもと、基本業務をこなせる存在になっています。求める成果: 基本ルールやオペレーションを理解し、基本業務を遂行できる段階',
+    updated_at = NOW()
+WHERE id = '11111111-2222-3333-4444-555555555555';
+
+UPDATE stages SET 
+    name = 'Stage2: 自己完結',
+    description = '役割・責任: 顧客の求めるものと自身のおかれた状況を把握し、主体的に行動することができます。任された仕事、基本業務を一人で完遂できています。お願いすると安心という信頼を集める存在になっています。',
+    updated_at = NOW()
+WHERE id = '22222222-3333-4444-5555-666666666666';
+
+UPDATE stages SET 
+    name = 'Stage3: 品質基準のクリア',
+    description = '役割・責任: チームの目標達成のために、自分ができることは何かと自問自答し、メンバーと協力すること、仕事の品質を向上させる努力をすることができます。一定の品質レベルに到達し、顧客対応が一人で完遂できています。誰もが安心して仕事を任せることができる存在になっています。',
+    updated_at = NOW()
+WHERE id = '33333333-4444-5555-6666-777777777777';
+
+-- Insert new stages (4-9) with new UUIDs
+INSERT INTO stages (id, name, description) VALUES 
+-- Stage 4
+('44444444-4444-4444-4444-444444444444', 'Stage4: 成果創出＆小チームリーダー', '役割・責任: 特定の分野において専門性を発揮し、新たな価値を生み出すための提案を行なう力があります。1つのチームを担当し、PDCAを回しながらチーム目標を達成することができています。新大陸の品質レベルを超え、さらなる品質向上に徹底的にこだわり、任された仕事について中級レベルの存在になっています。'),
+
+-- Stage 5
+('55555555-5555-5555-5555-555555555555', 'Stage5: 成果創出＆チームリーダー', '役割・責任: 任された仕事について、求められる以上の成果を上げることができる。また、複数のチームまたは全社に関わる重要なPJやタスクフォースの責任者として継続的にチーム目標を達成させています。特定の分野において知識が豊富で、幅広い提案ができ、誰もが高い水準で仕事ができるようチームのレベルを引き上げる存在になっています。'),
+
+-- Stage 6
+('66666666-6666-6666-6666-666666666666', 'Stage6: 成果創出＆部門マネジメント', '役割・責任: 特定の分野において、社内トップレベルの力を持っています。部門長の役割を理解し、困難な状況でも目標達成に向けて、最後まで諦めず工夫し続ける力があります。加えて、全社に関わる重要なPJやタスクフォースの責任者を担い、成果を創出しています。特定の分野に限らず、幅広い専門知識を持ち、既存サービスに捕らわれない新たな企画や開発ができる存在になっています。'),
+
+-- Stage 7
+('77777777-7777-7777-7777-777777777777', 'Stage7: 成果創出＆複数部門マネジメント', '役割・責任: 複数部門の目標と全体戦略との整合性を保ちつつ、部門間の連携を強化し、シナジー効果と成果を創出することができます。部門間のリソース配分、情報共有、目標を設定し、組織全体の効果性と生産性を向上させます。また、部門横断的な課題を特定し、解決策を主導することで、組織全体の成長と発展に貢献できています。さらに、各部門のリーダーを育成し、組織全体のリーダーシップを強化する存在となっています。'),
+
+-- Stage 8
+('88888888-8888-8888-8888-888888888888', 'Stage8: 全社マネジメント', '役割・責任: 経営ビジョンに基づき、中長期戦略を策定し、この戦略に基づいた方針をメンバーに示し舵取りをします。顧客が抱えている課題や、新大陸のリソースを的確に把握し、新たな価値の創造、事業を生み出すことができる存在になっています。'),
+
+-- Stage 9
+('99999999-9999-9999-9999-999999999999', 'Stage9: グループ経営', '役割・責任: グループ各社間のシナジー創出、グループ全体の経営戦略の伴走、グループ企業の事業拡大や新規事業開発、そしてグループ全体の組織文化醸成を担っています。また、グループ企業の代表者として、対外的な関係構築や、ステークホルダーと積極的にコミュニケーションを取り、グループ全体の事業推進をする存在となっています。')
+ON CONFLICT (id) DO NOTHING;
+
+-- Verify the update
+DO $$
+DECLARE
+    stage_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO stage_count FROM stages;
+    
+    IF stage_count = 9 THEN
+        RAISE NOTICE '✅ Successfully updated stages table with 9 stages';
+    ELSE
+        RAISE NOTICE '⚠️  Expected 9 stages, but found % stages', stage_count;
+    END IF;
+END $$;
