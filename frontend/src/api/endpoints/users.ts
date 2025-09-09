@@ -73,4 +73,11 @@ export const usersApi = {
   getProfileOptions: async (): Promise<ApiResponse<ProfileOptionsResponse>> => {
     return httpClient.get<ProfileOptionsResponse>(API_ENDPOINTS.USERS.PROFILE_OPTIONS);
   },
+
+  /**
+   * Update user's stage (admin only)
+   */
+  updateUserStage: async (userId: UUID, data: { stage_id: UUID }): Promise<ApiResponse<UserDetailResponse>> => {
+    return httpClient.patch<UserDetailResponse>(`${API_ENDPOINTS.USERS.BY_ID(userId)}/stage`, data);
+  },
 };
