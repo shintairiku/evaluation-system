@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, text
-from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID, JSONB
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -26,7 +26,7 @@ class Competency(Base):
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id"), nullable=False)
     name = Column(Text, nullable=False)
-    description = Column(Text)
+    description = Column(JSONB)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

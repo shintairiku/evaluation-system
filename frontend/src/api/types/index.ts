@@ -10,6 +10,9 @@ export * from './user';
 // Goal types
 export * from './goal';
 
+// Competency types
+export * from './competency';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;
