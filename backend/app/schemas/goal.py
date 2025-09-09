@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Any, Union, TYPE_CHECKING
+from typing import Optional, List, Any, Union, Dict, TYPE_CHECKING
 from pydantic import BaseModel, Field, model_validator
 from uuid import UUID
 
@@ -37,8 +37,37 @@ class PerformanceGoalTargetData(BaseModel):
 
 
 class CompetencyGoalTargetData(BaseModel):
-    competency_id: UUID = Field(..., description="コンピテンシーID")
+    competency_ids: Optional[List[UUID]] = Field(None, description="コンピテンシーID一覧（任意）")
+    selected_ideal_actions: Optional[Dict[str, List[str]]] = Field(None, description="各コンピテンシーの選択した理想的行動（UUID -> [1-5]）")
     action_plan: str = Field(..., description="行動計画")
+    
+    @model_validator(mode='after')
+    @classmethod
+    def validate_ideal_actions(cls, values):
+        """Validate that selected_ideal_actions correspond to selected competencies"""
+        if values.selected_ideal_actions is not None:
+            # Can only select ideal actions if competency_ids is provided
+            if not values.competency_ids:
+                raise ValueError("selected_ideal_actions can only be specified when competency_ids is provided")
+            
+            # Convert competency_ids to string for comparison (as keys in dict are strings)
+            competency_id_strings = {str(comp_id) for comp_id in values.competency_ids}
+            ideal_action_keys = set(values.selected_ideal_actions.keys())
+            
+            # Check that all ideal action keys correspond to selected competencies
+            invalid_keys = ideal_action_keys - competency_id_strings
+            if invalid_keys:
+                raise ValueError(f"selected_ideal_actions contains keys for non-selected competencies: {invalid_keys}")
+            
+            # Validate ideal action values for each competency
+            valid_action_keys = {'1', '2', '3', '4', '5'}
+            for competency_id, actions in values.selected_ideal_actions.items():
+                if not isinstance(actions, list):
+                    raise ValueError(f"Ideal actions for competency {competency_id} must be a list")
+                if not all(action in valid_action_keys for action in actions):
+                    raise ValueError(f"Ideal actions for competency {competency_id} must contain only '1', '2', '3', '4', or '5'")
+        
+        return values
 
 
 # class CoreValueGoalTargetData(BaseModel):
@@ -69,8 +98,9 @@ class GoalCreate(BaseModel):
     
     model_config = {"populate_by_name": True}
     
-    # Competency goal fields (2 fields) - required when goal_category = "コンピテンシー"
-    competency_id: Optional[UUID] = Field(None, alias="competencyId", description="コンピテンシーID")
+    # Competency goal fields - only action_plan required when goal_category = "コンピテンシー"
+    competency_ids: Optional[List[UUID]] = Field(None, alias="competencyIds", description="コンピテンシーID一覧")
+    selected_ideal_actions: Optional[Dict[str, List[str]]] = Field(None, alias="selectedIdealActions", description="各コンピテンシーの選択した理想的行動")
     action_plan: Optional[str] = Field(None, alias="actionPlan", description="行動計画")
     
     @model_validator(mode='after')
@@ -110,18 +140,40 @@ class GoalCreate(BaseModel):
                 raise ValueError(f"Performance goals require: {', '.join(missing_fields)}")
                 
         elif goal_category == "コンピテンシー":  # Competency goal
-            # Check for 2 competency goal specific fields
-            competency_id_value = values.get('competency_id') or values.get('competencyId')
+            # Only action_plan is required for competency goals
             action_plan_value = values.get('action_plan') or values.get('actionPlan')
             
-            missing_fields = []
-            if competency_id_value is None:
-                missing_fields.append('competencyId')
             if action_plan_value is None:
-                missing_fields.append('actionPlan')
+                raise ValueError("Competency goals require: actionPlan")
+            
+            # If competency_ids is provided, validate selected_ideal_actions relationship
+            competency_ids_value = values.get('competency_ids') or values.get('competencyIds')
+            selected_actions = values.get('selected_ideal_actions') or values.get('selectedIdealActions')
+            
+            if selected_actions and not competency_ids_value:
+                raise ValueError("selectedIdealActions can only be specified when competencyIds is provided")
+            
+            # Validate ideal actions format if provided
+            if selected_actions and competency_ids_value:
+                # Validate that it's a dict with UUID keys and list values
+                if not isinstance(selected_actions, dict):
+                    raise ValueError("selectedIdealActions must be an object with competency UUIDs as keys")
                 
-            if missing_fields:
-                raise ValueError(f"Competency goals require: {', '.join(missing_fields)}")
+                # Convert competency_ids to strings for comparison
+                competency_id_strings = {str(comp_id) for comp_id in competency_ids_value}
+                
+                # Check that all ideal action keys correspond to selected competencies
+                invalid_keys = set(selected_actions.keys()) - competency_id_strings
+                if invalid_keys:
+                    raise ValueError(f"selectedIdealActions contains keys for non-selected competencies: {invalid_keys}")
+                
+                # Validate ideal action values for each competency
+                valid_keys = {'1', '2', '3', '4', '5'}
+                for competency_id, actions in selected_actions.items():
+                    if not isinstance(actions, list):
+                        raise ValueError(f"Ideal actions for competency {competency_id} must be a list")
+                    if not all(action in valid_keys for action in actions):
+                        raise ValueError(f"Ideal actions for competency {competency_id} must contain only '1', '2', '3', '4', or '5'")
         
         return values
 
@@ -139,7 +191,8 @@ class PerformanceGoalUpdate(BaseModel):
 class CompetencyGoalUpdate(BaseModel):
     """Schema for updating competency goals only"""
     weight: Optional[float] = Field(None, ge=0, le=100)
-    competency_id: Optional[UUID] = Field(None, alias="competencyId")
+    competency_ids: Optional[List[UUID]] = Field(None, alias="competencyIds")
+    selected_ideal_actions: Optional[Dict[str, List[str]]] = Field(None, alias="selectedIdealActions")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
 
 
@@ -228,8 +281,9 @@ class Goal(BaseModel):
     means_methods_text: Optional[str] = Field(None, alias="meansMethodsText")
     
     # Competency Goal fields (goal_category = "コンピテンシー")
-    competency_id: Optional[UUID] = Field(None, alias="competencyId")
-    competency_name: Optional[str] = Field(None, alias="competencyName")  # Looked up from competency table
+    competency_ids: Optional[List[UUID]] = Field(None, alias="competencyIds")
+    competency_names: Optional[Dict[str, str]] = Field(None, alias="competencyNames")  # UUID -> Name mapping
+    selected_ideal_actions: Optional[Dict[str, List[str]]] = Field(None, alias="selectedIdealActions")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
     # Core Value Goal fields (goal_category = "コアバリュー")
