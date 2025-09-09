@@ -93,8 +93,8 @@ class Goal(Base):
             self._validate_performance_goal_schema(target_data, required_fields, optional_fields)
             
         elif category == "コンピテンシー":  # Competency Goal
-            required_fields = ["competency_id", "action_plan"]
-            optional_fields = []
+            required_fields = ["action_plan"]
+            optional_fields = ["competency_ids", "selected_ideal_actions"]
             self._validate_competency_goal_schema(target_data, required_fields, optional_fields)
             
         elif category == "コアバリュー":  # Core Value Goal
@@ -147,13 +147,42 @@ class Goal(Base):
         if missing:
             raise ValueError(f"Missing required fields in competency goal: {missing}")
         
-        # Validate competency_id is UUID string format
-        if "competency_id" in data and data["competency_id"] is not None:
+        # Validate selected_ideal_actions can only exist with competency_ids
+        if "selected_ideal_actions" in data and data["selected_ideal_actions"] is not None:
+            if not data.get("competency_ids"):
+                raise ValueError("selected_ideal_actions can only be specified when competency_ids is provided")
+            
+            # Validate it's a dict
+            if not isinstance(data["selected_ideal_actions"], dict):
+                raise ValueError("selected_ideal_actions must be a dictionary")
+            
+            # Convert competency_ids to strings for comparison
+            competency_id_strings = {str(comp_id) for comp_id in data["competency_ids"]}
+            
+            # Check that all ideal action keys correspond to selected competencies
+            invalid_keys = set(data["selected_ideal_actions"].keys()) - competency_id_strings
+            if invalid_keys:
+                raise ValueError(f"selected_ideal_actions contains keys for non-selected competencies: {invalid_keys}")
+            
+            # Validate ideal action values for each competency
+            valid_keys = {'1', '2', '3', '4', '5'}
+            for competency_id, actions in data["selected_ideal_actions"].items():
+                if not isinstance(actions, list):
+                    raise ValueError(f"Ideal actions for competency {competency_id} must be a list")
+                if not all(str(action) in valid_keys for action in actions):
+                    raise ValueError(f"Ideal actions for competency {competency_id} must contain only '1', '2', '3', '4', or '5'")
+        
+        # Validate competency_ids are UUID string format
+        if "competency_ids" in data and data["competency_ids"] is not None:
+            if not isinstance(data["competency_ids"], list):
+                raise ValueError("competency_ids must be a list")
+            
             try:
                 from uuid import UUID
-                UUID(str(data["competency_id"]))
+                for comp_id in data["competency_ids"]:
+                    UUID(str(comp_id))
             except (ValueError, TypeError):
-                raise ValueError("competency_id must be a valid UUID string")
+                raise ValueError("All competency_ids must be valid UUID strings")
         
         # Validate action_plan is string
         if "action_plan" in data and data["action_plan"] is not None:
