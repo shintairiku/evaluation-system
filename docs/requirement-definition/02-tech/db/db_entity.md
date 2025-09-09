@@ -201,7 +201,7 @@ erDiagram
 | id | uuid | 主キー、自動生成 |
 | stage_id | uuid | ステージID、外部キー |
 | name | text | コンピテンシー名（例：問題解決能力）、ユニーク |
-| description | text | コンピテンシーの説明 (Null許容) |
+| description | jsonb | コンピテンシーの理想的な行動  |
 | created_at | timestamp | 作成日時 |
 | updated_at | timestamp | 更新日時 |
 
