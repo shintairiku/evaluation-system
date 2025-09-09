@@ -397,6 +397,7 @@ class UserService:
             logger.error(f"Error updating user {user_id}: {str(e)}")
             raise
     
+    @require_permission(Permission.STAGE_MANAGE)
     async def update_user_stage(
         self, 
         user_id: UUID, 
@@ -407,7 +408,7 @@ class UserService:
         Update user's stage (admin only)
         
         Business Logic:
-        - Only admin can update user stages
+        - Only admin can update user stages (enforced via Permission.STAGE_MANAGE)
         - Validate that stage exists
         - Update user's stage_id directly
         """
