@@ -528,19 +528,21 @@ class GoalService:
         if not period:
             raise BadRequestError(f"Evaluation period {goal_data.period_id} not found")
         
-        # Check if competency exists (for competency goals)
-        if goal_data.goal_category == "コンピテンシー" and goal_data.competency_id:
-            competency = await self.competency_repo.get_by_id(goal_data.competency_id)
-            if not competency:
-                raise BadRequestError(f"Competency {goal_data.competency_id} not found")
+        # Check if competencies exist (for competency goals)
+        if goal_data.goal_category == "コンピテンシー" and goal_data.competency_ids:
+            for competency_id in goal_data.competency_ids:
+                competency = await self.competency_repo.get_by_id(competency_id)
+                if not competency:
+                    raise BadRequestError(f"Competency {competency_id} not found")
 
     async def _validate_goal_update(self, goal_data: GoalUpdate, existing_goal: GoalModel):
         """Validate goal update business rules."""
-        # Check if competency exists (for competency goals)
-        if isinstance(goal_data, CompetencyGoalUpdate) and goal_data.competency_id:
-            competency = await self.competency_repo.get_by_id(goal_data.competency_id)
-            if not competency:
-                raise BadRequestError(f"Competency {goal_data.competency_id} not found")
+        # Check if competencies exist (for competency goals)
+        if isinstance(goal_data, CompetencyGoalUpdate) and goal_data.competency_ids:
+            for competency_id in goal_data.competency_ids:
+                competency = await self.competency_repo.get_by_id(competency_id)
+                if not competency:
+                    raise BadRequestError(f"Competency {competency_id} not found")
 
     async def _validate_weight_limits(
         self,
