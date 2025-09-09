@@ -21,10 +21,13 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate }: Or
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load org chart data when switching to readonly mode (only if no filtered users)
+  // Load org chart data when switching to readonly mode
   useEffect(() => {
     if (!editMode) {
-      const hasFilteredUsers = users && users.length > 0;
+      // Heuristic: treat as "filtered" only when more than 1 user is supplied.
+      // When employees land with only themselves available from RBAC-limited list (1 user),
+      // we still load the full org-chart dataset so counts and departments render correctly.
+      const hasFilteredUsers = users && users.length > 1;
       
       if (hasFilteredUsers) {
         // Skip loading org chart data if we have filtered users from search
@@ -32,7 +35,7 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate }: Or
         setLoading(false);
         setError(null);
       } else {
-        // Load org chart data only when no filtered users
+        // Load org chart data when there are no or only a single pre-supplied user
         setLoading(true);
         setError(null);
         
@@ -61,7 +64,7 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate }: Or
 
   const renderReadOnlyView = () => {
     // Priority: Use filtered users from search if available
-    const hasFilteredUsers = users && users.length > 0;
+    const hasFilteredUsers = users && users.length > 1;
     
     if (hasFilteredUsers) {
       return <ReadOnlyOrganizationView users={users} />;
