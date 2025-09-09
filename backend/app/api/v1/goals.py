@@ -198,15 +198,16 @@ async def delete_goal(
 @router.post("/{goal_id}/submit", response_model=Goal)
 async def submit_goal(
     goal_id: UUID,
+    status: str = Query(..., description="Target status: 'draft' or 'pending_approval'"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
-    """Submit a goal for approval (goal owner only)."""
+    """Submit a goal with specified status (goal owner only)."""
     try:
         service = GoalService(session)
         
-        # Submit goal for approval using dedicated status update method
-        result = await service.submit_goal_for_approval(goal_id, context)
+        # Submit goal with specified status
+        result = await service.submit_goal(goal_id, status, context)
         
         return result
     except NotFoundError as e:
