@@ -684,13 +684,13 @@ async def get_competencies(self, current_user_context: AuthContext, stage_ids: O
             raise PermissionDeniedError("User has no stage assigned")
         stage_ids = [user_stage_id]  # Restrict to user's own stage
     
-    competencies = await self.competency_repo.search_competencies(stage_ids=stage_ids)
+    competencies = await self.competency_repo.search(stage_ids=stage_ids)
     return competencies
 
 @require_permission(Permission.COMPETENCY_MANAGE)
 async def create_competency(self, competency_data: CompetencyCreate, current_user_context: AuthContext):
     # Admin-only operation - decorator enforces this
-    return await self.competency_repo.create_competency(competency_data)
+    return await self.competency_repo.create(competency_data)
 ```
 
 #### ✅ Role Service (`role_service.py`)

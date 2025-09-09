@@ -283,7 +283,7 @@ class StageService:
             List[Competency]: List of competencies for the stage
         """
         try:
-            competency_models = await self.competency_repo.get_competencies_by_stage_id(stage_id)
+            competency_models = await self.competency_repo.get_by_stage_id(stage_id)
             
             # Convert to schema objects
             competencies = []

@@ -327,8 +327,10 @@ class GoalRepository:
             
             elif isinstance(goal_data, CompetencyGoalUpdate):
                 # Competency goal fields
-                if goal_data.competency_id is not None:
-                    target_data_updates["competency_id"] = str(goal_data.competency_id)
+                if goal_data.competency_ids is not None:
+                    target_data_updates["competency_ids"] = [str(cid) for cid in goal_data.competency_ids]
+                if goal_data.selected_ideal_actions is not None:
+                    target_data_updates["selected_ideal_actions"] = goal_data.selected_ideal_actions
                 if goal_data.action_plan is not None:
                     target_data_updates["action_plan"] = goal_data.action_plan
             
@@ -609,9 +611,13 @@ class GoalRepository:
             }
         elif goal_data.goal_category == "コンピテンシー":  # Competency goal
             target_data = {
-                "competency_id": str(goal_data.competency_id) if goal_data.competency_id else None,
                 "action_plan": goal_data.action_plan
             }
+            # Only include optional fields if they have values
+            if goal_data.competency_ids:
+                target_data["competency_ids"] = [str(cid) for cid in goal_data.competency_ids]
+            if goal_data.selected_ideal_actions:
+                target_data["selected_ideal_actions"] = goal_data.selected_ideal_actions
         elif goal_data.goal_category == "コアバリュー":  # Core value goal
             target_data = {
                 "core_value_plan": goal_data.core_value_plan

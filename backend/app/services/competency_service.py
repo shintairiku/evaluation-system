@@ -87,7 +87,7 @@ class CompetencyService:
                 return PaginatedResponse.model_validate_json(cached_data)
             
             # Get competencies from repository
-            competencies = await self.competency_repo.search_competencies(
+            competencies = await self.competency_repo.search(
                 search_term=search_term,
                 stage_ids=filtered_stage_ids
             )
@@ -142,7 +142,7 @@ class CompetencyService:
             # Permission check handled by @require_any_permission decorator
             
             # Get competency from repository
-            competency = await self.competency_repo.get_competency_by_id_with_stage(competency_id)
+            competency = await self.competency_repo.get_by_id(competency_id)
             if not competency:
                 raise NotFoundError(f"Competency with ID {competency_id} not found")
             
@@ -181,12 +181,12 @@ class CompetencyService:
                 raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
             
             # Check for naming conflicts
-            existing_competency = await self.competency_repo.get_competency_by_name(competency_data.name)
+            existing_competency = await self.competency_repo.get_by_name(competency_data.name)
             if existing_competency:
                 raise ConflictError(f"Competency with name '{competency_data.name}' already exists")
             
             # Create competency model
-            competency = await self.competency_repo.create_competency(
+            competency = await self.competency_repo.create(
                 name=competency_data.name,
                 stage_id=competency_data.stage_id,
                 description=competency_data.description
@@ -228,7 +228,7 @@ class CompetencyService:
             # Permission check handled by @require_permission decorator
             
             # Get existing competency
-            existing_competency = await self.competency_repo.get_competency_by_id(competency_id)
+            existing_competency = await self.competency_repo.get_by_id(competency_id)
             if not existing_competency:
                 raise NotFoundError(f"Competency with ID {competency_id} not found")
             
@@ -247,7 +247,7 @@ class CompetencyService:
                     raise ConflictError(f"Competency with name '{competency_data.name}' already exists")
             
             # Update competency
-            updated_competency = await self.competency_repo.update_competency(
+            updated_competency = await self.competency_repo.update(
                 competency_id=competency_id,
                 name=competency_data.name,
                 description=competency_data.description,
@@ -288,7 +288,7 @@ class CompetencyService:
             # Permission check handled by @require_permission decorator
             
             # Get existing competency
-            existing_competency = await self.competency_repo.get_competency_by_id(competency_id)
+            existing_competency = await self.competency_repo.get_by_id(competency_id)
             if not existing_competency:
                 raise NotFoundError(f"Competency with ID {competency_id} not found")
             
@@ -297,7 +297,7 @@ class CompetencyService:
             # For now, we'll allow deletion
             
             # Delete competency
-            deleted = await self.competency_repo.delete_competency_by_id(competency_id)
+            deleted = await self.competency_repo.delete(competency_id)
             
             if deleted:
                 # Commit transaction
@@ -334,13 +334,13 @@ class CompetencyService:
             # Apply stage-based filtering for non-admin users
             if current_user_context.is_admin():
                 # Admin can see all competencies
-                competencies = await self.competency_repo.get_all_competencies()
+                competencies = await self.competency_repo.get_all()
             else:
                 # Non-admin users can only see competencies for their own stage
                 user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
                 if user_stage_id is None:
                     raise PermissionDeniedError("User has no stage assigned")
-                competencies = await self.competency_repo.get_competencies_by_stage_id(user_stage_id)
+                competencies = await self.competency_repo.get_by_stage_id(user_stage_id)
             
             # Convert to schema objects
             competency_schemas = []
@@ -379,7 +379,7 @@ class CompetencyService:
                 raise NotFoundError(f"Stage with ID {stage_id} not found")
             
             # Get competencies for stage
-            competencies = await self.competency_repo.get_competencies_by_stage_id(stage_id)
+            competencies = await self.competency_repo.get_by_stage_id(stage_id)
             
             # Convert to schema objects
             competency_schemas = []

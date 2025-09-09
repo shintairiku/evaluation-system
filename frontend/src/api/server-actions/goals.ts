@@ -116,14 +116,15 @@ try {
 }
 
 // Submit goal
-export async function submitGoalAction(id: UUID): Promise<{
+export async function submitGoalAction(id: UUID, status: 'draft' | 'pending_approval'): Promise<{
     success: boolean;
     data?: GoalResponse;
     error?: string;
   }> {
     try {
       const http = getHttpClient();
-      const res = await http.post<GoalResponse>(API_ENDPOINTS.GOALS.SUBMIT(id));
+      const endpoint = `${API_ENDPOINTS.GOALS.SUBMIT(id)}?status=${status}`;
+      const res = await http.post<GoalResponse>(endpoint);
       if (!res.success || !res.data) {
         return { success: false, error: res.errorMessage || 'Failed to submit goal' };
       }
