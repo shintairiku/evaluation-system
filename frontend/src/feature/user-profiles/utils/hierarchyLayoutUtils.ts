@@ -174,21 +174,22 @@ export function detectFilterType(users: OrganizationUser[]): FilterType {
   const stages = new Set(users.map(u => getStageId(u)).filter(Boolean));
   const statuses = new Set(users.map(u => u.status).filter(Boolean));
   
-  // Priority order: stage > status > role > department
+  // Priority order adjusted: stage > department > role > status
+  // Rationale: org-chart data is often uniformly 'active'; department filter should take precedence
   if (stages.size === 1 && users.length > 0) {
     return 'stage';
   }
   
-  if (statuses.size === 1 && users.length > 0) {
-    return 'status';
+  if (userDepartmentIds.size === 1) {
+    return 'department';
   }
   
   if (hasCommonRole(users)) {
     return 'role';
   }
   
-  if (userDepartmentIds.size === 1) {
-    return 'department';
+  if (statuses.size === 1 && users.length > 0) {
+    return 'status';
   }
   
   return userDepartmentIds.size > 1 ? 'mixed' : 'none';
