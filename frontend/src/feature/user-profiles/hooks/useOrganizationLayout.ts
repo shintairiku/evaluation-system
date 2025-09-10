@@ -102,9 +102,12 @@ export function useOrganizationLayout({
     const totalLayoutWidth = totalDepartmentsWidth + totalSpacing;
     
     // For flat layouts (stage/role/status), center company differently
-    const companyX = totalLayoutWidth > 0 
-      ? startX + (totalLayoutWidth / 2) - 128
-      : 400; // Center company when no departments
+    // If there is exactly one department, align company directly above it to keep the edge perfectly vertical
+    const companyX = filteredDepartments.length === 1
+      ? startX
+      : (totalLayoutWidth > 0 
+          ? startX + (totalLayoutWidth / 2) - 128
+          : 400); // Center company when no departments
 
     // Add company node
     nodeList.push({
@@ -149,15 +152,16 @@ export function useOrganizationLayout({
           }
         });
 
-        // Add company to department edge (keep this single structural edge)
+        // Add company to department edge
         if (!edgeList.some(e => e.id === `company-${department.id}`)) {
+          const edgeType = filteredDepartments.length === 1 ? 'straight' : 'smoothstep';
           edgeList.push({
             id: `company-${department.id}`,
             source: 'company-root',
             target: department.id,
             sourceHandle: 'bottom',
             targetHandle: 'top',
-            type: 'smoothstep',
+            type: edgeType,
             style: { 
               stroke: '#3b82f6', 
               strokeWidth: 3,
