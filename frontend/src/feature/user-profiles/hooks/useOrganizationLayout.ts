@@ -5,13 +5,14 @@ import { useMemo } from 'react';
 import type { Node, Edge } from 'reactflow';
 import { MarkerType } from 'reactflow';
 import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
-import { 
-  calculateDepartmentWidth, 
-  findRootUsers, 
+import {
+  calculateDepartmentWidth,
+  findRootUsers,
   LAYOUT_CONSTANTS,
   calculateDynamicSpacing,
   detectFilterType,
-  createFlatUserLayout
+  createFlatUserLayout,
+  usersAreLowRoleResults,
 } from '../utils/hierarchyLayoutUtils';
 
 type OrganizationUser = UserDetailResponse | SimpleUser;
@@ -52,11 +53,7 @@ export function useOrganizationLayout({
 
     // Detect filter type to adapt layout strategy
     const filterType = detectFilterType(users);
-    // When role filter is applied we still prefer department-first layout (company → department → users on click)
-    const LOW_ROLE_KEYWORDS = ['employee', 'viewer', 'part-time', 'parttime', 'part time'];
-    const allLowRoles = users.length > 0 && users.every(u =>
-      (u as any)?.roles?.some((r: any) => LOW_ROLE_KEYWORDS.some(k => String(r?.name || '').toLowerCase().includes(k)))
-    );
+    const allLowRoles = usersAreLowRoleResults(users);
     // Flat layout for stage/role/status (company → users) unless forceDepartmentLayout=true
     const isFlatLayout = !forceDepartmentLayout && (filterType === 'stage' || filterType === 'role' || filterType === 'status');
     
