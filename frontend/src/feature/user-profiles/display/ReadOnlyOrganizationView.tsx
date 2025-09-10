@@ -18,6 +18,7 @@ import { useOrganizationLayout } from '../hooks/useOrganizationLayout';
 
 interface ReadOnlyOrganizationViewProps {
   users?: UserDetailResponse[] | SimpleUser[];
+  isFiltered?: boolean;
 }
 
 const nodeTypes: NodeTypes = {
@@ -25,7 +26,7 @@ const nodeTypes: NodeTypes = {
   userNode: UserNode,
 };
 
-export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganizationViewProps) {
+export default function ReadOnlyOrganizationView({ users = [], isFiltered = false }: ReadOnlyOrganizationViewProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
   const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map());
@@ -41,7 +42,7 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
           setDepartments(result.data.departments);
         }
 
-        if (users.length === 0) {
+        if (!isFiltered && users.length === 0) {
           setLoadingNodes(prev => new Set(prev).add('initial'));
           const topLevelResult = await getUsersForOrgChartAction({
             supervisor_id: undefined
@@ -84,7 +85,7 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     };
     
     loadInitialData();
-  }, [users]);
+  }, [users, isFiltered]);
 
   const handleDepartmentClick = useCallback(async (departmentId: string) => {
     const isCurrentlyExpanded = expandedDepartments.has(departmentId);
@@ -178,8 +179,9 @@ export default function ReadOnlyOrganizationView({ users = [] }: ReadOnlyOrganiz
     departmentUserCounts,
     onDepartmentClick: handleDepartmentClick,
     onUserClick: handleUserClick,
-    // Force department-first layout for read-only browsing so employees see company -> departments -> users
-    forceDepartmentLayout: true
+    // Match admin/supervisor behavior: department-first only when not filtered;
+    // for filtered views, allow flat/role/status layouts
+    forceDepartmentLayout: !isFiltered
   });
 
   const [nodesState, setNodes] = useNodesState(nodes);
