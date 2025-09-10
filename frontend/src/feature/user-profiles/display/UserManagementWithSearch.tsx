@@ -21,6 +21,9 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   const [, setTotalUsers] = useState<number>(initialUsers.length);
   const [error, setError] = useState<string | null>(null);
   const [isFiltered, setIsFiltered] = useState<boolean>(false);
+  // Keep Organization Chart dataset isolated so filters there don't affect Table/Gallery
+  const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>([]);
+  const [orgIsFiltered, setOrgIsFiltered] = useState<boolean>(false);
 
   const { viewMode, setViewMode } = useViewMode('table');
 
@@ -43,10 +46,25 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
 
   // Callback to handle search results from UserSearch component
   const handleSearchResults = (searchUsers: UserDetailResponse[], total: number, isFilteredArg?: boolean) => {
-    setUsers(searchUsers);
-    setTotalUsers(total);
     setError(null);
-    setIsFiltered(Boolean(isFilteredArg));
+    if (viewMode === 'organization') {
+      // Apply only to Organization Chart
+      setOrgUsers(searchUsers);
+      setOrgIsFiltered(Boolean(isFilteredArg));
+      // Do not touch table/gallery dataset
+    } else {
+      // For other views (e.g., admin/supervisor paths), keep default behavior
+      // Employee heuristic: initialUsers length == 1 → clamp Table/Gallery to self only
+      if (initialUsers.length === 1) {
+        setUsers(initialUsers);
+        setTotalUsers(1);
+        setIsFiltered(false);
+        return;
+      }
+      setUsers(searchUsers);
+      setTotalUsers(total);
+      setIsFiltered(Boolean(isFilteredArg));
+    }
   };
 
   const renderCurrentView = () => {
@@ -56,7 +74,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
       case 'gallery':
         return <UserGalleryView users={users} onUserUpdate={handleUserUpdate} />;
       case 'organization':
-        return <OrganizationViewWithOrgChart users={users} onUserUpdate={handleUserUpdate} isFiltered={isFiltered} />;
+        return <OrganizationViewWithOrgChart users={orgUsers} onUserUpdate={handleUserUpdate} isFiltered={orgIsFiltered} />;
       default:
         return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
     }
