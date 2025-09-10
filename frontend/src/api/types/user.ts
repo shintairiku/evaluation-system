@@ -1,4 +1,5 @@
 import { UUID, Permission, PaginatedResponse } from './common';
+import { Stage } from './competency';
 
 export enum UserStatus {
   PENDING_APPROVAL = 'pending_approval',
@@ -34,43 +35,6 @@ export interface DepartmentUpdate {
   description?: string;
 }
 
-export interface Stage {
-  id: UUID;
-  name: string;
-  description?: string;
-}
-
-// Temporary Competency interface - will be moved to separate file when competency module is implemented
-export interface Competency {
-  id: UUID;
-  name: string;
-  description?: string;
-  stage_id: UUID;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StageDetail {
-  id: UUID;
-  name: string;
-  description?: string;
-  created_at: string;
-  updated_at: string;
-  user_count?: number;
-  competency_count?: number;
-  users?: PaginatedResponse<UserDetailResponse>;
-  competencies?: Competency[]; // TODO: Define Competency type when competency module is implemented
-}
-
-export interface StageCreate {
-  name: string;
-  description?: string;
-}
-
-export interface StageUpdate {
-  name?: string;
-  description?: string;
-}
 
 export interface Role {
   id: UUID;

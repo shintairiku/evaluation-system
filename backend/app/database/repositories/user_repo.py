@@ -383,8 +383,7 @@ class UserRepository:
                 existing_user.job_title = user_data.job_title
             if user_data.department_id is not None:
                 existing_user.department_id = user_data.department_id
-            if user_data.stage_id is not None:
-                existing_user.stage_id = user_data.stage_id
+            # stage_id removed - use dedicated admin-only update_user_stage method
             if user_data.status is not None:
                 existing_user.status = user_data.status
             
@@ -418,6 +417,26 @@ class UserRepository:
             
         except SQLAlchemyError as e:
             logger.error(f"Error updating clerk_user_id for user {user_id}: {e}")
+            raise
+
+    async def update_user_stage(self, user_id: UUID, stage_id: UUID) -> Optional[User]:
+        """Update user's stage (admin only - does not commit)."""
+        try:
+            # Get the existing user
+            existing_user = await self.get_user_by_id(user_id)
+            if not existing_user:
+                return None
+            
+            # Update stage_id
+            existing_user.stage_id = stage_id
+            
+            # Mark as modified in session
+            self.session.add(existing_user)
+            logger.info(f"Updated user stage in session: {existing_user.email} -> stage {stage_id}")
+            return existing_user
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Error updating user stage {user_id}: {e}")
             raise
 
     async def assign_roles_to_user(self, user_id: UUID, role_ids: list[int]) -> None:

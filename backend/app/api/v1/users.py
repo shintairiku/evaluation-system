@@ -4,10 +4,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.user import User, UserCreate, UserUpdate, UserDetailResponse, UserStatus, UserExistsResponse, ProfileOptionsResponse, SimpleUser
+from ...schemas.user import User, UserCreate, UserUpdate, UserStageUpdate, UserDetailResponse, UserStatus, UserExistsResponse, ProfileOptionsResponse
 from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
 from ...security import AuthContext, get_auth_context
+from ...security.dependencies import require_admin
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -227,6 +228,41 @@ async def update_user(
     except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+
+@router.patch("/{user_id}/stage", response_model=UserDetailResponse)
+async def update_user_stage(
+    user_id: UUID,
+    stage_update: UserStageUpdate,
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Update user's stage (admin only)."""
+    try:
+        service = UserService(session)
+        result = await service.update_user_stage(user_id, stage_update, context)
+        return result
+        
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except PermissionDeniedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
     except ValidationError as e:

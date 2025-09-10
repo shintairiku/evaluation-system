@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Optional, List, TYPE_CHECKING
-from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, TYPE_CHECKING
+from pydantic import BaseModel, Field, validator
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -12,8 +12,17 @@ if TYPE_CHECKING:
 
 class CompetencyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
+    description: Optional[Dict[str, str]] = Field(None, description="Sub-items with keys '1' through '5'")
     stage_id: UUID = Field(..., alias="stageId")
+    
+    @validator('description')
+    def validate_description(cls, v):
+        if v is not None:
+            # Check that keys are only '1', '2', '3', '4', '5'
+            valid_keys = {'1', '2', '3', '4', '5'}
+            if not all(key in valid_keys for key in v.keys()):
+                raise ValueError("Description keys must be '1', '2', '3', '4', or '5'")
+        return v
     
     class Config:
         populate_by_name = True
@@ -21,15 +30,24 @@ class CompetencyCreate(BaseModel):
 
 class CompetencyUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
+    description: Optional[Dict[str, str]] = Field(None, description="Sub-items with keys '1' through '5'")
     stage_id: Optional[UUID] = Field(None, alias="stageId")
+    
+    @validator('description')
+    def validate_description(cls, v):
+        if v is not None:
+            # Check that keys are only '1', '2', '3', '4', '5'
+            valid_keys = {'1', '2', '3', '4', '5'}
+            if not all(key in valid_keys for key in v.keys()):
+                raise ValueError("Description keys must be '1', '2', '3', '4', or '5'")
+        return v
 
 
 class Competency(BaseModel):
     """Basic competency information"""
     id: UUID
     name: str
-    description: Optional[str] = None
+    description: Optional[Dict[str, str]] = None
     stage_id: UUID = Field(..., alias="stageId")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
@@ -43,7 +61,7 @@ class CompetencyDetail(BaseModel):
     """Detailed competency information with relationships"""
     id: UUID
     name: str
-    description: Optional[str] = None
+    description: Optional[Dict[str, str]] = None
     stage_id: UUID = Field(..., alias="stageId")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")

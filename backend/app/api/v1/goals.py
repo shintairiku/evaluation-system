@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +20,7 @@ async def get_goals(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
     goal_category: Optional[str] = Query(None, alias="goalCategory", description="Filter by goal category (業績目標, コンピテンシー, コアバリュー)"),
-    status: Optional[str] = Query(None, description="Filter by status (draft, incomplete, pending_approval, approved, rejected)"),
+    status: Optional[List[str]] = Query(None, description="Filter by status (draft, incomplete, pending_approval, approved, rejected)"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -198,15 +198,16 @@ async def delete_goal(
 @router.post("/{goal_id}/submit", response_model=Goal)
 async def submit_goal(
     goal_id: UUID,
+    status: str = Query(..., description="Target status: 'draft' or 'pending_approval'"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
-    """Submit a goal for approval (goal owner only)."""
+    """Submit a goal with specified status (goal owner only)."""
     try:
         service = GoalService(session)
         
-        # Submit goal for approval using dedicated status update method
-        result = await service.submit_goal_for_approval(goal_id, context)
+        # Submit goal with specified status
+        result = await service.submit_goal(goal_id, status, context)
         
         return result
     except NotFoundError as e:
