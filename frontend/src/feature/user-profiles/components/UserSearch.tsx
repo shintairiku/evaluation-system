@@ -10,8 +10,10 @@ import type { UserDetailResponse, Department, Stage, Role, UserList } from '@/ap
 import { searchUsersAction, getProfileOptionsAction, SearchUsersParams } from '@/api/server-actions/users';
 
 interface UserSearchProps {
-  onSearchResults: (users: UserDetailResponse[], total: number) => void;
+  onSearchResults: (users: UserDetailResponse[], total: number, isFiltered?: boolean) => void;
   initialUsers?: UserDetailResponse[];
+  // When true, search uses org-chart dataset (readonly) for Organization Chart view
+  useOrgChartDataset?: boolean;
 }
 
 interface SearchState {
@@ -45,7 +47,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-export default function UserSearch({ onSearchResults, initialUsers = [] }: UserSearchProps) {
+export default function UserSearch({ onSearchResults, initialUsers = [], useOrgChartDataset = false }: UserSearchProps) {
   const [searchParams, setSearchParams] = React.useState<SearchUsersParams>({
     query: '',
     department_id: 'all',
@@ -74,7 +76,9 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
   onSearchResultsRef.current = onSearchResults;
 
   // Increased debounce delay to reduce API calls
-  const debouncedQuery = useDebounce(searchParams.query, 800);
+  const debouncedQuery = useDebounce<string>(searchParams.query || '', 800);
+  // Track if the last emitted results are considered filtered
+  const [wasFiltered, setWasFiltered] = React.useState(false);
 
   // Server action wrapper for useActionState
   const searchActionWrapper = async (
@@ -92,6 +96,25 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
     };
 
     try {
+      if (useOrgChartDataset) {
+        const { searchOrgChartUsersAction } = await import('@/api/server-actions/users');
+        const orgResult = await searchOrgChartUsersAction({
+          query: params.query,
+          department_id: params.department_id,
+          role_id: params.role_id,
+          status: params.status,
+          supervisor_id: params.supervisor_id,
+          page: params.page,
+          limit: params.limit,
+        });
+
+        if (!orgResult.success || !orgResult.data) {
+          return { users: [], total: 0, loading: false, error: orgResult.error || 'Search failed' };
+        }
+
+        return { users: orgResult.data as unknown as UserDetailResponse[], total: orgResult.total || orgResult.data.length, loading: false, error: null };
+      }
+
       const result = await searchUsersAction(params);
       
       if (result.success && result.data) {
@@ -154,28 +177,29 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
     fetchProfileOptions();
   }, []);
 
-  // FIXED: Properly initialize with initial users on component mount
+  // Initialize with initial users on component mount
   useEffect(() => {
     if (initialUsers.length > 0) {
-      onSearchResultsRef.current(initialUsers, initialUsers.length);
+      onSearchResultsRef.current(initialUsers, initialUsers.length, false);
     } else {
-      onSearchResultsRef.current([], 0);
+      onSearchResultsRef.current([], 0, false);
     }
   }, [initialUsers]);
 
-  // FIXED: Improved search trigger logic with minimum character validation
+  // Improved search trigger logic with minimum character validation
   useEffect(() => {
     // Only perform server search if there are meaningful search parameters
-    const hasMinimumSearchQuery = debouncedQuery.trim().length >= 2; // Minimum 2 characters
+    const hasMinimumSearchQuery = (debouncedQuery || '').trim().length >= 2; // Minimum 2 characters
     const hasFilters = searchParams.department_id !== 'all' || 
                       searchParams.stage_id !== 'all' || 
                       searchParams.role_id !== 'all' || 
                       searchParams.status !== 'all';
 
     if (hasMinimumSearchQuery || hasFilters) {
+      setWasFiltered(true);
       startTransition(() => {
         const formData = new FormData();
-        formData.append('query', debouncedQuery);
+        formData.append('query', debouncedQuery || '');
         formData.append('department_id', searchParams.department_id || 'all');
         formData.append('stage_id', searchParams.stage_id || 'all');
         formData.append('role_id', searchParams.role_id || 'all');
@@ -185,9 +209,10 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
 
         searchAction(formData);
       });
-    } else if (debouncedQuery.trim().length === 0 && !hasFilters) {
+    } else if ((debouncedQuery || '').trim().length === 0 && !hasFilters) {
       // Clear search - show initial users
-      onSearchResultsRef.current(initialUsers, initialUsers.length);
+      setWasFiltered(false);
+      onSearchResultsRef.current(initialUsers, initialUsers.length, false);
     }
     // If query is 1 character, do nothing (wait for more characters)
   }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status, initialUsers]);
@@ -195,9 +220,9 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
   // Update parent with search results when search state changes
   useEffect(() => {
     if (searchState.users.length > 0 || (searchState.users.length === 0 && searchState.total === 0 && !searchState.loading)) {
-      onSearchResultsRef.current(searchState.users, searchState.total);
+      onSearchResultsRef.current(searchState.users, searchState.total, wasFiltered);
     }
-  }, [searchState.users, searchState.total, searchState.loading]);
+  }, [searchState.users, searchState.total, searchState.loading, wasFiltered]);
 
   // Handle search errors with toast notifications
   useEffect(() => {
@@ -210,8 +235,8 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
   const handleParamChange = useCallback((key: keyof SearchUsersParams, value: string | number) => {
     setSearchParams(prev => ({
       ...prev,
-      [key]: value,
-      page: key !== 'page' ? 1 : value // Reset to page 1 when changing filters
+      [key]: value as any,
+      page: key !== 'page' ? 1 : (typeof value === 'number' ? value : parseInt(String(value), 10) || 1)
     }));
   }, []);
 
@@ -250,7 +275,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [] }: UserS
           disabled={isLoading}
         />
         {/* Show hint for minimum characters */}
-        {searchParams.query.length === 1 && (
+        {(searchParams.query || '').length === 1 && (
           <div className="absolute top-full left-0 mt-1 text-xs text-muted-foreground">
             もう1文字入力してください (最小2文字)
           </div>
