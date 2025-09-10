@@ -15,7 +15,7 @@ from ..security.decorators import require_permission
 from ..security.rbac_types import ResourceType
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
-    UserCreate, UserUpdate, User, UserDetailResponse, UserInDB,
+    UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB,
     Department, Stage, Role, UserStatus, UserExistsResponse, 
     ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate
 )
@@ -395,6 +395,52 @@ class UserService:
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error updating user {user_id}: {str(e)}")
+            raise
+    
+    @require_permission(Permission.STAGE_MANAGE)
+    async def update_user_stage(
+        self, 
+        user_id: UUID, 
+        stage_update: UserStageUpdate, 
+        current_user_context: AuthContext
+    ) -> UserDetailResponse:
+        """
+        Update user's stage (admin only)
+        
+        Business Logic:
+        - Only admin can update user stages (enforced via Permission.STAGE_MANAGE)
+        - Validate that stage exists
+        - Update user's stage_id directly
+        """
+        try:
+            # Check if user exists
+            existing_user = await self.user_repo.get_user_by_id(user_id)
+            if not existing_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
+            
+            # Validate stage exists
+            stage = await self.stage_repo.get_by_id(stage_update.stage_id)
+            if not stage:
+                raise NotFoundError(f"Stage with ID {stage_update.stage_id} not found")
+            
+            # Update user's stage through repository
+            updated_user = await self.user_repo.update_user_stage(user_id, stage_update.stage_id)
+            if not updated_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
+            
+            # Commit the transaction
+            await self.session.commit()
+            await self.session.refresh(updated_user)
+            
+            # Enrich user data for detailed response
+            enriched_user = await self._enrich_detailed_user_data(updated_user)
+            
+            logger.info(f"User stage updated successfully: {user_id} -> stage {stage_update.stage_id}")
+            return enriched_user
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error updating user stage {user_id}: {str(e)}")
             raise
     
     @require_permission(Permission.USER_MANAGE)
