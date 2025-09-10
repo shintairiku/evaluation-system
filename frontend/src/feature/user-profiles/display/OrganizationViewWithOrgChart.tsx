@@ -69,6 +69,17 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate, isFi
   const renderReadOnlyView = () => {
     // Priority: Use filtered users when dataSource indicates filtered
     if (dataSource.mode === 'filtered') {
+      // When filtered result is empty, show the standard empty message and do NOT render the chart
+      if (!dataSource.users || dataSource.users.length === 0) {
+        return (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              該当するユーザーが見つかりませんでした。
+            </AlertDescription>
+          </Alert>
+        );
+      }
       return <ReadOnlyOrganizationView users={dataSource.users} isFiltered />;
     }
 
