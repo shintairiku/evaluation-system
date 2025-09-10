@@ -469,6 +469,7 @@ export async function searchOrgChartUsersAction(params: {
   department_id?: string;
   role_id?: string;
   status?: string; // org-chart returns active only; kept for future parity
+  stage_id?: string; // employees cannot see others' stages; treat as empty result if set
   supervisor_id?: string;
   page?: number; // reserved for future backend pagination
   limit?: number; // reserved for future backend pagination
@@ -479,6 +480,12 @@ export async function searchOrgChartUsersAction(params: {
   error?: string;
 }> {
   try {
+    // Stage filtering is not available in org-chart dataset for employees.
+    // When a stage filter is applied, return an empty result to reflect no accessible data.
+    if (params.stage_id && params.stage_id !== 'all') {
+      return { success: true, data: [], total: 0 };
+    }
+
     const response = await getUsersForOrgChartAction({
       department_ids: params.department_id && params.department_id !== 'all' ? [params.department_id] : undefined,
       role_ids: params.role_id && params.role_id !== 'all' ? [params.role_id] : undefined,

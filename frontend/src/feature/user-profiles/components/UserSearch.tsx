@@ -98,11 +98,23 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
     try {
       if (useOrgChartDataset) {
         const { searchOrgChartUsersAction } = await import('@/api/server-actions/users');
+        // Employee stage visibility constraint: only own stage is visible in org-chart mode
+        if (params.stage_id && params.stage_id !== 'all') {
+          const currentUser = (initialUsers && initialUsers.length > 0) ? initialUsers[0] : undefined;
+          const currentStageId = currentUser?.stage?.id;
+          if (!currentStageId || currentStageId !== params.stage_id) {
+            return { users: [], total: 0, loading: false, error: null };
+          }
+          // If matches, show only self
+          return { users: [currentUser as UserDetailResponse], total: 1, loading: false, error: null };
+        }
+
         const orgResult = await searchOrgChartUsersAction({
           query: params.query,
           department_id: params.department_id,
           role_id: params.role_id,
           status: params.status,
+          stage_id: params.stage_id,
           supervisor_id: params.supervisor_id,
           page: params.page,
           limit: params.limit,
