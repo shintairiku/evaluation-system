@@ -9,111 +9,203 @@ import ReactFlow, {
   NodeTypes,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import type { UserDetailResponse, Department } from '@/api/types';
+import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
 import { Building2 } from 'lucide-react';
-import { getProfileOptionsAction } from '@/api/server-actions/users';
+import { getProfileOptionsAction, getUsersForOrgChartAction } from '@/api/server-actions/users';
+import { getTopUsersByRole } from '../utils/hierarchyLayoutUtils';
 import { OrgNode, UserNode } from '../components/OrganizationNodes';
 import { useOrganizationLayout } from '../hooks/useOrganizationLayout';
 
 interface ReadOnlyOrganizationViewProps {
-  users: UserDetailResponse[];
+  users?: UserDetailResponse[] | SimpleUser[];
+  isFiltered?: boolean;
 }
 
-// Node types for React Flow
 const nodeTypes: NodeTypes = {
   orgNode: OrgNode,
   userNode: UserNode,
 };
 
-export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganizationViewProps) {
+export default function ReadOnlyOrganizationView({ users = [], isFiltered = false }: ReadOnlyOrganizationViewProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
+  const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map());
+  const [departmentUserCounts, setDepartmentUserCounts] = useState<Map<string, number>>(new Map());
+  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
+  const [allUsers, setAllUsers] = useState<(UserDetailResponse | SimpleUser)[]>(users);
 
-  // Load departments on mount
   useEffect(() => {
-    const loadDepartments = async () => {
-      // First, immediately extract departments from users for instant display
-      const userDepartments = users
-        .filter(user => user.department)
-        .map(user => user.department!)
-        .filter((dept, index, self) => 
-          index === self.findIndex(d => d.id === dept.id)
-        );
-      
-      // Set departments immediately from users
-      setDepartments(userDepartments);
-      
-      // Then try to load additional departments from API in background
+    const loadInitialData = async () => {
       try {
         const result = await getProfileOptionsAction();
         if (result && result.success && result.data && result.data.departments) {
-          // Merge API departments with user departments
-          const apiDepartments = result.data.departments;
-          const allDepartments = [...userDepartments];
-          
-          apiDepartments.forEach(apiDept => {
-            if (!allDepartments.find(userDept => userDept.id === apiDept.id)) {
-              allDepartments.push(apiDept);
-            }
+          setDepartments(result.data.departments);
+        }
+
+        if (!isFiltered && users.length === 0) {
+          setLoadingNodes(prev => new Set(prev).add('initial'));
+          const topLevelResult = await getUsersForOrgChartAction({
+            supervisor_id: undefined
           });
           
-          setDepartments(allDepartments);
+          if (topLevelResult.success && topLevelResult.data) {
+            setAllUsers(topLevelResult.data);
+            setLoadedUsers(prev => new Map(prev).set('top-level', topLevelResult.data!));
+            // Precompute department counts so department cards show numbers immediately
+            const counts = new Map<string, number>();
+            topLevelResult.data.forEach(u => {
+              const deptId = u.department?.id;
+              if (deptId) counts.set(deptId, (counts.get(deptId) || 0) + 1);
+            });
+            setDepartmentUserCounts(counts);
+          }
+          setLoadingNodes(prev => {
+            const newSet = new Set(prev);
+            newSet.delete('initial');
+            return newSet;
+          });
+        } else {
+          setAllUsers(users);
+          // If users are provided (e.g., from search), also precompute department counts
+          const counts = new Map<string, number>();
+          users.forEach(u => {
+            const deptId = u.department?.id;
+            if (deptId) counts.set(deptId, (counts.get(deptId) || 0) + 1);
+          });
+          if (counts.size > 0) setDepartmentUserCounts(counts);
         }
       } catch (error) {
-        console.error('Error loading departments from API:', error);
-        // Keep the user departments that were set immediately
+        console.error('Error loading initial organization data:', error);
+        setLoadingNodes(prev => {
+          const newSet = new Set(prev);
+          newSet.delete('initial');
+          return newSet;
+        });
       }
     };
     
-    loadDepartments();
-  }, [users]);
+    loadInitialData();
+  }, [users, isFiltered]);
 
-  // Handle department click to expand/collapse user cards
-  const handleDepartmentClick = useCallback((departmentId: string) => {
-    setExpandedDepartments(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(departmentId)) {
+  const handleDepartmentClick = useCallback(async (departmentId: string) => {
+    const isCurrentlyExpanded = expandedDepartments.has(departmentId);
+    
+    if (isCurrentlyExpanded) {
+      setExpandedDepartments(prev => {
+        const newSet = new Set(prev);
         newSet.delete(departmentId);
+        return newSet;
+      });
+    } else {
+      const cacheKey = `dept-${departmentId}`;
+      const cached = loadedUsers.get(cacheKey);
+      
+      if (cached) {
+        setExpandedDepartments(prev => new Set(prev).add(departmentId));
       } else {
-        newSet.add(departmentId);
+        setLoadingNodes(prev => new Set(prev).add(departmentId));
+        
+        try {
+          const result = await getUsersForOrgChartAction({
+            department_ids: [departmentId]
+          });
+          
+          if (result.success && result.data) {
+            const topUsers = getTopUsersByRole(result.data) as SimpleUser[];
+            setDepartmentUserCounts(prev => new Map(prev).set(departmentId, result.data?.length || 0));
+            setLoadedUsers(prev => new Map(prev).set(cacheKey, topUsers));
+            setExpandedDepartments(prev => new Set(prev).add(departmentId));
+          }
+        } catch (error) {
+          console.error('Error loading department users:', error);
+        } finally {
+          setLoadingNodes(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(departmentId);
+            return newSet;
+          });
+        }
       }
-      return newSet;
-    });
-  }, []);
+    }
+  }, [expandedDepartments, loadedUsers]);
 
-  // Get layout from custom hook
+  const handleUserClick = useCallback(async (userId: string) => {
+    const cacheKey = `user-${userId}`;
+    const cached = loadedUsers.get(cacheKey);
+    
+    if (cached) {
+      return;
+    }
+    
+    setLoadingNodes(prev => new Set(prev).add(userId));
+    
+    try {
+      const result = await getUsersForOrgChartAction({
+        supervisor_id: userId
+      });
+      
+      if (result.success && result.data) {
+        const subordinates = result.data;
+
+        if (!subordinates || subordinates.length === 0) {
+          return;
+        }
+
+        setLoadedUsers(prev => new Map(prev).set(cacheKey, subordinates));
+        
+        setAllUsers(prev => {
+          const existingIds = new Set(prev.map(u => u.id));
+          const newUsers = subordinates.filter(u => !existingIds.has(u.id));
+          return [...prev, ...newUsers];
+        });
+      }
+    } catch (error) {
+      console.error('Error loading subordinates:', error);
+    } finally {
+      setLoadingNodes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
+  }, [loadedUsers]);
+
   const { nodes, edges } = useOrganizationLayout({
-    users,
+    users: allUsers,
     departments,
     expandedDepartments,
-    onDepartmentClick: handleDepartmentClick
+    loadingNodes,
+    loadedUsers,
+    departmentUserCounts,
+    onDepartmentClick: handleDepartmentClick,
+    onUserClick: handleUserClick,
+    // Match admin/supervisor behavior: department-first only when not filtered;
+    // for filtered views, allow flat/role/status layouts
+    forceDepartmentLayout: !isFiltered
   });
 
   const [nodesState, setNodes] = useNodesState(nodes);
   const [edgesState, setEdges] = useEdgesState(edges);
 
-  // Update nodes and edges when organization changes
   useEffect(() => {
     setNodes(nodes);
     setEdges(edges);
   }, [nodes, edges, setNodes, setEdges]);
 
-  // Calculate statistics for header
   const stats = {
     departments: departments.length,
-    totalUsers: users.length,
-    adminsAndManagers: users.filter(u => 
+    totalUsers: allUsers.length,
+    adminsAndManagers: allUsers.filter(u => 
       u.roles?.some(r => 
         r.name.toLowerCase().includes('admin') || 
         r.name.toLowerCase().includes('manager')
       )
     ).length,
-    pendingApproval: users.filter(u => u.status === 'pending_approval').length
+    pendingApproval: allUsers.filter(u => u.status === 'pending_approval').length
   };
 
   return (
     <div className="space-y-6">
-      {/* Enhanced Header */}
       <div className="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-950 rounded-xl p-6 border border-slate-700 shadow-xl">
         <div className="flex items-center justify-between">
           <div className="space-y-3">
@@ -160,7 +252,6 @@ export default function ReadOnlyOrganizationView({ users }: ReadOnlyOrganization
         </div>
       </div>
       
-      {/* Organization Chart */}
       <div className="w-full h-[800px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-xl">
         <ReactFlow
           nodes={nodesState}

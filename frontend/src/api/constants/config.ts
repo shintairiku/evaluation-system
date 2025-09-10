@@ -64,6 +64,7 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/users/${id}`,
     EXISTS: (clerkId: string) => `/users/exists/${clerkId}`,
     PROFILE_OPTIONS: '/users/profile-options',
+    ORG_CHART: '/users/org-chart',
   },
   
   // Department endpoints
