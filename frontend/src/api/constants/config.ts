@@ -83,6 +83,7 @@ export const API_ENDPOINTS = {
     CREATE: '/roles',
     UPDATE: (id: string) => `/roles/${id}`,
     DELETE: (id: string) => `/roles/${id}`,
+    REORDER: '/roles/reorder',
   },
   
   // Stage endpoints
@@ -92,6 +93,7 @@ export const API_ENDPOINTS = {
     CREATE: '/stages',
     UPDATE: (id: string) => `/stages/${id}`,
     DELETE: (id: string) => `/stages/${id}`,
+    ADMIN: '/stages/admin',
   },
   
   // Evaluation Period endpoints
@@ -145,6 +147,8 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/self-assessments/${id}`,
     BY_USER: (userId: string) => `/self-assessments/user/${userId}`,
     BY_PERIOD: (periodId: string) => `/self-assessments/period/${periodId}`,
+    BY_GOAL: (goalId: string) => `/self-assessments/goal/${goalId}`,
+    SUBMIT: (id: string) => `/self-assessments/${id}/submit`,
   },
   
   // Supervisor Review endpoints
@@ -156,6 +160,10 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/supervisor-reviews/${id}`,
     BY_SUPERVISOR: (supervisorId: string) => `/supervisor-reviews/supervisor/${supervisorId}`,
     BY_EMPLOYEE: (employeeId: string) => `/supervisor-reviews/employee/${employeeId}`,
+    BY_GOAL: (goalId: string) => `/supervisor-reviews/goal/${goalId}`,
+    PENDING: '/supervisor-reviews/pending',
+    SUBMIT: (id: string) => `/supervisor-reviews/${id}/submit`,
+    BULK_SUBMIT: '/supervisor-reviews/bulk-submit',
   },
   
   // Supervisor Feedback endpoints
@@ -167,6 +175,9 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/supervisor-feedbacks/${id}`,
     BY_SUPERVISOR: (supervisorId: string) => `/supervisor-feedbacks/supervisor/${supervisorId}`,
     BY_EMPLOYEE: (employeeId: string) => `/supervisor-feedbacks/employee/${employeeId}`,
+    BY_ASSESSMENT: (assessmentId: string) => `/supervisor-feedbacks/assessment/${assessmentId}`,
+    SUBMIT: (id: string) => `/supervisor-feedbacks/${id}/submit`,
+    DRAFT: (id: string) => `/supervisor-feedbacks/${id}/draft`,
   },
 } as const;
 
