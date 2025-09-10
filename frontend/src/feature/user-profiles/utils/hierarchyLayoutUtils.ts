@@ -173,6 +173,10 @@ export function detectFilterType(users: OrganizationUser[]): FilterType {
   const userDepartmentIds = new Set(users.map(u => u.department?.id).filter(Boolean));
   const stages = new Set(users.map(u => getStageId(u)).filter(Boolean));
   const statuses = new Set(users.map(u => u.status).filter(Boolean));
+  const LOW_ROLE_KEYWORDS = ['employee', 'viewer', 'part-time', 'parttime', 'part time'];
+  const allLowRoles = users.length > 0 && users.every(u =>
+    (u as any)?.roles?.some((r: any) => LOW_ROLE_KEYWORDS.some(k => String(r?.name || '').toLowerCase().includes(k)))
+  );
   
   // Priority order adjusted: stage > department > role > status
   // Rationale: org-chart data is often uniformly 'active'; department filter should take precedence
@@ -180,7 +184,9 @@ export function detectFilterType(users: OrganizationUser[]): FilterType {
     return 'stage';
   }
   
-  if (userDepartmentIds.size === 1) {
+  // Exception: if all results are low-level roles (employee/viewer/part-time), treat as role even when
+  // they belong to the same department, to enable flat layout (company → users) for role filters
+  if (userDepartmentIds.size === 1 && !allLowRoles) {
     return 'department';
   }
   
