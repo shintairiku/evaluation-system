@@ -21,7 +21,8 @@ export interface PerformanceGoalFields {
 
 // Competency goal specific fields
 export interface CompetencyGoalFields {
-  competencyId: UUID;
+  competencyIds?: UUID[] | null;
+  selectedIdealActions?: Record<string, string[]> | null;
   actionPlan: string;
 }
 
@@ -46,7 +47,8 @@ export interface PerformanceGoalUpdateFields {
 
 // Competency goal update fields - all optional since it's an update
 export interface CompetencyGoalUpdateFields {
-  competencyId?: UUID;
+  competencyIds?: UUID[] | null;
+  selectedIdealActions?: Record<string, string[]> | null;
   actionPlan?: string;
 }
 
@@ -80,7 +82,8 @@ export interface GoalResponse {
   meansMethodsText?: string;
 
   // Competency fields (when goalCategory is "コンピテンシー")
-  competencyId?: UUID;
+  competencyIds?: UUID[] | null;
+  selectedIdealActions?: Record<string, string[]> | null;
   actionPlan?: string;
 
   // Core value fields (when goalCategory is "コアバリュー")

@@ -53,7 +53,7 @@ class GoalService:
         user_id: Optional[UUID] = None,
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
-        status: Optional[str] = None,
+        status: Optional[List[str]] = None,
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[Goal]:
         """
@@ -494,10 +494,11 @@ class GoalService:
         """Determine which users' goals the current user can access."""
         
         if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            # Admin: can see all goals
+            # Admin: can see all goals, but default to own goals unless a target user is explicitly requested
             if requested_user_id:
                 return [requested_user_id]
-            return None  # All users
+            # Default behavior: scope to the current user's own goals to avoid accidental cross-user data
+            return [current_user_context.user_id]
         
         accessible_ids = []
         

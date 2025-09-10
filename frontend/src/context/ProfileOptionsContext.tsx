@@ -74,7 +74,8 @@ export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps
   // Auto-fetch on mount
   useEffect(() => {
     fetchOptions();
-  }, [fetchOptions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run on mount
 
   const value: ProfileOptionsContextType = {
     options,

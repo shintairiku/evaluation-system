@@ -15,7 +15,7 @@ export async function getGoalsAction(params?: {
     periodId?: UUID;
     userId?: UUID;
     goalCategory?: string;
-    status?: string;
+    status?: string | string[];
     page?: number;
     limit?: number;
   }): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
@@ -34,7 +34,11 @@ export async function getGoalsAction(params?: {
         query.append('goalCategory', params.goalCategory);
       }
       if (params?.status) {
-        query.append('status', params.status);
+        if (Array.isArray(params.status)) {
+          params.status.forEach(s => query.append('status', s));
+        } else {
+          query.append('status', params.status);
+        }
       }
       if (params?.page) {
         query.append('page', String(params.page));

@@ -1,0 +1,301 @@
+'use client';
+
+import { useCallback, useRef } from 'react';
+import { useAutoSave } from './useAutoSave';
+import { createGoalAction, updateGoalAction } from '@/api/server-actions/goals';
+import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
+import type { EvaluationPeriod } from '@/api/types/evaluation';
+import type { GoalData } from './useGoalData';
+import type { UseGoalTrackingReturn, GoalChangeInfo } from './useGoalTracking';
+
+interface UseGoalAutoSaveOptions {
+  goalData: GoalData;
+  selectedPeriod: EvaluationPeriod | null;
+  isLoadingExistingGoals: boolean;
+  isAutoSaveReady: boolean;
+  goalTracking: UseGoalTrackingReturn;
+  onGoalReplaceWithServerData: (tempId: string, serverGoal: any, goalType: 'performance' | 'competency') => void;
+}
+
+export function useGoalAutoSave({
+  goalData,
+  selectedPeriod,
+  isLoadingExistingGoals,
+  isAutoSaveReady,
+  goalTracking,
+  onGoalReplaceWithServerData,
+}: UseGoalAutoSaveOptions) {
+  const isSavingRef = useRef(false);
+  const {
+    trackGoalLoad,
+    clearChanges,
+    isGoalDirty,
+    getChangedGoals,
+  } = goalTracking;
+
+  
+  // Validation function to check if a goal has all required fields for saving
+  const isGoalReadyForSave = useCallback((goalType: 'performance' | 'competency', goalData: any): boolean => {
+    if (goalType === 'performance') {
+      // Performance goal requires: title, performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText
+      const hasAllFields = !!(
+        goalData.title?.trim() &&
+        goalData.type && // performanceGoalType
+        goalData.specificGoal?.trim() && // specificGoalText
+        goalData.achievementCriteria?.trim() && // achievementCriteriaText
+        goalData.method?.trim() && // meansMethodsText
+        typeof goalData.weight === 'number' && goalData.weight >= 0 && goalData.weight <= 100
+      );
+      
+      if (process.env.NODE_ENV !== 'production') console.debug(`🔍 Performance goal validation for ID ${goalData.id}:`, {
+        title: !!goalData.title?.trim(),
+        type: !!goalData.type,
+        specificGoal: !!goalData.specificGoal?.trim(),
+        achievementCriteria: !!goalData.achievementCriteria?.trim(),
+        method: !!goalData.method?.trim(),
+        weight: typeof goalData.weight === 'number' && goalData.weight >= 0 && goalData.weight <= 100,
+        isReady: hasAllFields
+      });
+      
+      return hasAllFields;
+    } else if (goalType === 'competency') {
+      // Competency goal requires: actionPlan (competencyIds and selectedIdealActions are optional)
+      const hasAllFields = !!goalData.actionPlan?.trim();
+      
+      if (process.env.NODE_ENV !== 'production') console.debug(`🔍 Competency goal validation for ID ${goalData.id}:`, {
+        actionPlan: !!goalData.actionPlan?.trim(),
+        competencyIds: goalData.competencyIds?.length || 0,
+        selectedIdealActions: Object.keys(goalData.selectedIdealActions || {}).length,
+        isReady: hasAllFields
+      });
+      
+      return hasAllFields;
+    }
+    return false;
+  }, []);
+
+  const handlePerformanceGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
+    // Check if this is a new performance goal (temporary ID starts with timestamp)
+    const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
+    
+    if (isNewGoal) {
+      // Create new performance goal
+      const createData: GoalCreateRequest = {
+        periodId,
+        goalCategory: '業績目標',
+        status: 'incomplete',
+        title: currentData.title,
+        performanceGoalType: currentData.type,
+        specificGoalText: currentData.specificGoal,
+        achievementCriteriaText: currentData.achievementCriteria,
+        meansMethodsText: currentData.method,
+        weight: currentData.weight,
+      };
+      
+      if (process.env.NODE_ENV !== 'production') console.debug(`🚀 Auto-save: Creating performance goal with data:`, createData);
+      const result = await createGoalAction(createData);
+      
+      if (result && result.success && result.data) {
+        if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Performance goal created successfully with ID ${result.data.id}`);
+        
+        // Replace the temporary goal with server data (preserving ID immutability)
+        onGoalReplaceWithServerData(goalId, result.data, 'performance');
+        
+        // Track the new goal with server ID
+        trackGoalLoad(result.data.id, 'performance', result.data);
+        clearChanges(goalId); // Clear the temporary ID changes
+        return true;
+      } else {
+        if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to create performance goal:`, {
+          error: result?.error,
+          sentData: createData,
+          goalId: goalId
+        });
+        return false;
+      }
+    } else {
+      // Update existing performance goal
+      const updateData: GoalUpdateRequest = {
+        title: currentData.title,
+        performanceGoalType: currentData.type,
+        specificGoalText: currentData.specificGoal,
+        achievementCriteriaText: currentData.achievementCriteria,
+        meansMethodsText: currentData.method,
+        weight: currentData.weight,
+      };
+      const result = await updateGoalAction(goalId, updateData);
+      
+      if (result && result.success) {
+        if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Performance goal ${goalId} updated successfully`);
+        clearChanges(goalId); // Mark as saved
+        return true;
+      } else {
+        if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to update performance goal ${goalId}:`, result?.error);
+        return false;
+      }
+    }
+  }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData]);
+
+  const handleCompetencyGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
+    console.log('🔧 handleCompetencyGoalAutoSave called with currentData:', currentData);
+    // Check if this is a new competency goal (temporary ID starts with timestamp)
+    const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
+    
+    if (isNewGoal) {
+      // Create new competency goal with proper typing
+      const createData: GoalCreateRequest = {
+        periodId,
+        goalCategory: 'コンピテンシー',
+        status: 'incomplete',
+        weight: 100,
+        actionPlan: currentData.actionPlan,
+        competencyIds: currentData.competencyIds && currentData.competencyIds.length > 0 ? currentData.competencyIds : null,
+        selectedIdealActions: currentData.selectedIdealActions && Object.keys(currentData.selectedIdealActions).length > 0 ? currentData.selectedIdealActions : null,
+      };
+      
+      console.log(`🚀 Auto-save: Creating competency goal with data:`, JSON.stringify(createData, null, 2));
+      const result = await createGoalAction(createData);
+      
+      if (result && result.success && result.data) {
+        if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Competency goal created successfully with ID ${result.data.id}`);
+        
+        // Replace the temporary goal with server data (preserving ID immutability)
+        onGoalReplaceWithServerData(goalId, result.data, 'competency');
+        
+        // Track the new goal with server ID
+        trackGoalLoad(result.data.id, 'competency', result.data);
+        clearChanges(goalId); // Clear the temporary ID changes
+        return true;
+      } else {
+        if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to create competency goal:`, {
+          error: result?.error,
+          sentData: createData,
+          goalId: goalId
+        });
+        return false;
+      }
+    } else {
+      // Update existing competency goal
+      const updateData: GoalUpdateRequest = {
+        actionPlan: currentData.actionPlan,
+        competencyIds: currentData.competencyIds && currentData.competencyIds.length > 0 ? currentData.competencyIds : null,
+        selectedIdealActions: currentData.selectedIdealActions && Object.keys(currentData.selectedIdealActions).length > 0 ? currentData.selectedIdealActions : null,
+      };
+      const result = await updateGoalAction(goalId, updateData);
+      
+      if (result && result.success) {
+        if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Competency goal ${goalId} updated successfully`);
+        clearChanges(goalId); // Mark as saved
+        return true;
+      } else {
+        if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to update competency goal ${goalId}:`, result?.error);
+        return false;
+      }
+    }
+  }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData]);
+  
+  const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
+    console.log('🔄 Auto-save: handleAutoSave called with changed goals:', changedGoals);
+    
+    if (!selectedPeriod?.id) {
+      console.log('🚫 Auto-save: No period selected');
+      return false;
+    }
+    
+    // Prevent concurrent save operations
+    if (isSavingRef.current) {
+      console.log('🚫 Auto-save: already in progress, skipping');
+      return false;
+    }
+    
+    // Skip auto-save when we're loading existing goals
+    if (isLoadingExistingGoals) {
+      if (process.env.NODE_ENV !== 'production') console.debug('🚫 Auto-save: skipping during goal loading');
+      return false;
+    }
+    
+    if (process.env.NODE_ENV !== 'production') console.debug('🔄 Auto-save: processing changed goals only', changedGoals);
+    if (process.env.NODE_ENV !== 'production') console.debug(`📊 Auto-save: Found ${changedGoals.length} changed goals to process`);
+    
+    // EVENT-BASED CHECK 1: Filter out goals that aren't ready for saving (all fields filled)
+    const completeGoals = changedGoals.filter(changeInfo => {
+      const isComplete = isGoalReadyForSave(changeInfo.goalType, changeInfo.currentData);
+      if (!isComplete) {
+        if (process.env.NODE_ENV !== 'production') console.debug(`⏭️ Auto-save: Skipping ${changeInfo.goalType} goal ${changeInfo.goalId} - missing required fields`);
+      }
+      return isComplete;
+    });
+    
+    // EVENT-BASED CHECK 2: Filter out goals that haven't actually changed from baseline
+    const actuallyChangedGoals = completeGoals.filter(changeInfo => {
+      const hasChanges = isGoalDirty(changeInfo.goalId);
+      if (!hasChanges) {
+        if (process.env.NODE_ENV !== 'production') console.debug(`⏭️ Auto-save: Skipping ${changeInfo.goalType} goal ${changeInfo.goalId} - no actual changes detected`);
+      }
+      return hasChanges;
+    });
+    
+    if (actuallyChangedGoals.length === 0) {
+      console.log('⏭️ Auto-save: No changed complete goals to save');
+      return true; // Return true to avoid error state - this is normal for incomplete/unchanged goals
+    }
+    
+    if (process.env.NODE_ENV !== 'production') console.debug(`🎯 Auto-save: Saving ${actuallyChangedGoals.length} changed complete goals`);
+    
+    // Set saving flag to prevent concurrent operations
+    isSavingRef.current = true;
+    
+    try {
+      let allSuccessful = true;
+
+      // Process each changed complete goal individually  
+      for (const changeInfo of actuallyChangedGoals) {
+        const { goalId, goalType, currentData } = changeInfo;
+        
+        if (process.env.NODE_ENV !== 'production') console.debug(`🎯 Auto-save: Processing ${goalType} goal ${goalId}`, {
+        goalId,
+        goalType,
+        currentData,
+        isComplete: isGoalReadyForSave(goalType, currentData)
+      });
+
+        if (goalType === 'performance') {
+          const success = await handlePerformanceGoalAutoSave(goalId, currentData, selectedPeriod.id);
+          if (!success) allSuccessful = false;
+        } else if (goalType === 'competency') {
+          const success = await handleCompetencyGoalAutoSave(goalId, currentData, selectedPeriod.id);
+          if (!success) allSuccessful = false;
+        }
+      }
+
+      return allSuccessful;
+    } catch (error) {
+      console.error('❌ Auto-save failed:', error);
+      return false;
+    } finally {
+      // Always clear the saving flag
+      isSavingRef.current = false;
+    }
+  }, [selectedPeriod?.id, isLoadingExistingGoals, isGoalDirty, isGoalReadyForSave, handlePerformanceGoalAutoSave, handleCompetencyGoalAutoSave]);
+
+  // Stable change detector to avoid re-renders due to new function identity
+  const detectChanges = useCallback(() => getChangedGoals(), [getChangedGoals]);
+
+  // Set up auto-save with change detection - ONLY when period is selected
+  useAutoSave<GoalData>({
+    data: goalData,
+    onSave: handleAutoSave,
+    delay: 3000, // Increased to 3 seconds to prevent excessive calls
+    enabled: !!selectedPeriod?.id, // Enable when period is selected
+    autoSaveReady: isAutoSaveReady && !!selectedPeriod?.id, // Only activate when explicitly ready AND period selected
+    changeDetector: detectChanges, // Only get changed goals
+    // Use stable, ID-based keys to avoid deep object diffs causing loops
+    dataKey: {
+      perfCount: goalData.performanceGoals.length,
+      perfIds: goalData.performanceGoals.map(g => g.id).sort().join(','),
+      compCount: goalData.competencyGoals.length,
+      compIds: goalData.competencyGoals.map(g => g.id).sort().join(','),
+      ready: isAutoSaveReady,
+    }
+  });
+}
