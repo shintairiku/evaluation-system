@@ -1,24 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, ChevronLeft, Check } from 'lucide-react';
-import stage1Competencies from '../data/stage1-competencies.json';
-
-interface Competency {
-  id: string;
-  title: string;
-  description: string;
-}
+import { AlertCircle, ChevronLeft } from 'lucide-react';
+import { Competency } from '@/api/types/competency';
+import { CompetencyAccordion } from '@/components/competency/CompetencyAccordion';
+import { getCompetenciesAction } from '@/api/server-actions/competencies';
 
 interface CompetencyGoal {
-  id: string; // Add ID field for tracking
-  selectedCompetencyId: string;
+  id: string;
+  competencyIds?: string[] | null;
+  selectedIdealActions?: Record<string, string[]> | null;
   actionPlan: string;
 }
 
@@ -33,130 +30,234 @@ interface CompetencyGoalsStepProps {
   periodId?: string;
 }
 
-export function CompetencyGoalsStep({ goals, onGoalsChange, goalTracking, onNext, onPrevious, periodId: _periodId }: CompetencyGoalsStepProps) {
-  const [selectedCompetency, setSelectedCompetency] = useState<string>('');
-  const [actionPlan, setActionPlan] = useState<string>('');
-  const competencies: Competency[] = stage1Competencies.competencies;
+export function CompetencyGoalsStep({ 
+  goals, 
+  onGoalsChange, 
+  goalTracking, 
+  onNext, 
+  onPrevious, 
+  periodId: _periodId 
+}: CompetencyGoalsStepProps) {
+  // Derive values directly from props to avoid local-state divergence
+  const currentGoal = goals[0];
+  const selectedCompetencyIds = currentGoal?.competencyIds || [];
+  const selectedIdealActions = currentGoal?.selectedIdealActions || {};
+  const actionPlan = currentGoal?.actionPlan || '';
+  
+  const [competencies, setCompetencies] = useState<Competency[]>([]);
+  const [isLoadingCompetencies, setIsLoadingCompetencies] = useState(true);
+  const [competencyError, setCompetencyError] = useState<string | null>(null);
 
+  // Load competencies from server on component mount
   useEffect(() => {
-    // 既存のgoalsデータがある場合は復元
-    if (goals.length > 0) {
-      setSelectedCompetency(goals[0].selectedCompetencyId);
-      setActionPlan(goals[0].actionPlan);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps  
-  }, [goals.length]); // Only depend on goals.length to prevent infinite loop when goals content changes
+    const loadCompetencies = async () => {
+      try {
+        setIsLoadingCompetencies(true);
+        setCompetencyError(null);
+        
+        // Backend automatically filters by user's stage via RBAC
+        const result = await getCompetenciesAction({ limit: 100 });
+        
+        if (result.success && result.data?.items) {
+          setCompetencies(result.data.items);
+        } else {
+          setCompetencyError(result.error || 'Failed to load competencies');
+        }
+      } catch (error) {
+        setCompetencyError('Failed to load competencies');
+        console.error('Error loading competencies:', error);
+      } finally {
+        setIsLoadingCompetencies(false);
+      }
+    };
 
-  const handleCompetencySelect = (competencyId: string) => {
-    setSelectedCompetency(competencyId);
-    // 選択変更時にデータを更新
-    const updatedGoals = [{
-      id: goals[0]?.id || Date.now().toString(), // Use existing ID or create temporary ID
-      selectedCompetencyId: competencyId,
-      actionPlan: actionPlan
-    }];
-    onGoalsChange(updatedGoals);
-    
+    loadCompetencies();
+  }, []);
+
+  const updateGoal = (field: keyof CompetencyGoal, value: string[] | Record<string, string[]> | string | null) => {
+    const updatedGoal: CompetencyGoal = {
+      id: currentGoal?.id || Date.now().toString(),
+      competencyIds: field === 'competencyIds' ? (value as string[] | null) : selectedCompetencyIds.length > 0 ? selectedCompetencyIds : null,
+      selectedIdealActions: field === 'selectedIdealActions' ? (value as Record<string, string[]> | null) : Object.keys(selectedIdealActions).length > 0 ? selectedIdealActions : null,
+      actionPlan: field === 'actionPlan' ? (value as string) : actionPlan,
+    };
+
+    onGoalsChange([updatedGoal]);
+
     // Track the goal change for auto-save
-    if (goalTracking && updatedGoals[0]) {
-      goalTracking.trackGoalChange(updatedGoals[0].id, 'competency', updatedGoals[0]);
+    if (goalTracking && updatedGoal) {
+      goalTracking.trackGoalChange(updatedGoal.id, 'competency', updatedGoal);
     }
+  };
+
+  const handleCompetencySelect = (competencyId: string, checked: boolean) => {
+    let newSelectedIds: string[];
+    let newSelectedActions = { ...selectedIdealActions };
+    
+    if (checked) {
+      newSelectedIds = [...selectedCompetencyIds, competencyId];
+    } else {
+      newSelectedIds = selectedCompetencyIds.filter(id => id !== competencyId);
+      // Remove ideal actions for this competency when deselected
+      delete newSelectedActions[competencyId];
+    }
+
+    updateGoal('competencyIds', newSelectedIds.length > 0 ? newSelectedIds : null);
+    if (!checked && competencyId in selectedIdealActions) {
+      updateGoal('selectedIdealActions', Object.keys(newSelectedActions).length > 0 ? newSelectedActions : null);
+    }
+  };
+
+  const handleIdealActionSelect = (competencyId: string, actionKey: string, checked: boolean) => {
+    if (!selectedCompetencyIds.includes(competencyId)) {
+      return; // Can't select ideal actions if competency isn't selected
+    }
+
+    const currentActions = selectedIdealActions[competencyId] || [];
+    let newActions: string[];
+
+    if (checked) {
+      newActions = [...currentActions, actionKey];
+    } else {
+      newActions = currentActions.filter(key => key !== actionKey);
+    }
+
+    const newSelectedActions = {
+      ...selectedIdealActions,
+      [competencyId]: newActions,
+    };
+
+    // Remove empty arrays
+    if (newActions.length === 0) {
+      delete newSelectedActions[competencyId];
+    }
+
+    updateGoal('selectedIdealActions', Object.keys(newSelectedActions).length > 0 ? newSelectedActions : null);
   };
 
   const handleActionPlanChange = (value: string) => {
-    setActionPlan(value);
-    // アクションプラン変更時にデータを更新
-    if (selectedCompetency) {
-      const updatedGoals = [{
-        id: goals[0]?.id || Date.now().toString(), // Use existing ID or create temporary ID
-        selectedCompetencyId: selectedCompetency,
-        actionPlan: value
-      }];
-      onGoalsChange(updatedGoals);
-      
-      // Track the goal change for auto-save
-      if (goalTracking && updatedGoals[0]) {
-        goalTracking.trackGoalChange(updatedGoals[0].id, 'competency', updatedGoals[0]);
-      }
-    }
+    updateGoal('actionPlan', value);
   };
 
   const canProceed = () => {
-    return selectedCompetency && actionPlan.trim() !== '';
+    return actionPlan.trim() !== '';
   };
 
   return (
     <div className="space-y-6">
-      {/* コンピテンシー選択カード */}
+      {/* Header */}
       <div>
-        <h3 className="text-lg font-semibold mb-3">コンピテンシー項目を選択してください</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {competencies.map((competency) => (
-            <Card
-              key={competency.id}
-              className={`cursor-pointer transition-all duration-200 ${
-                selectedCompetency === competency.id
-                  ? 'ring-2 ring-primary bg-primary/5'
-                  : 'hover:bg-muted/50'
-              }`}
-              onClick={() => handleCompetencySelect(competency.id)}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      {competency.title}
-                      {selectedCompetency === competency.id && (
-                        <Check className="h-4 w-4 text-primary" />
-                      )}
-                    </CardTitle>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {competency.description}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <h3 className="text-lg font-semibold mb-2">コンピテンシー目標の設定</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          コンピテンシーの選択は任意です。特定のコンピテンシーを選択する場合は、該当する理想的行動も選択できます。
+        </p>
       </div>
 
-      {/* アクションプラン入力 */}
-      {selectedCompetency && (
-        <Card>
+      {/* Competency Selection */}
+      <div className="space-y-3">
+        <Label className="text-base font-medium">コンピテンシーの選択 (任意)</Label>
+        
+        {isLoadingCompetencies ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-sm text-muted-foreground">コンピテンシーを読み込み中...</p>
+            </div>
+          </div>
+        ) : competencyError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              コンピテンシーの読み込みに失敗しました: {competencyError}
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <CompetencyAccordion
+            competencies={competencies}
+            selectedCompetencyIds={selectedCompetencyIds}
+            selectedIdealActions={selectedIdealActions}
+            onCompetencySelect={handleCompetencySelect}
+            onIdealActionSelect={handleIdealActionSelect}
+            showSelection={true}
+            showEditButtons={false}
+            editMode={false}
+          />
+        )}
+      </div>
+
+      {/* Selection Summary */}
+      {selectedCompetencyIds.length > 0 && (
+        <Card className="bg-blue-50 border-blue-200">
           <CardHeader>
-            <CardTitle className="text-lg">アクションプランの設定</CardTitle>
+            <CardTitle className="text-base text-blue-900">選択中のコンピテンシー</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="action-plan">アクションプラン</Label>
-                <Textarea
-                  id="action-plan"
-                  value={actionPlan}
-                  onChange={(e) => handleActionPlanChange(e.target.value)}
-                  placeholder="具体的なアクションプランを記入してください"
-                  rows={6}
-                />
-              </div>
+            <div className="space-y-2">
+              {selectedCompetencyIds.map(competencyId => {
+                const competency = competencies.find(c => c.id === competencyId);
+                const selectedActionKeys = selectedIdealActions[competencyId] || [];
+                
+                return (
+                  <div key={competencyId} className="text-sm space-y-1">
+                    <div className="font-medium text-blue-900">
+                      {competency?.name}: {selectedActionKeys.length}個選択
+                    </div>
+                    {selectedActionKeys.length > 0 && (
+                      <div className="ml-4 space-y-1">
+                        {selectedActionKeys.map(actionKey => {
+                          const actionText = competency?.description?.[actionKey];
+                          return actionText ? (
+                            <div key={actionKey} className="text-blue-700">
+                              - {actionText}
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* 選択促進メッセージ */}
-      {!selectedCompetency && (
-        <Alert>
+      {/* Action Plan Input */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">アクションプランの設定</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            具体的なアクションプランを記入してください。（必須）
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="action-plan">アクションプラン *</Label>
+              <Textarea
+                id="action-plan"
+                value={actionPlan}
+                onChange={(e) => handleActionPlanChange(e.target.value)}
+                placeholder="コンピテンシー向上に向けた具体的なアクションプランを記入してください"
+                rows={6}
+                className="mt-2"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Validation Messages */}
+      {!actionPlan.trim() && (
+        <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            上記のコンピテンシー項目から1つを選択してください。
+            アクションプランの記入は必須です。
           </AlertDescription>
         </Alert>
       )}
 
-      {/* ナビゲーションボタン */}
+      {/* Navigation */}
       <Separator />
       <div className="grid grid-cols-3 gap-4">
         <Button onClick={onPrevious} variant="outline" className="col-span-1">
@@ -171,16 +272,6 @@ export function CompetencyGoalsStep({ goals, onGoalsChange, goalTracking, onNext
           次へ進む
         </Button>
       </div>
-
-      {/* エラー表示 */}
-      {selectedCompetency && !actionPlan.trim() && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            選択したコンピテンシーに対するアクションプランを記入してください。
-          </AlertDescription>
-        </Alert>
-      )}
     </div>
   );
 }

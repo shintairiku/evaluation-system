@@ -53,7 +53,7 @@ class GoalService:
         user_id: Optional[UUID] = None,
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
-        status: Optional[str] = None,
+        status: Optional[List[str]] = None,
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[Goal]:
         """

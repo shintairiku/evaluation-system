@@ -141,7 +141,7 @@ class GoalRepository:
         user_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
-        status: Optional[str] = None,
+        status: Optional[List[str]] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[Goal]:
         """Search goals with various filters."""
@@ -162,7 +162,11 @@ class GoalRepository:
                 query = query.filter(Goal.goal_category == goal_category)
             
             if status:
-                query = query.filter(Goal.status == status)
+                if isinstance(status, list):
+                    query = query.filter(Goal.status.in_(status))
+                else:
+                    # Backward compatibility for single status
+                    query = query.filter(Goal.status == status)
             
             # Apply ordering
             query = query.order_by(Goal.created_at.desc())
@@ -182,7 +186,7 @@ class GoalRepository:
         user_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
-        status: Optional[str] = None
+        status: Optional[List[str]] = None
     ) -> int:
         """Count goals matching the given filters."""
         try:
@@ -199,7 +203,11 @@ class GoalRepository:
                 query = query.filter(Goal.goal_category == goal_category)
             
             if status:
-                query = query.filter(Goal.status == status)
+                if isinstance(status, list):
+                    query = query.filter(Goal.status.in_(status))
+                else:
+                    # Backward compatibility for single status
+                    query = query.filter(Goal.status == status)
             
             result = await self.session.execute(query)
             return result.scalar() or 0

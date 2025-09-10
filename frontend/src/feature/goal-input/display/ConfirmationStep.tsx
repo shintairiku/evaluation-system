@@ -6,10 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ChevronLeft, Send, Target, Brain, Save } from 'lucide-react';
-import stage1Competencies from '../data/stage1-competencies.json';
 import { toast } from 'sonner';
 import { createGoalAction, updateGoalAction, submitGoalAction, getGoalsAction } from '@/api/server-actions/goals';
 import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
+import { Competency, CompetencyDescription } from '@/api/types/competency';
+import stage1Competencies from '../data/stage1-competencies.json';
+
+interface LegacyCompetency {
+  id: string;
+  title: string;
+  description: string;
+}
 
 interface PerformanceGoal {
   id: string;
@@ -22,7 +29,9 @@ interface PerformanceGoal {
 }
 
 interface CompetencyGoal {
-  selectedCompetencyId: string;
+  id: string;
+  competencyIds?: string[] | null;
+  selectedIdealActions?: Record<string, string[]> | null;
   actionPlan: string;
 }
 
@@ -33,10 +42,39 @@ interface ConfirmationStepProps {
   onPrevious: () => void;
 }
 
+// Convert legacy format to new format
+function convertLegacyCompetencies(legacyCompetencies: LegacyCompetency[]): Competency[] {
+  return legacyCompetencies.map((legacy) => {
+    const descriptionLines = legacy.description
+      .split(/\n|・/)
+      .filter(line => line.trim().length > 0)
+      .slice(0, 5);
+
+    const description: CompetencyDescription = {};
+    descriptionLines.forEach((line, index) => {
+      description[(index + 1).toString()] = line.trim();
+    });
+
+    return {
+      id: legacy.id,
+      name: legacy.title,
+      description,
+      stageId: 'stage-1',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  });
+}
+
 export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, onPrevious }: ConfirmationStepProps) {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isDraftPending, startDraftTransition] = useTransition();
+  
+  // Convert legacy competencies to new format
+  const competencies = convertLegacyCompetencies(
+    (stage1Competencies as { competencies: LegacyCompetency[] }).competencies
+  );
   
   // Helper function to save or update goals as drafts
   const saveGoalsAsDraft = async () => {
@@ -44,12 +82,22 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
     
     try {
       // Get existing goals to determine create vs update
-      const existingGoalsResult = await getGoalsAction({ 
+      // First try to get draft goals
+      const draftGoalsResult = await getGoalsAction({ 
+        periodId,
+        status: 'draft'
+      });
+      
+      // Then try to get incomplete goals
+      const incompleteGoalsResult = await getGoalsAction({ 
         periodId,
         status: 'incomplete'
       });
 
-      const existingGoals = existingGoalsResult.success ? existingGoalsResult.data?.items || [] : [];
+      // Combine both results
+      const draftGoals = draftGoalsResult.success ? draftGoalsResult.data?.items || [] : [];
+      const incompleteGoals = incompleteGoalsResult.success ? incompleteGoalsResult.data?.items || [] : [];
+      const existingGoals = [...draftGoals, ...incompleteGoals];
       const existingPerformanceGoals = existingGoals.filter(g => g.goalCategory === '業績目標');
       const existingCompetencyGoals = existingGoals.filter(g => g.goalCategory === 'コンピテンシー');
 
@@ -80,7 +128,7 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
           const createData: GoalCreateRequest = {
             periodId,
             goalCategory: '業績目標',
-            status: 'draft', // Set status to 'draft' for draft save
+            status: 'incomplete', // Create as incomplete, then change status via submitGoalAction
             title: pg.title,
             performanceGoalType: pg.type,
             specificGoalText: pg.specificGoal,
@@ -102,9 +150,10 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
         const existingCompetencyGoal = existingCompetencyGoals[0];
 
         if (existingCompetencyGoal) {
-          // Competency goal update - only include competency fields
+          // Competency goal update - use new schema
           const updateData: GoalUpdateRequest = {
-            competencyId: competencyGoal.selectedCompetencyId,
+            competencyIds: competencyGoal.competencyIds,
+            selectedIdealActions: competencyGoal.selectedIdealActions,
             actionPlan: competencyGoal.actionPlan,
           };
           const result = await updateGoalAction(existingCompetencyGoal.id, updateData);
@@ -116,15 +165,38 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
           const createData: GoalCreateRequest = {
             periodId,
             goalCategory: 'コンピテンシー',
-            status: 'draft', // Set status to 'draft' for draft save
+            status: 'incomplete', // Create as incomplete, then change status via submitGoalAction
             weight: 100,
-            competencyId: competencyGoal.selectedCompetencyId,
+            competencyIds: competencyGoal.competencyIds,
+            selectedIdealActions: competencyGoal.selectedIdealActions,
             actionPlan: competencyGoal.actionPlan,
           };
           const result = await createGoalAction(createData);
           if (!result.success) {
             allSuccessful = false;
             errors.push(`コンピテンシー目標の作成に失敗: ${result.error}`);
+          }
+        }
+      }
+
+      // If all goals were created/updated successfully, set their status to 'draft'
+      if (allSuccessful) {
+        // Get all incomplete goals for this period to set them as draft
+        const incompleteGoalsResult = await getGoalsAction({ 
+          periodId,
+          status: 'incomplete'
+        });
+        
+        if (incompleteGoalsResult.success && incompleteGoalsResult.data) {
+          const incompleteGoals = incompleteGoalsResult.data.items;
+          
+          // Set each goal's status to 'draft'
+          for (const goal of incompleteGoals) {
+            const submitResult = await submitGoalAction(goal.id, 'draft');
+            if (!submitResult.success) {
+              allSuccessful = false;
+              errors.push(`${goal.goalCategory}目標のドラフト保存に失敗: ${submitResult.error}`);
+            }
           }
         }
       }
@@ -157,23 +229,31 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
         }
 
         // Then get all goals and submit them
-        const goalsResult = await getGoalsAction({ 
+        // Get both draft and incomplete goals for submission
+        const draftGoalsResult = await getGoalsAction({ 
           periodId,
-          status: 'draft' // Get draft goals for submission
+          status: 'draft'
+        });
+        
+        const incompleteGoalsResult = await getGoalsAction({ 
+          periodId,
+          status: 'incomplete'
         });
 
-        if (!goalsResult.success || !goalsResult.data) {
-          toast.error('目標の取得に失敗しました。');
+        const draftGoals = draftGoalsResult.success ? draftGoalsResult.data?.items || [] : [];
+        const incompleteGoals = incompleteGoalsResult.success ? incompleteGoalsResult.data?.items || [] : [];
+        const goals = [...draftGoals, ...incompleteGoals];
+
+        if (goals.length === 0) {
+          toast.error('提出する目標が見つかりません。');
           return;
         }
-
-        const goals = goalsResult.data.items;
         let allSubmitted = true;
         const submitErrors: string[] = [];
 
         // Submit each goal individually (changes status to 'pending_approval')
         for (const goal of goals) {
-          const result = await submitGoalAction(goal.id);
+          const result = await submitGoalAction(goal.id, 'pending_approval');
           if (!result.success) {
             allSubmitted = false;
             submitErrors.push(`${goal.goalCategory}目標の提出に失敗: ${result.error}`);
@@ -195,14 +275,16 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
 
   const performanceTotal = performanceGoals.reduce((sum, goal) => sum + goal.weight, 0);
   
-  const getSelectedCompetency = () => {
-    if (competencyGoals.length === 0) return null;
-    return stage1Competencies.competencies.find(
-      comp => comp.id === competencyGoals[0].selectedCompetencyId
-    );
+  const getSelectedCompetencies = () => {
+    if (competencyGoals.length === 0 || !competencyGoals[0].competencyIds) return [];
+    
+    return competencyGoals[0].competencyIds
+      .map(id => competencies.find(comp => comp.id === id))
+      .filter(Boolean) as Competency[];
   };
 
-  const selectedCompetency = getSelectedCompetency();
+  const selectedCompetencies = getSelectedCompetencies();
+  const competencyGoal = competencyGoals[0];
 
   return (
     <div className="space-y-6">
@@ -248,29 +330,55 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {selectedCompetency ? (
-            <div className="border rounded-lg p-4 bg-muted/50">
-              <div className="flex justify-between items-start mb-2">
-                <h4 className="font-medium">{selectedCompetency.title}</h4>
-              </div>
-              <div className="text-sm text-muted-foreground space-y-2">
-                <div>
-                  <strong>説明:</strong>
-                  <p className="mt-1 whitespace-pre-line">{selectedCompetency.description}</p>
+          {competencyGoal && competencyGoal.actionPlan ? (
+            <div className="space-y-4">
+              {/* Selected Competencies */}
+              {selectedCompetencies.length > 0 && (
+                <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
+                  <h4 className="font-medium text-blue-900 mb-3">選択されたコンピテンシー</h4>
+                  <div className="space-y-3">
+                    {selectedCompetencies.map(competency => {
+                      const selectedActions = competencyGoal.selectedIdealActions?.[competency.id] || [];
+                      
+                      return (
+                        <div key={competency.id} className="border rounded-lg p-3 bg-white">
+                          <div className="font-medium text-gray-900 mb-2">{competency.name}</div>
+                          
+                          {selectedActions.length > 0 && (
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-700 mb-2">選択された理想的行動:</div>
+                              <div className="space-y-1">
+                                {selectedActions.map(actionKey => (
+                                  <div key={actionKey} className="text-sm text-gray-600">
+                                    <span className="font-medium">{actionKey}.</span> {competency.description?.[actionKey]}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div>
-                  <strong>アクションプラン:</strong>
-                  <p className="mt-1 whitespace-pre-line">{competencyGoals[0].actionPlan}</p>
-                </div>
+              )}
+              
+              {/* Action Plan */}
+              <div className="border rounded-lg p-4 bg-muted/50">
+                <h4 className="font-medium mb-2">アクションプラン</h4>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                  {competencyGoal.actionPlan}
+                </p>
               </div>
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <p>コンピテンシー目標が選択されていません</p>
+              <p>コンピテンシー目標が設定されていません</p>
             </div>
           )}
         </CardContent>
       </Card>
+
       <div className="grid grid-cols-3 gap-4">
         <div className="flex gap-2 col-span-1">
           <Button onClick={onPrevious} variant="outline">
@@ -281,8 +389,8 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
         <div className="flex gap-2 col-span-2 justify-end">
           <Button variant="outline" disabled={isDraftPending || isPending} onClick={() => {
             startDraftTransition(async () => {
-              if (competencyGoals.length === 0 || !competencyGoals[0].selectedCompetencyId) {
-                toast.error('コンピテンシー目標を入力してください。');
+              if (competencyGoals.length === 0 || !competencyGoals[0].actionPlan?.trim()) {
+                toast.error('コンピテンシー目標のアクションプランを入力してください。');
                 return;
               }
               const result = await saveGoalsAsDraft();
