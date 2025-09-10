@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.user import User, UserCreate, UserUpdate, UserStageUpdate, UserDetailResponse, UserStatus, UserExistsResponse, ProfileOptionsResponse
+from ...schemas.user import User, UserCreate, UserUpdate, UserStageUpdate, UserDetailResponse, UserStatus, UserExistsResponse, ProfileOptionsResponse, SimpleUser
 from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
 from ...security import AuthContext, get_auth_context
