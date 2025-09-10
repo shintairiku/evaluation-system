@@ -1,165 +1,229 @@
 'use server';
-import { API_ENDPOINTS } from '../constants/config';
-import type { UUID } from '../types/common';
-import type {
-    GoalCreateRequest,
-    GoalUpdateRequest,
-    GoalListResponse,
-    GoalResponse,
-} from '../types/goal';
-import { getHttpClient } from '../client/http-client';
+
+import { goalsApi } from '../endpoints/goals';
+import type { 
+  UUID,
+  GoalCreateRequest,
+  GoalUpdateRequest,
+  GoalListResponse,
+  GoalResponse,
+} from '../types';
 
 
-// Get goals with filters - maps directly to GET /goals backend endpoint
+/**
+ * Server action to get goals with optional filtering and pagination
+ */
 export async function getGoalsAction(params?: {
-    periodId?: UUID;
-    userId?: UUID;
-    goalCategory?: string;
-    status?: string | string[];
-    page?: number;
-    limit?: number;
-  }): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
-    try {
-      const http = getHttpClient();
-      const query = new URLSearchParams();
-      
-      // Add all supported backend filters
-      if (params?.periodId) {
-        query.append('periodId', params.periodId);
-      }
-      if (params?.userId) {
-        query.append('userId', params.userId);
-      }
-      if (params?.goalCategory) {
-        query.append('goalCategory', params.goalCategory);
-      }
-      if (params?.status) {
-        if (Array.isArray(params.status)) {
-          params.status.forEach(s => query.append('status', s));
-        } else {
-          query.append('status', params.status);
-        }
-      }
-      if (params?.page) {
-        query.append('page', String(params.page));
-      }
-      if (params?.limit) {
-        query.append('limit', String(params.limit));
-      }
-  
-      // Construct final endpoint
-      const endpoint = query.toString() 
-        ? `${API_ENDPOINTS.GOALS.LIST}?${query.toString()}`
-        : API_ENDPOINTS.GOALS.LIST;
-  
-      // Make the API call
-      const res = await http.get<GoalListResponse>(endpoint);
-      
-      if (!res.success || !res.data) {
-        return { success: false, error: res.errorMessage || 'Failed to fetch goals' };
-      }
-  
-      return { success: true, data: res.data };
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Failed to fetch goals';
-      return { success: false, error };
+  periodId?: UUID;
+  userId?: UUID;
+  goalCategory?: string;
+  status?: string | string[];
+  page?: number;
+  limit?: number;
+}): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
+  try {
+    const response = await goalsApi.getGoals(params);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to fetch goals',
+      };
     }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get goals action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching goals',
+    };
   }
+}
 
-// Create a goal
+/**
+ * Server action to create a new goal
+ */
 export async function createGoalAction(data: GoalCreateRequest): Promise<{
-success: boolean;
-data?: GoalResponse;
-error?: string;
+  success: boolean;
+  data?: GoalResponse;
+  error?: string;
 }> {
-try {
-    const http = getHttpClient();
-    const res = await http.post<GoalResponse>(API_ENDPOINTS.GOALS.CREATE, data);
-    if (!res.success || !res.data) {
-    return { success: false, error: res.errorMessage || 'Failed to create goal' };
+  try {
+    const response = await goalsApi.createGoal(data);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to create goal',
+      };
     }
-    return { success: true, data: res.data };
-} catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'Failed to create goal' };
-}
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Create goal action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while creating goal',
+    };
+  }
 }
 
-// Update goal
+/**
+ * Server action to update an existing goal
+ */
 export async function updateGoalAction(id: UUID, data: GoalUpdateRequest): Promise<{
-success: boolean;
-data?: GoalResponse;
-error?: string;
+  success: boolean;
+  data?: GoalResponse;
+  error?: string;
 }> {
-try {
-    const http = getHttpClient();
-    const res = await http.put<GoalResponse>(API_ENDPOINTS.GOALS.UPDATE(id), data);
-    if (!res.success || !res.data) {
-    return { success: false, error: res.errorMessage || 'Failed to update goal' };
+  try {
+    const response = await goalsApi.updateGoal(id, data);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to update goal',
+      };
     }
-    return { success: true, data: res.data };
-} catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'Failed to update goal' };
-}
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Update goal action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating goal',
+    };
+  }
 }
 
-// Delete goal
+/**
+ * Server action to delete a goal
+ */
 export async function deleteGoalAction(id: UUID): Promise<{
-success: boolean;
-error?: string;
+  success: boolean;
+  error?: string;
 }> {
-try {
-    const http = getHttpClient();
-    const res = await http.delete(API_ENDPOINTS.GOALS.DELETE(id));
-    if (!res.success) {
-    return { success: false, error: res.errorMessage || 'Failed to delete goal' };
+  try {
+    const response = await goalsApi.deleteGoal(id);
+    
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error || 'Failed to delete goal',
+      };
     }
-    return { success: true };
-} catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'Failed to delete goal' };
-}
+    
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('Delete goal action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while deleting goal',
+    };
+  }
 }
 
-// Submit goal
+/**
+ * Server action to submit a goal with status change
+ */
 export async function submitGoalAction(id: UUID, status: 'draft' | 'pending_approval'): Promise<{
-    success: boolean;
-    data?: GoalResponse;
-    error?: string;
-  }> {
-    try {
-      const http = getHttpClient();
-      const endpoint = `${API_ENDPOINTS.GOALS.SUBMIT(id)}?status=${status}`;
-      const res = await http.post<GoalResponse>(endpoint);
-      if (!res.success || !res.data) {
-        return { success: false, error: res.errorMessage || 'Failed to submit goal' };
-      }
-      return { success: true, data: res.data };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : 'Failed to submit goal' };
+  success: boolean;
+  data?: GoalResponse;
+  error?: string;
+}> {
+  try {
+    const response = await goalsApi.submitGoal(id, status);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to submit goal',
+      };
     }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Submit goal action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while submitting goal',
+    };
   }
+}
 
-// Supervisor: approve pending goal
-export async function approveGoalAction(goalId: UUID): Promise<{ success: boolean; data?: GoalResponse; error?: string }> {
-    try {
-      const http = getHttpClient();
-      const res = await http.post<GoalResponse>(API_ENDPOINTS.GOALS.APPROVE(goalId));
-      if (!res.success || !res.data) return { success: false, error: res.errorMessage || 'Failed to approve goal' };
-      return { success: true, data: res.data };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : 'Failed to approve goal' };
+/**
+ * Server action to approve a pending goal (supervisor action)
+ */
+export async function approveGoalAction(goalId: UUID): Promise<{
+  success: boolean;
+  data?: GoalResponse;
+  error?: string;
+}> {
+  try {
+    const response = await goalsApi.approveGoal(goalId);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to approve goal',
+      };
     }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Approve goal action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while approving goal',
+    };
   }
-  
-  // Supervisor: reject pending goal
-  export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{ success: boolean; data?: GoalResponse; error?: string }> {
-    try {
-      const http = getHttpClient();
-      const endpoint = `${API_ENDPOINTS.GOALS.REJECT(goalId)}?reason=${encodeURIComponent(reason)}`;
-      const res = await http.post<GoalResponse>(endpoint);
-      if (!res.success || !res.data) return { success: false, error: res.errorMessage || 'Failed to reject goal' };
-      return { success: true, data: res.data };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : 'Failed to reject goal' };
+}
+/**
+ * Server action to reject a pending goal with reason (supervisor action)
+ */
+export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{
+  success: boolean;
+  data?: GoalResponse;
+  error?: string;
+}> {
+  try {
+    const response = await goalsApi.rejectGoal(goalId, reason);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to reject goal',
+      };
     }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Reject goal action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while rejecting goal',
+    };
   }
+}
   
