@@ -33,11 +33,6 @@ export function useGoalAutoSave({
     getChangedGoals,
   } = goalTracking;
 
-  const isUuid = useCallback((value: unknown): boolean => {
-    if (typeof value !== 'string') return false;
-    // Simple UUID v4 pattern (accepts any UUID variant to be tolerant)
-    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
-  }, []);
   
   // Validation function to check if a goal has all required fields for saving
   const isGoalReadyForSave = useCallback((goalType: 'performance' | 'competency', goalData: any): boolean => {
@@ -64,18 +59,13 @@ export function useGoalAutoSave({
       
       return hasAllFields;
     } else if (goalType === 'competency') {
-      // Competency goal requires: competencyId, actionPlan
-      const competencyId = goalData.selectedCompetencyId;
-      const hasAllFields = !!(
-        competencyId &&
-        isUuid(competencyId) &&
-        goalData.actionPlan?.trim()
-      );
+      // Competency goal requires: actionPlan (competencyIds and selectedIdealActions are optional)
+      const hasAllFields = !!goalData.actionPlan?.trim();
       
       if (process.env.NODE_ENV !== 'production') console.debug(`🔍 Competency goal validation for ID ${goalData.id}:`, {
-        competencyIdProvided: !!competencyId,
-        competencyIdIsUuid: isUuid(competencyId),
         actionPlan: !!goalData.actionPlan?.trim(),
+        competencyIds: goalData.competencyIds?.length || 0,
+        selectedIdealActions: Object.keys(goalData.selectedIdealActions || {}).length,
         isReady: hasAllFields
       });
       
@@ -147,22 +137,23 @@ export function useGoalAutoSave({
   }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData]);
 
   const handleCompetencyGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
+    console.log('🔧 handleCompetencyGoalAutoSave called with currentData:', currentData);
     // Check if this is a new competency goal (temporary ID starts with timestamp)
     const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
     
     if (isNewGoal) {
-      // Create new competency goal
-      const competencyId = currentData.selectedCompetencyId;
+      // Create new competency goal with proper typing
       const createData: GoalCreateRequest = {
         periodId,
         goalCategory: 'コンピテンシー',
         status: 'incomplete',
         weight: 100,
-        competencyId,
         actionPlan: currentData.actionPlan,
+        competencyIds: currentData.competencyIds && currentData.competencyIds.length > 0 ? currentData.competencyIds : null,
+        selectedIdealActions: currentData.selectedIdealActions && Object.keys(currentData.selectedIdealActions).length > 0 ? currentData.selectedIdealActions : null,
       };
       
-      if (process.env.NODE_ENV !== 'production') console.debug(`🚀 Auto-save: Creating competency goal with data:`, createData);
+      console.log(`🚀 Auto-save: Creating competency goal with data:`, JSON.stringify(createData, null, 2));
       const result = await createGoalAction(createData);
       
       if (result && result.success && result.data) {
@@ -185,10 +176,10 @@ export function useGoalAutoSave({
       }
     } else {
       // Update existing competency goal
-      const competencyId = currentData.selectedCompetencyId;
       const updateData: GoalUpdateRequest = {
-        competencyId,
         actionPlan: currentData.actionPlan,
+        competencyIds: currentData.competencyIds && currentData.competencyIds.length > 0 ? currentData.competencyIds : null,
+        selectedIdealActions: currentData.selectedIdealActions && Object.keys(currentData.selectedIdealActions).length > 0 ? currentData.selectedIdealActions : null,
       };
       const result = await updateGoalAction(goalId, updateData);
       
@@ -204,11 +195,16 @@ export function useGoalAutoSave({
   }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData]);
   
   const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
-    if (!selectedPeriod?.id) return false;
+    console.log('🔄 Auto-save: handleAutoSave called with changed goals:', changedGoals);
+    
+    if (!selectedPeriod?.id) {
+      console.log('🚫 Auto-save: No period selected');
+      return false;
+    }
     
     // Prevent concurrent save operations
     if (isSavingRef.current) {
-      if (process.env.NODE_ENV !== 'production') console.debug('🚫 Auto-save: already in progress, skipping');
+      console.log('🚫 Auto-save: already in progress, skipping');
       return false;
     }
     
@@ -293,10 +289,12 @@ export function useGoalAutoSave({
     enabled: !!selectedPeriod?.id, // Enable when period is selected
     autoSaveReady: isAutoSaveReady && !!selectedPeriod?.id, // Only activate when explicitly ready AND period selected
     changeDetector: detectChanges, // Only get changed goals
-    // Lightweight data key to avoid heavy JSON stringify on large forms; changes are event-based
+    // Use stable, ID-based keys to avoid deep object diffs causing loops
     dataKey: {
       perfCount: goalData.performanceGoals.length,
+      perfIds: goalData.performanceGoals.map(g => g.id).sort().join(','),
       compCount: goalData.competencyGoals.length,
+      compIds: goalData.competencyGoals.map(g => g.id).sort().join(','),
       ready: isAutoSaveReady,
     }
   });

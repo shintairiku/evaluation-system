@@ -23,7 +23,8 @@ export interface PerformanceGoal {
 
 export interface CompetencyGoal {
   id: string; // Will be server ID or temporary timestamp ID  
-  selectedCompetencyId: string;
+  competencyIds?: string[] | null;
+  selectedIdealActions?: Record<string, string[]> | null;
   actionPlan: string;
 }
 
@@ -52,7 +53,7 @@ export function useGoalData(): UseGoalDataReturn {
   
   // Initialize goal tracking hook
   const goalTracking = useGoalTracking();
-  const { trackGoalChange, clearChanges } = goalTracking;
+  const { clearChanges } = goalTracking;
 
   const updatePerformanceGoals = useCallback((goals: PerformanceGoal[]) => {
     debugLog('📊 updatePerformanceGoals called with:', goals);
@@ -126,7 +127,8 @@ export function useGoalData(): UseGoalDataReturn {
         competencyGoals: prev.competencyGoals.map(goal => 
           goal.id === tempId ? {
             id: serverGoal.id,
-            selectedCompetencyId: serverGoal.competencyId || '',
+            competencyIds: serverGoal.competencyIds || null,
+            selectedIdealActions: serverGoal.selectedIdealActions || null,
             actionPlan: serverGoal.actionPlan || '',
           } : goal
         )

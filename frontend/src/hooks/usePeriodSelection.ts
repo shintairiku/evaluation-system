@@ -52,7 +52,8 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
         type: 'competency' as const,
         data: {
           id: serverGoal.id,
-          selectedCompetencyId: serverGoal.competencyId || '',
+          competencyIds: serverGoal.competencyIds || null,
+          selectedIdealActions: serverGoal.selectedIdealActions || null,
           actionPlan: serverGoal.actionPlan || '',
         } as CompetencyGoal
       };
