@@ -13,61 +13,63 @@ import { AlertCircle } from 'lucide-react';
 interface OrganizationViewWithOrgChartProps {
   users: UserDetailResponse[];
   onUserUpdate?: (user: UserDetailResponse) => void;
+  isFiltered?: boolean;
 }
 
-export default function OrganizationViewWithOrgChart({ users, onUserUpdate }: OrganizationViewWithOrgChartProps) {
+export default function OrganizationViewWithOrgChart({ users, onUserUpdate, isFiltered = false }: OrganizationViewWithOrgChartProps) {
   const [editMode, setEditMode] = useState(false);
   const [orgChartUsers, setOrgChartUsers] = useState<SimpleUser[] | null>(null);
+  // Single source of truth for what the chart renders
+  const [dataSource, setDataSource] = useState<{ mode: 'auto' | 'filtered'; users: SimpleUser[] }>({ mode: 'auto', users: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load org chart data when switching to readonly mode
   useEffect(() => {
     if (!editMode) {
-      // Heuristic: treat as "filtered" only when more than 1 user is supplied.
-      // When employees land with only themselves available from RBAC-limited list (1 user),
-      // we still load the full org-chart dataset so counts and departments render correctly.
-      const hasFilteredUsers = users && users.length > 1;
-      
-      if (hasFilteredUsers) {
-        // Skip loading org chart data if we have filtered users from search
-        setOrgChartUsers(null);
-        setLoading(false);
-        setError(null);
-      } else {
-        // Load org chart data when there are no or only a single pre-supplied user
-        setLoading(true);
-        setError(null);
-        
-        getUsersForOrgChartAction()
-          .then(result => {
-            if (result.success && result.data) {
-              setOrgChartUsers(result.data);
-            } else {
-              setError(result.error || '組織図データの取得に失敗しました');
-            }
-          })
-          .catch(err => {
-            console.error('Failed to load org chart data:', err);
-            setError('組織図データの取得中にエラーが発生しました');
-          })
-          .finally(() => {
-            setLoading(false);
-          });
-      }
+      // If currently in filtered mode, do nothing here (source controlled externally)
+      if (dataSource.mode === 'filtered') return;
+
+      // Auto mode: load dataset
+      setLoading(true);
+      setError(null);
+      getUsersForOrgChartAction()
+        .then(result => {
+          if (result.success && result.data) {
+            setOrgChartUsers(result.data);
+          } else {
+            setError(result.error || '組織図データの取得に失敗しました');
+          }
+        })
+        .catch(err => {
+          console.error('Failed to load org chart data:', err);
+          setError('組織図データの取得中にエラーが発生しました');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     }
-  }, [editMode, users]);
+  }, [editMode, dataSource.mode]);
+
+  // Apply external filtered users when parent indicates filtered
+  useEffect(() => {
+    if (isFiltered) {
+      // Map UserDetailResponse -> SimpleUser (fields used by chart exist or are subset-compatible)
+      const mapped = (users as unknown as SimpleUser[]) || [];
+      setDataSource({ mode: 'filtered', users: mapped });
+    } else {
+      setDataSource({ mode: 'auto', users: [] });
+    }
+  }, [isFiltered, users]);
 
   const toggleEditMode = () => {
     setEditMode(!editMode);
   };
 
   const renderReadOnlyView = () => {
-    // Priority: Use filtered users from search if available
-    const hasFilteredUsers = users && users.length > 1;
-    
-    if (hasFilteredUsers) {
-      return <ReadOnlyOrganizationView users={users} />;
+    // Priority: Use filtered users when dataSource indicates filtered
+    if (dataSource.mode === 'filtered') {
+      return <ReadOnlyOrganizationView users={dataSource.users} isFiltered />;
     }
 
     // Fallback: Use org chart users when no filtered data
