@@ -82,22 +82,13 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
     
     try {
       // Get existing goals to determine create vs update
-      // First try to get draft goals
-      const draftGoalsResult = await getGoalsAction({ 
+      // Fetch all statuses in a single API call
+      const existingGoalsResult = await getGoalsAction({ 
         periodId,
-        status: 'draft'
-      });
-      
-      // Then try to get incomplete goals
-      const incompleteGoalsResult = await getGoalsAction({ 
-        periodId,
-        status: 'incomplete'
+        status: ['incomplete', 'draft', 'pending_approval']
       });
 
-      // Combine both results
-      const draftGoals = draftGoalsResult.success ? draftGoalsResult.data?.items || [] : [];
-      const incompleteGoals = incompleteGoalsResult.success ? incompleteGoalsResult.data?.items || [] : [];
-      const existingGoals = [...draftGoals, ...incompleteGoals];
+      const existingGoals = existingGoalsResult.success ? existingGoalsResult.data?.items || [] : [];
       const existingPerformanceGoals = existingGoals.filter(g => g.goalCategory === '業績目標');
       const existingCompetencyGoals = existingGoals.filter(g => g.goalCategory === 'コンピテンシー');
 
@@ -181,21 +172,24 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
 
       // If all goals were created/updated successfully, set their status to 'draft'
       if (allSuccessful) {
-        // Get all incomplete goals for this period to set them as draft
-        const incompleteGoalsResult = await getGoalsAction({ 
+        // Get all goals for this period to set them as draft (including just updated ones)
+        const allGoalsResult = await getGoalsAction({ 
           periodId,
-          status: 'incomplete'
+          status: ['incomplete', 'draft', 'pending_approval']
         });
         
-        if (incompleteGoalsResult.success && incompleteGoalsResult.data) {
-          const incompleteGoals = incompleteGoalsResult.data.items;
+        if (allGoalsResult.success && allGoalsResult.data) {
+          const allGoals = allGoalsResult.data.items;
           
           // Set each goal's status to 'draft'
-          for (const goal of incompleteGoals) {
-            const submitResult = await submitGoalAction(goal.id, 'draft');
-            if (!submitResult.success) {
-              allSuccessful = false;
-              errors.push(`${goal.goalCategory}目標のドラフト保存に失敗: ${submitResult.error}`);
+          for (const goal of allGoals) {
+            // Only change status if it's not already 'draft'
+            if (goal.status !== 'draft') {
+              const submitResult = await submitGoalAction(goal.id, 'draft');
+              if (!submitResult.success) {
+                allSuccessful = false;
+                errors.push(`${goal.goalCategory}目標のドラフト保存に失敗: ${submitResult.error}`);
+              }
             }
           }
         }
@@ -229,20 +223,13 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
         }
 
         // Then get all goals and submit them
-        // Get both draft and incomplete goals for submission
-        const draftGoalsResult = await getGoalsAction({ 
+        // Get all statuses for submission in a single API call
+        const goalsResult = await getGoalsAction({ 
           periodId,
-          status: 'draft'
-        });
-        
-        const incompleteGoalsResult = await getGoalsAction({ 
-          periodId,
-          status: 'incomplete'
+          status: ['incomplete', 'draft', 'pending_approval']
         });
 
-        const draftGoals = draftGoalsResult.success ? draftGoalsResult.data?.items || [] : [];
-        const incompleteGoals = incompleteGoalsResult.success ? incompleteGoalsResult.data?.items || [] : [];
-        const goals = [...draftGoals, ...incompleteGoals];
+        const goals = goalsResult.success ? goalsResult.data?.items || [] : [];
 
         if (goals.length === 0) {
           toast.error('提出する目標が見つかりません。');

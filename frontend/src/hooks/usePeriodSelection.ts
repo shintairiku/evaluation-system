@@ -78,10 +78,10 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
       // Reset goal data first
       resetGoalData();
       
-      // Fetch existing goals for this period with status 'incomplete' (auto-saved goals)
+      // Fetch existing goals for this period with all relevant statuses
       const result = await getGoalsAction({ 
         periodId: period.id,
-        status: 'incomplete' // Only get auto-saved goals first
+        status: ['incomplete', 'draft', 'pending_approval'] // Get all editable goals
       });
 
       if (result.success && result.data?.items) {
