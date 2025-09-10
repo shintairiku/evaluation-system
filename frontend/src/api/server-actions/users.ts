@@ -459,3 +459,56 @@ export async function getUsersForOrgChartAction(filters?: {
     };
   }
 }
+
+/**
+ * Search over organization chart dataset (readonly, active users only)
+ * Filters: query (name/code/email, min 2 chars), department_id, role_id, status (client-side), supervisor_id
+ */
+export async function searchOrgChartUsersAction(params: {
+  query?: string;
+  department_id?: string;
+  role_id?: string;
+  status?: string; // org-chart returns active only; kept for future parity
+  supervisor_id?: string;
+  page?: number; // reserved for future backend pagination
+  limit?: number; // reserved for future backend pagination
+}): Promise<{
+  success: boolean;
+  data?: SimpleUser[];
+  total?: number;
+  error?: string;
+}> {
+  try {
+    const response = await getUsersForOrgChartAction({
+      department_ids: params.department_id && params.department_id !== 'all' ? [params.department_id] : undefined,
+      role_ids: params.role_id && params.role_id !== 'all' ? [params.role_id] : undefined,
+      supervisor_id: params.supervisor_id,
+    });
+
+    if (!response.success || !response.data) {
+      return { success: false, error: response.error || 'Failed to search org chart users' };
+    }
+
+    let items = response.data;
+
+    // Query filter (min 2 chars)
+    const q = (params.query || '').trim().toLowerCase();
+    if (q.length >= 2) {
+      items = items.filter(u =>
+        u.name.toLowerCase().includes(q) ||
+        u.employee_code.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q)
+      );
+    }
+
+    // Status filter (org-chart returns active only; keep logic for completeness)
+    if (params.status && params.status !== 'all') {
+      items = items.filter(u => u.status === params.status);
+    }
+
+    return { success: true, data: items, total: items.length };
+  } catch (error) {
+    console.error('Search org chart users action error:', error);
+    return { success: false, error: 'An unexpected error occurred while searching org chart users' };
+  }
+}
