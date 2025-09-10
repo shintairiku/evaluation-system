@@ -7,42 +7,42 @@
 ### 1. 欠落しているエンドポイントファイルの実装
 > バックエンドAPIに対応するフロントエンドエンドポイントファイルを作成し、1:1マッピングを確立します。
 
-- [ ] **1.1. departments.ts エンドポイントファイルの作成**
+- [x] **1.1. departments.ts エンドポイントファイルの作成** ✅
   > DepartmentのCRUD操作に対応するAPI関数を実装。型定義も含める。
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **1.2. roles.ts エンドポイントファイルの作成**  
+- [x] **1.2. roles.ts エンドポイントファイルの作成** ✅
   > RoleのCRUD操作とreorder機能に対応するAPI関数を実装。
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **1.3. stages.ts エンドポイントファイルの作成**
+- [x] **1.3. stages.ts エンドポイントファイルの作成** ✅
   > StageのCRUD操作とadmin機能に対応するAPI関数を実装。
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **1.4. evaluation-periods.ts エンドポイントファイルの作成**
+- [x] **1.4. evaluation-periods.ts エンドポイントファイルの作成** ✅
   > EvaluationPeriodのCRUD操作に対応するAPI関数を実装。
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **1.5. competencies.ts エンドポイントファイルの作成**
+- [x] **1.5. competencies.ts エンドポイントファイルの作成** ✅
   > CompetencyのCRUD操作に対応するAPI関数を実装。
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **1.6. self-assessments.ts エンドポイントファイルの作成**
+- [x] **1.6. self-assessments.ts エンドポイントファイルの作成** ✅
   > SelfAssessmentのCRUD操作と関連機能のAPI関数を実装。
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **1.7. supervisor-reviews.ts エンドポイントファイルの作成**
+- [x] **1.7. supervisor-reviews.ts エンドポイントファイルの作成** ✅
   > SupervisorReviewのCRUD操作と関連機能のAPI関数を実装。
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **1.8. supervisor-feedbacks.ts エンドポイントファイルの作成**
+- [x] **1.8. supervisor-feedbacks.ts エンドポイントファイルの作成** ✅
   > SupervisorFeedbackのCRUD操作と関連機能のAPI関数を実装。
   >
   > **関連要件:** 2.1, 2.2
@@ -50,37 +50,37 @@
 ### 2. 型定義ファイルの実装
 > 各リソースに対応するTypeScript型定義を作成します。
 
-- [ ] **2.1. department.ts 型定義ファイルの作成**
+- [x] **2.1. department.ts 型定義ファイルの作成** ✅
   > Department関連の型（Department, DepartmentCreate, DepartmentUpdate, DepartmentDetail）を定義。
   >
   > **関連要件:** 2.2, 5.1
 
-- [ ] **2.2. role.ts 型定義ファイルの作成**
+- [x] **2.2. role.ts 型定義ファイルの作成** ✅
   > Role関連の型とreorder用の型を定義。
   >
   > **関連要件:** 2.2, 5.1
 
-- [ ] **2.3. stage.ts 型定義ファイルの作成**
+- [x] **2.3. stage.ts 型定義ファイルの作成** ✅
   > Stage関連の型とユーザーカウント付きの型を定義。
   >
   > **関連要件:** 2.2, 5.1
 
-- [ ] **2.4. evaluation-period.ts 型定義ファイルの作成**
+- [x] **2.4. evaluation-period.ts 型定義ファイルの作成** ✅
   > EvaluationPeriod関連の型を定義。
   >
   > **関連要件:** 2.2, 5.1
 
-- [ ] **2.5. self-assessment.ts 型定義ファイルの作成**
+- [x] **2.5. self-assessment.ts 型定義ファイルの作成** ✅
   > SelfAssessment関連の型を定義。
   >
   > **関連要件:** 2.2, 5.1
 
-- [ ] **2.6. supervisor-review.ts 型定義ファイルの作成**
+- [x] **2.6. supervisor-review.ts 型定義ファイルの作成** ✅
   > SupervisorReview関連の型を定義。
   >
   > **関連要件:** 2.2, 5.1
 
-- [ ] **2.7. supervisor-feedback.ts 型定義ファイルの作成**
+- [x] **2.7. supervisor-feedback.ts 型定義ファイルの作成** ✅
   > SupervisorFeedback関連の型を定義。
   >
   > **関連要件:** 2.2, 5.1
