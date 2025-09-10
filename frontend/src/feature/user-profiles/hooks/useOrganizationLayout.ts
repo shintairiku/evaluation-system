@@ -52,7 +52,12 @@ export function useOrganizationLayout({
 
     // Detect filter type to adapt layout strategy
     const filterType = detectFilterType(users);
-    // In read-only browsing mode, we want department-first layout regardless of uniform status
+    // When role filter is applied we still prefer department-first layout (company → department → users on click)
+    const LOW_ROLE_KEYWORDS = ['employee', 'viewer', 'part-time', 'parttime', 'part time'];
+    const allLowRoles = users.length > 0 && users.every(u =>
+      (u as any)?.roles?.some((r: any) => LOW_ROLE_KEYWORDS.some(k => String(r?.name || '').toLowerCase().includes(k)))
+    );
+    // Flat layout for stage/role/status (company → users) unless forceDepartmentLayout=true
     const isFlatLayout = !forceDepartmentLayout && (filterType === 'stage' || filterType === 'role' || filterType === 'status');
     
     
@@ -109,17 +114,20 @@ export function useOrganizationLayout({
           ? startX + (totalLayoutWidth / 2) - 128
           : 400); // Center company when no departments
 
-    // Add company node
-    nodeList.push({
-      id: 'company-root',
-      type: 'orgNode',
-      position: { x: companyX, y: 0 },
-      data: { 
-        name: '株式会社新大陸',
-        userCount: users.length,
-        isDepartment: true
-      }
-    });
+    // Always show company root; flat layouts attach users directly to company
+    const showCompanyRoot = true;
+    if (showCompanyRoot) {
+      nodeList.push({
+        id: 'company-root',
+        type: 'orgNode',
+        position: { x: companyX, y: 0 },
+        data: { 
+          name: '株式会社新大陸',
+          userCount: users.length,
+          isDepartment: true
+        }
+      });
+    }
 
     // Handle flat layout for stage/role/status filters
     if (isFlatLayout) {
@@ -152,8 +160,8 @@ export function useOrganizationLayout({
           }
         });
 
-        // Add company to department edge
-        if (!edgeList.some(e => e.id === `company-${department.id}`)) {
+        // Add company to department edge (only when company root is visible)
+        if (showCompanyRoot && !edgeList.some(e => e.id === `company-${department.id}`)) {
           const edgeType = filteredDepartments.length === 1 ? 'straight' : 'smoothstep';
           edgeList.push({
             id: `company-${department.id}`,
