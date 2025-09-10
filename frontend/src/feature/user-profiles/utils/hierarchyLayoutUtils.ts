@@ -32,8 +32,7 @@ export const LAYOUT_CONSTANTS: LayoutConstants = {
 } as const;
 
 // ——————————————————————————————————————————————————————————
-// Role utilities
-// Keep all role-related keyword checks centralized and reusable
+// Role utilities — centralize keyword checks so layout and detection share logic
 // ——————————————————————————————————————————————————————————
 export const LOW_ROLE_KEYWORDS = ['employee', 'viewer', 'part-time', 'parttime', 'part time'] as const;
 

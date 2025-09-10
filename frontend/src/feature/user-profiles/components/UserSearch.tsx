@@ -48,6 +48,26 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function UserSearch({ onSearchResults, initialUsers = [], useOrgChartDataset = false }: UserSearchProps) {
+  // ——————————————————————————————————————————————————————————
+  // Helpers
+  // ——————————————————————————————————————————————————————————
+  const buildParamsFromForm = (formData: FormData): SearchUsersParams => ({
+    query: (formData.get('query') as string) || '',
+    department_id: (formData.get('department_id') as string) || 'all',
+    stage_id: (formData.get('stage_id') as string) || 'all',
+    role_id: (formData.get('role_id') as string) || 'all',
+    status: (formData.get('status') as string) || 'all',
+    page: parseInt((formData.get('page') as string) || '1', 10),
+    limit: parseInt((formData.get('limit') as string) || '50', 10),
+  });
+
+  const hasActiveFilters = (p: SearchUsersParams): boolean => (
+    (!!p.department_id && p.department_id !== 'all') ||
+    (!!p.stage_id && p.stage_id !== 'all') ||
+    (!!p.role_id && p.role_id !== 'all') ||
+    (!!p.status && p.status !== 'all')
+  );
+
   const [searchParams, setSearchParams] = React.useState<SearchUsersParams>({
     query: '',
     department_id: 'all',
@@ -85,15 +105,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
     prevState: SearchState,
     formData: FormData
   ): Promise<SearchState> => {
-    const params: SearchUsersParams = {
-      query: formData.get('query') as string || '',
-      department_id: formData.get('department_id') as string || 'all',
-      stage_id: formData.get('stage_id') as string || 'all',
-      role_id: formData.get('role_id') as string || 'all',
-      status: formData.get('status') as string || 'all',
-      page: parseInt(formData.get('page') as string || '1', 10),
-      limit: parseInt(formData.get('limit') as string || '50', 10)
-    };
+    const params: SearchUsersParams = buildParamsFromForm(formData);
 
     try {
       if (useOrgChartDataset) {
@@ -202,10 +214,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
   useEffect(() => {
     // Only perform server search if there are meaningful search parameters
     const hasMinimumSearchQuery = (debouncedQuery || '').trim().length >= 2; // Minimum 2 characters
-    const hasFilters = searchParams.department_id !== 'all' || 
-                      searchParams.stage_id !== 'all' || 
-                      searchParams.role_id !== 'all' || 
-                      searchParams.status !== 'all';
+    const hasFilters = hasActiveFilters(searchParams);
 
     if (hasMinimumSearchQuery || hasFilters) {
       setWasFiltered(true);
