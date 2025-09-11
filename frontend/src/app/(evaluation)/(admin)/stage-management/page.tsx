@@ -18,7 +18,7 @@ export default async function StageManagementPage() {
   const { userId } = auth();
   
   if (!userId) {
-    redirect('/auth/login');
+    redirect('/sign-in');
   }
 
   // Fetch initial data server-side for better performance
