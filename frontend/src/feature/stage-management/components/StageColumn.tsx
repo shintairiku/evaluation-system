@@ -1,6 +1,7 @@
 'use client';
 
 import { useDroppable } from '@dnd-kit/core';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users } from 'lucide-react';
@@ -22,16 +23,25 @@ interface StageColumnProps {
  *     └── UserCard (ドラッグ可能)
  */
 export default function StageColumn({ stage, editMode }: StageColumnProps) {
-  const { isOver, setNodeRef } = useDroppable({
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Hydration guard
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const droppableConfig = isMounted ? {
     id: stage.id,
-  });
+  } : { id: stage.id, disabled: true };
+
+  const { isOver, setNodeRef } = useDroppable(droppableConfig);
 
   return (
     <Card 
       ref={setNodeRef}
       className={`
         min-h-[500px] transition-all duration-200
-        ${isOver ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
+        ${isMounted && isOver ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
         ${editMode ? 'border-orange-300 bg-orange-50/30' : ''}
       `}
     >

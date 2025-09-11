@@ -1,6 +1,7 @@
 'use client';
 
 import { useDraggable } from '@dnd-kit/core';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -22,19 +23,28 @@ interface UserCardProps {
  * - name, employee_code, job_title, email
  */
 export default function UserCard({ user, isDragOverlay = false }: UserCardProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Hydration guard
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const draggableConfig = isMounted ? {
+    id: user.id,
+    data: {
+      user,
+      stageId: user.current_stage_id,
+    },
+  } : { id: user.id, disabled: true };
+
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     isDragging,
-  } = useDraggable({
-    id: user.id,
-    data: {
-      user,
-      stageId: user.current_stage_id,
-    },
-  });
+  } = useDraggable(draggableConfig);
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -53,13 +63,13 @@ export default function UserCard({ user, isDragOverlay = false }: UserCardProps)
       ref={setNodeRef}
       style={style}
       className={`
-        cursor-grab transition-all duration-200
+        ${isMounted ? 'cursor-grab' : 'cursor-default'} transition-all duration-200
         ${isDragging ? 'opacity-50 rotate-3 scale-105' : ''}
         ${isDragOverlay ? 'rotate-3 scale-105 shadow-xl' : 'hover:shadow-md hover:scale-[1.02]'}
-        active:cursor-grabbing
+        ${isMounted ? 'active:cursor-grabbing' : ''}
       `}
-      {...listeners}
-      {...attributes}
+      {...(isMounted ? listeners : {})}
+      {...(isMounted ? attributes : {})}
     >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">

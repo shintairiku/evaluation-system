@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
 import type { StageData, UserCardData, UserStageChange } from '../types';
 import StageColumn from './StageColumn';
@@ -28,6 +28,12 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
   const [pendingChanges, setPendingChanges] = useState<UserStageChange[]>([]);
   const [activeUser, setActiveUser] = useState<UserCardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Hydration guard to prevent SSR/CSR mismatch with drag and drop
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -135,6 +141,24 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
     setEditMode(false);
     onClearError();
   }, [initialStages, onClearError]);
+
+  // Show static version during SSR to prevent hydration mismatch
+  if (!isMounted) {
+    return (
+      <div className="space-y-6">
+        {/* Static stage columns grid - no drag and drop during SSR */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {stages.map(stage => (
+            <StageColumn
+              key={stage.id}
+              stage={stage}
+              editMode={false}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
