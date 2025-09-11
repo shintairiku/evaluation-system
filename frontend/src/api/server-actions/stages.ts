@@ -1,6 +1,8 @@
 'use server';
 
+import { revalidateTag } from 'next/cache';
 import { stagesApi } from '../endpoints/stages';
+import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
 import type { 
   Stage, 
   StageDetail, 
@@ -11,9 +13,9 @@ import type {
 } from '../types';
 
 /**
- * Server action to get all stages
+ * Server action to get all stages with caching
  */
-export async function getStagesAction(): Promise<{
+async function _getStagesAction(): Promise<{
   success: boolean;
   data?: Stage[];
   error?: string;
@@ -24,7 +26,7 @@ export async function getStagesAction(): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch stages',
+        error: response.errorMessage || 'Failed to fetch stages',
       };
     }
     
@@ -41,10 +43,16 @@ export async function getStagesAction(): Promise<{
   }
 }
 
+export const getStagesAction = createFullyCachedAction(
+  _getStagesAction,
+  'getStages',
+  CACHE_TAGS.STAGES
+);
+
 /**
- * Server action to get a specific stage by ID
+ * Server action to get a specific stage by ID with caching
  */
-export async function getStageByIdAction(stageId: UUID): Promise<{
+async function _getStageByIdAction(stageId: UUID): Promise<{
   success: boolean;
   data?: StageDetail;
   error?: string;
@@ -55,7 +63,7 @@ export async function getStageByIdAction(stageId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch stage',
+        error: response.errorMessage || 'Failed to fetch stage',
       };
     }
     
@@ -72,8 +80,14 @@ export async function getStageByIdAction(stageId: UUID): Promise<{
   }
 }
 
+export const getStageByIdAction = createFullyCachedAction(
+  _getStageByIdAction,
+  'getStageById',
+  CACHE_TAGS.STAGES
+);
+
 /**
- * Server action to create a new stage
+ * Server action to create a new stage with cache revalidation
  */
 export async function createStageAction(stageData: StageCreate): Promise<{
   success: boolean;
@@ -86,9 +100,12 @@ export async function createStageAction(stageData: StageCreate): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to create stage',
+        error: response.errorMessage || 'Failed to create stage',
       };
     }
+    
+    // Revalidate stages cache after successful creation
+    revalidateTag(CACHE_TAGS.STAGES);
     
     return {
       success: true,
@@ -104,7 +121,7 @@ export async function createStageAction(stageData: StageCreate): Promise<{
 }
 
 /**
- * Server action to update an existing stage
+ * Server action to update an existing stage with cache revalidation
  */
 export async function updateStageAction(stageId: UUID, updateData: StageUpdate): Promise<{
   success: boolean;
@@ -117,9 +134,12 @@ export async function updateStageAction(stageId: UUID, updateData: StageUpdate):
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to update stage',
+        error: response.errorMessage || 'Failed to update stage',
       };
     }
+    
+    // Revalidate stages cache after successful update
+    revalidateTag(CACHE_TAGS.STAGES);
     
     return {
       success: true,
@@ -135,7 +155,7 @@ export async function updateStageAction(stageId: UUID, updateData: StageUpdate):
 }
 
 /**
- * Server action to delete a stage
+ * Server action to delete a stage with cache revalidation
  */
 export async function deleteStageAction(stageId: UUID): Promise<{
   success: boolean;
@@ -147,9 +167,12 @@ export async function deleteStageAction(stageId: UUID): Promise<{
     if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to delete stage',
+        error: response.errorMessage || 'Failed to delete stage',
       };
     }
+    
+    // Revalidate stages cache after successful deletion
+    revalidateTag(CACHE_TAGS.STAGES);
     
     return {
       success: true,
@@ -164,9 +187,9 @@ export async function deleteStageAction(stageId: UUID): Promise<{
 }
 
 /**
- * Server action to get stages for admin with user counts
+ * Server action to get stages for admin with user counts and caching
  */
-export async function getStagesAdminAction(): Promise<{
+async function _getStagesAdminAction(): Promise<{
   success: boolean;
   data?: StageWithUserCount[];
   error?: string;
@@ -177,7 +200,7 @@ export async function getStagesAdminAction(): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch admin stages',
+        error: response.errorMessage || 'Failed to fetch admin stages',
       };
     }
     
@@ -193,3 +216,9 @@ export async function getStagesAdminAction(): Promise<{
     };
   }
 }
+
+export const getStagesAdminAction = createFullyCachedAction(
+  _getStagesAdminAction,
+  'getStagesAdmin',
+  CACHE_TAGS.STAGES
+);

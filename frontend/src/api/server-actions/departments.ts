@@ -1,6 +1,8 @@
 'use server';
 
+import { revalidateTag } from 'next/cache';
 import { departmentsApi } from '../endpoints/departments';
+import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
 import type { 
   Department, 
   DepartmentDetail, 
@@ -10,9 +12,9 @@ import type {
 } from '../types';
 
 /**
- * Server action to get all departments
+ * Server action to get all departments with caching
  */
-export async function getDepartmentsAction(): Promise<{
+async function _getDepartmentsAction(): Promise<{
   success: boolean;
   data?: Department[];
   error?: string;
@@ -23,7 +25,7 @@ export async function getDepartmentsAction(): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch departments',
+        error: response.errorMessage || 'Failed to fetch departments',
       };
     }
     
@@ -40,10 +42,16 @@ export async function getDepartmentsAction(): Promise<{
   }
 }
 
+export const getDepartmentsAction = createFullyCachedAction(
+  _getDepartmentsAction,
+  'getDepartments',
+  CACHE_TAGS.DEPARTMENTS
+);
+
 /**
- * Server action to get a specific department by ID
+ * Server action to get a specific department by ID with caching
  */
-export async function getDepartmentByIdAction(departmentId: UUID): Promise<{
+async function _getDepartmentByIdAction(departmentId: UUID): Promise<{
   success: boolean;
   data?: DepartmentDetail;
   error?: string;
@@ -54,7 +62,7 @@ export async function getDepartmentByIdAction(departmentId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch department',
+        error: response.errorMessage || 'Failed to fetch department',
       };
     }
     
@@ -71,8 +79,14 @@ export async function getDepartmentByIdAction(departmentId: UUID): Promise<{
   }
 }
 
+export const getDepartmentByIdAction = createFullyCachedAction(
+  _getDepartmentByIdAction,
+  'getDepartmentById',
+  CACHE_TAGS.DEPARTMENTS
+);
+
 /**
- * Server action to create a new department
+ * Server action to create a new department with cache revalidation
  */
 export async function createDepartmentAction(departmentData: DepartmentCreate): Promise<{
   success: boolean;
@@ -85,9 +99,12 @@ export async function createDepartmentAction(departmentData: DepartmentCreate): 
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to create department',
+        error: response.errorMessage || 'Failed to create department',
       };
     }
+    
+    // Revalidate departments cache after successful creation
+    revalidateTag(CACHE_TAGS.DEPARTMENTS);
     
     return {
       success: true,
@@ -103,7 +120,7 @@ export async function createDepartmentAction(departmentData: DepartmentCreate): 
 }
 
 /**
- * Server action to update an existing department
+ * Server action to update an existing department with cache revalidation
  */
 export async function updateDepartmentAction(departmentId: UUID, updateData: DepartmentUpdate): Promise<{
   success: boolean;
@@ -116,9 +133,12 @@ export async function updateDepartmentAction(departmentId: UUID, updateData: Dep
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to update department',
+        error: response.errorMessage || 'Failed to update department',
       };
     }
+    
+    // Revalidate departments cache after successful update
+    revalidateTag(CACHE_TAGS.DEPARTMENTS);
     
     return {
       success: true,
@@ -134,7 +154,7 @@ export async function updateDepartmentAction(departmentId: UUID, updateData: Dep
 }
 
 /**
- * Server action to delete a department
+ * Server action to delete a department with cache revalidation
  */
 export async function deleteDepartmentAction(departmentId: UUID): Promise<{
   success: boolean;
@@ -146,9 +166,12 @@ export async function deleteDepartmentAction(departmentId: UUID): Promise<{
     if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to delete department',
+        error: response.errorMessage || 'Failed to delete department',
       };
     }
+    
+    // Revalidate departments cache after successful deletion
+    revalidateTag(CACHE_TAGS.DEPARTMENTS);
     
     return {
       success: true,

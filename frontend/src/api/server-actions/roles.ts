@@ -1,6 +1,8 @@
 'use server';
 
+import { revalidateTag } from 'next/cache';
 import { rolesApi } from '../endpoints/roles';
+import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
 import type { 
   Role, 
   RoleDetail, 
@@ -11,9 +13,9 @@ import type {
 } from '../types';
 
 /**
- * Server action to get all roles
+ * Server action to get all roles with caching
  */
-export async function getRolesAction(): Promise<{
+async function _getRolesAction(): Promise<{
   success: boolean;
   data?: Role[];
   error?: string;
@@ -24,7 +26,7 @@ export async function getRolesAction(): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch roles',
+        error: response.errorMessage || 'Failed to fetch roles',
       };
     }
     
@@ -41,10 +43,16 @@ export async function getRolesAction(): Promise<{
   }
 }
 
+export const getRolesAction = createFullyCachedAction(
+  _getRolesAction,
+  'getRoles',
+  CACHE_TAGS.ROLES
+);
+
 /**
- * Server action to get a specific role by ID
+ * Server action to get a specific role by ID with caching
  */
-export async function getRoleByIdAction(roleId: UUID): Promise<{
+async function _getRoleByIdAction(roleId: UUID): Promise<{
   success: boolean;
   data?: RoleDetail;
   error?: string;
@@ -55,7 +63,7 @@ export async function getRoleByIdAction(roleId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch role',
+        error: response.errorMessage || 'Failed to fetch role',
       };
     }
     
@@ -72,8 +80,14 @@ export async function getRoleByIdAction(roleId: UUID): Promise<{
   }
 }
 
+export const getRoleByIdAction = createFullyCachedAction(
+  _getRoleByIdAction,
+  'getRoleById',
+  CACHE_TAGS.ROLES
+);
+
 /**
- * Server action to create a new role
+ * Server action to create a new role with cache revalidation
  */
 export async function createRoleAction(roleData: RoleCreate): Promise<{
   success: boolean;
@@ -86,9 +100,12 @@ export async function createRoleAction(roleData: RoleCreate): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to create role',
+        error: response.errorMessage || 'Failed to create role',
       };
     }
+    
+    // Revalidate roles cache after successful creation
+    revalidateTag(CACHE_TAGS.ROLES);
     
     return {
       success: true,
@@ -104,7 +121,7 @@ export async function createRoleAction(roleData: RoleCreate): Promise<{
 }
 
 /**
- * Server action to update an existing role
+ * Server action to update an existing role with cache revalidation
  */
 export async function updateRoleAction(roleId: UUID, updateData: RoleUpdate): Promise<{
   success: boolean;
@@ -117,9 +134,12 @@ export async function updateRoleAction(roleId: UUID, updateData: RoleUpdate): Pr
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to update role',
+        error: response.errorMessage || 'Failed to update role',
       };
     }
+    
+    // Revalidate roles cache after successful update
+    revalidateTag(CACHE_TAGS.ROLES);
     
     return {
       success: true,
@@ -135,7 +155,7 @@ export async function updateRoleAction(roleId: UUID, updateData: RoleUpdate): Pr
 }
 
 /**
- * Server action to delete a role
+ * Server action to delete a role with cache revalidation
  */
 export async function deleteRoleAction(roleId: UUID): Promise<{
   success: boolean;
@@ -147,9 +167,12 @@ export async function deleteRoleAction(roleId: UUID): Promise<{
     if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to delete role',
+        error: response.errorMessage || 'Failed to delete role',
       };
     }
+    
+    // Revalidate roles cache after successful deletion
+    revalidateTag(CACHE_TAGS.ROLES);
     
     return {
       success: true,
@@ -164,7 +187,7 @@ export async function deleteRoleAction(roleId: UUID): Promise<{
 }
 
 /**
- * Server action to reorder roles hierarchy
+ * Server action to reorder roles hierarchy with cache revalidation
  */
 export async function reorderRolesAction(reorderData: RoleReorderRequest): Promise<{
   success: boolean;
@@ -177,9 +200,12 @@ export async function reorderRolesAction(reorderData: RoleReorderRequest): Promi
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to reorder roles',
+        error: response.errorMessage || 'Failed to reorder roles',
       };
     }
+    
+    // Revalidate roles cache after successful reorder
+    revalidateTag(CACHE_TAGS.ROLES);
     
     return {
       success: true,

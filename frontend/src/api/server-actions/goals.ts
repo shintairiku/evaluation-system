@@ -1,6 +1,8 @@
 'use server';
 
+import { revalidateTag } from 'next/cache';
 import { goalsApi } from '../endpoints/goals';
+import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
 import type { 
   UUID,
   GoalCreateRequest,
@@ -11,9 +13,9 @@ import type {
 
 
 /**
- * Server action to get goals with optional filtering and pagination
+ * Server action to get goals with optional filtering, pagination, and caching
  */
-export async function getGoalsAction(params?: {
+async function _getGoalsAction(params?: {
   periodId?: UUID;
   userId?: UUID;
   goalCategory?: string;
@@ -27,7 +29,7 @@ export async function getGoalsAction(params?: {
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch goals',
+        error: response.errorMessage || 'Failed to fetch goals',
       };
     }
     
@@ -44,8 +46,14 @@ export async function getGoalsAction(params?: {
   }
 }
 
+export const getGoalsAction = createFullyCachedAction(
+  _getGoalsAction,
+  'getGoals',
+  CACHE_TAGS.GOALS
+);
+
 /**
- * Server action to create a new goal
+ * Server action to create a new goal with cache revalidation
  */
 export async function createGoalAction(data: GoalCreateRequest): Promise<{
   success: boolean;
@@ -62,6 +70,11 @@ export async function createGoalAction(data: GoalCreateRequest): Promise<{
       };
     }
     
+    // Revalidate goals and related caches after successful creation
+    revalidateTag(CACHE_TAGS.GOALS);
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+    revalidateTag(CACHE_TAGS.SUPERVISOR_REVIEWS);
+    
     return {
       success: true,
       data: response.data,
@@ -76,7 +89,7 @@ export async function createGoalAction(data: GoalCreateRequest): Promise<{
 }
 
 /**
- * Server action to update an existing goal
+ * Server action to update an existing goal with cache revalidation
  */
 export async function updateGoalAction(id: UUID, data: GoalUpdateRequest): Promise<{
   success: boolean;
@@ -93,6 +106,11 @@ export async function updateGoalAction(id: UUID, data: GoalUpdateRequest): Promi
       };
     }
     
+    // Revalidate goals and related caches after successful update
+    revalidateTag(CACHE_TAGS.GOALS);
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+    revalidateTag(CACHE_TAGS.SUPERVISOR_REVIEWS);
+    
     return {
       success: true,
       data: response.data,
@@ -107,7 +125,7 @@ export async function updateGoalAction(id: UUID, data: GoalUpdateRequest): Promi
 }
 
 /**
- * Server action to delete a goal
+ * Server action to delete a goal with cache revalidation
  */
 export async function deleteGoalAction(id: UUID): Promise<{
   success: boolean;
@@ -119,9 +137,14 @@ export async function deleteGoalAction(id: UUID): Promise<{
     if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to delete goal',
+        error: response.errorMessage || 'Failed to delete goal',
       };
     }
+    
+    // Revalidate goals and related caches after successful deletion
+    revalidateTag(CACHE_TAGS.GOALS);
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+    revalidateTag(CACHE_TAGS.SUPERVISOR_REVIEWS);
     
     return {
       success: true,
@@ -136,7 +159,7 @@ export async function deleteGoalAction(id: UUID): Promise<{
 }
 
 /**
- * Server action to submit a goal with status change
+ * Server action to submit a goal with status change and cache revalidation
  */
 export async function submitGoalAction(id: UUID, status: 'draft' | 'pending_approval'): Promise<{
   success: boolean;
@@ -153,6 +176,9 @@ export async function submitGoalAction(id: UUID, status: 'draft' | 'pending_appr
       };
     }
     
+    // Revalidate goals cache after status change
+    revalidateTag(CACHE_TAGS.GOALS);
+    
     return {
       success: true,
       data: response.data,
@@ -167,7 +193,7 @@ export async function submitGoalAction(id: UUID, status: 'draft' | 'pending_appr
 }
 
 /**
- * Server action to approve a pending goal (supervisor action)
+ * Server action to approve a pending goal (supervisor action) with cache revalidation
  */
 export async function approveGoalAction(goalId: UUID): Promise<{
   success: boolean;
@@ -184,6 +210,9 @@ export async function approveGoalAction(goalId: UUID): Promise<{
       };
     }
     
+    // Revalidate goals cache after approval
+    revalidateTag(CACHE_TAGS.GOALS);
+    
     return {
       success: true,
       data: response.data,
@@ -197,7 +226,7 @@ export async function approveGoalAction(goalId: UUID): Promise<{
   }
 }
 /**
- * Server action to reject a pending goal with reason (supervisor action)
+ * Server action to reject a pending goal with reason (supervisor action) and cache revalidation
  */
 export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{
   success: boolean;
@@ -213,6 +242,9 @@ export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{
         error: response.error || 'Failed to reject goal',
       };
     }
+    
+    // Revalidate goals cache after rejection
+    revalidateTag(CACHE_TAGS.GOALS);
     
     return {
       success: true,

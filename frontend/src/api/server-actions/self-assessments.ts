@@ -25,7 +25,7 @@ export async function getSelfAssessmentsAction(params?: PaginationParams): Promi
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch self-assessments',
+        error: response.errorMessage || 'Failed to fetch self-assessments',
       };
     }
     
@@ -56,7 +56,7 @@ export async function getSelfAssessmentByIdAction(assessmentId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch self-assessment',
+        error: response.errorMessage || 'Failed to fetch self-assessment',
       };
     }
     
@@ -87,7 +87,7 @@ export async function createSelfAssessmentAction(assessmentData: SelfAssessmentC
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to create self-assessment',
+        error: response.errorMessage || 'Failed to create self-assessment',
       };
     }
     
@@ -118,7 +118,7 @@ export async function updateSelfAssessmentAction(assessmentId: UUID, updateData:
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to update self-assessment',
+        error: response.errorMessage || 'Failed to update self-assessment',
       };
     }
     
@@ -148,7 +148,7 @@ export async function deleteSelfAssessmentAction(assessmentId: UUID): Promise<{
     if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to delete self-assessment',
+        error: response.errorMessage || 'Failed to delete self-assessment',
       };
     }
     
@@ -178,7 +178,7 @@ export async function getSelfAssessmentsByUserAction(userId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch user self-assessments',
+        error: response.errorMessage || 'Failed to fetch user self-assessments',
       };
     }
     
@@ -209,7 +209,7 @@ export async function getSelfAssessmentsByPeriodAction(periodId: UUID): Promise<
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch period self-assessments',
+        error: response.errorMessage || 'Failed to fetch period self-assessments',
       };
     }
     
@@ -240,7 +240,7 @@ export async function getSelfAssessmentsByGoalAction(goalId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch goal self-assessments',
+        error: response.errorMessage || 'Failed to fetch goal self-assessments',
       };
     }
     
@@ -271,7 +271,7 @@ export async function submitSelfAssessmentAction(assessmentId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to submit self-assessment',
+        error: response.errorMessage || 'Failed to submit self-assessment',
       };
     }
     
