@@ -6,7 +6,6 @@ import StageManagementBoard from "@/feature/stage-management/display/StageManage
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  // Fetch admin-only stages summary; treat failure as forbidden
   const stagesRes = await getStagesAdminAction();
   if (!stagesRes.success || !stagesRes.data) {
     return (
@@ -17,7 +16,6 @@ export default async function Page() {
     );
   }
 
-  // Fetch users (admin can view all). Use a high limit for admin overview
   const usersRes = await getUsersAction({ page: 1, limit: 1000 });
   if (!usersRes.success || !usersRes.data) {
     return (
