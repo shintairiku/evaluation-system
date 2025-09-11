@@ -52,10 +52,10 @@ export default async function StageManagementPage() {
         {/* Page Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Stage Management
+            ステージ管理
           </h1>
           <p className="text-gray-600 mt-2">
-            Drag and drop users between evaluation stages
+            評価ステージ間でユーザーをドラッグ&ドロップして管理します
           </p>
           {/* Show pagination info if needed */}
           {usersResult.data && usersResult.data.total > usersResult.data.items.length && (
@@ -80,6 +80,6 @@ export default async function StageManagementPage() {
 
 // Metadata for SEO and page info
 export const metadata = {
-  title: 'Stage Management | HR Evaluation System',
-  description: 'Manage user evaluation stages with drag and drop interface',
+  title: 'ステージ管理 | 人事評価システム',
+  description: '評価ステージ間でユーザーをドラッグ&ドロップして管理',
 };
