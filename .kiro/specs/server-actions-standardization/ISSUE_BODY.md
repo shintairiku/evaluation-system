@@ -86,10 +86,21 @@ export async function get[Resource]sAction(
 - [x] 既存goals.tsサーバーアクションの修正（endpoints経由パターンに変更）
 - [x] 新規8つのサーバーアクションファイルの実装
 
-### フェーズ3: キャッシュメカニズムの実装
-- [ ] Request Memoization wrapper関数の作成
-- [ ] Data Cache戦略の実装（静的データ vs 動的データ）
-- [ ] キャッシュタグシステムと再検証ロジックの実装
+### フェーズ3: キャッシュメカニズムの実装 ✅ **完了 (2025-01-09)**
+- [x] Request Memoization wrapper関数の作成
+- [x] Data Cache戦略の実装（静的データ vs 動的データ）
+- [x] キャッシュタグシステムと再検証ロジックの実装
+
+**実装詳細:**
+- 作成したキャッシュユーティリティファイル: `/frontend/src/api/utils/cache.ts`
+- 実装したキャッシュ戦略:
+  - 静的データ (departments, roles, stages): 1時間キャッシュ
+  - 準静的データ (evaluation-periods): 30分キャッシュ
+  - 動的データ (goals, assessments): 5分キャッシュ
+- 適用したサーバーアクション: departments, roles, stages, goals
+- revalidateTag による連鎖的キャッシュ無効化を実装
+- Request Memoization で同一リクエスト内でのAPI重複呼び出しを排除
+- パラメータ付きクエリでのキャッシュ問題を修正（goals の評価期間選択時の問題解決）
 
 ### フェーズ4: 品質保証
 - [ ] TypeScriptコンパイルエラーの解消
