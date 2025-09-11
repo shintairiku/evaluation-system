@@ -217,8 +217,12 @@ async function _getStagesAdminAction(): Promise<{
   }
 }
 
-export const getStagesAdminAction = createFullyCachedAction(
-  _getStagesAdminAction,
-  'getStagesAdmin',
-  CACHE_TAGS.STAGES
-);
+// Development: Use non-cached version to avoid Clerk auth conflicts in cached functions
+// Production: Use cached version for performance
+export const getStagesAdminAction = process.env.NODE_ENV === 'development' 
+  ? _getStagesAdminAction 
+  : createFullyCachedAction(
+      _getStagesAdminAction,
+      'getStagesAdmin',
+      CACHE_TAGS.STAGES
+    );
