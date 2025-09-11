@@ -85,7 +85,7 @@ export const usersApi = {
     role_ids?: string[];
     supervisor_id?: string;
   }): Promise<ApiResponse<SimpleUser[]>> => {
-    let endpoint = API_ENDPOINTS.USERS.ORG_CHART;
+    let endpoint: string = API_ENDPOINTS.USERS.ORG_CHART as string;
     
     if (filters) {
       const queryParams = new URLSearchParams();
@@ -107,6 +107,15 @@ export const usersApi = {
       }
     }
     
-    return httpClient.get<SimpleUser[]>(endpoint as string);
+    return httpClient.get<SimpleUser[]>(endpoint);
+  },
+
+  /**
+   * Update a user's stage (admin only)
+   */
+  updateUserStage: async (userId: UUID, stageId: UUID): Promise<ApiResponse<UserDetailResponse>> => {
+    return httpClient.patch<UserDetailResponse>(API_ENDPOINTS.USERS.UPDATE_STAGE(userId as string), {
+      stage_id: stageId,
+    });
   },
 };
