@@ -1,8 +1,9 @@
 'use server';
 
+import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { goalsApi } from '../endpoints/goals';
-import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
+import { CACHE_TAGS } from '../utils/cache';
 import type { 
   UUID,
   GoalCreateRequest,
@@ -46,11 +47,16 @@ async function _getGoalsAction(params?: {
   }
 }
 
-export const getGoalsAction = createFullyCachedAction(
-  _getGoalsAction,
-  'getGoals',
-  CACHE_TAGS.GOALS
-);
+export const getGoalsAction = cache(async (params?: {
+  periodId?: UUID;
+  userId?: UUID;
+  goalCategory?: string;
+  status?: string | string[];
+  page?: number;
+  limit?: number;
+}): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> => {
+  return _getGoalsAction(params);
+});
 
 /**
  * Server action to create a new goal with cache revalidation

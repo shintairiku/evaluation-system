@@ -25,16 +25,18 @@ export async function getEvaluationPeriodsAction(): Promise<{
     console.log('Debug - response.data type:', typeof response.data);
     console.log('Debug - response.data.items:', response.data.items);
     
-    // Handle both possible response structures
+    // Backend returns { evaluation_periods: EvaluationPeriod[], ... }
+    // Client types expect { items: EvaluationPeriod[], ... }
+    // Normalize to an array of EvaluationPeriod
     let allPeriods: EvaluationPeriod[];
     if (Array.isArray(response.data)) {
-      // If response.data is directly an array
       allPeriods = response.data as EvaluationPeriod[];
-    } else if (response.data.items && Array.isArray(response.data.items)) {
-      // If response.data has an items property
-      allPeriods = response.data.items as EvaluationPeriod[];
+    } else if (Array.isArray((response.data as any).evaluation_periods)) {
+      allPeriods = (response.data as any).evaluation_periods as EvaluationPeriod[];
+    } else if ((response.data as any).items && Array.isArray((response.data as any).items)) {
+      allPeriods = (response.data as any).items as EvaluationPeriod[];
     } else {
-      console.error('Unexpected response structure:', response.data);
+      console.error('Unexpected response structure from evaluation periods API:', response.data);
       return {
         success: false,
         error: 'Unexpected response structure from evaluation periods API'
