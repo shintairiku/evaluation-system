@@ -1,6 +1,8 @@
 'use server';
 
 import { usersApi } from '../endpoints/users';
+import { revalidateTag } from 'next/cache';
+import { CACHE_TAGS } from '../utils/cache';
 import type { 
   UserList, 
   UserDetailResponse, 
@@ -145,6 +147,54 @@ export async function updateUserAction(userId: UUID, updateData: UserUpdate): Pr
       success: false,
       error: 'An unexpected error occurred while updating user',
     };
+  }
+}
+
+/**
+ * Server action: update a single user's stage (admin only)
+ */
+export async function updateUserStageAction(userId: UUID, stageId: UUID): Promise<{
+  success: boolean;
+  data?: UserDetailResponse;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.updateUserStage(userId, stageId);
+    if (!response.success || !response.data) {
+      return { success: false, error: response.error || response.errorMessage || 'Failed to update user stage' };
+    }
+    // Revalidate related caches
+    revalidateTag(CACHE_TAGS.USERS);
+    revalidateTag(CACHE_TAGS.STAGES);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Update user stage action error:', error);
+    return { success: false, error: 'An unexpected error occurred while updating user stage' };
+  }
+}
+
+/**
+ * Server action: batch update multiple users' stages (admin only)
+ */
+export async function updateUserStagesAction(changes: { userId: UUID; toStageId: UUID }[]): Promise<{
+  success: boolean;
+  errors?: { userId: UUID; error: string }[];
+}> {
+  try {
+    const results = await Promise.all(
+      changes.map(async (c) => {
+        const res = await usersApi.updateUserStage(c.userId, c.toStageId);
+        return { userId: c.userId, success: res.success, error: res.error || res.errorMessage };
+      })
+    );
+    const errors = results.filter(r => !r.success).map(r => ({ userId: r.userId, error: r.error || 'Failed' }));
+    // Revalidate caches regardless; some may have succeeded
+    revalidateTag(CACHE_TAGS.USERS);
+    revalidateTag(CACHE_TAGS.STAGES);
+    return { success: errors.length === 0, errors: errors.length ? errors : undefined };
+  } catch (error) {
+    console.error('Batch update user stages action error:', error);
+    return { success: false, errors: changes.map(c => ({ userId: c.userId, error: 'Unexpected error' })) };
   }
 }
 
