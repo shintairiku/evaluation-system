@@ -23,13 +23,25 @@ Authentication-related types:
 - `TokenVerifyRequest/Response`: Token verification types
 - `LogoutResponse`: Logout response
 
-### `user.ts`
-User management types:
-- `UserStatus`: Enum for user status (active, inactive, pending)
-- `Department`, `DepartmentDetail`: Department information
-- `Stage`, `StageDetail`: User stage/level information
-- `Role`, `RoleDetail`: Role and permission information
-- `User*`: Various user-related interfaces (create, update, detail, etc.)
+### Resource-Specific Type Files
+
+#### Core Resources
+- **`user.ts`** - User management and profile types
+- **`department.ts`** - Department hierarchy types  
+- **`role.ts`** - Role and permission types
+- **`stage.ts`** - User stage/level types
+
+#### Evaluation System  
+- **`evaluation-period.ts`** - Evaluation period lifecycle types
+- **`goal.ts`** - Goal setting and tracking types
+- **`competency.ts`** - Competency framework types
+- **`self-assessment.ts`** - Employee self-evaluation types
+- **`supervisor-review.ts`** - Manager review types
+- **`supervisor-feedback.ts`** - Feedback collection types
+- **`evaluation.ts`** - Cross-cutting evaluation types
+
+#### Authentication
+- **`auth.ts`** - Authentication and session types
 
 ### `index.ts`
 Re-exports all types for convenient importing
@@ -106,3 +118,169 @@ When backend schemas change:
 4. Test the changes
 
 The types in this directory should always match the backend Pydantic schemas to ensure consistency across the full stack.
+
+## Type Organization
+
+### Standardized Patterns
+
+Each resource follows a consistent naming pattern:
+
+```typescript
+// Base resource type
+export interface Resource {
+  id: UUID;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Detailed view with relations
+export interface ResourceDetail extends Resource {
+  additional_field: string;
+  related_data?: RelatedType[];
+}
+
+// Creation request (without generated fields)
+export interface ResourceCreate {
+  name: string;
+  // No id, timestamps auto-generated
+}
+
+// Update request (partial fields)
+export interface ResourceUpdate {
+  name?: string;
+  // Optional fields for partial updates
+}
+
+// List response with pagination
+export interface ResourceList {
+  items: Resource[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+```
+
+### Common Type Utilities
+
+```typescript
+// UUID type for strong typing
+export type UUID = string;
+
+// Pagination parameters
+export interface PaginationParams {
+  page?: number;
+  limit?: number;
+}
+
+// Standardized API response wrapper
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  errorMessage?: string;
+  error?: string; // @deprecated Use errorMessage
+}
+```
+
+## Integration with Backend
+
+### Schema Synchronization
+
+Our TypeScript types directly mirror the backend Pydantic schemas:
+
+```python
+# Backend (Python/Pydantic)
+class DepartmentBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class DepartmentCreate(DepartmentBase):
+    pass
+
+class Department(DepartmentBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+```
+
+```typescript
+// Frontend (TypeScript)
+export interface DepartmentBase {
+  name: string;
+  description?: string;
+}
+
+export interface DepartmentCreate extends DepartmentBase {}
+
+export interface Department extends DepartmentBase {
+  id: UUID;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### Type Safety Benefits
+
+1. **Compile-time Validation**: Catch mismatches before deployment
+2. **IDE Support**: Auto-completion for all API responses  
+3. **Refactoring Safety**: Changes propagate across the entire stack
+4. **Documentation**: Types serve as living documentation
+5. **Backend Consistency**: Guaranteed match with API schemas
+
+## Adding New Types
+
+When adding new resources or modifying existing ones:
+
+1. **Match Backend Schema**: Ensure exact correspondence with Pydantic models
+2. **Follow Naming Convention**: Use `Resource`, `ResourceDetail`, `ResourceCreate`, `ResourceUpdate` patterns
+3. **Export from Index**: Add to `/types/index.ts` for convenient importing
+4. **Update Documentation**: Document new types in this README
+5. **Type Check**: Run `npm run type-check` to verify integration
+
+### Example: Adding New Resource Types
+
+```typescript
+// /types/example.ts
+export interface ExampleBase {
+  title: string;
+  description: string;
+  status: 'draft' | 'published';
+}
+
+export interface Example extends ExampleBase {
+  id: UUID;
+  author_id: UUID;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExampleDetail extends Example {
+  author: SimpleUser;
+  comments: ExampleComment[];
+}
+
+export interface ExampleCreate extends ExampleBase {
+  author_id: UUID;
+}
+
+export interface ExampleUpdate {
+  title?: string;
+  description?: string;
+  status?: 'draft' | 'published';
+}
+
+export interface ExampleList {
+  items: Example[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+```
+
+## Related Documentation
+
+- [Server Actions](../server-actions/README.md) - How types are used in server actions
+- [Endpoints](../endpoints/README.md) - Type usage in endpoint functions
+- [Cache System](../README_CACHE.md) - Cached response types
