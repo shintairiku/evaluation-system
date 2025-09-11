@@ -4,14 +4,26 @@ export * from './common';
 // Auth types
 export * from './auth';
 
-// User types
+// User types (includes Department, Role types)
 export * from './user';
 
 // Goal types
 export * from './goal';
 
-// Competency types
+// Competency types (includes Stage types)
 export * from './competency';
+
+// Evaluation types (includes EvaluationPeriod types)
+export * from './evaluation';
+
+// Self Assessment types
+export * from './self-assessment';
+
+// Supervisor Review types
+export * from './supervisor-review';
+
+// Supervisor Feedback types
+export * from './supervisor-feedback';
 
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {

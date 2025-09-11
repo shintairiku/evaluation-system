@@ -12,16 +12,19 @@ The API layer provides a **server-first** approach to communicate with the FastA
 src/api/
 ├── client/           # HTTP client configuration
 ├── constants/        # API configuration constants
+├── endpoints/        # Direct API endpoint functions (standardized layer)
 ├── server-actions/   # Next.js server actions (for SSR and client components)
-├── types/           # TypeScript interfaces matching backend schemas
-└── README.md        # This file
+├── types/            # TypeScript interfaces matching backend schemas
+├── utils/            # Cache utilities and helpers
+└── README.md         # This file
 ```
 
 ## Key Features
 
 - **Server-First Architecture**: Optimized for React 19's `useActionState` and Next.js Server Actions
 - **Type Safety**: Full TypeScript support with interfaces matching backend schemas
-- **Unified API Layer**: Single Server Actions for both SSR and client interactions
+- **Standardized API Layer**: Consistent endpoints → server actions pattern across all resources
+- **Advanced Caching**: Request Memoization + Data Cache with smart revalidation
 - **Built-in Loading States**: Automatic `isPending` state management via `useActionState`
 - **Centralized Configuration**: Environment-based API configuration
 - **Error Handling**: Consistent error handling across all API calls
@@ -115,3 +118,31 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 5. **Error Consistency**: Standardized error handling across all Server Actions
 6. **Authentication**: Automatic token handling with Clerk integration
 7. **Progressive Enhancement**: Forms work without JavaScript, enhanced with `useActionState`
+8. **Performance Optimization**: Smart caching reduces API calls and improves response times
+
+## Cache System
+
+This API layer includes a comprehensive caching system:
+
+- **Request Memoization**: Deduplicates API calls within the same render cycle
+- **Data Cache**: Persistent caching across requests with configurable durations
+- **Smart Revalidation**: Automatic cache invalidation when data changes
+- **Cache Tags**: Granular cache control for related data
+
+For detailed caching information, see [`README_CACHE.md`](./README_CACHE.md).
+
+## Available Resources
+
+All resources follow the standardized pattern with endpoints → server actions:
+
+- **Authentication**: `auth.ts` - User authentication and token management
+- **Users**: `users.ts` - User management and profile operations
+- **Departments**: `departments.ts` - Department CRUD operations
+- **Roles**: `roles.ts` - Role management and hierarchy operations
+- **Stages**: `stages.ts` - User stage/level management
+- **Evaluation Periods**: `evaluation-periods.ts` - Evaluation period management
+- **Goals**: `goals.ts` - Goal setting and management
+- **Competencies**: `competencies.ts` - Competency framework management
+- **Self Assessments**: `self-assessments.ts` - Employee self-assessment operations
+- **Supervisor Reviews**: `supervisor-reviews.ts` - Manager review operations
+- **Supervisor Feedbacks**: `supervisor-feedbacks.ts` - Feedback management

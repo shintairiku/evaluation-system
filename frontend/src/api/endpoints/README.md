@@ -1,108 +1,190 @@
-# DEPRECATED: API Endpoints
+# API Endpoints
 
-⚠️ **This directory is DEPRECATED and should not be used for new development.**
+This directory contains the standardized endpoint functions that provide 1:1 mapping to backend API routes. These endpoints are used internally by server actions to maintain a clean separation of concerns.
 
-## Migration to Server Actions + useActionState
+## Architecture Pattern
 
-This project has migrated to a **server-first architecture** using React 19's `useActionState` and Next.js Server Actions. 
-
-### Use These Instead:
-
-- **Server Actions**: Located in `/api/server-actions/` 
-- **useActionState**: For client-side interactions
-- **Server Components**: For initial data loading
-
-## Legacy Files (Do Not Use)
-
-### `users.ts` - DEPRECATED
-Use `/api/server-actions/users.ts` instead
-
-### `index.ts` - DEPRECATED  
-Import from `/api/server-actions/index.ts` instead
-
-## Migration Guide
-
-### OLD (Deprecated Client-Side Endpoints)
-```typescript
-// DON'T USE THIS
-import { usersApi } from '@/api/endpoints';
-
-const result = await usersApi.getUserById('user-123');
+```
+Server Actions → Endpoints → HTTP Client → Backend API
 ```
 
-### NEW (Server Actions + useActionState)
+This layered approach provides:
 
-#### For Server Components
+- **Separation of Concerns**: Server actions handle business logic, endpoints handle API communication
+- **Reusability**: Endpoints can be used across different server actions
+- **Testability**: Endpoints can be mocked for unit testing
+- **Type Safety**: Full TypeScript coverage with backend schema matching
+
+## How It Works
+
+Server actions use endpoints internally:
+
 ```typescript
-// ✅ USE THIS INSTEAD
-import { getUserByIdAction } from '@/api/server-actions';
-
-export default async function UserPage({ params }) {
-  const result = await getUserByIdAction(params.id);
-  return <div>{result.data?.name}</div>;
+// Example: Server Action using Endpoint
+export async function getDepartmentsAction() {
+  try {
+    const response = await departmentsApi.getDepartments(); // ← Endpoint function
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false, error: 'Failed to fetch departments' };
+  }
 }
 ```
 
-#### For Client Components (Forms)
+## Available Endpoints
+
+All endpoints follow a consistent pattern and are organized by resource:
+
+### Core Resources
+- **`auth.ts`** - Authentication endpoints
+- **`users.ts`** - User management endpoints
+- **`departments.ts`** - Department CRUD operations
+- **`roles.ts`** - Role management with hierarchy support
+- **`stages.ts`** - User stage/level management
+
+### Evaluation System
+- **`evaluation-periods.ts`** - Evaluation period management
+- **`goals.ts`** - Goal setting and tracking
+- **`competencies.ts`** - Competency framework
+- **`self-assessments.ts`** - Employee self-evaluations
+- **`supervisor-reviews.ts`** - Manager review operations
+- **`supervisor-feedbacks.ts`** - Feedback management
+
+### Utility
+- **`index.ts`** - Re-exports all endpoint APIs
+
+## Endpoint Structure
+
+Each endpoint file follows this pattern:
+
 ```typescript
-// ✅ USE THIS INSTEAD
-'use client';
-import { useActionState } from 'react';
-import { createUserAction } from '@/api/server-actions';
+import { getHttpClient } from '../client/http-client';
+import { API_ENDPOINTS } from '../constants/config';
+import type { ApiResponse, ResourceType } from '../types';
 
-export function CreateUserForm() {
-  const actionWrapper = async (prevState: any, formData: FormData) => {
-    const userData = {
-      name: formData.get('name') as string,
-      email: formData.get('email') as string,
-    };
-    return await createUserAction(userData);
-  };
+const httpClient = getHttpClient();
 
-  const [actionState, formAction, isPending] = useActionState(actionWrapper, null);
+export const resourceApi = {
+  // GET operations
+  getResources: async (params?: PaginationParams): Promise<ApiResponse<ResourceList>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    
+    const endpoint = queryParams.toString() 
+      ? `${API_ENDPOINTS.RESOURCE.LIST}?${queryParams.toString()}`
+      : API_ENDPOINTS.RESOURCE.LIST;
+    
+    return httpClient.get<ResourceList>(endpoint);
+  },
 
-  return (
-    <form action={formAction}>
-      <input name="name" required />
-      <input name="email" required />
-      {actionState?.error && <div>{actionState.error}</div>}
-      <button disabled={isPending}>Submit</button>
-    </form>
-  );
+  // POST operations
+  createResource: async (data: ResourceCreate): Promise<ApiResponse<Resource>> => {
+    return httpClient.post<Resource>(API_ENDPOINTS.RESOURCE.CREATE, data);
+  },
+
+  // PUT operations
+  updateResource: async (id: UUID, data: ResourceUpdate): Promise<ApiResponse<Resource>> => {
+    return httpClient.put<Resource>(API_ENDPOINTS.RESOURCE.UPDATE(id), data);
+  },
+
+  // DELETE operations
+  deleteResource: async (id: UUID): Promise<ApiResponse<void>> => {
+    return httpClient.delete(API_ENDPOINTS.RESOURCE.DELETE(id));
+  },
+};
+```
+
+## Key Features
+
+### Type Safety
+All endpoints are fully typed with TypeScript interfaces matching backend schemas:
+
+```typescript
+export const usersApi = {
+  getUsers: async (params?: PaginationParams): Promise<ApiResponse<UserList>> => {
+    // Implementation with full type safety
+  }
+};
+```
+
+### Error Handling
+Consistent error handling through the HTTP client layer:
+
+```typescript
+// Endpoints return standardized ApiResponse<T>
+const response = await usersApi.getUsers();
+if (!response.success) {
+  // Handle error case
+  console.error(response.errorMessage);
 }
 ```
 
-#### For Client Components (Data Fetching)  
+### Parameter Handling
+Standardized query parameter building:
+
 ```typescript
-// ✅ USE THIS INSTEAD
-'use client';
-import { useActionState, useEffect } from 'react';
-import { getUsersAction } from '@/api/server-actions';
+const queryParams = new URLSearchParams();
+if (params?.page) queryParams.append('page', params.page.toString());
+if (params?.limit) queryParams.append('limit', params.limit.toString());
+```
 
-export function UsersWrapper() {
-  const actionWrapper = async () => await getUsersAction();
-  const [actionState, formAction, isPending] = useActionState(actionWrapper, null);
+## Usage Guidelines
 
-  useEffect(() => { formAction(); }, [formAction]);
+### ✅ **Recommended Usage**
+```typescript
+// In Server Actions (internal use)
+import { departmentsApi } from '../endpoints/departments';
 
-  if (isPending) return <div>Loading...</div>;
-  return <UsersList users={actionState?.data} />;
+export async function getDepartmentsAction() {
+  const response = await departmentsApi.getDepartments();
+  return { success: response.success, data: response.data };
 }
 ```
 
-## Why We Migrated
+### ❌ **Not Recommended**
+```typescript
+// Don't use endpoints directly in components
+import { departmentsApi } from '@/api/endpoints/departments';
 
-1. **Better Performance**: Server-side processing reduces client bundle size
-2. **Built-in Loading States**: React's `isPending` eliminates manual state management
-3. **Type Safety**: Unified API layer with consistent interfaces
-4. **Progressive Enhancement**: Forms work without JavaScript
-5. **Simpler Architecture**: No confusion between client/server data fetching
+export function Component() {
+  // Use server actions instead
+}
+```
 
-## Next Steps
+## Testing
 
-1. Replace all `/api/endpoints` imports with `/api/server-actions`
-2. Use `useActionState` for client-side interactions
-3. Use Server Components for initial data loading
-4. Remove manual loading/error state management
+Endpoints can be easily mocked for unit testing:
 
-For detailed examples, see: `/docs/requirement-definition/02-tech/architecture/02-fe-architecture.md`
+```typescript
+// Mock endpoint for testing
+jest.mock('@/api/endpoints/users', () => ({
+  usersApi: {
+    getUsers: jest.fn().mockResolvedValue({
+      success: true,
+      data: { items: [], total: 0 }
+    })
+  }
+}));
+```
+
+## Integration with Cache System
+
+Endpoints work seamlessly with the caching system through server actions:
+
+```typescript
+// Server action with caching
+export const getDepartmentsAction = createFullyCachedAction(
+  async () => {
+    const response = await departmentsApi.getDepartments(); // ← Endpoint
+    return { success: true, data: response.data };
+  },
+  'getDepartments',
+  CACHE_TAGS.DEPARTMENTS
+);
+```
+
+## Related Documentation
+
+- [Server Actions](../server-actions/README.md) - How endpoints are used in server actions
+- [Cache System](../README_CACHE.md) - Caching implementation details
+- [Types](../types/README.md) - TypeScript interfaces used by endpoints

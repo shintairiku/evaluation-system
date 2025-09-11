@@ -1,16 +1,61 @@
-import { httpClient } from '../client/http-client';
-import { API_ENDPOINTS } from '../constants/endpoints';
-import type { ApiResponse, Stage } from '../types';
+import { getHttpClient } from '../client/http-client';
+import { API_ENDPOINTS } from '../constants/config';
+import type {
+  Stage,
+  StageDetail,
+  StageWithUserCount,
+  StageCreate,
+  StageUpdate,
+  ApiResponse,
+  UUID,
+} from '../types';
+
+const httpClient = getHttpClient();
 
 /**
- * Stages API endpoints
- * 1:1 mapping with backend endpoints
+ * Stage API endpoints for CRUD operations and admin functions
+ * All functions follow the standardized pattern with proper error handling
  */
 export const stagesApi = {
   /**
-   * Get all stages
+   * Get all stages (public access)
    */
   getStages: async (): Promise<ApiResponse<Stage[]>> => {
     return httpClient.get<Stage[]>(API_ENDPOINTS.STAGES.LIST);
+  },
+
+  /**
+   * Get all stages with user count (admin only)
+   */
+  getStagesAdmin: async (): Promise<ApiResponse<StageWithUserCount[]>> => {
+    return httpClient.get<StageWithUserCount[]>(API_ENDPOINTS.STAGES.ADMIN);
+  },
+
+  /**
+   * Get a specific stage by ID with detailed information
+   */
+  getStageById: async (stageId: UUID): Promise<ApiResponse<StageDetail>> => {
+    return httpClient.get<StageDetail>(API_ENDPOINTS.STAGES.BY_ID(stageId));
+  },
+
+  /**
+   * Create a new stage (admin only)
+   */
+  createStage: async (data: StageCreate): Promise<ApiResponse<StageDetail>> => {
+    return httpClient.post<StageDetail>(API_ENDPOINTS.STAGES.CREATE, data);
+  },
+
+  /**
+   * Update an existing stage (admin only)
+   */
+  updateStage: async (stageId: UUID, data: StageUpdate): Promise<ApiResponse<StageDetail>> => {
+    return httpClient.put<StageDetail>(API_ENDPOINTS.STAGES.UPDATE(stageId), data);
+  },
+
+  /**
+   * Delete a stage (admin only)
+   */
+  deleteStage: async (stageId: UUID): Promise<ApiResponse<void>> => {
+    return httpClient.delete<void>(API_ENDPOINTS.STAGES.DELETE(stageId));
   },
 };

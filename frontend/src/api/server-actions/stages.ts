@@ -1,38 +1,224 @@
 'use server';
 
-import { getHttpClient } from '../client/http-unified-client';
-import { API_ENDPOINTS } from '../constants/config';
-import type { Stage, ApiResponse } from '../types';
+import { revalidateTag } from 'next/cache';
+import { stagesApi } from '../endpoints/stages';
+import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
+import type { 
+  Stage, 
+  StageDetail, 
+  StageCreate, 
+  StageUpdate,
+  StageWithUserCount,
+  UUID,
+} from '../types';
 
 /**
- * Server action to get all stages
- * This function runs on the server side for SSR
+ * Server action to get all stages with caching
  */
-export async function getStagesAction(): Promise<{
+async function _getStagesAction(): Promise<{
   success: boolean;
   data?: Stage[];
   error?: string;
 }> {
   try {
-    const httpClient = await getHttpClient();
-    const result = await httpClient.get<Stage[]>(API_ENDPOINTS.STAGES.LIST);
+    const response = await stagesApi.getStages();
     
-    if (result.success) {
-      return {
-        success: true,
-        data: result.data
-      };
-    } else {
+    if (!response.success || !response.data) {
       return {
         success: false,
-        error: result.errorMessage || 'Failed to fetch stages'
+        error: response.errorMessage || 'Failed to fetch stages',
       };
     }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
   } catch (error) {
-    console.error('Server action error (getStagesAction):', error);
+    console.error('Get stages action error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: 'An unexpected error occurred while fetching stages',
     };
   }
 }
+
+export const getStagesAction = createFullyCachedAction(
+  _getStagesAction,
+  'getStages',
+  CACHE_TAGS.STAGES
+);
+
+/**
+ * Server action to get a specific stage by ID with caching
+ */
+async function _getStageByIdAction(stageId: UUID): Promise<{
+  success: boolean;
+  data?: StageDetail;
+  error?: string;
+}> {
+  try {
+    const response = await stagesApi.getStageById(stageId);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch stage',
+      };
+    }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get stage by ID action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching stage',
+    };
+  }
+}
+
+export const getStageByIdAction = createFullyCachedAction(
+  _getStageByIdAction,
+  'getStageById',
+  CACHE_TAGS.STAGES
+);
+
+/**
+ * Server action to create a new stage with cache revalidation
+ */
+export async function createStageAction(stageData: StageCreate): Promise<{
+  success: boolean;
+  data?: StageDetail;
+  error?: string;
+}> {
+  try {
+    const response = await stagesApi.createStage(stageData);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to create stage',
+      };
+    }
+    
+    // Revalidate stages cache after successful creation
+    revalidateTag(CACHE_TAGS.STAGES);
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Create stage action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while creating stage',
+    };
+  }
+}
+
+/**
+ * Server action to update an existing stage with cache revalidation
+ */
+export async function updateStageAction(stageId: UUID, updateData: StageUpdate): Promise<{
+  success: boolean;
+  data?: StageDetail;
+  error?: string;
+}> {
+  try {
+    const response = await stagesApi.updateStage(stageId, updateData);
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to update stage',
+      };
+    }
+    
+    // Revalidate stages cache after successful update
+    revalidateTag(CACHE_TAGS.STAGES);
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Update stage action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating stage',
+    };
+  }
+}
+
+/**
+ * Server action to delete a stage with cache revalidation
+ */
+export async function deleteStageAction(stageId: UUID): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const response = await stagesApi.deleteStage(stageId);
+    
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to delete stage',
+      };
+    }
+    
+    // Revalidate stages cache after successful deletion
+    revalidateTag(CACHE_TAGS.STAGES);
+    
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('Delete stage action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while deleting stage',
+    };
+  }
+}
+
+/**
+ * Server action to get stages for admin with user counts and caching
+ */
+async function _getStagesAdminAction(): Promise<{
+  success: boolean;
+  data?: StageWithUserCount[];
+  error?: string;
+}> {
+  try {
+    const response = await stagesApi.getStagesAdmin();
+    
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch admin stages',
+      };
+    }
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get admin stages action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching admin stages',
+    };
+  }
+}
+
+export const getStagesAdminAction = createFullyCachedAction(
+  _getStagesAdminAction,
+  'getStagesAdmin',
+  CACHE_TAGS.STAGES
+);
