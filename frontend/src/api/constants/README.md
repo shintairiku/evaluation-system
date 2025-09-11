@@ -75,20 +75,39 @@ return {
 
 ## Endpoint Organization
 
-Endpoints are organized by resource type:
+All endpoints are comprehensively organized by resource type with complete CRUD coverage:
 
-- `AUTH`: Authentication endpoints
-- `USERS`: User management endpoints  
-- `DEPARTMENTS`: Department endpoints
-- `ROLES`: Role management endpoints
-- `STAGES`: Stage/level endpoints
-- `EVALUATION_PERIODS`: Evaluation period endpoints
-- `GOALS`: Goal management endpoints
-- `GOAL_CATEGORIES`: Goal category endpoints
-- `COMPETENCIES`: Competency endpoints
-- `SELF_ASSESSMENTS`: Self-assessment endpoints
-- `SUPERVISOR_REVIEWS`: Supervisor review endpoints
-- `SUPERVISOR_FEEDBACKS`: Supervisor feedback endpoints
+### Core Resources
+- **`AUTH`**: Authentication and session management endpoints
+- **`USERS`**: User management endpoints (CRUD + profile operations)
+- **`DEPARTMENTS`**: Department hierarchy endpoints (CRUD)
+- **`ROLES`**: Role management endpoints (CRUD + reorder operations)
+- **`STAGES`**: User stage/level endpoints (CRUD + admin operations)
+
+### Evaluation System
+- **`EVALUATION_PERIODS`**: Evaluation period lifecycle endpoints (CRUD + current period)
+- **`GOALS`**: Goal management endpoints (CRUD + approval workflows)
+- **`GOAL_CATEGORIES`**: Goal categorization endpoints (CRUD)
+- **`COMPETENCIES`**: Competency framework endpoints (CRUD)
+- **`SELF_ASSESSMENTS`**: Employee self-evaluation endpoints (CRUD + workflow operations)
+- **`SUPERVISOR_REVIEWS`**: Manager review endpoints (CRUD + workflow operations)
+- **`SUPERVISOR_FEEDBACKS`**: Feedback collection endpoints (CRUD + status management)
+
+### Standard Endpoint Pattern
+
+Each resource group follows a consistent pattern:
+
+```typescript
+RESOURCE: {
+  LIST: '/resource',                           // GET - List with pagination
+  BY_ID: (id: string) => `/resource/${id}`,    // GET - Individual item
+  CREATE: '/resource',                         // POST - Create new
+  UPDATE: (id: string) => `/resource/${id}`,   // PUT - Update existing  
+  DELETE: (id: string) => `/resource/${id}`,   // DELETE - Remove item
+  
+  // Additional resource-specific endpoints
+  SPECIAL_OPERATION: '/resource/special',      // Resource-specific operations
+}
 
 ## Dynamic Endpoints
 
