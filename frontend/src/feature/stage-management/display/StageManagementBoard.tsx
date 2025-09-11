@@ -4,6 +4,7 @@ import type { StageWithUserCount, UserDetailResponse, UUID } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { updateUserStagesAction } from "@/api/server-actions/users";
+import { toast } from "sonner";
 
 type Props = {
   stages: StageWithUserCount[];
@@ -30,6 +31,16 @@ export default function StageManagementBoard({ stages, users }: Props) {
   const [pending, setPending] = useState<UserStageChange[]>([]);
   const [isEdit, setIsEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  function findUserById(userId: string): UserDetailResponse | undefined {
+    // Search in current columns first
+    for (const list of Object.values(columns)) {
+      const found = list.find(u => u.id === userId);
+      if (found) return found;
+    }
+    // Fallback to original users
+    return users.find(u => u.id === userId);
+  }
 
   function onMoveUser(user: UserDetailResponse, toStageId: string) {
     const fromStageId = user.stage?.id || null;
@@ -60,9 +71,9 @@ export default function StageManagementBoard({ stages, users }: Props) {
     if (res.success) {
       setIsEdit(false);
       setPending([]);
+      toast.success("Changes saved successfully");
     } else {
-      // TODO: integrate toast system
-      console.error("Failed to save some changes", res.errors);
+      toast.error("Failed to save some changes");
     }
   }
 
@@ -95,6 +106,7 @@ export default function StageManagementBoard({ stages, users }: Props) {
             title={stage.name}
             users={columns[stage.id] || []}
             onMoveUser={onMoveUser}
+            findUserById={findUserById}
           />
         ))}
       </div>
@@ -102,25 +114,21 @@ export default function StageManagementBoard({ stages, users }: Props) {
   );
 }
 
-function StageColumn({ stageId, title, users, onMoveUser }: {
+function StageColumn({ stageId, title, users, onMoveUser, findUserById }: {
   stageId: string;
   title: string;
   users: UserDetailResponse[];
   onMoveUser: (user: UserDetailResponse, toStageId: string) => void;
+  findUserById: (userId: string) => UserDetailResponse | undefined;
 }) {
   function onDrop(ev: React.DragEvent<HTMLDivElement>) {
     ev.preventDefault();
     const payload = ev.dataTransfer.getData("text/plain");
     if (!payload) return;
     try {
-      const parsed = JSON.parse(payload) as { id: string; };
-      const user = users.find(u => u.id === parsed.id);
-      // If user is not in this column list (drag from other), we need a global lookup; carry name only
-      if (!user) {
-        onMoveUser({ id: parsed.id } as any, stageId);
-      } else {
-        onMoveUser(user, stageId);
-      }
+      const parsed = JSON.parse(payload) as { id: string };
+      const user = findUserById(parsed.id);
+      if (user) onMoveUser(user, stageId);
     } catch {}
   }
   return (
