@@ -25,7 +25,7 @@ class CompetencyRepository:
         """Add a competency to the session (does not commit)."""
         self.session.add(competency)
 
-    async def create_competency(self, name: str, stage_id: UUID, description: Optional[str] = None) -> Competency:
+    async def create(self, name: str, stage_id: UUID, description: Optional[str] = None) -> Competency:
         """
         Create a new competency.
         Adds to session (does not commit - let service layer handle transactions).
@@ -48,7 +48,7 @@ class CompetencyRepository:
     # READ OPERATIONS
     # ========================================
 
-    async def get_competency_by_id(self, competency_id: UUID) -> Optional[Competency]:
+    async def get_by_id(self, competency_id: UUID) -> Optional[Competency]:
         """Get competency by ID."""
         try:
             result = await self.session.execute(
@@ -59,20 +59,20 @@ class CompetencyRepository:
             logger.error(f"Error fetching competency by ID {competency_id}: {e}")
             raise
 
-    async def get_competency_by_id_with_stage(self, competency_id: UUID) -> Optional[Competency]:
-        """Get competency by ID with stage relationship loaded."""
-        try:
-            result = await self.session.execute(
-                select(Competency)
-                .options(joinedload(Competency.stage))
-                .filter(Competency.id == competency_id)
-            )
-            return result.scalars().unique().first()
-        except SQLAlchemyError as e:
-            logger.error(f"Error fetching competency with stage for ID {competency_id}: {e}")
-            raise
+    # async def get_competency_by_id_with_stage(self, competency_id: UUID) -> Optional[Competency]:
+    #     """Get competency by ID with stage relationship loaded."""
+    #     try:
+    #         result = await self.session.execute(
+    #             select(Competency)
+    #             .options(joinedload(Competency.stage))
+    #             .filter(Competency.id == competency_id)
+    #         )
+    #         return result.scalars().unique().first()
+    #     except SQLAlchemyError as e:
+    #         logger.error(f"Error fetching competency with stage for ID {competency_id}: {e}")
+    #         raise
 
-    async def get_competency_by_name(self, name: str) -> Optional[Competency]:
+    async def get_by_name(self, name: str) -> Optional[Competency]:
         """Get competency by name."""
         try:
             result = await self.session.execute(
@@ -83,7 +83,7 @@ class CompetencyRepository:
             logger.error(f"Error fetching competency by name {name}: {e}")
             raise
 
-    async def get_competencies_by_stage_id(self, stage_id: UUID) -> list[Competency]:
+    async def get_by_stage_id(self, stage_id: UUID) -> list[Competency]:
         """Get all competencies for a specific stage."""
         try:
             result = await self.session.execute(
@@ -97,7 +97,7 @@ class CompetencyRepository:
             logger.error(f"Error fetching competencies for stage {stage_id}: {e}")
             raise
 
-    async def get_all_competencies(self) -> list[Competency]:
+    async def get_all(self) -> list[Competency]:
         """Get all competencies with stage information."""
         try:
             result = await self.session.execute(
@@ -110,7 +110,7 @@ class CompetencyRepository:
             logger.error(f"Error fetching all competencies: {e}")
             raise
 
-    async def search_competencies(self, search_term: str = "", stage_ids: Optional[list[UUID]] = None) -> list[Competency]:
+    async def search(self, search_term: str = "", stage_ids: Optional[list[UUID]] = None) -> list[Competency]:
         """
         Search competencies by name or description with optional stage filtering.
         """
@@ -139,12 +139,12 @@ class CompetencyRepository:
     # UPDATE OPERATIONS
     # ========================================
 
-    async def update_competency(self, competency_id: UUID, name: Optional[str] = None, 
+    async def update(self, competency_id: UUID, name: Optional[str] = None, 
                                description: Optional[str] = None, stage_id: Optional[UUID] = None) -> Optional[Competency]:
         """Update a competency (does not commit)."""
         try:
             # Get the existing competency
-            existing_competency = await self.get_competency_by_id(competency_id)
+            existing_competency = await self.get_by_id(competency_id)
             if not existing_competency:
                 return None
             
@@ -169,7 +169,7 @@ class CompetencyRepository:
     # DELETE OPERATIONS
     # ========================================
 
-    async def delete_competency_by_id(self, competency_id: UUID) -> bool:
+    async def delete(self, competency_id: UUID) -> bool:
         """Delete a competency by ID (does not commit)."""
         try:
             stmt = delete(Competency).where(Competency.id == competency_id).returning(Competency.id)

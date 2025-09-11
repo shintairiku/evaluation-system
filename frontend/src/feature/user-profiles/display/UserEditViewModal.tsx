@@ -181,6 +181,27 @@ export default function UserEditViewModal({
     });
   };
   
+  // Function to force refresh hierarchy data
+  const forceRefreshHierarchyData = async (userId: string) => {
+    userCache.delete(userId);
+    if (user && userId === user.id && isOpen) {
+      setIsLoadingUserData(true);
+      try {
+        const result = await getUserByIdAction(userId);
+        if (result.success && result.data) {
+          setDetailedUser(result.data);
+          userCache.set(userId, {
+            data: result.data,
+            timestamp: Date.now()
+          });
+        }
+      } catch (error) {
+        console.error('Error force refreshing hierarchy data:', error);
+      } finally {
+        setIsLoadingUserData(false);
+      }
+    }
+  };
 
   const [formData, setFormData] = useState({
     name: '',
@@ -217,7 +238,6 @@ export default function UserEditViewModal({
         try {
           const result = await getUserByIdAction(user.id);
           
-          
           if (result.success && result.data) {
             setDetailedUser(result.data);
             
@@ -231,7 +251,8 @@ export default function UserEditViewModal({
             // Fallback to the basic user data
             setDetailedUser(user);
           }
-        } catch {
+        } catch (error) {
+          console.error(`[UserEditModal] Error loading user data:`, error);
           // Fallback to the basic user data
           setDetailedUser(user);
         } finally {

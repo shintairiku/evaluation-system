@@ -10,6 +10,7 @@ import type {
   UUID,
   UserExistsResponse,
   ProfileOptionsResponse,
+  SimpleUser,
 } from '../types';
 
 const httpClient = getHttpClient();
@@ -79,5 +80,40 @@ export const usersApi = {
    */
   updateUserStage: async (userId: UUID, data: { stage_id: UUID }): Promise<ApiResponse<UserDetailResponse>> => {
     return httpClient.patch<UserDetailResponse>(`${API_ENDPOINTS.USERS.BY_ID(userId)}/stage`, data);
+  },
+
+  /**
+   * Get users for organization chart - no role-based access restrictions
+   * Returns SimpleUser[] format with supervisor/subordinates for organization chart display
+   * Supports filtering by department_ids, role_ids, or supervisor_id
+   */
+  getUsersForOrgChart: async (filters?: {
+    department_ids?: string[];
+    role_ids?: string[];
+    supervisor_id?: string;
+  }): Promise<ApiResponse<SimpleUser[]>> => {
+    let endpoint = API_ENDPOINTS.USERS.ORG_CHART;
+    
+    if (filters) {
+      const queryParams = new URLSearchParams();
+      
+      if (filters.department_ids?.length) {
+        filters.department_ids.forEach(id => queryParams.append('department_ids', id));
+      }
+      
+      if (filters.role_ids?.length) {
+        filters.role_ids.forEach(id => queryParams.append('role_ids', id));
+      }
+      
+      if (filters.supervisor_id) {
+        queryParams.append('supervisor_id', filters.supervisor_id);
+      }
+      
+      if (queryParams.toString()) {
+        endpoint = `${endpoint}?${queryParams.toString()}`;
+      }
+    }
+    
+    return httpClient.get<SimpleUser[]>(endpoint as string);
   },
 };

@@ -53,7 +53,7 @@ class GoalService:
         user_id: Optional[UUID] = None,
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
-        status: Optional[str] = None,
+        status: Optional[List[str]] = None,
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[Goal]:
         """
@@ -282,63 +282,63 @@ class GoalService:
             logger.error(f"Error deleting goal {goal_id}: {str(e)}")
             raise
 
-    async def submit_goal_for_approval(
+    @require_permission(Permission.GOAL_MANAGE_SELF)
+    async def submit_goal(
         self,
         goal_id: UUID,
+        status: str,
         current_user_context: AuthContext
     ) -> Goal:
-        """Submit a goal for approval by changing status to pending_approval."""
+        """Submit a goal with specified status (draft or pending_approval)."""
         try:
+            # Validate status parameter
+            if status not in ["draft", "pending_approval"]:
+                raise ValidationError("Status must be either 'draft' or 'pending_approval'")
+            
+            target_status = GoalStatus.DRAFT if status == "draft" else GoalStatus.PENDING_APPROVAL
+            
             # Check if goal exists and user can update it
             existing_goal = await self.goal_repo.get_goal_by_id(goal_id)
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
-            # Permission check - only goal owner can submit (unless admin)
-            can_submit = await RBACHelper.can_access_resource(
-                auth_context=current_user_context,
-                resource_id=goal_id,
-                resource_type=ResourceType.GOAL,
-                owner_user_id=existing_goal.user_id
-            )
-            if not can_submit:
+            # Permission check - only goal owner can submit (strict ownership, even admins cannot submit others' goals)
+            if current_user_context.user_id != existing_goal.user_id:
                 raise PermissionDeniedError("You can only submit your own goals")
             
             # Business rule: can only submit draft, incomplete, or rejected goals
             if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only submit draft, incomplete, or rejected goals for approval")
+                raise BadRequestError("Can only submit draft, incomplete, or rejected goals")
             
             # Update status using dedicated method with validation
-            updated_goal = await self.goal_repo.update_goal_status(
-                goal_id, 
-                GoalStatus.PENDING_APPROVAL
-            )
+            updated_goal = await self.goal_repo.update_goal_status(goal_id, target_status)
             
             # Commit transaction
             await self.session.commit()
             
-            # Auto-create draft supervisor review(s) for current supervisor(s)
-            try:
-                # Get supervisors of goal owner
-                supervisors = await self.user_repo.get_user_supervisors(existing_goal.user_id)
-                for supervisor in supervisors:
-                    await self.supervisor_review_repo.create(
-                        goal_id=existing_goal.id,
-                        period_id=existing_goal.period_id,
-                        supervisor_id=supervisor.id,
-                        action="pending",
-                        comment="",
-                        status="draft",
-                    )
-                await self.session.commit()
-            except Exception as auto_create_error:
-                logger.error(f"Auto-create SupervisorReview failed for goal {goal_id}: {auto_create_error}")
-                # Do not rollback goal submission due to review auto-creation failure
+            # Auto-create draft supervisor review(s) only when submitting for approval
+            if target_status == GoalStatus.PENDING_APPROVAL:
+                try:
+                    # Get supervisors of goal owner
+                    supervisors = await self.user_repo.get_user_supervisors(existing_goal.user_id)
+                    for supervisor in supervisors:
+                        await self.supervisor_review_repo.create(
+                            goal_id=existing_goal.id,
+                            period_id=existing_goal.period_id,
+                            supervisor_id=supervisor.id,
+                            action="pending",
+                            comment="",
+                            status="draft",
+                        )
+                    await self.session.commit()
+                except Exception as auto_create_error:
+                    logger.error(f"Auto-create SupervisorReview failed for goal {goal_id}: {auto_create_error}")
+                    # Do not rollback goal submission due to review auto-creation failure
 
             # Enrich response data
             enriched_goal = await self._enrich_goal_data(updated_goal)
             
-            logger.info(f"Goal submitted for approval: {goal_id} by {current_user_context.user_id}")
+            logger.info(f"Goal submitted with status '{status}': {goal_id} by {current_user_context.user_id}")
             return enriched_goal
             
         except Exception as e:
@@ -494,10 +494,11 @@ class GoalService:
         """Determine which users' goals the current user can access."""
         
         if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            # Admin: can see all goals
+            # Admin: can see all goals, but default to own goals unless a target user is explicitly requested
             if requested_user_id:
                 return [requested_user_id]
-            return None  # All users
+            # Default behavior: scope to the current user's own goals to avoid accidental cross-user data
+            return [current_user_context.user_id]
         
         accessible_ids = []
         
@@ -527,19 +528,21 @@ class GoalService:
         if not period:
             raise BadRequestError(f"Evaluation period {goal_data.period_id} not found")
         
-        # Check if competency exists (for competency goals)
-        if goal_data.goal_category == "コンピテンシー" and goal_data.competency_id:
-            competency = await self.competency_repo.get_by_id(goal_data.competency_id)
-            if not competency:
-                raise BadRequestError(f"Competency {goal_data.competency_id} not found")
+        # Check if competencies exist (for competency goals)
+        if goal_data.goal_category == "コンピテンシー" and goal_data.competency_ids:
+            for competency_id in goal_data.competency_ids:
+                competency = await self.competency_repo.get_by_id(competency_id)
+                if not competency:
+                    raise BadRequestError(f"Competency {competency_id} not found")
 
     async def _validate_goal_update(self, goal_data: GoalUpdate, existing_goal: GoalModel):
         """Validate goal update business rules."""
-        # Check if competency exists (for competency goals)
-        if isinstance(goal_data, CompetencyGoalUpdate) and goal_data.competency_id:
-            competency = await self.competency_repo.get_by_id(goal_data.competency_id)
-            if not competency:
-                raise BadRequestError(f"Competency {goal_data.competency_id} not found")
+        # Check if competencies exist (for competency goals)
+        if isinstance(goal_data, CompetencyGoalUpdate) and goal_data.competency_ids:
+            for competency_id in goal_data.competency_ids:
+                competency = await self.competency_repo.get_by_id(competency_id)
+                if not competency:
+                    raise BadRequestError(f"Competency {competency_id} not found")
 
     async def _validate_weight_limits(
         self,
@@ -583,6 +586,24 @@ class GoalService:
         # Add target_data fields directly (simplified)
         if goal_model.target_data:
             goal_dict.update(goal_model.target_data)
+        
+        # Add competency name lookup for competency goals
+        if (goal_model.goal_category == "コンピテンシー" and 
+            goal_model.target_data and 
+            goal_model.target_data.get("competency_ids")):
+            
+            try:
+                competency_names = {}
+                for competency_id in goal_model.target_data["competency_ids"]:
+                    competency = await self.competency_repo.get_by_id(competency_id)
+                    if competency:
+                        competency_names[str(competency_id)] = competency.name
+                
+                if competency_names:
+                    goal_dict["competency_names"] = competency_names
+            except Exception as e:
+                logger.warning(f"Failed to fetch competency names for goal {goal_model.id}: {str(e)}")
+                # Continue without competency names if lookup fails
         
         return Goal(**goal_dict)
 
