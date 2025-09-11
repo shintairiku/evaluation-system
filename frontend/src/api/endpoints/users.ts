@@ -114,6 +114,6 @@ export const usersApi = {
       }
     }
     
-    return httpClient.get<SimpleUser[]>(endpoint as string);
+    return httpClient.get<SimpleUser[]>(endpoint);
   },
 };
