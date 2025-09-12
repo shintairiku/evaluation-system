@@ -90,7 +90,7 @@ export const getDepartmentByIdAction = createFullyCachedAction(
  */
 export async function createDepartmentAction(departmentData: DepartmentCreate): Promise<{
   success: boolean;
-  data?: DepartmentDetail;
+  data?: Department;
   error?: string;
 }> {
   try {
@@ -124,7 +124,7 @@ export async function createDepartmentAction(departmentData: DepartmentCreate): 
  */
 export async function updateDepartmentAction(departmentId: UUID, updateData: DepartmentUpdate): Promise<{
   success: boolean;
-  data?: DepartmentDetail;
+  data?: Department;
   error?: string;
 }> {
   try {
