@@ -4,7 +4,6 @@ import { revalidateTag } from 'next/cache';
 import { rolesApi } from '../endpoints/roles';
 import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
 import type { 
-  Role, 
   RoleDetail, 
   RoleCreate, 
   RoleUpdate,
@@ -17,7 +16,7 @@ import type {
  */
 async function _getRolesAction(): Promise<{
   success: boolean;
-  data?: Role[];
+  data?: RoleDetail[];
   error?: string;
 }> {
   try {
@@ -191,13 +190,12 @@ export async function deleteRoleAction(roleId: UUID): Promise<{
  */
 export async function reorderRolesAction(reorderData: RoleReorderRequest): Promise<{
   success: boolean;
-  data?: Role[];
   error?: string;
 }> {
   try {
     const response = await rolesApi.reorderRoles(reorderData);
     
-    if (!response.success || !response.data) {
+    if (!response.success) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to reorder roles',
@@ -209,7 +207,6 @@ export async function reorderRolesAction(reorderData: RoleReorderRequest): Promi
     
     return {
       success: true,
-      data: response.data,
     };
   } catch (error) {
     console.error('Reorder roles action error:', error);

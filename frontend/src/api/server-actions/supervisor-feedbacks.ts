@@ -14,7 +14,7 @@ import type {
 /**
  * Server action to get supervisor feedbacks with pagination
  */
-export async function getSupervisorFeedbacksAction(params?: PaginationParams): Promise<{
+export async function getSupervisorFeedbacksAction(params?: { pagination?: PaginationParams; periodId?: string; supervisorId?: string; subordinateId?: string; status?: string; }): Promise<{
   success: boolean;
   data?: SupervisorFeedbackList;
   error?: string;
@@ -25,7 +25,7 @@ export async function getSupervisorFeedbacksAction(params?: PaginationParams): P
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor feedbacks',
+        error: response.errorMessage || 'Failed to fetch supervisor feedbacks',
       };
     }
     
@@ -56,7 +56,7 @@ export async function getSupervisorFeedbackByIdAction(feedbackId: UUID): Promise
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor feedback',
+        error: response.errorMessage || 'Failed to fetch supervisor feedback',
       };
     }
     
@@ -78,7 +78,7 @@ export async function getSupervisorFeedbackByIdAction(feedbackId: UUID): Promise
  */
 export async function createSupervisorFeedbackAction(feedbackData: SupervisorFeedbackCreate): Promise<{
   success: boolean;
-  data?: SupervisorFeedbackDetail;
+  data?: SupervisorFeedback;
   error?: string;
 }> {
   try {
@@ -87,7 +87,7 @@ export async function createSupervisorFeedbackAction(feedbackData: SupervisorFee
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to create supervisor feedback',
+        error: response.errorMessage || 'Failed to create supervisor feedback',
       };
     }
     
@@ -109,7 +109,7 @@ export async function createSupervisorFeedbackAction(feedbackData: SupervisorFee
  */
 export async function updateSupervisorFeedbackAction(feedbackId: UUID, updateData: SupervisorFeedbackUpdate): Promise<{
   success: boolean;
-  data?: SupervisorFeedbackDetail;
+  data?: SupervisorFeedback;
   error?: string;
 }> {
   try {
@@ -118,7 +118,7 @@ export async function updateSupervisorFeedbackAction(feedbackId: UUID, updateDat
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to update supervisor feedback',
+        error: response.errorMessage || 'Failed to update supervisor feedback',
       };
     }
     
@@ -148,7 +148,7 @@ export async function deleteSupervisorFeedbackAction(feedbackId: UUID): Promise<
     if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to delete supervisor feedback',
+        error: response.errorMessage || 'Failed to delete supervisor feedback',
       };
     }
     
@@ -169,7 +169,7 @@ export async function deleteSupervisorFeedbackAction(feedbackId: UUID): Promise<
  */
 export async function getSupervisorFeedbacksBySupervisorAction(supervisorId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorFeedback[];
+  data?: SupervisorFeedbackList;
   error?: string;
 }> {
   try {
@@ -178,7 +178,7 @@ export async function getSupervisorFeedbacksBySupervisorAction(supervisorId: UUI
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor feedbacks by supervisor',
+        error: response.errorMessage || 'Failed to fetch supervisor feedbacks by supervisor',
       };
     }
     
@@ -200,7 +200,7 @@ export async function getSupervisorFeedbacksBySupervisorAction(supervisorId: UUI
  */
 export async function getSupervisorFeedbacksByEmployeeAction(employeeId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorFeedback[];
+  data?: SupervisorFeedbackList;
   error?: string;
 }> {
   try {
@@ -209,7 +209,7 @@ export async function getSupervisorFeedbacksByEmployeeAction(employeeId: UUID): 
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor feedbacks by employee',
+        error: response.errorMessage || 'Failed to fetch supervisor feedbacks by employee',
       };
     }
     
@@ -231,16 +231,16 @@ export async function getSupervisorFeedbacksByEmployeeAction(employeeId: UUID): 
  */
 export async function getSupervisorFeedbacksByAssessmentAction(assessmentId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorFeedback[];
+  data?: SupervisorFeedback | null;
   error?: string;
 }> {
   try {
-    const response = await supervisorFeedbacksApi.getSupervisorFeedbacksByAssessment(assessmentId);
+    const response = await supervisorFeedbacksApi.getSupervisorFeedbackByAssessment(assessmentId);
     
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor feedbacks by assessment',
+        error: response.errorMessage || 'Failed to fetch supervisor feedbacks by assessment',
       };
     }
     
@@ -262,7 +262,7 @@ export async function getSupervisorFeedbacksByAssessmentAction(assessmentId: UUI
  */
 export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorFeedbackDetail;
+  data?: SupervisorFeedback;
   error?: string;
 }> {
   try {
@@ -271,7 +271,7 @@ export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to submit supervisor feedback',
+        error: response.errorMessage || 'Failed to submit supervisor feedback',
       };
     }
     
@@ -293,7 +293,7 @@ export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<
  */
 export async function draftSupervisorFeedbackAction(feedbackId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorFeedbackDetail;
+  data?: SupervisorFeedback;
   error?: string;
 }> {
   try {
@@ -302,7 +302,7 @@ export async function draftSupervisorFeedbackAction(feedbackId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to mark supervisor feedback as draft',
+        error: response.errorMessage || 'Failed to mark supervisor feedback as draft',
       };
     }
     

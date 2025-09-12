@@ -14,7 +14,7 @@ import type {
 /**
  * Server action to get supervisor reviews with pagination
  */
-export async function getSupervisorReviewsAction(params?: PaginationParams): Promise<{
+export async function getSupervisorReviewsAction(params?: { pagination?: PaginationParams; periodId?: string; goalId?: string; status?: string; }): Promise<{
   success: boolean;
   data?: SupervisorReviewList;
   error?: string;
@@ -25,7 +25,7 @@ export async function getSupervisorReviewsAction(params?: PaginationParams): Pro
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor reviews',
+        error: response.errorMessage || 'Failed to fetch supervisor reviews',
       };
     }
     
@@ -56,7 +56,7 @@ export async function getSupervisorReviewByIdAction(reviewId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor review',
+        error: response.errorMessage || 'Failed to fetch supervisor review',
       };
     }
     
@@ -78,7 +78,7 @@ export async function getSupervisorReviewByIdAction(reviewId: UUID): Promise<{
  */
 export async function createSupervisorReviewAction(reviewData: SupervisorReviewCreate): Promise<{
   success: boolean;
-  data?: SupervisorReviewDetail;
+  data?: SupervisorReview;
   error?: string;
 }> {
   try {
@@ -87,7 +87,7 @@ export async function createSupervisorReviewAction(reviewData: SupervisorReviewC
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to create supervisor review',
+        error: response.errorMessage || 'Failed to create supervisor review',
       };
     }
     
@@ -109,7 +109,7 @@ export async function createSupervisorReviewAction(reviewData: SupervisorReviewC
  */
 export async function updateSupervisorReviewAction(reviewId: UUID, updateData: SupervisorReviewUpdate): Promise<{
   success: boolean;
-  data?: SupervisorReviewDetail;
+  data?: SupervisorReview;
   error?: string;
 }> {
   try {
@@ -118,7 +118,7 @@ export async function updateSupervisorReviewAction(reviewId: UUID, updateData: S
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to update supervisor review',
+        error: response.errorMessage || 'Failed to update supervisor review',
       };
     }
     
@@ -148,7 +148,7 @@ export async function deleteSupervisorReviewAction(reviewId: UUID): Promise<{
     if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to delete supervisor review',
+        error: response.errorMessage || 'Failed to delete supervisor review',
       };
     }
     
@@ -169,7 +169,7 @@ export async function deleteSupervisorReviewAction(reviewId: UUID): Promise<{
  */
 export async function getSupervisorReviewsBySupervisorAction(supervisorId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorReview[];
+  data?: SupervisorReviewList;
   error?: string;
 }> {
   try {
@@ -178,7 +178,7 @@ export async function getSupervisorReviewsBySupervisorAction(supervisorId: UUID)
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor reviews by supervisor',
+        error: response.errorMessage || 'Failed to fetch supervisor reviews by supervisor',
       };
     }
     
@@ -200,7 +200,7 @@ export async function getSupervisorReviewsBySupervisorAction(supervisorId: UUID)
  */
 export async function getSupervisorReviewsByEmployeeAction(employeeId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorReview[];
+  data?: SupervisorReviewList;
   error?: string;
 }> {
   try {
@@ -209,7 +209,7 @@ export async function getSupervisorReviewsByEmployeeAction(employeeId: UUID): Pr
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor reviews by employee',
+        error: response.errorMessage || 'Failed to fetch supervisor reviews by employee',
       };
     }
     
@@ -231,7 +231,7 @@ export async function getSupervisorReviewsByEmployeeAction(employeeId: UUID): Pr
  */
 export async function getSupervisorReviewsByGoalAction(goalId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorReview[];
+  data?: SupervisorReviewList;
   error?: string;
 }> {
   try {
@@ -240,7 +240,7 @@ export async function getSupervisorReviewsByGoalAction(goalId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch supervisor reviews by goal',
+        error: response.errorMessage || 'Failed to fetch supervisor reviews by goal',
       };
     }
     
@@ -262,7 +262,7 @@ export async function getSupervisorReviewsByGoalAction(goalId: UUID): Promise<{
  */
 export async function getPendingSupervisorReviewsAction(): Promise<{
   success: boolean;
-  data?: SupervisorReview[];
+  data?: SupervisorReviewList;
   error?: string;
 }> {
   try {
@@ -271,7 +271,7 @@ export async function getPendingSupervisorReviewsAction(): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to fetch pending supervisor reviews',
+        error: response.errorMessage || 'Failed to fetch pending supervisor reviews',
       };
     }
     
@@ -293,7 +293,7 @@ export async function getPendingSupervisorReviewsAction(): Promise<{
  */
 export async function submitSupervisorReviewAction(reviewId: UUID): Promise<{
   success: boolean;
-  data?: SupervisorReviewDetail;
+  data?: SupervisorReview;
   error?: string;
 }> {
   try {
@@ -302,7 +302,7 @@ export async function submitSupervisorReviewAction(reviewId: UUID): Promise<{
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || 'Failed to submit supervisor review',
+        error: response.errorMessage || 'Failed to submit supervisor review',
       };
     }
     
@@ -322,24 +322,22 @@ export async function submitSupervisorReviewAction(reviewId: UUID): Promise<{
 /**
  * Server action to bulk submit supervisor reviews
  */
-export async function bulkSubmitSupervisorReviewsAction(reviewIds: UUID[]): Promise<{
+export async function bulkSubmitSupervisorReviewsAction(periodId: UUID, goalIds?: UUID[]): Promise<{
   success: boolean;
-  data?: SupervisorReview[];
   error?: string;
 }> {
   try {
-    const response = await supervisorReviewsApi.bulkSubmitSupervisorReviews(reviewIds);
+    const response = await supervisorReviewsApi.bulkSubmitSupervisorReviews(periodId, goalIds);
     
-    if (!response.success || !response.data) {
+    if (!response.success) {
       return {
         success: false,
-        error: response.error || 'Failed to bulk submit supervisor reviews',
+        error: response.errorMessage || 'Failed to bulk submit supervisor reviews',
       };
     }
     
     return {
       success: true,
-      data: response.data,
     };
   } catch (error) {
     console.error('Bulk submit supervisor reviews action error:', error);
