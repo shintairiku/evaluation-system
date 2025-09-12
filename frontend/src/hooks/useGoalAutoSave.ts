@@ -4,7 +4,7 @@ import { useCallback, useRef } from 'react';
 import { useAutoSave } from './useAutoSave';
 import { createGoalAction, updateGoalAction } from '@/api/server-actions/goals';
 import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
-import type { EvaluationPeriod } from '@/api/types/evaluation';
+import type { EvaluationPeriod } from '@/api/types';
 import type { GoalData } from './useGoalData';
 import type { UseGoalTrackingReturn, GoalChangeInfo } from './useGoalTracking';
 

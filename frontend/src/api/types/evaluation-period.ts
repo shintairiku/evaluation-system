@@ -49,11 +49,12 @@ export interface EvaluationPeriodUpdate {
 }
 
 export interface EvaluationPeriodList {
-  items: EvaluationPeriod[];
+  evaluation_periods: EvaluationPeriod[];
   total: number;
   page: number;
-  limit: number;
-  pages: number;
+  size: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 // Response for getting categorized evaluation periods

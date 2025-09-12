@@ -15,7 +15,7 @@ import { useGoalData } from '@/hooks/useGoalData';
 import { usePeriodSelection } from '@/hooks/usePeriodSelection';
 import { useGoalAutoSave } from '@/hooks/useGoalAutoSave';
 // useLoading removed - using simpler approach
-import type { EvaluationPeriod } from '@/api/types/evaluation';
+import type { EvaluationPeriod } from '@/api/types';
 
 const steps = [
   { id: 1, title: '業績目標入力' },
