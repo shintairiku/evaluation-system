@@ -32,8 +32,13 @@
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **1.4. [Webhook設定（user.created, user.updated）]**
-  > ユーザー作成・更新時のWebhookエンドポイントをClerkに設定する
+- [x] **1.4. [Webhook設定（user.created, user.updated, organization.created）]**
+  > ユーザー作成・更新・組織作成時のWebhookエンドポイントをClerkに設定する
+  > 
+  > **Clerk Dashboard設定内容:**
+  > - Webhook URL: `https://play.svix.com/in/e_iZo03eeRZLV7pprOONlEOxkCISn/`
+  > - Events: `user.created`, `user.updated`, `organization.created`
+  > - Signing Secret: 環境変数として設定
   >
   > **関連要件:** 2.2
 
@@ -92,20 +97,54 @@
 
 ### 5. [Webhookハンドラーの実装]
 
-- [ ] **5.1. [user.created Webhookハンドラー実装]**
-  > ユーザー作成時のメタデータ設定とデータベース登録処理を実装する
+- [ ] **5.1. [Webhook署名検証の実装]**
+  > Clerkから送信されるWebhookの署名を検証するミドルウェアを実装する
+  > - svix ライブラリを使用した署名検証
+  > - 環境変数からSigning Secretを読み込み
+  > - 不正なリクエストの拒否処理
+  >
+  > **関連要件:** セキュリティ要件
+
+- [ ] **5.2. [POST /api/webhooks/clerk エンドポイント実装]**
+  > Clerkからのwebhookを受信する統一エンドポイントを実装する
+  > - webhook typeに基づくイベント処理の分岐
+  > - エラーハンドリングとログ記録
+  > - レスポンス形式の標準化
   >
   > **関連要件:** 2.1, 2.2
 
-- [ ] **5.2. [user.updated Webhookハンドラー実装]**
+- [ ] **5.3. [user.created Webhookハンドラー実装]**
+  > ユーザー作成時のメタデータ設定とデータベース登録処理を実装する
+  > - 新規ユーザーレコードの作成（組織IDを含む）
+  > - Public Metadata（users_table_id, profile_completed）の設定
+  > - Private Metadata（email）の設定
+  > - デフォルトロール（employee）の設定
+  >
+  > **関連要件:** 2.1, 2.2
+
+- [ ] **5.4. [user.updated Webhookハンドラー実装]**
   > ユーザー更新時のメタデータ同期処理を実装する
+  > - 既存ユーザーレコードの更新
+  > - Clerkメタデータとの整合性確保
+  > - 組織変更時の処理
   >
   > **関連要件:** 2.2
 
-- [ ] **5.3. [organization.created Webhookハンドラー実装]**
+- [ ] **5.5. [organization.created Webhookハンドラー実装]**
   > 組織作成時のorganizationsテーブルへの登録処理を実装する
+  > - 新規組織レコードの作成
+  > - 組織名・作成日時の記録
+  > - 初期管理者ロールの設定
   >
   > **関連要件:** 3.1
+
+- [ ] **5.6. [Webhook処理のリトライ機構実装]**
+  > Webhook処理失敗時のリトライとエラー処理を実装する
+  > - データベース接続エラー時のリトライ
+  > - Clerk API呼び出し失敗時の対応
+  > - Dead Letter Queue的な仕組みの検討
+  >
+  > **関連要件:** 信頼性要件
 
 ## 機能C: フロントエンドの実装
 
@@ -170,14 +209,51 @@
 
 - [ ] **9.4. [Webhookハンドラーのテスト実装]**
   > Clerk Webhookの処理とデータ同期のテストを作成する
+  > - Webhook署名検証のテスト
+  > - 各イベント型（user.created, user.updated, organization.created）のハンドリングテスト
+  > - エラー状況でのリトライ機構テスト
+  > - モックClerk Webhookペイロードを使用した統合テスト
 
-### 10. ドキュメントと設定
+### 10. Clerk Account設定
 
-- [ ] **10.1. [環境変数設定の更新]**
-  > Clerk組織機能に必要な環境変数をdocker-compose.ymlと.envに追加する
+- [x] **10.1. [Clerk Dashboardでのwebhook設定]**
+  > Clerk管理画面でWebhook設定を行う
+  > 
+  > **設定完了:**
+  > - **Endpoint URL**: `https://play.svix.com/in/e_iZo03eeRZLV7pprOONlEOxkCISn/` (開発用)
+  > - **Events**: `user.created`, `user.updated`, `organization.created`
+  > - **Status**: アクティブ (Error Rate: 0.0%)
+  > - **備考**: 本番デプロイ時に実際のアプリケーションURLに変更予定
 
-- [ ] **10.2. [README.mdの更新]**
-  > 組織機能と管理者機能の使用方法をドキュメントに追加する
+- [ ] **10.2. [Webhook送信テスト]**
+  > ClerkからのWebhook送信をテストする
+  > - Clerk Dashboard の "Send test webhook" 機能を使用
+  > - 各イベント型のテストWebhookを送信
+  > - バックエンドでの受信とログ確認
+  > - 署名検証が正しく動作することを確認
 
-- [ ] **10.3. [型定義ファイルの更新]**
-  > JWTクレームと組織関連の型定義をapi/typesに追加する
+### 11. ドキュメントと設定
+
+- [ ] **11.1. [環境変数設定の更新]**
+  > Clerk組織機能とWebhookに必要な環境変数をdocker-compose.ymlと.envに追加する
+  > - `CLERK_WEBHOOK_SECRET`: Webhook署名検証用
+  > - `CLERK_WEBHOOK_URL`: WebhookエンドポイントURL
+  > - `CLERK_ORGANIZATION_ENABLED`: 組織機能フラグ
+  > - 既存のClerk環境変数の確認・更新
+
+- [ ] **11.2. [requirements.txt更新]**
+  > Webhook処理に必要なPythonライブラリを追加する
+  > - `svix`: Webhook署名検証ライブラリ
+  > - その他依存ライブラリの確認
+
+- [ ] **11.3. [README.mdの更新]**
+  > 組織機能・管理者機能・Webhook設定の使用方法をドキュメントに追加する
+  > - Clerk Dashboard設定手順
+  > - Webhook URL設定方法
+  > - 環境変数設定例
+
+- [ ] **11.4. [型定義ファイルの更新]**
+  > JWTクレーム、組織関連、Webhook関連の型定義をapi/typesに追加する
+  > - ClerkWebhookEvent型定義
+  > - WebhookPayload型定義
+  > - JWTClaims型定義の拡張
