@@ -40,8 +40,8 @@ graph TD
   "user_id": "{{user.public_metadata.users_table_id}}",
   "email": "{{user.private_metadata.email}}",
   "role": "{{user.public_metadata.role}}",
-  "organization_id": "{{user.org_id}}",
-  "organization_name": "{{user.org_slug}}"
+  "organization_id": "{{org.id}}",
+  "organization_name": "{{org.name}}"
 }
 ```
 
@@ -59,6 +59,8 @@ interface PublicMetadata {
 ```typescript
 interface PrivateMetadata {
   email: string;
+  // organization_id と organization_name は private metadata に保存せず、
+  // Clerk のネイティブ組織機能（{{org.id}} と {{org.name}}）を使用
 }
 ```
 
