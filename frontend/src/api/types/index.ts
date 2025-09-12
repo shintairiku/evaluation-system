@@ -13,8 +13,8 @@ export * from './goal';
 // Competency types (includes Stage types)
 export * from './competency';
 
-// Evaluation types (includes EvaluationPeriod types)
-export * from './evaluation';
+// Evaluation Period types
+export * from './evaluation-period';
 
 // Self Assessment types
 export * from './self-assessment';
