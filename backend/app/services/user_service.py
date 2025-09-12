@@ -804,12 +804,6 @@ class UserService:
             if not department:
                 raise BadRequestError(f"Department with ID {user_data.department_id} does not exist")
         
-        # Validate stage exists if being updated
-        if user_data.stage_id is not None:
-            stage = await self.stage_repo.get_by_id(user_data.stage_id)
-            if not stage:
-                raise BadRequestError(f"Stage with ID {user_data.stage_id} does not exist")
-    
     
     async def _enrich_user_data(self, user: UserModel) -> User:
         """Enrich user data with relationships using repository pattern"""
