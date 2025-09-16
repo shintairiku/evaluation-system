@@ -57,7 +57,12 @@ class AuthService:
             email = payload.get("email", "")
             first_name = payload.get("given_name", "")
             last_name = payload.get("family_name", "")
-            role = payload.get("role", "")  # Custom claim if available
+            # Role from custom claim (populated from user.public_metadata.role)
+            role = payload.get("role", "")
+            
+            # Organization claims (populated from Clerk's native {{org.id}} and {{org.name}})
+            organization_id = payload.get("organization_id")  # From {{org.id}}
+            organization_name = payload.get("organization_name")  # From {{org.name}}
             
             if not clerk_id:
                 raise ValueError("User ID not found in token")
@@ -67,7 +72,9 @@ class AuthService:
                 email=email,
                 first_name=first_name,
                 last_name=last_name,
-                role=role
+                role=role,
+                organization_id=organization_id,
+                organization_name=organization_name
             )
             
         except Exception as e:
