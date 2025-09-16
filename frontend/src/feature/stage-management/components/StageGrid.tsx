@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
-import { toast } from 'sonner';
 
 import type { StageData, UserCardData, UserStageChange } from '../types';
 import { useHydration } from '../hooks/useHydration';
+import { useStageNotifications } from '../hooks/useStageNotifications';
 import { getGridClasses } from '../utils/classNames';
 import { updateUserStagesAction, updateStageAction } from '@/api/server-actions/stage-management';
 
@@ -41,6 +41,7 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   
   const isMounted = useHydration();
+  const { showSuccess, showError, handleServerActionResult } = useStageNotifications(onError, onClearError);
 
   // Update stages when initialStages changes (from search filtering)
   useEffect(() => {
@@ -60,32 +61,25 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
 
   const handleSaveStage = useCallback(async (stageId: string, title: string, description: string) => {
     setIsLoading(true);
-    onClearError();
 
     try {
       const result = await updateStageAction(stageId, { name: title, description });
+      const actionResult = handleServerActionResult(result, 'ステージが正常に更新されました');
       
-      if (result.success) {
+      if (actionResult.success) {
         // Update local state optimistically
         setStages(prev => prev.map(stage => 
           stage.id === stageId 
             ? { ...stage, name: title, description }
             : stage
         ));
-        toast.success('ステージが正常に更新されました');
-      } else {
-        const errorMessage = result.error || 'ステージの更新に失敗しました';
-        onError(errorMessage);
-        toast.error(errorMessage);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '予期しないエラーが発生しました';
-      onError(errorMessage);
-      toast.error(errorMessage);
+      showError(error);
     } finally {
       setIsLoading(false);
     }
-  }, [onError, onClearError]);
+  }, [handleServerActionResult, showError]);
 
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -165,31 +159,24 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
     if (!pendingChanges.length) return;
 
     setIsLoading(true);
-    onClearError();
 
     try {
       const result = await updateUserStagesAction(pendingChanges);
+      const actionResult = handleServerActionResult(result, 'ユーザーステージが正常に更新されました');
       
-      if (result.success) {
+      if (actionResult.success) {
         // Success - clear edit mode and pending changes
         setEditMode(false);
         setPendingChanges([]);
-        toast.success('ユーザーステージが正常に更新されました');
         // The page will be revalidated automatically by the server action
-      } else {
-        const errorMessage = result.error || 'ユーザーステージの更新に失敗しました';
-        onError(errorMessage);
-        toast.error(errorMessage);
-        // Optionally revert optimistic updates here
       }
+      // Optionally revert optimistic updates on error
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '予期しないエラーが発生しました';
-      onError(errorMessage);
-      toast.error(errorMessage);
+      showError(error);
     } finally {
       setIsLoading(false);
     }
-  }, [pendingChanges, onError, onClearError]);
+  }, [pendingChanges, handleServerActionResult, showError]);
 
   // Handle cancel - revert all optimistic changes
   const handleCancel = useCallback(() => {
