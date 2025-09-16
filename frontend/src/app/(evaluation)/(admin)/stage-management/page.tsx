@@ -1,6 +1,6 @@
 import { getStagesAdminAction } from '@/api/server-actions/stages';
 import { getUsersAction } from '@/api/server-actions/users';
-import StageManagementView from '@/feature/stage-management/StageManagementView';
+import StageManagementContainer from '@/feature/stage-management/StageManagementContainer';
 
 /**
  * Stage Management Page (Admin Only)
@@ -48,30 +48,11 @@ export default async function StageManagementPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="space-y-6">
-        {/* Page Header */}
-        <div>
-          <h1 className="text-3xl font-bold">ステージ管理</h1>
-          <p className="text-muted-foreground">
-            評価ステージ間でユーザーをドラッグ&ドロップして管理します
-          </p>
-          {/* Show pagination info if needed */}
-          {usersResult.data && usersResult.data.total > usersResult.data.items.length && (
-            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-sm text-yellow-800">
-                Showing {usersResult.data.items.length} of {usersResult.data.total} users. 
-                Some users may not be visible due to pagination limits.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Stage Management Interface */}
-        <StageManagementView
-          initialStages={stagesResult.data || []}
-          initialUsers={usersResult.data?.items || []}
-        />
-      </div>
+      <StageManagementContainer
+        initialStages={stagesResult.data || []}
+        initialUsers={usersResult.data?.items || []}
+        total={usersResult.data?.total || 0}
+      />
     </div>
   );
 }
