@@ -5,7 +5,7 @@ export type PerformanceGoalType = 'quantitative' | 'qualitative';
 
 export interface GoalBase {
   periodId: UUID;
-  goalCategory: string; // "業績目標" | "コンピテンシー" | "コアバリュー"
+  goalCategory: string; // "業績目標" | "コンピテンシー" 
   weight: number; // 0-100
   status: GoalStatus;
 }
@@ -26,15 +26,10 @@ export interface CompetencyGoalFields {
   actionPlan: string;
 }
 
-// Core value goal specific fields (not used in this flow but included for completeness)
-// export interface CoreValueGoalFields {
-//   coreValuePlan: string;
-// }
 
 export type GoalCreateRequest =
   | (GoalBase & { goalCategory: '業績目標' } & PerformanceGoalFields)
   | (GoalBase & { goalCategory: 'コンピテンシー' } & CompetencyGoalFields);
-//   | (GoalBase & { goalCategory: 'コアバリュー' } & CoreValueGoalFields);
 
 // Performance goal update fields - all optional since it's an update
 export interface PerformanceGoalUpdateFields {
@@ -52,15 +47,9 @@ export interface CompetencyGoalUpdateFields {
   actionPlan?: string;
 }
 
-// // Core value goal update fields - all optional since it's an update
-//     export interface CoreValueGoalUpdateFields {
-//     coreValuePlan?: string;
-// }
-
 export type GoalUpdateRequest =
   | ({ weight?: number } & PerformanceGoalUpdateFields)
   | ({ weight?: number } & CompetencyGoalUpdateFields);
-//   | ({ weight?: number } & CoreValueGoalUpdateFields);
 
 export interface GoalResponse {
   id: UUID;
@@ -85,9 +74,6 @@ export interface GoalResponse {
   competencyIds?: UUID[] | null;
   selectedIdealActions?: Record<string, string[]> | null;
   actionPlan?: string;
-
-  // Core value fields (when goalCategory is "コアバリュー")
-//   coreValuePlan?: string;
 }
 
 export interface GoalListResponse extends PaginatedResponse<GoalResponse> {}

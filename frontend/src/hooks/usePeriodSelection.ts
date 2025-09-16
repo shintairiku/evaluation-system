@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { getGoalsAction } from '@/api/server-actions/goals';
-import type { EvaluationPeriod } from '@/api/types/evaluation';
+import type { EvaluationPeriod } from '@/api/types';
 import type { GoalResponse } from '@/api/types/goal';
 import type { PerformanceGoal, CompetencyGoal } from './useGoalData';
 

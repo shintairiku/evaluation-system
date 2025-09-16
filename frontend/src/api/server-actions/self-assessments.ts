@@ -14,7 +14,7 @@ import type {
 /**
  * Server action to get self-assessments with pagination
  */
-export async function getSelfAssessmentsAction(params?: PaginationParams): Promise<{
+export async function getSelfAssessmentsAction(params?: { pagination?: PaginationParams; periodId?: string; userId?: string; status?: string; }): Promise<{
   success: boolean;
   data?: SelfAssessmentList;
   error?: string;
@@ -76,13 +76,13 @@ export async function getSelfAssessmentByIdAction(assessmentId: UUID): Promise<{
 /**
  * Server action to create a new self-assessment
  */
-export async function createSelfAssessmentAction(assessmentData: SelfAssessmentCreate): Promise<{
+export async function createSelfAssessmentAction(assessmentData: SelfAssessmentCreate, goalId: UUID): Promise<{
   success: boolean;
-  data?: SelfAssessmentDetail;
+  data?: SelfAssessment;
   error?: string;
 }> {
   try {
-    const response = await selfAssessmentsApi.createSelfAssessment(assessmentData);
+    const response = await selfAssessmentsApi.createSelfAssessment(assessmentData, goalId);
     
     if (!response.success || !response.data) {
       return {
@@ -109,7 +109,7 @@ export async function createSelfAssessmentAction(assessmentData: SelfAssessmentC
  */
 export async function updateSelfAssessmentAction(assessmentId: UUID, updateData: SelfAssessmentUpdate): Promise<{
   success: boolean;
-  data?: SelfAssessmentDetail;
+  data?: SelfAssessment;
   error?: string;
 }> {
   try {
@@ -169,7 +169,7 @@ export async function deleteSelfAssessmentAction(assessmentId: UUID): Promise<{
  */
 export async function getSelfAssessmentsByUserAction(userId: UUID): Promise<{
   success: boolean;
-  data?: SelfAssessment[];
+  data?: SelfAssessmentList;
   error?: string;
 }> {
   try {
@@ -200,7 +200,7 @@ export async function getSelfAssessmentsByUserAction(userId: UUID): Promise<{
  */
 export async function getSelfAssessmentsByPeriodAction(periodId: UUID): Promise<{
   success: boolean;
-  data?: SelfAssessment[];
+  data?: SelfAssessmentList;
   error?: string;
 }> {
   try {
@@ -231,11 +231,11 @@ export async function getSelfAssessmentsByPeriodAction(periodId: UUID): Promise<
  */
 export async function getSelfAssessmentsByGoalAction(goalId: UUID): Promise<{
   success: boolean;
-  data?: SelfAssessment[];
+  data?: SelfAssessment | null;
   error?: string;
 }> {
   try {
-    const response = await selfAssessmentsApi.getSelfAssessmentsByGoal(goalId);
+    const response = await selfAssessmentsApi.getSelfAssessmentByGoal(goalId);
     
     if (!response.success || !response.data) {
       return {
@@ -262,7 +262,7 @@ export async function getSelfAssessmentsByGoalAction(goalId: UUID): Promise<{
  */
 export async function submitSelfAssessmentAction(assessmentId: UUID): Promise<{
   success: boolean;
-  data?: SelfAssessmentDetail;
+  data?: SelfAssessment;
   error?: string;
 }> {
   try {

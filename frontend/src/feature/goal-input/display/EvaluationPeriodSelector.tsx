@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar, Clock, AlertCircle } from 'lucide-react';
-import { getEvaluationPeriodsAction } from '@/api/server-actions/evaluations';
-import type { EvaluationPeriod } from '@/api/types/evaluation';
+import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
+import type { EvaluationPeriod } from '@/api/types';
 
 interface EvaluationPeriodSelectorProps {
   onPeriodSelected: (period: EvaluationPeriod) => void;
@@ -28,10 +28,7 @@ export function EvaluationPeriodSelector({ onPeriodSelected }: EvaluationPeriodS
       setIsLoading(true);
       setError(null);
       
-      const result = await getEvaluationPeriodsAction({
-        status: 'all', // Get all periods to let user choose
-        limit: 20
-      });
+      const result = await getCategorizedEvaluationPeriodsAction();
 
       if (result.success && result.data) {
         // Use the 'all' array which contains all periods regardless of status

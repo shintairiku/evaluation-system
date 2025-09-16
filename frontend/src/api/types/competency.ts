@@ -1,4 +1,5 @@
 import { UUID } from './common';
+import type { UserDetailResponse } from './user';
 
 export interface CompetencyDescription {
   [key: string]: string; // Keys should be "1", "2", "3", "4", "5"
@@ -14,7 +15,7 @@ export interface Competency {
 }
 
 export interface CompetencyDetail extends Competency {
-  users?: any[]; // TODO: Define User type when needed
+  users?: UserDetailResponse[];
 }
 
 export interface CompetencyCreate {
@@ -50,7 +51,7 @@ export interface StageDetail extends Stage {
   createdAt: string;
   updatedAt: string;
   userCount?: number;
-  users?: any[];
+  users?: UserDetailResponse[];
   competencies: Competency[];
 }
 
