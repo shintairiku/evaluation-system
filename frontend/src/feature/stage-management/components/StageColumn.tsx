@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { Users, ChevronDown, ChevronRight, Settings } from 'lucide-react';
 
 import type { StageData } from '../types';
 import { useHydration } from '../hooks/useHydration';
@@ -18,6 +18,8 @@ interface StageColumnProps {
   stage: StageData;
   /** Whether the component is in edit mode for drag & drop */
   editMode: boolean;
+  /** Callback when stage edit is requested */
+  onEditStage?: (stage: StageData) => void;
 }
 
 /**
@@ -29,7 +31,7 @@ interface StageColumnProps {
  * └── UserCardList
  *     └── UserCard (ドラッグ可能)
  */
-export default function StageColumn({ stage, editMode }: StageColumnProps) {
+export default function StageColumn({ stage, editMode, onEditStage }: StageColumnProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isMounted = useHydration();
 
@@ -77,10 +79,28 @@ export default function StageColumn({ stage, editMode }: StageColumnProps) {
             </CardTitle>
           </div>
           
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <Users size={14} />
-            {stage.users.length}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Users size={14} />
+              {stage.users.length}
+            </Badge>
+            
+            {/* Settings Icon */}
+            {onEditStage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1 h-auto opacity-60 hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditStage(stage);
+                }}
+                title="ステージを編集"
+              >
+                <Settings size={14} />
+              </Button>
+            )}
+          </div>
         </div>
         
         {stage.description && (
