@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
+import { toast } from 'sonner';
 
 import type { StageData, UserCardData, UserStageChange } from '../types';
 import { useHydration } from '../hooks/useHydration';
@@ -71,11 +72,16 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
             ? { ...stage, name: title, description }
             : stage
         ));
+        toast.success('ステージが正常に更新されました');
       } else {
-        onError(result.error || 'ステージの更新に失敗しました');
+        const errorMessage = result.error || 'ステージの更新に失敗しました';
+        onError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (error) {
-      onError(error instanceof Error ? error.message : '予期しないエラーが発生しました');
+      const errorMessage = error instanceof Error ? error.message : '予期しないエラーが発生しました';
+      onError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -168,13 +174,18 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
         // Success - clear edit mode and pending changes
         setEditMode(false);
         setPendingChanges([]);
+        toast.success('ユーザーステージが正常に更新されました');
         // The page will be revalidated automatically by the server action
       } else {
-        onError(result.error || 'ユーザーステージの更新に失敗しました');
+        const errorMessage = result.error || 'ユーザーステージの更新に失敗しました';
+        onError(errorMessage);
+        toast.error(errorMessage);
         // Optionally revert optimistic updates here
       }
     } catch (error) {
-      onError(error instanceof Error ? error.message : '予期しないエラーが発生しました');
+      const errorMessage = error instanceof Error ? error.message : '予期しないエラーが発生しました';
+      onError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
