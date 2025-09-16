@@ -1,16 +1,22 @@
 'use client';
 
 import { useDroppable } from '@dnd-kit/core';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Users, ChevronDown, ChevronRight } from 'lucide-react';
+
 import type { StageData } from '../types';
+import { useHydration } from '../hooks/useHydration';
+import { getStageCardClasses, getCardHeaderClasses } from '../utils/classNames';
+import { SCROLL_CONFIG } from '../constants';
 import UserCard from './UserCard';
 
 interface StageColumnProps {
+  /** Stage data including users and metadata */
   stage: StageData;
+  /** Whether the component is in edit mode for drag & drop */
   editMode: boolean;
 }
 
@@ -24,15 +30,9 @@ interface StageColumnProps {
  *     └── UserCard (ドラッグ可能)
  */
 export default function StageColumn({ stage, editMode }: StageColumnProps) {
-  const [isMounted, setIsMounted] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const isMounted = useHydration();
 
-  // Hydration guard
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Toggle expand/collapse
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
   };
@@ -46,15 +46,11 @@ export default function StageColumn({ stage, editMode }: StageColumnProps) {
   return (
     <Card 
       ref={setNodeRef}
-      className={`
-        ${isExpanded ? 'min-h-[320px]' : 'min-h-[140px]'} flex flex-col transition-all duration-200
-        ${isMounted && isOver ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
-        ${editMode ? 'border-orange-300 bg-orange-50/30' : ''}
-      `}
+      className={getStageCardClasses(isExpanded, isMounted, isOver, editMode)}
     >
       {/* Stage Column Header - Clickable */}
       <CardHeader 
-        className={`pb-3 cursor-pointer hover:bg-gray-50 transition-colors ${!isExpanded ? 'pb-4' : ''}`}
+        className={getCardHeaderClasses(isExpanded)}
         onClick={toggleExpanded}
       >
         <div className="flex items-center justify-between">
@@ -96,7 +92,7 @@ export default function StageColumn({ stage, editMode }: StageColumnProps) {
 
       {/* User Card List - Only shown when expanded */}
       {isExpanded && (
-        <CardContent className="space-y-3 max-h-96 overflow-y-auto pr-1">
+        <CardContent className={`space-y-3 ${SCROLL_CONFIG.MAX_HEIGHT} ${SCROLL_CONFIG.OVERFLOW} ${SCROLL_CONFIG.PADDING}`}>
           {stage.users.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-gray-400">
               <Users size={24} className="mb-2" />
