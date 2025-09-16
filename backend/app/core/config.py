@@ -35,7 +35,10 @@ class Settings:
     # =============================================================================
     CLERK_SECRET_KEY: Optional[str] = os.getenv("CLERK_SECRET_KEY")
     CLERK_PUBLISHABLE_KEY: Optional[str] = os.getenv("CLERK_PUBLISHABLE_KEY") 
-    # CLERK_WEBHOOK_SECRET: Optional[str] = os.getenv("CLERK_WEBHOOK_SECRET")
+    CLERK_ISSUER: Optional[str] = os.getenv("CLERK_ISSUER")
+    CLERK_AUDIENCE: Optional[str] = os.getenv("CLERK_AUDIENCE")
+    CLERK_WEBHOOK_SECRET: Optional[str] = os.getenv("CLERK_WEBHOOK_SECRET")
+    CLERK_ORGANIZATION_ENABLED: bool = os.getenv("CLERK_ORGANIZATION_ENABLED", "True").lower() == "true"
     
     # =============================================================================
     # DATABASE SETTINGS (Supabase)
@@ -159,6 +162,11 @@ class Settings:
         return bool(self.CLERK_SECRET_KEY and self.CLERK_PUBLISHABLE_KEY)
     
     @property
+    def clerk_jwt_configured(self) -> bool:
+        """Check if Clerk JWT verification is properly configured."""
+        return bool(self.CLERK_ISSUER and self.CLERK_AUDIENCE)
+    
+    @property
     def database_configured(self) -> bool:
         """Check if database is properly configured."""
         return bool(self.SUPABASE_DATABASE_URL)
@@ -191,6 +199,9 @@ class Settings:
         if not self.clerk_configured:
             issues.append("Clerk authentication not configured (missing CLERK_SECRET_KEY or CLERK_PUBLISHABLE_KEY)")
         
+        if self.CLERK_ORGANIZATION_ENABLED and not self.clerk_jwt_configured:
+            issues.append("Clerk JWT verification not configured for organization support (missing CLERK_ISSUER or CLERK_AUDIENCE)")
+        
         if not self.database_configured:
             issues.append("Database not configured (missing SUPABASE_DATABASE_URL)")
         
@@ -219,6 +230,8 @@ def get_environment_info() -> dict:
         "environment": settings.ENVIRONMENT.value,
         "debug": settings.DEBUG,
         "clerk_configured": settings.clerk_configured,
+        "clerk_jwt_configured": settings.clerk_jwt_configured,
+        "clerk_organization_enabled": settings.CLERK_ORGANIZATION_ENABLED,
         "database_configured": settings.database_configured,
         "email_configured": settings.email_configured,
         "cors_origins": settings.CORS_ORIGINS,
