@@ -22,6 +22,7 @@ export type { StageData, UserCardData, UserStageChange } from './types';
 // Hooks
 export { useHydration } from './hooks/useHydration';
 export { useDebounce } from './hooks/useDebounce';
+export { useStageNotifications } from './hooks/useStageNotifications';
 
 // Utils
 export { getStageCardClasses, getCardHeaderClasses, getGridClasses } from './utils/classNames';
