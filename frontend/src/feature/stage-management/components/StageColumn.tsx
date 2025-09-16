@@ -47,7 +47,7 @@ export default function StageColumn({ stage, editMode }: StageColumnProps) {
     <Card 
       ref={setNodeRef}
       className={`
-        ${isExpanded ? 'min-h-[500px]' : 'min-h-[auto]'} transition-all duration-200
+        ${isExpanded ? 'min-h-[500px]' : 'min-h-[140px]'} flex flex-col transition-all duration-200
         ${isMounted && isOver ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
         ${editMode ? 'border-orange-300 bg-orange-50/30' : ''}
       `}

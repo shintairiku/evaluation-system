@@ -152,7 +152,7 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
     return (
       <div className="space-y-6">
         {/* Static stage columns grid - no drag and drop during SSR */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
           {stages.map(stage => (
             <StageColumn
               key={stage.id}
@@ -172,7 +172,7 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
         onDragEnd={handleDragEnd}
       >
         {/* Stage columns grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
           {stages.map(stage => (
             <StageColumn
               key={stage.id}
