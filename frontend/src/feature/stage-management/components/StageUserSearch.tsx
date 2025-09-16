@@ -45,7 +45,6 @@ export default function StageUserSearch({
   // Execute search when debounced query changes
   useEffect(() => {
     if (!debouncedSearchQuery.trim()) {
-      console.log('Search cleared, showing all users:', users.length);
       onFilteredUsers(users);
       return;
     }
@@ -57,8 +56,6 @@ export default function StageUserSearch({
       user.email.toLowerCase().includes(searchTerm)
     );
 
-    console.log(`Search for "${debouncedSearchQuery}": found ${filtered.length} users out of ${users.length}`);
-    console.log('Filtered users:', filtered.map(u => u.name));
     onFilteredUsers(filtered);
   }, [debouncedSearchQuery, users, onFilteredUsers]);
 

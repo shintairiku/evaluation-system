@@ -23,7 +23,6 @@ export default function StageManagementContainer({
   const [filteredUsers, setFilteredUsers] = useState<UserDetailResponse[]>(initialUsers);
 
   const handleFilteredUsers = useCallback((users: UserDetailResponse[]) => {
-    console.log('📦 Container received filtered users:', users.length, users.map(u => u.name));
     setFilteredUsers(users);
   }, []);
 

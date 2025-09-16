@@ -30,8 +30,6 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
   const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  console.log('⚡ StageGrid received initialStages:', initialStages.map(s => `${s.name}: ${s.users.length} users`));
-
   // Hydration guard to prevent SSR/CSR mismatch with drag and drop
   useEffect(() => {
     setIsMounted(true);
@@ -39,7 +37,6 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
 
   // Update stages when initialStages changes (from search filtering)
   useEffect(() => {
-    console.log('⚡ StageGrid updating stages from new props:', initialStages.map(s => `${s.name}: ${s.users.length} users`));
     setStages(initialStages);
   }, [initialStages]);
 

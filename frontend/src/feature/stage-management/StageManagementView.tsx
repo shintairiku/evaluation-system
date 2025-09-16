@@ -27,9 +27,7 @@ export default function StageManagementView({
 
   // Transform initial data into StageData format with users per stage
   const stagesWithUsers: StageData[] = useMemo(() => {
-    console.log('🎭 StageManagementView received users:', initialUsers.length, initialUsers.map(u => u.name));
-    
-    const result = initialStages.map(stage => ({
+    return initialStages.map(stage => ({
       ...stage,
       users: initialUsers
         .filter(user => user.stage?.id === stage.id)
@@ -42,9 +40,6 @@ export default function StageManagementView({
           current_stage_id: user.stage?.id || stage.id,
         }))
     }));
-    
-    console.log('🎭 Stages with users:', result.map(s => `${s.name}: ${s.users.length} users`));
-    return result;
   }, [initialStages, initialUsers]);
 
   // Handle errors from child components
