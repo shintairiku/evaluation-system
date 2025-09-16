@@ -14,6 +14,7 @@ export { default as UserCard } from './components/UserCard';
 export { default as EditModeControls } from './components/EditModeControls';
 export { default as StageManagementHeader } from './components/StageManagementHeader';
 export { default as StageUserSearch } from './components/StageUserSearch';
+export { default as StageEditModal } from './components/StageEditModal';
 
 // Types
 export type { StageData, UserCardData, UserStageChange } from './types';
@@ -26,4 +27,4 @@ export { useDebounce } from './hooks/useDebounce';
 export { getStageCardClasses, getCardHeaderClasses, getGridClasses } from './utils/classNames';
 
 // Constants
-export { STAGE_HEIGHTS, GRID_CONFIG, TRANSITIONS, DRAG_STYLES } from './constants';
+export { STAGE_HEIGHTS, GRID_CONFIG, TRANSITIONS, DRAG_STYLES, MODAL } from './constants';
