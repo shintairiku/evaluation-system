@@ -27,8 +27,12 @@
   > ```
   > **関連要件:** 1.1, 1.2
 
-- [ ] **1.3. [Public/Private Metadataスキーマの定義]**
+- [x] **1.3. [Public/Private Metadataスキーマの定義]**
   > TypeScript interfaceを定義し、メタデータの構造を明確化する
+  > 完了: `/frontend/src/api/types/clerk.ts` にて包括的な型定義を実装
+  > - ClerkPublicMetadata, ClerkPrivateMetadata
+  > - JWTClaims, Organization, DomainSettings
+  > - Webhook関連の型定義も含む
   >
   > **関連要件:** 2.1, 2.2
 
@@ -44,18 +48,31 @@
 
 ### 2. [データベーススキーマの更新]
 
-- [ ] **2.1. [organizationsテーブルの作成]**
+- [x] **2.1. [organizationsテーブルの作成]**
   > Clerk組織IDをプライマリキーとする組織テーブルを作成する
+  > 完了: `029_create_organizations.sql` マイグレーションにて実装
+  > - organizations テーブル作成 (Clerk組織IDをプライマリキー)
+  > - domain_settings テーブル作成 (ドメインベース自動承認用)
+  > - 適切なインデックスとトリガー設定済み
   >
   > **関連要件:** 3.1
 
-- [ ] **2.2. [usersテーブルにclerk_organization_idカラム追加]**
+- [x] **2.2. [usersテーブルにclerk_organization_idカラム追加]**
   > 既存のusersテーブルにClerk組織IDのカラムを追加し、外部キー制約を設定する
+  > 既存のユーザーはすべてIndividialなので、clerk_organization_idはnullとする
+  > 完了: `029_create_organizations.sql` マイグレーションにて実装
+  > - usersテーブルに clerk_organization_id カラム追加
+  > - organizations テーブルへの外部キー制約設定
+  > - パフォーマンス向上のためのインデックス作成済み
   >
   > **関連要件:** 3.1, 5.1
 
-- [ ] **2.3. [マイグレーションスクリプトの作成と実行]**
+- [x] **2.3. [マイグレーションスクリプトの作成と実行]**
   > データベーススキーマ変更用のマイグレーションスクリプトを作成・実行する
+  > 完了: `029_create_organizations.sql` マイグレーション作成・実行済み
+  > - 組織関連テーブルの作成
+  > - 既存usersテーブルの拡張
+  > - データベーススキーマ変更が正常に適用完了
   >
   > **関連要件:** 3.1
 
@@ -278,12 +295,14 @@
   > - Webhook URL設定方法
   > - 環境変数設定例
 
-- [ ] **11.4. [型定義ファイルの更新]**
+- [x] **11.4. [型定義ファイルの更新]**
   > JWTクレーム、組織関連、Webhook関連の型定義をapi/typesに追加する
-  > - ClerkWebhookEvent型定義
-  > - WebhookPayload型定義
-  > - JWTClaims型定義の拡張
-  > - DomainSettings型定義
+  > 完了: `/frontend/src/api/types/clerk.ts` にて包括的な型定義を実装
+  > - ClerkWebhookEvent型定義 ✅
+  > - WebhookPayload型定義 ✅  
+  > - JWTClaims型定義の拡張 ✅
+  > - DomainSettings型定義 ✅
+  > - Organization関連の型定義も完備
 
 ### 13. [ドメインベース自動承認機能]
 
