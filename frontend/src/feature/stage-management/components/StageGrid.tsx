@@ -167,6 +167,16 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
 
   return (
     <div className="space-y-6">
+      {/* Edit mode controls - appears when there are pending changes */}
+      {editMode && pendingChanges.length > 0 && (
+        <EditModeControls
+          pendingChangesCount={pendingChanges.length}
+          onSave={handleSave}
+          onCancel={handleCancel}
+          isLoading={isLoading}
+        />
+      )}
+
       <DndContext
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
@@ -192,16 +202,6 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
           )}
         </DragOverlay>
       </DndContext>
-
-      {/* Edit mode controls - appears when there are pending changes */}
-      {editMode && pendingChanges.length > 0 && (
-        <EditModeControls
-          pendingChangesCount={pendingChanges.length}
-          onSave={handleSave}
-          onCancel={handleCancel}
-          isLoading={isLoading}
-        />
-      )}
     </div>
   );
 }
