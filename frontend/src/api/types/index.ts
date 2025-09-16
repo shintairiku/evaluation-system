@@ -4,6 +4,9 @@ export * from './common';
 // Auth types
 export * from './auth';
 
+// Clerk types (includes JWT, Organization, Webhook types)
+export * from './clerk';
+
 // User types (includes Department, Role types)
 export * from './user';
 
