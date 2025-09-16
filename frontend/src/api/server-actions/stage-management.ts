@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { usersApi } from '../endpoints/users';
+import { stagesApi } from '../endpoints/stages';
 import type { UserStageChange } from '@/feature/stage-management/types';
 
 export interface ServerActionResponse {
@@ -74,16 +75,21 @@ export async function updateStageAction(
   updates: { name: string; description: string }
 ): Promise<ServerActionResponse> {
   try {
-    // TODO: Implement stage update API endpoint
-    // This should call stagesApi.updateStage(stageId, updates) when the endpoint exists
-    console.log('Update stage:', { stageId, updates });
+    console.log('Updating stage:', { stageId, updates });
     
-    // For now, return success to test the UI
-    // In production, this would make an actual API call
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+    // Call the real API endpoint
+    const result = await stagesApi.updateStage(stageId, {
+      name: updates.name,
+      description: updates.description
+    });
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || 'ステージの更新に失敗しました'
+      };
+    }
+
     // Revalidate the stage management page to show updated data
     revalidatePath('/stage-management');
 
