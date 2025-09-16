@@ -2,19 +2,19 @@
 
 > 本タスク群は、JWT 検証の厳格化、組織スコープ化ルーティング、DAL 強制フィルタリング、Webhook 強化を実装するためのもの。段階的移行とテスト完備を前提とする。
 
-## 機能A: Clerk設定とメタデータ管理
+## 機能A: Clerk設定とメタデータ管理 ✅
 
 ### 1. Clerk 組織機能とカスタムクレーム
 - [x] 組織機能の有効化（既存）
 - [x] カスタム JWT クレームの設定（既存）
 - [x] Public/Private Metadata 型定義（既存）
 - [x] Webhook 設定（既存）
-- [ ] JWT テンプレートの見直し: org ネイティブクレーム（org_id, org_slug, org_role）を前提に、カスタムはフォールバック用途として明記
+- [x] JWT テンプレートの見直し: org ネイティブクレーム（org_id, org_slug, org_role）を前提に、カスタムはフォールバック用途として明記
 
 ### 2. DB スキーマの更新（補強）
 - [x] `organizations`/`users.clerk_organization_id` 追加（既存）
-- [ ] `organizations.slug` ユニークインデックス追加
-- [ ] `domain_settings(organization_id, domain)` ユニーク制約追加
+- [x] `organizations.slug` ユニークインデックス追加
+- [x] `domain_settings(organization_id, domain)` ユニーク制約追加
 
 ## 機能B: バックエンド API の更新
 
