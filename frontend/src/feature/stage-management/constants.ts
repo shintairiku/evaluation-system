@@ -40,3 +40,14 @@ export const SCROLL_CONFIG = {
   OVERFLOW: 'overflow-y-auto',
   PADDING: 'pr-1',
 } as const;
+
+/**
+ * Modal configuration constants
+ */
+export const MODAL = {
+  STAGE_EDIT: {
+    MAX_TITLE_LENGTH: 100,
+    MAX_DESCRIPTION_LENGTH: 500,
+    MIN_TITLE_LENGTH: 1,
+  },
+} as const;
