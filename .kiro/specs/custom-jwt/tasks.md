@@ -1,349 +1,72 @@
-# 実装計画: Custom JWT Token Enhancement with Organization Support
+# 実装計画: Custom JWT Token Enhancement with Organization Support (Revised)
 
-> [このドキュメントは、設計書に基づいて実際に行う開発タスクを洗い出し、管理するためのものです。タスクは階層的に分割し、関連する要件を明記することで、進捗とトレーサビリティを確保します。]
+> 本タスク群は、JWT 検証の厳格化、組織スコープ化ルーティング、DAL 強制フィルタリング、Webhook 強化を実装するためのもの。段階的移行とテスト完備を前提とする。
 
 ## 機能A: Clerk設定とメタデータ管理
 
-### 1. [Clerk組織機能の有効化と設定]
-> [Clerkダッシュボードでの組織機能設定とカスタムJWTクレームの設定]
+### 1. Clerk 組織機能とカスタムクレーム
+- [x] 組織機能の有効化（既存）
+- [x] カスタム JWT クレームの設定（既存）
+- [x] Public/Private Metadata 型定義（既存）
+- [x] Webhook 設定（既存）
+- [ ] JWT テンプレートの見直し: org ネイティブクレーム（org_id, org_slug, org_role）を前提に、カスタムはフォールバック用途として明記
 
-- [x] **1.1. [Clerkダッシュボードで組織機能を有効化]**
-  > Clerkの管理画面で組織機能を有効にし、必要なロールと権限を設定する
-  > Org_ID: "org_32a4qh6ZhszNNK1kW1xyNgYimhZ"
-  > Slug: "shintairiku"
-  > **関連要件:** 3.1, 3.2
+### 2. DB スキーマの更新（補強）
+- [x] `organizations`/`users.clerk_organization_id` 追加（既存）
+- [ ] `organizations.slug` ユニークインデックス追加
+- [ ] `domain_settings(organization_id, domain)` ユニーク制約追加
 
-- [x] **1.2. [カスタムJWTクレームの設定]**
-  > JWT templateでuser_id, email, role, organization_id, organization_nameを含むカスタムクレームを設定する
-  > これら５つのデータはサインアップ時に行われるべきだが、今回は手動で直接的にClerkアカウントにて設定した。
-  > ```json
-  > {
-  >   	"role": "{{user.public_metadata.role}}",
-	>     "email": "{{user.private_metadata.email}}",
-	>     "organization_id": "{{org.id}}",
-	>     "internal_user_id": "{{user.public_metadata.users_table_id}}",
-	>     "organization_name": "{{org.name}}"
-  > }
-  > ```
-  > **関連要件:** 1.1, 1.2
+## 機能B: バックエンド API の更新
 
-- [x] **1.3. [Public/Private Metadataスキーマの定義]**
-  > TypeScript interfaceを定義し、メタデータの構造を明確化する
-  > 完了: `/frontend/src/api/types/clerk.ts` にて包括的な型定義を実装
-  > - ClerkPublicMetadata, ClerkPrivateMetadata
-  > - JWTClaims, Organization, DomainSettings
-  > - Webhook関連の型定義も含む
-  >
-  > **関連要件:** 2.1, 2.2
+### 3. 認証/JWT 検証
+- [ ] JWKS による署名検証を `AuthService.get_user_from_token` に実装（iss/aud/exp/nbf）
+- [ ] クレーム正規化 (org_id/org_slug/org_role 優先, カスタムはフォールバック)
+- [ ] 設定/環境変数追加: `CLERK_ISSUER`, `CLERK_AUDIENCE`
 
-- [x] **1.4. [Webhook設定（user.created, user.updated, organization.created）]**
-  > ユーザー作成・更新・組織作成時のWebhookエンドポイントをClerkに設定する
-  > 
-  > **Clerk Dashboard設定内容:**
-  > - Webhook URL: `https://play.svix.com/in/e_iZo03eeRZLV7pprOONlEOxkCISn/`
-  > - Events: `user.created`, `user.updated`, `organization.created`
-  > - Signing Secret: 環境変数として設定
-  >
-  > **関連要件:** 2.2
+### 4. 組織スコープ化ルーティング
+- [ ] `/api/org/{org_slug}/...` ルートの導入（最小セットから）
+- [ ] OrgSlug ガードミドルウェア実装（URL と JWT の org_slug 照合 / org_id→slug 解決）
+- [ ] 非所属ユーザーの `/api/org/...` 拒否
+- [ ] 旧 `/api/v1/...` ルートの段階的非推奨化と互換レイヤ
 
-### 2. [データベーススキーマの更新]
+### 5. DAL（リポジトリ/サービス）強制フィルタリング
+- [ ] 共通ヘルパ: `apply_org_scope` / `apply_org_scope_via_user` 実装
+- [ ] すべての SELECT/UPDATE/DELETE に組織フィルタ適用（抜け漏れ監査）
+- [ ] 書込み時の組織整合性検証（対象レコードが同一組織）
 
-- [x] **2.1. [organizationsテーブルの作成]**
-  > Clerk組織IDをプライマリキーとする組織テーブルを作成する
-  > 完了: `029_create_organizations.sql` マイグレーションにて実装
-  > - organizations テーブル作成 (Clerk組織IDをプライマリキー)
-  > - domain_settings テーブル作成 (ドメインベース自動承認用)
-  > - 適切なインデックスとトリガー設定済み
-  >
-  > **関連要件:** 3.1
+### 6. 管理者 API（補強）
+- [ ] `POST /api/admin/users` 実装（管理者 + 同一組織）
+- [ ] 既存 `GET /api/admin/organizations/{clerk_org_id}/users` のテスト/監査
 
-- [x] **2.2. [usersテーブルにclerk_organization_idカラム追加]**
-  > 既存のusersテーブルにClerk組織IDのカラムを追加し、外部キー制約を設定する
-  > 既存のユーザーはすべてIndividialなので、clerk_organization_idはnullとする
-  > 完了: `029_create_organizations.sql` マイグレーションにて実装
-  > - usersテーブルに clerk_organization_id カラム追加
-  > - organizations テーブルへの外部キー制約設定
-  > - パフォーマンス向上のためのインデックス作成済み
-  >
-  > **関連要件:** 3.1, 5.1
+### 7. Webhook ハンドラー（強化）
+- [ ] svix 署名検証導線の本番化（必須環境変数, エラー処理）
+- [ ] 冪等性: `event_id` 記録と重複スキップ
+- [ ] `user.created`/`user.updated`/`organization.created`/`organization.updated` の完全化
+- [ ] リトライ/指数バックオフ/構造化ログの明確化
 
-- [x] **2.3. [マイグレーションスクリプトの作成と実行]**
-  > データベーススキーマ変更用のマイグレーションスクリプトを作成・実行する
-  > 完了: `029_create_organizations.sql` マイグレーション作成・実行済み
-  > - 組織関連テーブルの作成
-  > - 既存usersテーブルの拡張
-  > - データベーススキーマ変更が正常に適用完了
-  >
-  > **関連要件:** 3.1
+## 機能C: フロントエンド（補足）
 
-## 機能B: バックエンドAPIの更新
+### 8. JWT クレーム活用
+- [ ] `useJWTUserInfo` 実装（org クレーム利用）
+- [ ] `/admin`, `/org/[slug]` のルートガード（org_role / active org）
 
-### 3. [認証ミドルウェアの実装]
-
-- [ ] **3.1. [組織認証ミドルウェアの作成]**
-  > JWTトークンからClerk組織IDを抽出し、アクセス制御を行うミドルウェアを実装する
-  >
-  > **関連要件:** 5.1
-
-- [ ] **3.2. [管理者権限チェックミドルウェアの実装]**
-  > JWTトークンからroleを抽出し、管理者権限をチェックするミドルウェアを実装する
-  >
-  > **関連要件:** 4.1, 4.2
-
-- [ ] **3.3. [既存エンドポイントへの組織フィルタリング適用]**
-  > すべての既存APIエンドポイントに組織IDによるデータフィルタリングを適用する
-  >
-  > **関連要件:** 5.1, 5.2
-
-### 4. [管理者向けAPIエンドポイントの実装]
-
-- [ ] **4.1. [POST /api/admin/users エンドポイント実装]**
-  > 管理者が組織内ユーザーを作成するAPIエンドポイントを実装する
-  >
-  > **関連要件:** 4.1
-
-- [ ] **4.2. [GET /api/admin/organizations/{clerk_org_id}/users エンドポイント実装]**
-  > 組織内ユーザー一覧取得APIを実装する
-  >
-  > **関連要件:** 4.1
-
-- [ ] **4.3. [PUT /api/users/{user_id}/metadata エンドポイント実装]**
-  > ユーザー情報更新時のClerkメタデータ同期APIを実装する
-  >
-  > **関連要件:** 2.2
-
-### 5. [Webhookハンドラーの実装]
-
-- [ ] **5.1. [Webhook署名検証の実装]**
-  > Clerkから送信されるWebhookの署名を検証するミドルウェアを実装する
-  > - svix ライブラリを使用した署名検証
-  > - 環境変数からSigning Secretを読み込み
-  > - 不正なリクエストの拒否処理
-  >
-  > **関連要件:** セキュリティ要件
-
-- [ ] **5.2. [POST /api/webhooks/clerk エンドポイント実装]**
-  > Clerkからのwebhookを受信する統一エンドポイントを実装する
-  > - webhook typeに基づくイベント処理の分岐
-  > - エラーハンドリングとログ記録
-  > - レスポンス形式の標準化
-  >
-  > **関連要件:** 2.1, 2.2
-
-- [ ] **5.3. [user.created Webhookハンドラー実装]**
-  > ユーザー作成時のメタデータ設定とデータベース登録処理を実装する
-  > - 新規ユーザーレコードの作成（組織IDを含む）
-  > - Public Metadata（users_table_id, profile_completed）の設定
-  > - Private Metadata（email）の設定
-  > - デフォルトロール（employee）の設定
-  >
-  > **関連要件:** 2.1, 2.2
-
-- [ ] **5.4. [user.updated Webhookハンドラー実装]**
-  > ユーザー更新時のメタデータ同期処理を実装する
-  > - 既存ユーザーレコードの更新
-  > - Clerkメタデータとの整合性確保
-  > - 組織変更時の処理
-  >
-  > **関連要件:** 2.2
-
-- [ ] **5.5. [organization.created Webhookハンドラー実装]**
-  > 組織作成時のorganizationsテーブルへの登録処理を実装する
-  > - 新規組織レコードの作成
-  > - 組織名・作成日時の記録
-  > - 初期管理者ロールの設定
-  >
-  > **関連要件:** 3.1
-
-- [ ] **5.6. [Webhook処理のリトライ機構実装]**
-  > Webhook処理失敗時のリトライとエラー処理を実装する
-  > - データベース接続エラー時のリトライ
-  > - Clerk API呼び出し失敗時の対応
-  > - Dead Letter Queue的な仕組みの検討
-  >
-  > **関連要件:** 信頼性要件
-
-## 機能C: フロントエンドの実装
-
-> [運用方針: 組織作成は初期段階では管理者が手動で行い、一般ユーザーはデモ環境でサービスを体験できる形とする。組織への参加は招待ベースまたはドメインベースの自動承認で行う。]
-
-### 6. [JWTトークン活用機能の実装]
-
-- [ ] **6.1. [useJWTUserInfo カスタムフックの実装]**
-  > JWTトークンからユーザー情報を抽出するReactフックを実装する
-  >
-  > **関連要件:** 1.1
-
-- [ ] **6.2. [JWTUserInfo TypeScript interfaceの定義]**
-  > JWTトークンから取得するユーザー情報の型定義を作成する
-  >
-  > **関連要件:** 1.1
-
-- [ ] **6.3. [既存コンポーネントでのJWTユーザー情報活用]**
-  > APIコールを減らすため、既存コンポーネントでJWTユーザー情報を活用する
-  >
-  > **関連要件:** 1.1
-
-### 7. [管理者機能のフロントエンド実装]
-
-- [ ] **7.1. [/admin レイアウトコンポーネントの実装]**
-  > 管理者権限チェック機能付きのレイアウトコンポーネントを作成する
-  >
-  > **関連要件:** 4.1, 4.2
-
-- [ ] **7.2. [管理者向けユーザー管理ページの実装]**
-  > 組織内ユーザーの一覧表示・作成・編集機能を実装する
-  >
-  > **関連要件:** 4.1
-
-- [ ] **7.3. [組織セレクターコンポーネントの実装]**
-  > Clerkの組織機能を活用した組織切り替えコンポーネントを実装する
-  >
-  > **関連要件:** 3.1
-
-- [x] **7.5. [ドメインベース自動承認設定画面の実装]**
-  > 組織の許可ドメイン管理画面を実装する
-  > - 許可ドメイン一覧表示・追加・削除
-  > - 自動参加機能のOn/Off切り替え
-  > - ドメイン検証ステータス表示
-  >
-  > **関連要件:** ドメインベース自動承認
-
-### 8. [認証・認可の統合]
-
-- [ ] **8.1. [Clerk組織機能のフロントエンド統合]**
-  > ClerkのOrganizationProvider等を使用して組織機能をアプリに統合する
-  >
-  > **関連要件:** 3.1
-
-- [ ] **8.2. [ルート保護の実装]**
-  > 組織メンバーシップと管理者権限に基づくルート保護機能を実装する
-  >
-  > **関連要件:** 4.1, 4.2
-
-## 全般タスク
+## 全般タスク（更新）
 
 ### 9. テストと品質保証
+- [ ] JWT 検証ユニットテスト（無効署名/誤 iss/誤 aud/exp/nbf）
+- [ ] OrgSlug ガード統合テスト（URL vs JWT mismatch → 403/404）
+- [ ] DAL フィルタ強制テスト（SELECT/UPDATE/DELETE 全網羅）
+- [ ] 管理 API 統合テスト（同一組織制約, 非所属拒否）
+- [ ] Webhook 署名/冪等/リトライのテスト
 
-- [ ] **9.1. [JWTトークン処理の単体テスト実装]**
-  > JWTトークンのデコードとユーザー情報抽出機能のテストを作成する
+### 10. 環境変数/運用
+- [ ] `docker-compose.yml` に `CLERK_ISSUER`, `CLERK_AUDIENCE`, `CLERK_WEBHOOK_SECRET`, `CLERK_ORGANIZATION_ENABLED` を追加
+- [ ] README 更新（JWT テンプレ, ルーティング移行ガイド, Webhook 設定）
 
-- [ ] **9.2. [組織認証ミドルウェアのテスト実装]**
-  > 組織アクセス制御とロールベース認証のテストを作成する
+### 11. ロールアウト/後方互換
+- [ ] 段階的リリース: 非本番→本番
+- [ ] 旧ルートの非推奨アナウンスと移行期間設定
 
-- [ ] **9.3. [管理者APIエンドポイントの統合テスト]**
-  > 管理者向けAPIの権限制御と機能のテストを作成する
-
-- [ ] **9.4. [Webhookハンドラーのテスト実装]**
-  > Clerk Webhookの処理とデータ同期のテストを作成する
-  > - Webhook署名検証のテスト
-  > - 各イベント型（user.created, user.updated, organization.created）のハンドリングテスト
-  > - エラー状況でのリトライ機構テスト
-  > - モックClerk Webhookペイロードを使用した統合テスト
-
-- [x] **9.6. [ドメインベース自動承認のテスト実装]**
-  > ドメイン検証・自動参加機能のテストを作成する
-  > - ドメイン検証ロジックのテスト
-  > - 自動参加フローのテスト
-  > - ドメイン設定変更のテスト
-  > - 不正ドメインのブロック機能テスト
-
-### 10. Clerk Account設定
-
-- [x] **10.1. [Clerk Dashboardでのwebhook設定]**
-  > Clerk管理画面でWebhook設定を行う
-  > 
-  > **設定完了:**
-  > - **Endpoint URL**: `https://play.svix.com/in/e_iZo03eeRZLV7pprOONlEOxkCISn/` (開発用)
-  > - **Events**: `user.created`, `user.updated`, `organization.created`
-  > - **Status**: アクティブ (Error Rate: 0.0%)
-  > - **備考**: 本番デプロイ時に実際のアプリケーションURLに変更予定
-
-- [ ] **10.2. [Webhook送信テスト]**
-  > ClerkからのWebhook送信をテストする
-  > - Clerk Dashboard の "Send test webhook" 機能を使用
-  > - 各イベント型のテストWebhookを送信
-  > - バックエンドでの受信とログ確認
-  > - 署名検証が正しく動作することを確認
-
-- [ ] **10.4. [ドメインベース自動承認の設定]**
-  > Clerk Dashboardでドメインベースの自動参加機能を設定する
-  > - Organization Settings > Domain verification を設定
-  > - 許可ドメインリストの管理
-  > - Auto-join enabled の有効化
-  > - ドメイン検証プロセスの完了
-  >
-  > **関連要件:** ドメインベース自動承認
-
-### 11. ドキュメントと設定
-
-- [ ] **11.1. [環境変数設定の更新]**
-  > Clerk組織機能とWebhookに必要な環境変数をdocker-compose.ymlと.envに追加する
-  > - `CLERK_WEBHOOK_SECRET`: Webhook署名検証用
-  > - `CLERK_WEBHOOK_URL`: WebhookエンドポイントURL
-  > - `CLERK_ORGANIZATION_ENABLED`: 組織機能フラグ
-  > - 既存のClerk環境変数の確認・更新
-
-- [ ] **11.2. [requirements.txt更新]**
-  > Webhook処理に必要なPythonライブラリを追加する
-  > - `svix`: Webhook署名検証ライブラリ
-  > - その他依存ライブラリの確認
-
-- [ ] **11.3. [README.mdの更新]**
-  > 組織機能・管理者機能・Webhook設定の使用方法をドキュメントに追加する
-  > - Clerk Dashboard設定手順
-  > - Webhook URL設定方法
-  > - 環境変数設定例
-
-- [x] **11.4. [型定義ファイルの更新]**
-  > JWTクレーム、組織関連、Webhook関連の型定義をapi/typesに追加する
-  > 完了: `/frontend/src/api/types/clerk.ts` にて包括的な型定義を実装
-  > - ClerkWebhookEvent型定義 ✅
-  > - WebhookPayload型定義 ✅  
-  > - JWTClaims型定義の拡張 ✅
-  > - DomainSettings型定義 ✅
-  > - Organization関連の型定義も完備
-
-### 13. [ドメインベース自動承認機能]
-
-- [x] **13.1. [Clerkドメイン検証の設定]**
-  > Clerk組織でのドメイン検証機能を実装
-  > - DNS検証によるドメイン所有権確認
-  > - 複数ドメインの管理
-  > - ドメイン検証ステータスの監視
-  >
-  > **技術仕様:**
-  > ```json
-  > {
-  >   "allowed_domains": ["company.com", "subsidiary.co.jp"],
-  >   "auto_join_enabled": true,
-  >   "verification_status": "verified"
-  > }
-  > ```
-
-- [ ] **13.2. [自動参加フローの実装]**
-  > 許可ドメインユーザーの自動組織参加機能を実装
-  > - サインアップ時のドメインチェック
-  > - 自動的なOrganizationメンバーシップ付与
-  > - デフォルトロール（member）の自動設定
-  > - 自動参加通知機能
-  >
-  > **関連要件:** ユーザビリティ向上
-
-- [ ] **13.3. [ドメイン管理画面の実装]**
-  > 管理者向けドメイン設定管理機能を実装
-  > - 許可ドメインの追加・削除
-  > - ドメイン検証状況の表示
-  > - 自動参加機能のOn/Off切り替え
-  > - ドメイン別参加統計の表示
-  >
-  > **関連要件:** 管理効率化
-
-### 14. [運用・監視機能]
-
-- [ ] **14.1. [参加ログの実装]**
-  > メンバー参加の詳細ログ機能を実装
-  > - 参加承認ログ（日時、参加方法、ドメイン情報）
-  > - 管理者向け参加統計ダッシュボード
-  >
-  > **関連要件:** 監査・トレーサビリティ
+### 12. 監査/観測性
+- [ ] セキュアログ（機微非出力、相関ID、イベント粒度）
+- [ ] キャッシュキーに org と有効フィルタを組み込む（クロステナント汚染防止）

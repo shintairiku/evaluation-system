@@ -1,260 +1,224 @@
-# 設計書: Custom JWT Token Enhancement with Organization Support
+# 設計書: Custom JWT Token Enhancement with Organization Support (Revised)
 
 ## 1. 概要
 
-このドキュメントは、要件定義書に基づいてClerkのカスタムJWTトークン拡張と組織機能の有効化に関するシステム設計を記述するものです。JWTトークンへのユーザー情報追加、メタデータ管理、組織ベースのマルチテナント機能、管理者機能の実装について技術的な仕様を定義します。組織の識別にはClerkが発行するOrganization IDを直接使用し、内部で独自の組織IDは発行しません。
+要件に基づき、JWT 検証の厳格化、組織スコープ化ルーティング、DAL における強制的な組織フィルタリング、Webhook セキュリティ強化を反映した設計を定義する。組織識別は Clerk の `org_id`/`org_slug` を使用し、内部独自の組織 ID は発行しない。
 
 ## 2. アーキテクチャ設計
 
-### 2.1. システム構成図
+### 2.1. 構成
 ```mermaid
 graph TD
     A[Frontend Next.js] --> B[Clerk Authentication]
     B --> C[Custom JWT Token]
     C --> D[Backend FastAPI]
     D --> E[Supabase PostgreSQL]
-    B --> F[Clerk Metadata Management]
+    B --> F[Clerk Metadata]
     F --> G[Public Metadata]
     F --> H[Private Metadata]
-    D --> I[Clerk Org ID-based Access Control]
-    I --> J[Role-based Middleware]
+    D --> I[Org-aware Middleware]
+    I --> J[DAL Org Filtering]
+    D --> K[Webhook Verification (svix)]
 ```
 
 ### 2.2. 技術スタック
-- **認証:** Clerk with Organizations enabled
-- **JWTトークン拡張:** Clerk Custom Claims
-- **フロントエンド:** Next.js App Router, TypeScript
-- **バックエンド:** FastAPI with Clerk organization ID-aware middleware
-- **データベース:** Supabase PostgreSQL with Clerk organization_id filtering
+- JWT 検証: Clerk JWKS + jose
+- ルーティング: `/api/org/{org_slug}/...` + 中央ミドルウェア
+- DB: `organizations` + `users.clerk_organization_id`、必要に応じて追加インデックス
 
-## 3. Clerk設定設計
+## 3. JWT 検証設計
 
-### 3.1. 組織機能設定
-- **Organizations:** 有効化
-- **Organization roles:** Admin, Member
-- **Organization permissions:** 組織ごとのデータアクセス制御
-
-### 3.2. Custom JWT Claims設定
-```json
-{
-  "user_id": "{{user.public_metadata.users_table_id}}",
-  "email": "{{user.private_metadata.email}}",
-  "role": "{{user.public_metadata.role}}",
-  "organization_id": "{{org.id}}",
-  "organization_name": "{{org.name}}"
-}
-```
-
-### 3.3. メタデータ構造設計
-
-#### Public Metadata
-```typescript
-interface PublicMetadata {
-  users_table_id: string;  // 内部ユーザーテーブルのID
-  role: string;            // "admin" | "manager" | "employee"
-}
-```
-
-#### Private Metadata
-```typescript
-interface PrivateMetadata {
-  email: string;
-  // organization_id と organization_name は private metadata に保存せず、
-  // Clerk のネイティブ組織機能（{{org.id}} と {{org.name}}）を使用
-}
-```
-
-## 4. データベース設計
-
-### 4.1. 既存テーブルの更新
-
-#### `users` テーブル拡張
-| カラム名 | データ型 | 説明 | 制約 |
-|---|---|---|---|
-| 既存カラム | ... | ... | ... |
-| `clerk_organization_id` | `VARCHAR(255)` | Clerkの組織ID | `NOT NULL` |
-
-**注意:** 内部独自の組織IDは作成せず、Clerkの`organization_id`を直接使用します。
-
-#### `organizations` テーブル（新規作成）
-| カラム名 | データ型 | 説明 | 制約 |
-|---|---|---|---|
-| `clerk_organization_id` | `VARCHAR(255)` | Clerkの組織ID | `PRIMARY KEY` |
-| `name` | `VARCHAR(255)` | 組織名 | `NOT NULL` |
-| `created_at` | `TIMESTAMP` | 作成日時 | `DEFAULT CURRENT_TIMESTAMP` |
-| `updated_at` | `TIMESTAMP` | 更新日時 | `DEFAULT CURRENT_TIMESTAMP` |
-
-## 5. APIエンドポイント設計
-
-### 5.1. 認証ミドルウェア更新
-
-#### 組織認証ミドルウェア
+- Clerk Issuer: `CLERK_ISSUER`
+- Audience: `CLERK_AUDIENCE`
+- JWKS: `GET {issuer}/.well-known/jwks.json` をキャッシュ
+- 検証フロー:
 ```python
-class OrganizationAuthMiddleware:
-    def verify_organization_access(self, jwt_token: str, required_clerk_org_id: str) -> bool:
-        # JWTトークンからClerk組織IDを抽出
-        # 要求されたClerk組織IDと一致するかチェック
-        pass
-    
-    def verify_admin_access(self, jwt_token: str) -> bool:
-        # JWTトークンからroleを抽出
-        # "admin"ロールかチェック
-        pass
+unverified_header = jwt.get_unverified_header(token)
+key = select_key_from_jwks(kid)
+payload = jwt.decode(token, key, algorithms=["RS256"], audience=CLERK_AUDIENCE, issuer=CLERK_ISSUER)
 ```
+- クレーム正規化:
+  - org_id := payload.org_id || payload.organization_id
+  - org_slug := payload.org_slug || payload.organization_name
+  - role := payload.org_role || payload.role
 
-### 5.2. 新規管理者エンドポイント
+## 4. ルーティング/ミドルウェア設計
 
-#### `POST /api/admin/users`
-- **説明:** 管理者が組織内の新規ユーザーを作成
-- **認証:** 管理者ロール必須
-- **リクエストボディ:**
-  ```json
-  {
-    "email": "string",
-    "role": "admin" | "manager" | "employee",
-    "name": "string"
-  }
-  ```
+### 4.1. ルート
+- 組織スコープ: `/api/org/{org_slug}/...`
+- 非組織: `/api/v1/account` など既存維持
 
-#### `GET /api/admin/organizations/{clerk_org_id}/users`
-- **説明:** 組織内のユーザー一覧取得
-- **認証:** 管理者ロール必須
-- **レスポンス:**
-  ```json
-  {
-    "users": [
-      {
-        "id": "string",
-        "email": "string",
-        "name": "string",
-        "role": "string",
-        "clerk_organization_id": "string",
-        "created_at": "string"
-      }
-    ]
-  }
-  ```
-
-### 5.3. メタデータ同期エンドポイント
-
-#### `PUT /api/users/{user_id}/metadata`
-- **説明:** ユーザー情報更新時のClerkメタデータ同期
-- **内部処理:**
-  1. データベースの更新（Clerk organization IDを使用）
-  2. Clerk Public/Private Metadataの更新
-  3. JWTトークンの無効化（次回ログイン時に最新情報を取得）
-
-## 6. フロントエンド設計
-
-### 6.1. JWTトークン活用
-
-#### カスタムフック: `useJWTUserInfo`
-```typescript
-interface JWTUserInfo {
-  user_id: string;
-  email: string;
-  role: string;
-  organization_id: string;  // Clerk Organization ID
-  organization_name: string;
-}
-
-export function useJWTUserInfo(): JWTUserInfo | null {
-  // Clerkからアクセストークンを取得
-  // JWTをデコードしてユーザー情報を返す
-}
+### 4.2. ミドルウェア
+```python
+class OrgSlugGuard:
+    def __call__(self, request, auth_ctx):
+        url_slug = request.path_params["org_slug"]
+        token_slug = auth_ctx.organization_slug  # 正規化済み
+        if not token_slug or token_slug != url_slug:
+            raise HTTPException(403)
 ```
+- org_id のみの場合は `organizations.slug` を解決して比較
+- 未所属ユーザーは `/api/org/...` を拒否
 
-#### 管理者ルート保護
-```typescript
-// /src/app/admin/layout.tsx
-export default function AdminLayout() {
-  const userInfo = useJWTUserInfo();
-  
-  if (userInfo?.role !== 'admin') {
-    redirect('/unauthorized');
-  }
-  
-  return <>{children}</>;
-}
-```
+## 5. データアクセス層（DAL）設計
 
-### 6.2. 組織切り替え機能
-
-#### 組織セレクター
-```typescript
-// /src/components/OrganizationSelector.tsx
-export function OrganizationSelector() {
-  // Clerkの組織機能を使用
-  // 現在の組織表示と切り替え機能
-  // Clerk Organization IDを直接使用
-}
-```
-
-## 7. セキュリティ設計
-
-### 7.1. データアクセス制御
-
-#### Repository層での組織フィルタリング
+### 5.1. 共通ヘルパ
 ```python
 class BaseRepository:
-    def filter_by_clerk_organization(self, query, clerk_organization_id: str):
-        return query.filter(clerk_organization_id=clerk_organization_id)
+    def apply_org_scope(self, query, org_id: str):
+        return query.filter(self.model.clerk_organization_id == org_id)
+
+    def apply_org_scope_via_user(self, query, org_id: str):
+        return query.join(User, self.model.user_id == User.id).filter(User.clerk_organization_id == org_id)
 ```
 
-#### Service層での権限チェック
+### 5.2. 適用方針
+- 直接 org 列を持つモデル → `apply_org_scope`
+- user_id 経由モデル → `apply_org_scope_via_user`
+- 書き込み系 (UPDATE/DELETE) でも同等のチェックを必須
+
+## 6. Webhook 設計
+
+- 署名検証: svix (`CLERK_WEBHOOK_SECRET`)
+- エンドポイント: `POST /webhooks/clerk`
+- 冪等性: `event_id` の重複をスキップ（専用テーブルで管理）
+- リトライ: 指数バックオフ、構造化ログ
+
+## 7. データベース設計（補強）
+
+- `organizations.slug` にユニークインデックス
+- `domain_settings(organization_id, domain)` にユニーク制約
+- 主要テーブルの `clerk_organization_id`/join 経由でのフィルタ前提のインデックス
+
+## 8. 管理 API 設計
+
+- `POST /api/admin/users`: 管理者ロール + リクエスト対象が同一組織
+- `GET /api/admin/organizations/{clerk_org_id}/users`: 既存に準拠、組織検証あり
+
+## 9. フロントエンド設計（補足）
+
+- `useJWTUserInfo` は Clerk セッションから org クレームを利用
+- `/admin` と `/org/[slug]` のガード: org_role と active org で判定
+
+## 10. セキュリティ設計（更新）
+
+- 未検証 decode の禁止
+- ログは最小限（トークン/メールの非出力）
+- キャッシュキーに org と有効フィルタを含める
+
+## 11. 運用設計（更新）
+
+- 環境変数: `CLERK_ISSUER`, `CLERK_AUDIENCE`, `CLERK_WEBHOOK_SECRET`, `CLERK_ORGANIZATION_ENABLED`
+- ドキュメント: JWT テンプレート、Webhook 設定、ルーティング移行ガイド
+# 設計書: Custom JWT Token Enhancement with Organization Support (Revised)
+
+## 1. 概要
+
+要件に基づき、JWT 検証の厳格化、組織スコープ化ルーティング、DAL における強制的な組織フィルタリング、Webhook セキュリティ強化を反映した設計を定義する。組織識別は Clerk の `org_id`/`org_slug` を使用し、内部独自の組織 ID は発行しない。
+
+## 2. アーキテクチャ設計
+
+### 2.1. 構成
+```mermaid
+graph TD
+    A[Frontend Next.js] --> B[Clerk Authentication]
+    B --> C[Custom JWT Token]
+    C --> D[Backend FastAPI]
+    D --> E[Supabase PostgreSQL]
+    B --> F[Clerk Metadata]
+    F --> G[Public Metadata]
+    F --> H[Private Metadata]
+    D --> I[Org-aware Middleware]
+    I --> J[DAL Org Filtering]
+    D --> K[Webhook Verification (svix)]
+```
+
+### 2.2. 技術スタック
+- JWT 検証: Clerk JWKS + jose
+- ルーティング: `/api/org/{org_slug}/...` + 中央ミドルウェア
+- DB: `organizations` + `users.clerk_organization_id`、必要に応じて追加インデックス
+
+## 3. JWT 検証設計
+
+- Clerk Issuer: `CLERK_ISSUER`
+- Audience: `CLERK_AUDIENCE`
+- JWKS: `GET {issuer}/.well-known/jwks.json` をキャッシュ
+- 検証フロー:
 ```python
-class UserService:
-    def get_users_by_organization(self, clerk_organization_id: str, requesting_user_role: str):
-        # 管理者権限チェック
-        if requesting_user_role not in ['admin', 'manager']:
-            raise PermissionError()
-        
-        # Clerk組織IDでフィルタリング
-        return self.user_repository.get_by_clerk_organization(clerk_organization_id)
+unverified_header = jwt.get_unverified_header(token)
+key = select_key_from_jwks(kid)
+payload = jwt.decode(token, key, algorithms=["RS256"], audience=CLERK_AUDIENCE, issuer=CLERK_ISSUER)
+```
+- クレーム正規化:
+  - org_id := payload.org_id || payload.organization_id
+  - org_slug := payload.org_slug || payload.organization_name
+  - role := payload.org_role || payload.role
+
+## 4. ルーティング/ミドルウェア設計
+
+### 4.1. ルート
+- 組織スコープ: `/api/org/{org_slug}/...`
+- 非組織: `/api/v1/account` など既存維持
+
+### 4.2. ミドルウェア
+```python
+class OrgSlugGuard:
+    def __call__(self, request, auth_ctx):
+        url_slug = request.path_params["org_slug"]
+        token_slug = auth_ctx.organization_slug  # 正規化済み
+        if not token_slug or token_slug != url_slug:
+            raise HTTPException(403)
+```
+- org_id のみの場合は `organizations.slug` を解決して比較
+- 未所属ユーザーは `/api/org/...` を拒否
+
+## 5. データアクセス層（DAL）設計
+
+### 5.1. 共通ヘルパ
+```python
+class BaseRepository:
+    def apply_org_scope(self, query, org_id: str):
+        return query.filter(self.model.clerk_organization_id == org_id)
+
+    def apply_org_scope_via_user(self, query, org_id: str):
+        return query.join(User, self.model.user_id == User.id).filter(User.clerk_organization_id == org_id)
 ```
 
-### 7.2. JWTトークンセキュリティ
+### 5.2. 適用方針
+- 直接 org 列を持つモデル → `apply_org_scope`
+- user_id 経由モデル → `apply_org_scope_via_user`
+- 書き込み系 (UPDATE/DELETE) でも同等のチェックを必須
 
-- **Public Metadata:** 機密性の低い情報のみ（user_id, role）
-- **Private Metadata:** より機密な情報（email）
-- **Clerk Native Claims:** 組織情報はClerkのネイティブクレーム（org_id, org_slug）を使用
-- **トークン更新:** メタデータ変更時の自動無効化
+## 6. Webhook 設計
 
-## 8. 運用設計
+- 署名検証: svix (`CLERK_WEBHOOK_SECRET`)
+- エンドポイント: `POST /webhooks/clerk`
+- 冪等性: `event_id` の重複をスキップ（専用テーブルで管理）
+- リトライ: 指数バックオフ、構造化ログ
 
-### 8.1. ユーザーサインアップフロー
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Clerk
-    participant B as Backend
-    participant DB as Database
-    
-    U->>C: Sign up to Organization
-    C->>B: Webhook: user.created
-    B->>DB: Create user record with clerk_organization_id
-    B->>C: Update public metadata (users_table_id, role="employee")
-    B->>C: Update private metadata (email)
-    C->>U: Return JWT with custom claims + org_id/org_slug
-```
+## 7. データベース設計（補強）
 
-### 8.2. メタデータ更新フロー
-```mermaid
-sequenceDiagram
-    participant A as Admin
-    participant B as Backend
-    participant DB as Database
-    participant C as Clerk
-    
-    A->>B: Update user role
-    B->>DB: Update user record (using clerk_organization_id)
-    B->>C: Update Clerk metadata
-    C->>C: Invalidate existing JWT
-    B->>A: Success response
-```
+- `organizations.slug` にユニークインデックス
+- `domain_settings(organization_id, domain)` にユニーク制約
+- 主要テーブルの `clerk_organization_id`/join 経由でのフィルタ前提のインデックス
 
-### 8.3. 組織データ管理
+## 8. 管理 API 設計
 
-- **組織作成:** Clerkで組織が作成された際のWebhookでorganizationsテーブルに記録
-- **組織削除:** Clerkで組織が削除された際の関連ユーザーデータのクリーンアップ
-- **組織移動:** ユーザーの組織移動時のデータ整合性確保
+- `POST /api/admin/users`: 管理者ロール + リクエスト対象が同一組織
+- `GET /api/admin/organizations/{clerk_org_id}/users`: 既存に準拠、組織検証あり
+
+## 9. フロントエンド設計（補足）
+
+- `useJWTUserInfo` は Clerk セッションから org クレームを利用
+- `/admin` と `/org/[slug]` のガード: org_role と active org で判定
+
+## 10. セキュリティ設計（更新）
+
+- 未検証 decode の禁止
+- ログは最小限（トークン/メールの非出力）
+- キャッシュキーに org と有効フィルタを含める
+
+## 11. 運用設計（更新）
+
+- 環境変数: `CLERK_ISSUER`, `CLERK_AUDIENCE`, `CLERK_WEBHOOK_SECRET`, `CLERK_ORGANIZATION_ENABLED`
+- ドキュメント: JWT テンプレート、Webhook 設定、ルーティング移行ガイド
