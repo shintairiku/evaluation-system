@@ -13,12 +13,13 @@ export interface ClerkPrivateMetadata {
 }
 
 // JWT Claims Interface (based on the Clerk JWT template)
+// Note: organization_id and organization_name are populated from Clerk's native {{org.id}} and {{org.name}}
 export interface JWTClaims {
   role?: string;
   email?: string;
-  organization_id?: string;
+  organization_id?: string; // Populated from {{org.id}}
   internal_user_id?: UUID;
-  organization_name?: string;
+  organization_name?: string; // Populated from {{org.name}}
 }
 
 // Organization Interface
