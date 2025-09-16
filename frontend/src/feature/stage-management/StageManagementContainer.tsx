@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type { Stage, UserDetailResponse } from '@/api/types';
 import StageManagementHeader from './components/StageManagementHeader';
 import StageManagementView from './StageManagementView';
@@ -22,9 +22,10 @@ export default function StageManagementContainer({
 }: StageManagementContainerProps) {
   const [filteredUsers, setFilteredUsers] = useState<UserDetailResponse[]>(initialUsers);
 
-  const handleFilteredUsers = (users: UserDetailResponse[]) => {
+  const handleFilteredUsers = useCallback((users: UserDetailResponse[]) => {
+    console.log('📦 Container received filtered users:', users.length, users.map(u => u.name));
     setFilteredUsers(users);
-  };
+  }, []);
 
   return (
     <div className="space-y-6">
