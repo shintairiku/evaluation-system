@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React from 'react';
 import type { UserDetailResponse } from '@/api/types';
 import StageUserSearch from './StageUserSearch';
 
