@@ -47,7 +47,7 @@ export default function StageColumn({ stage, editMode }: StageColumnProps) {
     <Card 
       ref={setNodeRef}
       className={`
-        ${isExpanded ? 'min-h-[500px]' : 'min-h-[140px]'} flex flex-col transition-all duration-200
+        ${isExpanded ? 'min-h-[320px]' : 'min-h-[140px]'} flex flex-col transition-all duration-200
         ${isMounted && isOver ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
         ${editMode ? 'border-orange-300 bg-orange-50/30' : ''}
       `}
@@ -96,7 +96,7 @@ export default function StageColumn({ stage, editMode }: StageColumnProps) {
 
       {/* User Card List - Only shown when expanded */}
       {isExpanded && (
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 max-h-96 overflow-y-auto pr-1">
           {stage.users.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-gray-400">
               <Users size={24} className="mb-2" />
