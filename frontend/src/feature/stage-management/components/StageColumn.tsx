@@ -55,8 +55,8 @@ export default function StageColumn({ stage, editMode, onEditStage }: StageColum
         className={getCardHeaderClasses(isExpanded)}
         onClick={toggleExpanded}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-2">
             {/* Expand/Collapse Icon */}
             <Button
               variant="ghost"
@@ -79,7 +79,7 @@ export default function StageColumn({ stage, editMode, onEditStage }: StageColum
             </CardTitle>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start">
             <Badge variant="secondary" className="flex items-center gap-1">
               <Users size={14} />
               {stage.users.length}
