@@ -6,11 +6,12 @@ import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/
 import type { StageData, UserCardData, UserStageChange } from '../types';
 import { useHydration } from '../hooks/useHydration';
 import { getGridClasses } from '../utils/classNames';
-import { updateUserStagesAction } from '@/api/server-actions/stage-management';
+import { updateUserStagesAction, updateStageAction } from '@/api/server-actions/stage-management';
 
 import StageColumn from './StageColumn';
 import UserCard from './UserCard';
 import EditModeControls from './EditModeControls';
+import StageEditModal from './StageEditModal';
 
 interface StageGridProps {
   /** Initial stages data with users */
@@ -35,6 +36,8 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
   const [pendingChanges, setPendingChanges] = useState<UserStageChange[]>([]);
   const [activeUser, setActiveUser] = useState<UserCardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [editingStage, setEditingStage] = useState<StageData | null>(null);
+  const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   
   const isMounted = useHydration();
 
@@ -42,6 +45,41 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
   useEffect(() => {
     setStages(initialStages);
   }, [initialStages]);
+
+  // Handle stage edit modal
+  const handleEditStage = useCallback((stage: StageData) => {
+    setEditingStage(stage);
+    setIsStageModalOpen(true);
+  }, []);
+
+  const handleCloseStageModal = useCallback(() => {
+    setIsStageModalOpen(false);
+    setEditingStage(null);
+  }, []);
+
+  const handleSaveStage = useCallback(async (stageId: string, title: string, description: string) => {
+    setIsLoading(true);
+    onClearError();
+
+    try {
+      const result = await updateStageAction(stageId, { name: title, description });
+      
+      if (result.success) {
+        // Update local state optimistically
+        setStages(prev => prev.map(stage => 
+          stage.id === stageId 
+            ? { ...stage, name: title, description }
+            : stage
+        ));
+      } else {
+        onError(result.error || 'ステージの更新に失敗しました');
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : '予期しないエラーが発生しました');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [onError, onClearError]);
 
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -191,6 +229,7 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
               key={stage.id}
               stage={stage}
               editMode={editMode}
+              onEditStage={handleEditStage}
             />
           ))}
         </div>
@@ -205,6 +244,15 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
           )}
         </DragOverlay>
       </DndContext>
+
+      {/* Stage Edit Modal */}
+      <StageEditModal
+        stage={editingStage}
+        isOpen={isStageModalOpen}
+        onClose={handleCloseStageModal}
+        onSave={handleSaveStage}
+        isLoading={isLoading}
+      />
     </div>
   );
 }
