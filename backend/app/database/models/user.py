@@ -22,6 +22,7 @@ class User(Base):
     department_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("departments.id"))
     stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id"))
     clerk_user_id = Column(Text, unique=True, nullable=False)
+    clerk_organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True)
     name = Column(Text, nullable=False)
     email = Column(Text, unique=True, nullable=False)
     employee_code = Column(Text, unique=True, nullable=False)
@@ -33,6 +34,7 @@ class User(Base):
     # Relationships
     department = relationship("Department", back_populates="users")
     stage = relationship("Stage", back_populates="users")
+    organization = relationship("Organization", back_populates="users")
     roles = relationship("Role", secondary="user_roles", back_populates="users")
     
     # Supervisor relationships through UserSupervisor table

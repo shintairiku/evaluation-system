@@ -1,110 +1,212 @@
-# 要件定義書: Custom JWT Token Enhancement with Organization Support
+# 要件定義書: Custom JWT Token Enhancement with Organization Support (Revised)
 
 ## 1. 概要
 
-現在のClerkアカウントページで定義されているカスタムJWTトークンは、内部ユーザーIDのみを提供しています。バックエンドサービスはAuthContentを通じてユーザー情報を簡単に取得できますが、フロントエンドコンポーネントはできません。この問題を解決するため、JWTトークンにユーザー情報を追加し、同時にClerkで組織機能を有効化します。これにより、組織ベースのマルチテナントアプリケーションとして機能し、管理者機能も実装可能になります。
+Clerk を用いたマルチテナント基盤において、Clerk は認証・組織所属の「アイデンティティ層」を提供するが、データ分離の最終責任はバックエンドにある。本書は既存の要件に加え、JWT の厳格検証、組織スコープ付きルーティング、データアクセス層での強制的な組織フィルタリング、Webhook セキュリティ強化を明示する。
 
-## 2. 要件一覧
+## 2. 追加/更新された要件一覧
 
-### 要件1: カスタムJWTトークンの拡張
+### 要件1: JWT 検証の厳格化（バックエンド）
 
-**ユーザーストーリー:**
-> フロントエンド開発者として、JWTトークンから直接ユーザー情報（内部ユーザーID、メール、ロール、組織ID、組織名）を取得したい。なぜなら、毎回APIを呼び出すことなく、クライアントサイドでユーザー情報に基づく表示制御を行いたいからだ。
-
-**受入基準:**
+- 概要: Clerk の JWT をバックエンドで必ず検証する。署名・発行者(iss)・対象(aud)・有効期限(exp)・NotBefore(nbf) をチェックし、トークン改ざん・誤用を防ぐ。
+- 受入基準:
 ```gherkin
-WHEN ユーザーがログインした時
-THEN JWTトークンにuser_id、email、role、organization_id、organization_nameが含まれること
+GIVEN クライアントが Authorization: Bearer <JWT> を付与してAPIへアクセス
+WHEN バックエンドがトークンを検証する
+THEN Clerk JWKS による署名検証, iss/aud/exp/nbf チェックが行われること
+AND 無効なトークンは 401 を返すこと
+```
+- 補足:
+  - Clerk ネイティブの org クレーム (org_id, org_slug, org_role) を優先し、カスタムクレーム (organization_id, organization_name, role) はフォールバックとして扱う。
 
-WHEN フロントエンドコンポーネントがJWTトークンをデコードした時
-THEN 追加のAPIコールなしでユーザー情報にアクセスできること
+### 要件2: API ルートの組織スコープ化とガード
 
-WHEN JWTトークンの内容を確認した時
-THEN セキュリティ上重要でない情報のみがpublic metadataに含まれていること
+- 概要: 組織に紐づく操作は `/api/org/{org_slug}/...` パターンのルートを導入し、URL とトークンの組織整合性を中央ミドルウェアで検証する。
+- 受入基準:
+```gherkin
+GIVEN ユーザーが org_slug の付いたルートにアクセス
+WHEN ミドルウェアが URL の org_slug と JWT 内の org_slug を比較
+THEN 不一致は 403/404 で拒否されること
+AND org_id のみがある場合はDBの organizations から slug を解決して比較すること
+```
+- 個人用途の非組織ルート（例: /api/v1/account）は従来どおりアクセス可能。
+
+### 要件3: データベースと DAL の組織分離の強制
+
+- 概要: テナントデータを扱う全テーブルは組織でフィルタされなければならない。全ての SELECT/UPDATE/DELETE は `organization_id` 条件が必要。
+- 受入基準:
+```gherkin
+WHEN 任意のテナントデータにアクセスするクエリが実行される
+THEN リポジトリ層で organization_id による WHERE 句が常に適用されること
+AND user_id 経由のテーブルは users.clerk_organization_id へ join してフィルタされること
+AND UPDATE/DELETE でも同様に組織整合性が検証されること
+```
+- ベースリポジトリ/共通ヘルパにより自動適用を推奨（事故防止）。
+
+### 要件4: 組織に属さないユーザーの扱い
+
+- 概要: active org を持たないユーザーは `/api/org/...` にはアクセスできない。一方、個人向けの非組織エンドポイントは許可する。
+- 受入基準:
+```gherkin
+GIVEN ユーザーが組織に未所属
+WHEN /api/org/... にアクセス
+THEN 403 を返す
+AND /api/v1/account 等の個人ルートはアクセス可能
 ```
 
-### 要件2: Clerkメタデータの管理
+### 要件5: Webhook セキュリティと冪等性
 
-**ユーザーストーリー:**
-> システム管理者として、ユーザーのサインアップ時とメタデータ更新時に、適切な情報がClerkのメタデータに保存されることを確認したい。なぜなら、JWTトークンの内容とアプリケーションの状態を同期させる必要があるからだ。
-
-**受入基準:**
+- 概要: Clerk Webhook は svix による署名検証を行い、イベントの重複処理を避けるための冪等性を実装する。
+- 受入基準:
 ```gherkin
-WHEN ユーザーがサインアップした時
-THEN public metadataにusers_table_idとrole（初期値"employee"）が設定されること
-
-WHEN ユーザーがサインアップした時
-THEN private metadataにemail、organization_id、organization_nameが設定されること
-
-WHEN アプリケーション内でユーザー情報が更新された時
-THEN 対応するClerkメタデータも自動的に更新されること
+WHEN Clerk から webhook が届く
+THEN svix 署名ヘッダ(svix-id, svix-timestamp, svix-signature)を検証し, 不正なら 401
+AND event_id の重複はスキップされる（冪等性）
+AND 処理はリトライ/指数バックオフを備える
 ```
 
-### 要件3: 組織機能の有効化
+### 要件6: 管理者/管理 API
 
-**ユーザーストーリー:**
-> 組織の管理者として、自分の組織のユーザーのみを管理できるマルチテナント環境を利用したい。なぜなら、他の組織のデータにアクセスできないセキュアな環境が必要だからだ。
-
-**受入基準:**
+- 概要: 組織内ユーザー管理は管理者のみ可能。管理 API は組織スコープとロールチェックを同時に満たすこと。
+- 受入基準:
 ```gherkin
-WHEN Clerkで組織機能が有効化された時
-THEN 各ユーザーは特定の組織に所属すること
-
-WHEN ユーザーがアプリケーションにアクセスした時
-THEN 自分の組織のデータのみが表示されること
-
-WHEN 組織が作成された時
-THEN その組織のadmin prefixを持つ管理者機能が利用可能になること
+WHEN 管理者が /api/admin/... を呼び出す
+THEN admin ロールを要求し, 対象ユーザーが同一組織であることを検証
 ```
 
-### 要件4: 管理者機能の実装
+### 要件7: 非機能要件（更新）
 
-**ユーザーストーリー:**
-> 組織の管理者として、admin prefixが付いたページパスとAPIエンドポイントを通じて、管理者専用機能にアクセスしたい。なぜなら、一般ユーザーとは異なる権限で組織を管理する必要があるからだ。
+- セキュリティ:
+  - 検証済み JWT のみを信頼し、未検証デコードの使用禁止。
+  - ログに機微情報（トークン本体, メール等）は出力しない。
+  - キャッシュキーはアクティブ組織と有効フィルタを含む（クロステナント汚染防止）。
+- パフォーマンス:
+  - 組織フィルタ列・slug に適切なインデックスを付与。
+- 可用性:
+  - Webhook はバックオフ付きリトライ・監視ログを備える。
 
-**受入基準:**
+## 3. 既存要件の補足/明確化
+
+- Clerk メタデータ管理は継続。ただし JWT 内の org 情報は原則として Clerk のネイティブクレーム (org_id, org_slug, org_role) を利用。
+- 組織 ID は Clerk の Organization ID をそのまま利用（内部で別 ID を発行しない）。
+
+## 4. 環境変数/設定（新規）
+
+- CLERK_ISSUER: 例 `https://<your-subdomain>.clerk.accounts.dev`
+- CLERK_AUDIENCE: Clerk 推奨の aud 値
+- CLERK_WEBHOOK_SECRET: svix 署名検証用
+- CLERK_ORGANIZATION_ENABLED: 組織機能のフラグ
+
+## 5. 受入テスト（追加）
+
+- 無効署名/誤 iss/誤 aud/期限切れ/nbf 未到来の JWT → 401
+- org_slug 不一致（URL vs JWT）→ 403/404
+- 組織未所属ユーザーの org ルート → 403
+- すべてのテナントクエリに org フィルタがあること（SELECT/UPDATE/DELETE）
+- Webhook 署名不正 → 401、重複 event_id → スキップ、バックオフでの再試行
+# 要件定義書: Custom JWT Token Enhancement with Organization Support (Revised)
+
+## 1. 概要
+
+Clerk を用いたマルチテナント基盤において、Clerk は認証・組織所属の「アイデンティティ層」を提供するが、データ分離の最終責任はバックエンドにある。本書は既存の要件に加え、JWT の厳格検証、組織スコープ付きルーティング、データアクセス層での強制的な組織フィルタリング、Webhook セキュリティ強化を明示する。
+
+## 2. 追加/更新された要件一覧
+
+### 要件1: JWT 検証の厳格化（バックエンド）
+
+- 概要: Clerk の JWT をバックエンドで必ず検証する。署名・発行者(iss)・対象(aud)・有効期限(exp)・NotBefore(nbf) をチェックし、トークン改ざん・誤用を防ぐ。
+- 受入基準:
 ```gherkin
-WHEN 管理者ロールのユーザーが/adminで始まるパスにアクセスした時
-THEN 管理者専用ページが表示されること
+GIVEN クライアントが Authorization: Bearer <JWT> を付与してAPIへアクセス
+WHEN バックエンドがトークンを検証する
+THEN Clerk JWKS による署名検証, iss/aud/exp/nbf チェックが行われること
+AND 無効なトークンは 401 を返すこと
+```
+- 補足:
+  - Clerk ネイティブの org クレーム (org_id, org_slug, org_role) を優先し、カスタムクレーム (organization_id, organization_name, role) はフォールバックとして扱う。
 
-WHEN 一般ユーザーが/adminで始まるパスにアクセスした時
-THEN アクセス拒否されること
+### 要件2: API ルートの組織スコープ化とガード
 
-WHEN APIエンドポイントに/api/adminプレフィックスが付いている時
-THEN 管理者ロールのユーザーのみがアクセス可能であること
+- 概要: 組織に紐づく操作は `/api/org/{org_slug}/...` パターンのルートを導入し、URL とトークンの組織整合性を中央ミドルウェアで検証する。
+- 受入基準:
+```gherkin
+GIVEN ユーザーが org_slug の付いたルートにアクセス
+WHEN ミドルウェアが URL の org_slug と JWT 内の org_slug を比較
+THEN 不一致は 403/404 で拒否されること
+AND org_id のみがある場合はDBの organizations から slug を解決して比較すること
+```
+- 個人用途の非組織ルート（例: /api/v1/account）は従来どおりアクセス可能。
+
+### 要件3: データベースと DAL の組織分離の強制
+
+- 概要: テナントデータを扱う全テーブルは組織でフィルタされなければならない。全ての SELECT/UPDATE/DELETE は `organization_id` 条件が必要。
+- 受入基準:
+```gherkin
+WHEN 任意のテナントデータにアクセスするクエリが実行される
+THEN リポジトリ層で organization_id による WHERE 句が常に適用されること
+AND user_id 経由のテーブルは users.clerk_organization_id へ join してフィルタされること
+AND UPDATE/DELETE でも同様に組織整合性が検証されること
+```
+- ベースリポジトリ/共通ヘルパにより自動適用を推奨（事故防止）。
+
+### 要件4: 組織に属さないユーザーの扱い
+
+- 概要: active org を持たないユーザーは `/api/org/...` にはアクセスできない。一方、個人向けの非組織エンドポイントは許可する。
+- 受入基準:
+```gherkin
+GIVEN ユーザーが組織に未所属
+WHEN /api/org/... にアクセス
+THEN 403 を返す
+AND /api/v1/account 等の個人ルートはアクセス可能
 ```
 
-### 要件5: バックエンドエンドポイントの更新
+### 要件5: Webhook セキュリティと冪等性
 
-**ユーザーストーリー:**
-> バックエンド開発者として、既存のすべてのエンドポイントが組織IDと組織名を適切に処理できるようにしたい。なぜなら、マルチテナント環境でデータの分離を確保する必要があるからだ。
-
-**受入基準:**
+- 概要: Clerk Webhook は svix による署名検証を行い、イベントの重複処理を避けるための冪等性を実装する。
+- 受入基準:
 ```gherkin
-WHEN 既存のAPIエンドポイントが呼び出された時
-THEN JWTトークンから組織IDを取得してデータをフィルタリングすること
-
-WHEN ロールベースアクセス制御が適用された時
-THEN サービス層で適切な権限チェックが行われること
-
-WHEN 新しい管理者向けエンドポイントが作成された時
-THEN 適切なミドルウェアによって管理者権限がチェックされること
+WHEN Clerk から webhook が届く
+THEN svix 署名ヘッダ(svix-id, svix-timestamp, svix-signature)を検証し, 不正なら 401
+AND event_id の重複はスキップされる（冪等性）
+AND 処理はリトライ/指数バックオフを備える
 ```
 
-### 要件6: 非機能要件 - セキュリティとパフォーマンス
+### 要件6: 管理者/管理 API
 
-**要求事項:**
-- JWTトークンには機密情報を含めず、public/private metadataの適切な分離を行うこと
-- 組織間のデータ漏洩を防ぐため、すべてのデータアクセスで組織IDによるフィルタリングを実装すること
-- メタデータの更新は即座にJWTトークンに反映されること
-
-**受入基準:**
+- 概要: 組織内ユーザー管理は管理者のみ可能。管理 API は組織スコープとロールチェックを同時に満たすこと。
+- 受入基準:
 ```gherkin
-GIVEN ユーザーが組織Aに所属している状態で
-WHEN 任意のAPIエンドポイントを呼び出した時
-THEN 組織Bのデータにはアクセスできないこと
-
-GIVEN メタデータが更新された状態で
-WHEN ユーザーが次回ログインした時
-THEN 最新の情報がJWTトークンに含まれていること
+WHEN 管理者が /api/admin/... を呼び出す
+THEN admin ロールを要求し, 対象ユーザーが同一組織であることを検証
 ```
+
+### 要件7: 非機能要件（更新）
+
+- セキュリティ:
+  - 検証済み JWT のみを信頼し、未検証デコードの使用禁止。
+  - ログに機微情報（トークン本体, メール等）は出力しない。
+  - キャッシュキーはアクティブ組織と有効フィルタを含む（クロステナント汚染防止）。
+- パフォーマンス:
+  - 組織フィルタ列・slug に適切なインデックスを付与。
+- 可用性:
+  - Webhook はバックオフ付きリトライ・監視ログを備える。
+
+## 3. 既存要件の補足/明確化
+
+- Clerk メタデータ管理は継続。ただし JWT 内の org 情報は原則として Clerk のネイティブクレーム (org_id, org_slug, org_role) を利用。
+- 組織 ID は Clerk の Organization ID をそのまま利用（内部で別 ID を発行しない）。
+
+## 4. 環境変数/設定（新規）
+
+- CLERK_ISSUER: 例 `https://<your-subdomain>.clerk.accounts.dev`
+- CLERK_AUDIENCE: Clerk 推奨の aud 値
+- CLERK_WEBHOOK_SECRET: svix 署名検証用
+- CLERK_ORGANIZATION_ENABLED: 組織機能のフラグ
+
+## 5. 受入テスト（追加）
+
+- 無効署名/誤 iss/誤 aud/期限切れ/nbf 未到来の JWT → 401
+- org_slug 不一致（URL vs JWT）→ 403/404
+- 組織未所属ユーザーの org ルート → 403
+- すべてのテナントクエリに org フィルタがあること（SELECT/UPDATE/DELETE）
+- Webhook 署名不正 → 401、重複 event_id → スキップ、バックオフでの再試行
