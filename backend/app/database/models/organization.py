@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -37,5 +37,5 @@ class DomainSettings(Base):
 
     __table_args__ = (
         # Unique constraint to prevent duplicate domains per organization
-        {"schema": None}  # This allows for unique constraint on (organization_id, domain)
+        UniqueConstraint('organization_id', 'domain', name='uq_domain_settings_org_domain'),
     )
