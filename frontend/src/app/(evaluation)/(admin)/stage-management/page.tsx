@@ -47,14 +47,12 @@ export default async function StageManagementPage() {
   }
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto p-6">
       <div className="space-y-6">
         {/* Page Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            ステージ管理
-          </h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold">ステージ管理</h1>
+          <p className="text-muted-foreground">
             評価ステージ間でユーザーをドラッグ&ドロップして管理します
           </p>
           {/* Show pagination info if needed */}
