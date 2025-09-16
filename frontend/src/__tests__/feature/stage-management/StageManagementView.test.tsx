@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { jest } from '@jest/globals';
-import StageManagementView from '@/feature/stage-management/StageManagementView';
+import { StageManagementView } from '@/feature/stage-management';
 import { updateUserStagesAction } from '@/api/server-actions/stage-management';
 import type { Stage, UserDetailResponse } from '@/api/types';
 

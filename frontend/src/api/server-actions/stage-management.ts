@@ -2,13 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { usersApi } from '../endpoints/users';
-import type { UUID } from '../types';
-
-export interface UserStageChange {
-  userId: UUID;
-  fromStageId: UUID;
-  toStageId: UUID;
-}
+import type { UserStageChange } from '@/feature/stage-management/types';
 
 export interface ServerActionResponse {
   success: boolean;

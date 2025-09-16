@@ -1,6 +1,6 @@
 import { getStagesAdminAction } from '@/api/server-actions/stages';
 import { getUsersAction } from '@/api/server-actions/users';
-import StageManagementContainer from '@/feature/stage-management/StageManagementContainer';
+import { StageManagementContainer } from '@/feature/stage-management';
 
 /**
  * Stage Management Page (Admin Only)

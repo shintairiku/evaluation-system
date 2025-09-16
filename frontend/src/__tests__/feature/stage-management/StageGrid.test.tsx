@@ -1,8 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { jest } from '@jest/globals';
-import StageGrid from '@/feature/stage-management/components/StageGrid';
+import { StageGrid } from '@/feature/stage-management';
 import { updateUserStagesAction } from '@/api/server-actions/stage-management';
-import type { StageData } from '@/feature/stage-management/types';
+import type { StageData } from '@/feature/stage-management';
 
 // Mock server actions
 jest.mock('@/api/server-actions/stage-management');
