@@ -42,27 +42,25 @@ export default function StageUserSearch({
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Filter users based on search query
-  const filterUsers = useCallback((query: string) => {
-    if (!query.trim()) {
+  // Execute search when debounced query changes
+  useEffect(() => {
+    if (!debouncedSearchQuery.trim()) {
+      console.log('Search cleared, showing all users:', users.length);
       onFilteredUsers(users);
       return;
     }
 
-    const searchTerm = query.toLowerCase().trim();
+    const searchTerm = debouncedSearchQuery.toLowerCase().trim();
     const filtered = users.filter(user => 
       user.name.toLowerCase().includes(searchTerm) ||
       user.employee_code.toLowerCase().includes(searchTerm) ||
       user.email.toLowerCase().includes(searchTerm)
     );
 
+    console.log(`Search for "${debouncedSearchQuery}": found ${filtered.length} users out of ${users.length}`);
+    console.log('Filtered users:', filtered.map(u => u.name));
     onFilteredUsers(filtered);
-  }, [users, onFilteredUsers]);
-
-  // Execute search when debounced query changes
-  useEffect(() => {
-    filterUsers(debouncedSearchQuery);
-  }, [debouncedSearchQuery, filterUsers]);
+  }, [debouncedSearchQuery, users, onFilteredUsers]);
 
   // Clear search
   const handleClearSearch = () => {
