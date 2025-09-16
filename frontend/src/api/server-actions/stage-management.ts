@@ -65,3 +65,35 @@ export async function updateUserStagesAction(
     };
   }
 }
+
+/**
+ * Server Action to update stage metadata (title and description)
+ */
+export async function updateStageAction(
+  stageId: string,
+  updates: { name: string; description: string }
+): Promise<ServerActionResponse> {
+  try {
+    // TODO: Implement stage update API endpoint
+    // This should call stagesApi.updateStage(stageId, updates) when the endpoint exists
+    console.log('Update stage:', { stageId, updates });
+    
+    // For now, return success to test the UI
+    // In production, this would make an actual API call
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Revalidate the stage management page to show updated data
+    revalidatePath('/stage-management');
+
+    return { success: true };
+
+  } catch (error) {
+    console.error('Server action error (updateStageAction):', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'ステージの更新に失敗しました'
+    };
+  }
+}
