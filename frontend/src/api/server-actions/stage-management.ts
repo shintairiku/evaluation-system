@@ -14,6 +14,7 @@ export interface ServerActionResponse {
  * Server Action to update multiple user stages
  * Implements the batch update pattern specified in .kiro design.md
  * Uses individual PATCH calls per user as per the sequence diagram
+ * Requires admin permissions
  */
 export async function updateUserStagesAction(
   changes: UserStageChange[]
@@ -21,6 +22,16 @@ export async function updateUserStagesAction(
   try {
     if (!changes.length) {
       return { success: true };
+    }
+
+    // Validate admin access by calling admin endpoint first
+    // This ensures only admins can perform batch stage updates
+    const adminCheck = await stagesApi.getStagesAdmin();
+    if (!adminCheck.success) {
+      return {
+        success: false,
+        error: 'Admin permissions required for stage management operations'
+      };
     }
 
     // Process updates individually as specified in .kiro design.md
@@ -69,12 +80,23 @@ export async function updateUserStagesAction(
 
 /**
  * Server Action to update stage metadata (title and description)
+ * Requires admin permissions
  */
 export async function updateStageAction(
   stageId: string,
   updates: { name: string; description: string }
 ): Promise<ServerActionResponse> {
   try {
+    // Validate admin access by calling admin endpoint first
+    // This ensures only admins can update stage metadata
+    const adminCheck = await stagesApi.getStagesAdmin();
+    if (!adminCheck.success) {
+      return {
+        success: false,
+        error: 'Admin permissions required for stage management operations'
+      };
+    }
+
     console.log('Updating stage:', { stageId, updates });
     
     // Call the real API endpoint
