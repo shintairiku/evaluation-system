@@ -3,6 +3,10 @@
  * Centralized configuration for consistent styling and behavior
  */
 
+// =============================================================================
+// LAYOUT DIMENSIONS
+// =============================================================================
+
 export const STAGE_HEIGHTS = {
   COLLAPSED: 180,
   EXPANDED: 360,
@@ -19,6 +23,10 @@ export const GRID_CONFIG = {
   ALIGNMENT: 'items-start',
 } as const;
 
+// =============================================================================
+// UI INTERACTIONS & ANIMATIONS
+// =============================================================================
+
 export const TRANSITIONS = {
   DEFAULT: 'transition-all duration-200',
   SMOOTH: 'transition-colors',
@@ -29,11 +37,9 @@ export const DRAG_STYLES = {
   EDIT_MODE: 'border-orange-300 bg-orange-50/30',
 } as const;
 
-export const SEARCH_CONFIG = {
-  DEBOUNCE_DELAY: 300,
-  PLACEHOLDER: 'ユーザー名、社員コード、メールで検索...',
-  MAX_WIDTH: 'w-80',
-} as const;
+// =============================================================================
+// SCROLLING & OVERFLOW BEHAVIOR
+// =============================================================================
 
 export const SCROLL_CONFIG = {
   MAX_HEIGHT: 'max-h-96',
@@ -43,12 +49,22 @@ export const SCROLL_CONFIG = {
 
 export const DESCRIPTION_SCROLL = {
   MAX_HEIGHT: 'max-h-16',
-  OVERFLOW: 'overflow-y-auto',
 } as const;
 
-/**
- * Modal configuration constants
- */
+// =============================================================================
+// SEARCH CONFIGURATION
+// =============================================================================
+
+export const SEARCH_CONFIG = {
+  DEBOUNCE_DELAY: 300,
+  PLACEHOLDER: 'ユーザー名、社員コード、メールで検索...',
+  MAX_WIDTH: 'w-80',
+} as const;
+
+// =============================================================================
+// MODAL CONFIGURATION
+// =============================================================================
+
 export const MODAL = {
   STAGE_EDIT: {
     MAX_TITLE_LENGTH: 100,
