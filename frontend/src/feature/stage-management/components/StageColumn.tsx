@@ -104,7 +104,7 @@ export default function StageColumn({ stage, editMode, onEditStage }: StageColum
         </div>
         
         {stage.description && (
-          <p className={`text-sm text-gray-600 mt-1 ml-7 ${DESCRIPTION_SCROLL.MAX_HEIGHT} ${DESCRIPTION_SCROLL.OVERFLOW}`}>
+          <p className={`text-sm text-gray-600 mt-1 ml-7 ${DESCRIPTION_SCROLL.MAX_HEIGHT} overflow-y-hidden group-hover:overflow-y-auto`}>
             {stage.description}
           </p>
         )}
