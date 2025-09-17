@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 
 import type { Competency, Stage, CompetencyDescription, UUID } from '@/api/types';
+import { COMPETENCY_CONSTANTS, COMPETENCY_MESSAGES, type DescriptionLevel } from '../constants';
 
 interface CompetencyModalProps {
   /** Competency data to edit/view */
@@ -53,13 +54,12 @@ export default function CompetencyModal({
 }: CompetencyModalProps) {
   const [name, setName] = useState('');
   const [stageId, setStageId] = useState<UUID>('');
-  const [descriptions, setDescriptions] = useState<Record<string, string>>({
-    '1': '',
-    '2': '',
-    '3': '',
-    '4': '',
-    '5': '',
-  });
+  const [descriptions, setDescriptions] = useState<Record<DescriptionLevel, string>>(
+    COMPETENCY_CONSTANTS.DESCRIPTION_LEVELS.reduce((acc, level) => {
+      acc[level] = '';
+      return acc;
+    }, {} as Record<DescriptionLevel, string>)
+  );
 
   // Update form fields when competency changes
   useEffect(() => {
@@ -68,18 +68,15 @@ export default function CompetencyModal({
       setStageId(competency.stageId || '');
 
       // Initialize descriptions
-      const newDescriptions: Record<string, string> = {
-        '1': '',
-        '2': '',
-        '3': '',
-        '4': '',
-        '5': '',
-      };
+      const newDescriptions = COMPETENCY_CONSTANTS.DESCRIPTION_LEVELS.reduce((acc, level) => {
+        acc[level] = '';
+        return acc;
+      }, {} as Record<DescriptionLevel, string>);
 
       if (competency.description) {
         Object.entries(competency.description).forEach(([key, value]) => {
-          if (key in newDescriptions) {
-            newDescriptions[key] = value || '';
+          if (COMPETENCY_CONSTANTS.DESCRIPTION_LEVELS.includes(key as DescriptionLevel)) {
+            newDescriptions[key as DescriptionLevel] = value || '';
           }
         });
       }
@@ -115,7 +112,7 @@ export default function CompetencyModal({
     if (!competency || !isAdmin) return;
 
     // Simple window.confirm for now instead of AlertDialog
-    const confirmed = window.confirm(`コンピテンシー「${competency.name}」を削除しますか？この操作は取り消せません。`);
+    const confirmed = window.confirm(COMPETENCY_MESSAGES.CONFIRM.DELETE(competency.name));
 
     if (!confirmed) return;
 
@@ -133,18 +130,15 @@ export default function CompetencyModal({
       setName(competency.name || '');
       setStageId(competency.stageId || '');
 
-      const newDescriptions: Record<string, string> = {
-        '1': '',
-        '2': '',
-        '3': '',
-        '4': '',
-        '5': '',
-      };
+      const newDescriptions = COMPETENCY_CONSTANTS.DESCRIPTION_LEVELS.reduce((acc, level) => {
+        acc[level] = '';
+        return acc;
+      }, {} as Record<DescriptionLevel, string>);
 
       if (competency.description) {
         Object.entries(competency.description).forEach(([key, value]) => {
-          if (key in newDescriptions) {
-            newDescriptions[key] = value || '';
+          if (COMPETENCY_CONSTANTS.DESCRIPTION_LEVELS.includes(key as DescriptionLevel)) {
+            newDescriptions[key as DescriptionLevel] = value || '';
           }
         });
       }
@@ -154,49 +148,46 @@ export default function CompetencyModal({
     onClose();
   };
 
-  const isFormValid = name.trim().length >= 1 && stageId;
+  const isFormValid = name.trim().length >= COMPETENCY_CONSTANTS.VALIDATION.MIN_NAME_LENGTH && stageId;
   const selectedStage = stages.find(stage => stage.id === stageId);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className={`${COMPETENCY_CONSTANTS.MODAL.MAX_WIDTH} ${COMPETENCY_CONSTANTS.MODAL.MAX_HEIGHT} ${COMPETENCY_CONSTANTS.MODAL.OVERFLOW}`}>
           <DialogHeader>
             <DialogTitle>
-              {isAdmin ? 'コンピテンシー編集' : 'コンピテンシー詳細'}
+              {isAdmin ? COMPETENCY_MESSAGES.MODAL.EDIT_TITLE : COMPETENCY_MESSAGES.MODAL.VIEW_TITLE}
             </DialogTitle>
             <DialogDescription>
-              {isAdmin
-                ? 'コンピテンシーの詳細を編集できます。'
-                : 'コンピテンシーの詳細を確認できます。'
-              }
+              {isAdmin ? COMPETENCY_MESSAGES.MODAL.EDIT_DESCRIPTION : COMPETENCY_MESSAGES.MODAL.VIEW_DESCRIPTION}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="competency-name">
-                コンピテンシー名 <span className="text-red-500">*</span>
+                {COMPETENCY_MESSAGES.LABELS.COMPETENCY_NAME} <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="competency-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="コンピテンシー名を入力"
+                placeholder={COMPETENCY_MESSAGES.LABELS.PLACEHOLDER_NAME}
                 disabled={isLoading || !isAdmin}
-                maxLength={100}
+                maxLength={COMPETENCY_CONSTANTS.VALIDATION.MAX_NAME_LENGTH}
               />
               <div className="text-xs text-gray-500">
-                {name.length}/100文字
+                {name.length}/{COMPETENCY_CONSTANTS.VALIDATION.MAX_NAME_LENGTH}文字
               </div>
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="stage-select">
-                ステージ <span className="text-red-500">*</span>
+                {COMPETENCY_MESSAGES.LABELS.STAGE} <span className="text-red-500">*</span>
               </Label>
               <Select value={stageId} onValueChange={setStageId} disabled={isLoading || !isAdmin}>
                 <SelectTrigger>
-                  <SelectValue placeholder="ステージを選択" />
+                  <SelectValue placeholder={COMPETENCY_MESSAGES.LABELS.PLACEHOLDER_STAGE} />
                 </SelectTrigger>
                 <SelectContent>
                   {stages.map((stage) => (
@@ -214,7 +205,7 @@ export default function CompetencyModal({
             </div>
 
             <div className="grid gap-4">
-              <Label>理想的な行動（任意）</Label>
+              <Label>{COMPETENCY_MESSAGES.LABELS.IDEAL_BEHAVIORS}</Label>
               {Object.entries(descriptions).map(([level, description]) => (
                 <div key={level} className="grid gap-2">
                   <Label htmlFor={`description-${level}`} className="text-sm">
@@ -224,13 +215,13 @@ export default function CompetencyModal({
                     id={`description-${level}`}
                     value={description}
                     onChange={(e) => setDescriptions(prev => ({ ...prev, [level]: e.target.value }))}
-                    placeholder={`${level}の理想的な行動を入力（任意）`}
+                    placeholder={COMPETENCY_MESSAGES.LABELS.PLACEHOLDER_BEHAVIOR(level)}
                     disabled={isLoading || !isAdmin}
-                    maxLength={500}
+                    maxLength={COMPETENCY_CONSTANTS.VALIDATION.MAX_DESCRIPTION_LENGTH}
                     rows={2}
                   />
                   <div className="text-xs text-gray-500">
-                    {description.length}/500文字
+                    {description.length}/{COMPETENCY_CONSTANTS.VALIDATION.MAX_DESCRIPTION_LENGTH}文字
                   </div>
                 </div>
               ))}
@@ -247,7 +238,7 @@ export default function CompetencyModal({
                 className="mr-auto"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                削除
+                {isLoading ? COMPETENCY_MESSAGES.BUTTONS.DELETING : COMPETENCY_MESSAGES.BUTTONS.DELETE}
               </Button>
             )}
             <div className="flex gap-2">
@@ -257,7 +248,7 @@ export default function CompetencyModal({
                 onClick={handleClose}
                 disabled={isLoading}
               >
-                {isAdmin ? 'キャンセル' : '閉じる'}
+                {isAdmin ? COMPETENCY_MESSAGES.BUTTONS.CANCEL : COMPETENCY_MESSAGES.BUTTONS.CLOSE}
               </Button>
               {isAdmin && (
                 <Button
@@ -265,7 +256,7 @@ export default function CompetencyModal({
                   onClick={handleSave}
                   disabled={!isFormValid || isLoading}
                 >
-                  {isLoading ? '保存中...' : '保存'}
+                  {isLoading ? COMPETENCY_MESSAGES.BUTTONS.SAVING : COMPETENCY_MESSAGES.BUTTONS.SAVE}
                 </Button>
               )}
             </div>
