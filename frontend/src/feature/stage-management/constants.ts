@@ -4,8 +4,8 @@
  */
 
 export const STAGE_HEIGHTS = {
-  COLLAPSED: 140,
-  EXPANDED: 320,
+  COLLAPSED: 180,
+  EXPANDED: 360,
 } as const;
 
 export const GRID_CONFIG = {
@@ -39,6 +39,11 @@ export const SCROLL_CONFIG = {
   MAX_HEIGHT: 'max-h-96',
   OVERFLOW: 'overflow-y-auto',
   PADDING: 'pr-1',
+} as const;
+
+export const DESCRIPTION_SCROLL = {
+  MAX_HEIGHT: 'max-h-16',
+  OVERFLOW: 'overflow-y-auto',
 } as const;
 
 /**
