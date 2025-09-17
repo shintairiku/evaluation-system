@@ -37,7 +37,12 @@ export const competenciesApi = {
       ? `${API_ENDPOINTS.COMPETENCIES.LIST}?${queryParams.toString()}`
       : API_ENDPOINTS.COMPETENCIES.LIST;
 
-    return httpClient.get<PaginatedResponse<Competency>>(endpoint);
+    // Development: Add dev admin header to ensure access
+    const headers = process.env.NODE_ENV === 'development' ? {
+      'Authorization': 'Bearer dev-admin-key'
+    } : undefined;
+
+    return httpClient.get<PaginatedResponse<Competency>>(endpoint, { headers });
   },
 
   /**
@@ -48,23 +53,38 @@ export const competenciesApi = {
   },
 
   /**
-   * Create a new competency
+   * Create a new competency (admin only)
    */
   createCompetency: async (data: CompetencyCreate): Promise<ApiResponse<Competency>> => {
-    return httpClient.post<Competency>(API_ENDPOINTS.COMPETENCIES.CREATE, data);
+    // Development: Add dev admin header to ensure access
+    const headers = process.env.NODE_ENV === 'development' ? {
+      'Authorization': 'Bearer dev-admin-key'
+    } : undefined;
+
+    return httpClient.post<Competency>(API_ENDPOINTS.COMPETENCIES.CREATE, data, headers);
   },
 
   /**
-   * Update an existing competency
+   * Update an existing competency (admin only)
    */
   updateCompetency: async (competencyId: UUID, data: CompetencyUpdate): Promise<ApiResponse<Competency>> => {
-    return httpClient.put<Competency>(API_ENDPOINTS.COMPETENCIES.UPDATE(competencyId), data);
+    // Development: Add dev admin header to ensure access
+    const headers = process.env.NODE_ENV === 'development' ? {
+      'Authorization': 'Bearer dev-admin-key'
+    } : undefined;
+
+    return httpClient.put<Competency>(API_ENDPOINTS.COMPETENCIES.UPDATE(competencyId), data, headers);
   },
 
   /**
-   * Delete a competency
+   * Delete a competency (admin only)
    */
   deleteCompetency: async (competencyId: UUID): Promise<ApiResponse<void>> => {
-    return httpClient.delete<void>(API_ENDPOINTS.COMPETENCIES.DELETE(competencyId));
+    // Development: Add dev admin header to ensure access
+    const headers = process.env.NODE_ENV === 'development' ? {
+      'Authorization': 'Bearer dev-admin-key'
+    } : undefined;
+
+    return httpClient.delete<void>(API_ENDPOINTS.COMPETENCIES.DELETE(competencyId), headers);
   },
 };
