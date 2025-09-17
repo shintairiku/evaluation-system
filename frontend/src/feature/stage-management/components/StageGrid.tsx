@@ -26,10 +26,10 @@ interface StageGridProps {
 /**
  * Stage Grid Component with Drag & Drop functionality
  * 
- * Implements the drag & drop behavior specified in .kiro requirements.md:
- * - WHEN 管理者がユーザーカードをドラッグ&ドロップする THEN システムは編集モードを有効化する
- * - WHEN 編集モード中 THEN 管理者は複数のユーザーを移動できる
- * - WHEN 管理者が「保存」ボタンをクリックしない限り THEN システムはDBに変更を反映しない
+ * Implements the drag & drop behavior with the following requirements:
+ * - WHEN administrator drags & drops a user card THEN system enables edit mode
+ * - WHEN in edit mode THEN administrator can move multiple users
+ * - WHEN administrator doesn't click "save" button THEN system doesn't persist changes to DB
  */
 export default function StageGrid({ initialStages, onError, onClearError }: StageGridProps) {
   const [stages, setStages] = useState<StageData[]>(initialStages);

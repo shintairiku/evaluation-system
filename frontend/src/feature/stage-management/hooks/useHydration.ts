@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Hook para gerenciar hidração SSR/CSR
- * Centraliza a lógica de montagem para evitar duplicação
+ * Custom hook to manage SSR/CSR hydration
+ * Centralizes mounting logic to prevent hydration mismatches
  */
 export function useHydration() {
   const [isMounted, setIsMounted] = useState(false);

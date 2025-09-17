@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 
 /**
- * Hook para debounce de valores
- * Útil para otimizar buscas e evitar chamadas excessivas
+ * Custom hook for value debouncing
+ * Useful for optimizing searches and preventing excessive API calls
  */
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
