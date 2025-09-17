@@ -31,7 +31,7 @@ export default function CompetencyManagementView({
   stages,
   isAdmin,
 }: CompetencyManagementViewProps) {
-  const [competencies, setCompetencies] = useState(initialCompetencies.data || []);
+  const [competencies, setCompetencies] = useState(initialCompetencies.items || []);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStageFilter, setSelectedStageFilter] = useState<string>('all');
   const [selectedCompetency, setSelectedCompetency] = useState<Competency | null>(null);
