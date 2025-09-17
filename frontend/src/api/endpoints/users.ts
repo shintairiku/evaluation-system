@@ -92,7 +92,8 @@ export const usersApi = {
     role_ids?: string[];
     supervisor_id?: string;
   }): Promise<ApiResponse<SimpleUser[]>> => {
-    let endpoint = API_ENDPOINTS.USERS.ORG_CHART;
+    // widen type so we can append query strings without TS narrowing to the literal
+    let endpoint: string = API_ENDPOINTS.USERS.ORG_CHART;
     
     if (filters) {
       const queryParams = new URLSearchParams();
