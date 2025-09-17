@@ -26,6 +26,7 @@ export async function getCompetenciesWithStagesAction(): Promise<
 > {
   try {
     // Fetch both competencies and stages in parallel
+    // Using getStagesAdmin to verify admin permissions (similar to stage-management)
     const [competenciesResult, stagesResult] = await Promise.all([
       competenciesApi.getCompetencies({ page: 1, limit: 100 }),
       stagesApi.getStagesAdmin(),
