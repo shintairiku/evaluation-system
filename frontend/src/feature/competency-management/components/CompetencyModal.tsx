@@ -161,19 +161,8 @@ export default function CompetencyModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
+            <DialogTitle>
               {isAdmin ? 'コンピテンシー編集' : 'コンピテンシー詳細'}
-              {isAdmin && competency && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={isLoading}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
             </DialogTitle>
             <DialogDescription>
               {isAdmin
@@ -248,24 +237,38 @@ export default function CompetencyModal({
             </div>
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isLoading}
-            >
-              {isAdmin ? 'キャンセル' : '閉じる'}
-            </Button>
-            {isAdmin && (
+          <DialogFooter className="flex justify-between">
+            {isAdmin && competency && (
               <Button
                 type="button"
-                onClick={handleSave}
-                disabled={!isFormValid || isLoading}
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={isLoading}
+                className="mr-auto"
               >
-                {isLoading ? '保存中...' : '保存'}
+                <Trash2 className="h-4 w-4 mr-2" />
+                削除
               </Button>
             )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={isLoading}
+              >
+                {isAdmin ? 'キャンセル' : '閉じる'}
+              </Button>
+              {isAdmin && (
+                <Button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!isFormValid || isLoading}
+                >
+                  {isLoading ? '保存中...' : '保存'}
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
