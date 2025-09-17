@@ -78,7 +78,9 @@ async def get_auth_context(
                 return AuthContext(
                     user_id=UUID(dev_user["user_id"]),
                     clerk_user_id=dev_user["clerk_user_id"],
-                    roles=dev_user["roles"]
+                    roles=dev_user["roles"],
+                    organization_id=None,  # Development keys don't have org context
+                    organization_slug=None
                 )
         
         # Verify with Clerk and get user info
@@ -94,7 +96,9 @@ async def get_auth_context(
             return AuthContext(
                 user_id=None,  # No user_id yet
                 clerk_user_id=auth_user.clerk_id,  # But we have Clerk ID
-                roles=[]  # No roles yet
+                roles=[],  # No roles yet
+                organization_id=auth_user.organization_id,
+                organization_slug=auth_user.organization_slug
             )
         
         user_id = user_data["id"]
@@ -110,7 +114,13 @@ async def get_auth_context(
         ]
         
         # Create and return AuthContext
-        return AuthContext(user_id=user_id, clerk_user_id=auth_user.clerk_id, roles=role_infos)
+        return AuthContext(
+            user_id=user_id, 
+            clerk_user_id=auth_user.clerk_id, 
+            roles=role_infos,
+            organization_id=auth_user.organization_id,
+            organization_slug=auth_user.organization_slug
+        )
         
     except HTTPException:
         raise
