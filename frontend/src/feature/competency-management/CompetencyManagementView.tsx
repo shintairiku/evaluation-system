@@ -1,16 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Search, Edit, Eye } from 'lucide-react';
-import { toast } from 'sonner';
 
-import type { Competency, Stage, UUID, PaginatedResponse } from '@/api/types';
-import { updateCompetencyAction, deleteCompetencyAction } from '@/api/server-actions/competency-management';
+import type { Competency, Stage, PaginatedResponse } from '@/api/types';
+import { useCompetencyManagement } from './hooks/useCompetencyManagement';
+import { COMPETENCY_CONSTANTS, COMPETENCY_MESSAGES } from './constants';
 import CompetencyModal from './components/CompetencyModal';
 
 interface CompetencyManagementViewProps {
@@ -31,106 +30,26 @@ export default function CompetencyManagementView({
   stages,
   isAdmin,
 }: CompetencyManagementViewProps) {
-  const [competencies, setCompetencies] = useState(initialCompetencies.items || []);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStageFilter, setSelectedStageFilter] = useState<string>('all');
-  const [selectedCompetency, setSelectedCompetency] = useState<Competency | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Filter competencies by search term and stage
-  const filteredCompetencies = useMemo(() => {
-    let filtered = competencies;
-
-    // Filter by search term
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(competency =>
-        competency.name.toLowerCase().includes(term) ||
-        (competency.description && Object.values(competency.description).some(desc =>
-          desc.toLowerCase().includes(term)
-        ))
-      );
-    }
-
-    // Filter by stage
-    if (selectedStageFilter !== 'all') {
-      filtered = filtered.filter(competency => competency.stageId === selectedStageFilter);
-    }
-
-    return filtered;
-  }, [competencies, searchTerm, selectedStageFilter]);
-
-  // Group competencies by stage
-  const competenciesByStage = useMemo(() => {
-    const grouped: Record<string, { stage: Stage; competencies: Competency[] }> = {};
-
-    stages.forEach(stage => {
-      grouped[stage.id] = {
-        stage,
-        competencies: filteredCompetencies.filter(comp => comp.stageId === stage.id),
-      };
-    });
-
-    return grouped;
-  }, [filteredCompetencies, stages]);
-
-  const handleCompetencyClick = (competency: Competency) => {
-    setSelectedCompetency(competency);
-    setIsModalOpen(true);
-  };
-
-  const handleSaveCompetency = async (
-    competencyId: UUID,
-    data: { name: string; description?: Record<string, string>; stageId: UUID }
-  ) => {
-    setIsLoading(true);
-    try {
-      const result = await updateCompetencyAction(competencyId, data);
-
-      if (result.success && result.data) {
-        // Update the competency in the local state
-        setCompetencies(prev =>
-          prev.map(comp => comp.id === competencyId ? result.data! : comp)
-        );
-
-        toast.success('コンピテンシーが正常に更新されました。');
-      } else {
-        throw new Error(result.error || 'Failed to update competency');
-      }
-    } catch (error) {
-      console.error('Failed to update competency:', error);
-      toast.error('コンピテンシーの更新に失敗しました。');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteCompetency = async (competencyId: UUID) => {
-    setIsLoading(true);
-    try {
-      const result = await deleteCompetencyAction(competencyId);
-
-      if (result.success) {
-        // Remove the competency from local state
-        setCompetencies(prev => prev.filter(comp => comp.id !== competencyId));
-
-        toast.success('コンピテンシーが正常に削除されました。');
-      } else {
-        throw new Error(result.error || 'Failed to delete competency');
-      }
-    } catch (error) {
-      console.error('Failed to delete competency:', error);
-      toast.error('コンピテンシーの削除に失敗しました。');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleModalClose = () => {
-    setSelectedCompetency(null);
-    setIsModalOpen(false);
-  };
+  const {
+    competenciesByStage,
+    searchTerm,
+    selectedStageFilter,
+    selectedCompetency,
+    isModalOpen,
+    isLoading,
+    handleCompetencyClick,
+    handleModalClose,
+    handleSaveCompetency,
+    handleDeleteCompetency,
+    handleSearchChange,
+    handleStageFilterChange,
+    totalCompetencies,
+    filteredCount,
+  } = useCompetencyManagement({
+    initialCompetencies,
+    stages,
+    isAdmin,
+  });
 
   return (
     <div className="space-y-6">
@@ -146,22 +65,24 @@ export default function CompetencyManagementView({
 
       {/* Filters */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <div className="relative flex-1 max-w-sm">
+        <div className={`relative flex-1 ${COMPETENCY_CONSTANTS.SEARCH.MAX_WIDTH}`}>
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="コンピテンシーを検索..."
+            placeholder={COMPETENCY_CONSTANTS.SEARCH.PLACEHOLDER}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-8"
           />
         </div>
 
-        <Select value={selectedStageFilter} onValueChange={setSelectedStageFilter}>
-          <SelectTrigger className="w-[200px]">
+        <Select value={selectedStageFilter} onValueChange={handleStageFilterChange}>
+          <SelectTrigger className={COMPETENCY_CONSTANTS.STAGE_FILTER.WIDTH}>
             <SelectValue placeholder="ステージでフィルタ" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">すべてのステージ</SelectItem>
+            <SelectItem value={COMPETENCY_CONSTANTS.STAGE_FILTER.ALL_VALUE}>
+              {COMPETENCY_CONSTANTS.STAGE_FILTER.ALL_LABEL}
+            </SelectItem>
             {stages.map((stage) => (
               <SelectItem key={stage.id} value={stage.id}>
                 {stage.name}
@@ -174,9 +95,9 @@ export default function CompetencyManagementView({
       {/* Summary */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <span>
-          {filteredCompetencies.length} / {competencies.length} のコンピテンシーを表示
+          {COMPETENCY_MESSAGES.STATUS.FILTERED_COUNT(filteredCount, totalCompetencies)}
         </span>
-        {selectedStageFilter !== 'all' && (
+        {selectedStageFilter !== COMPETENCY_CONSTANTS.STAGE_FILTER.ALL_VALUE && (
           <Badge variant="secondary">
             {stages.find(s => s.id === selectedStageFilter)?.name}でフィルタ中
           </Badge>
@@ -190,7 +111,7 @@ export default function CompetencyManagementView({
           const stageCompetencies = stageData?.competencies || [];
 
           // Skip stages with no competencies when filtering
-          if (selectedStageFilter !== 'all' && selectedStageFilter !== stage.id) {
+          if (selectedStageFilter !== COMPETENCY_CONSTANTS.STAGE_FILTER.ALL_VALUE && selectedStageFilter !== stage.id) {
             return null;
           }
 
@@ -213,15 +134,15 @@ export default function CompetencyManagementView({
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-center text-muted-foreground">
-                      {selectedStageFilter === 'all' && !searchTerm
-                        ? 'このステージにはコンピテンシーが設定されていません。'
-                        : 'フィルタ条件に該当するコンピテンシーはありません。'
+                      {selectedStageFilter === COMPETENCY_CONSTANTS.STAGE_FILTER.ALL_VALUE && !searchTerm
+                        ? COMPETENCY_MESSAGES.STATUS.NO_COMPETENCIES
+                        : COMPETENCY_MESSAGES.STATUS.NO_FILTERED_RESULTS
                       }
                     </div>
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className={`grid ${COMPETENCY_CONSTANTS.GRID.GAP} ${COMPETENCY_CONSTANTS.GRID.COLUMNS.BASE} ${COMPETENCY_CONSTANTS.GRID.COLUMNS.MD} ${COMPETENCY_CONSTANTS.GRID.COLUMNS.LG}`}>
                   {stageCompetencies.map((competency) => (
                     <Card
                       key={competency.id}
@@ -252,7 +173,7 @@ export default function CompetencyManagementView({
                       {competency.description && Object.keys(competency.description).length > 0 && (
                         <CardContent className="pt-0">
                           <CardDescription className="text-xs">
-                            {Object.keys(competency.description).length} つの理想的な行動が設定されています
+                            {COMPETENCY_MESSAGES.STATUS.BEHAVIORS_COUNT(Object.keys(competency.description).length)}
                           </CardDescription>
                         </CardContent>
                       )}
