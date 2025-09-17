@@ -76,6 +76,13 @@ export const usersApi = {
   },
 
   /**
+   * Update user's stage (admin only)
+   */
+  updateUserStage: async (userId: UUID, data: { stage_id: UUID }): Promise<ApiResponse<UserDetailResponse>> => {
+    return httpClient.patch<UserDetailResponse>(`${API_ENDPOINTS.USERS.BY_ID(userId)}/stage`, data);
+  },
+
+  /**
    * Get users for organization chart - no role-based access restrictions
    * Returns SimpleUser[] format with supervisor/subordinates for organization chart display
    * Supports filtering by department_ids, role_ids, or supervisor_id
@@ -85,7 +92,8 @@ export const usersApi = {
     role_ids?: string[];
     supervisor_id?: string;
   }): Promise<ApiResponse<SimpleUser[]>> => {
-    let endpoint = API_ENDPOINTS.USERS.ORG_CHART;
+    // widen type so we can append query strings without TS narrowing to the literal
+    let endpoint: string = API_ENDPOINTS.USERS.ORG_CHART;
     
     if (filters) {
       const queryParams = new URLSearchParams();
@@ -107,6 +115,6 @@ export const usersApi = {
       }
     }
     
-    return httpClient.get<SimpleUser[]>(endpoint as string);
+    return httpClient.get<SimpleUser[]>(endpoint);
   },
 };

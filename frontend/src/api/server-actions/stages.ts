@@ -217,8 +217,6 @@ async function _getStagesAdminAction(): Promise<{
   }
 }
 
-export const getStagesAdminAction = createFullyCachedAction(
-  _getStagesAdminAction,
-  'getStagesAdmin',
-  CACHE_TAGS.STAGES
-);
+// Cannot use caching with Clerk auth() calls due to Next.js restrictions
+// Dynamic data sources (auth) are not supported inside cached functions
+export const getStagesAdminAction = _getStagesAdminAction;
