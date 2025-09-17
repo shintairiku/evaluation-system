@@ -22,7 +22,7 @@ export function getStageCardClasses(isExpanded: boolean, isMounted: boolean, isO
 }
 
 export function getCardHeaderClasses(isExpanded: boolean): string {
-  const baseClasses = 'pb-3 cursor-pointer hover:bg-gray-50 h-32 overflow-hidden';
+  const baseClasses = 'pb-3 cursor-pointer hover:bg-gray-50 h-36 overflow-hidden';
   const transitionClass = TRANSITIONS.SMOOTH;
   const expandedClasses = !isExpanded ? 'pb-4' : '';
 

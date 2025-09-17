@@ -13,7 +13,7 @@ export const GRID_CONFIG = {
     BASE: 'grid-cols-1',
     MD: 'md:grid-cols-2', 
     LG: 'lg:grid-cols-3',
-    XL: 'xl:grid-cols-4',
+    XL: 'xl:grid-cols-3',
   },
   GAP: 'gap-6',
   ALIGNMENT: 'items-start',
