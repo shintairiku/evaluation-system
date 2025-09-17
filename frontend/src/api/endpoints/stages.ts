@@ -28,12 +28,7 @@ export const stagesApi = {
    * Get all stages with user count (admin only)
    */
   getStagesAdmin: async (): Promise<ApiResponse<StageWithUserCount[]>> => {
-    // Development: Add dev admin header to ensure access
-    const headers = process.env.NODE_ENV === 'development' ? {
-      'Authorization': 'Bearer dev-admin-key'
-    } : undefined;
-    
-    return httpClient.get<StageWithUserCount[]>(API_ENDPOINTS.STAGES.ADMIN, { headers });
+    return httpClient.get<StageWithUserCount[]>(API_ENDPOINTS.STAGES.ADMIN);
   },
 
   /**
