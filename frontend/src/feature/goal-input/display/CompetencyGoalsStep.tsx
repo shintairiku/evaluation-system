@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { AlertCircle, ChevronLeft } from 'lucide-react';
 import { Competency } from '@/api/types/competency';
 import { CompetencyAccordion } from '@/components/competency/CompetencyAccordion';
-import { getCompetenciesAction } from '@/api/server-actions/competencies';
+import { getCompetenciesByStageAction } from '@/api/server-actions/competency-management';
 
 interface CompetencyGoal {
   id: string;
@@ -56,8 +56,8 @@ export function CompetencyGoalsStep({
         setCompetencyError(null);
         
         // Backend automatically filters by user's stage via RBAC
-        const result = await getCompetenciesAction({ limit: 100 });
-        
+        const result = await getCompetenciesByStageAction();
+
         if (result.success && result.data?.items) {
           setCompetencies(result.data.items);
         } else {
