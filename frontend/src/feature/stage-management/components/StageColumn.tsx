@@ -10,7 +10,7 @@ import { Users, ChevronDown, ChevronRight, Settings } from 'lucide-react';
 import type { StageData } from '../types';
 import { useHydration } from '../hooks/useHydration';
 import { getStageCardClasses, getCardHeaderClasses } from '../utils/classNames';
-import { SCROLL_CONFIG } from '../constants';
+import { SCROLL_CONFIG, DESCRIPTION_SCROLL } from '../constants';
 import UserCard from './UserCard';
 
 interface StageColumnProps {
@@ -104,7 +104,7 @@ export default function StageColumn({ stage, editMode, onEditStage }: StageColum
         </div>
         
         {stage.description && (
-          <p className="text-sm text-gray-600 mt-1 ml-7">
+          <p className={`text-sm text-gray-600 mt-1 ml-7 ${DESCRIPTION_SCROLL.MAX_HEIGHT} ${DESCRIPTION_SCROLL.OVERFLOW}`}>
             {stage.description}
           </p>
         )}
