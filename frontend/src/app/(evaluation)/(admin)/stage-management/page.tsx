@@ -15,7 +15,7 @@ export default async function StageManagementPage() {
   // If user doesn't have admin permissions, backend returns 403
   const stagesResult = await getStagesAdminAction();
 
-  // Handle non-admin access with 403 error display
+  // Handle non-admin access with secure error display
   if (!stagesResult.success) {
     return (
       <div className="container mx-auto py-8">
@@ -26,9 +26,6 @@ export default async function StageManagementPage() {
           </p>
           <p className="text-sm text-gray-500">
             Contact your system administrator if you believe this is an error.
-          </p>
-          <p className="text-xs text-gray-400 mt-4">
-            Error: {stagesResult.error}
           </p>
         </div>
       </div>
