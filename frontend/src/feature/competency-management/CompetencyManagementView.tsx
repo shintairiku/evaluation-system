@@ -252,7 +252,7 @@ export default function CompetencyManagementView({
                       {competency.description && Object.keys(competency.description).length > 0 && (
                         <CardContent className="pt-0">
                           <CardDescription className="text-xs">
-                            {Object.keys(competency.description).length} つの行動例が設定されています
+                            {Object.keys(competency.description).length} つの理想的な行動が設定されています
                           </CardDescription>
                         </CardContent>
                       )}

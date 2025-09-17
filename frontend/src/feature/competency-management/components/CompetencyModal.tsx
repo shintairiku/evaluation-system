@@ -214,17 +214,17 @@ export default function CompetencyModal({
             </div>
 
             <div className="grid gap-4">
-              <Label>行動例（任意）</Label>
+              <Label>理想的な行動（任意）</Label>
               {Object.entries(descriptions).map(([level, description]) => (
                 <div key={level} className="grid gap-2">
                   <Label htmlFor={`description-${level}`} className="text-sm">
-                    レベル {level}
+                    {level}
                   </Label>
                   <Textarea
                     id={`description-${level}`}
                     value={description}
                     onChange={(e) => setDescriptions(prev => ({ ...prev, [level]: e.target.value }))}
-                    placeholder={`レベル${level}の行動例を入力（任意）`}
+                    placeholder={`${level}の理想的な行動を入力（任意）`}
                     disabled={isLoading || !isAdmin}
                     maxLength={500}
                     rows={2}
