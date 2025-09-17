@@ -37,12 +37,7 @@ export const competenciesApi = {
       ? `${API_ENDPOINTS.COMPETENCIES.LIST}?${queryParams.toString()}`
       : API_ENDPOINTS.COMPETENCIES.LIST;
 
-    // Development: Add dev admin header to ensure access
-    const headers = process.env.NODE_ENV === 'development' ? {
-      'Authorization': 'Bearer dev-admin-key'
-    } : undefined;
-
-    return httpClient.get<PaginatedResponse<Competency>>(endpoint, { headers });
+    return httpClient.get<PaginatedResponse<Competency>>(endpoint);
   },
 
   /**
@@ -56,35 +51,20 @@ export const competenciesApi = {
    * Create a new competency (admin only)
    */
   createCompetency: async (data: CompetencyCreate): Promise<ApiResponse<Competency>> => {
-    // Development: Add dev admin header to ensure access
-    const headers = process.env.NODE_ENV === 'development' ? {
-      'Authorization': 'Bearer dev-admin-key'
-    } : undefined;
-
-    return httpClient.post<Competency>(API_ENDPOINTS.COMPETENCIES.CREATE, data, headers);
+    return httpClient.post<Competency>(API_ENDPOINTS.COMPETENCIES.CREATE, data);
   },
 
   /**
    * Update an existing competency (admin only)
    */
   updateCompetency: async (competencyId: UUID, data: CompetencyUpdate): Promise<ApiResponse<Competency>> => {
-    // Development: Add dev admin header to ensure access
-    const headers = process.env.NODE_ENV === 'development' ? {
-      'Authorization': 'Bearer dev-admin-key'
-    } : undefined;
-
-    return httpClient.put<Competency>(API_ENDPOINTS.COMPETENCIES.UPDATE(competencyId), data, headers);
+    return httpClient.put<Competency>(API_ENDPOINTS.COMPETENCIES.UPDATE(competencyId), data);
   },
 
   /**
    * Delete a competency (admin only)
    */
   deleteCompetency: async (competencyId: UUID): Promise<ApiResponse<void>> => {
-    // Development: Add dev admin header to ensure access
-    const headers = process.env.NODE_ENV === 'development' ? {
-      'Authorization': 'Bearer dev-admin-key'
-    } : undefined;
-
-    return httpClient.delete<void>(API_ENDPOINTS.COMPETENCIES.DELETE(competencyId), headers);
+    return httpClient.delete<void>(API_ENDPOINTS.COMPETENCIES.DELETE(competencyId));
   },
 };
