@@ -83,7 +83,7 @@ async def get_auth_context(
         
         # Verify with Clerk and get user info
         auth_service = AuthService(session)
-        auth_user = auth_service.get_user_from_token(token)
+        auth_user = await auth_service.get_user_from_token(token)
         
         # Check if user exists in our database (use repository directly, not service)
         user_repo = UserRepository(session)
