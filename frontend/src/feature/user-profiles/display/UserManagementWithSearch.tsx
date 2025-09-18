@@ -22,7 +22,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   const [error, setError] = useState<string | null>(null);
   const [isFiltered, setIsFiltered] = useState<boolean>(false);
   // Keep Organization Chart dataset isolated so filters there don't affect Table/Gallery
-  const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>([]);
+  const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [orgIsFiltered, setOrgIsFiltered] = useState<boolean>(false);
 
   const { viewMode, setViewMode } = useViewMode('table');
@@ -31,6 +31,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   useEffect(() => {
     if (initialUsers.length > 0) {
       setUsers(initialUsers);
+      setOrgUsers(initialUsers);
       setTotalUsers(initialUsers.length);
     }
   }, [initialUsers]);
@@ -39,6 +40,11 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   const handleUserUpdate = (updatedUser: UserDetailResponse) => {
     setUsers(prevUsers => 
       prevUsers.map(user => 
+        user.id === updatedUser.id ? updatedUser : user
+      )
+    );
+    setOrgUsers(prevOrgUsers => 
+      prevOrgUsers.map(user => 
         user.id === updatedUser.id ? updatedUser : user
       )
     );
