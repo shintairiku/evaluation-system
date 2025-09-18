@@ -1,5 +1,5 @@
 import { UUID, Permission, PaginatedResponse } from './common';
-import { Stage } from './competency';
+import { Stage } from './stage';
 
 export enum UserStatus {
   PENDING_APPROVAL = 'pending_approval',

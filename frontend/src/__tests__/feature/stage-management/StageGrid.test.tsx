@@ -9,9 +9,8 @@ jest.mock('@/api/server-actions/stage-management');
 const mockUpdateUserStagesAction = updateUserStagesAction as jest.MockedFunction<typeof updateUserStagesAction>;
 
 // Mock drag and drop
-const mockOnDragEnd = jest.fn();
 jest.mock('@dnd-kit/core', () => ({
-  DndContext: ({ children, onDragEnd, onDragStart }: any) => (
+  DndContext: ({ children, onDragEnd, onDragStart }: { children: React.ReactNode; onDragEnd?: (event: unknown) => void; onDragStart?: (event: unknown) => void }) => (
     <div 
       data-testid="dnd-context" 
       onDrop={(e) => {
@@ -37,7 +36,7 @@ jest.mock('@dnd-kit/core', () => ({
     transform: null,
     isDragging: false,
   }),
-  DragOverlay: ({ children }: any) => <div data-testid="drag-overlay">{children}</div>,
+  DragOverlay: ({ children }: { children: React.ReactNode }) => <div data-testid="drag-overlay">{children}</div>,
 }));
 
 describe('StageGrid', () => {
