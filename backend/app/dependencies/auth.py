@@ -38,7 +38,7 @@ async def get_current_user(
         token = credentials.credentials
         
         # Verify token with Clerk
-        auth_user = auth_service.get_user_from_token(token)
+        auth_user = await auth_service.get_user_from_token(token)
         
         # Check user exists in database with minimal info
         user_exists_response = await auth_service.check_user_exists_by_clerk_id(auth_user.clerk_id)

@@ -1,6 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from clerk_backend_api import Clerk
 import logging
+import httpx
+from jose import jwt, jwk, JWTError
+from typing import Dict, Any, Optional
+from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
@@ -11,8 +15,12 @@ from ..schemas.auth import AuthUser
 from ..schemas.user import UserDetailResponse, Department, Role, UserProfileOption, UserExistsResponse, UserStatus
 from ..schemas.stage_competency import Stage
 from ..core.clerk_config import get_clerk_config
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Global JWKS cache - 15 minutes TTL for security keys
+_jwks_cache: TTLCache = TTLCache(maxsize=10, ttl=900)
 
 class AuthService:
     """Service for handling user authentication operations."""
@@ -30,9 +38,70 @@ class AuthService:
             bearer_auth=clerk_config.secret_key
         )
 
-    def get_user_from_token(self, token: str) -> AuthUser:
+    async def _fetch_jwks(self, issuer: str) -> Dict[str, Any]:
+        """Fetch JWKS from Clerk with caching."""
+        cache_key = f"jwks_{issuer}"
+        
+        # Check cache first
+        if cache_key in _jwks_cache:
+            logger.debug(f"Using cached JWKS for issuer: {issuer}")
+            return _jwks_cache[cache_key]
+        
+        # Fetch from Clerk
+        jwks_url = f"{issuer}/.well-known/jwks.json"
+        logger.info(f"Fetching JWKS from: {jwks_url}")
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(jwks_url, timeout=10.0)
+                response.raise_for_status()
+                jwks_data = response.json()
+                
+                # Cache the result
+                _jwks_cache[cache_key] = jwks_data
+                logger.info(f"Successfully cached JWKS for issuer: {issuer}")
+                return jwks_data
+                
+        except Exception as e:
+            logger.error(f"Failed to fetch JWKS from {jwks_url}: {e}")
+            raise Exception(f"JWKS fetch failed: {str(e)}")
+
+    def _select_key_from_jwks(self, jwks_data: Dict[str, Any], kid: str) -> Dict[str, Any]:
+        """Select the appropriate key from JWKS based on kid."""
+        keys = jwks_data.get("keys", [])
+        
+        for key in keys:
+            if key.get("kid") == kid:
+                logger.debug(f"Found matching key for kid: {kid}")
+                return key
+                
+        raise Exception(f"No key found for kid: {kid}")
+
+    def _normalize_claims(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize JWT claims with org_id/org_slug/org_role prioritization."""
+        normalized = {}
+        
+        # Organization ID - prefer org_id over organization_id
+        normalized["organization_id"] = payload.get("org_id") or payload.get("organization_id")
+        
+        # Organization slug - prefer org_slug over organization_name  
+        normalized["organization_slug"] = payload.get("org_slug") or payload.get("organization_name")
+        
+        # Organization role - prefer org_role over role
+        normalized["role"] = payload.get("org_role") or payload.get("role", "")
+        
+        # Standard claims
+        normalized["sub"] = payload.get("sub")
+        normalized["email"] = payload.get("email", "")
+        normalized["given_name"] = payload.get("given_name", "")
+        normalized["family_name"] = payload.get("family_name", "")
+        
+        logger.debug(f"Normalized claims: org_id={normalized['organization_id']}, org_slug={normalized['organization_slug']}, role={normalized['role']}")
+        return normalized
+
+    async def get_user_from_token(self, token: str) -> AuthUser:
         """
-        Validate Clerk JWT token and extract user information.
+        Validate Clerk JWT token with JWKS signature verification and extract user information.
         
         Args:
             token: JWT token from Clerk
@@ -44,40 +113,72 @@ class AuthService:
             Exception: If token is invalid or verification fails
         """
         try:
-            # Verify the session token with Clerk
-            # Note: For JWT tokens, we might need to decode them first to get session info
-            # For now, let's extract basic info from the token payload using python-jose
-            from jose import jwt
+            # Get environment variables for verification
+            clerk_issuer = getattr(settings, 'CLERK_ISSUER', None)
+            clerk_audience = getattr(settings, 'CLERK_AUDIENCE', None)
             
-            # Decode without verification first to get the payload structure
-            payload = jwt.get_unverified_claims(token)
+            if not clerk_issuer or not clerk_audience:
+                logger.warning("CLERK_ISSUER or CLERK_AUDIENCE not configured, falling back to unverified token parsing")
+                # Fallback to unverified parsing for backward compatibility
+                payload = jwt.get_unverified_claims(token)
+            else:
+                # Get unverified header to extract kid
+                unverified_header = jwt.get_unverified_header(token)
+                kid = unverified_header.get("kid")
+                
+                if not kid:
+                    raise Exception("No 'kid' found in token header")
+                
+                # Fetch JWKS and select key
+                jwks_data = await self._fetch_jwks(clerk_issuer)
+                key_data = self._select_key_from_jwks(jwks_data, kid)
+                
+                # Convert JWK to PEM format for verification
+                public_key = jwk.construct(key_data)
+                
+                # Verify and decode token
+                payload = jwt.decode(
+                    token,
+                    public_key,
+                    algorithms=["RS256"],
+                    audience=clerk_audience,
+                    issuer=clerk_issuer,
+                    options={
+                        "verify_signature": True,
+                        "verify_aud": True,
+                        "verify_iss": True,
+                        "verify_exp": True,
+                        "verify_nbf": True,
+                        "require_exp": True,
+                        "require_iat": True
+                    }
+                )
+                logger.info("JWT signature verification successful")
             
-            # Extract user information from the JWT payload
-            clerk_id = payload.get("sub")  # Subject is typically the user ID
-            email = payload.get("email", "")
-            first_name = payload.get("given_name", "")
-            last_name = payload.get("family_name", "")
-            # Role from custom claim (populated from user.public_metadata.role)
-            role = payload.get("role", "")
+            # Normalize claims with priority handling
+            normalized = self._normalize_claims(payload)
             
-            # Organization claims (populated from Clerk's native {{org.id}} and {{org.name}})
-            organization_id = payload.get("organization_id")  # From {{org.id}}
-            organization_name = payload.get("organization_name")  # From {{org.name}}
-            
+            # Extract user information
+            clerk_id = normalized.get("sub")
             if not clerk_id:
                 raise ValueError("User ID not found in token")
                 
             return AuthUser(
                 clerk_id=clerk_id,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                role=role,
-                organization_id=organization_id,
-                organization_name=organization_name
+                email=normalized.get("email", ""),
+                first_name=normalized.get("given_name", ""),
+                last_name=normalized.get("family_name", ""),
+                role=normalized.get("role", ""),
+                organization_id=normalized.get("organization_id"),
+                organization_name=normalized.get("organization_slug"),  # Keep for backward compatibility
+                organization_slug=normalized.get("organization_slug")   # For organization-scoped routing
             )
             
+        except JWTError as e:
+            logger.error(f"JWT verification failed: {e}")
+            raise Exception(f"Invalid JWT token: {str(e)}")
         except Exception as e:
+            logger.error(f"Token validation failed: {e}")
             raise Exception(f"Token validation failed: {str(e)}")
 
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
