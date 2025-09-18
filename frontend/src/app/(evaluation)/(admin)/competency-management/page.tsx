@@ -1,5 +1,6 @@
 import { CompetencyManagementView } from '@/feature/competency-management';
 import { getCompetenciesWithStagesAction } from '@/api/server-actions/competency-management';
+import { PageErrorBoundary } from '@/components/error-boundary';
 
 /**
  * Competency Management Page (Admin/Viewer Only)
@@ -37,13 +38,15 @@ export default async function CompetencyManagementPage() {
   const { competencies, stages } = dataResult.data!;
 
   return (
-    <div className="container mx-auto p-6">
-      <CompetencyManagementView
-        initialCompetencies={competencies}
-        stages={stages}
-        isAdmin={true} // Since we reached here, user has admin access
-      />
-    </div>
+    <PageErrorBoundary pageTitle="Competency Management">
+      <div className="container mx-auto p-6">
+        <CompetencyManagementView
+          initialCompetencies={competencies}
+          stages={stages}
+          isAdmin={true} // Since we reached here, user has admin access
+        />
+      </div>
+    </PageErrorBoundary>
   );
 }
 

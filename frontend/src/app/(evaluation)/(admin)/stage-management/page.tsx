@@ -1,6 +1,7 @@
 import { getStagesAdminAction } from '@/api/server-actions/stages';
 import { getUsersAction } from '@/api/server-actions/users';
 import { StageManagementContainer } from '@/feature/stage-management';
+import { PageErrorBoundary } from '@/components/error-boundary';
 
 /**
  * Stage Management Page (Admin Only)
@@ -44,13 +45,15 @@ export default async function StageManagementPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <StageManagementContainer
-        initialStages={stagesResult.data || []}
-        initialUsers={usersResult.data?.items || []}
-        total={usersResult.data?.total || 0}
-      />
-    </div>
+    <PageErrorBoundary pageTitle="Stage Management">
+      <div className="container mx-auto p-6">
+        <StageManagementContainer
+          initialStages={stagesResult.data || []}
+          initialUsers={usersResult.data?.items || []}
+          total={usersResult.data?.total || 0}
+        />
+      </div>
+    </PageErrorBoundary>
   );
 }
 
