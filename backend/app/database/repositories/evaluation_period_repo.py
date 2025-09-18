@@ -19,7 +19,6 @@ class EvaluationPeriodRepository(BaseRepository[EvaluationPeriod]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, EvaluationPeriod)
-        self.session = session
 
     # ========================================
     # CREATE OPERATIONS

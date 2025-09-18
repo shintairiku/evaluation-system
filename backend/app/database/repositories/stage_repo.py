@@ -14,7 +14,6 @@ class StageRepository(BaseRepository[Stage]):
     
     def __init__(self, session: AsyncSession):
         super().__init__(session, Stage)
-        self.session = session
     
     async def create(self, stage_data: StageCreate, org_id: str) -> Stage:
         """Create a new stage within organization scope."""

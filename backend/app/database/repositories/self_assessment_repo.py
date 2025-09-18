@@ -28,7 +28,6 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, SelfAssessment)
-        self.session = session
 
     # ========================================
     # CREATE OPERATIONS

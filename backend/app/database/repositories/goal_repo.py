@@ -30,7 +30,6 @@ class GoalRepository(BaseRepository[Goal]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, Goal)
-        self.session = session
 
     # ========================================
     # CREATE OPERATIONS

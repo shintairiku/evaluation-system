@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 class RoleRepository(BaseRepository[Role]):
     def __init__(self, session: AsyncSession):
         super().__init__(session, Role)
-        self.session = session
 
     # ============================================================================
     # CREATE OPERATIONS

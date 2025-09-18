@@ -17,7 +17,6 @@ class CompetencyRepository(BaseRepository[Competency]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, Competency)
-        self.session = session
 
     # ========================================
     # CREATE OPERATIONS

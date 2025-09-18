@@ -18,7 +18,6 @@ class DepartmentRepository(BaseRepository[Department]):
     
     def __init__(self, session: AsyncSession):
         super().__init__(session, Department)
-        self.session = session
 
     # ========================================
     # CREATE OPERATIONS

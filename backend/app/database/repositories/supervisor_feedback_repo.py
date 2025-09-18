@@ -27,7 +27,6 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, SupervisorFeedback)
-        self.session = session
 
     # ========================================
     # CREATE OPERATIONS
