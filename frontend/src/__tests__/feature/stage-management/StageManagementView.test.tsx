@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { jest } from '@jest/globals';
 import { StageManagementView } from '@/feature/stage-management';
 import { updateUserStagesAction } from '@/api/server-actions/stage-management';
@@ -6,12 +6,11 @@ import type { Stage, UserDetailResponse } from '@/api/types';
 
 // Mock server actions
 jest.mock('@/api/server-actions/stage-management');
-const mockUpdateUserStagesAction = updateUserStagesAction as jest.MockedFunction<typeof updateUserStagesAction>;
 
 // Mock drag and drop
 jest.mock('@dnd-kit/core', () => ({
-  DndContext: ({ children, onDragEnd }: any) => (
-    <div data-testid="dnd-context" onDrop={() => onDragEnd?.({ active: { id: 'user1' }, over: { id: 'stage2' } })}>
+  DndContext: ({ children }: { children: React.ReactNode; onDragEnd?: (event: unknown) => void }) => (
+    <div data-testid="dnd-context">
       {children}
     </div>
   ),
@@ -26,7 +25,7 @@ jest.mock('@dnd-kit/core', () => ({
     transform: null,
     isDragging: false,
   }),
-  DragOverlay: ({ children }: any) => <div data-testid="drag-overlay">{children}</div>,
+  DragOverlay: ({ children }: { children: React.ReactNode }) => <div data-testid="drag-overlay">{children}</div>,
 }));
 
 describe('StageManagementView', () => {
@@ -50,7 +49,7 @@ describe('StageManagementView', () => {
       employee_code: 'EMP001',
       name: 'Test User 1',
       email: 'user1@example.com',
-      status: 'active' as any,
+      status: 'active' as 'active' | 'inactive',
       job_title: 'Engineer',
       stage: { id: 'stage1', name: 'Stage 1' },
       roles: [],
@@ -63,7 +62,7 @@ describe('StageManagementView', () => {
       employee_code: 'EMP002',
       name: 'Test User 2',
       email: 'user2@example.com',
-      status: 'active' as any,
+      status: 'active' as 'active' | 'inactive',
       job_title: 'Manager',
       stage: { id: 'stage1', name: 'Stage 1' },
       roles: [],
@@ -128,8 +127,6 @@ describe('StageManagementView', () => {
       />
     );
 
-    // Simulate error from child component
-    const errorMessage = 'Test error message';
     // This would be triggered by child components via onError callback
     // For now, just verify the component structure exists
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument();
