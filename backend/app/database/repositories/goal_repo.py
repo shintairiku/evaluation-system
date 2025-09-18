@@ -20,34 +20,40 @@ from ...schemas.common import PaginationParams
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
+from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
 
 
-class GoalRepository:
+class GoalRepository(BaseRepository[Goal]):
     """Repository for Goal database operations following established patterns"""
 
     def __init__(self, session: AsyncSession):
+        super().__init__(session, Goal)
         self.session = session
 
     # ========================================
     # CREATE OPERATIONS
     # ========================================
 
-    async def create_goal(self, goal_data: GoalCreate, user_id: UUID) -> Goal:
+    async def create_goal(self, goal_data: GoalCreate, user_id: UUID, org_id: str) -> Goal:
         """
-        Create a new goal from GoalCreate schema with validation and error handling.
+        Create a new goal from GoalCreate schema with validation and error handling within organization scope.
         Adds to session (does not commit - let service layer handle transactions).
         """
         try:
+            # Validate user belongs to organization
+            await self.verify_org_consistency_via_user(org_id, str(user_id), "user")
+            
             # Validate user and period existence first
-            await self._validate_user_and_period(user_id, goal_data.period_id)
+            await self._validate_user_and_period(user_id, goal_data.period_id, org_id)
             
             # Validate weight constraints for performance goals
             if goal_data.weight is not None:
                 await self._validate_performance_goal_weight_constraints(
                     user_id, 
                     goal_data.period_id, 
+                    org_id,
                     Decimal(str(goal_data.weight)),
                     goal_data.goal_category
                 )
@@ -66,7 +72,7 @@ class GoalRepository:
             )
             
             self.session.add(goal)
-            logger.info(f"Added goal to session: user_id={user_id}, category={goal_data.goal_category}")
+            logger.info(f"Added goal to session for org {org_id}: user_id={user_id}, category={goal_data.goal_category}")
             return goal
             
         except IntegrityError as e:
@@ -88,42 +94,45 @@ class GoalRepository:
     # READ OPERATIONS
     # ========================================
 
-    async def get_goal_by_id(self, goal_id: UUID) -> Optional[Goal]:
-        """Get goal by ID."""
+    async def get_goal_by_id(self, goal_id: UUID, org_id: str) -> Optional[Goal]:
+        """Get goal by ID within organization scope."""
         try:
-            result = await self.session.execute(
-                select(Goal).filter(Goal.id == goal_id)
-            )
+            query = select(Goal).filter(Goal.id == goal_id)
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching goal by ID {goal_id}: {e}")
+            logger.error(f"Error fetching goal by ID {goal_id} in org {org_id}: {e}")
             raise
 
-    async def get_goal_by_id_with_details(self, goal_id: UUID) -> Optional[Goal]:
-        """Get goal by ID with all related data."""
+    async def get_goal_by_id_with_details(self, goal_id: UUID, org_id: str) -> Optional[Goal]:
+        """Get goal by ID with all related data within organization scope."""
         try:
-            result = await self.session.execute(
-                select(Goal)
-                .options(
-                    joinedload(Goal.user),
-                    joinedload(Goal.period),
-                    joinedload(Goal.approver)
-                )
-                .filter(Goal.id == goal_id)
-            )
+            query = select(Goal).options(
+                joinedload(Goal.user),
+                joinedload(Goal.period),
+                joinedload(Goal.approver)
+            ).filter(Goal.id == goal_id)
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().unique().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching goal details for ID {goal_id}: {e}")
+            logger.error(f"Error fetching goal details for ID {goal_id} in org {org_id}: {e}")
             raise
 
     async def get_goals_by_user_and_period(
         self, 
         user_id: UUID, 
+        org_id: str,
         period_id: Optional[UUID] = None
     ) -> List[Goal]:
-        """Get all goals for a user, optionally filtered by period."""
+        """Get all goals for a user, optionally filtered by period within organization scope."""
         try:
             query = select(Goal).filter(Goal.user_id == user_id)
+            
+            # Apply organization filter via user relationship (required)
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            self.ensure_org_filter_applied("get_goals_by_user_and_period", org_id)
             
             if period_id:
                 query = query.filter(Goal.period_id == period_id)
@@ -138,18 +147,23 @@ class GoalRepository:
 
     async def search_goals(
         self,
+        org_id: str,
         user_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
         status: Optional[List[str]] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[Goal]:
-        """Search goals with various filters."""
+        """Search goals with various filters within organization scope."""
         try:
             query = select(Goal).options(
                 joinedload(Goal.user),
                 joinedload(Goal.period)
             )
+            
+            # Apply organization filter first (required)
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            self.ensure_org_filter_applied("search_goals", org_id)
             
             # Apply filters
             if user_ids:
@@ -178,19 +192,23 @@ class GoalRepository:
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error searching goals: {e}")
+            logger.error(f"Error searching goals for org {org_id}: {e}")
             raise
 
     async def count_goals(
         self,
+        org_id: str,
         user_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
         status: Optional[List[str]] = None
     ) -> int:
-        """Count goals matching the given filters."""
+        """Count goals matching the given filters within organization scope."""
         try:
             query = select(func.count(Goal.id))
+            
+            # Apply organization filter first (required)
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
             
             # Apply same filters as search_goals
             if user_ids:
@@ -219,9 +237,10 @@ class GoalRepository:
         self, 
         user_id: UUID, 
         period_id: UUID,
+        org_id: str,
         exclude_goal_id: Optional[UUID] = None
     ) -> Dict[str, Decimal]:
-        """Get total weight by category for weight validation."""
+        """Get total weight by category for weight validation within organization scope."""
         try:
             query = select(
                 Goal.goal_category,
@@ -234,6 +253,9 @@ class GoalRepository:
                 )
             )
             
+            # Apply organization filtering via user
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            
             if exclude_goal_id:
                 query = query.filter(Goal.id != exclude_goal_id)
             
@@ -242,16 +264,17 @@ class GoalRepository:
             result = await self.session.execute(query)
             return {row.goal_category: row.total_weight or Decimal('0') for row in result}
         except SQLAlchemyError as e:
-            logger.error(f"Error calculating weight totals for user {user_id}: {e}")
+            logger.error(f"Error calculating weight totals for user {user_id} in org {org_id}: {e}")
             raise
 
     async def get_pending_approvals_for_supervisor(
         self, 
         supervisor_id: UUID,
+        org_id: str,
         period_id: Optional[UUID] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[Goal]:
-        """Get goals pending approval for a supervisor's subordinates."""
+        """Get goals pending approval for a supervisor's subordinates within organization scope."""
         try:
             # This requires joining with supervisor relationships
             from ..models.user import UserSupervisor
@@ -272,6 +295,9 @@ class GoalRepository:
                 )
             )
             
+            # Apply organization filtering via user
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            
             if period_id:
                 query = query.filter(Goal.period_id == period_id)
             
@@ -283,18 +309,18 @@ class GoalRepository:
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching pending approvals for supervisor {supervisor_id}: {e}")
+            logger.error(f"Error fetching pending approvals for supervisor {supervisor_id} in org {org_id}: {e}")
             raise
 
     # ========================================
     # UPDATE OPERATIONS
     # ========================================
 
-    async def update_goal(self, goal_id: UUID, goal_data: GoalUpdate) -> Optional[Goal]:
-        """Update a goal with new data, including validation and atomic operations."""
+    async def update_goal(self, goal_id: UUID, goal_data: GoalUpdate, org_id: str) -> Optional[Goal]:
+        """Update a goal with new data, including validation and atomic operations within organization scope."""
         try:
-            # Validate goal exists first
-            existing_goal = await self._validate_goal_exists(goal_id)
+            # Validate goal exists first within organization scope
+            existing_goal = await self._validate_goal_exists(goal_id, org_id)
             
             # Validate weight constraints if weight is being updated
             if goal_data.weight is not None:
@@ -304,6 +330,7 @@ class GoalRepository:
                     existing_goal.period_id, 
                     new_weight,
                     existing_goal.goal_category,
+                    org_id,
                     exclude_goal_id=goal_id
                 )
             
@@ -388,16 +415,17 @@ class GoalRepository:
         self, 
         goal_id: UUID, 
         status: GoalStatus,
+        org_id: str,
         approved_by: Optional[UUID] = None
     ) -> Optional[Goal]:
-        """Update goal status and approval information with validation."""
+        """Update goal status and approval information with validation within organization scope."""
         try:
-            # Validate goal exists first
-            existing_goal = await self._validate_goal_exists(goal_id)
+            # Validate goal exists first within organization scope
+            existing_goal = await self._validate_goal_exists(goal_id, org_id)
             
             # Validate approver exists if provided
             if approved_by:
-                await self._validate_user_and_period(approved_by, existing_goal.period_id)
+                await self._validate_user_and_period(approved_by, existing_goal.period_id, org_id)
             
             # Validate status transition logic
             self._validate_status_transition(existing_goal.status, status.value)
@@ -405,7 +433,7 @@ class GoalRepository:
             # Special validation: When submitting for approval, ensure performance goals sum to 100%
             if status == GoalStatus.PENDING_APPROVAL:
                 await self._validate_all_performance_goals_sum_to_100(
-                    existing_goal.user_id, existing_goal.period_id
+                    existing_goal.user_id, existing_goal.period_id, org_id
                 )
             
             update_data = {
@@ -430,7 +458,7 @@ class GoalRepository:
             )
             
             logger.info(f"Updated goal {goal_id} status to {status.value}")
-            return await self.get_goal_by_id(goal_id)
+            return await self.get_goal_by_id(goal_id, org_id)
             
         except IntegrityError as e:
             logger.error(f"Integrity error updating goal status {goal_id}: {e}")
@@ -468,11 +496,11 @@ class GoalRepository:
     # DELETE OPERATIONS
     # ========================================
 
-    async def delete_goal(self, goal_id: UUID) -> bool:
-        """Delete a goal by ID with validation."""
+    async def delete_goal(self, goal_id: UUID, org_id: str) -> bool:
+        """Delete a goal by ID with validation within organization scope."""
         try:
-            # Validate goal exists first
-            existing_goal = await self._validate_goal_exists(goal_id)
+            # Validate goal exists first within organization scope
+            existing_goal = await self._validate_goal_exists(goal_id, org_id)
             
             # Check if goal can be deleted (e.g., only draft or rejected goals)
             if existing_goal.status == "approved":
@@ -496,37 +524,40 @@ class GoalRepository:
     # HELPER METHODS
     # ========================================
 
-    async def _validate_user_and_period(self, user_id: UUID, period_id: UUID) -> None:
-        """Validate that user and evaluation period exist."""
-        # Check user exists
+    async def _validate_user_and_period(self, user_id: UUID, period_id: UUID, org_id: str) -> None:
+        """Validate that user and evaluation period exist within organization scope."""
+        # Check user exists and belongs to organization
         user_result = await self.session.execute(
-            select(User).filter(User.id == user_id)
+            select(User).filter(User.id == user_id, User.clerk_organization_id == org_id)
         )
         if not user_result.scalars().first():
-            raise NotFoundError(f"User not found: {user_id}")
+            raise NotFoundError(f"User not found in organization: {user_id}")
         
-        # Check evaluation period exists
+        # Check evaluation period exists and belongs to organization
         period_result = await self.session.execute(
-            select(EvaluationPeriod).filter(EvaluationPeriod.id == period_id)
+            select(EvaluationPeriod).filter(
+                EvaluationPeriod.id == period_id,
+                EvaluationPeriod.organization_id == org_id
+            )
         )
         if not period_result.scalars().first():
-            raise NotFoundError(f"Evaluation period not found: {period_id}")
+            raise NotFoundError(f"Evaluation period not found in organization: {period_id}")
 
     
 
-    async def _validate_goal_exists(self, goal_id: UUID) -> Goal:
-        """Validate goal exists and return it, raise NotFoundError if not."""
-        goal = await self.get_goal_by_id(goal_id)
+    async def _validate_goal_exists(self, goal_id: UUID, org_id: str) -> Goal:
+        """Validate goal exists within organization scope and return it, raise NotFoundError if not."""
+        goal = await self.get_goal_by_id(goal_id, org_id)
         if not goal:
-            raise NotFoundError(f"Goal not found: {goal_id}")
+            raise NotFoundError(f"Goal not found in organization: {goal_id}")
         return goal
 
     async def _validate_performance_goal_weight_constraints(
         self, user_id: UUID, period_id: UUID, new_weight: Decimal, 
-        goal_category: str, exclude_goal_id: Optional[UUID] = None
+        goal_category: str, org_id: str, exclude_goal_id: Optional[UUID] = None
     ) -> None:
         """
-        Validate performance goal weight constraints.
+        Validate performance goal weight constraints within organization scope.
         
         Business Rule: The sum of all 業績目標 (performance goals) weights 
         for the same user and period must equal 100%.
@@ -537,7 +568,7 @@ class GoalRepository:
             
         # Get current weight totals for performance goals only
         weight_totals = await self.get_weight_totals_by_category(
-            user_id, period_id, exclude_goal_id
+            user_id, period_id, org_id, exclude_goal_id
         )
         
         # Get current performance goal weight total
@@ -561,13 +592,13 @@ class GoalRepository:
         )
 
     async def _validate_all_performance_goals_sum_to_100(
-        self, user_id: UUID, period_id: UUID
+        self, user_id: UUID, period_id: UUID, org_id: str
     ) -> None:
         """
-        Validate that all performance goals for a user/period sum to exactly 100%.
+        Validate that all performance goals for a user/period sum to exactly 100% within organization scope.
         This should be called when submitting goals for approval.
         """
-        weight_totals = await self.get_weight_totals_by_category(user_id, period_id)
+        weight_totals = await self.get_weight_totals_by_category(user_id, period_id, org_id)
         performance_total = weight_totals.get("業績目標", Decimal("0"))
         
         if performance_total != 100:
@@ -578,13 +609,13 @@ class GoalRepository:
             )
 
     async def validate_user_goals_for_submission(
-        self, user_id: UUID, period_id: UUID
+        self, user_id: UUID, period_id: UUID, org_id: str
     ) -> Dict[str, Any]:
         """
-        Comprehensive validation for user goals before submission.
+        Comprehensive validation for user goals before submission within organization scope.
         Returns validation status and detailed information.
         """
-        weight_totals = await self.get_weight_totals_by_category(user_id, period_id)
+        weight_totals = await self.get_weight_totals_by_category(user_id, period_id, org_id)
         performance_total = weight_totals.get("業績目標", Decimal("0"))
         
         validation_result = {

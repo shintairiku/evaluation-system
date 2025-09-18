@@ -8,36 +8,39 @@ from sqlalchemy.exc import IntegrityError
 
 from ..models.user import Role
 from ...schemas.user import RoleCreate, RoleUpdate, RoleReorderItem
+from .base import BaseRepository
 
 
 logger = logging.getLogger(__name__)
 
 
-class RoleRepository:
+class RoleRepository(BaseRepository[Role]):
     def __init__(self, session: AsyncSession):
+        super().__init__(session, Role)
         self.session = session
 
     # ============================================================================
     # CREATE OPERATIONS
     # ============================================================================
     
-    async def create_role(self, role_data: RoleCreate) -> Role:
-        """Create a new role with automatic hierarchy_order assignment."""
+    async def create_role(self, role_data: RoleCreate, org_id: str) -> Role:
+        """Create a new role with automatic hierarchy_order assignment within organization scope."""
         try:
-            # Get the next hierarchy_order
+            # Get the next hierarchy_order within organization
             if role_data.hierarchy_order is None:
-                result = await self.session.execute(
-                    select(func.max(Role.hierarchy_order))
-                )
+                query = select(func.max(Role.hierarchy_order))
+                query = self.apply_org_scope_direct(query, Role.organization_id, org_id)
+                result = await self.session.execute(query)
                 max_order = result.scalar()
                 hierarchy_order = (max_order or 0) + 1
             else:
                 hierarchy_order = role_data.hierarchy_order
-                # Make space for the new role at this position
-                await self._make_space_at_order(hierarchy_order)
+                # Make space for the new role at this position within organization
+                await self._make_space_at_order(hierarchy_order, org_id)
 
             # Create the role
             role = Role(
+                organization_id=org_id,
                 name=role_data.name,
                 description=role_data.description,
                 hierarchy_order=hierarchy_order,
@@ -49,50 +52,50 @@ class RoleRepository:
             await self.session.flush()
             await self.session.refresh(role)
             
-            logger.info(f"Created role: {role.name} with hierarchy_order: {role.hierarchy_order}")
+            logger.info(f"Created role for org {org_id}: {role.name} with hierarchy_order: {role.hierarchy_order}")
             return role
             
         except IntegrityError as e:
-            logger.error(f"IntegrityError creating role: {e}")
+            logger.error(f"IntegrityError creating role for org {org_id}: {e}")
             await self.session.rollback()
             if "unique constraint" in str(e).lower():
-                raise ValueError(f"Role name '{role_data.name}' already exists")
+                raise ValueError(f"Role name '{role_data.name}' already exists in organization")
             raise
 
     # ============================================================================
     # READ OPERATIONS
     # ============================================================================
 
-    async def get_by_id(self, role_id: UUID) -> Optional[Role]:
-        """Get role by ID."""
-        result = await self.session.execute(
-            select(Role).where(Role.id == role_id)
-        )
+    async def get_by_id(self, role_id: UUID, org_id: str) -> Optional[Role]:
+        """Get role by ID within organization scope."""
+        query = select(Role).where(Role.id == role_id)
+        query = self.apply_org_scope_direct(query, Role.organization_id, org_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_all(self) -> List[Role]:
-        """Get all roles ordered by hierarchy."""
-        result = await self.session.execute(
-            select(Role).order_by(Role.hierarchy_order)
-        )
+    async def get_all(self, org_id: str) -> List[Role]:
+        """Get all roles ordered by hierarchy within organization scope."""
+        query = select(Role).order_by(Role.hierarchy_order)
+        query = self.apply_org_scope_direct(query, Role.organization_id, org_id)
+        result = await self.session.execute(query)
         return list(result.scalars().all())
     
-    async def get_by_name(self, name: str) -> Optional[Role]:
-        """Get role by name."""
-        result = await self.session.execute(
-            select(Role).where(Role.name == name)
-        )
+    async def get_by_name(self, name: str, org_id: str) -> Optional[Role]:
+        """Get role by name within organization scope."""
+        query = select(Role).where(Role.name == name)
+        query = self.apply_org_scope_direct(query, Role.organization_id, org_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_by_hierarchy_order(self, hierarchy_order: int) -> Optional[Role]:
-        """Get role by hierarchy order."""
-        result = await self.session.execute(
-            select(Role).where(Role.hierarchy_order == hierarchy_order)
-        )
+    async def get_by_hierarchy_order(self, hierarchy_order: int, org_id: str) -> Optional[Role]:
+        """Get role by hierarchy order within organization scope."""
+        query = select(Role).where(Role.hierarchy_order == hierarchy_order)
+        query = self.apply_org_scope_direct(query, Role.organization_id, org_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_user_roles(self, user_id: UUID) -> List[Role]:
-        """Get user roles by user ID."""
+    async def get_user_roles(self, user_id: UUID, org_id: str) -> List[Role]:
+        """Get user roles by user ID within organization scope."""
         from ..models.user import user_roles
         
         query = (
@@ -101,6 +104,7 @@ class RoleRepository:
             .where(user_roles.c.user_id == user_id)
             .order_by(Role.hierarchy_order)
         )
+        query = self.apply_org_scope_direct(query, Role.organization_id, org_id)
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
@@ -108,9 +112,9 @@ class RoleRepository:
     # UPDATE OPERATIONS
     # ============================================================================
     
-    async def update_role(self, role_id: UUID, role_data: RoleUpdate) -> Optional[Role]:
-        """Update a role (name/description only, not hierarchy_order)."""
-        role = await self.get_by_id(role_id)
+    async def update_role(self, role_id: UUID, role_data: RoleUpdate, org_id: str) -> Optional[Role]:
+        """Update a role (name/description only, not hierarchy_order) within organization scope."""
+        role = await self.get_by_id(role_id, org_id)
         if not role:
             return None
         
@@ -213,11 +217,12 @@ class RoleRepository:
     # PRIVATE HELPER METHODS
     # ============================================================================
     
-    async def _make_space_at_order(self, target_order: int) -> None:
-        """Make space at the target hierarchy order by shifting other roles."""
+    async def _make_space_at_order(self, target_order: int, org_id: str) -> None:
+        """Make space at the target hierarchy order by shifting other roles within organization."""
         await self.session.execute(
             update(Role)
             .where(Role.hierarchy_order >= target_order)
+            .where(Role.organization_id == org_id)
             .values(hierarchy_order=Role.hierarchy_order + 1)
         )
         await self.session.flush()

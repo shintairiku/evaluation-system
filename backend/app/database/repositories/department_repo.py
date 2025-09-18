@@ -8,29 +8,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.user import User, Department
 from ...schemas.department import DepartmentCreate, DepartmentUpdate
 from ...schemas.common import PaginationParams
+from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
 
 
-class DepartmentRepository:
+class DepartmentRepository(BaseRepository[Department]):
     """Simple repository for department operations."""
     
     def __init__(self, session: AsyncSession):
+        super().__init__(session, Department)
         self.session = session
 
     # ========================================
     # CREATE OPERATIONS
     # ========================================
     
-    async def create_department(self, dept_data: DepartmentCreate) -> Department:
-        """Create new department with validation"""
-        # Check if department with same name already exists
-        existing = await self.get_by_name(dept_data.name)
+    async def create_department(self, dept_data: DepartmentCreate, org_id: str) -> Department:
+        """Create new department with validation within organization scope"""
+        # Check if department with same name already exists in this organization
+        existing = await self.get_by_name(dept_data.name, org_id)
         if existing:
-            raise ValueError(f"Department with name '{dept_data.name}' already exists")
+            raise ValueError(f"Department with name '{dept_data.name}' already exists in organization")
         
         # Create new department
         new_dept = Department(
+            organization_id=org_id,
             name=dept_data.name,
             description=dept_data.description
         )
@@ -38,52 +41,65 @@ class DepartmentRepository:
         self.session.add(new_dept)
         await self.session.flush()  # Flush to get the ID without committing
         
-        logger.info(f"Department created: {new_dept.id}")
+        logger.info(f"Department created for org {org_id}: {new_dept.id}")
         return new_dept
 
     # ========================================
     # READ OPERATIONS
     # ========================================
     
-    async def get_all(self) -> List[Department]:
-        """Get all departments."""
-        result = await self.session.execute(select(Department))
+    async def get_all(self, org_id: str) -> List[Department]:
+        """Get all departments within organization scope."""
+        query = select(Department)
+        query = self.apply_org_scope_direct(query, Department.organization_id, org_id)
+        result = await self.session.execute(query)
         return result.scalars().all()
     
-    async def get_by_id(self, department_id: UUID) -> Optional[Department]:
-        """Get department by ID."""
-        result = await self.session.execute(
-            select(Department).where(Department.id == department_id)
-        )
+    async def get_by_id(self, department_id: UUID, org_id: str) -> Optional[Department]:
+        """Get department by ID within organization scope."""
+        query = select(Department).where(Department.id == department_id)
+        query = self.apply_org_scope_direct(query, Department.organization_id, org_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_by_name(self, name: str) -> Optional[Department]:
-        """Get department by name for uniqueness validation"""
-        result = await self.session.execute(
-            select(Department).where(Department.name == name)
-        )
+    async def get_by_name(self, name: str, org_id: str) -> Optional[Department]:
+        """Get department by name within organization scope"""
+        query = select(Department).where(Department.name == name)
+        query = self.apply_org_scope_direct(query, Department.organization_id, org_id)
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_department_users(self, dept_id: UUID) -> List[User]:
-        """Get all users in a department"""
-        result = await self.session.execute(
-            select(User).where(
-                and_(
-                    User.department_id == dept_id,
-                    User.status == "active"
-                )
-            ).order_by(User.name)
-        )
+    async def get_department_users(self, dept_id: UUID, org_id: str) -> List[User]:
+        """Get all users in a department within organization scope"""
+        # First verify department belongs to organization
+        dept = await self.get_by_id(dept_id, org_id)
+        if not dept:
+            raise ValueError(f"Department {dept_id} not found in organization {org_id}")
+        
+        # Get users - they are already org-scoped through their clerk_organization_id
+        query = select(User).where(
+            and_(
+                User.department_id == dept_id,
+                User.status == "active",
+                User.clerk_organization_id == org_id
+            )
+        ).order_by(User.name)
+        
+        result = await self.session.execute(query)
         return result.scalars().all()
 
     async def search_departments(
         self, 
+        org_id: str,
         search_term: str = "", 
         filters: Optional[Dict[str, Any]] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[Department]:
-        """Search departments with filtering"""
+        """Search departments with filtering within organization scope"""
         query = select(Department)
+        
+        # Apply organization filter first
+        query = self.apply_org_scope_direct(query, Department.organization_id, org_id)
         
         # Add search term
         if search_term:

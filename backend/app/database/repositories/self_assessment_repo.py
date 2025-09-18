@@ -18,31 +18,33 @@ from ...schemas.common import PaginationParams, SubmissionStatus
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
+from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
 
 
-class SelfAssessmentRepository:
+class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     """Repository for SelfAssessment database operations following established patterns"""
 
     def __init__(self, session: AsyncSession):
+        super().__init__(session, SelfAssessment)
         self.session = session
 
     # ========================================
     # CREATE OPERATIONS
     # ========================================
 
-    async def create_assessment(self, assessment_data: SelfAssessmentCreate, goal_id: UUID) -> SelfAssessment:
+    async def create_assessment(self, assessment_data: SelfAssessmentCreate, goal_id: UUID, org_id: str) -> SelfAssessment:
         """
-        Create a new self-assessment from SelfAssessmentCreate schema with validation.
+        Create a new self-assessment from SelfAssessmentCreate schema with validation within organization scope.
         Adds to session (does not commit - let service layer handle transactions).
         """
         try:
-            # Validate goal exists first
-            goal = await self._validate_goal_exists(goal_id)
+            # Validate goal exists first within organization scope
+            goal = await self._validate_goal_exists(goal_id, org_id)
             
-            # Check if assessment already exists for this goal
-            existing = await self.get_by_goal(goal_id)
+            # Check if assessment already exists for this goal within organization scope
+            existing = await self.get_by_goal(goal_id, org_id)
             if existing:
                 raise ConflictError(f"Self-assessment already exists for goal {goal_id}")
             
@@ -80,21 +82,22 @@ class SelfAssessmentRepository:
     # READ OPERATIONS
     # ========================================
 
-    async def get_by_id(self, assessment_id: UUID) -> Optional[SelfAssessment]:
-        """Get self-assessment by ID."""
+    async def get_by_id(self, assessment_id: UUID, org_id: str) -> Optional[SelfAssessment]:
+        """Get self-assessment by ID within organization scope."""
         try:
-            result = await self.session.execute(
-                select(SelfAssessment).filter(SelfAssessment.id == assessment_id)
-            )
+            query = select(SelfAssessment).filter(SelfAssessment.id == assessment_id)
+            # Apply organization filtering via goal (SelfAssessment -> Goal -> User)
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching self-assessment by ID {assessment_id}: {e}")
+            logger.error(f"Error fetching self-assessment by ID {assessment_id} in org {org_id}: {e}")
             raise
 
-    async def get_by_id_with_details(self, assessment_id: UUID) -> Optional[SelfAssessment]:
-        """Get self-assessment by ID with all related data."""
+    async def get_by_id_with_details(self, assessment_id: UUID, org_id: str) -> Optional[SelfAssessment]:
+        """Get self-assessment by ID with all related data within organization scope."""
         try:
-            result = await self.session.execute(
+            query = (
                 select(SelfAssessment)
                 .options(
                     joinedload(SelfAssessment.goal).joinedload(Goal.user),
@@ -102,31 +105,36 @@ class SelfAssessmentRepository:
                 )
                 .filter(SelfAssessment.id == assessment_id)
             )
+            # Apply organization filtering via goal (SelfAssessment -> Goal -> User)
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().unique().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching self-assessment details for ID {assessment_id}: {e}")
+            logger.error(f"Error fetching self-assessment details for ID {assessment_id} in org {org_id}: {e}")
             raise
 
-    async def get_by_goal(self, goal_id: UUID) -> Optional[SelfAssessment]:
-        """Get self-assessment by goal ID."""
+    async def get_by_goal(self, goal_id: UUID, org_id: str) -> Optional[SelfAssessment]:
+        """Get self-assessment by goal ID within organization scope."""
         try:
-            result = await self.session.execute(
-                select(SelfAssessment).filter(SelfAssessment.goal_id == goal_id)
-            )
+            query = select(SelfAssessment).filter(SelfAssessment.goal_id == goal_id)
+            # Apply organization filtering via goal (SelfAssessment -> Goal -> User)
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching self-assessment for goal {goal_id}: {e}")
+            logger.error(f"Error fetching self-assessment for goal {goal_id} in org {org_id}: {e}")
             raise
 
     async def get_by_user_and_period(
         self, 
         user_id: UUID, 
-        period_id: UUID
+        period_id: UUID,
+        org_id: str
     ) -> List[SelfAssessment]:
-        """Get all self-assessments for a user in a specific period."""
+        """Get all self-assessments for a user in a specific period within organization scope."""
         try:
             goal_alias = aliased(Goal)
-            result = await self.session.execute(
+            query = (
                 select(SelfAssessment)
                 .join(goal_alias, SelfAssessment.goal_id == goal_alias.id)
                 .options(joinedload(SelfAssessment.goal))
@@ -136,24 +144,32 @@ class SelfAssessmentRepository:
                         SelfAssessment.period_id == period_id
                     )
                 )
-                .order_by(SelfAssessment.created_at.desc())
             )
+            # Apply organization filtering via goal
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
+            query = query.order_by(SelfAssessment.created_at.desc())
+            
+            result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching self-assessments for user {user_id}, period {period_id}: {e}")
+            logger.error(f"Error fetching self-assessments for user {user_id}, period {period_id} in org {org_id}: {e}")
             raise
 
     async def get_by_period(
         self, 
         period_id: UUID,
+        org_id: str,
         status: Optional[str] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[SelfAssessment]:
-        """Get self-assessments by period with optional status filter."""
+        """Get self-assessments by period within organization scope with optional status filter."""
         try:
             query = select(SelfAssessment).options(
                 joinedload(SelfAssessment.goal).joinedload(Goal.user)
             ).filter(SelfAssessment.period_id == period_id)
+            
+            # Enforce organization scope via goal -> user
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
             
             if status:
                 query = query.filter(SelfAssessment.status == status)
@@ -166,16 +182,17 @@ class SelfAssessmentRepository:
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching self-assessments for period {period_id}: {e}")
+            logger.error(f"Error fetching self-assessments for period {period_id} in org {org_id}: {e}")
             raise
 
     async def get_by_status(
         self, 
         status: str,
+        org_id: str,
         period_id: Optional[UUID] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[SelfAssessment]:
-        """Get self-assessments by status with optional period filter."""
+        """Get self-assessments by status within organization scope with optional period filter."""
         try:
             query = select(SelfAssessment).options(
                 joinedload(SelfAssessment.goal).joinedload(Goal.user)
@@ -183,6 +200,9 @@ class SelfAssessmentRepository:
             
             if period_id:
                 query = query.filter(SelfAssessment.period_id == period_id)
+
+            # Enforce organization scope via goal -> user
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
             
             query = query.order_by(SelfAssessment.created_at.desc())
             
@@ -192,17 +212,18 @@ class SelfAssessmentRepository:
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching self-assessments by status {status}: {e}")
+            logger.error(f"Error fetching self-assessments by status {status} in org {org_id}: {e}")
             raise
 
     async def search_assessments(
         self,
+        org_id: str,
         user_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[SelfAssessment]:
-        """Search self-assessments with various filters."""
+        """Search self-assessments within organization scope with various filters."""
         try:
             query = select(SelfAssessment).options(
                 joinedload(SelfAssessment.goal).joinedload(Goal.user),
@@ -220,6 +241,9 @@ class SelfAssessmentRepository:
             if status:
                 query = query.filter(SelfAssessment.status == status)
             
+            # Enforce organization scope via goal -> user
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
+
             # Apply ordering
             query = query.order_by(SelfAssessment.created_at.desc())
             
@@ -230,16 +254,17 @@ class SelfAssessmentRepository:
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error searching self-assessments: {e}")
+            logger.error(f"Error searching self-assessments in org {org_id}: {e}")
             raise
 
     async def count_assessments(
         self,
+        org_id: str,
         user_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None
     ) -> int:
-        """Count self-assessments matching the given filters."""
+        """Count self-assessments within organization scope matching the given filters."""
         try:
             query = select(func.count(SelfAssessment.id))
             
@@ -253,22 +278,25 @@ class SelfAssessmentRepository:
             
             if status:
                 query = query.filter(SelfAssessment.status == status)
+
+            # Enforce organization scope via goal -> user
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
             
             result = await self.session.execute(query)
             return result.scalar() or 0
         except SQLAlchemyError as e:
-            logger.error(f"Error counting self-assessments: {e}")
+            logger.error(f"Error counting self-assessments in org {org_id}: {e}")
             raise
 
     # ========================================
     # UPDATE OPERATIONS
     # ========================================
 
-    async def update_assessment(self, assessment_id: UUID, assessment_data: SelfAssessmentUpdate) -> Optional[SelfAssessment]:
+    async def update_assessment(self, assessment_id: UUID, assessment_data: SelfAssessmentUpdate, org_id: str) -> Optional[SelfAssessment]:
         """Update a self-assessment with new data, including validation."""
         try:
-            # Validate assessment exists first
-            existing_assessment = await self._validate_assessment_exists(assessment_id)
+            # Validate assessment exists first (organization-scoped)
+            existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
             
             # Build update dictionary
             update_data = {}
@@ -298,7 +326,7 @@ class SelfAssessmentRepository:
                 )
             
             # Return updated assessment
-            return await self.get_by_id(assessment_id)
+            return await self.get_by_id(assessment_id, org_id)
             
         except IntegrityError as e:
             logger.error(f"Integrity error updating self-assessment {assessment_id}: {e}")
@@ -317,11 +345,11 @@ class SelfAssessmentRepository:
             logger.error(f"Database error updating self-assessment {assessment_id}: {e}")
             raise
 
-    async def submit_assessment(self, assessment_id: UUID) -> Optional[SelfAssessment]:
+    async def submit_assessment(self, assessment_id: UUID, org_id: str) -> Optional[SelfAssessment]:
         """Submit a self-assessment by changing status to submitted."""
         try:
-            # Validate assessment exists and is in draft status
-            existing_assessment = await self._validate_assessment_exists(assessment_id)
+            # Validate assessment exists and is in draft status (organization-scoped)
+            existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
             
             if existing_assessment.status != SubmissionStatus.DRAFT.value:
                 raise ValidationError("Can only submit draft assessments")
@@ -340,7 +368,7 @@ class SelfAssessmentRepository:
             )
             
             logger.info(f"Submitted self-assessment {assessment_id}")
-            return await self.get_by_id(assessment_id)
+            return await self.get_by_id(assessment_id, org_id)
             
         except SQLAlchemyError as e:
             logger.error(f"Database error submitting self-assessment {assessment_id}: {e}")
@@ -350,47 +378,57 @@ class SelfAssessmentRepository:
     # DELETE OPERATIONS
     # ========================================
 
-    async def delete_assessment(self, assessment_id: UUID) -> bool:
-        """Delete a self-assessment by ID with validation."""
+    async def delete_assessment(self, assessment_id: UUID, org_id: str) -> bool:
+        """Delete a self-assessment by ID with organization validation."""
         try:
-            # Validate assessment exists first
-            existing_assessment = await self._validate_assessment_exists(assessment_id)
-            
+            # Validate assessment exists first (organization-scoped)
+            existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
+
             # Check if assessment can be deleted (only draft assessments)
             if existing_assessment.status == SubmissionStatus.SUBMITTED.value:
                 raise ValidationError("Cannot delete submitted assessments")
-            
+
             result = await self.session.execute(
-                delete(SelfAssessment).where(SelfAssessment.id == assessment_id)
+                delete(SelfAssessment)
+                .where(SelfAssessment.id == assessment_id)
             )
-            
+
             deleted = result.rowcount > 0
             if deleted:
-                logger.info(f"Deleted self-assessment {assessment_id}")
-            
+                logger.info(f"Deleted self-assessment {assessment_id} in org {org_id}")
+
             return deleted
-            
+
         except SQLAlchemyError as e:
-            logger.error(f"Database error deleting self-assessment {assessment_id}: {e}")
+            logger.error(f"Database error deleting self-assessment {assessment_id} in org {org_id}: {e}")
             raise
 
     # ========================================
     # HELPER METHODS
     # ========================================
 
-    async def _validate_goal_exists(self, goal_id: UUID) -> Goal:
-        """Validate goal exists and return it, raise NotFoundError if not."""
+    async def _validate_goal_exists(self, goal_id: UUID, org_id: str) -> Goal:
+        """Validate goal exists within organization and return it, raise NotFoundError if not."""
         result = await self.session.execute(
             select(Goal).filter(Goal.id == goal_id)
         )
         goal = result.scalars().first()
         if not goal:
             raise NotFoundError(f"Goal not found: {goal_id}")
+
+        # Verify goal belongs to organization via user relationship
+        # Use the BaseRepository helper to enforce organization scope
+        query = select(Goal).filter(Goal.id == goal_id)
+        query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+        org_scoped = (await self.session.execute(query)).scalars().first()
+        if not org_scoped:
+            raise NotFoundError(f"Goal {goal_id} not found in organization {org_id}")
+
         return goal
 
-    async def _validate_assessment_exists(self, assessment_id: UUID) -> SelfAssessment:
-        """Validate assessment exists and return it, raise NotFoundError if not."""
-        assessment = await self.get_by_id(assessment_id)
+    async def _validate_assessment_exists(self, assessment_id: UUID, org_id: str) -> SelfAssessment:
+        """Validate assessment exists within organization and return it, raise NotFoundError if not."""
+        assessment = await self.get_by_id(assessment_id, org_id)
         if not assessment:
             raise NotFoundError(f"Self-assessment not found: {assessment_id}")
         return assessment
