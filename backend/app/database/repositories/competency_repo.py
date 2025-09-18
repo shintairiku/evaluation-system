@@ -8,14 +8,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.stage_competency import Competency
+from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
 
 
-class CompetencyRepository:
+class CompetencyRepository(BaseRepository[Competency]):
 
     def __init__(self, session: AsyncSession):
-        self.session = session
+        super().__init__(session, Competency)
 
     # ========================================
     # CREATE OPERATIONS
@@ -25,38 +26,50 @@ class CompetencyRepository:
         """Add a competency to the session (does not commit)."""
         self.session.add(competency)
 
-    async def create(self, name: str, stage_id: UUID, description: Optional[str] = None) -> Competency:
+    async def create(self, name: str, stage_id: UUID, org_id: str, description: Optional[str] = None) -> Competency:
         """
-        Create a new competency.
+        Create a new competency within organization scope.
         Adds to session (does not commit - let service layer handle transactions).
         """
         try:
+            # Validate stage belongs to organization
+            from ..models.stage_competency import Stage
+            stage_result = await self.session.execute(
+                select(Stage.organization_id).where(Stage.id == stage_id)
+            )
+            stage_org_id = stage_result.scalar()
+            if not stage_org_id:
+                raise ValueError(f"Stage {stage_id} not found")
+            if stage_org_id != org_id:
+                raise ValueError(f"Stage belongs to org {stage_org_id}, expected {org_id}")
+            
             competency = Competency(
+                organization_id=org_id,
                 name=name,
                 stage_id=stage_id,
                 description=description
             )
             
             self.session.add(competency)
-            logger.info(f"Added competency to session: {competency.name}")
+            logger.info(f"Added competency to session for org {org_id}: {competency.name}")
             return competency
         except SQLAlchemyError as e:
-            logger.error(f"Error creating competency with name {name}: {e}")
+            logger.error(f"Error creating competency with name {name} for org {org_id}: {e}")
             raise
 
     # ========================================
     # READ OPERATIONS
     # ========================================
 
-    async def get_by_id(self, competency_id: UUID) -> Optional[Competency]:
-        """Get competency by ID."""
+    async def get_by_id(self, competency_id: UUID, org_id: str) -> Optional[Competency]:
+        """Get competency by ID within organization scope."""
         try:
-            result = await self.session.execute(
-                select(Competency).filter(Competency.id == competency_id)
-            )
+            query = select(Competency).filter(Competency.id == competency_id)
+            query = self.apply_org_scope_direct(query, Competency.organization_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching competency by ID {competency_id}: {e}")
+            logger.error(f"Error fetching competency by ID {competency_id} in org {org_id}: {e}")
             raise
 
     # async def get_competency_by_id_with_stage(self, competency_id: UUID) -> Optional[Competency]:
@@ -72,50 +85,50 @@ class CompetencyRepository:
     #         logger.error(f"Error fetching competency with stage for ID {competency_id}: {e}")
     #         raise
 
-    async def get_by_name(self, name: str) -> Optional[Competency]:
-        """Get competency by name."""
+    async def get_by_name(self, name: str, org_id: str) -> Optional[Competency]:
+        """Get competency by name within organization scope."""
         try:
-            result = await self.session.execute(
-                select(Competency).filter(Competency.name == name)
-            )
+            query = select(Competency).filter(Competency.name == name)
+            query = self.apply_org_scope_direct(query, Competency.organization_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching competency by name {name}: {e}")
+            logger.error(f"Error fetching competency by name {name} in org {org_id}: {e}")
             raise
 
-    async def get_by_stage_id(self, stage_id: UUID) -> list[Competency]:
-        """Get all competencies for a specific stage."""
+    async def get_by_stage_id(self, stage_id: UUID, org_id: str) -> list[Competency]:
+        """Get all competencies for a specific stage within organization scope."""
         try:
-            result = await self.session.execute(
-                select(Competency)
-                .options(joinedload(Competency.stage))
-                .filter(Competency.stage_id == stage_id)
-                .order_by(Competency.name)
-            )
+            query = select(Competency).options(
+                joinedload(Competency.stage)
+            ).filter(Competency.stage_id == stage_id).order_by(Competency.name)
+            query = self.apply_org_scope_direct(query, Competency.organization_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching competencies for stage {stage_id}: {e}")
+            logger.error(f"Error fetching competencies for stage {stage_id} in org {org_id}: {e}")
             raise
 
-    async def get_all(self) -> list[Competency]:
-        """Get all competencies with stage information."""
+    async def get_all(self, org_id: str) -> list[Competency]:
+        """Get all competencies with stage information within organization scope."""
         try:
-            result = await self.session.execute(
-                select(Competency)
-                .options(joinedload(Competency.stage))
-                .order_by(Competency.name)
-            )
+            query = select(Competency).options(
+                joinedload(Competency.stage)
+            ).order_by(Competency.name)
+            query = self.apply_org_scope_direct(query, Competency.organization_id, org_id)
+            result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching all competencies: {e}")
+            logger.error(f"Error fetching all competencies for org {org_id}: {e}")
             raise
 
-    async def search(self, search_term: str = "", stage_ids: Optional[list[UUID]] = None) -> list[Competency]:
+    async def search(self, org_id: str, search_term: str = "", stage_ids: Optional[list[UUID]] = None) -> list[Competency]:
         """
-        Search competencies by name or description with optional stage filtering.
+        Search competencies by name or description with optional stage filtering within organization scope.
         """
         try:
             query = select(Competency).options(joinedload(Competency.stage))
+            query = self.apply_org_scope_direct(query, Competency.organization_id, org_id)
 
             if search_term:
                 search_ilike = f"%{search_term.lower()}%"
@@ -132,21 +145,33 @@ class CompetencyRepository:
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error searching competencies: {e}")
+            logger.error(f"Error searching competencies for org {org_id}: {e}")
             raise
 
     # ========================================
     # UPDATE OPERATIONS
     # ========================================
 
-    async def update(self, competency_id: UUID, name: Optional[str] = None, 
+    async def update(self, competency_id: UUID, org_id: str, name: Optional[str] = None, 
                                description: Optional[str] = None, stage_id: Optional[UUID] = None) -> Optional[Competency]:
-        """Update a competency (does not commit)."""
+        """Update a competency within organization scope (does not commit)."""
         try:
-            # Get the existing competency
-            existing_competency = await self.get_by_id(competency_id)
+            # Get the existing competency within organization scope
+            existing_competency = await self.get_by_id(competency_id, org_id)
             if not existing_competency:
                 return None
+            
+            # If updating stage_id, validate it belongs to the same organization
+            if stage_id is not None:
+                from ..models.stage_competency import Stage
+                stage_result = await self.session.execute(
+                    select(Stage.organization_id).where(Stage.id == stage_id)
+                )
+                stage_org_id = stage_result.scalar()
+                if not stage_org_id:
+                    raise ValueError(f"Stage {stage_id} not found")
+                if stage_org_id != org_id:
+                    raise ValueError(f"Stage belongs to org {stage_org_id}, expected {org_id}")
             
             # Update fields if provided
             if name is not None:
@@ -158,7 +183,7 @@ class CompetencyRepository:
             
             # Mark as modified in session
             self.session.add(existing_competency)
-            logger.info(f"Updated competency in session: {existing_competency.name}")
+            logger.info(f"Updated competency in session for org {org_id}: {existing_competency.name}")
             return existing_competency
             
         except SQLAlchemyError as e:

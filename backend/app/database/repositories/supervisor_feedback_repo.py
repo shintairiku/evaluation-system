@@ -17,31 +17,32 @@ from ...schemas.common import PaginationParams, SubmissionStatus
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
+from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
 
 
-class SupervisorFeedbackRepository:
+class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     """Repository for SupervisorFeedback database operations following established patterns"""
 
     def __init__(self, session: AsyncSession):
-        self.session = session
+        super().__init__(session, SupervisorFeedback)
 
     # ========================================
     # CREATE OPERATIONS
     # ========================================
 
-    async def create_feedback(self, feedback_data: SupervisorFeedbackCreate, supervisor_id: UUID) -> SupervisorFeedback:
+    async def create_feedback(self, feedback_data: SupervisorFeedbackCreate, supervisor_id: UUID, org_id: str) -> SupervisorFeedback:
         """
-        Create a new supervisor feedback from SupervisorFeedbackCreate schema with validation.
+        Create a new supervisor feedback from SupervisorFeedbackCreate schema with validation within organization scope.
         Adds to session (does not commit - let service layer handle transactions).
         """
         try:
-            # Validate self-assessment exists first
-            self_assessment = await self._validate_self_assessment_exists(feedback_data.self_assessment_id)
+            # Validate self-assessment exists first within organization scope
+            self_assessment = await self._validate_self_assessment_exists(feedback_data.self_assessment_id, org_id)
             
-            # Check if feedback already exists for this self-assessment
-            existing = await self.get_by_self_assessment(feedback_data.self_assessment_id)
+            # Check if feedback already exists for this self-assessment within organization scope
+            existing = await self.get_by_self_assessment(feedback_data.self_assessment_id, org_id)
             if existing:
                 raise ConflictError(f"Supervisor feedback already exists for self-assessment {feedback_data.self_assessment_id}")
             
@@ -80,21 +81,35 @@ class SupervisorFeedbackRepository:
     # READ OPERATIONS
     # ========================================
 
-    async def get_by_id(self, feedback_id: UUID) -> Optional[SupervisorFeedback]:
-        """Get supervisor feedback by ID."""
+    async def get_by_id(self, feedback_id: UUID, org_id: str) -> Optional[SupervisorFeedback]:
+        """Get supervisor feedback by ID within organization scope."""
         try:
-            result = await self.session.execute(
-                select(SupervisorFeedback).filter(SupervisorFeedback.id == feedback_id)
+            from ..models.goal import Goal
+            from ..models.user import User
+            
+            query = (
+                select(SupervisorFeedback)
+                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .filter(
+                    SupervisorFeedback.id == feedback_id,
+                    User.clerk_organization_id == org_id
+                )
             )
+            result = await self.session.execute(query)
             return result.scalars().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching supervisor feedback by ID {feedback_id}: {e}")
+            logger.error(f"Error fetching supervisor feedback by ID {feedback_id} in org {org_id}: {e}")
             raise
 
-    async def get_by_id_with_details(self, feedback_id: UUID) -> Optional[SupervisorFeedback]:
-        """Get supervisor feedback by ID with all related data for SupervisorFeedbackDetail response."""
+    async def get_by_id_with_details(self, feedback_id: UUID, org_id: str) -> Optional[SupervisorFeedback]:
+        """Get supervisor feedback by ID with all related data for SupervisorFeedbackDetail response within organization scope."""
         try:
-            result = await self.session.execute(
+            from ..models.goal import Goal
+            from ..models.user import User
+            
+            query = (
                 select(SupervisorFeedback)
                 .options(
                     # Self-assessment with complete goal and user details
@@ -104,61 +119,102 @@ class SupervisorFeedbackRepository:
                     # Supervisor user data
                     joinedload(SupervisorFeedback.supervisor)
                 )
-                .filter(SupervisorFeedback.id == feedback_id)
+                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .filter(
+                    SupervisorFeedback.id == feedback_id,
+                    User.clerk_organization_id == org_id
+                )
             )
+            result = await self.session.execute(query)
             return result.scalars().unique().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching supervisor feedback details for ID {feedback_id}: {e}")
+            logger.error(f"Error fetching supervisor feedback details for ID {feedback_id} in org {org_id}: {e}")
             raise
 
-    async def get_by_self_assessment(self, self_assessment_id: UUID) -> Optional[SupervisorFeedback]:
-        """Get supervisor feedback by self-assessment ID."""
+    async def get_by_self_assessment(self, self_assessment_id: UUID, org_id: str) -> Optional[SupervisorFeedback]:
+        """Get supervisor feedback by self-assessment ID within organization scope."""
         try:
-            result = await self.session.execute(
-                select(SupervisorFeedback).filter(SupervisorFeedback.self_assessment_id == self_assessment_id)
+            from ..models.goal import Goal
+            from ..models.user import User
+            
+            query = (
+                select(SupervisorFeedback)
+                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .filter(
+                    SupervisorFeedback.self_assessment_id == self_assessment_id,
+                    User.clerk_organization_id == org_id
+                )
             )
+            result = await self.session.execute(query)
             return result.scalars().first()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching supervisor feedback for self-assessment {self_assessment_id}: {e}")
+            logger.error(f"Error fetching supervisor feedback for self-assessment {self_assessment_id} in org {org_id}: {e}")
             raise
 
     async def get_by_supervisor_and_period(
         self, 
         supervisor_id: UUID, 
-        period_id: UUID
+        period_id: UUID,
+        org_id: str
     ) -> List[SupervisorFeedback]:
-        """Get all supervisor feedbacks for a supervisor in a specific period."""
+        """Get all supervisor feedbacks for a supervisor in a specific period within organization scope."""
         try:
-            result = await self.session.execute(
+            from ..models.goal import Goal
+            from ..models.user import User
+            
+            query = (
                 select(SupervisorFeedback)
                 .options(
                     joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user)
                 )
+                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(User, Goal.user_id == User.id)
                 .filter(
                     and_(
                         SupervisorFeedback.supervisor_id == supervisor_id,
-                        SupervisorFeedback.period_id == period_id
+                        SupervisorFeedback.period_id == period_id,
+                        User.clerk_organization_id == org_id
                     )
                 )
                 .order_by(SupervisorFeedback.created_at.desc())
             )
+            result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching supervisor feedbacks for supervisor {supervisor_id}, period {period_id}: {e}")
+            logger.error(f"Error fetching supervisor feedbacks for supervisor {supervisor_id}, period {period_id} in org {org_id}: {e}")
             raise
 
     async def get_by_period(
         self, 
         period_id: UUID,
+        org_id: str,
         status: Optional[str] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[SupervisorFeedback]:
-        """Get supervisor feedbacks by period with optional status filter."""
+        """Get supervisor feedbacks by period with optional status filter within organization scope."""
         try:
-            query = select(SupervisorFeedback).options(
-                joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
-                joinedload(SupervisorFeedback.supervisor)
-            ).filter(SupervisorFeedback.period_id == period_id)
+            from ..models.goal import Goal
+            from ..models.user import User
+            
+            query = (
+                select(SupervisorFeedback)
+                .options(
+                    joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
+                    joinedload(SupervisorFeedback.supervisor)
+                )
+                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .filter(
+                    SupervisorFeedback.period_id == period_id,
+                    User.clerk_organization_id == org_id
+                )
+            )
             
             if status:
                 query = query.filter(SupervisorFeedback.status == status)
@@ -171,22 +227,36 @@ class SupervisorFeedbackRepository:
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching supervisor feedbacks for period {period_id}: {e}")
+            logger.error(f"Error fetching supervisor feedbacks for period {period_id} in org {org_id}: {e}")
             raise
 
     async def get_by_status(
         self, 
         status: str,
+        org_id: str,
         supervisor_id: Optional[UUID] = None,
         period_id: Optional[UUID] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[SupervisorFeedback]:
-        """Get supervisor feedbacks by status with optional filters."""
+        """Get supervisor feedbacks by status with optional filters within organization scope."""
         try:
-            query = select(SupervisorFeedback).options(
-                joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
-                joinedload(SupervisorFeedback.supervisor)
-            ).filter(SupervisorFeedback.status == status)
+            from ..models.goal import Goal
+            from ..models.user import User
+            
+            query = (
+                select(SupervisorFeedback)
+                .options(
+                    joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
+                    joinedload(SupervisorFeedback.supervisor)
+                )
+                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .filter(
+                    SupervisorFeedback.status == status,
+                    User.clerk_organization_id == org_id
+                )
+            )
             
             if supervisor_id:
                 query = query.filter(SupervisorFeedback.supervisor_id == supervisor_id)
@@ -202,23 +272,34 @@ class SupervisorFeedbackRepository:
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
-            logger.error(f"Error fetching supervisor feedbacks by status {status}: {e}")
+            logger.error(f"Error fetching supervisor feedbacks by status {status} in org {org_id}: {e}")
             raise
 
     async def search_feedbacks(
         self,
+        org_id: str,
         supervisor_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
         user_ids: Optional[List[UUID]] = None,  # For filtering by assessment owner
         pagination: Optional[PaginationParams] = None
     ) -> List[SupervisorFeedback]:
-        """Search supervisor feedbacks with various filters."""
+        """Search supervisor feedbacks with various filters within organization scope."""
         try:
-            query = select(SupervisorFeedback).options(
-                joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
-                joinedload(SupervisorFeedback.supervisor),
-                joinedload(SupervisorFeedback.period)
+            from ..models.goal import Goal
+            from ..models.user import User
+            
+            query = (
+                select(SupervisorFeedback)
+                .options(
+                    joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
+                    joinedload(SupervisorFeedback.supervisor),
+                    joinedload(SupervisorFeedback.period)
+                )
+                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .filter(User.clerk_organization_id == org_id)
             )
             
             # Apply filters
@@ -232,9 +313,7 @@ class SupervisorFeedbackRepository:
                 query = query.filter(SupervisorFeedback.status == status)
             
             if user_ids:
-                # Filter by assessment owners (employees)
-                query = query.join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
-                query = query.join(Goal, SelfAssessment.goal_id == Goal.id)
+                # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
             
             # Apply ordering
@@ -252,14 +331,24 @@ class SupervisorFeedbackRepository:
 
     async def count_feedbacks(
         self,
+        org_id: str,
         supervisor_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
         user_ids: Optional[List[UUID]] = None
     ) -> int:
-        """Count supervisor feedbacks matching the given filters."""
+        """Count supervisor feedbacks matching the given filters within organization scope."""
         try:
-            query = select(func.count(SupervisorFeedback.id))
+            from ..models.goal import Goal
+            from ..models.user import User
+            
+            query = (
+                select(func.count(SupervisorFeedback.id))
+                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .join(Goal, SelfAssessment.goal_id == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .filter(User.clerk_organization_id == org_id)
+            )
             
             # Apply same filters as search_feedbacks
             if supervisor_ids:
@@ -272,25 +361,24 @@ class SupervisorFeedbackRepository:
                 query = query.filter(SupervisorFeedback.status == status)
             
             if user_ids:
-                query = query.join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
-                query = query.join(Goal, SelfAssessment.goal_id == Goal.id)
+                # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
             
             result = await self.session.execute(query)
             return result.scalar() or 0
         except SQLAlchemyError as e:
-            logger.error(f"Error counting supervisor feedbacks: {e}")
+            logger.error(f"Error counting supervisor feedbacks in org {org_id}: {e}")
             raise
 
     # ========================================
     # UPDATE OPERATIONS
     # ========================================
 
-    async def update_feedback(self, feedback_id: UUID, feedback_data: SupervisorFeedbackUpdate) -> Optional[SupervisorFeedback]:
-        """Update a supervisor feedback with new data, including validation."""
+    async def update_feedback(self, feedback_id: UUID, feedback_data: SupervisorFeedbackUpdate, org_id: str) -> Optional[SupervisorFeedback]:
+        """Update a supervisor feedback with new data, including validation within organization scope."""
         try:
-            # Validate feedback exists first
-            existing_feedback = await self._validate_feedback_exists(feedback_id)
+            # Validate feedback exists first within organization scope
+            existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
             
             # Build update dictionary
             update_data = {}
@@ -311,7 +399,7 @@ class SupervisorFeedbackRepository:
                 )
             
             # Return updated feedback
-            return await self.get_by_id(feedback_id)
+            return await self.get_by_id(feedback_id, org_id)
             
         except IntegrityError as e:
             logger.error(f"Integrity error updating supervisor feedback {feedback_id}: {e}")
@@ -330,11 +418,11 @@ class SupervisorFeedbackRepository:
             logger.error(f"Database error updating supervisor feedback {feedback_id}: {e}")
             raise
 
-    async def submit_feedback(self, feedback_id: UUID) -> Optional[SupervisorFeedback]:
-        """Submit a supervisor feedback by changing status to submitted."""
+    async def submit_feedback(self, feedback_id: UUID, org_id: str) -> Optional[SupervisorFeedback]:
+        """Submit a supervisor feedback by changing status to submitted within organization scope."""
         try:
-            # Validate feedback exists and is in draft status
-            existing_feedback = await self._validate_feedback_exists(feedback_id)
+            # Validate feedback exists and is in draft status within organization scope
+            existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
             
             if existing_feedback.status != SubmissionStatus.DRAFT.value:
                 raise ValidationError("Can only submit draft feedbacks")
@@ -353,17 +441,17 @@ class SupervisorFeedbackRepository:
             )
             
             logger.info(f"Submitted supervisor feedback {feedback_id}")
-            return await self.get_by_id(feedback_id)
+            return await self.get_by_id(feedback_id, org_id)
             
         except SQLAlchemyError as e:
             logger.error(f"Database error submitting supervisor feedback {feedback_id}: {e}")
             raise
 
-    async def draft_feedback(self, feedback_id: UUID) -> Optional[SupervisorFeedback]:
-        """Change a supervisor feedback status to draft."""
+    async def draft_feedback(self, feedback_id: UUID, org_id: str) -> Optional[SupervisorFeedback]:
+        """Change a supervisor feedback status to draft within organization scope."""
         try:
-            # Validate feedback exists and is in submitted status
-            existing_feedback = await self._validate_feedback_exists(feedback_id)
+            # Validate feedback exists and is in submitted status within organization scope
+            existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
             
             if existing_feedback.status != SubmissionStatus.SUBMITTED.value:
                 raise ValidationError("Can only draft submitted feedbacks")
@@ -382,7 +470,7 @@ class SupervisorFeedbackRepository:
             )
             
             logger.info(f"Changed supervisor feedback {feedback_id} to draft")
-            return await self.get_by_id(feedback_id)
+            return await self.get_by_id(feedback_id, org_id)
             
         except SQLAlchemyError as e:
             logger.error(f"Database error drafting supervisor feedback {feedback_id}: {e}")
@@ -392,11 +480,11 @@ class SupervisorFeedbackRepository:
     # DELETE OPERATIONS
     # ========================================
 
-    async def delete_feedback(self, feedback_id: UUID) -> bool:
-        """Delete a supervisor feedback by ID with validation."""
+    async def delete_feedback(self, feedback_id: UUID, org_id: str) -> bool:
+        """Delete a supervisor feedback by ID with validation within organization scope."""
         try:
-            # Validate feedback exists first
-            existing_feedback = await self._validate_feedback_exists(feedback_id)
+            # Validate feedback exists first within organization scope
+            existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
             
             # Check if feedback can be deleted (only draft feedbacks)
             if existing_feedback.status == SubmissionStatus.SUBMITTED.value:
@@ -420,19 +508,28 @@ class SupervisorFeedbackRepository:
     # HELPER METHODS
     # ========================================
 
-    async def _validate_self_assessment_exists(self, self_assessment_id: UUID) -> SelfAssessment:
-        """Validate self-assessment exists and return it, raise NotFoundError if not."""
+    async def _validate_self_assessment_exists(self, self_assessment_id: UUID, org_id: str) -> SelfAssessment:
+        """Validate self-assessment exists within organization scope and return it, raise NotFoundError if not."""
+        from ..models.goal import Goal
+        from ..models.user import User
+        
         result = await self.session.execute(
-            select(SelfAssessment).filter(SelfAssessment.id == self_assessment_id)
+            select(SelfAssessment)
+            .join(Goal, SelfAssessment.goal_id == Goal.id)
+            .join(User, Goal.user_id == User.id)
+            .filter(
+                SelfAssessment.id == self_assessment_id,
+                User.clerk_organization_id == org_id
+            )
         )
         self_assessment = result.scalars().first()
         if not self_assessment:
-            raise NotFoundError(f"Self-assessment not found: {self_assessment_id}")
+            raise NotFoundError(f"Self-assessment not found in organization: {self_assessment_id}")
         return self_assessment
 
-    async def _validate_feedback_exists(self, feedback_id: UUID) -> SupervisorFeedback:
-        """Validate feedback exists and return it, raise NotFoundError if not."""
-        feedback = await self.get_by_id(feedback_id)
+    async def _validate_feedback_exists(self, feedback_id: UUID, org_id: str) -> SupervisorFeedback:
+        """Validate feedback exists within organization scope and return it, raise NotFoundError if not."""
+        feedback = await self.get_by_id(feedback_id, org_id)
         if not feedback:
-            raise NotFoundError(f"Supervisor feedback not found: {feedback_id}")
+            raise NotFoundError(f"Supervisor feedback not found in organization: {feedback_id}")
         return feedback
