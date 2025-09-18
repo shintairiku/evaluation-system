@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LoadingButton } from '@/components/ui/loading-states';
 import { Trash2 } from 'lucide-react';
 import {
   Dialog,
@@ -230,16 +231,17 @@ export default function CompetencyModal({
 
           <DialogFooter className="flex justify-between">
             {isAdmin && competency && (
-              <Button
+              <LoadingButton
                 type="button"
                 variant="destructive"
                 onClick={handleDelete}
-                disabled={isLoading}
+                loading={isLoading}
+                loadingText={COMPETENCY_MESSAGES.BUTTONS.DELETING}
                 className="mr-auto"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                {isLoading ? COMPETENCY_MESSAGES.BUTTONS.DELETING : COMPETENCY_MESSAGES.BUTTONS.DELETE}
-              </Button>
+                {COMPETENCY_MESSAGES.BUTTONS.DELETE}
+              </LoadingButton>
             )}
             <div className="flex gap-2">
               <Button
@@ -251,13 +253,15 @@ export default function CompetencyModal({
                 {isAdmin ? COMPETENCY_MESSAGES.BUTTONS.CANCEL : COMPETENCY_MESSAGES.BUTTONS.CLOSE}
               </Button>
               {isAdmin && (
-                <Button
+                <LoadingButton
                   type="button"
                   onClick={handleSave}
-                  disabled={!isFormValid || isLoading}
+                  disabled={!isFormValid}
+                  loading={isLoading}
+                  loadingText={COMPETENCY_MESSAGES.BUTTONS.SAVING}
                 >
-                  {isLoading ? COMPETENCY_MESSAGES.BUTTONS.SAVING : COMPETENCY_MESSAGES.BUTTONS.SAVE}
-                </Button>
+                  {COMPETENCY_MESSAGES.BUTTONS.SAVE}
+                </LoadingButton>
               )}
             </div>
           </DialogFooter>
