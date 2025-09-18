@@ -232,8 +232,13 @@ class UnifiedHttpClient {
       if (isServer) {
         // Server-side: Use @clerk/nextjs/server
         const { auth } = await import('@clerk/nextjs/server');
-        const { getToken } = await auth();
-        const token = await getToken();
+        const authResult = await auth();
+        
+        if (!authResult || !authResult.getToken) {
+          return {};
+        }
+        
+        const token = await authResult.getToken();
         
         if (token) {
           return {
@@ -318,6 +323,18 @@ class UnifiedHttpClient {
                           (data as { message?: string; error?: string })?.error || 
                           `HTTP ${response.status}: ${response.statusText}`;
       
+      // Handle 403 Forbidden as expected authorization error (not a system error)
+      if (response.status === 403) {
+        // Role-based access control rejection - this is normal business logic
+        return {
+          success: false,
+          errorMessage: 'Access denied: Insufficient permissions',
+          error: 'Access denied: Insufficient permissions', // Backward compatibility
+          data: data as T,
+        };
+      }
+      
+      // For other errors, log as system errors
       const appError = createAppError(
         new Error(errorMessage),
         response.status,

@@ -217,12 +217,6 @@ async function _getStagesAdminAction(): Promise<{
   }
 }
 
-// Development: Use non-cached version to avoid Clerk auth conflicts in cached functions
-// Production: Use cached version for performance
-export const getStagesAdminAction = process.env.NODE_ENV === 'development' 
-  ? _getStagesAdminAction 
-  : createFullyCachedAction(
-      _getStagesAdminAction,
-      'getStagesAdmin',
-      CACHE_TAGS.STAGES
-    );
+// Cannot use caching with Clerk auth() calls due to Next.js restrictions
+// Dynamic data sources (auth) are not supported inside cached functions
+export const getStagesAdminAction = _getStagesAdminAction;
