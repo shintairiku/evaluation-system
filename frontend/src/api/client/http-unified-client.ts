@@ -6,6 +6,7 @@
 import { API_CONFIG } from '../constants/config';
 import { createAppError, logError } from '../../utils/error-handling';
 import { ClientAuth } from './auth-helper';
+import { securityAuditor } from '@/lib/security-audit';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -430,6 +431,9 @@ class UnifiedHttpClient {
     let lastResponse: Response | undefined;
     let isTimeoutError = false;
     let totalDuration = 0;
+
+    // Log access attempt for security auditing
+    const accessAttemptStart = Date.now();
     
     // Retry logic with exponential backoff
     for (let attempt = 1; attempt <= API_CONFIG.RETRY_ATTEMPTS; attempt++) {
@@ -440,6 +444,16 @@ class UnifiedHttpClient {
         // If successful response or non-retryable error status, return immediately
         if (response.ok || !isRetryableError(undefined, response.status)) {
           const result = await this.handleResponse<T>(response);
+
+          // Log access attempt for security auditing
+          securityAuditor.logAccessAttempt({
+            endpoint: url,
+            method,
+            statusCode: response.status,
+            responseTime: Date.now() - accessAttemptStart,
+            errorMessage: result.success ? undefined : result.errorMessage,
+          });
+
           return result;
         }
         
@@ -478,6 +492,16 @@ class UnifiedHttpClient {
     if (lastResponse) {
       // Had a response but it was an error status
       const result = await this.handleResponse<T>(lastResponse);
+
+      // Log failed access attempt
+      securityAuditor.logAccessAttempt({
+        endpoint: url,
+        method,
+        statusCode: lastResponse.status,
+        responseTime: Date.now() - accessAttemptStart,
+        errorMessage: result.errorMessage,
+      });
+
       return result;
     } else {
       // Network/timeout error - run final error interceptor
@@ -497,7 +521,16 @@ class UnifiedHttpClient {
           `Request timed out after ${API_CONFIG.TIMEOUT}ms: ${method} ${endpoint} (attempted ${API_CONFIG.RETRY_ATTEMPTS} times)`
         );
         logError(appError, `HTTP Client - Timeout Error after retries (${isServer ? 'Server' : 'Client'})`);
-        
+
+        // Log timeout attempt
+        securityAuditor.logAccessAttempt({
+          endpoint: url,
+          method,
+          statusCode: 408,
+          responseTime: Date.now() - accessAttemptStart,
+          errorMessage: appError.userMessage,
+        });
+
         return {
           success: false,
           errorMessage: appError.userMessage,
@@ -510,7 +543,16 @@ class UnifiedHttpClient {
           `Network request failed: ${method} ${endpoint} (attempted ${API_CONFIG.RETRY_ATTEMPTS} times) (${isServer ? 'Server' : 'Client'})`
         );
         logError(appError, `HTTP Client - Network Error after retries (${isServer ? 'Server' : 'Client'})`);
-        
+
+        // Log network error attempt
+        securityAuditor.logAccessAttempt({
+          endpoint: url,
+          method,
+          statusCode: 0, // Network error, no HTTP status
+          responseTime: Date.now() - accessAttemptStart,
+          errorMessage: appError.userMessage,
+        });
+
         return {
           success: false,
           errorMessage: appError.userMessage,
