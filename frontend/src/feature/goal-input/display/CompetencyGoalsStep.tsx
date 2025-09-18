@@ -92,7 +92,7 @@ export function CompetencyGoalsStep({
 
   const handleCompetencySelect = (competencyId: string, checked: boolean) => {
     let newSelectedIds: string[];
-    let newSelectedActions = { ...selectedIdealActions };
+    const newSelectedActions = { ...selectedIdealActions };
     
     if (checked) {
       newSelectedIds = [...selectedCompetencyIds, competencyId];
