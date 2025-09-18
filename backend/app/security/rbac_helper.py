@@ -86,7 +86,7 @@ class RBACHelper:
         elif auth_context.has_permission(Permission.USER_READ_SUBORDINATES):
             # Manager/Supervisor: Can access subordinates
             subordinate_ids = await RBACHelper._get_subordinate_user_ids(
-                auth_context.user_id, RBACHelper.get_user_repository()
+                auth_context.user_id, RBACHelper.get_user_repository(), auth_context.organization_id
             )
             # Include self in accessible users for managers/supervisors
             result = subordinate_ids + [auth_context.user_id]
@@ -187,7 +187,7 @@ class RBACHelper:
         return result
     
     @staticmethod
-    async def _get_subordinate_user_ids(supervisor_id: UUID, user_repo=None) -> List[UUID]:
+    async def _get_subordinate_user_ids(supervisor_id: UUID, user_repo=None, org_id: str = None) -> List[UUID]:
         """
         Get subordinate user IDs with caching.
         
@@ -198,8 +198,9 @@ class RBACHelper:
             supervisor_id: The supervisor's user ID
             user_repo: Optional UserRepository instance. If not provided,
                       returns empty list (for backwards compatibility)
+            org_id: Organization ID for org-scoped filtering
         """
-        cache_key = f"subordinates_{supervisor_id}"
+        cache_key = f"subordinates_{supervisor_id}_{org_id}"
         
         # Check cache first
         if cached_subordinates := subordinate_cache.get(cache_key):
@@ -210,12 +211,19 @@ class RBACHelper:
         
         if user_repo:
             try:
-                # Fetch subordinates from repository
-                subordinate_users = await user_repo.get_subordinates(supervisor_id)
+                # Fetch subordinates from repository with org scope
+                if org_id:
+                    subordinate_users = await user_repo.get_subordinates(supervisor_id, org_id)
+                else:
+                    # For backward compatibility, but warn about missing org scope
+                    logger.warning(f"No org_id provided for subordinate lookup for user {supervisor_id}. This may cause cross-organization data leaks.")
+                    # Try to call without org_id (this will likely fail due to method signature)
+                    subordinate_users = await user_repo.get_subordinates(supervisor_id, "")
+                
                 subordinates = [user.id for user in subordinate_users]
-                logger.debug(f"Fetched {len(subordinates)} subordinates for user {supervisor_id}")
+                logger.debug(f"Fetched {len(subordinates)} subordinates for user {supervisor_id} in org {org_id}")
             except Exception as e:
-                logger.error(f"Error fetching subordinates for user {supervisor_id}: {e}")
+                logger.error(f"Error fetching subordinates for user {supervisor_id} in org {org_id}: {e}")
                 subordinates = []
         else:
             logger.warning(
@@ -251,7 +259,7 @@ class RBACHelper:
         if "read_subordinates" in resource_permissions:
             if auth_context.has_permission(resource_permissions["read_subordinates"]):
                 subordinate_ids = await RBACHelper._get_subordinate_user_ids(
-                    auth_context.user_id, RBACHelper.get_user_repository()
+                    auth_context.user_id, RBACHelper.get_user_repository(), auth_context.organization_id
                 )
                 # For resource access, we typically need the user IDs who own the resources
                 return subordinate_ids + [auth_context.user_id]
