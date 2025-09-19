@@ -7,7 +7,8 @@ import type { StageData, UserCardData, UserStageChange } from '../types';
 import { useHydration } from '../hooks/useHydration';
 import { useStageNotifications } from '../hooks/useStageNotifications';
 import { getGridClasses } from '../utils/classNames';
-import { updateUserStagesAction, updateStageAction } from '@/api/server-actions/stage-management';
+import { updateUserStagesAction } from '@/api/server-actions/users';
+import { updateStageAction } from '@/api/server-actions/stages';
 
 import StageColumn from './StageColumn';
 import UserCard from './UserCard';

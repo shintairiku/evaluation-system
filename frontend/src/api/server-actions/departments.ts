@@ -1,8 +1,9 @@
 'use server';
 
+import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { departmentsApi } from '../endpoints/departments';
-import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
+import { CACHE_TAGS } from '../utils/cache';
 import type { 
   Department, 
   DepartmentDetail, 
@@ -42,11 +43,13 @@ async function _getDepartmentsAction(): Promise<{
   }
 }
 
-export const getDepartmentsAction = createFullyCachedAction(
-  _getDepartmentsAction,
-  'getDepartments',
-  CACHE_TAGS.DEPARTMENTS
-);
+export const getDepartmentsAction = cache(async (): Promise<{
+  success: boolean;
+  data?: Department[];
+  error?: string;
+}> => {
+  return _getDepartmentsAction();
+});
 
 /**
  * Server action to get a specific department by ID with caching
@@ -79,11 +82,13 @@ async function _getDepartmentByIdAction(departmentId: UUID): Promise<{
   }
 }
 
-export const getDepartmentByIdAction = createFullyCachedAction(
-  _getDepartmentByIdAction,
-  'getDepartmentById',
-  CACHE_TAGS.DEPARTMENTS
-);
+export const getDepartmentByIdAction = cache(async (departmentId: UUID): Promise<{
+  success: boolean;
+  data?: DepartmentDetail;
+  error?: string;
+}> => {
+  return _getDepartmentByIdAction(departmentId);
+});
 
 /**
  * Server action to create a new department with cache revalidation

@@ -1,6 +1,9 @@
 'use server';
 
+import { cache } from 'react';
+import { revalidateTag } from 'next/cache';
 import { evaluationPeriodsApi } from '../endpoints/evaluation-periods';
+import { CACHE_TAGS } from '../utils/cache';
 import type { 
   EvaluationPeriod, 
   EvaluationPeriodDetail, 
@@ -12,13 +15,14 @@ import type {
 } from '../types';
 
 /**
- * Server action to get all evaluation periods (raw list)
+ * Server action to get all evaluation periods (raw list).
+ * This action is memoized to prevent duplicate requests within a single render.
  */
-export async function getAllEvaluationPeriodsAction(): Promise<{
+export const getAllEvaluationPeriodsAction = cache(async (): Promise<{
   success: boolean;
   data?: EvaluationPeriodList;
   error?: string;
-}> {
+}> => {
   try {
     const response = await evaluationPeriodsApi.getEvaluationPeriods();
     
@@ -40,16 +44,17 @@ export async function getAllEvaluationPeriodsAction(): Promise<{
       error: 'An unexpected error occurred while fetching evaluation periods',
     };
   }
-}
+});
 
 /**
- * Server action to get a specific evaluation period by ID
+ * Server action to get a specific evaluation period by ID.
+ * This action is memoized to prevent duplicate requests within a single render.
  */
-export async function getEvaluationPeriodByIdAction(periodId: UUID): Promise<{
+export const getEvaluationPeriodByIdAction = cache(async (periodId: UUID): Promise<{
   success: boolean;
   data?: EvaluationPeriodDetail;
   error?: string;
-}> {
+}> => {
   try {
     const response = await evaluationPeriodsApi.getEvaluationPeriodById(periodId);
     
@@ -71,10 +76,10 @@ export async function getEvaluationPeriodByIdAction(periodId: UUID): Promise<{
       error: 'An unexpected error occurred while fetching evaluation period',
     };
   }
-}
+});
 
 /**
- * Server action to create a new evaluation period
+ * Server action to create a new evaluation period with cache revalidation
  */
 export async function createEvaluationPeriodAction(periodData: EvaluationPeriodCreate): Promise<{
   success: boolean;
@@ -83,14 +88,16 @@ export async function createEvaluationPeriodAction(periodData: EvaluationPeriodC
 }> {
   try {
     const response = await evaluationPeriodsApi.createEvaluationPeriod(periodData);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to create evaluation period',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.EVALUATION_PERIODS);
+
     return {
       success: true,
       data: response.data,
@@ -105,7 +112,7 @@ export async function createEvaluationPeriodAction(periodData: EvaluationPeriodC
 }
 
 /**
- * Server action to update an existing evaluation period
+ * Server action to update an existing evaluation period with cache revalidation
  */
 export async function updateEvaluationPeriodAction(periodId: UUID, updateData: EvaluationPeriodUpdate): Promise<{
   success: boolean;
@@ -114,14 +121,17 @@ export async function updateEvaluationPeriodAction(periodId: UUID, updateData: E
 }> {
   try {
     const response = await evaluationPeriodsApi.updateEvaluationPeriod(periodId, updateData);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to update evaluation period',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.EVALUATION_PERIODS);
+    revalidateTag(`${CACHE_TAGS.EVALUATION_PERIODS}:${periodId}`);
+
     return {
       success: true,
       data: response.data,
@@ -136,7 +146,7 @@ export async function updateEvaluationPeriodAction(periodId: UUID, updateData: E
 }
 
 /**
- * Server action to delete an evaluation period
+ * Server action to delete an evaluation period with cache revalidation
  */
 export async function deleteEvaluationPeriodAction(periodId: UUID): Promise<{
   success: boolean;
@@ -144,14 +154,17 @@ export async function deleteEvaluationPeriodAction(periodId: UUID): Promise<{
 }> {
   try {
     const response = await evaluationPeriodsApi.deleteEvaluationPeriod(periodId);
-    
+
     if (!response.success) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to delete evaluation period',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.EVALUATION_PERIODS);
+    revalidateTag(`${CACHE_TAGS.EVALUATION_PERIODS}:${periodId}`);
+
     return {
       success: true,
     };
@@ -165,13 +178,14 @@ export async function deleteEvaluationPeriodAction(periodId: UUID): Promise<{
 }
 
 /**
- * Server action to get the current active evaluation period
+ * Server action to get the current active evaluation period.
+ * This action is memoized to prevent duplicate requests within a single render.
  */
-export async function getCurrentEvaluationPeriodAction(): Promise<{
+export const getCurrentEvaluationPeriodAction = cache(async (): Promise<{
   success: boolean;
   data?: EvaluationPeriod;
   error?: string;
-}> {
+}> => {
   try {
     const response = await evaluationPeriodsApi.getCurrentEvaluationPeriod();
     
@@ -193,16 +207,17 @@ export async function getCurrentEvaluationPeriodAction(): Promise<{
       error: 'An unexpected error occurred while fetching current evaluation period',
     };
   }
-}
+});
 
 /**
- * Server action to get categorized evaluation periods for user selection
+ * Server action to get categorized evaluation periods for user selection.
+ * This action is memoized to prevent duplicate requests within a single render.
  */
-export async function getCategorizedEvaluationPeriodsAction(): Promise<{ 
+export const getCategorizedEvaluationPeriodsAction = cache(async (): Promise<{ 
   success: boolean; 
   data?: CategorizedEvaluationPeriods; 
   error?: string 
-}> {
+}> => {
   try {
     const response = await evaluationPeriodsApi.getEvaluationPeriods();
     
@@ -213,8 +228,6 @@ export async function getCategorizedEvaluationPeriodsAction(): Promise<{
       };
     }
 
-    // Backend returns EvaluationPeriodList with evaluation_periods array
-    // Extract the periods array from the response
     let allPeriods: EvaluationPeriod[];
     
     if (Array.isArray(response.data)) {
@@ -247,4 +260,4 @@ export async function getCategorizedEvaluationPeriodsAction(): Promise<{
       error: 'An unexpected error occurred while fetching categorized evaluation periods' 
     };
   }
-}
+});

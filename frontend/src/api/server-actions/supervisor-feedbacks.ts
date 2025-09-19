@@ -1,6 +1,9 @@
 'use server';
 
+import { cache } from 'react';
+import { revalidateTag } from 'next/cache';
 import { supervisorFeedbacksApi } from '../endpoints/supervisor-feedbacks';
+import { CACHE_TAGS } from '../utils/cache';
 import type { 
   SupervisorFeedback, 
   SupervisorFeedbackDetail, 
@@ -14,67 +17,79 @@ import type {
 /**
  * Server action to get supervisor feedbacks with pagination
  */
-export async function getSupervisorFeedbacksAction(params?: { pagination?: PaginationParams; periodId?: string; supervisorId?: string; subordinateId?: string; status?: string; }): Promise<{
-  success: boolean;
-  data?: SupervisorFeedbackList;
-  error?: string;
-}> {
-  try {
-    const response = await supervisorFeedbacksApi.getSupervisorFeedbacks(params);
-    
-    if (!response.success || !response.data) {
+export const getSupervisorFeedbacksAction = cache(
+  async (params?: {
+    pagination?: PaginationParams;
+    periodId?: string;
+    supervisorId?: string;
+    subordinateId?: string;
+    status?: string;
+  }): Promise<{
+    success: boolean;
+    data?: SupervisorFeedbackList;
+    error?: string;
+  }> => {
+    try {
+      const response = await supervisorFeedbacksApi.getSupervisorFeedbacks(params);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch supervisor feedbacks',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get supervisor feedbacks action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch supervisor feedbacks',
+        error: 'An unexpected error occurred while fetching supervisor feedbacks',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get supervisor feedbacks action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching supervisor feedbacks',
-    };
-  }
-}
+  },
+);
 
 /**
  * Server action to get a specific supervisor feedback by ID
  */
-export async function getSupervisorFeedbackByIdAction(feedbackId: UUID): Promise<{
-  success: boolean;
-  data?: SupervisorFeedbackDetail;
-  error?: string;
-}> {
-  try {
-    const response = await supervisorFeedbacksApi.getSupervisorFeedbackById(feedbackId);
-    
-    if (!response.success || !response.data) {
+export const getSupervisorFeedbackByIdAction = cache(
+  async (
+    feedbackId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SupervisorFeedbackDetail;
+    error?: string;
+  }> => {
+    try {
+      const response = await supervisorFeedbacksApi.getSupervisorFeedbackById(feedbackId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch supervisor feedback',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get supervisor feedback by ID action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch supervisor feedback',
+        error: 'An unexpected error occurred while fetching supervisor feedback',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get supervisor feedback by ID action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching supervisor feedback',
-    };
-  }
-}
+  },
+);
 
 /**
- * Server action to create a new supervisor feedback
+ * Server action to create a new supervisor feedback with cache revalidation
  */
 export async function createSupervisorFeedbackAction(feedbackData: SupervisorFeedbackCreate): Promise<{
   success: boolean;
@@ -83,14 +98,16 @@ export async function createSupervisorFeedbackAction(feedbackData: SupervisorFee
 }> {
   try {
     const response = await supervisorFeedbacksApi.createSupervisorFeedback(feedbackData);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to create supervisor feedback',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SUPERVISOR_FEEDBACKS);
+
     return {
       success: true,
       data: response.data,
@@ -105,23 +122,28 @@ export async function createSupervisorFeedbackAction(feedbackData: SupervisorFee
 }
 
 /**
- * Server action to update an existing supervisor feedback
+ * Server action to update an existing supervisor feedback with cache revalidation
  */
-export async function updateSupervisorFeedbackAction(feedbackId: UUID, updateData: SupervisorFeedbackUpdate): Promise<{
+export async function updateSupervisorFeedbackAction(
+  feedbackId: UUID,
+  updateData: SupervisorFeedbackUpdate,
+): Promise<{
   success: boolean;
   data?: SupervisorFeedback;
   error?: string;
 }> {
   try {
     const response = await supervisorFeedbacksApi.updateSupervisorFeedback(feedbackId, updateData);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to update supervisor feedback',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SUPERVISOR_FEEDBACKS);
+
     return {
       success: true,
       data: response.data,
@@ -136,7 +158,7 @@ export async function updateSupervisorFeedbackAction(feedbackId: UUID, updateDat
 }
 
 /**
- * Server action to delete a supervisor feedback
+ * Server action to delete a supervisor feedback with cache revalidation
  */
 export async function deleteSupervisorFeedbackAction(feedbackId: UUID): Promise<{
   success: boolean;
@@ -144,14 +166,16 @@ export async function deleteSupervisorFeedbackAction(feedbackId: UUID): Promise<
 }> {
   try {
     const response = await supervisorFeedbacksApi.deleteSupervisorFeedback(feedbackId);
-    
+
     if (!response.success) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to delete supervisor feedback',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SUPERVISOR_FEEDBACKS);
+
     return {
       success: true,
     };
@@ -167,98 +191,110 @@ export async function deleteSupervisorFeedbackAction(feedbackId: UUID): Promise<
 /**
  * Server action to get supervisor feedbacks by supervisor ID
  */
-export async function getSupervisorFeedbacksBySupervisorAction(supervisorId: UUID): Promise<{
-  success: boolean;
-  data?: SupervisorFeedbackList;
-  error?: string;
-}> {
-  try {
-    const response = await supervisorFeedbacksApi.getSupervisorFeedbacksBySupervisor(supervisorId);
-    
-    if (!response.success || !response.data) {
+export const getSupervisorFeedbacksBySupervisorAction = cache(
+  async (
+    supervisorId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SupervisorFeedbackList;
+    error?: string;
+  }> => {
+    try {
+      const response = await supervisorFeedbacksApi.getSupervisorFeedbacksBySupervisor(supervisorId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch supervisor feedbacks by supervisor',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get supervisor feedbacks by supervisor action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch supervisor feedbacks by supervisor',
+        error: 'An unexpected error occurred while fetching supervisor feedbacks by supervisor',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get supervisor feedbacks by supervisor action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching supervisor feedbacks by supervisor',
-    };
-  }
-}
+  },
+);
 
 /**
  * Server action to get supervisor feedbacks by employee ID
  */
-export async function getSupervisorFeedbacksByEmployeeAction(employeeId: UUID): Promise<{
-  success: boolean;
-  data?: SupervisorFeedbackList;
-  error?: string;
-}> {
-  try {
-    const response = await supervisorFeedbacksApi.getSupervisorFeedbacksByEmployee(employeeId);
-    
-    if (!response.success || !response.data) {
+export const getSupervisorFeedbacksByEmployeeAction = cache(
+  async (
+    employeeId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SupervisorFeedbackList;
+    error?: string;
+  }> => {
+    try {
+      const response = await supervisorFeedbacksApi.getSupervisorFeedbacksByEmployee(employeeId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch supervisor feedbacks by employee',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get supervisor feedbacks by employee action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch supervisor feedbacks by employee',
+        error: 'An unexpected error occurred while fetching supervisor feedbacks by employee',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get supervisor feedbacks by employee action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching supervisor feedbacks by employee',
-    };
-  }
-}
+  },
+);
 
 /**
  * Server action to get supervisor feedbacks by assessment ID
  */
-export async function getSupervisorFeedbacksByAssessmentAction(assessmentId: UUID): Promise<{
-  success: boolean;
-  data?: SupervisorFeedback | null;
-  error?: string;
-}> {
-  try {
-    const response = await supervisorFeedbacksApi.getSupervisorFeedbackByAssessment(assessmentId);
-    
-    if (!response.success || !response.data) {
+export const getSupervisorFeedbacksByAssessmentAction = cache(
+  async (
+    assessmentId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SupervisorFeedback | null;
+    error?: string;
+  }> => {
+    try {
+      const response = await supervisorFeedbacksApi.getSupervisorFeedbackByAssessment(assessmentId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch supervisor feedbacks by assessment',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get supervisor feedbacks by assessment action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch supervisor feedbacks by assessment',
+        error: 'An unexpected error occurred while fetching supervisor feedbacks by assessment',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get supervisor feedbacks by assessment action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching supervisor feedbacks by assessment',
-    };
-  }
-}
+  },
+);
 
 /**
- * Server action to submit a supervisor feedback
+ * Server action to submit a supervisor feedback with cache revalidation
  */
 export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<{
   success: boolean;
@@ -267,14 +303,16 @@ export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<
 }> {
   try {
     const response = await supervisorFeedbacksApi.submitSupervisorFeedback(feedbackId);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to submit supervisor feedback',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SUPERVISOR_FEEDBACKS);
+
     return {
       success: true,
       data: response.data,
@@ -289,7 +327,7 @@ export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<
 }
 
 /**
- * Server action to mark supervisor feedback as draft
+ * Server action to mark supervisor feedback as draft with cache revalidation
  */
 export async function draftSupervisorFeedbackAction(feedbackId: UUID): Promise<{
   success: boolean;
@@ -298,14 +336,16 @@ export async function draftSupervisorFeedbackAction(feedbackId: UUID): Promise<{
 }> {
   try {
     const response = await supervisorFeedbacksApi.draftSupervisorFeedback(feedbackId);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to mark supervisor feedback as draft',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SUPERVISOR_FEEDBACKS);
+
     return {
       success: true,
       data: response.data,
