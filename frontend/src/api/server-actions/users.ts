@@ -149,6 +149,59 @@ export async function updateUserAction(userId: UUID, updateData: UserUpdate): Pr
 }
 
 /**
+ * Server Action to update multiple user stages.
+ * This action is moved from the deprecated `stage-management` server action.
+ * It revalidates both USERS and STAGES caches upon completion.
+ */
+export async function updateUserStagesAction(changes: { userId: UUID; toStageId: UUID }[]): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    if (!changes.length) {
+      return { success: true };
+    }
+
+    const updateResults = await Promise.allSettled(
+      changes.map(async (change) => {
+        const result = await usersApi.updateUserStage(change.userId, {
+          stage_id: change.toStageId,
+        });
+
+        if (!result.success) {
+          throw new Error(`Failed to update user ${change.userId}: ${result.error}`);
+        }
+
+        return result;
+      }),
+    );
+
+    const failures = updateResults
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      .map((result) => result.reason);
+
+    if (failures.length > 0) {
+      console.error('Stage update failures:', failures);
+      return {
+        success: false,
+        error: `${failures.length} updates failed. Check server logs for details.`,
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.USERS);
+    revalidateTag(CACHE_TAGS.STAGES);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Server action error (updateUserStagesAction):', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
  * Server action to delete a user
  */
 export async function deleteUserAction(userId: UUID): Promise<{
