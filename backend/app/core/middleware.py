@@ -48,7 +48,9 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
             token = auth_header.split(" ")[1]
 
             # Get database session and validate organization
-            async with self.get_session() as session:
+            session_gen = self.get_session()
+            session = await session_gen.__anext__()
+            try:
                 # Validate JWT and extract user info
                 auth_service = AuthService(session)
                 auth_user = await auth_service.get_user_from_token(token)
@@ -82,10 +84,21 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 
                 logger.debug(f"Org slug validation successful: {org_slug} -> {organization.id}")
 
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Organization validation failed: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Organization validation failed"
+                )
+            finally:
+                await session.close()
+
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Organization validation failed: {e}")
+            logger.error(f"Unhandled exception: {e}")
             raise HTTPException(
                 status_code=500,
                 detail="Organization validation failed"
