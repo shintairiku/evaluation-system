@@ -10,8 +10,11 @@ export * from './user';
 // Goal types
 export * from './goal';
 
-// Competency types (includes Stage types)
+// Competency types
 export * from './competency';
+
+// Stage types
+export * from './stage';
 
 // Evaluation Period types
 export * from './evaluation-period';

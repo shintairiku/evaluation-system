@@ -19,17 +19,24 @@ const httpClient = getHttpClient();
  */
 export const competenciesApi = {
   /**
-   * Get all competencies with optional pagination
+   * Get competencies with optional filtering and pagination
    */
-  getCompetencies: async (params?: PaginationParams): Promise<ApiResponse<PaginatedResponse<Competency>>> => {
+  getCompetencies: async (
+    params?: PaginationParams & {
+      stageId?: UUID;
+      search?: string;
+    }
+  ): Promise<ApiResponse<PaginatedResponse<Competency>>> => {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
-    
-    const endpoint = queryParams.toString() 
+    if (params?.stageId) queryParams.append('stageId', params.stageId);
+    if (params?.search) queryParams.append('search', params.search);
+
+    const endpoint = queryParams.toString()
       ? `${API_ENDPOINTS.COMPETENCIES.LIST}?${queryParams.toString()}`
       : API_ENDPOINTS.COMPETENCIES.LIST;
-    
+
     return httpClient.get<PaginatedResponse<Competency>>(endpoint);
   },
 
@@ -41,21 +48,21 @@ export const competenciesApi = {
   },
 
   /**
-   * Create a new competency
+   * Create a new competency (admin only)
    */
   createCompetency: async (data: CompetencyCreate): Promise<ApiResponse<Competency>> => {
     return httpClient.post<Competency>(API_ENDPOINTS.COMPETENCIES.CREATE, data);
   },
 
   /**
-   * Update an existing competency
+   * Update an existing competency (admin only)
    */
   updateCompetency: async (competencyId: UUID, data: CompetencyUpdate): Promise<ApiResponse<Competency>> => {
     return httpClient.put<Competency>(API_ENDPOINTS.COMPETENCIES.UPDATE(competencyId), data);
   },
 
   /**
-   * Delete a competency
+   * Delete a competency (admin only)
    */
   deleteCompetency: async (competencyId: UUID): Promise<ApiResponse<void>> => {
     return httpClient.delete<void>(API_ENDPOINTS.COMPETENCIES.DELETE(competencyId));
