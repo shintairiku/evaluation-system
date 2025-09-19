@@ -69,9 +69,13 @@ class GoalService:
             accessible_user_ids = await self._get_accessible_goal_user_ids(
                 current_user_context, user_id
             )
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
             
             # Search goals with filters
             goals = await self.goal_repo.search_goals(
+                org_id=org_id,
                 user_ids=accessible_user_ids,
                 period_id=period_id,
                 goal_category=goal_category,
@@ -81,6 +85,7 @@ class GoalService:
             
             # Get total count for pagination
             total_count = await self.goal_repo.count_goals(
+                org_id=org_id,
                 user_ids=accessible_user_ids,
                 period_id=period_id,
                 goal_category=goal_category,
@@ -118,7 +123,10 @@ class GoalService:
     ) -> GoalDetail:
         """Get detailed goal information by ID with permission checks."""
         try:
-            goal = await self.goal_repo.get_goal_by_id_with_details(goal_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            goal = await self.goal_repo.get_goal_by_id_with_details(goal_id, org_id)
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
@@ -152,18 +160,22 @@ class GoalService:
             target_user_id = current_user_context.user_id
             
             # Business validation
-            await self._validate_goal_creation(goal_data, target_user_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            await self._validate_goal_creation(goal_data, target_user_id, org_id)
             
             # Validate weight limits
             await self._validate_weight_limits(
-                target_user_id, 
-                goal_data.period_id, 
+                target_user_id,
+                goal_data.period_id,
                 goal_data.goal_category,
-                goal_data.weight
+                goal_data.weight,
+                org_id
             )
             
             # Create goal
-            created_goal = await self.goal_repo.create_goal(goal_data, target_user_id)
+            created_goal = await self.goal_repo.create_goal(goal_data, target_user_id, org_id)
             
             # Commit transaction
             await self.session.commit()
@@ -195,7 +207,10 @@ class GoalService:
         """Update a goal with validation and business rules."""
         try:
             # Check if goal exists
-            existing_goal = await self.goal_repo.get_goal_by_id(goal_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            existing_goal = await self.goal_repo.get_goal_by_id(goal_id, org_id)
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
@@ -210,7 +225,7 @@ class GoalService:
                 raise PermissionDeniedError("You can only update your own goals")
             
             # Business validation
-            await self._validate_goal_update(goal_data, existing_goal)
+            await self._validate_goal_update(goal_data, existing_goal, org_id)
             
             # Validate weight limits if weight is being changed
             if goal_data.weight is not None:
@@ -219,11 +234,12 @@ class GoalService:
                     existing_goal.period_id,
                     existing_goal.goal_category,
                     goal_data.weight,
+                    org_id,
                     exclude_goal_id=goal_id
                 )
             
             # Update goal
-            updated_goal = await self.goal_repo.update_goal(goal_id, goal_data)
+            updated_goal = await self.goal_repo.update_goal(goal_id, goal_data, org_id)
             if not updated_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found after update")
             
@@ -250,7 +266,10 @@ class GoalService:
         """Delete a goal with permission and business rule checks."""
         try:
             # Check if goal exists
-            existing_goal = await self.goal_repo.get_goal_by_id(goal_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            existing_goal = await self.goal_repo.get_goal_by_id(goal_id, org_id)
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
@@ -298,7 +317,10 @@ class GoalService:
             target_status = GoalStatus.DRAFT if status == "draft" else GoalStatus.PENDING_APPROVAL
             
             # Check if goal exists and user can update it
-            existing_goal = await self.goal_repo.get_goal_by_id(goal_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            existing_goal = await self.goal_repo.get_goal_by_id(goal_id, org_id)
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
@@ -311,7 +333,7 @@ class GoalService:
                 raise BadRequestError("Can only submit draft, incomplete, or rejected goals")
             
             # Update status using dedicated method with validation
-            updated_goal = await self.goal_repo.update_goal_status(goal_id, target_status)
+            updated_goal = await self.goal_repo.update_goal_status(goal_id, target_status, org_id)
             
             # Commit transaction
             await self.session.commit()
@@ -320,12 +342,13 @@ class GoalService:
             if target_status == GoalStatus.PENDING_APPROVAL:
                 try:
                     # Get supervisors of goal owner
-                    supervisors = await self.user_repo.get_user_supervisors(existing_goal.user_id)
+                    supervisors = await self.user_repo.get_user_supervisors(existing_goal.user_id, org_id)
                     for supervisor in supervisors:
                         await self.supervisor_review_repo.create(
                             goal_id=existing_goal.id,
                             period_id=existing_goal.period_id,
                             supervisor_id=supervisor.id,
+                            org_id=org_id,
                             action="pending",
                             comment="",
                             status="draft",
@@ -354,7 +377,10 @@ class GoalService:
     ) -> Goal:
         """Approve a goal (supervisor/admin only)."""
         try:
-            goal = await self.goal_repo.get_goal_by_id_with_details(goal_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            goal = await self.goal_repo.get_goal_by_id_with_details(goal_id, org_id)
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
@@ -374,8 +400,9 @@ class GoalService:
             
             # Update status
             updated_goal = await self.goal_repo.update_goal_status(
-                goal_id, 
+                goal_id,
                 GoalStatus.APPROVED,
+                org_id,
                 approved_by=current_user_context.user_id
             )
             
@@ -402,7 +429,10 @@ class GoalService:
     ) -> Goal:
         """Reject a goal (supervisor/admin only)."""
         try:
-            goal = await self.goal_repo.get_goal_by_id_with_details(goal_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            goal = await self.goal_repo.get_goal_by_id_with_details(goal_id, org_id)
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
@@ -421,7 +451,7 @@ class GoalService:
                 raise BadRequestError("Goal must be in pending approval status")
             
             # Update status
-            updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.REJECTED)
+            updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.REJECTED, org_id)
             
             # TODO: Store rejection reason (requires extending model)
             
@@ -449,8 +479,12 @@ class GoalService:
         """Get goals pending approval for current supervisor."""
         try:
             # Get pending goals for supervisor's subordinates
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
             goals = await self.goal_repo.get_pending_approvals_for_supervisor(
                 current_user_context.user_id,
+                org_id,
                 period_id=period_id,
                 pagination=pagination
             )
@@ -509,7 +543,7 @@ class GoalService:
         if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
             # Supervisor: can see subordinates' goals
             subordinate_ids = await RBACHelper._get_subordinate_user_ids(
-                current_user_context.user_id, self.user_repo
+                current_user_context.user_id, self.user_repo, current_user_context.organization_id
             )
             accessible_ids.extend(subordinate_ids)
         
@@ -521,26 +555,26 @@ class GoalService:
         
         return accessible_ids
 
-    async def _validate_goal_creation(self, goal_data: GoalCreate, user_id: UUID):
+    async def _validate_goal_creation(self, goal_data: GoalCreate, user_id: UUID, org_id: UUID):
         """Validate goal creation business rules."""
         # Check if evaluation period exists and is active
-        period = await self.evaluation_period_repo.get_by_id(goal_data.period_id)
+        period = await self.evaluation_period_repo.get_by_id(goal_data.period_id, org_id)
         if not period:
             raise BadRequestError(f"Evaluation period {goal_data.period_id} not found")
         
         # Check if competencies exist (for competency goals)
         if goal_data.goal_category == "コンピテンシー" and goal_data.competency_ids:
             for competency_id in goal_data.competency_ids:
-                competency = await self.competency_repo.get_by_id(competency_id)
+                competency = await self.competency_repo.get_by_id(competency_id, org_id)
                 if not competency:
                     raise BadRequestError(f"Competency {competency_id} not found")
 
-    async def _validate_goal_update(self, goal_data: GoalUpdate, existing_goal: GoalModel):
+    async def _validate_goal_update(self, goal_data: GoalUpdate, existing_goal: GoalModel, org_id: UUID):
         """Validate goal update business rules."""
         # Check if competencies exist (for competency goals)
         if isinstance(goal_data, CompetencyGoalUpdate) and goal_data.competency_ids:
             for competency_id in goal_data.competency_ids:
-                competency = await self.competency_repo.get_by_id(competency_id)
+                competency = await self.competency_repo.get_by_id(competency_id, org_id)
                 if not competency:
                     raise BadRequestError(f"Competency {competency_id} not found")
 
@@ -550,12 +584,13 @@ class GoalService:
         period_id: UUID,
         goal_category: str,
         new_weight: float,
+        org_id: UUID,
         exclude_goal_id: Optional[UUID] = None
     ):
         """Validate that total weight doesn't exceed 100% per category."""
         # Get current weight totals by category
         weight_totals = await self.goal_repo.get_weight_totals_by_category(
-            user_id, period_id, exclude_goal_id
+            user_id, period_id, org_id, exclude_goal_id
         )
         
         current_total = weight_totals.get(goal_category, Decimal('0'))
@@ -595,7 +630,7 @@ class GoalService:
             try:
                 competency_names = {}
                 for competency_id in goal_model.target_data["competency_ids"]:
-                    competency = await self.competency_repo.get_by_id(competency_id)
+                    competency = await self.competency_repo.get_by_id(competency_id, goal_model.org_id)
                     if competency:
                         competency_names[str(competency_id)] = competency.name
                 

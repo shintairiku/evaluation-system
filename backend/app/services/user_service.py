@@ -15,7 +15,7 @@ from ..security.decorators import require_permission
 from ..security.rbac_types import ResourceType
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
-    UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB,
+    UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB, SimpleUser,
     Department, Stage, Role, UserStatus, UserExistsResponse, 
     ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate
 )
@@ -77,7 +77,7 @@ class UserService:
                 "statuses": sorted(statuses) if statuses else None,
                 "department_ids": sorted([str(d) for d in department_ids]) if department_ids else None,
                 "stage_ids": sorted([str(s) for s in stage_ids]) if stage_ids else None,
-                "role_ids": sorted([r(r) for r in role_ids]) if role_ids else None,
+                "role_ids": sorted([str(r) for r in role_ids]) if role_ids else None,
                 "supervisor_id": str(supervisor_id) if supervisor_id else None, 
                 "user_ids": sorted([str(u) for u in user_ids_to_filter]) if user_ids_to_filter else None,
                 "pagination": f"{pagination.page}_{pagination.limit}" if pagination else None,
@@ -90,11 +90,14 @@ class UserService:
             if cached_result:
                 return PaginatedResponse.model_validate_json(cached_result)
             
+            # Get organization ID from current user context for automatic filtering
+            org_id = current_user_context.organization_id
+            
             # Handle supervisor_id filtering specifically
             final_user_ids_to_filter = user_ids_to_filter
             if supervisor_id:
-                # Get subordinates of the specified supervisor
-                subordinate_users = await self.user_repo.get_subordinates(supervisor_id)
+                # Get subordinates of the specified supervisor (org-scoped)
+                subordinate_users = await self.user_repo.get_subordinates(supervisor_id, org_id)
                 subordinate_ids = [user.id for user in subordinate_users]
                 
                 # If we already have user_ids_to_filter, intersect them
@@ -103,7 +106,7 @@ class UserService:
                 else:
                     final_user_ids_to_filter = subordinate_ids
             
-            # Get data from repository
+            # Get data from repository with organization filtering
             users = await self.user_repo.search_users(
                 search_term=search_term,
                 statuses=statuses,
@@ -111,7 +114,8 @@ class UserService:
                 stage_ids=stage_ids,
                 role_ids=role_ids,
                 user_ids=final_user_ids_to_filter,
-                pagination=pagination
+                pagination=pagination,
+                org_id=org_id  # Automatic organization filtering
             )
             
             total_count = await self.user_repo.count_users(
@@ -120,7 +124,8 @@ class UserService:
                 department_ids=department_ids,
                 stage_ids=stage_ids,
                 role_ids=role_ids,
-                user_ids=final_user_ids_to_filter 
+                user_ids=final_user_ids_to_filter,
+                org_id=org_id  # Automatic organization filtering
             )
             
             # Enrich users with detailed data including supervisor/subordinates
@@ -171,14 +176,20 @@ class UserService:
             List of SimpleUser objects for active users matching filters
         """
         try:
+            # Get organization context
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            
             # Handle supervisor_id filtering
             user_ids_to_filter = None
             if supervisor_id:
-                subordinate_users = await self.user_repo.get_subordinates(supervisor_id)
+                subordinate_users = await self.user_repo.get_subordinates(supervisor_id, org_id)
                 user_ids_to_filter = [user.id for user in subordinate_users]
             
             # Use efficient repository method with joins
             users = await self.user_repo.get_users_for_org_chart(
+                org_id,
                 department_ids=department_ids,
                 role_ids=role_ids,
                 user_ids=user_ids_to_filter
@@ -200,7 +211,11 @@ class UserService:
         """
         try:
             # Check if user exists
-            user = await self.user_repo.get_user_by_id(user_id)
+            # Enforce organization scope on read
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            user = await self.user_repo.get_user_by_id(user_id, org_id)
             if not user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
@@ -214,6 +229,11 @@ class UserService:
             
             if not can_access:
                 raise PermissionDeniedError(f"You do not have permission to access user {user_id}")
+            
+            # Organization consistency check: ensure target user belongs to same organization
+            if current_user_context.organization_id and user.clerk_organization_id:
+                if user.clerk_organization_id != current_user_context.organization_id:
+                    raise PermissionDeniedError(f"User {user_id} belongs to a different organization")
             
             # Enrich user data for detail response with supervisor/subordinates
             enriched_user = await self._enrich_detailed_user_data(user)
@@ -250,11 +270,16 @@ class UserService:
             if is_self_registration and not is_admin:
                 user_data.status = UserStatus.PENDING_APPROVAL
             
+            # Get organization context
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            
             # Business validation
-            await self._validate_user_creation(user_data)
+            await self._validate_user_creation(user_data, org_id)
             
             # Create user through repository
-            created_user = await self.user_repo.create_user(user_data)
+            created_user = await self.user_repo.create_user(user_data, org_id)
             
             # Flush to get the user ID for relationships
             await self.session.flush()
@@ -326,7 +351,7 @@ class UserService:
                     logger.error(f"Role assignment verification failed! Expected {len(user_data.role_ids)} roles, got {len(roles_check)}")
             
             # Fetch the user fresh from database with all relationships
-            fresh_user = await self.user_repo.get_user_by_id_with_details(user_id)
+            fresh_user = await self.user_repo.get_user_by_id_with_details(user_id, org_id)
             if not fresh_user:
                 # This should not happen since we just created the user successfully
                 logger.error(f"Created user {user_id} not found after commit - this indicates a serious database issue")
@@ -359,8 +384,13 @@ class UserService:
         - Check for conflicts
         """
         try:
+            # Get organization context
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            
             # Check if user exists
-            existing_user = await self.user_repo.get_user_by_id(user_id)
+            existing_user = await self.user_repo.get_user_by_id(user_id, org_id)
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
@@ -372,10 +402,10 @@ class UserService:
             )
             
             # Business validation
-            await self._validate_user_update(user_data, existing_user)
+            await self._validate_user_update(user_data, existing_user, org_id)
             
             # Update user through repository using UserUpdate schema
-            updated_user = await self.user_repo.update_user(user_id, user_data)
+            updated_user = await self.user_repo.update_user(user_id, user_data, org_id)
             if not updated_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
@@ -659,13 +689,18 @@ class UserService:
             logger.error(f"User lookup with fallback failed: {e}")
             return None
 
-    async def get_profile_options(self) -> ProfileOptionsResponse:
-        """Get all available options for profile completion."""
-        # Fetch raw data from repositories
-        departments_data = await self.department_repo.get_all()
-        stages_data = await self.stage_repo.get_all()
-        roles_data = await self.role_repo.get_all()
-        users_data = await self.user_repo.get_active_users()
+    async def get_profile_options(self, current_user_context: AuthContext) -> ProfileOptionsResponse:
+        """Get all available options for profile completion within organization scope."""
+        # Get organization context
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
+        # Fetch raw data from repositories with org scoping
+        departments_data = await self.department_repo.get_all(org_id)
+        stages_data = await self.stage_repo.get_all(org_id)
+        roles_data = await self.role_repo.get_all(org_id)
+        users_data = await self.user_repo.get_active_users(org_id)
         
         # Convert SQLAlchemy models to Pydantic models
         departments = [Department.model_validate(dept, from_attributes=True) for dept in departments_data]
@@ -705,7 +740,7 @@ class UserService:
         key_parts = [f"{k}={v}" for k, v in sorted_params]
         return f"{prefix}:{':'.join(key_parts)}"
     
-    async def _validate_user_creation(self, user_data: UserCreate) -> None:
+    async def _validate_user_creation(self, user_data: UserCreate, org_id: str) -> None:
         """Validate all business rules before creating a user."""
         # Validate role IDs exist
         if user_data.role_ids:
@@ -716,7 +751,7 @@ class UserService:
         
         # Validate supervisor exists and is active
         if user_data.supervisor_id:
-            supervisor = await self.user_repo.get_user_by_id(user_data.supervisor_id)
+            supervisor = await self.user_repo.get_user_by_id(user_data.supervisor_id, org_id)
             if not supervisor:
                 raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} does not exist")
             if supervisor.status != UserStatus.ACTIVE.value:
@@ -725,7 +760,7 @@ class UserService:
         # Validate subordinates exist and are active
         if user_data.subordinate_ids:
             for subordinate_id in user_data.subordinate_ids:
-                subordinate = await self.user_repo.get_user_by_id(subordinate_id)
+                subordinate = await self.user_repo.get_user_by_id(subordinate_id, org_id)
                 if not subordinate:
                     raise BadRequestError(f"Subordinate with ID {subordinate_id} does not exist")
                 if subordinate.status != UserStatus.ACTIVE.value:
@@ -733,22 +768,22 @@ class UserService:
         
         # Validate department exists if provided
         if user_data.department_id:
-            department = await self.department_repo.get_by_id(user_data.department_id)
+            department = await self.department_repo.get_by_id(user_data.department_id, org_id)
             if not department:
                 raise BadRequestError(f"Department with ID {user_data.department_id} does not exist")
         
         # Validate stage exists if provided
         if user_data.stage_id:
-            stage = await self.stage_repo.get_by_id(user_data.stage_id)
+            stage = await self.stage_repo.get_by_id(user_data.stage_id, org_id)
             if not stage:
                 raise BadRequestError(f"Stage with ID {user_data.stage_id} does not exist")
         
         # Check for existing user with same email or employee_code
-        existing_user_email = await self.user_repo.get_user_by_email(user_data.email)
+        existing_user_email = await self.user_repo.get_user_by_email(user_data.email, org_id)
         if existing_user_email:
             raise ConflictError(f"User with email {user_data.email} already exists")
         
-        existing_user_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code)
+        existing_user_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code, org_id)
         if existing_user_code:
             raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
         
@@ -757,16 +792,16 @@ class UserService:
         if existing_user_clerk:
             raise ConflictError(f"User with clerk_user_id {user_data.clerk_user_id} already exists")
     
-    async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserModel) -> None:
+    async def _validate_user_update(self, user_data: UserUpdate, existing_user: UserModel, org_id: str) -> None:
         """Validate user update data"""
         # Check for conflicts if email or employee_code is being updated
         if user_data.email and user_data.email != existing_user.email:
-            existing_user_with_email = await self.user_repo.get_user_by_email(user_data.email)
+            existing_user_with_email = await self.user_repo.get_user_by_email(user_data.email, org_id)
             if existing_user_with_email and existing_user_with_email.id != existing_user.id:
                 raise ConflictError(f"User with email {user_data.email} already exists")
         
         if user_data.employee_code and user_data.employee_code != existing_user.employee_code:
-            existing_user_with_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code)
+            existing_user_with_code = await self.user_repo.get_user_by_employee_code(user_data.employee_code, org_id)
             if existing_user_with_code and existing_user_with_code.id != existing_user.id:
                 raise ConflictError(f"User with employee code {user_data.employee_code} already exists")
         
@@ -800,7 +835,7 @@ class UserService:
         
         # Validate department exists if being updated
         if user_data.department_id is not None:
-            department = await self.department_repo.get_by_id(user_data.department_id)
+            department = await self.department_repo.get_by_id(user_data.department_id, org_id)
             if not department:
                 raise BadRequestError(f"Department with ID {user_data.department_id} does not exist")
         
@@ -808,7 +843,7 @@ class UserService:
     async def _enrich_user_data(self, user: UserModel) -> User:
         """Enrich user data with relationships using repository pattern"""
         # Get department using repository
-        department_model = await self.department_repo.get_by_id(user.department_id)
+        department_model = await self.department_repo.get_by_id(user.department_id, user.clerk_organization_id)
         if not department_model:
             # Create a fallback department if not found
             department = Department(
@@ -820,7 +855,7 @@ class UserService:
             department = Department.model_validate(department_model, from_attributes=True)
         
         # Get stage using repository
-        stage_model = await self.stage_repo.get_by_id(user.stage_id)
+        stage_model = await self.stage_repo.get_by_id(user.stage_id, user.clerk_organization_id)
         if not stage_model:
             # Create a fallback stage if not found
             stage = Stage(
@@ -832,7 +867,7 @@ class UserService:
             stage = Stage.model_validate(stage_model, from_attributes=True)
         
         # Get roles using repository
-        role_models = await self.role_repo.get_user_roles(user.id)
+        role_models = await self.role_repo.get_user_roles(user.id, user.clerk_organization_id)
         roles = [Role.model_validate(role, from_attributes=True) for role in role_models]
 
         # Use UserInDB to validate basic user data first
@@ -851,14 +886,14 @@ class UserService:
         base_user = await self._enrich_user_data(user)
         
         # Get supervisor relationship
-        supervisor_models = await self.user_repo.get_user_supervisors(user.id)
+        supervisor_models = await self.user_repo.get_user_supervisors(user.id, user.clerk_organization_id)
         supervisor = None
         if supervisor_models:
             supervisor_model = supervisor_models[0]  # Take first supervisor if multiple
             supervisor = await self._enrich_user_data(supervisor_model)
 
         # Get subordinates relationship
-        subordinate_models = await self.user_repo.get_subordinates(user.id)
+        subordinate_models = await self.user_repo.get_subordinates(user.id, user.clerk_organization_id)
         subordinates = []
         for subordinate_model in subordinate_models:
             subordinate = await self._enrich_user_data(subordinate_model)

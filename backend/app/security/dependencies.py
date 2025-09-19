@@ -5,6 +5,7 @@ This module provides clean, simple dependencies for RBAC without over-engineerin
 """
 
 from typing import List
+import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +14,7 @@ from ..database.session import get_db_session
 from ..database.repositories.role_repo import RoleRepository
 from ..database.repositories.user_repo import UserRepository
 from ..services.auth_service import AuthService
-from .permissions import Permission
+from .permissions import Permission, PermissionManager
 from .context import AuthContext, RoleInfo
 
 security = HTTPBearer()
@@ -70,17 +71,21 @@ async def get_auth_context(
             
             if token in dev_keys:
                 from uuid import UUID
-                import logging
                 logger = logging.getLogger(__name__)
-                logger.warning(f"🔧 DEVELOPMENT: Using dev token '{token}' - NEVER use in production!")
+                # Avoid logging raw tokens to prevent leaking sensitive credentials in logs
+                try:
+                    token_preview = f"{str(token)[:6]}...{str(token)[-4:]}" if token else "<no-token>"
+                except Exception:
+                    token_preview = "<redacted>"
+                logger.warning(f"🔧 DEVELOPMENT: Using dev token (preview={token_preview}) - NEVER use in production!")
                 
                 dev_user = dev_keys[token]
                 return AuthContext(
                     user_id=UUID(dev_user["user_id"]),
                     clerk_user_id=dev_user["clerk_user_id"],
                     roles=dev_user["roles"],
-                    organization_id=None,  # Development keys don't have org context
-                    organization_slug=None
+                    organization_id="dev-org-1",  # Development organization ID
+                    organization_slug="dev-organization"
                 )
         
         # Verify with Clerk and get user info
@@ -93,10 +98,24 @@ async def get_auth_context(
         
         if not user_data:
             # User has valid Clerk token but doesn't exist in our database yet (signup case)
+            # Derive role from token to allow org-scoped, role-based access where appropriate
+            derived_roles: List[RoleInfo] = []
+            if getattr(auth_user, "role", None):
+                logger = logging.getLogger(__name__)
+                fallback_role = str(auth_user.role).strip().lower()
+                if fallback_role:
+                    logger.warning(
+                        "User %s not found in DB for org %s; using token-derived role '%s'",
+                        auth_user.clerk_id,
+                        auth_user.organization_id,
+                        fallback_role,
+                    )
+                    derived_roles = [RoleInfo(id=0, name=fallback_role, description="Token-derived role (no DB user)")]
+
             return AuthContext(
                 user_id=None,  # No user_id yet
                 clerk_user_id=auth_user.clerk_id,  # But we have Clerk ID
-                roles=[],  # No roles yet
+                roles=derived_roles,
                 organization_id=auth_user.organization_id,
                 organization_slug=auth_user.organization_slug
             )
@@ -105,13 +124,42 @@ async def get_auth_context(
         
         # Get user roles
         role_repo = RoleRepository(session)
-        user_roles = await role_repo.get_user_roles(user_id)
+        user_roles = await role_repo.get_user_roles(user_id, auth_user.organization_id)
         
         # Convert to RoleInfo objects
         role_infos = [
             RoleInfo(id=role.id, name=role.name, description=role.description)
             for role in user_roles
         ]
+
+        # Fallback: if no DB roles found for this org, derive from JWT org_role
+        if not role_infos and getattr(auth_user, "role", None):
+            logger = logging.getLogger(__name__)
+            fallback_role = str(auth_user.role).strip().lower()
+            if fallback_role:
+                logger.warning(
+                    "No DB roles found for user %s in org %s; falling back to token role '%s'",
+                    auth_user.clerk_id,
+                    auth_user.organization_id,
+                    fallback_role,
+                )
+                role_infos = [RoleInfo(id=0, name=fallback_role, description="Token-derived role")]
+        else:
+            # If roles exist but map to no permissions (e.g., org-custom names), append token role as safety net
+            derived_perm_count = 0
+            for r in role_infos:
+                derived_perm_count += len(PermissionManager.get_role_permissions(r.name))
+            if derived_perm_count == 0 and getattr(auth_user, "role", None):
+                logger = logging.getLogger(__name__)
+                fallback_role = str(auth_user.role).strip().lower()
+                if fallback_role and all(r.name.lower() != fallback_role for r in role_infos):
+                    logger.warning(
+                        "DB roles for user %s in org %s have no mapped permissions; adding token role '%s'",
+                        auth_user.clerk_id,
+                        auth_user.organization_id,
+                        fallback_role,
+                    )
+                    role_infos.append(RoleInfo(id=0, name=fallback_role, description="Token-derived role"))
         
         # Create and return AuthContext
         return AuthContext(

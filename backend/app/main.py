@@ -41,8 +41,8 @@ app.add_exception_handler(Exception, general_exception_handler)
 app.include_router(api_router)
 
 # Include webhooks at root level (without /api/v1 prefix)
-from .api.v1 import webhooks_router_root
-app.include_router(webhooks_router_root)
+from .api.webhooks.router import webhooks_router
+app.include_router(webhooks_router)
 
 def custom_openapi():
     """

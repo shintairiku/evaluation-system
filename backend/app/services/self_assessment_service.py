@@ -62,6 +62,10 @@ class SelfAssessmentService:
         - Supervisors: can view their subordinates' assessments + their own
         - Admins: can view all assessments
         """
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
         try:
             # Determine which users' assessments the current user can access
             accessible_user_ids = await self._get_accessible_assessment_user_ids(
@@ -70,6 +74,7 @@ class SelfAssessmentService:
             
             # Search assessments with filters
             assessments = await self.self_assessment_repo.search_assessments(
+                org_id=org_id,
                 user_ids=accessible_user_ids,
                 period_id=period_id,
                 status=status,
@@ -78,6 +83,7 @@ class SelfAssessmentService:
             
             # Get total count for pagination
             total_count = await self.self_assessment_repo.count_assessments(
+                org_id=org_id,
                 user_ids=accessible_user_ids,
                 period_id=period_id,
                 status=status
@@ -130,9 +136,13 @@ class SelfAssessmentService:
         current_user_context: AuthContext
     ) -> Optional[SelfAssessment]:
         """Get self-assessment for a specific goal."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
         try:
             # Check if goal exists and user has access
-            goal = await self.goal_repo.get_goal_by_id(goal_id)
+            goal = await self.goal_repo.get_goal_by_id(goal_id, org_id)
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
@@ -147,7 +157,11 @@ class SelfAssessmentService:
                 raise PermissionDeniedError("You do not have permission to access this goal's assessment")
             
             # Get assessment for goal
-            assessment = await self.self_assessment_repo.get_by_goal(goal_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            
+            assessment = await self.self_assessment_repo.get_by_goal(goal_id, org_id)
             if not assessment:
                 return None
             
@@ -165,8 +179,12 @@ class SelfAssessmentService:
         current_user_context: AuthContext
     ) -> SelfAssessmentDetail:
         """Get detailed self-assessment information by ID with permission checks."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
         try:
-            assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id)
+            assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
             if not assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
             
@@ -181,7 +199,7 @@ class SelfAssessmentService:
                 raise PermissionDeniedError("You do not have permission to access this assessment")
             
             # Enrich with detailed information
-            enriched_assessment = await self._enrich_assessment_detail_data(assessment)
+            enriched_assessment = await self._enrich_assessment_detail_data(assessment, org_id)
             return enriched_assessment
             
         except Exception as e:
@@ -196,9 +214,13 @@ class SelfAssessmentService:
         current_user_context: AuthContext
     ) -> SelfAssessment:
         """Create a new self-assessment with validation and business rules."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
         try:
             # Check if goal exists and get goal details
-            goal = await self.goal_repo.get_goal_by_id(goal_id)
+            goal = await self.goal_repo.get_goal_by_id(goal_id, org_id)
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
             
@@ -213,10 +235,10 @@ class SelfAssessmentService:
                 raise PermissionDeniedError("You can only create self-assessments for your own goals")
             
             # Business validation
-            await self._validate_assessment_creation(goal, assessment_data)
+            await self._validate_assessment_creation(goal, assessment_data, org_id)
             
             # Create assessment
-            created_assessment = await self.self_assessment_repo.create_assessment(assessment_data, goal_id)
+            created_assessment = await self.self_assessment_repo.create_assessment(assessment_data, goal_id, org_id)
             
             # Commit transaction
             await self.session.commit()
@@ -241,9 +263,13 @@ class SelfAssessmentService:
         current_user_context: AuthContext
     ) -> SelfAssessment:
         """Update a self-assessment with validation and business rules."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
         try:
             # Check if assessment exists
-            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id)
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
             if not existing_assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
             
@@ -261,7 +287,7 @@ class SelfAssessmentService:
             await self._validate_assessment_update(assessment_data, existing_assessment)
             
             # Update assessment
-            updated_assessment = await self.self_assessment_repo.update_assessment(assessment_id, assessment_data)
+            updated_assessment = await self.self_assessment_repo.update_assessment(assessment_id, assessment_data, org_id)
             if not updated_assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found after update")
             
@@ -286,9 +312,13 @@ class SelfAssessmentService:
         current_user_context: AuthContext
     ) -> SelfAssessment:
         """Submit a self-assessment by changing status to submitted."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
         try:
             # Check if assessment exists and user can update it
-            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id)
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
             if not existing_assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
             
@@ -311,11 +341,11 @@ class SelfAssessmentService:
                 raise ValidationError("Self-rating is required before submission")
             
             # Update status using dedicated method
-            updated_assessment = await self.self_assessment_repo.submit_assessment(assessment_id)
+            updated_assessment = await self.self_assessment_repo.submit_assessment(assessment_id, org_id)
             
             # CRITICAL: Auto-create SupervisorFeedback when self-assessment is submitted
             # This implements the trigger: SelfAssessments (submitted) → SupervisorFeedback auto-creation
-            await self._auto_create_supervisor_feedback(updated_assessment)
+            await self._auto_create_supervisor_feedback(updated_assessment, org_id)
             
             # Commit transaction
             await self.session.commit()
@@ -338,9 +368,13 @@ class SelfAssessmentService:
         current_user_context: AuthContext
     ) -> bool:
         """Delete a self-assessment with permission and business rule checks."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
         try:
             # Check if assessment exists
-            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id)
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
             if not existing_assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
             
@@ -359,7 +393,7 @@ class SelfAssessmentService:
                 raise BadRequestError("Can only delete draft assessments")
             
             # Delete assessment
-            success = await self.self_assessment_repo.delete_assessment(assessment_id)
+            success = await self.self_assessment_repo.delete_assessment(assessment_id, org_id)
             
             if success:
                 await self.session.commit()
@@ -398,7 +432,7 @@ class SelfAssessmentService:
         if current_user_context.has_permission(Permission.ASSESSMENT_READ_SUBORDINATES):
             # Supervisor: can see subordinates' assessments
             subordinate_ids = await RBACHelper._get_subordinate_user_ids(
-                current_user_context.user_id, self.user_repo
+                current_user_context.user_id, self.user_repo, current_user_context.organization_id
             )
             accessible_ids.extend(subordinate_ids)
         
@@ -411,14 +445,14 @@ class SelfAssessmentService:
         return accessible_ids
 
 
-    async def _validate_assessment_creation(self, goal, assessment_data: SelfAssessmentCreate):
+    async def _validate_assessment_creation(self, goal, assessment_data: SelfAssessmentCreate, org_id: str):
         """Validate self-assessment creation business rules."""
         # Check if goal is approved (can only assess approved goals)
         if goal.status != "approved":
             raise BadRequestError("Can only create self-assessments for approved goals")
         
         # Check if evaluation period allows self-assessment
-        period = await self.evaluation_period_repo.get_by_id(goal.period_id)
+        period = await self.evaluation_period_repo.get_by_id(goal.period_id, org_id)
         if not period:
             raise BadRequestError(f"Evaluation period {goal.period_id} not found")
         
@@ -449,14 +483,14 @@ class SelfAssessmentService:
         
         return SelfAssessment(**assessment_dict)
 
-    async def _enrich_assessment_detail_data(self, assessment_model: SelfAssessmentModel) -> SelfAssessmentDetail:
+    async def _enrich_assessment_detail_data(self, assessment_model: SelfAssessmentModel, org_id: str) -> SelfAssessmentDetail:
         """Convert SelfAssessmentModel to SelfAssessmentDetail response schema with enriched data."""
         # Start with basic assessment data
         base_assessment = await self._enrich_assessment_data(assessment_model)
         detail_dict = base_assessment.model_dump()
         
         # Get related goal for context
-        goal = await self.goal_repo.get_goal_by_id(assessment_model.goal_id)
+        goal = await self.goal_repo.get_goal_by_id(assessment_model.goal_id, org_id)
         
         # Add detail fields
         detail_dict.update({
@@ -469,7 +503,7 @@ class SelfAssessmentService:
         
         return SelfAssessmentDetail(**detail_dict)
     
-    async def _auto_create_supervisor_feedback(self, assessment: SelfAssessmentModel):
+    async def _auto_create_supervisor_feedback(self, assessment: SelfAssessmentModel, org_id: str):
         """
         Auto-create SupervisorFeedback when self-assessment is submitted.
         
@@ -478,13 +512,13 @@ class SelfAssessmentService:
         """
         try:
             # Check if feedback already exists (avoid duplicates)
-            existing_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment.id)
+            existing_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment.id, org_id)
             if existing_feedback:
                 logger.info(f"SupervisorFeedback already exists for assessment {assessment.id}, skipping auto-creation")
                 return
             
             # Get the goal to find the employee's supervisor
-            goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
+            goal = await self.goal_repo.get_goal_by_id(assessment.goal_id, org_id)
             if not goal:
                 logger.error(f"Cannot auto-create feedback: Goal {assessment.goal_id} not found")
                 return
