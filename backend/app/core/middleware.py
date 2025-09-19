@@ -1,13 +1,98 @@
 import logging
 import time
 from typing import Callable
+import re
 
 from fastapi import Request, Response, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..database.repositories.organization_repo import OrganizationRepository
+from ..services.auth_service import AuthService
 
 
 logger = logging.getLogger(__name__)
+
+
+class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
+    """Middleware to validate organization slug in URL against JWT claims."""
+
+    def __init__(self, app, get_session):
+        super().__init__(app)
+        self.get_session = get_session
+        # Pattern to match /api/org/{org_slug}/... routes
+        self.org_route_pattern = re.compile(r'^/api/org/([^/]+)/')
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Check if this is an organization-scoped route
+        path = request.url.path
+        match = self.org_route_pattern.match(path)
+
+        if not match:
+            # Not an org-scoped route, proceed normally
+            return await call_next(request)
+
+        # Extract org_slug from URL
+        org_slug = match.group(1)
+
+        try:
+            # Get authorization header
+            auth_header = request.headers.get("Authorization")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Missing or invalid Authorization header"
+                )
+
+            token = auth_header.split(" ")[1]
+
+            # Get database session and validate organization
+            async with self.get_session() as session:
+                # Validate JWT and extract user info
+                auth_service = AuthService(session)
+                auth_user = await auth_service.get_user_from_token(token)
+
+                # Validate organization access
+                org_repo = OrganizationRepository(session)
+                organization = await org_repo.get_by_slug(org_slug)
+
+                if not organization:
+                    logger.warning(f"Organization not found for slug: {org_slug}")
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Organization '{org_slug}' not found"
+                    )
+
+                # Check if user belongs to this organization
+                if auth_user.organization_id != organization.id:
+                    logger.warning(
+                        f"User {auth_user.clerk_id} attempted to access org {org_slug} "
+                        f"but belongs to org {auth_user.organization_id}"
+                    )
+                    raise HTTPException(
+                        status_code=403,
+                        detail="You do not have access to this organization"
+                    )
+
+                # Add validated org info to request state for downstream use
+                request.state.org_slug = org_slug
+                request.state.org_id = organization.id
+                request.state.auth_user = auth_user
+
+                logger.debug(f"Org slug validation successful: {org_slug} -> {organization.id}")
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Organization validation failed: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Organization validation failed"
+            )
+
+        return await call_next(request)
+
 
 # Middleware for logging requests and responses
 class LoggingMiddleware(BaseHTTPMiddleware):
