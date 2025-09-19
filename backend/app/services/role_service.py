@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.role_repo import RoleRepository
+from ..database.repositories.user_repo import UserRepository
 from ..database.models.user import Role as RoleModel
 from ..schemas.user import (
     RoleCreate, RoleUpdate, Role, RoleDetail, RoleReorderItem
@@ -24,6 +25,7 @@ class RoleService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.role_repo = RoleRepository(session)
+        self.user_repo = UserRepository(session)
     
     @require_permission(Permission.ROLE_MANAGE)
     async def create_role(
@@ -222,7 +224,7 @@ class RoleService:
                 raise NotFoundError(f"Role with ID {role_id} not found")
             
             # Business validation before deletion
-            await self._validate_role_deletion(existing_role)
+            await self._validate_role_deletion(existing_role, current_user_context.organization_id)
             
             # Delete role through repository (handles hierarchy_order adjustment)
             success = await self.role_repo.delete_role(role_id)
@@ -301,7 +303,7 @@ class RoleService:
         if role_data.description is not None and not role_data.description.strip():
             raise ValidationError("Role description cannot be empty")
     
-    async def _validate_role_deletion(self, role: RoleModel) -> None:
+    async def _validate_role_deletion(self, role: RoleModel, org_id: str) -> None:
         """Validate role deletion business rules"""
         # Prevent deletion of system roles (admin, supervisor, employee)
         system_roles = ['admin', 'supervisor', 'employee']
@@ -309,9 +311,9 @@ class RoleService:
             raise BadRequestError(f"Cannot delete system role '{role.name}'")
         
         # Check if role is assigned to users
-        user_roles = await self.role_repo.get_user_roles(role.id)
-        if user_roles:
-            raise BadRequestError(f"Cannot delete role '{role.name}' because it is assigned to users")
+        user_count = await self.user_repo.count_users_with_role(role.id, org_id)
+        if user_count > 0:
+            raise BadRequestError(f"Cannot delete role '{role.name}' because it is assigned to {user_count} user(s)")
     
     async def _enrich_role_data(self, role: RoleModel) -> RoleDetail:
         """Convert role model to RoleDetail schema with additional metadata"""
