@@ -9,6 +9,7 @@ from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
 from ...security import AuthContext, get_auth_context
 from ...security.dependencies import require_admin
+from ...middleware.org_guard import OrganizationContext
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -35,6 +36,7 @@ async def check_user_exists_by_clerk_id(
 
 @router.get("/profile-options", response_model=ProfileOptionsResponse)
 async def get_profile_options(
+    context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -45,7 +47,8 @@ async def get_profile_options(
     """
     try:
         user_service = UserService(session=session)
-        return await user_service.get_profile_options()
+        # Pass context so service can org-scope data
+        return await user_service.get_profile_options(context)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -99,6 +102,11 @@ async def get_users(
         
         return result
         
+    except PermissionDeniedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
