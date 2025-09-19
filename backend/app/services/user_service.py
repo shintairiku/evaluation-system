@@ -16,8 +16,7 @@ from ..security.rbac_types import ResourceType
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB, SimpleUser,
-    Department, Stage, Role, UserStatus, UserExistsResponse, 
-    ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate
+    Department, Stage, Role, UserStatus, UserExistsResponse, UserClerkIdUpdate
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -689,43 +688,6 @@ class UserService:
             logger.error(f"User lookup with fallback failed: {e}")
             return None
 
-    async def get_profile_options(self, current_user_context: AuthContext) -> ProfileOptionsResponse:
-        """Get all available options for profile completion within organization scope."""
-        # Get organization context
-        org_id = current_user_context.organization_id
-        if not org_id:
-            raise PermissionDeniedError("Organization context required")
-        
-        # Fetch raw data from repositories with org scoping
-        departments_data = await self.department_repo.get_all(org_id)
-        stages_data = await self.stage_repo.get_all(org_id)
-        roles_data = await self.role_repo.get_all(org_id)
-        users_data = await self.user_repo.get_active_users(org_id)
-        
-        # Convert SQLAlchemy models to Pydantic models
-        departments = [Department.model_validate(dept, from_attributes=True) for dept in departments_data]
-        stages = [Stage.model_validate(stage, from_attributes=True) for stage in stages_data]
-        roles = [Role.model_validate(role, from_attributes=True) for role in roles_data]
-        
-        # Create simple user options without complex relationships
-        users = []
-        for user_data in users_data:
-            user_option = UserProfileOption(
-                id=user_data.id,
-                name=user_data.name,
-                email=user_data.email,
-                employee_code=user_data.employee_code,
-                job_title=user_data.job_title,
-                roles=[Role.model_validate(role, from_attributes=True) for role in user_data.roles]
-            )
-            users.append(user_option)
-        
-        return ProfileOptionsResponse(
-            departments=departments,
-            stages=stages,
-            roles=roles,
-            users=users
-        )
     
     # Private helper methods
     

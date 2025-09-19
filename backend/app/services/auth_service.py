@@ -3,7 +3,7 @@ from clerk_backend_api import Clerk
 import logging
 import httpx
 from jose import jwt, jwk, JWTError
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from cachetools import TTLCache
 
 from ..database.repositories.user_repo import UserRepository
@@ -12,7 +12,7 @@ from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User
 from ..schemas.auth import AuthUser
-from ..schemas.user import UserDetailResponse, Department, Role, UserProfileOption, UserExistsResponse, UserStatus
+from ..schemas.user import Department, Role, UserProfileOption, UserExistsResponse, ProfileOptionsResponse
 from ..schemas.stage_competency import Stage
 from ..core.clerk_config import get_clerk_config
 from ..core.config import settings
@@ -185,18 +185,68 @@ class AuthService:
         """Check if user exists in database with minimal info."""
         try:
             user_data = await self.user_repo.check_user_exists_by_clerk_id(clerk_user_id)
-            
+
             if user_data:
                 return UserExistsResponse(
                     exists=True,
                     user_id=user_data["id"],
                     name=user_data["name"],
-                    email=user_data["email"], 
+                    email=user_data["email"],
                     status=user_data["status"]
                 )
             else:
                 return UserExistsResponse(exists=False)
-                
+
         except Exception as e:
             logger.error(f"Error in auth service user existence check: {e}")
-            return UserExistsResponse(exists=False) 
+            return UserExistsResponse(exists=False)
+
+    async def get_profile_options(self) -> ProfileOptionsResponse:
+        """
+        Get all available options for signup form (organization-agnostic).
+        Returns all departments, stages, roles from the first organization found.
+        This is used during signup before users have organization context.
+        """
+        try:
+            # For signup, return empty profile options since users need to join an organization first
+            # This is appropriate for enterprise-only software where all users must belong to an organization
+            # After signup, users will get organization-scoped options once they join
+            departments_data = []
+            stages_data = []
+            roles_data = []
+            users_data = []
+
+            # Convert SQLAlchemy models to Pydantic models
+            departments = [Department.model_validate(dept, from_attributes=True) for dept in departments_data]
+            stages = [Stage.model_validate(stage, from_attributes=True) for stage in stages_data]
+            roles = [Role.model_validate(role, from_attributes=True) for role in roles_data]
+
+            # Create simple user options
+            users = []
+            for user_data in users_data:
+                user_option = UserProfileOption(
+                    id=user_data.id,
+                    name=user_data.name,
+                    email=user_data.email,
+                    employee_code=user_data.employee_code,
+                    job_title=user_data.job_title,
+                    roles=[Role.model_validate(role, from_attributes=True) for role in user_data.roles]
+                )
+                users.append(user_option)
+
+            return ProfileOptionsResponse(
+                departments=departments,
+                stages=stages,
+                roles=roles,
+                users=users
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting profile options: {e}")
+            # Return empty options if error occurs
+            return ProfileOptionsResponse(
+                departments=[],
+                stages=[],
+                roles=[],
+                users=[]
+            ) 
