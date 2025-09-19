@@ -12,7 +12,7 @@ vi.mock('@/hooks/use-toast', () => ({
 }));
 
 // Mock server actions
-vi.mock('@/api/server-actions/competency-management', () => ({
+vi.mock('@/api/server-actions/competencies', () => ({
   updateCompetencyAction: vi.fn(),
   deleteCompetencyAction: vi.fn(),
 }));
@@ -57,13 +57,11 @@ const mockCompetencies: Competency[] = [
 ];
 
 const mockPaginatedCompetencies: PaginatedResponse<Competency> = {
-  data: mockCompetencies,
-  meta: {
-    total: 2,
-    page: 1,
-    limit: 10,
-    pages: 1,
-  },
+  items: mockCompetencies,
+  total: 2,
+  page: 1,
+  limit: 10,
+  pages: 1,
 };
 
 describe('CompetencyManagementView', () => {
