@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import type { Competency, Stage, UUID, PaginatedResponse } from '@/api/types';
-import { updateCompetencyAction, deleteCompetencyAction } from '@/api/server-actions/competency-management';
+import { updateCompetencyAction, deleteCompetencyAction } from '@/api/server-actions/competencies';
 import { COMPETENCY_MESSAGES } from '../constants';
 
 interface UseCompetencyManagementProps {
