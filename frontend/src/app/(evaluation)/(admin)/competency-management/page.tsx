@@ -1,21 +1,25 @@
 import { CompetencyManagementView } from '@/feature/competency-management';
-import { getCompetenciesWithStagesAction } from '@/api/server-actions/competency-management';
+import { getCompetenciesAction } from '@/api/server-actions/competencies';
+import { getStagesAdminAction } from '@/api/server-actions/stages';
 
 /**
  * Competency Management Page (Admin/Viewer Only)
  *
  * Server Component following the same pattern as stage-management:
- * - Uses getCompetenciesWithStagesAction for admin verification
+ * - Uses getStagesAdminAction for admin verification
  * - Server-side 403 error handling
  * - Fetches initial data for SSR
  */
 export default async function CompetencyManagementPage() {
   // Check admin access by calling admin-only endpoint
-  // If user doesn't have admin permissions, backend returns 403
-  const dataResult = await getCompetenciesWithStagesAction();
+  // Using getStagesAdminAction to verify admin permissions (similar to stage-management)
+  const [competenciesResult, stagesResult] = await Promise.all([
+    getCompetenciesAction({ page: 1, limit: 100 }),
+    getStagesAdminAction(),
+  ]);
 
   // Handle non-admin access with 403 error display
-  if (!dataResult.success) {
+  if (!stagesResult.success) {
     return (
       <div className="container mx-auto py-8">
         <div className="text-center space-y-4">
@@ -27,14 +31,31 @@ export default async function CompetencyManagementPage() {
             Contact your system administrator if you believe this is an error.
           </p>
           <p className="text-xs text-gray-400 mt-4">
-            Error: {dataResult.error || dataResult.errorMessage}
+            Error: {stagesResult.error}
           </p>
         </div>
       </div>
     );
   }
 
-  const { competencies, stages } = dataResult.data!;
+  if (!competenciesResult.success) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold text-red-600">Error Loading Data</h1>
+          <p className="text-gray-600">
+            Failed to load competencies data.
+          </p>
+          <p className="text-xs text-gray-400 mt-4">
+            Error: {competenciesResult.error}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const competencies = competenciesResult.data!;
+  const stages = stagesResult.data!;
 
   return (
     <div className="container mx-auto p-6">
