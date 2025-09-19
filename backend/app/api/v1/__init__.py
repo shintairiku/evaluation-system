@@ -5,6 +5,7 @@ from .users import router as user_router
 from .roles import router as role_router
 from .departments import router as department_router
 from .stages import router as stage_router
+from .admin import router as admin_router
 
 from .goals import router as goal_router
 from .supervisor_reviews import router as supervisor_review_router
@@ -25,6 +26,7 @@ api_router.include_router(user_router)
 api_router.include_router(role_router)
 api_router.include_router(department_router)
 api_router.include_router(stage_router)
+api_router.include_router(admin_router)
 
 api_router.include_router(goal_router)
 api_router.include_router(supervisor_review_router)
