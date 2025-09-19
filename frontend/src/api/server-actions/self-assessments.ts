@@ -1,6 +1,9 @@
 'use server';
 
+import { cache } from 'react';
+import { revalidateTag } from 'next/cache';
 import { selfAssessmentsApi } from '../endpoints/self-assessments';
+import { CACHE_TAGS } from '../utils/cache';
 import type { 
   SelfAssessment, 
   SelfAssessmentDetail, 
@@ -14,83 +17,99 @@ import type {
 /**
  * Server action to get self-assessments with pagination
  */
-export async function getSelfAssessmentsAction(params?: { pagination?: PaginationParams; periodId?: string; userId?: string; status?: string; }): Promise<{
-  success: boolean;
-  data?: SelfAssessmentList;
-  error?: string;
-}> {
-  try {
-    const response = await selfAssessmentsApi.getSelfAssessments(params);
-    
-    if (!response.success || !response.data) {
+export const getSelfAssessmentsAction = cache(
+  async (params?: {
+    pagination?: PaginationParams;
+    periodId?: string;
+    userId?: string;
+    status?: string;
+  }): Promise<{
+    success: boolean;
+    data?: SelfAssessmentList;
+    error?: string;
+  }> => {
+    try {
+      const response = await selfAssessmentsApi.getSelfAssessments(params);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch self-assessments',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get self-assessments action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch self-assessments',
+        error: 'An unexpected error occurred while fetching self-assessments',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get self-assessments action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching self-assessments',
-    };
-  }
-}
+  },
+);
 
 /**
  * Server action to get a specific self-assessment by ID
  */
-export async function getSelfAssessmentByIdAction(assessmentId: UUID): Promise<{
-  success: boolean;
-  data?: SelfAssessmentDetail;
-  error?: string;
-}> {
-  try {
-    const response = await selfAssessmentsApi.getSelfAssessmentById(assessmentId);
-    
-    if (!response.success || !response.data) {
+export const getSelfAssessmentByIdAction = cache(
+  async (
+    assessmentId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SelfAssessmentDetail;
+    error?: string;
+  }> => {
+    try {
+      const response = await selfAssessmentsApi.getSelfAssessmentById(assessmentId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch self-assessment',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get self-assessment by ID action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch self-assessment',
+        error: 'An unexpected error occurred while fetching self-assessment',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get self-assessment by ID action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching self-assessment',
-    };
-  }
-}
+  },
+);
 
 /**
- * Server action to create a new self-assessment
+ * Server action to create a new self-assessment with cache revalidation
  */
-export async function createSelfAssessmentAction(assessmentData: SelfAssessmentCreate, goalId: UUID): Promise<{
+export async function createSelfAssessmentAction(
+  assessmentData: SelfAssessmentCreate,
+  goalId: UUID,
+): Promise<{
   success: boolean;
   data?: SelfAssessment;
   error?: string;
 }> {
   try {
     const response = await selfAssessmentsApi.createSelfAssessment(assessmentData, goalId);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to create self-assessment',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+
     return {
       success: true,
       data: response.data,
@@ -105,23 +124,28 @@ export async function createSelfAssessmentAction(assessmentData: SelfAssessmentC
 }
 
 /**
- * Server action to update an existing self-assessment
+ * Server action to update an existing self-assessment with cache revalidation
  */
-export async function updateSelfAssessmentAction(assessmentId: UUID, updateData: SelfAssessmentUpdate): Promise<{
+export async function updateSelfAssessmentAction(
+  assessmentId: UUID,
+  updateData: SelfAssessmentUpdate,
+): Promise<{
   success: boolean;
   data?: SelfAssessment;
   error?: string;
 }> {
   try {
     const response = await selfAssessmentsApi.updateSelfAssessment(assessmentId, updateData);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to update self-assessment',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+
     return {
       success: true,
       data: response.data,
@@ -136,7 +160,7 @@ export async function updateSelfAssessmentAction(assessmentId: UUID, updateData:
 }
 
 /**
- * Server action to delete a self-assessment
+ * Server action to delete a self-assessment with cache revalidation
  */
 export async function deleteSelfAssessmentAction(assessmentId: UUID): Promise<{
   success: boolean;
@@ -144,14 +168,16 @@ export async function deleteSelfAssessmentAction(assessmentId: UUID): Promise<{
 }> {
   try {
     const response = await selfAssessmentsApi.deleteSelfAssessment(assessmentId);
-    
+
     if (!response.success) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to delete self-assessment',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+
     return {
       success: true,
     };
@@ -167,98 +193,110 @@ export async function deleteSelfAssessmentAction(assessmentId: UUID): Promise<{
 /**
  * Server action to get self-assessments by user ID
  */
-export async function getSelfAssessmentsByUserAction(userId: UUID): Promise<{
-  success: boolean;
-  data?: SelfAssessmentList;
-  error?: string;
-}> {
-  try {
-    const response = await selfAssessmentsApi.getSelfAssessmentsByUser(userId);
-    
-    if (!response.success || !response.data) {
+export const getSelfAssessmentsByUserAction = cache(
+  async (
+    userId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SelfAssessmentList;
+    error?: string;
+  }> => {
+    try {
+      const response = await selfAssessmentsApi.getSelfAssessmentsByUser(userId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch user self-assessments',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get self-assessments by user action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch user self-assessments',
+        error: 'An unexpected error occurred while fetching user self-assessments',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get self-assessments by user action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching user self-assessments',
-    };
-  }
-}
+  },
+);
 
 /**
  * Server action to get self-assessments by period ID
  */
-export async function getSelfAssessmentsByPeriodAction(periodId: UUID): Promise<{
-  success: boolean;
-  data?: SelfAssessmentList;
-  error?: string;
-}> {
-  try {
-    const response = await selfAssessmentsApi.getSelfAssessmentsByPeriod(periodId);
-    
-    if (!response.success || !response.data) {
+export const getSelfAssessmentsByPeriodAction = cache(
+  async (
+    periodId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SelfAssessmentList;
+    error?: string;
+  }> => {
+    try {
+      const response = await selfAssessmentsApi.getSelfAssessmentsByPeriod(periodId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch period self-assessments',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get self-assessments by period action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch period self-assessments',
+        error: 'An unexpected error occurred while fetching period self-assessments',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get self-assessments by period action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching period self-assessments',
-    };
-  }
-}
+  },
+);
 
 /**
  * Server action to get self-assessments by goal ID
  */
-export async function getSelfAssessmentsByGoalAction(goalId: UUID): Promise<{
-  success: boolean;
-  data?: SelfAssessment | null;
-  error?: string;
-}> {
-  try {
-    const response = await selfAssessmentsApi.getSelfAssessmentByGoal(goalId);
-    
-    if (!response.success || !response.data) {
+export const getSelfAssessmentsByGoalAction = cache(
+  async (
+    goalId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SelfAssessment | null;
+    error?: string;
+  }> => {
+    try {
+      const response = await selfAssessmentsApi.getSelfAssessmentByGoal(goalId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch goal self-assessments',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get self-assessments by goal action error:', error);
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch goal self-assessments',
+        error: 'An unexpected error occurred while fetching goal self-assessments',
       };
     }
-    
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Get self-assessments by goal action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while fetching goal self-assessments',
-    };
-  }
-}
+  },
+);
 
 /**
- * Server action to submit a self-assessment
+ * Server action to submit a self-assessment with cache revalidation
  */
 export async function submitSelfAssessmentAction(assessmentId: UUID): Promise<{
   success: boolean;
@@ -267,14 +305,16 @@ export async function submitSelfAssessmentAction(assessmentId: UUID): Promise<{
 }> {
   try {
     const response = await selfAssessmentsApi.submitSelfAssessment(assessmentId);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to submit self-assessment',
       };
     }
-    
+
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+
     return {
       success: true,
       data: response.data,
