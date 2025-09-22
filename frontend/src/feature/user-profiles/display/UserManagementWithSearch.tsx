@@ -24,6 +24,8 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   // Keep Organization Chart dataset isolated so filters there don't affect Table/Gallery
   const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [orgIsFiltered, setOrgIsFiltered] = useState<boolean>(false);
+  // Track edit mode for organization view
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
 
   const { viewMode, setViewMode } = useViewMode('table');
 
@@ -50,11 +52,23 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
     );
   };
 
+  // Callback to handle edit mode changes from OrganizationViewWithOrgChart
+  const handleEditModeChange = (editMode: boolean) => {
+    setIsEditMode(editMode);
+  };
+
   // Callback to handle search results from UserSearch component
   const handleSearchResults = (searchUsers: UserDetailResponse[], total: number, isFilteredArg?: boolean) => {
     setError(null);
     if (viewMode === 'organization') {
-      // Apply only to Organization Chart
+      // Apply security restriction only in edit mode for non-admin users
+      if (isEditMode && initialUsers.length === 1) {
+        // Employee heuristic: initialUsers length == 1 → restrict to self only in edit mode
+        setOrgUsers(initialUsers);
+        setOrgIsFiltered(false);
+        return;
+      }
+      // Apply search results normally (admin in edit mode OR any user in readonly mode)
       setOrgUsers(searchUsers);
       setOrgIsFiltered(Boolean(isFilteredArg));
       // Do not touch table/gallery dataset
@@ -80,7 +94,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
       case 'gallery':
         return <UserGalleryView users={users} onUserUpdate={handleUserUpdate} />;
       case 'organization':
-        return <OrganizationViewWithOrgChart users={orgUsers} onUserUpdate={handleUserUpdate} isFiltered={orgIsFiltered} />;
+        return <OrganizationViewWithOrgChart users={orgUsers} onUserUpdate={handleUserUpdate} isFiltered={orgIsFiltered} onEditModeChange={handleEditModeChange} />;
       default:
         return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
     }
