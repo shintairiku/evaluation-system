@@ -17,7 +17,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MultiSelectRoles } from '@/components/ui/multi-select-roles';
 import HierarchySetupWrapper from '../components/HierarchySetupWrapper';
 import { createUserAction } from '@/api/server-actions/users';
-import type { Department, Stage, Role, UserCreate } from '@/api/types/user';
+import type { Department, Role, UserCreate } from '@/api/types/user';
+import type { Stage } from '@/api/types/stage';
 import type { UserProfileOption } from '@/api/types/user';
 
 interface ProfileFormProps {
@@ -189,12 +190,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
               <SelectContent>
                 {stages.map((stage) => (
                   <SelectItem key={stage.id} value={stage.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{stage.name}</span>
-                      {stage.description && (
-                        <span className="text-xs text-gray-500">{stage.description}</span>
-                      )}
-                    </div>
+                    {stage.name}
                   </SelectItem>
                 ))}
               </SelectContent>
