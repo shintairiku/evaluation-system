@@ -182,25 +182,36 @@ export async function getCurrentOrgContext(): Promise<{
 }
 
 /**
- * Build organization-scoped API endpoint URL
- * Automatically extracts org_slug from token and constructs the URL
+ * Server-side utility to extract organization slug from Clerk token
+ * Used in server actions to get org context for API calls
  */
-export function buildOrgEndpoint(endpoint: string, token?: string | null): string | null {
-  // Use provided token or try to get current one
-  let authToken: string | null = token ?? null;
-  if (!authToken && typeof window !== 'undefined') {
-    const { ClientAuth } = require('../client/auth-helper');
-    authToken = ClientAuth.getToken() ?? null;
-  }
+export async function getCurrentOrgSlug(): Promise<string | null> {
+  try {
+    // Import Clerk server-side auth
+    const { auth } = await import('@clerk/nextjs/server');
+    const { getToken } = await auth();
+    const token = await getToken({ template: 'org-jwt' });
 
-  const orgSlug = getOrgSlugFromToken(authToken);
-  if (!orgSlug) {
-    console.warn('Cannot build org endpoint: org_slug not found in token');
+    if (!token) {
+      console.warn('No auth token found in server action');
+      return null;
+    }
+
+    // Parse JWT payload to extract org_slug
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.warn('Invalid JWT format');
+      return null;
+    }
+
+    const payload = parts[1];
+    const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
+    const decoded = atob(paddedPayload.replace(/-/g, '+').replace(/_/g, '/'));
+    const jwtPayload = JSON.parse(decoded);
+
+    return jwtPayload.organization_slug || null;
+  } catch (error) {
+    console.warn('Failed to get org slug from token:', error);
     return null;
   }
-
-  // Ensure endpoint starts with /
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-  return `/api/org/${encodeURIComponent(orgSlug)}${cleanEndpoint}`;
 }
