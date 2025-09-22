@@ -25,7 +25,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [orgIsFiltered, setOrgIsFiltered] = useState<boolean>(false);
   // Track edit mode for organization view
-  const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [isOrganizationEditMode, setIsOrganizationEditMode] = useState<boolean>(false);
 
   const { viewMode, setViewMode } = useViewMode('table');
 
@@ -54,7 +54,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
 
   // Callback to handle edit mode changes from OrganizationViewWithOrgChart
   const handleEditModeChange = (editMode: boolean) => {
-    setIsEditMode(editMode);
+    setIsOrganizationEditMode(editMode);
   };
 
   // Callback to handle search results from UserSearch component
@@ -62,7 +62,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
     setError(null);
     if (viewMode === 'organization') {
       // Apply security restriction only in edit mode for non-admin users
-      if (isEditMode && initialUsers.length === 1) {
+      if (isOrganizationEditMode && initialUsers.length === 1) {
         // Employee heuristic: initialUsers length == 1 → restrict to self only in edit mode
         setOrgUsers(initialUsers);
         setOrgIsFiltered(false);
