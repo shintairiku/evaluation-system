@@ -232,13 +232,8 @@ class UnifiedHttpClient {
       if (isServer) {
         // Server-side: Use @clerk/nextjs/server
         const { auth } = await import('@clerk/nextjs/server');
-        const authResult = await auth();
-        
-        if (!authResult || !authResult.getToken) {
-          return {};
-        }
-        
-        const token = await authResult.getToken();
+        const { getToken } = await auth();
+        const token = await getToken({ template: 'org-jwt' });
         
         if (token) {
           return {
@@ -251,7 +246,7 @@ class UnifiedHttpClient {
         
         // If no token stored, try to initialize from Clerk
         if (!token) {
-          token = await ClientAuth.initializeFromClerk();
+          token = await ClientAuth.initializeFromClerk('org-jwt');
         }
         
         if (token) {
@@ -319,7 +314,9 @@ class UnifiedHttpClient {
     }
 
     if (!response.ok) {
-      const errorMessage = (data as { message?: string; error?: string })?.message || 
+      // Prefer FastAPI's {detail: string} or legacy {message|error}
+      const errorMessage = (data as { detail?: string; message?: string; error?: string })?.detail ||
+                          (data as { message?: string; error?: string })?.message || 
                           (data as { message?: string; error?: string })?.error || 
                           `HTTP ${response.status}: ${response.statusText}`;
       
@@ -593,7 +590,7 @@ let httpClientInstance: UnifiedHttpClient | null = null;
 
 export function getHttpClient(): UnifiedHttpClient {
   if (!httpClientInstance) {
-    httpClientInstance = new UnifiedHttpClient(API_CONFIG.FULL_URL);
+    httpClientInstance = new UnifiedHttpClient(API_CONFIG.BASE_URL);
   }
   return httpClientInstance;
 }
