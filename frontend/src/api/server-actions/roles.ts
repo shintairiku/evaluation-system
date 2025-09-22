@@ -1,8 +1,9 @@
 'use server';
 
+import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { rolesApi } from '../endpoints/roles';
-import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
+import { CACHE_TAGS } from '../utils/cache';
 import type { 
   RoleDetail, 
   RoleCreate, 
@@ -42,11 +43,13 @@ async function _getRolesAction(): Promise<{
   }
 }
 
-export const getRolesAction = createFullyCachedAction(
-  _getRolesAction,
-  'getRoles',
-  CACHE_TAGS.ROLES
-);
+export const getRolesAction = cache(async (): Promise<{
+  success: boolean;
+  data?: RoleDetail[];
+  error?: string;
+}> => {
+  return _getRolesAction();
+});
 
 /**
  * Server action to get a specific role by ID with caching
@@ -79,11 +82,13 @@ async function _getRoleByIdAction(roleId: UUID): Promise<{
   }
 }
 
-export const getRoleByIdAction = createFullyCachedAction(
-  _getRoleByIdAction,
-  'getRoleById',
-  CACHE_TAGS.ROLES
-);
+export const getRoleByIdAction = cache(async (roleId: UUID): Promise<{
+  success: boolean;
+  data?: RoleDetail;
+  error?: string;
+}> => {
+  return _getRoleByIdAction(roleId);
+});
 
 /**
  * Server action to create a new role with cache revalidation

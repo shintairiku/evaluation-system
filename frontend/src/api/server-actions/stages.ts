@@ -1,8 +1,9 @@
 'use server';
 
+import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { stagesApi } from '../endpoints/stages';
-import { createFullyCachedAction, CACHE_TAGS } from '../utils/cache';
+import { CACHE_TAGS } from '../utils/cache';
 import type { 
   Stage, 
   StageDetail, 
@@ -13,13 +14,14 @@ import type {
 } from '../types';
 
 /**
- * Server action to get all stages with caching
+ * Server action to get all stages with request memoization.
+ * Data caching is handled at the fetch level.
  */
-async function _getStagesAction(): Promise<{
+export const getStagesAction = cache(async (): Promise<{
   success: boolean;
   data?: Stage[];
   error?: string;
-}> {
+}> => {
   try {
     const response = await stagesApi.getStages();
     
@@ -41,22 +43,17 @@ async function _getStagesAction(): Promise<{
       error: 'An unexpected error occurred while fetching stages',
     };
   }
-}
-
-export const getStagesAction = createFullyCachedAction(
-  _getStagesAction,
-  'getStages',
-  CACHE_TAGS.STAGES
-);
+});
 
 /**
- * Server action to get a specific stage by ID with caching
+ * Server action to get a specific stage by ID with request memoization.
+ * Data caching is handled at the fetch level.
  */
-async function _getStageByIdAction(stageId: UUID): Promise<{
+export const getStageByIdAction = cache(async (stageId: UUID): Promise<{
   success: boolean;
   data?: StageDetail;
   error?: string;
-}> {
+}> => {
   try {
     const response = await stagesApi.getStageById(stageId);
     
@@ -78,13 +75,7 @@ async function _getStageByIdAction(stageId: UUID): Promise<{
       error: 'An unexpected error occurred while fetching stage',
     };
   }
-}
-
-export const getStageByIdAction = createFullyCachedAction(
-  _getStageByIdAction,
-  'getStageById',
-  CACHE_TAGS.STAGES
-);
+});
 
 /**
  * Server action to create a new stage with cache revalidation
@@ -104,7 +95,7 @@ export async function createStageAction(stageData: StageCreate): Promise<{
       };
     }
     
-    // Revalidate stages cache after successful creation
+    // Revalidate stages list cache after successful creation
     revalidateTag(CACHE_TAGS.STAGES);
     
     return {
@@ -138,8 +129,9 @@ export async function updateStageAction(stageId: UUID, updateData: StageUpdate):
       };
     }
     
-    // Revalidate stages cache after successful update
+    // Revalidate stages list and individual stage cache after successful update
     revalidateTag(CACHE_TAGS.STAGES);
+    revalidateTag(`${CACHE_TAGS.STAGES}:${stageId}`);
     
     return {
       success: true,
@@ -171,8 +163,9 @@ export async function deleteStageAction(stageId: UUID): Promise<{
       };
     }
     
-    // Revalidate stages cache after successful deletion
+    // Revalidate stages list and individual stage cache after successful deletion
     revalidateTag(CACHE_TAGS.STAGES);
+    revalidateTag(`${CACHE_TAGS.STAGES}:${stageId}`);
     
     return {
       success: true,
@@ -187,9 +180,11 @@ export async function deleteStageAction(stageId: UUID): Promise<{
 }
 
 /**
- * Server action to get stages for admin with user counts and caching
+ * Server action to get stages for admin with user counts.
+ * This action cannot be cached due to the use of Clerk's auth(),
+ * which is a dynamic function not supported in cached operations.
  */
-async function _getStagesAdminAction(): Promise<{
+export async function getStagesAdminAction(): Promise<{
   success: boolean;
   data?: StageWithUserCount[];
   error?: string;
@@ -216,9 +211,3 @@ async function _getStagesAdminAction(): Promise<{
     };
   }
 }
-
-export const getStagesAdminAction = createFullyCachedAction(
-  _getStagesAdminAction,
-  'getStagesAdmin',
-  CACHE_TAGS.STAGES
-);
