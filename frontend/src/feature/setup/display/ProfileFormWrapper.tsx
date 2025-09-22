@@ -3,12 +3,16 @@
 import { useState, useEffect } from 'react';
 import ProfileForm from './ProfileForm';
 import ClerkInfoCard from '@/components/display/ClerkInfoCard';
-import { getProfileOptionsAction } from '@/api/server-actions/users';
+import { getProfileOptionsAction } from '@/api/server-actions/auth';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { FormSkeleton } from '@/components/ui/loading-skeleton';
 import type { ProfileOptionsResponse } from '@/api/types/user';
 
-export default function ProfileFormWrapper() {
+interface ProfileFormWrapperProps {
+  orgId?: string | null;
+}
+
+export default function ProfileFormWrapper({ orgId }: ProfileFormWrapperProps) {
   const [options, setOptions] = useState<ProfileOptionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,8 +20,8 @@ export default function ProfileFormWrapper() {
   useEffect(() => {
     async function fetchOptions() {
       try {
-        const result = await getProfileOptionsAction();
-        
+        const result = await getProfileOptionsAction(orgId || undefined);
+
         if (result.success && result.data) {
           setOptions(result.data);
           setError(null);
@@ -32,7 +36,7 @@ export default function ProfileFormWrapper() {
     }
 
     fetchOptions();
-  }, []);
+  }, [orgId]);
 
   if (isLoading) {
     return (
