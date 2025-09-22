@@ -162,7 +162,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
           <div>
             <label className="block text-sm font-medium mb-2">部署 *</label>
             <Select value={selectedDepartment} onValueChange={setSelectedDepartment} required>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="部署を選択してください" />
               </SelectTrigger>
               <SelectContent>
@@ -183,18 +183,13 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
           <div>
             <label className="block text-sm font-medium mb-2">段階 *</label>
             <Select value={selectedStage} onValueChange={setSelectedStage} required>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="段階を選択してください" />
               </SelectTrigger>
               <SelectContent>
                 {stages.map((stage) => (
                   <SelectItem key={stage.id} value={stage.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{stage.name}</span>
-                      {stage.description && (
-                        <span className="text-xs text-gray-500">{stage.description}</span>
-                      )}
-                    </div>
+                    {stage.name}
                   </SelectItem>
                 ))}
               </SelectContent>
