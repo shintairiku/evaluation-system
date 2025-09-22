@@ -57,10 +57,10 @@ export const buildOrgApiUrl = (orgSlug: string, endpoint: string) => {
 export const API_ENDPOINTS = {
   // Auth endpoints (organization-agnostic)
   AUTH: {
-    USER_BY_CLERK_ID: (clerkId: string) => `/auth/user/${clerkId}`,
-    SIGNUP_PROFILE_OPTIONS: '/auth/signup/profile-options',
-    LOGOUT: '/auth/logout',
-    // DEV_KEYS: '/auth/dev-keys',
+    USER_BY_CLERK_ID: (clerkId: string) => buildApiUrl(`/auth/user/${clerkId}`),
+    SIGNUP_PROFILE_OPTIONS: buildApiUrl('/auth/signup/profile-options'),
+    LOGOUT: buildApiUrl('/auth/logout'),
+    // DEV_KEYS: buildApiUrl('/auth/dev-keys'),
   },
   
   // User endpoints (organization-scoped)
