@@ -1,4 +1,4 @@
-import ProfileFormWrapper from '@/feature/setup/display/ProfileFormWrapper';
+import OrganizationAwareProfileWrapper from '@/feature/setup/components/OrganizationAwareProfileWrapper';
 
 export default function ProfilePage() {
   return (
@@ -10,7 +10,7 @@ export default function ProfilePage() {
         </p>
       </div>
       
-      <ProfileFormWrapper />
+      <OrganizationAwareProfileWrapper />
     </div>
   );
 }
