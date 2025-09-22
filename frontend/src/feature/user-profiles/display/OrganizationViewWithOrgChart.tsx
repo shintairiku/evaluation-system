@@ -9,6 +9,9 @@ import UserOrganizationView from './UserOrganizationView';
 import ReadOnlyOrganizationView from './ReadOnlyOrganizationView';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { MESSAGES } from '@/components/constants/messages';
+import { EmptyState } from '@/components/ui/empty-state';
+import { mapToSimpleUser } from '../utils/mapToSimpleUser';
 
 interface OrganizationViewWithOrgChartProps {
   users: UserDetailResponse[];
@@ -55,8 +58,7 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate, isFi
   // Apply external filtered users when parent indicates filtered
   useEffect(() => {
     if (isFiltered) {
-      // Map UserDetailResponse -> SimpleUser (fields used by chart exist or are subset-compatible)
-      const mapped = (users as unknown as SimpleUser[]) || [];
+      const mapped = users && users.length > 0 ? mapToSimpleUser(users as unknown as UserDetailResponse[]) : [];
       setDataSource({ mode: 'filtered', users: mapped });
     } else {
       setDataSource({ mode: 'auto', users: [] });
@@ -75,12 +77,7 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate, isFi
       // When filtered result is empty, show the standard empty message and do NOT render the chart
       if (!dataSource.users || dataSource.users.length === 0) {
         return (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              該当するユーザーが見つかりませんでした。
-            </AlertDescription>
-          </Alert>
+          <EmptyState title={MESSAGES.users.emptyTitle} description={MESSAGES.users.emptyDescription} />
         );
       }
       return <ReadOnlyOrganizationView users={dataSource.users} isFiltered />;
@@ -111,12 +108,7 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate, isFi
 
     if (!orgChartUsers || orgChartUsers.length === 0) {
       return (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            組織図に表示するユーザーが見つかりませんでした。
-          </AlertDescription>
-        </Alert>
+        <EmptyState title={MESSAGES.users.orgEmptyTitle} />
       );
     }
 
