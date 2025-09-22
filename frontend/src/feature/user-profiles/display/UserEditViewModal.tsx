@@ -443,7 +443,7 @@ export default function UserEditViewModal({
                           disabled={isPending}
                           name="department_id"
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="部署を選択" />
                           </SelectTrigger>
                           <SelectContent>
@@ -465,7 +465,7 @@ export default function UserEditViewModal({
                           disabled={isPending}
                           name="stage_id"
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="ステージを選択" />
                           </SelectTrigger>
                           <SelectContent>
@@ -490,7 +490,7 @@ export default function UserEditViewModal({
                     disabled={isPending || isLoadingOptions}
                     name="status"
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="ステータスを選択" />
                     </SelectTrigger>
                     <SelectContent>
