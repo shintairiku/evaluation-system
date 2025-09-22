@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 
 export default function Header() {
   return (
@@ -15,13 +15,24 @@ export default function Header() {
           </SignInButton>
         </SignedOut>
         <SignedIn>
-          <UserButton 
-            appearance={{
-              elements: {
-                avatarBox: "h-8 w-8"
-              }
-            }}
-          />
+          <div className="flex items-center gap-3">
+            <OrganizationSwitcher
+              hidePersonal
+              appearance={{
+                elements: {
+                  organizationSwitcherTrigger: "text-white border-white/20",
+                  organizationSwitcherTriggerIcon: "text-white"
+                }
+              }}
+            />
+            <UserButton 
+              appearance={{
+                elements: {
+                  avatarBox: "h-8 w-8"
+                }
+              }}
+            />
+          </div>
         </SignedIn>
       </div>
     </div>
