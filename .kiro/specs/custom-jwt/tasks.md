@@ -103,12 +103,37 @@
   >
   > **関連要件:** データ要件 5.2
   > **実装メモ:** 全リポジトリで適用済み
+  >
+  > **実装詳細（2025-01-XX 完了）:**
+  > - **StageService 修正**: `current_user_context.organization_id` を全リポジトリ呼び出しに適用
+  >   - `get_all()`, `get_by_id()`, `create()`, `update()`, `delete()`, `count_users_by_stage()` メソッドに org_id パラメータ追加
+  > - **RoleService 修正**: 全リポジトリ呼び出しに org_id パラメータ適用
+  >   - `get_all()`, `get_by_id()`, `create_role()`, `update_role()` メソッドに org_id パラメータ追加
+  >   - バリデーション用ヘルパーメソッド (`_validate_role_*`) にも org_id パラメータ適用
+  > - **UserService 修正**: バリデーション系呼び出しに org_id パラメータ適用
+  >   - `_validate_user_creation()`, `_validate_user_update()` メソッドで role/stage 存在チェックに org_id 適用
+  > - **CompetencyService 修正**: stage 存在チェックに org_id パラメータ適用
+  >   - `create_competency()`, `update_competency()` メソッドで `get_by_id()` 呼び出しに org_id 適用
+  > - **DepartmentService 修正**: 全 CRUD 操作に org_id パラメータ適用
+  >   - `create_department()`, `update_department()`, `delete_department()` メソッドに org_id パラメータ追加
+  >   - バリデーション用ヘルパーメソッド (`_validate_department_*`) にも org_id パラメータ適用
+  > - **DepartmentRepository 修正**: `update_department()`, `delete_department()` メソッドに org_id パラメータ追加
+  >   - 組織スコープでのユーザーカウントチェックと削除処理に org_id 適用
+  > - **Repository メソッドシグネチャ統一**: 全ての `get_by_id()`, `get_all()` 系メソッドで org_id パラメータ必須化
 
 - [x] **5.3. 書込み時の組織整合性検証**
   > データ作成・更新時に対象レコードが同一組織であることを検証する仕組みを実装します。
   >
   > **関連要件:** データ要件 5.3
   > **実装メモ:** 全サービスで検証済み
+  >
+  > **実装詳細（2025-01-XX 完了）:**
+  > - **StageService**: `get_by_id()` 呼び出しで存在チェック時に org_id 検証
+  > - **RoleService**: 作成/更新時の `get_by_name()` 呼び出しで同名重複チェックに org_id 適用
+  > - **UserService**: role/stage 存在チェック時に org_id 検証
+  > - **CompetencyService**: stage 存在チェック時に org_id 検証
+  > - **DepartmentService**: 作成/更新/削除時の `get_by_name()` 呼び出しで同名重複チェックに org_id 適用
+  > - **Repository レベル検証**: `StageRepository.get_by_name()`, `RoleRepository.get_by_name()`, `DepartmentRepository.get_by_name()` で org_id 必須化
 
 ### 6. 管理者 API の簡略化
 > Clerk UI コンポーネントを活用した管理機能の設計変更を実装します。
@@ -306,6 +331,26 @@ def apply_org_scope_via_goal(query, goal_fk_col, org_id: str):
 #### 5.2 実装済みの変更点（Repositories / Services）
 
 - 目的: 5.1 の方針に沿って、全リポジトリ/サービスの読み書きに組織スコープと一貫した RBAC を適用。
+
+- **最新修正（2025-01-XX）: org_id パラメータ抜け漏れの包括的修正**
+  - **StageService** (`stage_service.py`)
+    - 全リポジトリ呼び出しに `current_user_context.organization_id` を適用
+    - `get_all_stages()`, `get_stages_with_user_count()`, `get_stage()`, `create_stage()`, `update_stage()`, `delete_stage()` で org_id 必須化
+  - **RoleService** (`role_service.py`)
+    - 全リポジトリ呼び出しに `current_user_context.organization_id` を適用
+    - `get_all()`, `get_by_id()`, `create_role()`, `update_role()`, `delete_role()` で org_id 必須化
+    - バリデーション用ヘルパーメソッドにも org_id パラメータ適用
+  - **UserService** (`user_service.py`)
+    - `_validate_user_creation()`, `_validate_user_update()` で role/stage 存在チェックに org_id 適用
+    - `update_user_stage()` で stage 存在チェックに org_id 適用
+  - **CompetencyService** (`competency_service.py`)
+    - `create_competency()`, `update_competency()` で stage 存在チェックに org_id 適用
+  - **DepartmentService** (`department_service.py`)
+    - 全 CRUD 操作に `current_user_context.organization_id` を適用
+    - バリデーション用ヘルパーメソッドにも org_id パラメータ適用
+  - **DepartmentRepository** (`department_repo.py`)
+    - `update_department()`, `delete_department()` に org_id パラメータ追加
+    - 組織スコープでのユーザーカウントチェックと削除処理に org_id 適用
 
 - Repositories（主な変更）
   - users (`backend/app/database/repositories/user_repo.py`)
