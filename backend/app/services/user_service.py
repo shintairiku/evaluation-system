@@ -504,7 +504,7 @@ class UserService:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
             # Validate stage exists
-            stage = await self.stage_repo.get_by_id(stage_update.stage_id)
+            stage = await self.stage_repo.get_by_id(stage_update.stage_id, current_user_context.organization_id)
             if not stage:
                 raise NotFoundError(f"Stage with ID {stage_update.stage_id} not found")
             
@@ -707,7 +707,7 @@ class UserService:
         # Validate role IDs exist
         if user_data.role_ids:
             for role_id in user_data.role_ids:
-                role = await self.role_repo.get_by_id(role_id)
+                role = await self.role_repo.get_by_id(role_id, org_id)
                 if not role:
                     raise BadRequestError(f"Role with ID {role_id} does not exist")
         
@@ -770,7 +770,7 @@ class UserService:
         # Validate role IDs exist if being updated
         if user_data.role_ids is not None:
             for role_id in user_data.role_ids:
-                role = await self.role_repo.get_by_id(role_id)
+                role = await self.role_repo.get_by_id(role_id, org_id)
                 if not role:
                     raise BadRequestError(f"Role with ID {role_id} does not exist")
         
