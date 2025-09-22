@@ -132,16 +132,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
           </div>
         )}
 
-        {/* Empty state */}
-        {users.length === 0 && viewMode !== 'organization' && (
-          <div className="text-center py-8">
-            <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold text-muted-foreground">該当するユーザーが見つかりませんでした</h3>
-            <p className="text-sm text-muted-foreground mt-2">
-              検索条件を変更してもう一度お試しください。
-            </p>
-          </div>
-        )}
+        {/* Empty state is handled within each view component to avoid duplication */}
 
         {/* Current view */}
         {renderCurrentView()}
