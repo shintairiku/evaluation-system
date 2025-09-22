@@ -79,7 +79,7 @@ export const usersApi = {
    * Update user's stage (admin only)
    */
   updateUserStage: async (userId: UUID, data: { stage_id: UUID }): Promise<ApiResponse<UserDetailResponse>> => {
-    return httpClient.patch<UserDetailResponse>(`${API_ENDPOINTS.USERS.BY_ID(userId)}/stage`, data);
+    return httpClient.patch<UserDetailResponse>(API_ENDPOINTS.USERS.UPDATE_STAGE(userId), data);
   },
 
   /**

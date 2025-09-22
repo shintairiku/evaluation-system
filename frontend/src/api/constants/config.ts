@@ -61,6 +61,7 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/users/${id}`,
     CREATE: '/users',
     UPDATE: (id: string) => `/users/${id}`,
+    UPDATE_STAGE: (id: string) => `/users/${id}/stage`,
     DELETE: (id: string) => `/users/${id}`,
     EXISTS: (clerkId: string) => `/users/exists/${clerkId}`,
     PROFILE_OPTIONS: '/users/profile-options',
