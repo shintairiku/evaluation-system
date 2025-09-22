@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getProfileOptionsAction } from '@/api/server-actions/users';
+import { getProfileOptionsAction } from '@/api/server-actions/auth';
 import type { Department, Stage, Role } from '@/api/types';
 
 interface ProfileOptions {
@@ -23,9 +23,10 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 interface ProfileOptionsProviderProps {
   children: ReactNode;
+  orgId?: string | null;
 }
 
-export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps) {
+export function ProfileOptionsProvider({ children, orgId }: ProfileOptionsProviderProps) {
   const [options, setOptions] = useState<ProfileOptions>({
     departments: [],
     stages: [],
@@ -37,7 +38,7 @@ export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps
 
   const fetchOptions = async () => {
     const now = Date.now();
-    
+
     // Check if cache is still valid
     if (lastFetch && (now - lastFetch) < CACHE_DURATION && options.departments.length > 0) {
       return;
@@ -47,8 +48,7 @@ export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps
     setError(null);
 
     try {
-      const result = await getProfileOptionsAction();
-      
+      const result = await getProfileOptionsAction(orgId || undefined);
       if (result.success && result.data) {
         setOptions({
           departments: result.data.departments,
@@ -71,11 +71,11 @@ export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps
     await fetchOptions();
   };
 
-  // Auto-fetch on mount
+  // Auto-fetch on mount and when orgId changes
   useEffect(() => {
     fetchOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array - only run on mount
+  }, [orgId]); // Re-fetch when orgId changes
 
   const value: ProfileOptionsContextType = {
     options,
