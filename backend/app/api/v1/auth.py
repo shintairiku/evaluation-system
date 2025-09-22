@@ -66,17 +66,20 @@ async def check_user_exists_by_clerk_id(
 
 @router.get("/signup/profile-options", response_model=ProfileOptionsResponse)
 async def get_signup_profile_options(
+    organization_id: str = None,
     session: AsyncSession = Depends(get_db_session)
 ):
     """
     Get all available options for signup form.
     Returns departments, stages, roles, and active users.
-    Used during signup flow before user has organization context.
+
+    Args:
+        organization_id: Optional organization ID to get org-scoped data.
+                        If not provided, returns empty options.
     """
     try:
         auth_service = AuthService(session=session)
-        # No context needed for signup profile options
-        return await auth_service.get_profile_options()
+        return await auth_service.get_profile_options(organization_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
