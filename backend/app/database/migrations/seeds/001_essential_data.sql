@@ -2,12 +2,6 @@
 -- Contains only required system data for production deployment
 -- This includes organizations, roles, stages, and competencies needed for the system to function
 
--- Insert organizations (required for multi-tenant system)
-INSERT INTO organizations (id, name, slug) VALUES
-('org_32a4qh6ZhszNNK1kW1xyNgYimhZ', '新大陸', 'shintairiku'),
-('org_32lvjKZKHDCKVmRhMhNx4mfP3c5', 'テスト組織', 'test-organization')
-ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug;
-
 -- Insert career stages (9-stage progression system)
 -- Organization 1: org_32a4qh6ZhszNNK1kW1xyNgYimhZ
 INSERT INTO stages (id, name, description, organization_id) VALUES
