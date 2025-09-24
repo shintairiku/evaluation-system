@@ -8,22 +8,6 @@ INSERT INTO organizations (id, name, slug) VALUES
 ('org_32lvjKZKHDCKVmRhMhNx4mfP3c5', 'テスト組織', 'test-organization')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug;
 
--- Insert system roles (required for RBAC)
-INSERT INTO roles (id, name, description, organization_id) VALUES
-(1, 'admin', '管理者', 'org_32a4qh6ZhszNNK1kW1xyNgYimhZ'),
-(2, 'manager', '部門マネジャー', 'org_32a4qh6ZhszNNK1kW1xyNgYimhZ'),
-(3, 'supervisor', '上司', 'org_32a4qh6ZhszNNK1kW1xyNgYimhZ'),
-(4, 'employee', '従業員', 'org_32a4qh6ZhszNNK1kW1xyNgYimhZ'),
-(5, 'viewer', '閲覧者', 'org_32a4qh6ZhszNNK1kW1xyNgYimhZ'),
-(6, 'parttime', 'パートタイム', 'org_32a4qh6ZhszNNK1kW1xyNgYimhZ'),
-(7, 'admin', '管理者', 'org_32lvjKZKHDCKVmRhMhNx4mfP3c5'),
-(8, 'manager', '部門マネジャー', 'org_32lvjKZKHDCKVmRhMhNx4mfP3c5'),
-(9, 'supervisor', '上司', 'org_32lvjKZKHDCKVmRhMhNx4mfP3c5'),
-(10, 'employee', '従業員', 'org_32lvjKZKHDCKVmRhMhNx4mfP3c5'),
-(11, 'viewer', '閲覧者', 'org_32lvjKZKHDCKVmRhMhNx4mfP3c5'),
-(12, 'parttime', 'パートタイム', 'org_32lvjKZKHDCKVmRhMhNx4mfP3c5')
-ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, organization_id = EXCLUDED.organization_id;
-
 -- Insert career stages (9-stage progression system)
 -- Organization 1: org_32a4qh6ZhszNNK1kW1xyNgYimhZ
 INSERT INTO stages (id, name, description, organization_id) VALUES
