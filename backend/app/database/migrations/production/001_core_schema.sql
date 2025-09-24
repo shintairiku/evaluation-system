@@ -25,7 +25,7 @@ CREATE TABLE stages (
 
 -- Create roles table
 CREATE TABLE roles (
-    id SMALLINT PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL UNIQUE,
     description TEXT,
     hierarchy_order INTEGER,
