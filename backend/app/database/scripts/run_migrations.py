@@ -51,9 +51,10 @@ async def run_migrations():
         # Get already applied migrations
         applied_migrations = await get_applied_migrations(conn)
         
-        # Find all migration files from seed directories only (assuming schema is already created)
+        # Find migration files from production and seed directories
         migration_dirs = [
-            Path("../migrations/seeds")
+            Path("../migrations/production"),
+            Path("../migrations/seeds"),
         ]
 
         migration_files = []
@@ -63,7 +64,7 @@ async def run_migrations():
                     f for f in migration_dir.glob("*.sql")
                     if f.is_file()
                 ])
-                print(f"📁 Found {len(migration_files)} migration files in {migration_dir}")
+                print(f"📁 Scanned {migration_dir}")
             else:
                 print(f"⚠️ Migration directory not found: {migration_dir}")
 
