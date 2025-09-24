@@ -106,7 +106,7 @@ class UnifiedHttpClient {
 
   /**
    * Get organization slug from JWT token
-   * Caches the result to avoid repeated JWT parsing
+   * Caches the result to avoid repeated JWT parsing, but ensures cache freshness
    */
   /**
    * Get organization slug from JWT token

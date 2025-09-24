@@ -8,7 +8,7 @@ export default function OrganizationAwareProfileWrapper() {
   const { orgId } = useAuth();
 
   return (
-    <ProfileOptionsProvider orgId={orgId}>
+    <ProfileOptionsProvider>
       <ProfileFormWrapper orgId={orgId} />
     </ProfileOptionsProvider>
   );

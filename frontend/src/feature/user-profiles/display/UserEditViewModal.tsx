@@ -33,7 +33,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
-import { updateUserAction, getUserByIdAction } from '@/api/server-actions/users';
+import { updateUserAction, updateUserStageAction, getUserByIdAction } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
 import { HierarchyEditCard } from '@/components/hierarchy';
 
@@ -108,29 +108,54 @@ export default function UserEditViewModal({
         userData.department_id = department_id;
       }
       
-      const stage_id = formData.get('stage_id') === 'unset' ? undefined : formData.get('stage_id') as UUID;
-      const currentStageId = user.stage?.id;
-      if (stage_id !== currentStageId) {
-        userData.stage_id = stage_id;
-      }
-      
       const status = formData.get('status') as UserStatus;
       if (status && status !== user.status) {
         userData.status = status;
       }
-      
+
+      // Handle stage updates separately (backend requires admin permission)
+      const stage_id = formData.get('stage_id') === 'unset' ? undefined : formData.get('stage_id') as UUID;
+      const currentStageId = user.stage?.id;
+      const hasStageChange = stage_id !== currentStageId;
+
       // Log what we're actually sending for debugging
       console.log('🔍 Sending only changed fields:', Object.keys(userData));
       console.log('🔍 UserUpdate data:', userData);
+      if (hasStageChange) {
+        console.log('🔍 Stage change detected:', currentStageId, '->', stage_id);
+      }
 
+      // First, update regular user fields
       const result = await updateUserAction(user.id, userData);
 
       if (result.success && result.data) {
+        let finalResult = result;
+
+        // If stage change is required, update stage separately
+        if (hasStageChange && stage_id) {
+          console.log('🔍 Updating stage separately...');
+          const stageResult = await updateUserStageAction(user.id, stage_id);
+
+          if (!stageResult.success) {
+            toast.error(`ステージの更新に失敗しました: ${stageResult.error}`);
+            // Stage update failed, but regular update succeeded
+            // Return partial success with warning message
+            finalResult = {
+              ...result,
+              error: `プロフィール更新は成功しましたが、ステージ更新に失敗しました: ${stageResult.error}`
+            };
+          } else {
+            console.log('🔍 Stage update successful');
+            // Use the stage update result as it includes the updated stage
+            finalResult = stageResult;
+          }
+        }
+
         // Check if hierarchy-related fields changed
-        const hierarchyFields = ['department_id', 'stage_id'];
-        const hasHierarchyChange = hierarchyFields.some(field => 
+        const hierarchyFields = ['department_id'];
+        const hasHierarchyChange = hierarchyFields.some(field =>
           userData[field as keyof UserUpdate] !== undefined
-        );
+        ) || hasStageChange;
         
         if (hasHierarchyChange) {
           // Invalidate cache for current user and potentially affected users
@@ -147,10 +172,21 @@ export default function UserEditViewModal({
           invalidateHierarchyCache(affectedUsers);
         }
         
-        toast.success('プロフィールが正常に更新されました');
-        onUserUpdate?.(result.data);
+        if (finalResult.error) {
+          // Partial success - show warning instead of success
+          toast.warning('プロフィールは更新されましたが、一部の操作が失敗しました');
+        } else {
+          toast.success('プロフィールが正常に更新されました');
+        }
+        if (finalResult.data) {
+          onUserUpdate?.(finalResult.data);
+        }
         onClose();
-        return { success: true, data: result.data };
+        return {
+          success: true,
+          data: finalResult.data,
+          error: finalResult.error
+        };
       } else {
         toast.error(result.error || 'プロフィールの更新に失敗しました');
         return { success: false, error: result.error || 'プロフィールの更新に失敗しました' };
@@ -237,18 +273,19 @@ export default function UserEditViewModal({
         
         try {
           const result = await getUserByIdAction(user.id);
-          
-          if (result.success && result.data) {
+
+          if (result && result.success && result.data) {
             setDetailedUser(result.data);
-            
+
             // Cache the result
             userCache.set(cacheKey, {
               data: result.data,
               timestamp: now
             });
-            
+
           } else {
             // Fallback to the basic user data
+            console.warn(`[UserEditModal] getUserByIdAction returned error:`, result?.error || 'Unknown error');
             setDetailedUser(user);
           }
         } catch (error) {

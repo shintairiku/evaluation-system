@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Search, X, Loader2 } from "lucide-react";
 import type { UserDetailResponse, Department, Stage, Role, UserList } from '@/api/types';
-import { searchUsersAction, getProfileOptionsAction, SearchUsersParams } from '@/api/server-actions/users';
+import { searchUsersAction, SearchUsersParams } from '@/api/server-actions/users';
+import { useProfileOptions } from '@/context/ProfileOptionsContext';
 
 interface UserSearchProps {
   onSearchResults: (users: UserDetailResponse[], total: number, isFiltered?: boolean) => void;
@@ -78,17 +79,8 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
     limit: 50
   });
 
-  const [profileOptions, setProfileOptions] = React.useState<{
-    departments: Department[];
-    stages: Stage[];
-    roles: Role[];
-  }>({
-    departments: [],
-    stages: [],
-    roles: []
-  });
-
-  const [isLoadingOptions, setIsLoadingOptions] = React.useState(true);
+  // Use profile options from context
+  const { options: profileOptions, isLoading: isLoadingOptions, error: optionsError } = useProfileOptions();
   const [isPending, startTransition] = useTransition();
   
   // Refs to avoid callback dependency issues
@@ -173,33 +165,13 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
     initialState
   );
 
-  // Load profile options on mount
+  // Show error from context if profile options failed to load
   useEffect(() => {
-    const fetchProfileOptions = async () => {
-      setIsLoadingOptions(true);
-      try {
-        const result = await getProfileOptionsAction();
-        
-        if (result.success && result.data) {
-          setProfileOptions({
-            departments: result.data.departments,
-            stages: result.data.stages,
-            roles: result.data.roles
-          });
-        } else {
-          console.error('UserSearch: Failed to load profile options:', result.error);
-          toast.error('フィルターオプションの読み込みに失敗しました');
-        }
-      } catch (error) {
-        console.error('UserSearch: Exception while fetching profile options:', error);
-        toast.error('フィルターオプションの読み込み中にエラーが発生しました');
-      } finally {
-        setIsLoadingOptions(false);
-      }
-    };
-
-    fetchProfileOptions();
-  }, []);
+    if (optionsError) {
+      console.error('UserSearch: Profile options error:', optionsError);
+      toast.error('フィルターオプションの読み込みに失敗しました');
+    }
+  }, [optionsError]);
 
   // Initialize with initial users on component mount
   useEffect(() => {

@@ -9,7 +9,6 @@ import type {
   ApiResponse,
   UUID,
   UserExistsResponse,
-  ProfileOptionsResponse,
   SimpleUser,
 } from '../types';
 
@@ -68,13 +67,6 @@ export const usersApi = {
     return httpClient.get<UserExistsResponse>(endpoint);
   },
 
-  /**
-   * Get profile options for user creation/signup
-   * Equivalent to GET /auth/signup/profile-options
-   */
-  getProfileOptions: async (): Promise<ApiResponse<ProfileOptionsResponse>> => {
-    return httpClient.get<ProfileOptionsResponse>(API_ENDPOINTS.AUTH.SIGNUP_PROFILE_OPTIONS);
-  },
 
   /**
    * Update user's stage (admin only)
