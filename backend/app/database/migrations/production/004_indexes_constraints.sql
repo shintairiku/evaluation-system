@@ -48,7 +48,7 @@ CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5));
 -- Ensure status values are from expected set
 ALTER TABLE users
 ADD CONSTRAINT chk_user_status
-CHECK (status IN ('active', 'inactive', 'pending'));
+CHECK (status IN ('active', 'inactive', 'pending_approval'));
 
 ALTER TABLE evaluation_periods
 ADD CONSTRAINT chk_evaluation_period_status
