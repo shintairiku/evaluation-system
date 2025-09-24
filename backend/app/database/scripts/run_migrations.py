@@ -10,7 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv('../../../../.env.local')
+load_dotenv()
 
 async def ensure_migration_table(conn):
     """Create migrations table if it doesn't exist"""
@@ -36,9 +36,9 @@ async def mark_migration_applied(conn, filename):
 async def run_migrations():
     """Run all pending migrations"""
     
-    database_url = os.getenv('SUPABASE_DATABASE_URL')
+    database_url = os.getenv('DATABASE_URL') or os.getenv('SUPABASE_DATABASE_URL')
     if not database_url:
-        print("❌ SUPABASE_DATABASE_URL not found in environment")
+        print("❌ DATABASE_URL or SUPABASE_DATABASE_URL not found in environment")
         return False
     
     try:
@@ -51,17 +51,28 @@ async def run_migrations():
         # Get already applied migrations
         applied_migrations = await get_applied_migrations(conn)
         
-        # Find all migration files
-        migration_dir = Path("../migrations")
-        if not migration_dir.exists():
-            print(f"❌ Migration directory not found: {migration_dir}")
+        # Find all migration files from seed directories only (assuming schema is already created)
+        migration_dirs = [
+            Path("../migrations/seeds")
+        ]
+
+        migration_files = []
+        for migration_dir in migration_dirs:
+            if migration_dir.exists():
+                migration_files.extend([
+                    f for f in migration_dir.glob("*.sql")
+                    if f.is_file()
+                ])
+                print(f"📁 Found {len(migration_files)} migration files in {migration_dir}")
+            else:
+                print(f"⚠️ Migration directory not found: {migration_dir}")
+
+        if not migration_files:
+            print("❌ No migration files found in any directory")
             return False
-        
-        # Get all .sql files and sort them
-        migration_files = sorted([
-            f for f in migration_dir.glob("*.sql") 
-            if f.is_file()
-        ])
+
+        # Sort all migration files
+        migration_files = sorted(migration_files)
         
         if not migration_files:
             print("❌ No migration files found")
