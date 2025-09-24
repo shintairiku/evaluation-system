@@ -14,9 +14,10 @@ interface OrganizationViewWithOrgChartProps {
   users: UserDetailResponse[];
   onUserUpdate?: (user: UserDetailResponse) => void;
   isFiltered?: boolean;
+  onEditModeChange?: (editMode: boolean) => void;
 }
 
-export default function OrganizationViewWithOrgChart({ users, onUserUpdate, isFiltered = false }: OrganizationViewWithOrgChartProps) {
+export default function OrganizationViewWithOrgChart({ users, onUserUpdate, isFiltered = false, onEditModeChange }: OrganizationViewWithOrgChartProps) {
   const [editMode, setEditMode] = useState(false);
   const [orgChartUsers, setOrgChartUsers] = useState<SimpleUser[] | null>(null);
   // Single source of truth for what the chart renders
@@ -63,7 +64,9 @@ export default function OrganizationViewWithOrgChart({ users, onUserUpdate, isFi
   }, [isFiltered, users]);
 
   const toggleEditMode = () => {
-    setEditMode(!editMode);
+    const newEditMode = !editMode;
+    setEditMode(newEditMode);
+    onEditModeChange?.(newEditMode);
   };
 
   const renderReadOnlyView = () => {
