@@ -55,8 +55,12 @@ class SupervisorReviewService:
         try:
             # Permission check handled by @require_permission decorator
 
-            # Validate goal exists
-            goal = await self.goal_repo.get_goal_by_id(review_create.goal_id)
+            # Validate goal exists within organization
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            goal = await self.goal_repo.get_goal_by_id(review_create.goal_id, org_id)
             if not goal:
                 raise NotFoundError(f"Goal with ID {review_create.goal_id} not found")
 
@@ -74,6 +78,7 @@ class SupervisorReviewService:
                 goal_id=review_create.goal_id,
                 period_id=review_create.period_id,
                 supervisor_id=current_user_context.user_id,
+                org_id=org_id,
                 action=review_create.action.value,
                 comment=review_create.comment,
                 status=status_value,
@@ -99,7 +104,11 @@ class SupervisorReviewService:
     async def get_review(
         self, review_id: UUID, current_user_context: AuthContext
     ) -> SupervisorReviewDetailSchema:
-        review = await self.repo.get_by_id(review_id)
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        review = await self.repo.get_by_id(review_id, org_id)
         if not review:
             raise NotFoundError(f"Supervisor review with ID {review_id} not found")
 
@@ -126,56 +135,64 @@ class SupervisorReviewService:
     ) -> PaginatedResponse[SupervisorReviewSchema]:
         try:
             # Permission check handled by @require_any_permission decorator
-            # Use RBACHelper to determine accessible user IDs for data filtering
-            accessible_user_ids = await RBACHelper.get_accessible_user_ids(
-                auth_context=current_user_context,
-                resource_type=ResourceType.GOAL,
-                permission_context="supervisor_review_access"
-            )
-            
-            # Admin can view all; others are filtered by accessible users
-            if current_user_context.has_permission(Permission.GOAL_READ_ALL):
+            # Use RBACHelper to determine accessible user IDs for data filtering (centralized)
+            accessible_user_ids = await RBACHelper.get_accessible_user_ids(current_user_context)
+
+            # Organization required for all repository calls
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            # Branch by RBACHelper result
+            if accessible_user_ids is None:
+                # Admin: access to all users
                 items = await self.repo.search(
+                    org_id,
                     period_id=period_id,
                     goal_id=goal_id,
                     status=status,
                     pagination=pagination,
                 )
                 total = await self.repo.count_all(
+                    org_id,
+                    period_id=period_id,
+                    goal_id=goal_id,
+                    status=status,
+                )
+            elif len(accessible_user_ids) == 1 and accessible_user_ids[0] == current_user_context.user_id:
+                # Employee: only their own goals -> use goal-owner path
+                items = await self.repo.get_for_goal_owner(
+                    owner_user_id=current_user_context.user_id,
+                    org_id=org_id,
+                    period_id=period_id,
+                    goal_id=goal_id,
+                    status=status,
+                    pagination=pagination,
+                )
+                total = await self.repo.count_for_goal_owner(
+                    owner_user_id=current_user_context.user_id,
+                    org_id=org_id,
                     period_id=period_id,
                     goal_id=goal_id,
                     status=status,
                 )
             else:
-                # Supervisor: their own reviews; Employee: reviews on their own goals
-                if current_user_context.has_permission(Permission.GOAL_APPROVE):
-                    items = await self.repo.get_by_supervisor(
-                        current_user_context.user_id,
-                        period_id=period_id,
-                        goal_id=goal_id,
-                        status=status,
-                        pagination=pagination,
-                    )
-                    total = await self.repo.count_by_supervisor(
-                        current_user_context.user_id,
-                        period_id=period_id,
-                        goal_id=goal_id,
-                        status=status,
-                    )
-                else:
-                    items = await self.repo.get_for_goal_owner(
-                        owner_user_id=current_user_context.user_id,
-                        period_id=period_id,
-                        goal_id=goal_id,
-                        status=status,
-                        pagination=pagination,
-                    )
-                    total = await self.repo.count_for_goal_owner(
-                        owner_user_id=current_user_context.user_id,
-                        period_id=period_id,
-                        goal_id=goal_id,
-                        status=status,
-                    )
+                # Supervisor/manager: has subordinates (list includes subordinates + self)
+                items = await self.repo.get_by_supervisor(
+                    current_user_context.user_id,
+                    org_id,
+                    period_id=period_id,
+                    goal_id=goal_id,
+                    status=status,
+                    pagination=pagination,
+                )
+                total = await self.repo.count_by_supervisor(
+                    current_user_context.user_id,
+                    org_id,
+                    period_id=period_id,
+                    goal_id=goal_id,
+                    status=status,
+                )
 
             schemas = [
                 SupervisorReviewSchema.model_validate(r, from_attributes=True) for r in items
@@ -197,8 +214,12 @@ class SupervisorReviewService:
         pagination: PaginationParams,
     ) -> PaginatedResponse[SupervisorReviewSchema]:
         # Permission check handled by @require_permission decorator
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
         items = await self.repo.get_pending_reviews(
-            current_user_context.user_id, period_id=period_id, pagination=pagination
+            current_user_context.user_id, org_id, period_id=period_id, pagination=pagination
         )
         total = len(items)
         schemas = [SupervisorReviewSchema.model_validate(r, from_attributes=True) for r in items]
@@ -213,7 +234,11 @@ class SupervisorReviewService:
         self, review_id: UUID, review_update: SupervisorReviewUpdate, current_user_context: AuthContext
     ) -> SupervisorReviewSchema:
         try:
-            review = await self.repo.get_by_id(review_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            review = await self.repo.get_by_id(review_id, org_id)
             if not review:
                 raise NotFoundError(f"Supervisor review with ID {review_id} not found")
 
@@ -223,7 +248,7 @@ class SupervisorReviewService:
             
             # Additional check: if not admin, verify supervisor still has authority over the goal owner
             if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
-                goal = await self.goal_repo.get_goal_by_id(review.goal_id)
+                goal = await self.goal_repo.get_goal_by_id(review.goal_id, org_id)
                 if goal:
                     await self._require_supervisor_of_goal_owner(goal, current_user_context)
 
@@ -266,7 +291,11 @@ class SupervisorReviewService:
     # ========================================
     @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_APPROVE])
     async def delete_review(self, review_id: UUID, current_user_context: AuthContext) -> bool:
-        review = await self.repo.get_by_id(review_id)
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        review = await self.repo.get_by_id(review_id, org_id)
         if not review:
             raise NotFoundError(f"Supervisor review with ID {review_id} not found")
         # Only the creating supervisor or admin can delete; only if incomplete or draft
@@ -275,13 +304,13 @@ class SupervisorReviewService:
         
         # Additional check: if not admin, verify supervisor still has authority over the goal owner
         if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            goal = await self.goal_repo.get_goal_by_id(review.goal_id)
+            goal = await self.goal_repo.get_goal_by_id(review.goal_id, org_id)
             if goal:
                 await self._require_supervisor_of_goal_owner(goal, current_user_context)
         
         if review.status not in ["incomplete", "draft"]:
             raise BadRequestError("Only incomplete or draft reviews can be deleted")
-        success = await self.repo.delete(review_id)
+        success = await self.repo.delete(review_id, org_id)
         if success:
             await self.session.commit()
         return success
@@ -309,7 +338,11 @@ class SupervisorReviewService:
             return
         
         # Use RBACHelper to check if user can access the related goal
-        goal = await self.goal_repo.get_goal_by_id(review.goal_id)
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        goal = await self.goal_repo.get_goal_by_id(review.goal_id, org_id)
         if goal:
             can_access = await RBACHelper.can_access_resource(
                 auth_context=current_user_context,
@@ -324,10 +357,14 @@ class SupervisorReviewService:
 
     async def _sync_goal_status_with_review(self, review, current_user_context: AuthContext) -> None:
         """Update goal status based on review action when submitted."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
         if review.action == "approved":
-            await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.APPROVED, approved_by=current_user_context.user_id)
+            await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.APPROVED, org_id, approved_by=current_user_context.user_id)
         elif review.action == "rejected":
-            await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.REJECTED)
+            await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.REJECTED, org_id)
         elif review.action == "pending":
             # Keep goal in pending_approval
             pass

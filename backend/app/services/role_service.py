@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.role_repo import RoleRepository
+from ..database.repositories.user_repo import UserRepository
 from ..database.models.user import Role as RoleModel
 from ..schemas.user import (
     RoleCreate, RoleUpdate, Role, RoleDetail, RoleReorderItem
@@ -24,6 +25,7 @@ class RoleService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.role_repo = RoleRepository(session)
+        self.user_repo = UserRepository(session)
     
     @require_permission(Permission.ROLE_MANAGE)
     async def create_role(
@@ -45,10 +47,10 @@ class RoleService:
             # Permission check handled by @require_permission decorator
             
             # Business validation
-            await self._validate_role_creation(role_data)
-            
+            await self._validate_role_creation(role_data, current_user_context.organization_id)
+
             # Create role through repository with optional hierarchy_order
-            created_role = await self.role_repo.create_role(role_data)
+            created_role = await self.role_repo.create_role(role_data, current_user_context.organization_id)
             
             # Commit the transaction (Service controls the Unit of Work)
             await self.session.commit()
@@ -86,7 +88,10 @@ class RoleService:
             logger.info("Reordering all roles based on frontend drag-and-drop state")
             
             # Permission check handled by @require_permission decorator
-            
+
+            # Validate role reorder
+            await self._validate_role_reorder(role_orders, current_user_context.organization_id)
+
             # Execute reorder through repository
             updated_roles = await self.role_repo.reorder_roles(role_orders)
             
@@ -112,16 +117,16 @@ class RoleService:
         """
         try:
             # Permission check handled by @require_permission decorator
-            
+
             # Get role from repository
-            role = await self.role_repo.get_by_id(role_id)
+            role = await self.role_repo.get_by_id(role_id, current_user_context.organization_id)
             if not role:
                 raise NotFoundError(f"Role with ID {role_id} not found")
-            
+
             # Convert to response schema
             role_detail = await self._enrich_role_data(role)
             return role_detail
-            
+
         except Exception as e:
             logger.error(f"Error getting role {role_id}: {str(e)}")
             raise
@@ -136,18 +141,18 @@ class RoleService:
         """
         try:
             # Permission check handled by @require_permission decorator
-            
+
             # Get all roles from repository (ordered by hierarchy_order)
-            roles = await self.role_repo.get_all()
-            
+            roles = await self.role_repo.get_all(current_user_context.organization_id)
+
             # Convert to response schemas
             role_details = []
             for role in roles:
                 role_detail = await self._enrich_role_data(role)
                 role_details.append(role_detail)
-            
+
             return role_details
-            
+
         except Exception as e:
             logger.error(f"Error getting all roles: {str(e)}")
             raise
@@ -169,17 +174,17 @@ class RoleService:
         """
         try:
             # Permission check handled by @require_permission decorator
-            
+
             # Check if role exists
-            existing_role = await self.role_repo.get_by_id(role_id)
+            existing_role = await self.role_repo.get_by_id(role_id, current_user_context.organization_id)
             if not existing_role:
                 raise NotFoundError(f"Role with ID {role_id} not found")
-            
+
             # Business validation
-            await self._validate_role_update(role_data, existing_role)
-            
+            await self._validate_role_update(role_data, existing_role, current_user_context.organization_id)
+
             # Update role through repository
-            updated_role = await self.role_repo.update_role(role_id, role_data)
+            updated_role = await self.role_repo.update_role(role_id, role_data, current_user_context.organization_id)
             if not updated_role:
                 raise NotFoundError(f"Role with ID {role_id} not found")
             
@@ -215,14 +220,14 @@ class RoleService:
         """
         try:
             # Permission check handled by @require_permission decorator
-            
+
             # Check if role exists
-            existing_role = await self.role_repo.get_by_id(role_id)
+            existing_role = await self.role_repo.get_by_id(role_id, current_user_context.organization_id)
             if not existing_role:
                 raise NotFoundError(f"Role with ID {role_id} not found")
             
             # Business validation before deletion
-            await self._validate_role_deletion(existing_role)
+            await self._validate_role_deletion(existing_role, current_user_context.organization_id)
             
             # Delete role through repository (handles hierarchy_order adjustment)
             success = await self.role_repo.delete_role(role_id)
@@ -242,36 +247,36 @@ class RoleService:
     
     # Private helper methods
     
-    async def _validate_role_creation(self, role_data: RoleCreate) -> None:
+    async def _validate_role_creation(self, role_data: RoleCreate, org_id: str) -> None:
         """Validate all business rules before creating a role."""
         # Check if role name already exists - use efficient lookup
-        existing_role = await self.role_repo.get_by_name(role_data.name)
+        existing_role = await self.role_repo.get_by_name(role_data.name, org_id)
         if existing_role:
             raise ConflictError(f"Role with name '{role_data.name}' already exists")
-        
+
         # Additional business validation can be added here
         if not role_data.name.strip():
             raise ValidationError("Role name cannot be empty")
-        
+
         if not role_data.description.strip():
             raise ValidationError("Role description cannot be empty")
-        
+
         # Validate hierarchy_order if specified
         if role_data.hierarchy_order is not None:
             if role_data.hierarchy_order < 1:
                 raise ValidationError("Hierarchy order must be 1 or greater")
-            
+
             # Check if hierarchy_order already exists
-            existing_role_with_order = await self.role_repo.get_by_hierarchy_order(role_data.hierarchy_order)
+            existing_role_with_order = await self.role_repo.get_by_hierarchy_order(role_data.hierarchy_order, org_id)
             if existing_role_with_order:
                 # This is okay - the repository will shift existing roles to make space
                 pass
     
-    async def _validate_role_reorder(self, role_orders: List[RoleReorderItem]) -> None:
+    async def _validate_role_reorder(self, role_orders: List[RoleReorderItem], org_id: str) -> None:
         """Validate role reorder request"""
         # Check that all roles exist
         for item in role_orders:
-            role = await self.role_repo.get_by_id(item.id)
+            role = await self.role_repo.get_by_id(item.id, org_id)
             if not role:
                 raise NotFoundError(f"Role with ID {item.id} not found")
         
@@ -286,11 +291,11 @@ class RoleService:
         if sorted_orders != expected_orders:
             raise ValidationError("Hierarchy orders must be sequential starting from 1")
     
-    async def _validate_role_update(self, role_data: RoleUpdate, existing_role: RoleModel) -> None:
+    async def _validate_role_update(self, role_data: RoleUpdate, existing_role: RoleModel, org_id: str) -> None:
         """Validate role update data"""
         # Check for name conflicts if name is being updated
         if role_data.name and role_data.name.lower() != existing_role.name.lower():
-            existing_role_with_name = await self.role_repo.get_by_name(role_data.name)
+            existing_role_with_name = await self.role_repo.get_by_name(role_data.name, org_id)
             if existing_role_with_name and existing_role_with_name.id != existing_role.id:
                 raise ConflictError(f"Role with name '{role_data.name}' already exists")
         
@@ -301,7 +306,7 @@ class RoleService:
         if role_data.description is not None and not role_data.description.strip():
             raise ValidationError("Role description cannot be empty")
     
-    async def _validate_role_deletion(self, role: RoleModel) -> None:
+    async def _validate_role_deletion(self, role: RoleModel, org_id: str) -> None:
         """Validate role deletion business rules"""
         # Prevent deletion of system roles (admin, supervisor, employee)
         system_roles = ['admin', 'supervisor', 'employee']
@@ -309,9 +314,9 @@ class RoleService:
             raise BadRequestError(f"Cannot delete system role '{role.name}'")
         
         # Check if role is assigned to users
-        user_roles = await self.role_repo.get_user_roles(role.id)
-        if user_roles:
-            raise BadRequestError(f"Cannot delete role '{role.name}' because it is assigned to users")
+        user_count = await self.user_repo.count_users_with_role(role.id, org_id)
+        if user_count > 0:
+            raise BadRequestError(f"Cannot delete role '{role.name}' because it is assigned to {user_count} user(s)")
     
     async def _enrich_role_data(self, role: RoleModel) -> RoleDetail:
         """Convert role model to RoleDetail schema with additional metadata"""

@@ -78,7 +78,7 @@ class DepartmentService:
             # Permission check handled by @require_permission decorator
             
             # Check if department exists
-            department = await self.dept_repo.get_by_id(dept_id)
+            department = await self.dept_repo.get_by_id(dept_id, current_user_context.organization_id)
             if not department:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
             
@@ -121,10 +121,10 @@ class DepartmentService:
             # Permission check handled by @require_permission decorator
             
             # Validate department data
-            await self._validate_department_creation(dept_data)
-            
+            await self._validate_department_creation(dept_data, current_user_context.organization_id)
+
             # Create department
-            new_dept = await self.dept_repo.create_department(dept_data)
+            new_dept = await self.dept_repo.create_department(dept_data, current_user_context.organization_id)
             
             # Enrich department data
             enriched_dept = await self._enrich_department_data(new_dept)
@@ -153,17 +153,17 @@ class DepartmentService:
         """
         try:
             # Permission check handled by @require_permission decorator
-            
+
             # Check if department exists
-            existing_dept = await self.dept_repo.get_by_id(dept_id)
+            existing_dept = await self.dept_repo.get_by_id(dept_id, current_user_context.organization_id)
             if not existing_dept:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
-            
+
             # Validate update data
             await self._validate_department_update(dept_data, existing_dept)
-            
+
             # Update department
-            updated_dept = await self.dept_repo.update_department(dept_id, dept_data)
+            updated_dept = await self.dept_repo.update_department(dept_id, dept_data, current_user_context.organization_id)
             if not updated_dept:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
             
@@ -193,17 +193,17 @@ class DepartmentService:
         """
         try:
             # Permission check handled by @require_permission decorator
-            
+
             # Check if department exists
-            existing_dept = await self.dept_repo.get_by_id(dept_id)
+            existing_dept = await self.dept_repo.get_by_id(dept_id, current_user_context.organization_id)
             if not existing_dept:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
-            
+
             # Validate deletion
-            await self._validate_department_deletion(dept_id)
-            
+            await self._validate_department_deletion(dept_id, current_user_context.organization_id)
+
             # Delete department
-            success = await self.dept_repo.delete_department(dept_id)
+            success = await self.dept_repo.delete_department(dept_id, current_user_context.organization_id)
             if not success:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
             
@@ -216,49 +216,50 @@ class DepartmentService:
     
     # Private helper methods
     
-    async def _validate_department_creation(self, dept_data: DepartmentCreate) -> None:
+    async def _validate_department_creation(self, dept_data: DepartmentCreate, org_id: str) -> None:
         """Validate department creation data"""
         if not dept_data.name or not dept_data.name.strip():
             raise ValidationError("Department name is required")
-        
+
         if len(dept_data.name.strip()) < 2:
             raise ValidationError("Department name must be at least 2 characters long")
-        
+
         if len(dept_data.name.strip()) > 100:
             raise ValidationError("Department name must be at most 100 characters long")
-        
+
         # Check if department with same name already exists
-        existing = await self.dept_repo.get_by_name(dept_data.name.strip())
+        existing = await self.dept_repo.get_by_name(dept_data.name.strip(), org_id)
         if existing:
             raise ConflictError(f"Department with name '{dept_data.name}' already exists")
     
-    async def _validate_department_update(self, dept_data: DepartmentUpdate, existing_dept: DepartmentModel) -> None:
+    async def _validate_department_update(self, dept_data: DepartmentUpdate, existing_dept: DepartmentModel, org_id: str) -> None:
         """Validate department update data"""
         if dept_data.name is not None:
             if not dept_data.name.strip():
                 raise ValidationError("Department name cannot be empty")
-            
+
             if len(dept_data.name.strip()) < 2:
                 raise ValidationError("Department name must be at least 2 characters long")
-            
+
             if len(dept_data.name.strip()) > 100:
                 raise ValidationError("Department name must be at most 100 characters long")
-            
+
             # Check if new name conflicts with existing department
             if dept_data.name.strip() != existing_dept.name:
-                name_conflict = await self.dept_repo.get_by_name(dept_data.name.strip())
+                name_conflict = await self.dept_repo.get_by_name(dept_data.name.strip(), org_id)
                 if name_conflict:
                     raise ConflictError(f"Department with name '{dept_data.name}' already exists")
     
-    async def _validate_department_deletion(self, dept_id: UUID) -> None:
+    async def _validate_department_deletion(self, dept_id: UUID, org_id: str) -> None:
         """Validate department deletion"""
-        # Check if department has active users        
+        # Check if department has active users
         from ..schemas.user import UserStatus
         users = await self.user_repo.search_users(
-            department_ids=[dept_id], 
-            statuses=[UserStatus.ACTIVE]
+            department_ids=[dept_id],
+            statuses=[UserStatus.ACTIVE],
+            org_id=org_id
         )
-        
+
         if users:
             raise ValidationError(f"Cannot delete department with {len(users)} active users")
     

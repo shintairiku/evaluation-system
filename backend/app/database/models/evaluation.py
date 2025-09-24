@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import Column, String, Text, DateTime, Date, text
+from sqlalchemy import Column, String, Text, DateTime, Date, text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -26,6 +26,7 @@ class EvaluationPeriod(Base):
     __tablename__ = "evaluation_periods"
 
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
     name = Column(Text, nullable=False)
     period_type = Column(String(50), nullable=False)
     start_date = Column(Date, nullable=False)
@@ -37,6 +38,7 @@ class EvaluationPeriod(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    organization = relationship("Organization")
     goals = relationship("Goal", back_populates="period")
     self_assessments = relationship("SelfAssessment", back_populates="period")
     supervisor_feedbacks = relationship("SupervisorFeedback", back_populates="period")

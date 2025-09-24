@@ -17,6 +17,9 @@ class AuthUser(BaseModel):
     first_name: Optional[str] = Field(None, description="User first name")
     last_name: Optional[str] = Field(None, description="User last name")
     role: Optional[str] = Field(None, description="User role")
+    organization_id: Optional[str] = Field(None, description="Clerk organization ID from JWT")
+    organization_name: Optional[str] = Field(None, description="Organization name from JWT")
+    organization_slug: Optional[str] = Field(None, description="Organization slug for routing from JWT")
 
 
 # ========================================

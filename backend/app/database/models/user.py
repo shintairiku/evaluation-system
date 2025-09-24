@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text, Integer
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -22,6 +22,7 @@ class User(Base):
     department_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("departments.id"))
     stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id"))
     clerk_user_id = Column(Text, unique=True, nullable=False)
+    clerk_organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True)
     name = Column(Text, nullable=False)
     email = Column(Text, unique=True, nullable=False)
     employee_code = Column(Text, unique=True, nullable=False)
@@ -33,6 +34,7 @@ class User(Base):
     # Relationships
     department = relationship("Department", back_populates="users")
     stage = relationship("Stage", back_populates="users")
+    organization = relationship("Organization", back_populates="users")
     roles = relationship("Role", secondary="user_roles", back_populates="users")
     
     # Supervisor relationships through UserSupervisor table
@@ -54,12 +56,14 @@ class Department(Base):
     __tablename__ = "departments"
 
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
     name = Column(String(100), nullable=False)
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    organization = relationship("Organization")
     users = relationship("User", back_populates="department")
 
 
@@ -67,14 +71,21 @@ class Role(Base):
     __tablename__ = "roles"
 
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
-    name = Column(String(50), nullable=False, unique=True)
+    organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=False)
+    name = Column(String(50), nullable=False)
     description = Column(String(200), nullable=False)
     hierarchy_order = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    organization = relationship("Organization")
     users = relationship("User", secondary="user_roles", back_populates="roles")
+
+    __table_args__ = (
+        # Unique constraint: role names unique within organization
+        UniqueConstraint('organization_id', 'name', name='uq_roles_org_name'),
+    )
 
 class UserSupervisor(Base):
     __tablename__ = "users_supervisors"

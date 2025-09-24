@@ -1,13 +1,15 @@
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 import logging
 
-from .api.v1 import api_router
-from .core.middleware import LoggingMiddleware, http_exception_handler, general_exception_handler
+from .api.v1 import org_api_router
+from .api.v1.auth import router as auth_router
+from .core.middleware import LoggingMiddleware, OrgSlugValidationMiddleware, http_exception_handler, general_exception_handler
 from .core.config import settings
 from .schemas.common import HealthCheckResponse
+from .database.session import AsyncSessionLocal
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,16 +35,29 @@ app.add_middleware(
 # Add custom middleware
 app.add_middleware(LoggingMiddleware)
 
+# Add organization slug validation middleware
+# Note: This should be added after CORS but before other middleware for proper request processing
+async def get_session():
+    async with AsyncSessionLocal() as session:
+        yield session
+
+app.add_middleware(OrgSlugValidationMiddleware, get_session=get_session)
+
 # Add exception handlers
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
 # Include API routers
-app.include_router(api_router)
+app.include_router(org_api_router)  # Organization-scoped routes only
+
+# Include auth routes separately (organization-agnostic)
+auth_api_router = APIRouter(prefix="/api/v1")
+auth_api_router.include_router(auth_router)
+app.include_router(auth_api_router)
 
 # Include webhooks at root level (without /api/v1 prefix)
-from .api.v1 import webhooks_router_root
-app.include_router(webhooks_router_root)
+from .api.webhooks.router import webhooks_router
+app.include_router(webhooks_router)
 
 def custom_openapi():
     """
@@ -80,14 +95,12 @@ def custom_openapi():
     # Define public endpoints that don't require authentication
     public_endpoints = {
         "/",
-        "/health", 
+        "/health",
         "/api/v1/auth/signup/profile-options",
         "/api/v1/auth/user/{clerk_user_id}",
-        "/api/v1/auth/signup",
         "/api/v1/auth/logout",
         "/api/v1/auth/dev-keys",
-        "/api/v1/users/exists/{clerk_user_id}",
-        "/api/v1/users/profile-options"
+        # Note: All business endpoints are now organization-scoped under /api/org/{org_slug}/
     }
     
     # Apply security requirements to all endpoints

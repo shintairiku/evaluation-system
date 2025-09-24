@@ -59,27 +59,36 @@ class CompetencyService:
         try:
             # Permission check handled by @require_any_permission decorator
             
-            # Apply stage-based filtering for non-admin users
-            filtered_stage_ids = stage_ids
-            if not current_user_context.is_admin():
-                user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
+            # Validate organization context
+            if not current_user_context.organization_id:
+                raise PermissionDeniedError("User has no organization assigned")
+            
+            # Apply stage-based filtering - default to user's own stage when no specific stage requested
+            if stage_ids is None:
+                # No specific stage requested - use user's own stage for both admin and non-admin users
+                user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
                 if user_stage_id is None:
                     raise PermissionDeniedError("User has no stage assigned")
-                
-                # Non-admin users can only see competencies for their own stage
-                if stage_ids:
-                    # If stage_ids were provided, check if user's stage is included
+                filtered_stage_ids = [user_stage_id]
+            else:
+                # Specific stages requested - apply role-based filtering
+                if current_user_context.is_admin():
+                    # Admin users can access any requested stages
+                    filtered_stage_ids = stage_ids
+                else:
+                    # Non-admin users can only see competencies for their own stage
+                    user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
+                    if user_stage_id is None:
+                        raise PermissionDeniedError("User has no stage assigned")
+                    
+                    # Check if user's stage is included in requested stages
                     if user_stage_id not in stage_ids:
-                        # User requested stages they don't have access to
                         raise PermissionDeniedError("Access denied to requested stages")
                     filtered_stage_ids = [user_stage_id]  # Only allow user's own stage
-                else:
-                    # No specific stages requested, use user's stage
-                    filtered_stage_ids = [user_stage_id]
             
-            # Create cache key (include user role for cache segregation)
+            # Create cache key (include user role and org for cache segregation)
             user_role = current_user_context.role_names[0] if current_user_context.role_names else "unknown"
-            cache_key = f"competencies:{user_role}:{search_term}:{filtered_stage_ids}:{pagination.page if pagination else 1}:{pagination.limit if pagination else 'all'}"
+            cache_key = f"competencies:{current_user_context.organization_id}:{user_role}:{search_term}:{filtered_stage_ids}:{pagination.page if pagination else 1}:{pagination.limit if pagination else 'all'}"
             
             # Check cache first
             if cache_key in competency_search_cache:
@@ -88,6 +97,7 @@ class CompetencyService:
             
             # Get competencies from repository
             competencies = await self.competency_repo.search(
+                org_id=current_user_context.organization_id,
                 search_term=search_term,
                 stage_ids=filtered_stage_ids
             )
@@ -141,8 +151,12 @@ class CompetencyService:
         try:
             # Permission check handled by @require_any_permission decorator
             
+            # Validate organization context
+            if not current_user_context.organization_id:
+                raise PermissionDeniedError("User has no organization assigned")
+            
             # Get competency from repository
-            competency = await self.competency_repo.get_by_id(competency_id)
+            competency = await self.competency_repo.get_by_id(competency_id, current_user_context.organization_id)
             if not competency:
                 raise NotFoundError(f"Competency with ID {competency_id} not found")
             
@@ -175,13 +189,17 @@ class CompetencyService:
         try:
             # Permission check handled by @require_permission decorator
             
+            # Validate organization context
+            if not current_user_context.organization_id:
+                raise PermissionDeniedError("User has no organization assigned")
+            
             # Validate stage exists
-            stage = await self.stage_repo.get_by_id(competency_data.stage_id)
+            stage = await self.stage_repo.get_by_id(competency_data.stage_id, current_user_context.organization_id)
             if not stage:
                 raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
             
             # Check for naming conflicts
-            existing_competency = await self.competency_repo.get_by_name(competency_data.name)
+            existing_competency = await self.competency_repo.get_by_name(competency_data.name, current_user_context.organization_id)
             if existing_competency:
                 raise ConflictError(f"Competency with name '{competency_data.name}' already exists")
             
@@ -189,6 +207,7 @@ class CompetencyService:
             competency = await self.competency_repo.create(
                 name=competency_data.name,
                 stage_id=competency_data.stage_id,
+                org_id=current_user_context.organization_id,
                 description=competency_data.description
             )
             
@@ -227,16 +246,20 @@ class CompetencyService:
         try:
             # Permission check handled by @require_permission decorator
             
+            # Validate organization context
+            if not current_user_context.organization_id:
+                raise PermissionDeniedError("User has no organization assigned")
+            
             # Get existing competency
-            existing_competency = await self.competency_repo.get_by_id(competency_id)
+            existing_competency = await self.competency_repo.get_by_id(competency_id, current_user_context.organization_id)
             if not existing_competency:
                 raise NotFoundError(f"Competency with ID {competency_id} not found")
             
             # Validate stage exists if being updated
             if competency_data.stage_id is not None:
-                stage = await self.stage_repo.get_by_id(competency_data.stage_id)
-                if not stage:
-                    raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
+                stage = await self.stage_repo.get_by_id(competency_data.stage_id, current_user_context.organization_id)
+            if not stage:
+                raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
             
             # Check for naming conflicts if name is being updated
             if competency_data.name is not None and competency_data.name != existing_competency.name:
@@ -249,6 +272,7 @@ class CompetencyService:
             # Update competency
             updated_competency = await self.competency_repo.update(
                 competency_id=competency_id,
+                org_id=current_user_context.organization_id,
                 name=competency_data.name,
                 description=competency_data.description,
                 stage_id=competency_data.stage_id
@@ -287,8 +311,12 @@ class CompetencyService:
         try:
             # Permission check handled by @require_permission decorator
             
+            # Validate organization context
+            if not current_user_context.organization_id:
+                raise PermissionDeniedError("User has no organization assigned")
+            
             # Get existing competency
-            existing_competency = await self.competency_repo.get_by_id(competency_id)
+            existing_competency = await self.competency_repo.get_by_id(competency_id, current_user_context.organization_id)
             if not existing_competency:
                 raise NotFoundError(f"Competency with ID {competency_id} not found")
             
@@ -331,16 +359,20 @@ class CompetencyService:
         try:
             # Permission check handled by @require_any_permission decorator
             
+            # Validate organization context
+            if not current_user_context.organization_id:
+                raise PermissionDeniedError("User has no organization assigned")
+            
             # Apply stage-based filtering for non-admin users
             if current_user_context.is_admin():
                 # Admin can see all competencies
-                competencies = await self.competency_repo.get_all()
+                competencies = await self.competency_repo.get_all(current_user_context.organization_id)
             else:
                 # Non-admin users can only see competencies for their own stage
-                user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
+                user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
                 if user_stage_id is None:
                     raise PermissionDeniedError("User has no stage assigned")
-                competencies = await self.competency_repo.get_by_stage_id(user_stage_id)
+                competencies = await self.competency_repo.get_by_stage_id(user_stage_id, current_user_context.organization_id)
             
             # Convert to schema objects
             competency_schemas = []
@@ -370,16 +402,20 @@ class CompetencyService:
         try:
             # Permission check handled by @require_any_permission decorator
             
+            # Validate organization context
+            if not current_user_context.organization_id:
+                raise PermissionDeniedError("User has no organization assigned")
+            
             # Validate stage access
             await self._validate_stage_access(current_user_context, stage_id)
             
             # Validate stage exists
-            stage = await self.stage_repo.get_by_id(stage_id)
+            stage = await self.stage_repo.get_by_id(stage_id, current_user_context.organization_id)
             if not stage:
                 raise NotFoundError(f"Stage with ID {stage_id} not found")
             
             # Get competencies for stage
-            competencies = await self.competency_repo.get_by_stage_id(stage_id)
+            competencies = await self.competency_repo.get_by_stage_id(stage_id, current_user_context.organization_id)
             
             # Convert to schema objects
             competency_schemas = []
@@ -397,17 +433,17 @@ class CompetencyService:
     # PRIVATE HELPER METHODS
     # ========================================
     
-    async def _get_user_stage_id(self, user_id: UUID) -> Optional[UUID]:
+    async def _get_user_stage_id(self, user_id: UUID, org_id: Optional[str] = None) -> Optional[UUID]:
         """Get user's stage_id efficiently with caching."""
         try:
-            # Check cache first
-            cache_key = f"user_stage_{user_id}"
+            # Check cache first (include org_id in cache key for organization isolation)
+            cache_key = f"user_stage_{user_id}_{org_id or 'none'}"
             cached_stage_id = user_stage_cache.get(cache_key)
             if cached_stage_id is not None:
                 return cached_stage_id
             
             # Fetch from database via repository
-            stage_id = await self.user_repo.get_user_stage_id(user_id)
+            stage_id = await self.user_repo.get_user_stage_id(user_id, org_id)
             
             # Cache the result (including None values)
             user_stage_cache[cache_key] = stage_id
@@ -437,11 +473,11 @@ class CompetencyService:
             if required_stage_id:
                 return required_stage_id
             # If no specific stage required, we still need to get user's stage for some operations
-            user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
+            user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
             return user_stage_id
         else:
             # Non-admin users can only access their own stage
-            user_stage_id = await self._get_user_stage_id(current_user_context.user_id)
+            user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
             if user_stage_id is None:
                 raise PermissionDeniedError("User has no stage assigned")
             

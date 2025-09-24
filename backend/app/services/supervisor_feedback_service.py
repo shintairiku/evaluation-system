@@ -91,63 +91,59 @@ class SupervisorFeedbackService:
         """
         try:
             # Permission check handled by @require_any_permission decorator
-            
-            # Use RBACHelper to determine accessible user IDs for data filtering
-            accessible_user_ids = await RBACHelper.get_accessible_user_ids(
-                auth_context=current_user_context,
-                resource_type=ResourceType.ASSESSMENT,
-                permission_context="supervisor_feedback_access"
-            )
-            
-            # Apply role-based defaults when both supervisor_id and subordinate_id are None
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            # Use RBACHelper to determine accessible user IDs (centralized)
+            accessible_user_ids = await RBACHelper.get_accessible_user_ids(current_user_context)
+
+            # Defaults for missing filters
             actual_supervisor_id = supervisor_id
             actual_subordinate_id = subordinate_id
 
             if actual_supervisor_id is None and actual_subordinate_id is None:
-                # Apply role-based defaults using RBAC framework
-                if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-                    # Admin: no filtering needed
+                if accessible_user_ids is None:
+                    # Admin: no defaults
                     pass
-                elif current_user_context.has_permission(Permission.GOAL_APPROVE):
-                    # Manager/Supervisor: default to their own supervisor feedbacks
-                    actual_supervisor_id = current_user_context.user_id
-                elif current_user_context.has_permission(Permission.GOAL_READ_SELF):
-                    # Employee/Part-time: default to their own received feedbacks
+                elif len(accessible_user_ids) == 1 and accessible_user_ids[0] == current_user_context.user_id:
+                    # Employee: default to their own received feedbacks
                     actual_subordinate_id = current_user_context.user_id
-            
-            # Validate specific filters against accessible users
+                else:
+                    # Supervisor: default to their own created feedbacks
+                    actual_supervisor_id = current_user_context.user_id
+
+            # Validate filters vs accessible users for non-admins
             final_supervisor_ids = None
             final_user_ids = None
-            
-            # Handle supervisor_id filter
-            if actual_supervisor_id:
-                if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
-                    if actual_supervisor_id != current_user_context.user_id:
-                        raise PermissionDeniedError(f"You can only access your own supervisor feedbacks")
+
+            if actual_supervisor_id is not None:
+                if accessible_user_ids is not None and actual_supervisor_id != current_user_context.user_id:
+                    raise PermissionDeniedError("You can only access your own supervisor feedbacks")
                 final_supervisor_ids = [actual_supervisor_id]
-            
-            # Handle subordinate_id filter  
-            if actual_subordinate_id:
-                if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
-                    if accessible_user_ids and actual_subordinate_id not in accessible_user_ids:
-                        raise PermissionDeniedError(f"You do not have permission to access feedbacks for user {actual_subordinate_id}")
+
+            if actual_subordinate_id is not None:
+                if accessible_user_ids is not None and actual_subordinate_id not in accessible_user_ids:
+                    raise PermissionDeniedError(f"You do not have permission to access feedbacks for user {actual_subordinate_id}")
                 final_user_ids = [actual_subordinate_id]
             else:
-                # Apply accessible user filtering for non-admin users
-                if not current_user_context.has_permission(Permission.GOAL_READ_ALL):
+                # Non-admins: restrict to accessible users
+                if accessible_user_ids is not None:
                     final_user_ids = accessible_user_ids
-            
-            # Search feedbacks with filters
+
+            # Search feedbacks with filters (org-scoped)
             feedbacks = await self.supervisor_feedback_repo.search_feedbacks(
+                org_id=org_id,
                 supervisor_ids=final_supervisor_ids,
                 user_ids=final_user_ids,
                 period_id=period_id,
                 status=status,
                 pagination=pagination
             )
-            
-            # Get total count for pagination
+
+            # Get total count for pagination (org-scoped)
             total_count = await self.supervisor_feedback_repo.count_feedbacks(
+                org_id=org_id,
                 supervisor_ids=final_supervisor_ids,
                 user_ids=final_user_ids,
                 period_id=period_id,
@@ -186,7 +182,10 @@ class SupervisorFeedbackService:
     ) -> SupervisorFeedbackDetail:
         """Get detailed supervisor feedback information by ID with permission checks."""
         try:
-            feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id, org_id)
             if not feedback:
                 raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
             
@@ -210,7 +209,10 @@ class SupervisorFeedbackService:
         """Get supervisor feedback for a specific self-assessment."""
         try:
             # Check if self-assessment exists and user has access
-            assessment = await self.self_assessment_repo.get_by_id_with_details(self_assessment_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            assessment = await self.self_assessment_repo.get_by_id_with_details(self_assessment_id, org_id)
             if not assessment:
                 raise NotFoundError(f"Self-assessment with ID {self_assessment_id} not found")
             
@@ -218,7 +220,7 @@ class SupervisorFeedbackService:
             await self._check_assessment_access_permission(assessment, current_user_context)
             
             # Get feedback for assessment
-            feedback = await self.supervisor_feedback_repo.get_by_self_assessment(self_assessment_id)
+            feedback = await self.supervisor_feedback_repo.get_by_self_assessment(self_assessment_id, org_id)
             if not feedback:
                 return None
             
@@ -241,7 +243,10 @@ class SupervisorFeedbackService:
             # Permission check handled by @require_any_permission decorator
             
             # Check if self-assessment exists and get assessment details
-            assessment = await self.self_assessment_repo.get_by_id_with_details(feedback_data.self_assessment_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            assessment = await self.self_assessment_repo.get_by_id_with_details(feedback_data.self_assessment_id, org_id)
             if not assessment:
                 raise NotFoundError(f"Self-assessment with ID {feedback_data.self_assessment_id} not found")
             
@@ -250,7 +255,7 @@ class SupervisorFeedbackService:
             
             # Create feedback
             created_feedback = await self.supervisor_feedback_repo.create_feedback(
-                feedback_data, current_user_context.user_id
+                feedback_data, current_user_context.user_id, org_id
             )
             
             # Commit transaction
@@ -278,7 +283,10 @@ class SupervisorFeedbackService:
         """Update a supervisor feedback with validation and business rules."""
         try:
             # Check if feedback exists
-            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id, org_id)
             if not existing_feedback:
                 raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
             
@@ -289,7 +297,7 @@ class SupervisorFeedbackService:
             await self._validate_feedback_update(feedback_data, existing_feedback)
             
             # Update feedback
-            updated_feedback = await self.supervisor_feedback_repo.update_feedback(feedback_id, feedback_data)
+            updated_feedback = await self.supervisor_feedback_repo.update_feedback(feedback_id, feedback_data, org_id)
             if not updated_feedback:
                 raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found after update")
             
@@ -316,7 +324,10 @@ class SupervisorFeedbackService:
         """Submit a supervisor feedback by changing status to submitted."""
         try:
             # Check if feedback exists and user can update it
-            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id, org_id)
             if not existing_feedback:
                 raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
             
@@ -328,9 +339,9 @@ class SupervisorFeedbackService:
                 raise BadRequestError("Can only submit draft feedbacks")
             
             # CRITICAL: Validate goal category rating rules before submission
-            assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id)
+            assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id, org_id)
             if assessment:
-                goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
+                goal = await self.goal_repo.get_goal_by_id(assessment.goal_id, org_id)
                 if goal:
                     # Create temp object for submission validation
                     temp_feedback = SupervisorFeedbackUpdate(
@@ -341,7 +352,7 @@ class SupervisorFeedbackService:
                     await self._validate_goal_category_rating_rules(goal, temp_feedback)
             
             # Update status using dedicated method
-            updated_feedback = await self.supervisor_feedback_repo.submit_feedback(feedback_id)
+            updated_feedback = await self.supervisor_feedback_repo.submit_feedback(feedback_id, org_id)
             
             # Commit transaction
             await self.session.commit()
@@ -366,7 +377,10 @@ class SupervisorFeedbackService:
         """Change a supervisor feedback status to draft."""
         try:
             # Check if feedback exists and user can update it
-            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id, org_id)
             if not existing_feedback:
                 raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
             
@@ -378,7 +392,7 @@ class SupervisorFeedbackService:
                 raise BadRequestError("Can only draft submitted feedbacks")
             
             # Update status using dedicated method
-            updated_feedback = await self.supervisor_feedback_repo.draft_feedback(feedback_id)
+            updated_feedback = await self.supervisor_feedback_repo.draft_feedback(feedback_id, org_id)
             
             # Commit transaction
             await self.session.commit()
@@ -403,7 +417,10 @@ class SupervisorFeedbackService:
         """Delete a supervisor feedback with permission and business rule checks."""
         try:
             # Check if feedback exists
-            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id)
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id, org_id)
             if not existing_feedback:
                 raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
             
@@ -411,7 +428,7 @@ class SupervisorFeedbackService:
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
                         
             # Delete feedback
-            success = await self.supervisor_feedback_repo.delete_feedback(feedback_id)
+            success = await self.supervisor_feedback_repo.delete_feedback(feedback_id, org_id)
             
             if success:
                 await self.session.commit()
@@ -509,7 +526,10 @@ class SupervisorFeedbackService:
     async def _check_assessment_access_permission(self, assessment, current_user_context: AuthContext):
         """Check if user has permission to access this assessment using RBAC framework."""
         # Get the related goal to check ownership
-        goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        goal = await self.goal_repo.get_goal_by_id(assessment.goal_id, org_id)
         if not goal:
             raise NotFoundError("Related goal not found")
         
@@ -558,7 +578,10 @@ class SupervisorFeedbackService:
             raise BadRequestError("Can only create feedback for submitted self-assessments")
         
         # Check if current user has access to the assessment's goal
-        goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        goal = await self.goal_repo.get_goal_by_id(assessment.goal_id, org_id)
         if not goal:
             raise BadRequestError("Related goal not found")
         
@@ -574,7 +597,10 @@ class SupervisorFeedbackService:
             raise PermissionDeniedError("You can only provide feedback for goals you have access to")
         
         # Check if evaluation period allows feedback
-        period = await self.evaluation_period_repo.get_by_id(feedback_data.period_id)
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        period = await self.evaluation_period_repo.get_by_id(feedback_data.period_id, org_id)
         if not period:
             raise BadRequestError(f"Evaluation period {feedback_data.period_id} not found")
         
@@ -586,9 +612,12 @@ class SupervisorFeedbackService:
         # CRITICAL: Validate rating rules for goal category during updates
         if feedback_data.rating is not None:
             # Get goal via assessment to validate category rules
-            assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id)
+            org_id = existing_feedback.org_id # Assuming org_id is stored in the model
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id, org_id)
             if assessment:
-                goal = await self.goal_repo.get_goal_by_id(assessment.goal_id)
+                goal = await self.goal_repo.get_goal_by_id(assessment.goal_id, org_id)
                 if goal:
                     # Create temp object for validation (without status field)
                     temp_feedback = SupervisorFeedbackUpdate(

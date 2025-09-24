@@ -39,12 +39,15 @@ class EvaluationPeriodService:
         if not current_user_context.has_permission(Permission.EVALUATION_MANAGE):
             raise PermissionDeniedError("Only administrators can create evaluation periods")
         
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required for evaluation period creation")
+        
         try:
             # Validate business rules
-            await self._validate_period_creation(period_data)
+            await self._validate_period_creation(period_data, org_id)
             
-            # Create the evaluation period
-            period_model = await self.evaluation_period_repo.create_evaluation_period(period_data)
+            period_model = await self.evaluation_period_repo.create_evaluation_period(period_data, org_id)
             await self.session.commit()
             
             logger.info(f"Created evaluation period: {period_model.id} by user: {current_user_context.user_id}")
@@ -66,7 +69,11 @@ class EvaluationPeriodService:
         TODO: Consider adding user-specific restrictions in the future (may limit non-admin access).
         """
         
-        period_model = await self.evaluation_period_repo.get_by_id(period_id)
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
+        period_model = await self.evaluation_period_repo.get_by_id(period_id, org_id)
         if not period_model:
             raise NotFoundError(f"Evaluation period with ID {period_id} not found")
         
@@ -83,7 +90,11 @@ class EvaluationPeriodService:
         TODO: Consider adding user-specific restrictions in the future (may limit non-admin access).
         """
         
-        period_model = await self.evaluation_period_repo.get_by_id(period_id)
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
+        period_model = await self.evaluation_period_repo.get_by_id(period_id, org_id)
         if not period_model:
             raise NotFoundError(f"Evaluation period with ID {period_id} not found")
         
@@ -140,13 +151,17 @@ class EvaluationPeriodService:
         TODO: Consider adding user-specific restrictions in the future (may limit non-admin access).
         """
         
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
         try:
             if status:
-                periods_models = await self.evaluation_period_repo.get_by_status(status)
+                periods_models = await self.evaluation_period_repo.get_by_status(status, org_id)
                 total = len(periods_models)
             else:
-                periods_models = await self.evaluation_period_repo.get_all(pagination)
-                total = await self.evaluation_period_repo.count_all()
+                periods_models = await self.evaluation_period_repo.get_all(org_id, pagination)
+                total = await self.evaluation_period_repo.count_all(org_id)
             
             periods = [EvaluationPeriod.model_validate(period) for period in periods_models]
             
@@ -185,7 +200,11 @@ class EvaluationPeriodService:
         TODO: Consider adding user-specific restrictions in the future (may limit non-admin access).
         """
         
-        period_model = await self.evaluation_period_repo.get_active_period()
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        
+        period_model = await self.evaluation_period_repo.get_active_period(org_id)
         if not period_model:
             return None
         
@@ -203,17 +222,21 @@ class EvaluationPeriodService:
         if not current_user_context.has_permission(Permission.EVALUATION_MANAGE):
             raise PermissionDeniedError("Only administrators can update evaluation periods")
         
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required for evaluation period update")
+        
         try:
             # Check if period exists
-            existing_period = await self.evaluation_period_repo.get_by_id(period_id)
+            existing_period = await self.evaluation_period_repo.get_by_id(period_id, org_id)
             if not existing_period:
                 raise NotFoundError(f"Evaluation period with ID {period_id} not found")
             
             # Validate business rules for update
-            await self._validate_period_update(period_id, period_data, existing_period)
+            await self._validate_period_update(period_id, period_data, existing_period, org_id)
             
             # Update the evaluation period
-            updated_period = await self.evaluation_period_repo.update_evaluation_period(period_id, period_data)
+            updated_period = await self.evaluation_period_repo.update_evaluation_period(period_id, period_data, org_id)
             await self.session.commit()
             
             logger.info(f"Updated evaluation period: {period_id} by user: {current_user_context.user_id}")
@@ -236,17 +259,21 @@ class EvaluationPeriodService:
         if not current_user_context.has_permission(Permission.EVALUATION_MANAGE):
             raise PermissionDeniedError("Only administrators can update evaluation period status")
         
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required for status update")
+        
         try:
             # Check if period exists
-            existing_period = await self.evaluation_period_repo.get_by_id(period_id)
+            existing_period = await self.evaluation_period_repo.get_by_id(period_id, org_id)
             if not existing_period:
                 raise NotFoundError(f"Evaluation period with ID {period_id} not found")
             
             # Validate status transition
-            await self._validate_status_transition(existing_period, status)
+            await self._validate_status_transition(existing_period, status, org_id)
             
             # Update status
-            updated_period = await self.evaluation_period_repo.update_status(period_id, status)
+            updated_period = await self.evaluation_period_repo.update_status(period_id, status, org_id)
             await self.session.commit()
             
             logger.info(f"Updated evaluation period status: {period_id} to {status} by user: {current_user_context.user_id}")
@@ -268,9 +295,13 @@ class EvaluationPeriodService:
         if not current_user_context.has_permission(Permission.EVALUATION_MANAGE):
             raise PermissionDeniedError("Only administrators can delete evaluation periods")
         
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required for deletion")
+        
         try:
             # Check if period exists
-            existing_period = await self.evaluation_period_repo.get_by_id(period_id)
+            existing_period = await self.evaluation_period_repo.get_by_id(period_id, org_id)
             if not existing_period:
                 raise NotFoundError(f"Evaluation period with ID {period_id} not found")
             
@@ -278,7 +309,7 @@ class EvaluationPeriodService:
             await self._validate_period_deletion(existing_period)
             
             # Delete the evaluation period
-            deleted = await self.evaluation_period_repo.delete_evaluation_period(period_id)
+            deleted = await self.evaluation_period_repo.delete_evaluation_period(period_id, org_id)
             await self.session.commit()
             
             logger.info(f"Deleted evaluation period: {period_id} by user: {current_user_context.user_id}")
@@ -293,18 +324,19 @@ class EvaluationPeriodService:
     # PRIVATE VALIDATION METHODS
     # ========================================
 
-    async def _validate_period_creation(self, period_data: EvaluationPeriodCreate):
+    async def _validate_period_creation(self, period_data: EvaluationPeriodCreate, org_id: str):
         """Validate business rules for evaluation period creation."""
         
         # Check for name uniqueness
-        name_exists = await self.evaluation_period_repo.check_name_exists(period_data.name)
+        name_exists = await self.evaluation_period_repo.check_name_exists(period_data.name, org_id)
         if name_exists:
             raise ConflictError(f"Evaluation period with name '{period_data.name}' already exists")
         
         # Check for date overlap with existing periods
         date_overlap = await self.evaluation_period_repo.check_date_overlap(
             period_data.start_date, 
-            period_data.end_date
+            period_data.end_date,
+            org_id
         )
         if date_overlap:
             raise ConflictError("Evaluation period dates overlap with an existing period")
@@ -319,14 +351,14 @@ class EvaluationPeriodService:
         if period_data.evaluation_deadline < period_data.end_date:
             raise BadRequestError("Evaluation deadline should not be before the period end date")
 
-    async def _validate_period_update(self, period_id: UUID, period_data: EvaluationPeriodUpdate, existing_period: EvaluationPeriodModel):
+    async def _validate_period_update(self, period_id: UUID, period_data: EvaluationPeriodUpdate, existing_period: EvaluationPeriodModel, org_id: str):
         """Validate business rules for evaluation period update."""
         
         update_dict = period_data.model_dump(exclude_unset=True)
         
         # Check name uniqueness if name is being updated
         if 'name' in update_dict and update_dict['name'] != existing_period.name:
-            name_exists = await self.evaluation_period_repo.check_name_exists(update_dict['name'], exclude_id=period_id)
+            name_exists = await self.evaluation_period_repo.check_name_exists(update_dict['name'], org_id, exclude_id=period_id)
             if name_exists:
                 raise ConflictError(f"Evaluation period with name '{update_dict['name']}' already exists")
         
@@ -338,6 +370,7 @@ class EvaluationPeriodService:
             date_overlap = await self.evaluation_period_repo.check_date_overlap(
                 start_date, 
                 end_date, 
+                org_id,
                 exclude_id=period_id
             )
             if date_overlap:
@@ -348,7 +381,7 @@ class EvaluationPeriodService:
             if any(field in update_dict for field in ['start_date', 'end_date', 'goal_submission_deadline']):
                 raise BadRequestError(f"Cannot modify dates for {existing_period.status} evaluation period")
 
-    async def _validate_status_transition(self, existing_period: EvaluationPeriodModel, new_status: EvaluationPeriodStatus):
+    async def _validate_status_transition(self, existing_period: EvaluationPeriodModel, new_status: EvaluationPeriodStatus, org_id: str):
         """Validate that the status transition is allowed."""
         
         current_status = existing_period.status
@@ -365,7 +398,7 @@ class EvaluationPeriodService:
         
         # Additional business rule: Only one active period at a time
         if new_status == EvaluationPeriodStatus.ACTIVE:
-            active_period = await self.evaluation_period_repo.get_active_period()
+            active_period = await self.evaluation_period_repo.get_active_period(org_id)
             if active_period and active_period.id != existing_period.id:
                 raise ConflictError("Cannot activate period: another period is already active")
 

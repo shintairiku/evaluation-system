@@ -6,7 +6,7 @@ with simplified role-based permission checking.
 """
 
 from __future__ import annotations
-from typing import List, Set
+from typing import List, Set, Optional
 from uuid import UUID
 from dataclasses import dataclass
 
@@ -29,9 +29,11 @@ class AuthContext:
     in a single, simple class that replaces the over-engineered SecurityContext.
     """
     
-    def __init__(self, user_id: UUID = None, roles: List[RoleInfo] = None, clerk_user_id: str = None):
+    def __init__(self, user_id: Optional[UUID] = None, roles: Optional[List[RoleInfo]] = None, clerk_user_id: Optional[str] = None, organization_id: Optional[str] = None, organization_slug: Optional[str] = None):
         self.user_id = user_id
         self.clerk_user_id = clerk_user_id
+        self.organization_id = organization_id
+        self.organization_slug = organization_slug
         self.roles = roles or []
         self.role_names = [role.name for role in self.roles]
         self.role_ids = [role.id for role in self.roles]
@@ -113,11 +115,13 @@ class AuthContext:
     
     def __str__(self) -> str:
         """String representation for debugging."""
-        return f"AuthContext(user_id={self.user_id}, roles={self.role_names})"
+        return f"AuthContext(user_id={self.user_id}, organization_id={self.organization_id}, roles={self.role_names})"
     
     def __repr__(self) -> str:
         """Detailed representation for debugging."""
         return (f"AuthContext(user_id={self.user_id}, "
+                f"organization_id={self.organization_id}, "
+                f"organization_slug={self.organization_slug}, "
                 f"roles={[role.name for role in self.roles]}, "
                 f"permissions={len(self._permissions)})")
 
