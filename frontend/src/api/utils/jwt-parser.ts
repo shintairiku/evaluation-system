@@ -3,6 +3,15 @@
  * Used to get org_slug from Clerk JWT tokens for organization-scoped API routes
  */
 
+// Define Clerk window interface for better type safety
+interface ClerkWindow extends Window {
+  Clerk?: {
+    session?: {
+      getToken: (options: { template: string }) => Promise<string>;
+    };
+  };
+}
+
 interface JWTPayload {
   // Organization fields
   organization_id?: string;
@@ -157,7 +166,7 @@ export async function getCurrentOrgContext(): Promise<{
   try {
     // Try to get token from Clerk (client-side)
     if (typeof window !== 'undefined') {
-      const clerk = (window as { Clerk?: { session?: { getToken: (options: { template: string }) => Promise<string> } } }).Clerk;
+      const clerk = (window as ClerkWindow).Clerk;
       if (clerk && clerk.session) {
         const token = await clerk.session.getToken({ template: 'org-jwt' });
         return getOrgContextFromToken(token);
