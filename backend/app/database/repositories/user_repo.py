@@ -1,7 +1,6 @@
 import logging
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timezone
 
 from sqlalchemy import select, update, func, or_, delete, insert
 from sqlalchemy.orm import joinedload
@@ -520,7 +519,7 @@ class UserRepository(BaseRepository[User]):
             logger.error(f"Error updating user stage {user_id}: {e}")
             raise
 
-    async def assign_roles_to_user(self, user_id: UUID, role_ids: list[int]) -> None:
+    async def assign_roles_to_user(self, user_id: UUID, role_ids: list[UUID]) -> None:
         """Assign roles to user by inserting into user_roles table (does not commit)."""
         if not role_ids:
             logger.info(f"No role_ids provided for user {user_id}")
@@ -581,7 +580,7 @@ class UserRepository(BaseRepository[User]):
             logger.error(f"Unexpected error assigning roles to user {user_id}: {e}")
             raise
 
-    async def update_user_roles(self, user_id: UUID, role_ids: list[int]) -> None:
+    async def update_user_roles(self, user_id: UUID, role_ids: list[UUID]) -> None:
         """Update user roles by replacing existing assignments (does not commit)."""
         logger.info(f"Updating roles for user {user_id} with roles {role_ids}")
         
@@ -599,7 +598,7 @@ class UserRepository(BaseRepository[User]):
             logger.error(f"Error updating roles for user {user_id}: {e}")
             raise
 
-    async def remove_user_roles(self, user_id: UUID, role_ids: list[int]) -> None:
+    async def remove_user_roles(self, user_id: UUID, role_ids: list[UUID]) -> None:
         """Remove specific roles from user (does not commit)."""
         if not role_ids:
             return
