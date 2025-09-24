@@ -12,7 +12,6 @@ import type {
   PaginationParams,
   UUID,
   UserExistsResponse,
-  ProfileOptionsResponse,
   SimpleUser,
 } from '../types';
 
@@ -287,42 +286,6 @@ export const checkUserExistsAction = cache(
   },
 );
 
-/**
- * Server action to get profile options for signup
- */
-export const getProfileOptionsAction = cache(
-  async (): Promise<{
-    success: boolean;
-    data?: ProfileOptionsResponse;
-    error?: string;
-  }> => {
-    try {
-      const response = await usersApi.getProfileOptions();
-
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.error || 'Failed to fetch profile options',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get profile options action error:', error);
-
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'An unexpected error occurred while fetching profile options',
-      };
-    }
-  },
-);
 
 /**
  * Server action to search users with filters and pagination
