@@ -108,29 +108,20 @@ class UnifiedHttpClient {
    * Get organization slug from JWT token
    * Caches the result to avoid repeated JWT parsing
    */
+  /**
+   * Get organization slug from JWT token
+   * Caches the result to avoid repeated JWT parsing, but ensures cache freshness
+   */
   private async getOrgSlug(): Promise<string | null> {
-    // Return cached value if available
-    if (this.orgSlug !== null) {
-      return this.orgSlug;
-    }
-
-    // Return cached promise if already in progress
-    if (this.orgSlugPromise) {
-      return this.orgSlugPromise;
-    }
-
-    // Start new request
-    this.orgSlugPromise = this.fetchOrgSlug();
-
-    try {
-      const slug = await this.orgSlugPromise;
-      this.orgSlug = slug; // Cache the result
-      return slug;
-    } finally {
-      this.orgSlugPromise = null; // Clear the promise
-    }
+    // Always fetch fresh org slug to prevent stale organization context
+    // This is especially important when users switch between organizations
+    // The performance impact is minimal since JWT parsing is fast
+    return this.fetchOrgSlug();
   }
 
+  /**
+   * Fetch organization slug from JWT token
+   */
   /**
    * Fetch organization slug from JWT token
    */
@@ -150,11 +141,22 @@ class UnifiedHttpClient {
 
         if (token) {
           const { getOrgSlugFromToken } = await import('../utils/jwt-parser');
-          return getOrgSlugFromToken(token);
+          const orgSlugFromToken = getOrgSlugFromToken(token);
+          
+          // Always clear cache when we get a fresh token to prevent stale organization context
+          // This is critical for multi-organization scenarios
+          if (orgSlugFromToken !== this.orgSlug) {
+            console.log(`[UnifiedHttpClient] Organization context changed from '${this.orgSlug}' to '${orgSlugFromToken}' - clearing cache`);
+            this.clearOrgSlugCache();
+          }
+          
+          return orgSlugFromToken;
         }
       }
     } catch (error) {
       console.warn('Failed to get organization slug:', error);
+      // Clear cache on error to prevent stale data
+      this.clearOrgSlugCache();
     }
 
     return null;
