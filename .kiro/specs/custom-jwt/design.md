@@ -99,6 +99,11 @@ class BaseRepository:
 
 - `useJWTUserInfo` は Clerk セッションから org クレームを利用
 - `/admin` と `/org/[slug]` のガード: org_role と active org で判定
+- **HTTP クライアントの洗練された組織スコープ対応**: `http-unified-client.ts` で実装済み
+  - パターン駆動のエンドポイント分類（認証系を組織スコープから除外）
+  - API バージョン対応（`/api/v1/auth/`, `/api/v2/auth/` など）
+  - 二重スコープ防止（`/api/org/` パス検知）
+  - サーバー/クライアント両対応
 
 ## 10. セキュリティ設計（更新）
 
@@ -211,6 +216,11 @@ class BaseRepository:
 
 - `useJWTUserInfo` は Clerk セッションから org クレームを利用
 - `/admin` と `/org/[slug]` のガード: org_role と active org で判定
+- **HTTP クライアントの洗練された組織スコープ対応**: `http-unified-client.ts` で実装済み
+  - パターン駆動のエンドポイント分類（認証系を組織スコープから除外）
+  - API バージョン対応（`/api/v1/auth/`, `/api/v2/auth/` など）
+  - 二重スコープ防止（`/api/org/` パス検知）
+  - サーバー/クライアント両対応
 
 ## 10. セキュリティ設計（更新）
 

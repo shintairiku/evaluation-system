@@ -165,16 +165,16 @@ class DepartmentRepository(BaseRepository[Department]):
     # UPDATE OPERATIONS
     # ========================================
     
-    async def update_department(self, dept_id: UUID, dept_data: DepartmentUpdate) -> Optional[Department]:
+    async def update_department(self, dept_id: UUID, dept_data: DepartmentUpdate, org_id: str) -> Optional[Department]:
         """Update department with validation"""
         # Check if department exists
-        existing = await self.get_by_id(dept_id)
+        existing = await self.get_by_id(dept_id, org_id)
         if not existing:
             return None
-        
+
         # Check if new name conflicts with existing department
         if dept_data.name and dept_data.name != existing.name:
-            name_conflict = await self.get_by_name(dept_data.name)
+            name_conflict = await self.get_by_name(dept_data.name, org_id)
             if name_conflict:
                 raise ValueError(f"Department with name '{dept_data.name}' already exists")
         
@@ -194,7 +194,7 @@ class DepartmentRepository(BaseRepository[Department]):
     # DELETE OPERATIONS
     # ========================================
     
-    async def delete_department(self, dept_id: UUID) -> bool:
+    async def delete_department(self, dept_id: UUID, org_id: str) -> bool:
         """Delete department with referential integrity checks"""
         # Check if department has active users
         from ..models.user import User
@@ -202,20 +202,21 @@ class DepartmentRepository(BaseRepository[Department]):
             select(func.count(User.id)).where(
                 and_(
                     User.department_id == dept_id,
-                    User.status == "active"
+                    User.status == "active",
+                    User.clerk_organization_id == org_id
                 )
             )
         )
         user_count = user_count_result.scalar()
-        
+
         if user_count > 0:
             raise ValueError(f"Cannot delete department with {user_count} active users")
-        
+
         # Delete department
         result = await self.session.execute(
-            delete(Department).where(Department.id == dept_id)
+            delete(Department).where(Department.id == dept_id, Department.organization_id == org_id)
         )
-        
+
         if result.rowcount > 0:
             logger.info(f"Department deleted: {dept_id}")
             return True

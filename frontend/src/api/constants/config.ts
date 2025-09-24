@@ -24,6 +24,7 @@ export const API_CONFIG = {
   BASE_URL: getApiBaseUrl(),
   API_VERSION: 'v1',
   FULL_URL: `${getApiBaseUrl()}/api/v1`,
+  ORG_API_BASE: `${getApiBaseUrl()}/api/org`, // Organization-scoped API base
   TIMEOUT: 30000, // 30 seconds
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000, // 1 second (base delay for exponential backoff)
@@ -41,21 +42,28 @@ export const API_CONFIG = {
   MAX_CONCURRENT_REQUESTS: 10, // Limit concurrent requests to prevent overload
 } as const;
 
-// Helper function to build full API URLs
+// Helper function to build API URLs (returns relative paths for HTTP client)
 export const buildApiUrl = (endpoint: string, version?: string) => {
   const apiVersion = version || API_CONFIG.API_VERSION;
-  return `${API_CONFIG.BASE_URL}/api/${apiVersion}${endpoint}`;
+  return `/api/${apiVersion}${endpoint}`;
+};
+
+// Helper function to build organization-scoped API URLs (returns relative paths for HTTP client)
+export const buildOrgApiUrl = (orgSlug: string, endpoint: string) => {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `/api/org/${encodeURIComponent(orgSlug)}${cleanEndpoint}`;
 };
 
 export const API_ENDPOINTS = {
-  // Auth endpoints
+  // Auth endpoints (organization-agnostic)
   AUTH: {
-    // GET_USER_BY_CLERK_ID: (clerkId: string) => `/auth/user/${clerkId}`,
-    // SIGNUP: '/auth/signup',
-    // SIGNUP_PROFILE_OPTIONS: '/auth/signup/profile-options',
+    USER_BY_CLERK_ID: (clerkId: string) => buildApiUrl(`/auth/user/${clerkId}`),
+    SIGNUP_PROFILE_OPTIONS: buildApiUrl('/auth/signup/profile-options'),
+    LOGOUT: buildApiUrl('/auth/logout'),
+    // DEV_KEYS: buildApiUrl('/auth/dev-keys'),
   },
   
-  // User endpoints
+  // User endpoints (organization-scoped)
   USERS: {
     LIST: '/users',
     BY_ID: (id: string) => `/users/${id}`,
@@ -63,8 +71,6 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/users/${id}`,
     UPDATE_STAGE: (id: string) => `/users/${id}/stage`,
     DELETE: (id: string) => `/users/${id}`,
-    EXISTS: (clerkId: string) => `/users/exists/${clerkId}`,
-    PROFILE_OPTIONS: '/users/profile-options',
     ORG_CHART: '/users/org-chart',
   },
   

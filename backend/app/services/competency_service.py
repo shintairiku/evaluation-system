@@ -194,7 +194,7 @@ class CompetencyService:
                 raise PermissionDeniedError("User has no organization assigned")
             
             # Validate stage exists
-            stage = await self.stage_repo.get_by_id(competency_data.stage_id)
+            stage = await self.stage_repo.get_by_id(competency_data.stage_id, current_user_context.organization_id)
             if not stage:
                 raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
             
@@ -257,9 +257,9 @@ class CompetencyService:
             
             # Validate stage exists if being updated
             if competency_data.stage_id is not None:
-                stage = await self.stage_repo.get_by_id(competency_data.stage_id)
-                if not stage:
-                    raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
+                stage = await self.stage_repo.get_by_id(competency_data.stage_id, current_user_context.organization_id)
+            if not stage:
+                raise BadRequestError(f"Stage with ID {competency_data.stage_id} not found")
             
             # Check for naming conflicts if name is being updated
             if competency_data.name is not None and competency_data.name != existing_competency.name:
@@ -410,7 +410,7 @@ class CompetencyService:
             await self._validate_stage_access(current_user_context, stage_id)
             
             # Validate stage exists
-            stage = await self.stage_repo.get_by_id(stage_id)
+            stage = await self.stage_repo.get_by_id(stage_id, current_user_context.organization_id)
             if not stage:
                 raise NotFoundError(f"Stage with ID {stage_id} not found")
             

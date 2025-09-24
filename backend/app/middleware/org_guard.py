@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import logging
@@ -99,4 +99,44 @@ async def require_org_access(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error validating organization access"
+        )
+
+
+def get_org_context_from_middleware(request: Request) -> OrganizationContext:
+    """
+    Extract organization context from middleware-validated request state.
+    This is used for organization-scoped routes where middleware has already validated access.
+
+    Args:
+        request: FastAPI request object with validated org info in state
+
+    Returns:
+        OrganizationContext: Organization context from middleware validation
+
+    Raises:
+        HTTPException: 500 if middleware validation data is missing
+    """
+    try:
+        org_slug = getattr(request.state, 'org_slug', None)
+        org_id = getattr(request.state, 'org_id', None)
+
+        if not org_slug or not org_id:
+            logger.error("Organization context missing from request state - middleware validation failed")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Organization context not found"
+            )
+
+        return OrganizationContext(
+            organization_id=org_id,
+            organization_slug=org_slug
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error extracting organization context from middleware: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error accessing organization context"
         )

@@ -3,7 +3,7 @@
  * Automatically detects environment and uses appropriate Clerk auth method
  */
 
-import { API_CONFIG } from '../constants/config';
+import { API_CONFIG, buildOrgApiUrl } from '../constants/config';
 import { createAppError, logError } from '../../utils/error-handling';
 import { ClientAuth } from './auth-helper';
 
@@ -96,10 +96,125 @@ class UnifiedHttpClient {
   private baseUrl: string;
   private requestInterceptors: RequestInterceptor[] = [];
   private responseInterceptors: ResponseInterceptor[] = [];
+  private orgSlug: string | null = null;
+  private orgSlugPromise: Promise<string | null> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     this.setupDefaultInterceptors();
+  }
+
+  /**
+   * Get organization slug from JWT token
+   * Caches the result to avoid repeated JWT parsing
+   */
+  private async getOrgSlug(): Promise<string | null> {
+    // Return cached value if available
+    if (this.orgSlug !== null) {
+      return this.orgSlug;
+    }
+
+    // Return cached promise if already in progress
+    if (this.orgSlugPromise) {
+      return this.orgSlugPromise;
+    }
+
+    // Start new request
+    this.orgSlugPromise = this.fetchOrgSlug();
+
+    try {
+      const slug = await this.orgSlugPromise;
+      this.orgSlug = slug; // Cache the result
+      return slug;
+    } finally {
+      this.orgSlugPromise = null; // Clear the promise
+    }
+  }
+
+  /**
+   * Fetch organization slug from JWT token
+   */
+  private async fetchOrgSlug(): Promise<string | null> {
+    try {
+      if (isServer) {
+        // Server-side: Use getCurrentOrgSlug from jwt-parser
+        const { getCurrentOrgSlug } = await import('../utils/jwt-parser');
+        return await getCurrentOrgSlug();
+      } else {
+        // Client-side: Use ClientAuth helper
+        let token = ClientAuth.getToken();
+
+        if (!token) {
+          token = await ClientAuth.initializeFromClerk('org-jwt');
+        }
+
+        if (token) {
+          const { getOrgSlugFromToken } = await import('../utils/jwt-parser');
+          return getOrgSlugFromToken(token);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to get organization slug:', error);
+    }
+
+    return null;
+  }
+
+  /**
+   * Clear cached organization slug (useful when user changes org)
+   */
+  public clearOrgSlugCache(): void {
+    this.orgSlug = null;
+    this.orgSlugPromise = null;
+  }
+
+  /**
+   * Set organization slug manually (for testing or special cases)
+   */
+  public setOrgSlug(slug: string | null): void {
+    this.orgSlug = slug;
+    this.orgSlugPromise = null;
+  }
+
+  /**
+   * Check if an endpoint should be organization-scoped
+   * Auth endpoints are organization-agnostic, all others should be org-scoped
+   */
+  private shouldApplyOrgScoping(endpoint: string): boolean {
+    // Define comprehensive patterns that should NOT be organization-scoped
+    // These patterns are designed to be robust against API version changes
+    const nonOrgScopedPatterns = [
+      // Auth endpoints (organization-agnostic)
+      '/auth/',
+      '/api/v1/auth/',
+      '/api/v2/auth/', // Future API versions
+      '/api/auth/',    // Any API version
+
+      // Already org-scoped endpoints (should not double-scope)
+      '/api/org/',
+      '/org/',
+
+      // Other global endpoints that might be added in the future
+      // Add patterns here as needed
+    ];
+
+    // Check if endpoint matches any non-org-scoped pattern
+    for (const pattern of nonOrgScopedPatterns) {
+      if (endpoint.includes(pattern)) {
+        return false;
+      }
+    }
+
+    // All other endpoints should be organization-scoped
+    return true;
+  }
+
+  /**
+   * Public method to test organization scoping logic
+   * This is for testing purposes only
+   */
+  public testShouldApplyOrgScoping(endpoint: string): boolean {
+    return this.shouldApplyOrgScoping(endpoint);
   }
 
   // Add request interceptor
@@ -232,13 +347,8 @@ class UnifiedHttpClient {
       if (isServer) {
         // Server-side: Use @clerk/nextjs/server
         const { auth } = await import('@clerk/nextjs/server');
-        const authResult = await auth();
-        
-        if (!authResult || !authResult.getToken) {
-          return {};
-        }
-        
-        const token = await authResult.getToken();
+        const { getToken } = await auth();
+        const token = await getToken({ template: 'org-jwt' });
         
         if (token) {
           return {
@@ -251,7 +361,7 @@ class UnifiedHttpClient {
         
         // If no token stored, try to initialize from Clerk
         if (!token) {
-          token = await ClientAuth.initializeFromClerk();
+          token = await ClientAuth.initializeFromClerk('org-jwt');
         }
         
         if (token) {
@@ -319,7 +429,9 @@ class UnifiedHttpClient {
     }
 
     if (!response.ok) {
-      const errorMessage = (data as { message?: string; error?: string })?.message || 
+      // Prefer FastAPI's {detail: string} or legacy {message|error}
+      const errorMessage = (data as { detail?: string; message?: string; error?: string })?.detail ||
+                          (data as { message?: string; error?: string })?.message || 
                           (data as { message?: string; error?: string })?.error || 
                           `HTTP ${response.status}: ${response.statusText}`;
       
@@ -370,9 +482,24 @@ class UnifiedHttpClient {
     }, API_CONFIG.TIMEOUT);
     
     try {
-      const url = `${this.baseUrl}${endpoint}`;
+      // Get organization slug
+      const orgSlug = await this.getOrgSlug();
+
+      // Construct URL based on organization context
+      let url: string;
+      const shouldScope = this.shouldApplyOrgScoping(endpoint);
+
+      if (shouldScope && orgSlug) {
+        // Use organization-scoped URL for business logic endpoints
+        const orgScopedEndpoint = buildOrgApiUrl(orgSlug, endpoint);
+        url = `${this.baseUrl}${orgScopedEndpoint}`;
+      } else {
+        // Use regular URL for auth endpoints or when org context is not available
+        url = `${this.baseUrl}${endpoint}`;
+      }
+
       const headers = await this.buildHeaders(customHeaders, body);
-      
+
       // Run request interceptors
       await this.runRequestInterceptors({
         url,
@@ -593,9 +720,63 @@ let httpClientInstance: UnifiedHttpClient | null = null;
 
 export function getHttpClient(): UnifiedHttpClient {
   if (!httpClientInstance) {
-    httpClientInstance = new UnifiedHttpClient(API_CONFIG.FULL_URL);
+    httpClientInstance = new UnifiedHttpClient(API_CONFIG.BASE_URL);
   }
   return httpClientInstance;
 }
 
 export default UnifiedHttpClient;
+
+/**
+ * Test the organization scoping functionality
+ * This is a temporary test function to verify the implementation works
+ */
+/**
+ * Test the organization scoping functionality
+ * This function tests various endpoint patterns to ensure correct scoping behavior
+ */
+export async function testOrgScoping() {
+  const client = getHttpClient();
+
+  console.log('=== Organization Scoping Test ===');
+
+  // Test cases: [endpoint, expected_result, description]
+  const testCases: [string, boolean, string][] = [
+    // Auth endpoints (should NOT be org-scoped)
+    ['/api/v1/auth/user/123', false, 'API v1 auth endpoint'],
+    ['/api/v2/auth/user/456', false, 'API v2 auth endpoint (future-proofing)'],
+    ['/auth/signup/profile-options', false, 'Auth endpoint without API version'],
+    ['/api/auth/dev-keys', false, 'Generic API auth endpoint'],
+
+    // Business endpoints (should be org-scoped)
+    ['/api/v1/users', true, 'API v1 users endpoint'],
+    ['/api/v1/goals', true, 'API v1 goals endpoint'],
+    ['/users', true, 'Users endpoint without API version'],
+
+    // Already org-scoped endpoints (should NOT double-scope)
+    ['/api/org/acme-corp/users', false, 'Already org-scoped users endpoint'],
+    ['/org/acme-corp/goals', false, 'Org-scoped goals endpoint without API version'],
+  ];
+
+  let passedTests = 0;
+  let totalTests = testCases.length;
+
+  for (const [endpoint, expected, description] of testCases) {
+    const result = client.testShouldApplyOrgScoping(endpoint);
+    const passed = result === expected;
+
+    console.log(`${passed ? '✅' : '❌'} ${description}`);
+    console.log(`   Endpoint: ${endpoint}`);
+    console.log(`   Expected: ${expected}, Got: ${result ? 'true' : 'false'}`);
+
+    if (passed) {
+      passedTests++;
+    } else {
+      console.log(`   ❌ TEST FAILED!`);
+    }
+
+    console.log('');
+  }
+
+  console.log(`=== Test Results: ${passedTests}/${totalTests} passed ===`);
+}

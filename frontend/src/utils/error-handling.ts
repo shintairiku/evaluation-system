@@ -198,25 +198,43 @@ export function handleApiError<T>(response: ApiResponse<T>, context?: string): A
  * Logs errors with appropriate level based on severity
  */
 export function logError(appError: AppError, context?: string): void {
+  const isServer = typeof window === 'undefined';
+  const safeOriginal = typeof appError.originalError === 'object' && appError.originalError !== null
+    ? JSON.parse(JSON.stringify(appError.originalError, Object.getOwnPropertyNames(appError.originalError as object)))
+    : appError.originalError;
+
   const logData = {
     ...appError,
+    originalError: safeOriginal,
     context,
-    userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server',
-    url: typeof window !== 'undefined' ? window.location.href : 'server',
+    userAgent: isServer ? 'server' : window.navigator.userAgent,
+    url: isServer ? 'server' : window.location.href,
   };
+
+  const serialized = (() => {
+    try {
+      return JSON.stringify(logData);
+    } catch {
+      // Fallback stringify to be extra safe
+      return JSON.stringify({
+        ...logData,
+        originalError: String(logData.originalError),
+      });
+    }
+  })();
 
   switch (appError.severity) {
     case ErrorSeverity.CRITICAL:
-      console.error('🔴 CRITICAL ERROR:', logData);
+      console.error('🔴 CRITICAL ERROR:', serialized);
       break;
     case ErrorSeverity.HIGH:
-      console.error('🟠 HIGH SEVERITY ERROR:', logData);
+      console.error('🟠 HIGH SEVERITY ERROR:', serialized);
       break;
     case ErrorSeverity.MEDIUM:
-      console.warn('🟡 MEDIUM SEVERITY ERROR:', logData);
+      console.warn('🟡 MEDIUM SEVERITY ERROR:', serialized);
       break;
     case ErrorSeverity.LOW:
-      console.info('🔵 LOW SEVERITY ERROR:', logData);
+      console.info('🔵 LOW SEVERITY ERROR:', serialized);
       break;
   }
 

@@ -42,12 +42,12 @@ class StageService:
             # Permission check handled by @require_permission decorator
             
             # Check if stage name already exists
-            existing_stage = await self.stage_repo.get_by_name(stage_data.name)
+            existing_stage = await self.stage_repo.get_by_name(stage_data.name, current_user_context.organization_id)
             if existing_stage:
                 raise ConflictError(f"Stage with name '{stage_data.name}' already exists")
-            
+
             # Create new stage
-            stage_model = await self.stage_repo.create(stage_data)
+            stage_model = await self.stage_repo.create(stage_data, current_user_context.organization_id)
             await self.session.commit()
             await self.session.refresh(stage_model)
             
@@ -90,13 +90,13 @@ class StageService:
             NotFoundError: If stage not found
         """
         # Permission check handled by @require_permission decorator
-            
-        stage_model = await self.stage_repo.get_by_id(stage_id)
+
+        stage_model = await self.stage_repo.get_by_id(stage_id, current_user_context.organization_id)
         if not stage_model:
             raise NotFoundError(f"Stage with ID {stage_id} not found")
-        
+
         # Count users in this stage
-        user_count = await self.stage_repo.count_users_by_stage(stage_id)
+        user_count = await self.stage_repo.count_users_by_stage(stage_id, current_user_context.organization_id)
         
         # Get competencies for the stage
         competencies = await self._get_competencies_for_stage(stage_id)
@@ -116,14 +116,14 @@ class StageService:
     async def get_all_stages(self, current_user_context: AuthContext) -> List[Stage]:
         """
         Get all stages for selection purposes.
-        
+
         Returns:
             List[Stage]: All available stages
         """
         # Permission check handled by @require_permission decorator
-            
-        stage_models = await self.stage_repo.get_all()
-        
+
+        stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
+
         return [
             Stage(
                 id=stage.id,
@@ -137,17 +137,17 @@ class StageService:
     async def get_stages_with_user_count(self, current_user_context: AuthContext) -> List[StageWithUserCount]:
         """
         Get all stages with user count for administrative views.
-        
+
         Returns:
             List[StageWithUserCount]: Stages with user counts
         """
         # Permission check handled by @require_permission decorator
-            
-        stage_models = await self.stage_repo.get_all()
+
+        stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
         stages_with_count = []
-        
+
         for stage in stage_models:
-            user_count = await self.stage_repo.count_users_by_stage(stage.id)
+            user_count = await self.stage_repo.count_users_by_stage(stage.id, current_user_context.organization_id)
             stages_with_count.append(
                 StageWithUserCount(
                     id=stage.id,
@@ -158,7 +158,7 @@ class StageService:
                     updated_at=stage.updated_at
                 )
             )
-        
+
         return stages_with_count
     
     @require_permission(Permission.STAGE_MANAGE)
@@ -181,18 +181,18 @@ class StageService:
             # Permission check handled by @require_permission decorator
             
             # Check if stage exists
-            existing_stage = await self.stage_repo.get_by_id(stage_id)
+            existing_stage = await self.stage_repo.get_by_id(stage_id, current_user_context.organization_id)
             if not existing_stage:
                 raise NotFoundError(f"Stage with ID {stage_id} not found")
-            
+
             # Check name conflict (only if name is being updated)
             if stage_data.name and stage_data.name != existing_stage.name:
-                conflicting_stage = await self.stage_repo.get_by_name(stage_data.name)
+                conflicting_stage = await self.stage_repo.get_by_name(stage_data.name, current_user_context.organization_id)
                 if conflicting_stage:
                     raise ConflictError(f"Stage with name '{stage_data.name}' already exists")
-            
+
             # Update stage
-            updated_stage = await self.stage_repo.update(stage_id, stage_data)
+            updated_stage = await self.stage_repo.update(stage_id, stage_data, current_user_context.organization_id)
             if not updated_stage:
                 raise NotFoundError(f"Stage with ID {stage_id} not found")
                 
@@ -200,9 +200,9 @@ class StageService:
             await self.session.refresh(updated_stage)
             
             logger.info(f"Successfully updated stage: {updated_stage.name}")
-            
+
             # Get user count for response
-            user_count = await self.stage_repo.count_users_by_stage(stage_id)
+            user_count = await self.stage_repo.count_users_by_stage(stage_id, current_user_context.organization_id)
             
             # Get competencies for the stage
             competencies = await self._get_competencies_for_stage(stage_id)
@@ -245,17 +245,17 @@ class StageService:
             # Permission check handled by @require_permission decorator
             
             # Check if stage exists
-            existing_stage = await self.stage_repo.get_by_id(stage_id)
+            existing_stage = await self.stage_repo.get_by_id(stage_id, current_user_context.organization_id)
             if not existing_stage:
                 raise NotFoundError(f"Stage with ID {stage_id} not found")
-            
+
             # Check if stage has users
-            user_count = await self.stage_repo.count_users_by_stage(stage_id)
+            user_count = await self.stage_repo.count_users_by_stage(stage_id, current_user_context.organization_id)
             if user_count > 0:
                 raise BadRequestError(f"Cannot delete stage: {user_count} users are assigned to this stage")
-            
+
             # Delete stage
-            deleted = await self.stage_repo.delete(stage_id)
+            deleted = await self.stage_repo.delete(stage_id, current_user_context.organization_id)
             if not deleted:
                 raise NotFoundError(f"Stage with ID {stage_id} not found")
             

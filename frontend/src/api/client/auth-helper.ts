@@ -33,7 +33,7 @@ export const ClientAuth = {
    * Initialize client-side auth from Clerk
    * This attempts to get the token from Clerk's global instance
    */
-  initializeFromClerk: async (): Promise<string | null> => {
+  initializeFromClerk: async (template?: string): Promise<string | null> => {
     try {
       // Check if we're in browser environment
       if (typeof window === 'undefined') {
@@ -41,9 +41,9 @@ export const ClientAuth = {
       }
 
       // Try to get token from Clerk's global instance
-      const clerk = (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string> } } }).Clerk;
+      const clerk = (window as unknown as { Clerk?: { session?: { getToken: (opts?: { template?: string }) => Promise<string> } } }).Clerk;
       if (clerk && clerk.session) {
-        const token = await clerk.session.getToken();
+        const token = await clerk.session.getToken(template ? { template } : undefined);
         if (token) {
           ClientAuth.setToken(token);
           return token;

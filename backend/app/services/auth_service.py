@@ -12,7 +12,7 @@ from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
 from ..database.models.user import User
 from ..schemas.auth import AuthUser
-from ..schemas.user import UserDetailResponse, Department, Role, UserProfileOption, UserExistsResponse, UserStatus
+from ..schemas.user import Department, Role, UserProfileOption, UserExistsResponse, ProfileOptionsResponse
 from ..schemas.stage_competency import Stage
 from ..core.clerk_config import get_clerk_config
 from ..core.config import settings
@@ -185,18 +185,84 @@ class AuthService:
         """Check if user exists in database with minimal info."""
         try:
             user_data = await self.user_repo.check_user_exists_by_clerk_id(clerk_user_id)
-            
+
             if user_data:
                 return UserExistsResponse(
                     exists=True,
                     user_id=user_data["id"],
                     name=user_data["name"],
-                    email=user_data["email"], 
+                    email=user_data["email"],
                     status=user_data["status"]
                 )
             else:
                 return UserExistsResponse(exists=False)
-                
+
         except Exception as e:
             logger.error(f"Error in auth service user existence check: {e}")
-            return UserExistsResponse(exists=False) 
+            return UserExistsResponse(exists=False)
+
+    async def get_profile_options(self, organization_id: Optional[str] = None) -> ProfileOptionsResponse:
+        """
+        Get all available options for signup form.
+
+        Args:
+            organization_id: If provided, returns organization-scoped data.
+                           If None, returns empty data (for unauthenticated signup).
+
+        Returns:
+            ProfileOptionsResponse: Contains departments, stages, roles, and users
+        """
+        try:
+            if organization_id:
+                # User has organization context - return org-scoped data
+                logger.info(f"Fetching profile options for organization: {organization_id}")
+
+                # Get organization-scoped data
+                departments_data = await self.department_repo.get_all(organization_id)
+                stages_data = await self.stage_repo.get_all(organization_id)
+                roles_data = await self.role_repo.get_all(organization_id)
+                users_data = await self.user_repo.get_active_users(organization_id)
+
+                # Convert SQLAlchemy models to Pydantic models
+                departments = [Department.model_validate(dept, from_attributes=True) for dept in departments_data]
+                stages = [Stage.model_validate(stage, from_attributes=True) for stage in stages_data]
+                roles = [Role.model_validate(role, from_attributes=True) for role in roles_data]
+
+                # Create simple user options
+                users = []
+                for user_data in users_data:
+                    user_option = UserProfileOption(
+                        id=user_data.id,
+                        name=user_data.name,
+                        email=user_data.email,
+                        employee_code=user_data.employee_code,
+                        job_title=user_data.job_title,
+                        roles=[Role.model_validate(role, from_attributes=True) for role in user_data.roles]
+                    )
+                    users.append(user_option)
+
+                logger.info(f"Retrieved {len(departments)} departments, {len(stages)} stages, {len(roles)} roles, {len(users)} users for org {organization_id}")
+            else:
+                # No organization context - return empty profile options for traditional signup
+                logger.info("No organization context provided - returning empty profile options")
+                departments = []
+                stages = []
+                roles = []
+                users = []
+
+            return ProfileOptionsResponse(
+                departments=departments,
+                stages=stages,
+                roles=roles,
+                users=users
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting profile options for org {organization_id}: {e}")
+            # Return empty options if error occurs
+            return ProfileOptionsResponse(
+                departments=[],
+                stages=[],
+                roles=[],
+                users=[]
+            ) 

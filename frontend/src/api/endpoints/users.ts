@@ -64,7 +64,8 @@ export const usersApi = {
    * Equivalent to GET /auth/user/{clerk_user_id}
    */
   checkUserExists: async (clerkId: string): Promise<ApiResponse<UserExistsResponse>> => {
-    return httpClient.get<UserExistsResponse>(API_ENDPOINTS.USERS.EXISTS(clerkId));
+    const endpoint = API_ENDPOINTS.AUTH.USER_BY_CLERK_ID(clerkId);
+    return httpClient.get<UserExistsResponse>(endpoint);
   },
 
   /**
@@ -72,7 +73,7 @@ export const usersApi = {
    * Equivalent to GET /auth/signup/profile-options
    */
   getProfileOptions: async (): Promise<ApiResponse<ProfileOptionsResponse>> => {
-    return httpClient.get<ProfileOptionsResponse>(API_ENDPOINTS.USERS.PROFILE_OPTIONS);
+    return httpClient.get<ProfileOptionsResponse>(API_ENDPOINTS.AUTH.SIGNUP_PROFILE_OPTIONS);
   },
 
   /**
@@ -92,29 +93,27 @@ export const usersApi = {
     role_ids?: string[];
     supervisor_id?: string;
   }): Promise<ApiResponse<SimpleUser[]>> => {
-    // widen type so we can append query strings without TS narrowing to the literal
     let endpoint: string = API_ENDPOINTS.USERS.ORG_CHART;
-    
+
     if (filters) {
       const queryParams = new URLSearchParams();
-      
+
       if (filters.department_ids?.length) {
         filters.department_ids.forEach(id => queryParams.append('department_ids', id));
       }
-      
+
       if (filters.role_ids?.length) {
         filters.role_ids.forEach(id => queryParams.append('role_ids', id));
       }
-      
+
       if (filters.supervisor_id) {
         queryParams.append('supervisor_id', filters.supervisor_id);
       }
-      
+
       if (queryParams.toString()) {
         endpoint = `${endpoint}?${queryParams.toString()}`;
       }
     }
-    
     return httpClient.get<SimpleUser[]>(endpoint);
   },
 };

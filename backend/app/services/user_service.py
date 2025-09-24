@@ -16,8 +16,7 @@ from ..security.rbac_types import ResourceType
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB, SimpleUser,
-    Department, Stage, Role, UserStatus, UserExistsResponse, 
-    ProfileOptionsResponse, UserProfileOption, UserClerkIdUpdate
+    Department, Stage, Role, UserStatus, UserExistsResponse, UserClerkIdUpdate
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -276,7 +275,13 @@ class UserService:
                 raise PermissionDeniedError("Organization context required")
             
             # Business validation
-            await self._validate_user_creation(user_data, org_id)
+            logger.info(f"🔍 VALIDATION: Starting validation for user creation in org {org_id}")
+            try:
+                await self._validate_user_creation(user_data, org_id)
+                logger.info(f"✅ VALIDATION: User creation validation passed")
+            except Exception as validation_error:
+                logger.error(f"❌ VALIDATION FAILED: {validation_error}")
+                raise
             
             # Create user through repository
             created_user = await self.user_repo.create_user(user_data, org_id)
@@ -291,13 +296,19 @@ class UserService:
             
             # Assign roles if provided
             if user_data.role_ids:
-                logger.info(f"About to assign roles {user_data.role_ids} to user {user_id}")
-                logger.info(f"User ID type: {type(user_id)}, value: {user_id}")
-                logger.info(f"Role IDs type: {type(user_data.role_ids)}, value: {user_data.role_ids}")
-                await self.user_repo.assign_roles_to_user(user_id, user_data.role_ids)
-                logger.info(f"Completed role assignment for user {user_id}")
+                logger.info(f"🎯 ROLE ASSIGNMENT: Starting assignment of {len(user_data.role_ids)} roles to user {user_id}")
+                logger.info(f"🎯 ROLE ASSIGNMENT: User ID type: {type(user_id)}, value: {user_id}")
+                logger.info(f"🎯 ROLE ASSIGNMENT: Role IDs type: {type(user_data.role_ids)}, value: {user_data.role_ids}")
+
+                try:
+                    await self.user_repo.assign_roles_to_user(user_id, user_data.role_ids)
+                    logger.info(f"✅ ROLE ASSIGNMENT: Successfully completed role assignment for user {user_id}")
+                except Exception as role_error:
+                    logger.error(f"❌ ROLE ASSIGNMENT FAILED: Error assigning roles to user {user_id}: {role_error}")
+                    logger.error(f"❌ ROLE ASSIGNMENT FAILED: Exception type: {type(role_error)}")
+                    raise  # Re-raise to maintain transaction rollback behavior
             else:
-                logger.info(f"No role_ids provided for user {user_id}")
+                logger.info(f"🎯 ROLE ASSIGNMENT: No role_ids provided for user {user_id}")
             
             # Add supervisor relationship if provided
             if user_data.supervisor_id:
@@ -323,8 +334,9 @@ class UserService:
                     self.session.add(relationship)
             
             # Commit the transaction (Service controls the Unit of Work)
+            logger.info(f"💾 TRANSACTION: About to commit transaction for user {user_id}")
             await self.session.commit()
-            logger.info(f"Transaction committed successfully for user {user_id}")
+            logger.info(f"✅ TRANSACTION: Transaction committed successfully for user {user_id}")
             
             # Update Clerk publicMetadata with Users.id (only profile_completed and users_table_id)
             metadata = {
@@ -364,7 +376,11 @@ class UserService:
             return enriched_user
             
         except Exception as e:
+            logger.error(f"💥 TRANSACTION: Exception occurred during user creation, rolling back transaction")
+            logger.error(f"💥 TRANSACTION: Exception type: {type(e)}")
+            logger.error(f"💥 TRANSACTION: Exception message: {str(e)}")
             await self.session.rollback()
+            logger.error(f"💥 TRANSACTION: Transaction rolled back")
             logger.error(f"Error creating user with relationships: {str(e)}")
             raise
     
@@ -505,7 +521,7 @@ class UserService:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
             # Validate stage exists
-            stage = await self.stage_repo.get_by_id(stage_update.stage_id)
+            stage = await self.stage_repo.get_by_id(stage_update.stage_id, current_user_context.organization_id)
             if not stage:
                 raise NotFoundError(f"Stage with ID {stage_update.stage_id} not found")
             
@@ -689,43 +705,6 @@ class UserService:
             logger.error(f"User lookup with fallback failed: {e}")
             return None
 
-    async def get_profile_options(self, current_user_context: AuthContext) -> ProfileOptionsResponse:
-        """Get all available options for profile completion within organization scope."""
-        # Get organization context
-        org_id = current_user_context.organization_id
-        if not org_id:
-            raise PermissionDeniedError("Organization context required")
-        
-        # Fetch raw data from repositories with org scoping
-        departments_data = await self.department_repo.get_all(org_id)
-        stages_data = await self.stage_repo.get_all(org_id)
-        roles_data = await self.role_repo.get_all(org_id)
-        users_data = await self.user_repo.get_active_users(org_id)
-        
-        # Convert SQLAlchemy models to Pydantic models
-        departments = [Department.model_validate(dept, from_attributes=True) for dept in departments_data]
-        stages = [Stage.model_validate(stage, from_attributes=True) for stage in stages_data]
-        roles = [Role.model_validate(role, from_attributes=True) for role in roles_data]
-        
-        # Create simple user options without complex relationships
-        users = []
-        for user_data in users_data:
-            user_option = UserProfileOption(
-                id=user_data.id,
-                name=user_data.name,
-                email=user_data.email,
-                employee_code=user_data.employee_code,
-                job_title=user_data.job_title,
-                roles=[Role.model_validate(role, from_attributes=True) for role in user_data.roles]
-            )
-            users.append(user_option)
-        
-        return ProfileOptionsResponse(
-            departments=departments,
-            stages=stages,
-            roles=roles,
-            users=users
-        )
     
     # Private helper methods
     
@@ -744,10 +723,17 @@ class UserService:
         """Validate all business rules before creating a user."""
         # Validate role IDs exist
         if user_data.role_ids:
+            logger.info(f"🔍 VALIDATION: Validating {len(user_data.role_ids)} role IDs for org {org_id}")
             for role_id in user_data.role_ids:
-                role = await self.role_repo.get_by_id(role_id)
+                logger.info(f"🔍 VALIDATION: Checking role {role_id} in org {org_id}")
+                role = await self.role_repo.get_by_id(role_id, org_id)
                 if not role:
+                    logger.error(f"❌ VALIDATION FAILED: Role with ID {role_id} does not exist in org {org_id}")
                     raise BadRequestError(f"Role with ID {role_id} does not exist")
+                else:
+                    logger.info(f"✅ VALIDATION: Role {role_id} found: {role.name}")
+        else:
+            logger.info("🔍 VALIDATION: No role IDs provided for validation")
         
         # Validate supervisor exists and is active
         if user_data.supervisor_id:
@@ -808,7 +794,7 @@ class UserService:
         # Validate role IDs exist if being updated
         if user_data.role_ids is not None:
             for role_id in user_data.role_ids:
-                role = await self.role_repo.get_by_id(role_id)
+                role = await self.role_repo.get_by_id(role_id, org_id)
                 if not role:
                     raise BadRequestError(f"Role with ID {role_id} does not exist")
         

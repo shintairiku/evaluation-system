@@ -65,26 +65,29 @@
 ### 4. 組織スコープ化ルーティング
 > 組織スラッグベースのルーティングシステムを構築します。
 
-- [ ] **4.1. 組織スコープAPIルートの導入**
+- [x] **4.1. 組織スコープAPIルートの導入**
   > `/api/org/{org_slug}/...` 形式の新しいルート体系を最小セットから導入します。
   >
   > **関連要件:** API要件 4.1
-  > **実装状況:** フロントエンド `/app/org/` 作成中
+  > **実装状況:** ✅ 完了 - 全業務エンドポイントを組織スコープ化、フロントエンド API クライアント対応済み
 
-- [ ] **4.2. OrgSlug ガードミドルウェア実装**
+- [x] **4.2. OrgSlug ガードミドルウェア実装**
   > URL の org_slug と JWT の組織情報を照合し、org_id→slug 解決を行うミドルウェアを実装します。
   >
   > **関連要件:** API要件 4.2
+  > **実装状況:** ✅ 完了 - `OrgSlugValidationMiddleware` 実装済み、JWT クレーム検証・組織アクセス制御機能
 
-- [ ] **4.3. 非所属ユーザーのアクセス制御**
+- [x] **4.3. 非所属ユーザーのアクセス制御**
   > 組織に所属していないユーザーの `/api/org/...` アクセスを拒否する仕組みを実装します。
   >
   > **関連要件:** セキュリティ要件 4.3
+  > **実装状況:** ✅ 完了 - ミドルウェアレベルで組織所属検証、非所属ユーザーは 403/404 エラー
 
-- [ ] **4.4. 旧ルートの段階的非推奨化**
+- [x] **4.4. 旧ルートの段階的非推奨化**
   > `/api/v1/...` ルートの段階的非推奨化と互換レイヤを実装します。
   >
   > **関連要件:** 互換性要件 4.4
+  > **実装状況:** ✅ 完了 - 直接移行アプローチ採用、認証系のみ `/api/v1/auth/` 保持、全業務ルート削除
 
 ### 5. データアクセス層の組織フィルタリング強制
 > 全てのデータアクセスに組織スコープフィルタを強制適用します。
@@ -100,12 +103,37 @@
   >
   > **関連要件:** データ要件 5.2
   > **実装メモ:** 全リポジトリで適用済み
+  >
+  > **実装詳細（2025-01-XX 完了）:**
+  > - **StageService 修正**: `current_user_context.organization_id` を全リポジトリ呼び出しに適用
+  >   - `get_all()`, `get_by_id()`, `create()`, `update()`, `delete()`, `count_users_by_stage()` メソッドに org_id パラメータ追加
+  > - **RoleService 修正**: 全リポジトリ呼び出しに org_id パラメータ適用
+  >   - `get_all()`, `get_by_id()`, `create_role()`, `update_role()` メソッドに org_id パラメータ追加
+  >   - バリデーション用ヘルパーメソッド (`_validate_role_*`) にも org_id パラメータ適用
+  > - **UserService 修正**: バリデーション系呼び出しに org_id パラメータ適用
+  >   - `_validate_user_creation()`, `_validate_user_update()` メソッドで role/stage 存在チェックに org_id 適用
+  > - **CompetencyService 修正**: stage 存在チェックに org_id パラメータ適用
+  >   - `create_competency()`, `update_competency()` メソッドで `get_by_id()` 呼び出しに org_id 適用
+  > - **DepartmentService 修正**: 全 CRUD 操作に org_id パラメータ適用
+  >   - `create_department()`, `update_department()`, `delete_department()` メソッドに org_id パラメータ追加
+  >   - バリデーション用ヘルパーメソッド (`_validate_department_*`) にも org_id パラメータ適用
+  > - **DepartmentRepository 修正**: `update_department()`, `delete_department()` メソッドに org_id パラメータ追加
+  >   - 組織スコープでのユーザーカウントチェックと削除処理に org_id 適用
+  > - **Repository メソッドシグネチャ統一**: 全ての `get_by_id()`, `get_all()` 系メソッドで org_id パラメータ必須化
 
 - [x] **5.3. 書込み時の組織整合性検証**
   > データ作成・更新時に対象レコードが同一組織であることを検証する仕組みを実装します。
   >
   > **関連要件:** データ要件 5.3
   > **実装メモ:** 全サービスで検証済み
+  >
+  > **実装詳細（2025-01-XX 完了）:**
+  > - **StageService**: `get_by_id()` 呼び出しで存在チェック時に org_id 検証
+  > - **RoleService**: 作成/更新時の `get_by_name()` 呼び出しで同名重複チェックに org_id 適用
+  > - **UserService**: role/stage 存在チェック時に org_id 検証
+  > - **CompetencyService**: stage 存在チェック時に org_id 検証
+  > - **DepartmentService**: 作成/更新/削除時の `get_by_name()` 呼び出しで同名重複チェックに org_id 適用
+  > - **Repository レベル検証**: `StageRepository.get_by_name()`, `RoleRepository.get_by_name()`, `DepartmentRepository.get_by_name()` で org_id 必須化
 
 ### 6. 管理者 API の簡略化
 > Clerk UI コンポーネントを活用した管理機能の設計変更を実装します。
@@ -174,11 +202,28 @@
   > **関連要件:** フロントエンド要件 9.1
   > **実装状況:** 進行中
 
-- [ ] **9.2. HTTP クライアントの組織スコープ対応**
+- [x] **9.2. HTTP クライアントの組織スコープ対応**
   > `http-unified-client.ts` で組織スコープに対応したリクエスト処理を実装します。
   >
   > **関連要件:** フロントエンド要件 9.2
-  > **実装状況:** 進行中
+  > **実装状況:** ✅ 完了 - 洗練された組織スコープ自動適用システムを実装
+  >
+  > **実装詳細:**
+  > - **組織スラッグの自動取得とキャッシュ**: JWT トークンから組織情報を取得し、効率的にキャッシュ
+  > - **パターン駆動のエンドポイント分類**: 認証エンドポイントを組織スコープから除外し、業務エンドポイントにのみ適用
+  > - **API バージョン対応**: `/api/v1/auth/`, `/api/v2/auth/` などの将来の API バージョン変更にも対応
+  > - **二重スコープ防止**: 既に組織スコープされているエンドポイント（`/api/org/`）を検知して重複適用を防止
+  > - **環境対応**: サーバーサイド（Clerk auth）とクライアントサイド（ClientAuth）の両方で動作
+  > - **テスト機能**: 包括的なテストケースと検証機能を実装
+  >
+  > **技術的特徴:**
+  > - 認証エンドポイント: `/api/v1/auth/user/123` → 組織スコープなし（正しい）
+  > - 業務エンドポイント: `/api/v1/users` → `/api/org/acme-corp/users`（自動適用）
+  > - 既存組織エンドポイント: `/api/org/acme-corp/users` → 二重適用防止（正しい）
+  > - フォールバック: 組織情報なしの場合、従来のURLを使用（認証エンドポイント対応）
+  >
+  > **実装完了日:** 2025-01-XX
+  > **影響範囲:** 既存のサーバーアクションとエンドポイントに変更不要、自動組織スコープ適用
 
 - [ ] **9.3. 組織同期フックの実装**
   > `useAuthSync.ts` で組織情報の同期機能を実装します。
@@ -286,6 +331,26 @@ def apply_org_scope_via_goal(query, goal_fk_col, org_id: str):
 #### 5.2 実装済みの変更点（Repositories / Services）
 
 - 目的: 5.1 の方針に沿って、全リポジトリ/サービスの読み書きに組織スコープと一貫した RBAC を適用。
+
+- **最新修正（2025-01-XX）: org_id パラメータ抜け漏れの包括的修正**
+  - **StageService** (`stage_service.py`)
+    - 全リポジトリ呼び出しに `current_user_context.organization_id` を適用
+    - `get_all_stages()`, `get_stages_with_user_count()`, `get_stage()`, `create_stage()`, `update_stage()`, `delete_stage()` で org_id 必須化
+  - **RoleService** (`role_service.py`)
+    - 全リポジトリ呼び出しに `current_user_context.organization_id` を適用
+    - `get_all()`, `get_by_id()`, `create_role()`, `update_role()`, `delete_role()` で org_id 必須化
+    - バリデーション用ヘルパーメソッドにも org_id パラメータ適用
+  - **UserService** (`user_service.py`)
+    - `_validate_user_creation()`, `_validate_user_update()` で role/stage 存在チェックに org_id 適用
+    - `update_user_stage()` で stage 存在チェックに org_id 適用
+  - **CompetencyService** (`competency_service.py`)
+    - `create_competency()`, `update_competency()` で stage 存在チェックに org_id 適用
+  - **DepartmentService** (`department_service.py`)
+    - 全 CRUD 操作に `current_user_context.organization_id` を適用
+    - バリデーション用ヘルパーメソッドにも org_id パラメータ適用
+  - **DepartmentRepository** (`department_repo.py`)
+    - `update_department()`, `delete_department()` に org_id パラメータ追加
+    - 組織スコープでのユーザーカウントチェックと削除処理に org_id 適用
 
 - Repositories（主な変更）
   - users (`backend/app/database/repositories/user_repo.py`)
