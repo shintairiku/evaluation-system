@@ -261,18 +261,19 @@ export default function UserEditViewModal({
         
         try {
           const result = await getUserByIdAction(user.id);
-          
-          if (result.success && result.data) {
+
+          if (result && result.success && result.data) {
             setDetailedUser(result.data);
-            
+
             // Cache the result
             userCache.set(cacheKey, {
               data: result.data,
               timestamp: now
             });
-            
+
           } else {
             // Fallback to the basic user data
+            console.warn(`[UserEditModal] getUserByIdAction returned error:`, result?.error || 'Unknown error');
             setDetailedUser(user);
           }
         } catch (error) {
