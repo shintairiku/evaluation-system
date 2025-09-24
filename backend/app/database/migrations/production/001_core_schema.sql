@@ -44,8 +44,15 @@ CREATE TABLE users (
     department_id UUID REFERENCES departments(id),
     stage_id UUID REFERENCES stages(id),
     job_title TEXT,
+    clerk_organization_id VARCHAR(50) REFERENCES organizations(id),
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    -- Add foreign key constraints for referential integrity
+    CONSTRAINT users_clerk_user_id_key UNIQUE (clerk_user_id),
+    CONSTRAINT users_email_key UNIQUE (email),
+    CONSTRAINT users_clerk_organization_id_fkey FOREIGN KEY (clerk_organization_id) REFERENCES organizations(id),
+    CONSTRAINT users_department_id_fkey FOREIGN KEY (department_id) REFERENCES departments(id)
 );
 
 -- Create user roles junction table
@@ -74,8 +81,13 @@ CREATE TABLE competencies (
     name TEXT NOT NULL,
     description JSONB,
     stage_id UUID REFERENCES stages(id),
+    organization_id VARCHAR(50) NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    -- Add foreign key constraints for referential integrity
+    CONSTRAINT competencies_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT competencies_stage_id_fkey FOREIGN KEY (stage_id) REFERENCES stages(id)
 );
 
 -- Add basic indexes for performance

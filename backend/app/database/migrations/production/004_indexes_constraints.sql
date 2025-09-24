@@ -79,3 +79,8 @@ CHECK (action IN ('APPROVED', 'REJECTED', 'PENDING'));
 ALTER TABLE domain_settings
 ADD CONSTRAINT chk_domain_verification_status
 CHECK (verification_status IN ('pending', 'verified', 'failed'));
+
+-- Add missing primary key constraint for schema_migrations table
+-- This ensures schema_migrations.filename has a primary key constraint
+ALTER TABLE schema_migrations
+ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);

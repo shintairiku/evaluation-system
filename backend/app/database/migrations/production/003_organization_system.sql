@@ -8,7 +8,10 @@ CREATE TABLE organizations (
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(100) UNIQUE,
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    -- Add unique constraint for slug
+    CONSTRAINT organizations_slug_key UNIQUE (slug)
 );
 
 -- Create domain settings table for auto-approval functionality
@@ -22,7 +25,7 @@ CREATE TABLE domain_settings (
     updated_at TIMESTAMP DEFAULT NOW(),
 
     -- Ensure unique domain per organization
-    UNIQUE(organization_id, domain)
+    CONSTRAINT domain_settings_organization_id_domain_key UNIQUE (organization_id, domain)
 );
 
 -- Create webhook_events table for idempotency tracking
