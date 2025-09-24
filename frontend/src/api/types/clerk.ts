@@ -3,7 +3,6 @@ import { UUID } from './common';
 // Clerk Public Metadata Interface
 export interface ClerkPublicMetadata {
   users_table_id?: UUID;
-  role?: string;
   roles?: string[];
   profile_completed?: boolean;
 }
@@ -17,7 +16,6 @@ export interface ClerkPrivateMetadata {
 // Note: organization_id and organization_name are populated from Clerk's native {{org.id}} and {{org.name}}
 // internal_user_id is populated from {{user.public_metadata.users_table_id}}
 export interface JWTClaims {
-  role?: string; // Populated from {{user.public_metadata.role}}
   roles?: string[]; // Populated from {{user.public_metadata.roles}}
   organization_id?: string; // Populated from {{org.id}}
   internal_user_id?: string; // Populated from {{user.public_metadata.users_table_id}}

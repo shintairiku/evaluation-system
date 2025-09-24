@@ -10,7 +10,6 @@ interface JWTPayload {
   organization_name?: string;
 
   // Role fields
-  role?: string;        // User role from public_metadata (legacy single role)
   roles?: string[];     // User roles array from public_metadata
   org_role?: string;    // Organization membership role
 
@@ -106,7 +105,6 @@ export function getOrgContextFromToken(token: string | null): {
   orgId: string | null;
   orgSlug: string | null;
   orgName: string | null;
-  userRole: string | null;
   userRoles: string[] | null;
   orgRole: string | null;
   internalUserId: string | null;
@@ -116,7 +114,6 @@ export function getOrgContextFromToken(token: string | null): {
       orgId: null,
       orgSlug: null,
       orgName: null,
-      userRole: null,
       userRoles: null,
       orgRole: null,
       internalUserId: null
@@ -129,7 +126,6 @@ export function getOrgContextFromToken(token: string | null): {
       orgId: null,
       orgSlug: null,
       orgName: null,
-      userRole: null,
       userRoles: null,
       orgRole: null,
       internalUserId: null
@@ -140,7 +136,6 @@ export function getOrgContextFromToken(token: string | null): {
     orgId: payload.organization_id || null,
     orgSlug: payload.organization_slug || null,
     orgName: payload.organization_name || null,
-    userRole: payload.role || null,
     userRoles: payload.roles || null,
     orgRole: payload.org_role || null,
     internalUserId: payload.internal_user_id || null,
@@ -155,7 +150,6 @@ export async function getCurrentOrgContext(): Promise<{
   orgId: string | null;
   orgSlug: string | null;
   orgName: string | null;
-  userRole: string | null;
   userRoles: string[] | null;
   orgRole: string | null;
   internalUserId: string | null;
@@ -180,7 +174,6 @@ export async function getCurrentOrgContext(): Promise<{
       orgId: null,
       orgSlug: null,
       orgName: null,
-      userRole: null,
       userRoles: null,
       orgRole: null,
       internalUserId: null
