@@ -1,7 +1,9 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getProfileOptionsAction } from '@/api/server-actions/auth';
+import { getDepartmentsAction } from '@/api/server-actions/departments';
+import { getStagesAction } from '@/api/server-actions/stages';
+import { getRolesAction } from '@/api/server-actions/roles';
 import type { Department, Stage, Role } from '@/api/types';
 
 interface ProfileOptions {
@@ -23,10 +25,9 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 interface ProfileOptionsProviderProps {
   children: ReactNode;
-  orgId?: string | null;
 }
 
-export function ProfileOptionsProvider({ children, orgId }: ProfileOptionsProviderProps) {
+export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps) {
   const [options, setOptions] = useState<ProfileOptions>({
     departments: [],
     stages: [],
@@ -48,16 +49,36 @@ export function ProfileOptionsProvider({ children, orgId }: ProfileOptionsProvid
     setError(null);
 
     try {
-      const result = await getProfileOptionsAction(orgId || undefined);
-      if (result.success && result.data) {
+      // Fetch data from individual organization-scoped endpoints
+      const [departmentsResult, stagesResult, rolesResult] = await Promise.all([
+        getDepartmentsAction(),
+        getStagesAction(),
+        getRolesAction()
+      ]);
+
+      // Check if all requests were successful
+      if (departmentsResult.success && stagesResult.success && rolesResult.success) {
+        // Map RoleDetail[] to Role[] by adding missing hierarchy_order field
+        const rolesWithHierarchy = (rolesResult.data || []).map((role, index) => ({
+          ...role,
+          hierarchy_order: index // Use index as fallback hierarchy_order
+        }));
+
         setOptions({
-          departments: result.data.departments,
-          stages: result.data.stages,
-          roles: result.data.roles
+          departments: departmentsResult.data || [],
+          stages: stagesResult.data || [],
+          roles: rolesWithHierarchy
         });
         setLastFetch(now);
       } else {
-        setError(result.error || 'Failed to load profile options');
+        // Collect all errors
+        const errors = [
+          !departmentsResult.success ? `Departments: ${departmentsResult.error}` : null,
+          !stagesResult.success ? `Stages: ${stagesResult.error}` : null,
+          !rolesResult.success ? `Roles: ${rolesResult.error}` : null
+        ].filter(Boolean);
+
+        setError(errors.join(', ') || 'Failed to load profile options');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -71,11 +92,11 @@ export function ProfileOptionsProvider({ children, orgId }: ProfileOptionsProvid
     await fetchOptions();
   };
 
-  // Auto-fetch on mount and when orgId changes
+  // Auto-fetch on mount
   useEffect(() => {
     fetchOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId]); // Re-fetch when orgId changes
+  }, []); // Only run on mount
 
   const value: ProfileOptionsContextType = {
     options,
