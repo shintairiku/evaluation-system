@@ -338,10 +338,15 @@ class UserService:
             await self.session.commit()
             logger.info(f"✅ TRANSACTION: Transaction committed successfully for user {user_id}")
             
-            # Update Clerk publicMetadata with Users.id (only profile_completed and users_table_id)
+            # Get user's role names for Clerk metadata
+            user_roles = await self.user_repo.get_user_roles(user_id)
+            role_names = [role.name for role in user_roles]
+
+            # Update Clerk publicMetadata with Users.id, profile completion, and roles
             metadata = {
                 'users_table_id': str(user_id),
-                'profile_completed': True
+                'profile_completed': True,
+                'roles': role_names
             }
             
             # ClerkService methods are SYNCHRONOUS, do not use await
