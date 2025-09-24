@@ -139,8 +139,11 @@ export default function UserEditViewModal({
           if (!stageResult.success) {
             toast.error(`ステージの更新に失敗しました: ${stageResult.error}`);
             // Stage update failed, but regular update succeeded
-            // Return the regular update result with a warning
-            finalResult = result;
+            // Return partial success with warning message
+            finalResult = {
+              ...result,
+              error: `プロフィール更新は成功しましたが、ステージ更新に失敗しました: ${stageResult.error}`
+            };
           } else {
             console.log('🔍 Stage update successful');
             // Use the stage update result as it includes the updated stage
@@ -169,12 +172,21 @@ export default function UserEditViewModal({
           invalidateHierarchyCache(affectedUsers);
         }
         
-        toast.success('プロフィールが正常に更新されました');
+        if (finalResult.error) {
+          // Partial success - show warning instead of success
+          toast.warning('プロフィールは更新されましたが、一部の操作が失敗しました');
+        } else {
+          toast.success('プロフィールが正常に更新されました');
+        }
         if (finalResult.data) {
           onUserUpdate?.(finalResult.data);
         }
         onClose();
-        return { success: true, data: finalResult.data };
+        return {
+          success: true,
+          data: finalResult.data,
+          error: finalResult.error
+        };
       } else {
         toast.error(result.error || 'プロフィールの更新に失敗しました');
         return { success: false, error: result.error || 'プロフィールの更新に失敗しました' };
