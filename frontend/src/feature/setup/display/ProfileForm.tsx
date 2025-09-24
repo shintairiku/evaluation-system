@@ -74,19 +74,20 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
   }, [actionState, router]);
 
   const handleRoleSelectionChange = (selectedIds: number[]) => {
+    const filteredRoles = roles.filter(role => role.name.toLowerCase() !== 'admin');
     const stringIds = selectedIds.map(index => {
-      const role = roles[index];
+      const role = filteredRoles[index];
       return role ? role.id : '';
     }).filter(id => id !== '');
-    
+
     setSelectedRoles(stringIds);
-    
+
     if (stringIds.length > 0) {
       const selectedRoleNames = selectedIds
-        .map(index => roles[index]?.name)
+        .map(index => filteredRoles[index]?.name)
         .filter(Boolean)
         .join(', ');
-      toast.success(`役職を選択しました: ${selectedRoleNames}`, { 
+      toast.success(`役職を選択しました: ${selectedRoleNames}`, {
         duration: 1500
       });
     }
@@ -200,13 +201,13 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
           <div>
             <label className="block text-sm font-medium mb-2">役職 *</label>
             <MultiSelectRoles
-              roles={roles.map((role, index) => ({
+              roles={roles.filter(role => role.name.toLowerCase() !== 'admin').map((role, index) => ({
                 id: index,
                 name: role.name,
                 description: role.description
               }))}
               selectedRoleIds={selectedRoles.map(roleId => {
-                return roles.findIndex(role => role.id === roleId);
+                return roles.filter(role => role.name.toLowerCase() !== 'admin').findIndex(role => role.id === roleId);
               }).filter(index => index !== -1)}
               onSelectionChange={handleRoleSelectionChange}
               required={true}
