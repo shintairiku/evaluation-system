@@ -366,7 +366,7 @@ class SupervisorReviewService:
         elif review.action == "rejected":
             await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.REJECTED, org_id)
         elif review.action == "pending":
-            # Keep goal in pending_approval
+            # Keep goal in submitted
             pass
 
 
