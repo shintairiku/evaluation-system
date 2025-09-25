@@ -9,6 +9,8 @@ import type { GoalResponse, UserDetailResponse } from '@/api/types';
 import { EmployeeTabNavigation } from '../components/EmployeeTabNavigation';
 import { EmployeeInfoHeader } from '../components/EmployeeInfoHeader';
 import { GoalApprovalCard } from '../components/GoalApprovalCard';
+import { GuidelinesAlert } from '../components/GuidelinesAlert';
+import { ApprovalGuidelinesPanel } from '../components/ApprovalGuidelinesPanel';
 
 interface GroupedGoals {
   employee: UserDetailResponse;
@@ -176,6 +178,10 @@ export default function GoalReviewPage() {
           </div>
         </div>
 
+        {/* Guidelines */}
+        <GuidelinesAlert />
+        <ApprovalGuidelinesPanel />
+
         {/* Employee Navigation Tabs */}
         <Tabs value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
           <EmployeeTabNavigation
@@ -195,6 +201,7 @@ export default function GoalReviewPage() {
                     <GoalApprovalCard
                       key={goal.id}
                       goal={goal}
+                      onGoalUpdate={loadGoalData}
                     />
                   ))}
                 </div>
