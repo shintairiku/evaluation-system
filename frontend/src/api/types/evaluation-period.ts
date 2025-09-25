@@ -5,7 +5,7 @@ import type { UUID } from './common';
  * These types match the backend Pydantic schemas for EvaluationPeriod-related operations
  */
 
-export type EvaluationPeriodStatus = '準備中' | '実施中' | '完了';
+export type EvaluationPeriodStatus = 'draft' | 'active' | 'completed' | 'cancelled';
 
 export interface EvaluationPeriod {
   id: UUID;
