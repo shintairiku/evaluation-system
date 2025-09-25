@@ -333,13 +333,8 @@ class GoalService:
             if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
                 raise BadRequestError("Can only submit draft or rejected goals")
 
-            # Validate weight limits when submitting (transitioning to submitted status)
-            if target_status == GoalStatus.SUBMITTED:
-                await self._validate_total_weight_before_submission(
-                    existing_goal.user_id,
-                    existing_goal.period_id,
-                    org_id
-                )
+            # Note: Weight validation is now handled on frontend before submission starts
+            # Individual goal submission should not validate total weights
 
             # Update status using dedicated method with validation
             updated_goal = await self.goal_repo.update_goal_status(goal_id, target_status, org_id)
