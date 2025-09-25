@@ -44,9 +44,9 @@ export const groups = [
     title: '上司機能',
     links: [
       {
-        href: '/goal-approval',
+        href: '/goal-review',
         label: '目標承認',
-        sublabel: 'Goal Approval',
+        sublabel: 'Goal Review',
         icon: 'check-circle',
         permission: 'supervisor'
       },
