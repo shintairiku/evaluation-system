@@ -70,3 +70,6 @@ backend/tests/logs
 
 # VS Code settings (personal configurations)
 .vscode/
+
+# Kiro
+.kiro/local_kiro/
