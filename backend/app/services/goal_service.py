@@ -182,7 +182,7 @@ class GoalService:
             await self.session.refresh(created_goal)
             
             # If goal is submitted for approval, create related assessment records
-            if goal_data.status == GoalStatus.PENDING_APPROVAL:
+            if goal_data.status == GoalStatus.SUBMITTED:
                 await self._create_related_assessment_records(created_goal)
                 await self.session.commit()
             
@@ -308,7 +308,7 @@ class GoalService:
         status: str,
         current_user_context: AuthContext
     ) -> Goal:
-        """Submit a goal with specified status (draft or pending_approval)."""
+        """Submit a goal with specified status (draft or submitted)."""
         try:
             # Validate status parameter
             if status not in ["draft", "submitted"]:
@@ -395,7 +395,7 @@ class GoalService:
                 raise PermissionDeniedError("You can only approve goals for your subordinates")
             
             # Business validation
-            if goal.status != GoalStatus.PENDING_APPROVAL.value:
+            if goal.status != GoalStatus.SUBMITTED.value:
                 raise BadRequestError("Goal must be in pending approval status")
             
             # Update status
@@ -447,7 +447,7 @@ class GoalService:
                 raise PermissionDeniedError("You can only reject goals for your subordinates")
             
             # Business validation
-            if goal.status != GoalStatus.PENDING_APPROVAL.value:
+            if goal.status != GoalStatus.SUBMITTED.value:
                 raise BadRequestError("Goal must be in pending approval status")
             
             # Update status
@@ -652,13 +652,13 @@ class GoalService:
         detail_dict.update({
             "has_self_assessment": False,  # Placeholder for future assessment integration
             "has_supervisor_feedback": False,  # Placeholder for future feedback integration
-            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value],
+            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value],
             "is_assessment_open": False,  # Placeholder for future period status check
             "is_overdue": False,  # Placeholder for future deadline check
         })
         
         # Days since submission for pending goals
-        if goal_model.created_at and goal_model.status == GoalStatus.PENDING_APPROVAL.value:
+        if goal_model.created_at and goal_model.status == GoalStatus.SUBMITTED.value:
             days_since = (datetime.utcnow() - goal_model.created_at).days
             detail_dict["days_since_submission"] = days_since
         
