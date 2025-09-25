@@ -23,17 +23,17 @@ router = APIRouter(prefix="/evaluation-periods", tags=["evaluation-periods"])
 
 @router.get("/", response_model=EvaluationPeriodList)
 async def get_evaluation_periods(
-    status: Optional[str] = Query("実施中", description="Filter by status (実施中, 準備中, 完了, all). Defaults to '実施中' (active)"),
+    status: Optional[str] = Query("active", description="Filter by status (active, draft, completed, cancelled, all). Defaults to 'active'"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Get evaluation periods accessible to the current user.
-    
-    Defaults to showing active (実施中) periods only, similar to GitHub's default "open" filter.
+
+    Defaults to showing active periods only, similar to GitHub's default "open" filter.
     Use status=all to see all periods, or specify other statuses as needed.
-    
+
     Currently accessible to all authenticated users.
     TODO: Consider adding user-specific restrictions in the future (may limit non-admin access).
     """
@@ -48,7 +48,7 @@ async def get_evaluation_periods(
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid status: {status}. Must be one of: 準備中, 実施中, 完了, all"
+                    detail=f"Invalid status: {status}. Must be one of: draft, active, completed, cancelled, all"
                 )
         
         # Create pagination params
