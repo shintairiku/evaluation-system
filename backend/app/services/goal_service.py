@@ -165,14 +165,15 @@ class GoalService:
                 raise PermissionDeniedError("Organization context required")
             await self._validate_goal_creation(goal_data, target_user_id, org_id)
             
-            # Validate weight limits
-            await self._validate_weight_limits(
-                target_user_id,
-                goal_data.period_id,
-                goal_data.goal_category,
-                goal_data.weight,
-                org_id
-            )
+            # Validate weight limits only for submitted goals, not drafts
+            if goal_data.status == GoalStatus.SUBMITTED:
+                await self._validate_weight_limits(
+                    target_user_id,
+                    goal_data.period_id,
+                    goal_data.goal_category,
+                    goal_data.weight,
+                    org_id
+                )
             
             # Create goal
             created_goal = await self.goal_repo.create_goal(goal_data, target_user_id, org_id)
@@ -227,8 +228,8 @@ class GoalService:
             # Business validation
             await self._validate_goal_update(goal_data, existing_goal, org_id)
             
-            # Validate weight limits if weight is being changed
-            if goal_data.weight is not None:
+            # Validate weight limits if weight is being changed and goal is in submitted status
+            if goal_data.weight is not None and existing_goal.status == GoalStatus.SUBMITTED.value:
                 await self._validate_weight_limits(
                     existing_goal.user_id,
                     existing_goal.period_id,
@@ -331,7 +332,15 @@ class GoalService:
             # Business rule: can only submit draft or rejected goals
             if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
                 raise BadRequestError("Can only submit draft or rejected goals")
-            
+
+            # Validate weight limits when submitting (transitioning to submitted status)
+            if target_status == GoalStatus.SUBMITTED:
+                await self._validate_total_weight_before_submission(
+                    existing_goal.user_id,
+                    existing_goal.period_id,
+                    org_id
+                )
+
             # Update status using dedicated method with validation
             updated_goal = await self.goal_repo.update_goal_status(goal_id, target_status, org_id)
             
@@ -600,6 +609,25 @@ class GoalService:
             raise ValidationError(
                 f"Total weight for {goal_category} would exceed 100%. "
                 f"Current: {current_total}%, Adding: {new_weight}%, Total: {new_total}%"
+            )
+
+    async def _validate_total_weight_before_submission(
+        self,
+        user_id: UUID,
+        period_id: UUID,
+        org_id: UUID
+    ):
+        """Validate that performance goals total exactly 100% before submission."""
+        # Get current weight totals by category for all goals
+        weight_totals = await self.goal_repo.get_weight_totals_by_category(
+            user_id, period_id, org_id
+        )
+
+        # Check performance goals total 100%
+        performance_total = weight_totals.get('業績目標', Decimal('0'))
+        if performance_total != Decimal('100'):
+            raise ValidationError(
+                f"業績目標の合計ウェイトは100%である必要があります。現在の合計: {performance_total}%"
             )
 
     async def _enrich_goal_data(self, goal_model: GoalModel) -> Goal:
