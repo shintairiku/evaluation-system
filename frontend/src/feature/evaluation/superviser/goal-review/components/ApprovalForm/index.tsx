@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { CheckCircle, XCircle, MessageSquare } from 'lucide-react';
 import type { GoalResponse } from '@/api/types';
 
@@ -88,44 +87,42 @@ export function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }
   const isRejecting = pendingAction === 'reject';
 
   return (
-    <Card className="mt-4 border-t-0 rounded-t-none">
-      <CardContent className="pt-4">
-        <Form {...form}>
-          <form className="space-y-4">
-            <FormField
-              control={form.control}
-              name="comment"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    コメント
-                    <span className="text-sm text-muted-foreground font-normal">
-                      (差し戻し時は必須)
-                    </span>
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="目標に対するフィードバックやコメントを入力してください..."
-                      className="min-h-[100px] resize-none"
-                      disabled={isDisabled}
-                    />
-                  </FormControl>
-                  <div className="flex justify-between items-start">
-                    <FormMessage />
-                    <div className={`text-xs ${commentLength > 450 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                      {commentLength}/500
-                    </div>
+    <div className="space-y-4">
+      <Form {...form}>
+        <form className="space-y-4">
+          <FormField
+            control={form.control}
+            name="comment"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  コメント
+                  <span className="text-sm text-muted-foreground font-normal">
+                    (差し戻し時は必須)
+                  </span>
+                </FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    placeholder="目標に対するフィードバックやコメントを入力してください..."
+                    className="min-h-[100px] resize-none"
+                    disabled={isDisabled}
+                  />
+                </FormControl>
+                <div className="flex justify-between items-start">
+                  <FormMessage />
+                  <div className={`text-xs ${commentLength > 450 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                    {commentLength}/500
                   </div>
-                </FormItem>
-              )}
-            />
-          </form>
-        </Form>
-      </CardContent>
+                </div>
+              </FormItem>
+            )}
+          />
+        </form>
+      </Form>
 
-      <CardFooter className="bg-gray-50 gap-3 justify-end">
+      <div className="flex gap-3 justify-end pt-2">
         <Button
           type="button"
           variant="outline"
@@ -166,7 +163,7 @@ export function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }
             </>
           )}
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   );
 }
