@@ -293,10 +293,18 @@ export function useGoalAutoSave({
     dataKey: {
       perfCount: goalData.performanceGoals.length,
       perfIds: goalData.performanceGoals.map(g => g.id).sort().join(','),
-      perfContent: goalData.performanceGoals.map(g => `${g.id}:${g.title}:${g.specificGoal}:${g.achievementCriteria}:${g.method}:${g.weight}:${g.type}`).join('|'),
+      perfContent: goalData.performanceGoals
+        .slice()
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(g => `${g.id}:${g.title}:${g.specificGoal}:${g.achievementCriteria}:${g.method}:${g.weight}:${g.type}`)
+        .join('|'),
       compCount: goalData.competencyGoals.length,
       compIds: goalData.competencyGoals.map(g => g.id).sort().join(','),
-      compContent: goalData.competencyGoals.map(g => `${g.id}:${g.actionPlan}:${JSON.stringify(g.competencyIds)}:${JSON.stringify(g.selectedIdealActions)}`).join('|'),
+      compContent: goalData.competencyGoals
+        .slice()
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(g => `${g.id}:${g.actionPlan}:${JSON.stringify(g.competencyIds)}:${JSON.stringify(g.selectedIdealActions)}`)
+        .join('|'),
       ready: isAutoSaveReady,
     }
   });
