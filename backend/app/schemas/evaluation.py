@@ -47,12 +47,6 @@ class EvaluationPeriodBase(BaseModel):
             raise ValueError('Goal submission deadline must be before end date')
         return v
 
-    @field_validator('evaluation_deadline')
-    @classmethod
-    def evaluation_deadline_must_be_valid(cls, v, info):
-        if info.data.get('end_date') and v < info.data['end_date']:
-            raise ValueError('Evaluation deadline must be after end date')
-        return v
 
 
 # Schema for creating an evaluation period
