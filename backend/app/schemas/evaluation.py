@@ -7,9 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EvaluationPeriodStatus(str, Enum):
-    UPCOMING = "準備中"
-    ACTIVE = "実施中"
-    COMPLETED = "完了"
+    DRAFT = "draft"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 
 class EvaluationPeriodType(str, Enum):
@@ -28,7 +29,7 @@ class EvaluationPeriodBase(BaseModel):
     end_date: date = Field(..., description="End date of the evaluation period")
     goal_submission_deadline: date = Field(..., description="Deadline for goal submission")
     evaluation_deadline: date = Field(..., description="Deadline for evaluation completion")
-    status: EvaluationPeriodStatus = Field(default=EvaluationPeriodStatus.UPCOMING, description="Current status of the evaluation period")
+    status: EvaluationPeriodStatus = Field(default=EvaluationPeriodStatus.DRAFT, description="Current status of the evaluation period")
 
     @field_validator('end_date')
     @classmethod
