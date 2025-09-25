@@ -1,15 +1,14 @@
 'use client';
 
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle } from 'lucide-react';
 
 interface ConfirmationDialogProps {
@@ -36,18 +35,18 @@ export function ConfirmationDialog({
   const isApproval = type === 'approve';
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
             {isApproval ? (
               <CheckCircle className="h-5 w-5 text-green-600" />
             ) : (
               <XCircle className="h-5 w-5 text-red-600" />
             )}
             {isApproval ? '目標を承認しますか？' : '目標を差し戻しますか？'}
-          </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-3">
+          </DialogTitle>
+          <DialogDescription className="space-y-3">
             <div>
               <p className="font-medium text-foreground">従業員: {employeeName}</p>
               <p className="text-sm mt-1">目標: {goalTitle}</p>
@@ -66,13 +65,17 @@ export function ConfirmationDialog({
                 : 'この目標を差し戻します。従業員は修正して再提出する必要があります。'
               }
             </p>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isProcessing}>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isProcessing}
+          >
             キャンセル
-          </AlertDialogCancel>
-          <AlertDialogAction
+          </Button>
+          <Button
             onClick={onConfirm}
             disabled={isProcessing}
             className={isApproval
@@ -95,9 +98,9 @@ export function ConfirmationDialog({
                 {isApproval ? '承認する' : '差し戻す'}
               </>
             )}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
