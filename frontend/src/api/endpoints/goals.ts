@@ -87,7 +87,7 @@ export const goalsApi = {
   /**
    * Submit a goal with status change
    */
-  submitGoal: async (goalId: UUID, status: 'draft' | 'pending_approval'): Promise<ApiResponse<GoalResponse>> => {
+  submitGoal: async (goalId: UUID, status: 'draft' | 'submitted'): Promise<ApiResponse<GoalResponse>> => {
     const sanitizedId = sanitizeGoalId(goalId);
     const endpoint = `${API_ENDPOINTS.GOALS.SUBMIT(sanitizedId)}?status=${status}`;
     return httpClient.post<GoalResponse>(endpoint);
