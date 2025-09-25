@@ -198,7 +198,7 @@ async def delete_goal(
 @router.post("/{goal_id}/submit", response_model=Goal)
 async def submit_goal(
     goal_id: UUID,
-    status: str = Query(..., description="Target status: 'draft' or 'pending_approval'"),
+    status: str = Query(..., description="Target status: 'draft' or 'submitted'"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
