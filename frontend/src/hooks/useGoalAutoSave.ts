@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import { useAutoSave } from './useAutoSave';
 import { createGoalAction, updateGoalAction } from '@/api/server-actions/goals';
 import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
@@ -97,10 +98,16 @@ export function useGoalAutoSave({
       
       if (result && result.success && result.data) {
         if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Performance goal created successfully with ID ${result.data.id}`);
-        
+
+        // Show success toast for new goal creation
+        toast.success('業績目標を保存しました', {
+          description: result.data.title ? `「${result.data.title}」を自動保存しました` : '新しい目標を自動保存しました',
+          duration: 2000,
+        });
+
         // Replace the temporary goal with server data (preserving ID immutability)
         onGoalReplaceWithServerData(goalId, result.data, 'performance');
-        
+
         // Track the new goal with server ID
         trackGoalLoad(result.data.id, 'performance', result.data);
         clearChanges(goalId); // Clear the temporary ID changes
@@ -111,6 +118,13 @@ export function useGoalAutoSave({
           sentData: createData,
           goalId: goalId
         });
+
+        // Show error toast for goal creation failure
+        toast.error('業績目標の保存に失敗しました', {
+          description: result?.error || '目標の作成中にエラーが発生しました',
+          duration: 4000,
+        });
+
         return false;
       }
     } else {
@@ -127,10 +141,24 @@ export function useGoalAutoSave({
       
       if (result && result.success) {
         if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Performance goal ${goalId} updated successfully`);
+
+        // Show success toast for goal update
+        toast.success('業績目標を更新しました', {
+          description: currentData.title ? `「${currentData.title}」を自動保存しました` : '目標を自動保存しました',
+          duration: 2000,
+        });
+
         clearChanges(goalId); // Mark as saved
         return true;
       } else {
         if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to update performance goal ${goalId}:`, result?.error);
+
+        // Show error toast for goal update failure
+        toast.error('業績目標の更新に失敗しました', {
+          description: result?.error || '目標の更新中にエラーが発生しました',
+          duration: 4000,
+        });
+
         return false;
       }
     }
@@ -158,10 +186,16 @@ export function useGoalAutoSave({
       
       if (result && result.success && result.data) {
         if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Competency goal created successfully with ID ${result.data.id}`);
-        
+
+        // Show success toast for new competency goal creation
+        toast.success('コンピテンシー目標を保存しました', {
+          description: '新しいコンピテンシー目標を自動保存しました',
+          duration: 2000,
+        });
+
         // Replace the temporary goal with server data (preserving ID immutability)
         onGoalReplaceWithServerData(goalId, result.data, 'competency');
-        
+
         // Track the new goal with server ID
         trackGoalLoad(result.data.id, 'competency', result.data);
         clearChanges(goalId); // Clear the temporary ID changes
@@ -172,6 +206,13 @@ export function useGoalAutoSave({
           sentData: createData,
           goalId: goalId
         });
+
+        // Show error toast for competency goal creation failure
+        toast.error('コンピテンシー目標の保存に失敗しました', {
+          description: result?.error || 'コンピテンシー目標の作成中にエラーが発生しました',
+          duration: 4000,
+        });
+
         return false;
       }
     } else {
@@ -185,10 +226,24 @@ export function useGoalAutoSave({
       
       if (result && result.success) {
         if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Competency goal ${goalId} updated successfully`);
+
+        // Show success toast for competency goal update
+        toast.success('コンピテンシー目標を更新しました', {
+          description: 'コンピテンシー目標を自動保存しました',
+          duration: 2000,
+        });
+
         clearChanges(goalId); // Mark as saved
         return true;
       } else {
         if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to update competency goal ${goalId}:`, result?.error);
+
+        // Show error toast for competency goal update failure
+        toast.error('コンピテンシー目標の更新に失敗しました', {
+          description: result?.error || 'コンピテンシー目標の更新中にエラーが発生しました',
+          duration: 4000,
+        });
+
         return false;
       }
     }
