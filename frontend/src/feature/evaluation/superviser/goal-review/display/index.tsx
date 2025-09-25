@@ -34,49 +34,133 @@ export default function GoalReviewPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch pending goals
-      const goalsResult = await getGoalsAction({
-        status: 'pending_approval',
-        limit: 100 // Reasonable limit for supervisor review
-      });
+      // FAKE DATA FOR TESTING
+      const fakeUsers: UserDetailResponse[] = [
+        {
+          id: 'user-1',
+          clerk_user_id: 'clerk_1',
+          name: '田中 太郎',
+          email: 'tanaka@company.com',
+          employee_code: 'EMP001',
+          job_title: 'シニアエンジニア',
+          status: 'active',
+          department: {
+            id: 'dept-1',
+            name: 'エンジニアリング部',
+            description: 'システム開発部門',
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01'
+          },
+          roles: [{
+            id: 'role-1',
+            name: 'エンジニア',
+            description: 'システム開発者',
+            permissions: [],
+            hierarchy_level: 3,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01'
+          }],
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01'
+        },
+        {
+          id: 'user-2',
+          clerk_user_id: 'clerk_2',
+          name: '佐藤 花子',
+          email: 'sato@company.com',
+          employee_code: 'EMP002',
+          job_title: 'マーケティングスペシャリスト',
+          status: 'active',
+          department: {
+            id: 'dept-2',
+            name: 'マーケティング部',
+            description: 'マーケティング戦略部門',
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01'
+          },
+          roles: [{
+            id: 'role-2',
+            name: 'マーケター',
+            description: 'マーケティング担当者',
+            permissions: [],
+            hierarchy_level: 3,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01'
+          }],
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01'
+        }
+      ];
 
-      if (!goalsResult.success || !goalsResult.data) {
-        throw new Error(goalsResult.error || 'Failed to load goals');
-      }
+      const fakeGoals: GoalResponse[] = [
+        {
+          id: 'goal-1',
+          userId: 'user-1',
+          periodId: 'period-2024',
+          goalCategory: '業績目標',
+          title: 'React Nativeアプリのパフォーマンス向上',
+          specificGoalText: 'モバイルアプリの読み込み時間を現在の3秒から1.5秒以下に短縮し、ユーザー満足度を向上させる。',
+          achievementCriteriaText: '・アプリ起動時間: 3秒 → 1.5秒以下\n・画面遷移時間: 500ms以下を維持\n・ユーザー満足度調査で4.0以上（5点満点）を達成',
+          meansMethodsText: '・コード分割とレイジーローディングの実装\n・画像最適化とキャッシュ戦略の見直し\n・不要な依存関係の削除\n・ネイティブモジュールの活用検討',
+          performanceGoalType: 'quantitative',
+          weight: 40,
+          status: 'pending_approval',
+          user: fakeUsers[0],
+          createdAt: '2024-09-20T10:30:00Z',
+          updatedAt: '2024-09-20T10:30:00Z'
+        },
+        {
+          id: 'goal-2',
+          userId: 'user-1',
+          periodId: 'period-2024',
+          goalCategory: 'コンピテンシー',
+          competencyIds: ['comp-1', 'comp-2'],
+          selectedIdealActions: {
+            'チームワーク': [
+              'チームメンバーとの定期的な技術共有を行う',
+              'コードレビューで建設的なフィードバックを提供する'
+            ],
+            'リーダーシップ': [
+              '新人エンジニアのメンタリングを担当する',
+              '技術勉強会の企画・運営を行う'
+            ]
+          },
+          actionPlan: '月1回の技術勉強会を企画し、チーム全体のスキル向上を図る。新人エンジニア2名のメンタリングを通じて、自身のリーダーシップスキルも向上させる。',
+          weight: 30,
+          status: 'pending_approval',
+          user: fakeUsers[0],
+          createdAt: '2024-09-20T11:00:00Z',
+          updatedAt: '2024-09-20T11:00:00Z'
+        },
+        {
+          id: 'goal-3',
+          userId: 'user-2',
+          periodId: 'period-2024',
+          goalCategory: '業績目標',
+          title: 'ブランド認知度向上キャンペーン',
+          specificGoalText: 'SNSマーケティングキャンペーンを通じて、ブランド認知度を現在の15%から25%に向上させる。',
+          achievementCriteriaText: '・ブランド認知度調査で25%以上を達成\n・SNSフォロワー数を30%増加\n・エンゲージメント率3%以上を維持',
+          meansMethodsText: '・インフルエンサーマーケティングの活用\n・ターゲット層に合わせたコンテンツ制作\n・A/Bテストによる広告効果の最適化\n・月次効果測定と戦略調整',
+          performanceGoalType: 'quantitative',
+          weight: 50,
+          status: 'pending_approval',
+          user: fakeUsers[1],
+          createdAt: '2024-09-21T09:15:00Z',
+          updatedAt: '2024-09-21T09:15:00Z'
+        }
+      ];
 
-      const pendingGoals = goalsResult.data.items || [];
-      setTotalPendingCount(pendingGoals.length);
-
-      if (pendingGoals.length === 0) {
-        setGroupedGoals([]);
-        return;
-      }
-
-      // Get unique user IDs from goals
-      const userIds = [...new Set(pendingGoals.map(goal => goal.userId))];
-
-      // Fetch user details
-      const usersResult = await getUsersAction({
-        limit: userIds.length
-      });
-
-      if (!usersResult.success || !usersResult.data) {
-        throw new Error(usersResult.error || 'Failed to load user data');
-      }
-
-      const users = usersResult.data.items || [];
+      setTotalPendingCount(fakeGoals.length);
 
       // Group goals by employee
-      const grouped: GroupedGoals[] = userIds.map(userId => {
-        const employee = users.find(user => user.id === userId);
-        const employeeGoals = pendingGoals.filter(goal => goal.userId === userId);
-
+      const grouped: GroupedGoals[] = fakeUsers.map(user => {
+        const userGoals = fakeGoals.filter(goal => goal.userId === user.id);
         return {
-          employee: employee!,
-          goals: employeeGoals,
-          pendingCount: employeeGoals.length
+          employee: user,
+          goals: userGoals,
+          pendingCount: userGoals.length
         };
-      }).filter(group => group.employee); // Filter out any missing employee data
+      }).filter(group => group.goals.length > 0);
 
       setGroupedGoals(grouped);
 
