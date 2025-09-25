@@ -222,7 +222,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
                 and_(
                     SupervisorReview.supervisor_id == supervisor_id,
                     SupervisorReview.status == "draft",
-                    Goal.status == "pending_approval",
+                    Goal.status == "submitted",
                 )
             )
         )
