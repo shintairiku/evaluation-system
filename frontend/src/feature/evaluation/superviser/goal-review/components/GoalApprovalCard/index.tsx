@@ -166,12 +166,14 @@ export function GoalApprovalCard({ goal, onGoalUpdate }: GoalApprovalCardProps) 
             </div>
           </div>
         )}
-      </CardContent>
 
-      {/* Approval Handler - Only show for pending goals */}
-      {goal.status === 'pending_approval' && (
-        <GoalApprovalHandler goal={goal} onSuccess={onGoalUpdate} />
-      )}
+        {/* Approval Handler - Only show for pending goals */}
+        {goal.status === 'pending_approval' && (
+          <div className="mt-6 pt-4 border-t">
+            <GoalApprovalHandler goal={goal} onSuccess={onGoalUpdate} />
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }
