@@ -2,12 +2,14 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Target, Brain, Calendar, Weight } from 'lucide-react';
 import type { GoalResponse } from '@/api/types';
+import { GoalApprovalHandler } from '../GoalApprovalHandler';
 
 interface GoalApprovalCardProps {
   goal: GoalResponse;
+  onGoalUpdate?: () => void;
 }
 
-export function GoalApprovalCard({ goal }: GoalApprovalCardProps) {
+export function GoalApprovalCard({ goal, onGoalUpdate }: GoalApprovalCardProps) {
   const isPerformanceGoal = goal.goalCategory === '業績目標';
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
 
@@ -165,6 +167,11 @@ export function GoalApprovalCard({ goal }: GoalApprovalCardProps) {
           </div>
         )}
       </CardContent>
+
+      {/* Approval Handler - Only show for pending goals */}
+      {goal.status === 'pending_approval' && (
+        <GoalApprovalHandler goal={goal} onSuccess={onGoalUpdate} />
+      )}
     </Card>
   );
 }
