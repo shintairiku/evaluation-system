@@ -283,9 +283,9 @@ class GoalService:
             if not can_delete:
                 raise PermissionDeniedError("You can only delete your own goals")
             
-            # Business rule: can only delete draft, incomplete, or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only delete draft, incomplete, or rejected goals")
+            # Business rule: can only delete draft or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only delete draft or rejected goals")
             
             # Delete goal
             success = await self.goal_repo.delete_goal(goal_id)
@@ -311,10 +311,10 @@ class GoalService:
         """Submit a goal with specified status (draft or pending_approval)."""
         try:
             # Validate status parameter
-            if status not in ["draft", "pending_approval"]:
-                raise ValidationError("Status must be either 'draft' or 'pending_approval'")
-            
-            target_status = GoalStatus.DRAFT if status == "draft" else GoalStatus.PENDING_APPROVAL
+            if status not in ["draft", "submitted"]:
+                raise ValidationError("Status must be either 'draft' or 'submitted'")
+
+            target_status = GoalStatus.DRAFT if status == "draft" else GoalStatus.SUBMITTED
             
             # Check if goal exists and user can update it
             org_id = current_user_context.organization_id
@@ -328,9 +328,9 @@ class GoalService:
             if current_user_context.user_id != existing_goal.user_id:
                 raise PermissionDeniedError("You can only submit your own goals")
             
-            # Business rule: can only submit draft, incomplete, or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only submit draft, incomplete, or rejected goals")
+            # Business rule: can only submit draft or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only submit draft or rejected goals")
             
             # Update status using dedicated method with validation
             updated_goal = await self.goal_repo.update_goal_status(goal_id, target_status, org_id)
@@ -339,7 +339,7 @@ class GoalService:
             await self.session.commit()
             
             # Auto-create draft supervisor review(s) only when submitting for approval
-            if target_status == GoalStatus.PENDING_APPROVAL:
+            if target_status == GoalStatus.SUBMITTED:
                 try:
                     # Get supervisors of goal owner
                     supervisors = await self.user_repo.get_user_supervisors(existing_goal.user_id, org_id)
