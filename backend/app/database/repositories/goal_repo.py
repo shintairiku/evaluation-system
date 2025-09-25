@@ -375,14 +375,14 @@ class GoalRepository(BaseRepository[Goal]):
             
             if target_data_updates:
                 # Get current goal to merge target_data
-                current_goal = await self.get_goal_by_id(goal_id)
+                current_goal = await self.get_goal_by_id(goal_id, org_id)
                 if current_goal and current_goal.target_data:
                     merged_target_data = {**current_goal.target_data, **target_data_updates}
                 else:
                     merged_target_data = target_data_updates
-                
+
                 update_data["target_data"] = merged_target_data
-            
+
             # Execute update if there are changes
             if update_data:
                 update_data["updated_at"] = datetime.now(timezone.utc)
@@ -391,9 +391,9 @@ class GoalRepository(BaseRepository[Goal]):
                     .where(Goal.id == goal_id)
                     .values(**update_data)
                 )
-            
+
             # Return updated goal
-            return await self.get_goal_by_id(goal_id)
+            return await self.get_goal_by_id(goal_id, org_id)
             
         except IntegrityError as e:
             logger.error(f"Integrity error updating goal {goal_id}: {e}")
