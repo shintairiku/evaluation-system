@@ -83,7 +83,7 @@ export function useGoalAutoSave({
       const createData: GoalCreateRequest = {
         periodId,
         goalCategory: '業績目標',
-        status: 'incomplete',
+        status: 'draft',
         title: currentData.title,
         performanceGoalType: currentData.type,
         specificGoalText: currentData.specificGoal,
@@ -146,7 +146,7 @@ export function useGoalAutoSave({
       const createData: GoalCreateRequest = {
         periodId,
         goalCategory: 'コンピテンシー',
-        status: 'incomplete',
+        status: 'draft',
         weight: 100,
         actionPlan: currentData.actionPlan,
         competencyIds: currentData.competencyIds && currentData.competencyIds.length > 0 ? currentData.competencyIds : null,
@@ -289,12 +289,14 @@ export function useGoalAutoSave({
     enabled: !!selectedPeriod?.id, // Enable when period is selected
     autoSaveReady: isAutoSaveReady && !!selectedPeriod?.id, // Only activate when explicitly ready AND period selected
     changeDetector: detectChanges, // Only get changed goals
-    // Use stable, ID-based keys to avoid deep object diffs causing loops
+    // Use content-aware keys to detect changes in goal fields
     dataKey: {
       perfCount: goalData.performanceGoals.length,
       perfIds: goalData.performanceGoals.map(g => g.id).sort().join(','),
+      perfContent: goalData.performanceGoals.map(g => `${g.id}:${g.title}:${g.specificGoal}:${g.achievementCriteria}:${g.method}:${g.weight}:${g.type}`).join('|'),
       compCount: goalData.competencyGoals.length,
       compIds: goalData.competencyGoals.map(g => g.id).sort().join(','),
+      compContent: goalData.competencyGoals.map(g => `${g.id}:${g.actionPlan}:${JSON.stringify(g.competencyIds)}:${JSON.stringify(g.selectedIdealActions)}`).join('|'),
       ready: isAutoSaveReady,
     }
   });
