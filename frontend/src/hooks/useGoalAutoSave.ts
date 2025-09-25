@@ -344,20 +344,16 @@ export function useGoalAutoSave({
     enabled: !!selectedPeriod?.id, // Enable when period is selected
     autoSaveReady: isAutoSaveReady && !!selectedPeriod?.id, // Only activate when explicitly ready AND period selected
     changeDetector: detectChanges, // Only get changed goals
-    // Use content-aware keys to detect changes in goal fields
+    // Use content-aware keys to detect changes in goal fields (maintain original order)
     dataKey: {
       perfCount: goalData.performanceGoals.length,
-      perfIds: goalData.performanceGoals.map(g => g.id).sort().join(','),
+      // Keep original order to match tracking system
       perfContent: goalData.performanceGoals
-        .slice()
-        .sort((a, b) => a.id.localeCompare(b.id))
         .map(g => `${g.id}:${g.title}:${g.specificGoal}:${g.achievementCriteria}:${g.method}:${g.weight}:${g.type}`)
         .join('|'),
       compCount: goalData.competencyGoals.length,
-      compIds: goalData.competencyGoals.map(g => g.id).sort().join(','),
+      // Keep original order to match tracking system
       compContent: goalData.competencyGoals
-        .slice()
-        .sort((a, b) => a.id.localeCompare(b.id))
         .map(g => `${g.id}:${g.actionPlan}:${JSON.stringify(g.competencyIds)}:${JSON.stringify(g.selectedIdealActions)}`)
         .join('|'),
       ready: isAutoSaveReady,
