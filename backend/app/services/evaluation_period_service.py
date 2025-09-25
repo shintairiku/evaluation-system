@@ -388,9 +388,10 @@ class EvaluationPeriodService:
         
         # Define allowed transitions
         allowed_transitions = {
-            EvaluationPeriodStatus.UPCOMING: [EvaluationPeriodStatus.ACTIVE],
-            EvaluationPeriodStatus.ACTIVE: [EvaluationPeriodStatus.COMPLETED],
-            EvaluationPeriodStatus.COMPLETED: []  # No transitions allowed from completed
+            EvaluationPeriodStatus.DRAFT: [EvaluationPeriodStatus.ACTIVE],
+            EvaluationPeriodStatus.ACTIVE: [EvaluationPeriodStatus.COMPLETED, EvaluationPeriodStatus.CANCELLED],
+            EvaluationPeriodStatus.COMPLETED: [],  # No transitions allowed from completed
+            EvaluationPeriodStatus.CANCELLED: []  # No transitions allowed from cancelled
         }
         
         if new_status not in allowed_transitions.get(current_status, []):
@@ -405,8 +406,8 @@ class EvaluationPeriodService:
     async def _validate_period_deletion(self, existing_period: EvaluationPeriodModel):
         """Validate that the evaluation period can be deleted."""
         
-        # Cannot delete active or completed periods
-        if existing_period.status in [EvaluationPeriodStatus.ACTIVE, EvaluationPeriodStatus.COMPLETED]:
+        # Cannot delete active, completed, or cancelled periods
+        if existing_period.status in [EvaluationPeriodStatus.ACTIVE, EvaluationPeriodStatus.COMPLETED, EvaluationPeriodStatus.CANCELLED]:
             raise BadRequestError(f"Cannot delete {existing_period.status} evaluation period")
         
         # TODO: Add validation for existing goals/assessments when those models are implemented

@@ -7,9 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EvaluationPeriodStatus(str, Enum):
-    UPCOMING = "準備中"
-    ACTIVE = "実施中"
-    COMPLETED = "完了"
+    DRAFT = "draft"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 
 class EvaluationPeriodType(str, Enum):
@@ -28,7 +29,7 @@ class EvaluationPeriodBase(BaseModel):
     end_date: date = Field(..., description="End date of the evaluation period")
     goal_submission_deadline: date = Field(..., description="Deadline for goal submission")
     evaluation_deadline: date = Field(..., description="Deadline for evaluation completion")
-    status: EvaluationPeriodStatus = Field(default=EvaluationPeriodStatus.UPCOMING, description="Current status of the evaluation period")
+    status: EvaluationPeriodStatus = Field(default=EvaluationPeriodStatus.DRAFT, description="Current status of the evaluation period")
 
     @field_validator('end_date')
     @classmethod
@@ -46,12 +47,6 @@ class EvaluationPeriodBase(BaseModel):
             raise ValueError('Goal submission deadline must be before end date')
         return v
 
-    @field_validator('evaluation_deadline')
-    @classmethod
-    def evaluation_deadline_must_be_valid(cls, v, info):
-        if info.data.get('end_date') and v < info.data['end_date']:
-            raise ValueError('Evaluation deadline must be after end date')
-        return v
 
 
 # Schema for creating an evaluation period

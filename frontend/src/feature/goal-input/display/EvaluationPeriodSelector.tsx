@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar, Clock, AlertCircle } from 'lucide-react';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import type { EvaluationPeriod } from '@/api/types';
+import { getStatusVariant, getStatusLabel } from '@/lib/evaluation-period-status';
 
 interface EvaluationPeriodSelectorProps {
   onPeriodSelected: (period: EvaluationPeriod) => void;
@@ -54,18 +55,7 @@ export function EvaluationPeriodSelector({ onPeriodSelected }: EvaluationPeriodS
     }
   };
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case '実施中':
-        return 'default';
-      case '準備中':
-        return 'secondary';
-      case '完了':
-        return 'outline';
-      default:
-        return 'secondary';
-    }
-  };
+  // Use the imported getStatusVariant function instead of local implementation
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('ja-JP', {
@@ -150,7 +140,7 @@ export function EvaluationPeriodSelector({ onPeriodSelected }: EvaluationPeriodS
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg">{period.name}</CardTitle>
                   <Badge variant={getStatusVariant(period.status)}>
-                    {period.status}
+                    {getStatusLabel(period.status)}
                   </Badge>
                 </div>
               </CardHeader>
