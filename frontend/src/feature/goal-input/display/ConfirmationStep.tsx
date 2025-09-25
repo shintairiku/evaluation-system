@@ -5,10 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ChevronLeft, Send, Target, Brain, Save } from 'lucide-react';
+import { ChevronLeft, Send, Target, Brain } from 'lucide-react';
 import { toast } from 'sonner';
-import { createGoalAction, updateGoalAction, submitGoalAction, getGoalsAction } from '@/api/server-actions/goals';
-import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
+import { submitGoalAction, getGoalsAction } from '@/api/server-actions/goals';
 import { Competency, CompetencyDescription } from '@/api/types/competency';
 import stage1Competencies from '../data/stage1-competencies.json';
 
@@ -69,144 +68,12 @@ function convertLegacyCompetencies(legacyCompetencies: LegacyCompetency[]): Comp
 export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, onPrevious }: ConfirmationStepProps) {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [isDraftPending, startDraftTransition] = useTransition();
   
   // Convert legacy competencies to new format
   const competencies = convertLegacyCompetencies(
     (stage1Competencies as { competencies: LegacyCompetency[] }).competencies
   );
   
-  // Helper function to save or update goals as drafts
-  const saveGoalsAsDraft = async () => {
-    if (!periodId) return { success: false, error: '評価期間が選択されていません。' };
-    
-    try {
-      // Get existing goals to determine create vs update
-      // Fetch all statuses in a single API call
-      const existingGoalsResult = await getGoalsAction({
-        periodId,
-        status: ['draft']
-      });
-
-      const existingGoals = existingGoalsResult.success ? existingGoalsResult.data?.items || [] : [];
-      const existingPerformanceGoals = existingGoals.filter(g => g.goalCategory === '業績目標');
-      const existingCompetencyGoals = existingGoals.filter(g => g.goalCategory === 'コンピテンシー');
-
-      let allSuccessful = true;
-      const errors: string[] = [];
-
-      // Handle performance goals
-      for (let i = 0; i < performanceGoals.length; i++) {
-        const pg = performanceGoals[i];
-        const existingGoal = existingPerformanceGoals[i];
-
-        if (existingGoal) {
-          // Performance goal update - only include performance fields
-          const updateData: GoalUpdateRequest = {
-            weight: pg.weight,
-            title: pg.title,
-            performanceGoalType: pg.type,
-            specificGoalText: pg.specificGoal,
-            achievementCriteriaText: pg.achievementCriteria,
-            meansMethodsText: pg.method,
-          };
-          const result = await updateGoalAction(existingGoal.id, updateData);
-          if (!result.success) {
-            allSuccessful = false;
-            errors.push(`業績目標${i + 1}の更新に失敗: ${result.error}`);
-          }
-        } else {
-          const createData: GoalCreateRequest = {
-            periodId,
-            goalCategory: '業績目標',
-            status: 'draft', // Create as draft, then change status via submitGoalAction
-            title: pg.title,
-            performanceGoalType: pg.type,
-            specificGoalText: pg.specificGoal,
-            achievementCriteriaText: pg.achievementCriteria,
-            meansMethodsText: pg.method,
-            weight: pg.weight,
-          };
-          const result = await createGoalAction(createData);
-          if (!result.success) {
-            allSuccessful = false;
-            errors.push(`業績目標${i + 1}の作成に失敗: ${result.error}`);
-          }
-        }
-      }
-
-      // Handle competency goal
-      if (competencyGoals.length > 0) {
-        const competencyGoal = competencyGoals[0];
-        const existingCompetencyGoal = existingCompetencyGoals[0];
-
-        if (existingCompetencyGoal) {
-          // Competency goal update - use new schema
-          const updateData: GoalUpdateRequest = {
-            competencyIds: competencyGoal.competencyIds,
-            selectedIdealActions: competencyGoal.selectedIdealActions,
-            actionPlan: competencyGoal.actionPlan,
-          };
-          const result = await updateGoalAction(existingCompetencyGoal.id, updateData);
-          if (!result.success) {
-            allSuccessful = false;
-            errors.push(`コンピテンシー目標の更新に失敗: ${result.error}`);
-          }
-        } else {
-          const createData: GoalCreateRequest = {
-            periodId,
-            goalCategory: 'コンピテンシー',
-            status: 'draft', // Create as draft, then change status via submitGoalAction
-            weight: 100,
-            competencyIds: competencyGoal.competencyIds,
-            selectedIdealActions: competencyGoal.selectedIdealActions,
-            actionPlan: competencyGoal.actionPlan,
-          };
-          const result = await createGoalAction(createData);
-          if (!result.success) {
-            allSuccessful = false;
-            errors.push(`コンピテンシー目標の作成に失敗: ${result.error}`);
-          }
-        }
-      }
-
-      // If all goals were created/updated successfully, set their status to 'draft'
-      if (allSuccessful) {
-        // Get all goals for this period to set them as draft (including just updated ones)
-        const allGoalsResult = await getGoalsAction({
-          periodId,
-          status: ['draft']
-        });
-        
-        if (allGoalsResult.success && allGoalsResult.data) {
-          const allGoals = allGoalsResult.data.items;
-          
-          // Set each goal's status to 'draft'
-          for (const goal of allGoals) {
-            // Only change status if it's not already 'draft'
-            if (goal.status !== 'draft') {
-              const submitResult = await submitGoalAction(goal.id, 'draft');
-              if (!submitResult.success) {
-                allSuccessful = false;
-                errors.push(`${goal.goalCategory}目標のドラフト保存に失敗: ${submitResult.error}`);
-              }
-            }
-          }
-        }
-      }
-
-      return {
-        success: allSuccessful,
-        error: errors.length > 0 ? errors.join(', ') : undefined
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '保存に失敗しました。'
-      };
-    }
-  };
-
   const handleSubmit = () => {
     startTransition(async () => {
       if (!periodId) {
@@ -215,24 +82,27 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
       }
       
       try {
-        // First save/update goals as drafts
-        const saveResult = await saveGoalsAsDraft();
-        if (!saveResult.success) {
-          toast.error(saveResult.error || '目標の保存に失敗しました。');
-          return;
-        }
-
-        // Then get all goals and submit them
+        // Goals should already be auto-saved, directly proceed to submission
+        // Get all goals and submit them
         // Get all statuses for submission in a single API call
         const goalsResult = await getGoalsAction({
           periodId,
           status: ['draft']
         });
-
+        
         const goals = goalsResult.success ? goalsResult.data?.items || [] : [];
 
         if (goals.length === 0) {
           toast.error('提出する目標が見つかりません。');
+          return;
+        }
+
+        // Validate performance goals total 100% before submission
+        const performanceGoals = goals.filter(g => g.goalCategory === '業績目標');
+        const totalWeight = performanceGoals.reduce((sum, goal) => sum + goal.weight, 0);
+
+        if (totalWeight !== 100) {
+          toast.error(`業績目標の合計ウェイトは100%である必要があります。現在の合計: ${totalWeight}%`);
           return;
         }
         let allSubmitted = true;
@@ -374,26 +244,9 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
           </Button>
         </div>
         <div className="flex gap-2 col-span-2 justify-end">
-          <Button variant="outline" disabled={isDraftPending || isPending} onClick={() => {
-            startDraftTransition(async () => {
-              if (competencyGoals.length === 0 || !competencyGoals[0].actionPlan?.trim()) {
-                toast.error('コンピテンシー目標のアクションプランを入力してください。');
-                return;
-              }
-              const result = await saveGoalsAsDraft();
-              if (result.success) {
-                toast.success('下書きとして保存しました。');
-              } else {
-                toast.error(result.error || '保存に失敗しました。');
-              }
-            });
-          }}>
-            <Save className="h-4 w-4 mr-2" />
-            {isDraftPending ? '保存中...' : '下書き保存'}
-          </Button>
           <Button
             onClick={() => setShowSubmitDialog(true)}
-            disabled={isDraftPending || isPending}
+            disabled={isPending}
             size="lg"
             >
             <Send className="h-4 w-4 mr-2" />
