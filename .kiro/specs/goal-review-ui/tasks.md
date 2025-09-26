@@ -7,18 +7,35 @@
 ### 1. 既存APIとサーバーアクションの調査・準備
 > 既存システムの関連するAPI、サーバーアクション、型定義を調査し、不足部分があれば追加実装を検討します。
 
-- [ ] **1.1. 既存の目標・レビュー関連APIエンドポイントの調査**
-  > `/src/api/endpoints/` 内の既存エンドポイントを調査し、承認待ち目標取得、承認・差し戻し実行に利用可能なAPIを確認する。
+- [x] **1.1. 既存の目標・レビュー関連APIエンドポイントの調査**
+  > **調査完了**: `/src/api/endpoints/goals.ts` および `/src/api/endpoints/supervisor-reviews.ts` 内の既存エンドポイントを確認済み。
+  >
+  > **利用可能API:**
+  > - `GET /api/v1/goals/?status=submitted` - 提出済み目標取得
+  > - `GET /api/v1/supervisor-reviews/pending` - 承認待ちレビュー取得
+  > - `POST /api/v1/supervisor-reviews/` - レビュー作成
+  > - `POST /api/v1/supervisor-reviews/{reviewId}/submit` - レビュー提出
   >
   > **関連要件:** 要件1 (目標承認ダッシュボード表示)
 
-- [ ] **1.2. 既存のサーバーアクションの調査**
-  > `/src/api/server-actions/` 内の既存サーバーアクションを調査し、目標・レビュー関連の機能を確認する。不足があれば追加実装計画を作成。
+- [x] **1.2. 既存のサーバーアクションの調査**
+  > **調査完了**: `/src/api/server-actions/goals.ts` および `/src/api/server-actions/supervisor-reviews.ts` 内のサーバーアクションを確認済み。
+  >
+  > **利用可能なサーバーアクション:**
+  > - `getGoalsAction({ status: 'submitted' })` - 提出済み目標取得
+  > - `createSupervisorReviewAction()` - スーパーバイザーレビュー作成
+  > - `getPendingSupervisorReviewsAction()` - 承認待ちレビュー取得
+  > - `submitSupervisorReviewAction()` - レビュー提出
   >
   > **関連要件:** 要件1, 要件3 (目標承認機能)
 
-- [ ] **1.3. 既存TypeScript型定義の調査**
-  > `/src/api/types/` 内の既存型定義を調査し、Goal、User、SupervisorReview等の型を確認。不足する型があれば追加定義。
+- [x] **1.3. 既存TypeScript型定義の調査**
+  > **調査完了**: `/src/api/types/` 内の既存型定義を確認済み。Goal、SupervisorReview、SupervisorReviewCreate等の必要な型が存在することを確認。
+  >
+  > **重要な制約:**
+  > - 目標ステータス: `GoalStatus.SUBMITTED` の目標のみ取得
+  > - レビューアクション: `'APPROVED' | 'REJECTED' | 'PENDING'`
+  > - 必須フィールド: `goalId`, `periodId`, `action`, `comment`（REJECTED時）
   >
   > **関連要件:** 要件1, 要件2, 要件3
 
@@ -27,8 +44,13 @@
   >
   > **関連要件:** 要件6 (パフォーマンス要件)
 
-- [ ] **1.5. 必要に応じた追加サーバーアクション実装**
-  > 承認待ち目標取得、目標承認・差し戻し実行のサーバーアクションが不足している場合の実装。
+- [ ] **1.5. 追加実装不要の確認**
+  > **確認済み**: 既存のサーバーアクションで要件を満たすことを確認。追加実装は不要。
+  >
+  > **実装方針:**
+  > - `getGoalsAction({ status: 'submitted' })` でsubmittedステータスの目標取得
+  > - `createSupervisorReviewAction()` で承認・差し戻し実行
+  > - レビュー作成と同時に`status: 'submitted'`で提出することで目標ステータスを自動更新
   >
   > **関連要件:** 要件1, 要件3
 
@@ -105,6 +127,11 @@
 
 - [ ] **5.1. ApprovalForm コンポーネント実装**
   > `frontend/src/feature/evaluation/superviser/goal-review/components/ApprovalForm/index.tsx` を作成。React Hook Form + Zod を使用した承認・差し戻しフォームを実装。コメント入力フィールドを含む。
+  >
+  > **実装詳細:**
+  > - `createSupervisorReviewAction()`を使用してレビュー作成
+  > - 必須パラメータ: `goalId`, `periodId`, `action`, `comment`（REJECTED時）
+  > - `status: 'submitted'`でレビューを直接提出し、目標ステータスを自動更新
   >
   > **関連要件:** 要件3 (目標承認機能)
 
