@@ -5,14 +5,22 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/org(.*)',
-  '/api/webhooks(.*)'
+  '/api/webhooks(.*)',
+  '/access-denied'
+]);
+
+const isAdminRoute = createRouteMatcher([
+  '/evaluation-period-management(.*)',
+  '/department-management(.*)',
+  '/stage-management(.*)',
+  '/competency-management(.*)'
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
   // 公開ルート以外は認証を要求
   if (!isPublicRoute(req)) {
-    const { userId, orgId } = await auth();
-    
+    const { userId, orgId, orgRole } = await auth();
+
     if (!userId) {
       // 認証されていない場合、サインインページにリダイレクト
       const signInUrl = new URL('/sign-in', req.url);
@@ -23,6 +31,16 @@ export default clerkMiddleware(async (auth, req) => {
     if (!orgId) {
       const orgUrl = new URL('/org', req.url);
       return NextResponse.redirect(orgUrl);
+    }
+
+    // 管理者専用ルートのアクセス制御
+    if (isAdminRoute(req)) {
+      // org:adminロールを持っているかチェック
+      if (orgRole !== 'org:admin') {
+        // 管理者でない場合、アクセス拒否ページにリダイレクト
+        const accessDeniedUrl = new URL('/access-denied', req.url);
+        return NextResponse.redirect(accessDeniedUrl);
+      }
     }
   }
 });
