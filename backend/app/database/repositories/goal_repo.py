@@ -144,6 +144,27 @@ class GoalRepository(BaseRepository[Goal]):
             logger.error(f"Error fetching goals for user {user_id}: {e}")
             raise
 
+    async def get_goals_by_period(
+        self,
+        period_id: UUID,
+        org_id: str
+    ) -> List[Goal]:
+        """Get all goals for a specific evaluation period within organization scope."""
+        try:
+            query = select(Goal).filter(Goal.period_id == period_id)
+
+            # Apply organization filter via user relationship (required)
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            self.ensure_org_filter_applied("get_goals_by_period", org_id)
+
+            query = query.order_by(Goal.created_at.desc())
+
+            result = await self.session.execute(query)
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching goals for period {period_id} in org {org_id}: {e}")
+            raise
+
     async def search_goals(
         self,
         org_id: str,
