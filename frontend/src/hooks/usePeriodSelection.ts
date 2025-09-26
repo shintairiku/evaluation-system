@@ -81,7 +81,7 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
       // Fetch existing goals for this period with all relevant statuses
       const result = await getGoalsAction({ 
         periodId: period.id,
-        status: ['incomplete', 'draft', 'pending_approval'] // Get all editable goals
+        status: ['draft'] // Get editable goals only
       });
 
       if (result.success && result.data?.items) {

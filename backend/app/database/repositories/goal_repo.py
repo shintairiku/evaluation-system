@@ -67,7 +67,7 @@ class GoalRepository(BaseRepository[Goal]):
                 goal_category=goal_data.goal_category,
                 target_data=target_data,
                 weight=Decimal(str(goal_data.weight)) if goal_data.weight is not None else None,
-                status=goal_data.status.value if goal_data.status else GoalStatus.INCOMPLETE.value
+                status=goal_data.status.value if goal_data.status else GoalStatus.DRAFT.value
             )
             
             self.session.add(goal)
@@ -288,7 +288,7 @@ class GoalRepository(BaseRepository[Goal]):
                 .filter(
                     and_(
                         UserSupervisor.supervisor_id == supervisor_id,
-                        Goal.status == GoalStatus.PENDING_APPROVAL.value,
+                        Goal.status == GoalStatus.SUBMITTED.value,
                         UserSupervisor.valid_to.is_(None)  # Current supervisor relationship
                     )
                 )
@@ -375,14 +375,14 @@ class GoalRepository(BaseRepository[Goal]):
             
             if target_data_updates:
                 # Get current goal to merge target_data
-                current_goal = await self.get_goal_by_id(goal_id)
+                current_goal = await self.get_goal_by_id(goal_id, org_id)
                 if current_goal and current_goal.target_data:
                     merged_target_data = {**current_goal.target_data, **target_data_updates}
                 else:
                     merged_target_data = target_data_updates
-                
+
                 update_data["target_data"] = merged_target_data
-            
+
             # Execute update if there are changes
             if update_data:
                 update_data["updated_at"] = datetime.now(timezone.utc)
@@ -391,9 +391,9 @@ class GoalRepository(BaseRepository[Goal]):
                     .where(Goal.id == goal_id)
                     .values(**update_data)
                 )
-            
+
             # Return updated goal
-            return await self.get_goal_by_id(goal_id)
+            return await self.get_goal_by_id(goal_id, org_id)
             
         except IntegrityError as e:
             logger.error(f"Integrity error updating goal {goal_id}: {e}")
@@ -430,7 +430,7 @@ class GoalRepository(BaseRepository[Goal]):
             self._validate_status_transition(existing_goal.status, status.value)
             
             # Special validation: When submitting for approval, ensure performance goals sum to 100%
-            if status == GoalStatus.PENDING_APPROVAL:
+            if status == GoalStatus.SUBMITTED:
                 await self._validate_all_performance_goals_sum_to_100(
                     existing_goal.user_id, existing_goal.period_id, org_id
                 )
@@ -477,11 +477,10 @@ class GoalRepository(BaseRepository[Goal]):
     def _validate_status_transition(self, current_status: str, new_status: str) -> None:
         """Validate that the status transition is allowed."""
         valid_transitions = {
-            "incomplete": ["draft", "pending_approval"],  # Incomplete goals can be moved to draft or submitted
-            "draft": ["pending_approval"],
-            "pending_approval": ["approved", "rejected"],
+            "draft": ["submitted"],
+            "submitted": ["approved", "rejected"],
             "approved": [],  # Approved goals cannot be changed
-            "rejected": ["draft", "pending_approval"]
+            "rejected": ["draft", "submitted"]
         }
         
         allowed_next_statuses = valid_transitions.get(current_status, [])
