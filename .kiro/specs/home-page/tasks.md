@@ -6,42 +6,48 @@
 
 ### 1. ユーザー役職管理システム
 
-- [ ] **1.1. useUserRoles Hookの実装**
+- [x] **1.1. useUserRoles Hookの実装**
   > ユーザーの複数役職を取得・管理するカスタムフック実装。
   > ユーザーの権限階層レベルから利用可能な役職を判定する。
   >
+  > **実装完了:** `/src/hooks/useUserRoles.ts` - Clerk認証連携、役職階層判定、日本語ラベル対応
   > **関連要件:** 要件1, 要件2, 要件3
 
-- [ ] **1.2. RolePermissionGuardコンポーネントの作成**
+- [x] **1.2. RolePermissionGuardコンポーネントの作成**
   > 役職に応じてコンポーネントの表示/非表示を制御するガード。
   > 権限チェックロジックを統一的に管理。
   >
+  > **実装完了:** `/src/components/auth/RolePermissionGuard.tsx` - 複数権限戦略、HOC・Hook版も実装
   > **関連要件:** 要件1, 要件2, 要件3
 
-- [ ] **1.3. 役職マッピング定数の定義**
+- [x] **1.3. 役職マッピング定数の定義**
   > 役職名、表示ラベル、階層レベルのマッピング定数を作成。
   > 日本語ラベル対応。
   >
+  > **実装完了:** `/src/hooks/useUserRoles.ts`内 - ROLE_MAPPING、DASHBOARD_ROLE_MAPPING定数
   > **関連要件:** 要件1, 要件2, 要件3
 
 ### 2. タブナビゲーション基盤
 
-- [ ] **2.1. RoleTabNavigationコンポーネントの実装**
+- [x] **2.1. RoleTabNavigationコンポーネントの実装**
   > shadcn/ui Tabsコンポーネントを使用した役職切り替えタブ。
   > 動的な役職数に対応したグリッドレイアウト。
   >
+  > **実装完了:** `/src/components/dashboard/RoleTabNavigation.tsx` - 動的グリッド、アイコン・バッジ対応
   > **関連要件:** 要件4
 
-- [ ] **2.2. TabContentContainerコンポーネントの実装**
+- [x] **2.2. TabContentContainerコンポーネントの実装**
   > タブコンテンツのコンテナコンポーネント。
   > 遅延読み込み対応とキャッシュ機能。
   >
+  > **実装完了:** `/src/components/dashboard/TabContentContainer.tsx` - Lazy loading、エラーバウンダリ、キャッシュ機能
   > **関連要件:** 要件4, 要件5
 
-- [ ] **2.3. タブ状態管理の実装**
+- [x] **2.3. タブ状態管理の実装**
   > アクティブタブの状態管理とURL同期。
   > ブラウザバック/フォワード対応。
   >
+  > **実装完了:** `/src/hooks/useTabState.ts` - URL同期、ブラウザナビゲーション、役職検証機能
   > **関連要件:** 要件4
 
 ## 機能B: 管理者用ダッシュボード実装
