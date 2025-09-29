@@ -1,17 +1,30 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, XCircle, AlertCircle, FileText } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export function ApprovalGuidelinesPanel() {
+  const [isExpanded, setIsExpanded] = useState(true); // Start expanded
   return (
     <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <FileText className="h-5 w-5" />
-          目標承認チェックポイント
+      <CardHeader
+        className="cursor-pointer hover:bg-gray-50 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <CardTitle className="flex items-center justify-between text-lg">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            目標承認チェックポイント
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-muted-foreground" />
+          )}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      {isExpanded && (
+        <CardContent className="animate-in slide-in-from-top-2 duration-200">
         <div className="grid md:grid-cols-2 gap-6">
           {/* 承認基準 */}
           <div className="space-y-3">
@@ -81,7 +94,8 @@ export function ApprovalGuidelinesPanel() {
             </div>
           </div>
         </div>
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   );
 }
