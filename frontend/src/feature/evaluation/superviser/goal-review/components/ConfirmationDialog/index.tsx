@@ -46,27 +46,30 @@ export function ConfirmationDialog({
             )}
             {isApproval ? '目標を承認しますか？' : '目標を差し戻しますか？'}
           </DialogTitle>
-          <DialogDescription className="space-y-3">
-            <div>
-              <p className="font-medium text-foreground">従業員: {employeeName}</p>
-              <p className="text-sm mt-1">目標: {goalTitle}</p>
-            </div>
-
-            {comment && (
-              <div className="p-3 bg-muted rounded-md">
-                <p className="text-sm font-medium mb-1">コメント:</p>
-                <p className="text-sm whitespace-pre-wrap">{comment}</p>
-              </div>
-            )}
-
-            <p className="text-sm">
-              {isApproval
-                ? 'この目標を承認します。この操作は取り消すことができません。'
-                : 'この目標を差し戻します。従業員は修正して再提出する必要があります。'
-              }
-            </p>
+          <DialogDescription>
+            この操作を実行しますか？
           </DialogDescription>
         </DialogHeader>
+        <div className="space-y-3 px-6 pb-4">
+          <div>
+            <p className="font-medium text-foreground">従業員: {employeeName}</p>
+            <p className="text-sm mt-1">目標: {goalTitle}</p>
+          </div>
+
+          {comment && (
+            <div className="p-3 bg-muted rounded-md">
+              <p className="text-sm font-medium mb-1">コメント:</p>
+              <p className="text-sm whitespace-pre-wrap">{comment}</p>
+            </div>
+          )}
+
+          <p className="text-sm">
+            {isApproval
+              ? 'この目標を承認します。この操作は取り消すことができません。'
+              : 'この目標を差し戻します。従業員は修正して再提出する必要があります。'
+            }
+          </p>
+        </div>
         <DialogFooter>
           <Button
             variant="outline"
