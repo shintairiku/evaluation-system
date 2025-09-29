@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, forwardRef, useImperativeHandle } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -21,20 +21,31 @@ type ApprovalFormData = z.infer<typeof approvalFormSchema>;
 
 interface ApprovalFormProps {
   goal: GoalResponse;
-  onApprove: (goalId: string, comment?: string) => Promise<void>;
-  onReject: (goalId: string, comment: string) => Promise<void>;
+  onApprove: (comment?: string) => Promise<void>;
+  onReject: (comment: string) => Promise<void>;
   isProcessing?: boolean;
 }
 
-export function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }: ApprovalFormProps) {
-  const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null);
+export interface ApprovalFormRef {
+  resetForm: () => void;
+}
 
-  const form = useForm<ApprovalFormData>({
-    resolver: zodResolver(approvalFormSchema),
-    defaultValues: {
-      comment: ''
-    }
-  });
+export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
+  function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }, ref) {
+    const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null);
+
+    const form = useForm<ApprovalFormData>({
+      resolver: zodResolver(approvalFormSchema),
+      defaultValues: {
+        comment: ''
+      }
+    });
+
+    useImperativeHandle(ref, () => ({
+      resetForm: () => {
+        form.reset();
+      }
+    }));
 
   const comment = form.watch('comment') || '';
   const commentLength = comment.length;
@@ -46,8 +57,7 @@ export function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }
     setPendingAction('approve');
     try {
       const formData = form.getValues();
-      await onApprove(goal.id, formData.comment);
-      form.reset();
+      await onApprove(formData.comment);
     } catch (error) {
       console.error('Approval error:', error);
     } finally {
@@ -73,8 +83,7 @@ export function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }
 
     setPendingAction('reject');
     try {
-      await onReject(goal.id, rejectionComment);
-      form.reset();
+      await onReject(rejectionComment);
     } catch (error) {
       console.error('Rejection error:', error);
     } finally {
@@ -166,4 +175,4 @@ export function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }
       </div>
     </div>
   );
-}
+});
