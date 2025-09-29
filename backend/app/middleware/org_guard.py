@@ -1,6 +1,5 @@
 from fastapi import Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 import logging
 
 from ..security import AuthContext, get_auth_context

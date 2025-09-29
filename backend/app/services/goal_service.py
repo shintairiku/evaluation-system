@@ -14,7 +14,7 @@ from ..database.repositories.supervisor_review_repository import SupervisorRevie
 from ..database.models.goal import Goal as GoalModel
 from ..schemas.goal import (
     GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus,
-    PerformanceGoalUpdate, CompetencyGoalUpdate, CoreValueGoalUpdate
+    CompetencyGoalUpdate
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext

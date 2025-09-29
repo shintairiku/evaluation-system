@@ -2,7 +2,6 @@ from __future__ import annotations
 import logging
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime
 from cachetools import TTLCache
 
 from ..database.repositories.self_assessment_repo import SelfAssessmentRepository
@@ -20,9 +19,9 @@ from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.rbac_helper import RBACHelper
 from ..security.rbac_types import ResourceType
-from ..security.decorators import require_permission, require_any_permission
+from ..security.decorators import require_permission
 from ..core.exceptions import (
-    NotFoundError, PermissionDeniedError, BadRequestError, ValidationError, ConflictError
+    NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 

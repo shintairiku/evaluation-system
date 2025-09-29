@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List, Tuple
+from typing import Optional
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -27,7 +27,6 @@ from ..core.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     BadRequestError,
-    ValidationError,
 )
 
 logger = logging.getLogger(__name__)

@@ -278,7 +278,7 @@ class UserService:
             logger.info(f"🔍 VALIDATION: Starting validation for user creation in org {org_id}")
             try:
                 await self._validate_user_creation(user_data, org_id)
-                logger.info(f"✅ VALIDATION: User creation validation passed")
+                logger.info("✅ VALIDATION: User creation validation passed")
             except Exception as validation_error:
                 logger.error(f"❌ VALIDATION FAILED: {validation_error}")
                 raise
@@ -381,11 +381,11 @@ class UserService:
             return enriched_user
             
         except Exception as e:
-            logger.error(f"💥 TRANSACTION: Exception occurred during user creation, rolling back transaction")
+            logger.error("💥 TRANSACTION: Exception occurred during user creation, rolling back transaction")
             logger.error(f"💥 TRANSACTION: Exception type: {type(e)}")
             logger.error(f"💥 TRANSACTION: Exception message: {str(e)}")
             await self.session.rollback()
-            logger.error(f"💥 TRANSACTION: Transaction rolled back")
+            logger.error("💥 TRANSACTION: Transaction rolled back")
             logger.error(f"Error creating user with relationships: {str(e)}")
             raise
     

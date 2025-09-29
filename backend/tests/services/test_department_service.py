@@ -523,7 +523,7 @@ async def run_all_tests():
     passed_tests = sum([success1, success2, success3, success4, success5, success6, success7])
     
     logger.info(f"\n{'='*60}")
-    logger.info(f"DEPARTMENT SERVICE TEST SUMMARY")
+    logger.info("DEPARTMENT SERVICE TEST SUMMARY")
     logger.info(f"{'='*60}")
     logger.info(f"Total tests: {total_tests}")
     logger.info(f"Passed: {passed_tests}")
@@ -533,7 +533,7 @@ async def run_all_tests():
     if passed_tests == total_tests:
         logger.info("🎉 All department service tests completed successfully!")
         logger.info("✅ Business logic and repository interactions verified for department service")
-        print(f"\n✅ All tests completed successfully!")
+        print("\n✅ All tests completed successfully!")
         print(f"📁 Log file: {TEST_LOG_FILE}")
         return True
     else:

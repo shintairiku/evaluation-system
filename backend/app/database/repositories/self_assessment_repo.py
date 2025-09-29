@@ -11,8 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.self_assessment import SelfAssessment
 from ..models.goal import Goal
-from ..models.user import User
-from ..models.evaluation import EvaluationPeriod
 from ...schemas.self_assessment import SelfAssessmentCreate, SelfAssessmentUpdate
 from ...schemas.common import PaginationParams, SubmissionStatus
 from ...core.exceptions import (

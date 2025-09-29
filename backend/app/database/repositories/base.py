@@ -1,5 +1,5 @@
 from abc import ABC
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 from typing import Optional, TypeVar, Generic
