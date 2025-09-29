@@ -17,6 +17,7 @@ from ..schemas.goal import GoalStatistics, UserActivity
 from ..schemas.common import PaginationParams
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.decorators import require_role
 from ..core.exceptions import (
     NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
@@ -30,6 +31,8 @@ class EvaluationPeriodService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
+        self.goal_repo = GoalRepository(session)
+        self.user_repo = UserRepository(session)
     
     async def create_evaluation_period(
         self, 
@@ -323,16 +326,16 @@ class EvaluationPeriodService:
             await self.session.rollback()
             raise
 
+    @require_role("admin")
     async def get_evaluation_period_goal_statistics(
         self,
         current_user_context: AuthContext,
         period_id: UUID
     ) -> GoalStatistics:
-        """Get goal statistics for an evaluation period."""
+        """Get goal statistics for an evaluation period.
 
-        # Check permissions - only admins can access goal statistics
-        if not current_user_context.has_permission(Permission.EVALUATION_MANAGE):
-            raise PermissionDeniedError("Only administrators can access goal statistics")
+        Only administrators can access goal statistics.
+        """
 
         org_id = current_user_context.organization_id
         if not org_id:
@@ -415,10 +418,16 @@ class EvaluationPeriodService:
             if date_overlap:
                 raise ConflictError("Updated evaluation period dates overlap with an existing period")
         
-        # Cannot modify dates if period is active or completed
+        # Cannot modify start_date if period is active or completed
+        # Admin can still modify end_date and goal_submission_deadline for active periods
         if existing_period.status in [EvaluationPeriodStatus.ACTIVE, EvaluationPeriodStatus.COMPLETED]:
-            if any(field in update_dict for field in ['start_date', 'end_date', 'goal_submission_deadline']):
-                raise BadRequestError(f"Cannot modify dates for {existing_period.status} evaluation period")
+            if 'start_date' in update_dict:
+                raise BadRequestError(f"Cannot modify start date for {existing_period.status} evaluation period")
+
+        # Cannot modify any dates if period is completed
+        if existing_period.status == EvaluationPeriodStatus.COMPLETED:
+            if any(field in update_dict for field in ['end_date', 'goal_submission_deadline']):
+                raise BadRequestError(f"Cannot modify dates for completed evaluation period")
 
     async def _validate_status_transition(self, existing_period: EvaluationPeriodModel, new_status: EvaluationPeriodStatus, org_id: str):
         """Validate that the status transition is allowed."""
