@@ -6,14 +6,18 @@ from datetime import date, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
+from ..database.repositories.goal_repo import GoalRepository
+from ..database.repositories.user_repo import UserRepository
 from ..database.models.evaluation import EvaluationPeriod as EvaluationPeriodModel, EvaluationPeriodStatus
 from ..schemas.evaluation import (
-    EvaluationPeriodCreate, EvaluationPeriodUpdate, EvaluationPeriod, 
+    EvaluationPeriodCreate, EvaluationPeriodUpdate, EvaluationPeriod,
     EvaluationPeriodDetail, EvaluationPeriodList
 )
+from ..schemas.goal import GoalStatistics, UserActivity
 from ..schemas.common import PaginationParams
 from ..security.context import AuthContext
 from ..security.permissions import Permission
+from ..security.decorators import require_role
 from ..core.exceptions import (
     NotFoundError, ConflictError, PermissionDeniedError, BadRequestError
 )
@@ -27,6 +31,8 @@ class EvaluationPeriodService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
+        self.goal_repo = GoalRepository(session)
+        self.user_repo = UserRepository(session)
     
     async def create_evaluation_period(
         self, 
@@ -320,6 +326,42 @@ class EvaluationPeriodService:
             await self.session.rollback()
             raise
 
+    @require_role("admin")
+    async def get_evaluation_period_goal_statistics(
+        self,
+        current_user_context: AuthContext,
+        period_id: UUID
+    ) -> GoalStatistics:
+        """Get goal statistics for an evaluation period.
+
+        Only administrators can access goal statistics.
+        """
+
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        # Check if period exists
+        period = await self.evaluation_period_repo.get_by_id(period_id, org_id)
+        if not period:
+            raise NotFoundError(f"Evaluation period with ID {period_id} not found")
+
+        try:
+            # Get goals for the period
+            goals = await self.goal_repo.get_goals_by_period(period_id, org_id)
+
+            # Get all users in the organization
+            users = await self.user_repo.get_all_users(org_id)
+
+            # Process goal statistics
+            stats = await self._process_goal_statistics(period_id, goals, users, org_id)
+
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error getting goal statistics for period {period_id}: {e}")
+            raise
+
     # ========================================
     # PRIVATE VALIDATION METHODS
     # ========================================
@@ -376,10 +418,16 @@ class EvaluationPeriodService:
             if date_overlap:
                 raise ConflictError("Updated evaluation period dates overlap with an existing period")
         
-        # Cannot modify dates if period is active or completed
+        # Cannot modify start_date if period is active or completed
+        # Admin can still modify end_date and goal_submission_deadline for active periods
         if existing_period.status in [EvaluationPeriodStatus.ACTIVE, EvaluationPeriodStatus.COMPLETED]:
-            if any(field in update_dict for field in ['start_date', 'end_date', 'goal_submission_deadline']):
-                raise BadRequestError(f"Cannot modify dates for {existing_period.status} evaluation period")
+            if 'start_date' in update_dict:
+                raise BadRequestError(f"Cannot modify start date for {existing_period.status} evaluation period")
+
+        # Cannot modify any dates if period is completed
+        if existing_period.status == EvaluationPeriodStatus.COMPLETED:
+            if any(field in update_dict for field in ['end_date', 'goal_submission_deadline']):
+                raise BadRequestError(f"Cannot modify dates for completed evaluation period")
 
     async def _validate_status_transition(self, existing_period: EvaluationPeriodModel, new_status: EvaluationPeriodStatus, org_id: str):
         """Validate that the status transition is allowed."""
@@ -444,3 +492,78 @@ class EvaluationPeriodService:
             return 0
         
         return (period.end_date - today).days
+
+    async def _process_goal_statistics(self, period_id: UUID, goals: List, users: List, org_id: str) -> GoalStatistics:
+        """Process goal data to create statistics."""
+        # Count goals by status
+        status_counts = {}
+        user_goal_data = {}
+
+        for goal in goals:
+            # Count by status
+            status = str(goal.status) if hasattr(goal, 'status') else 'unknown'
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+            # Group by user
+            user_id = goal.user_id if hasattr(goal, 'user_id') else None
+            if user_id:
+                if user_id not in user_goal_data:
+                    user_goal_data[user_id] = {
+                        'goal_count': 0,
+                        'goal_statuses': {},
+                        'last_goal_submission': None
+                    }
+
+                user_goal_data[user_id]['goal_count'] += 1
+                user_goal_data[user_id]['goal_statuses'][status] = user_goal_data[user_id]['goal_statuses'].get(status, 0) + 1
+
+                # Track last submission (if available)
+                if hasattr(goal, 'updated_at') and goal.updated_at:
+                    if not user_goal_data[user_id]['last_goal_submission'] or goal.updated_at > user_goal_data[user_id]['last_goal_submission']:
+                        user_goal_data[user_id]['last_goal_submission'] = goal.updated_at
+
+        # Create user activity records
+        user_activities = []
+        for user in users:
+            user_id = user.id if hasattr(user, 'id') else None
+            if not user_id:
+                continue
+
+            goal_data = user_goal_data.get(user_id, {
+                'goal_count': 0,
+                'goal_statuses': {},
+                'last_goal_submission': None
+            })
+
+            # Get supervisor and subordinate info (if available)
+            supervisor_name = None
+            subordinate_name = None
+
+            if hasattr(user, 'supervisor') and user.supervisor:
+                supervisor_name = getattr(user.supervisor, 'name', None)
+
+            if hasattr(user, 'subordinates') and user.subordinates:
+                # Get first subordinate name as example
+                subordinate_name = getattr(user.subordinates[0], 'name', None) if user.subordinates else None
+
+            user_activity = UserActivity(
+                user_id=user_id,
+                user_name=getattr(user, 'name', 'Unknown'),
+                employee_code=getattr(user, 'employee_code', ''),
+                user_role=user.roles[0].name if user.roles else 'Unknown',
+                department_name=user.department.name if user.department else 'Unknown',
+                subordinate_name=subordinate_name,
+                supervisor_name=supervisor_name,
+                last_goal_submission=goal_data['last_goal_submission'],
+                last_review_submission=None,  # TODO: Add when review data is available
+                goal_count=goal_data['goal_count'],
+                goal_statuses=goal_data['goal_statuses']
+            )
+            user_activities.append(user_activity)
+
+        return GoalStatistics(
+            period_id=period_id,
+            total=len(goals),
+            by_status=status_counts,
+            user_activities=user_activities
+        )
