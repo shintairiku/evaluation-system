@@ -1,6 +1,5 @@
-import asyncio
 import logging
-from uuid import UUID, uuid4
+from uuid import UUID
 from decimal import Decimal
 import pytest
 
@@ -8,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import pytest_asyncio
 
-from app.database.models.goal import Goal
 from app.database.repositories.goal_repo import GoalRepository
 from app.schemas.goal import GoalCreate, GoalUpdate, GoalStatus, PerformanceGoalType
 from app.database.session import get_db_session

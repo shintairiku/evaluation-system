@@ -8,8 +8,7 @@ from uuid import UUID
 from decimal import Decimal
 
 from app.services.goal_service import GoalService
-from app.schemas.goal import GoalCreate, GoalUpdate, GoalStatus, PerformanceGoalType
-from app.schemas.common import PaginationParams
+from app.schemas.goal import GoalCreate, GoalStatus, PerformanceGoalType
 from app.security.context import AuthContext, RoleInfo
 from app.security.permissions import Permission
 from app.database.session import get_db_session

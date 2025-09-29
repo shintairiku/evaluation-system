@@ -1,6 +1,5 @@
 import logging
 from uuid import UUID
-from decimal import Decimal
 import pytest
 import pytest_asyncio
 

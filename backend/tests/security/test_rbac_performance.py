@@ -14,16 +14,15 @@ import pytest
 import time
 import asyncio
 import statistics
-from uuid import UUID, uuid4
-from typing import List, Dict, Any, Callable
-from unittest.mock import Mock, AsyncMock, patch
-from collections import defaultdict
+from uuid import uuid4
+from typing import List, Dict
+from unittest.mock import Mock, AsyncMock
 
 from app.security.rbac_helper import RBACHelper, subordinate_cache, resource_access_cache
 from app.security.rbac_types import ResourceType
 from app.security.context import AuthContext, RoleInfo
 from app.security.permissions import Permission
-from app.security.decorators import require_permission, require_any_permission
+from app.security.decorators import require_permission
 
 
 class PerformanceTimer:
@@ -451,7 +450,7 @@ class TestRBACFrameworkPerformance:
         overhead = decorated_mean - plain_mean
         overhead_percentage = (overhead / plain_mean) * 100
         
-        print(f"\n=== DECORATOR PERFORMANCE OVERHEAD ===")
+        print("\n=== DECORATOR PERFORMANCE OVERHEAD ===")
         print(f"Plain function:     {plain_mean*1000:.3f}ms")
         print(f"Decorated function: {decorated_mean*1000:.3f}ms")
         print(f"Overhead:           {overhead*1000:.3f}ms ({overhead_percentage:.1f}%)")
@@ -505,7 +504,7 @@ class TestCacheEffectivenessAndLoadTesting:
         cache_hit_rate = 1 - (actual_db_calls / total_expected_db_calls)
         cache_hit_percentage = cache_hit_rate * 100
         
-        print(f"\n=== CACHE EFFECTIVENESS ===")
+        print("\n=== CACHE EFFECTIVENESS ===")
         print(f"Expected DB calls without cache: {total_expected_db_calls}")
         print(f"Actual DB calls with cache:      {actual_db_calls}")
         print(f"Cache hit rate:                  {cache_hit_percentage:.1f}%")
@@ -569,7 +568,7 @@ class TestCacheEffectivenessAndLoadTesting:
         p95_response_time = sorted(all_measurements)[int(len(all_measurements) * 0.95)]
         p99_response_time = sorted(all_measurements)[int(len(all_measurements) * 0.99)]
         
-        print(f"\n=== CONCURRENT ACCESS PERFORMANCE ===")
+        print("\n=== CONCURRENT ACCESS PERFORMANCE ===")
         print(f"Total concurrent users:     {len(auth_contexts)}")
         print(f"Operations per user:        {concurrent_iterations * 3}")
         print(f"Total operations:           {total_operations}")
@@ -588,7 +587,6 @@ class TestCacheEffectivenessAndLoadTesting:
     async def test_memory_usage_optimization(self):
         """Test that cache usage doesn't grow unbounded"""
         import gc
-        import sys
         
         # Measure baseline memory
         gc.collect()
@@ -612,7 +610,7 @@ class TestCacheEffectivenessAndLoadTesting:
         subordinate_cache_size = len(subordinate_cache)
         resource_cache_size = len(resource_access_cache)
         
-        print(f"\n=== MEMORY USAGE OPTIMIZATION ===")
+        print("\n=== MEMORY USAGE OPTIMIZATION ===")
         print(f"Subordinate cache entries:  {subordinate_cache_size}")
         print(f"Resource cache entries:     {resource_cache_size}")
         print(f"Total cache entries:        {subordinate_cache_size + resource_cache_size}")
@@ -707,7 +705,7 @@ class TestPerformanceRegressionDetection:
         performance_difference = rbac_mean - baseline_mean
         performance_change_percentage = (performance_difference / baseline_mean) * 100
         
-        print(f"\n=== BASELINE vs RBAC PERFORMANCE COMPARISON ===")
+        print("\n=== BASELINE vs RBAC PERFORMANCE COMPARISON ===")
         print(f"Baseline mean:          {baseline_mean*1000:.3f}ms")
         print(f"RBAC mean:              {rbac_mean*1000:.3f}ms")
         print(f"Difference:             {performance_difference*1000:.3f}ms")
@@ -742,7 +740,7 @@ class TestPerformanceRegressionDetection:
         mean_time = statistics.mean(measurements)
         per_check_time = mean_time / len(permissions)
         
-        print(f"\n=== PERMISSION CHECK PERFORMANCE BOUNDS ===")
+        print("\n=== PERMISSION CHECK PERFORMANCE BOUNDS ===")
         print(f"Mean time for {len(permissions)} checks: {mean_time*1000000:.2f}μs")
         print(f"Time per permission check:               {per_check_time*1000000:.2f}μs")
         
