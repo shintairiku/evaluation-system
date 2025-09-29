@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useOptimistic } from 'react';
+import { useState, useOptimistic, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { GoalResponse } from '@/api/types';
 import { approveGoalAction, rejectGoalAction } from '@/api/server-actions/goals';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
-import { ApprovalForm } from '../ApprovalForm';
+import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 
 /**
@@ -44,6 +44,9 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
     type: 'approve' | 'reject';
     comment?: string;
   }>({ open: false, type: 'approve' });
+
+  // Reference to the ApprovalForm for form control
+  const approvalFormRef = useRef<ApprovalFormRef>(null);
 
   // Optimistic updates for goal status
   const [optimisticGoal, updateOptimisticGoal] = useOptimistic(
@@ -131,6 +134,11 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         return;
       }
 
+      // Success: Reset the form
+      if (approvalFormRef.current) {
+        approvalFormRef.current.resetForm();
+      }
+
       // Refresh global pending count
       await refreshPendingCount();
 
@@ -161,6 +169,7 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
   return (
     <>
       <ApprovalForm
+        ref={approvalFormRef}
         goal={optimisticGoal}
         onApprove={handleApprove}
         onReject={handleReject}
@@ -172,7 +181,7 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         onOpenChange={(open) => setConfirmationDialog(prev => ({ ...prev, open }))}
         onConfirm={confirmAction}
         type={confirmationDialog.type}
-        goalTitle={optimisticGoal.title}
+        goalTitle={optimisticGoal.title || 'タイトルなし'}
         employeeName={finalEmployeeName}
         comment={confirmationDialog.comment}
         isProcessing={isProcessing}
