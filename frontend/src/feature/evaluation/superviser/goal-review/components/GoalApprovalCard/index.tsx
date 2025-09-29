@@ -1,9 +1,11 @@
 import React from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Target, Brain, Calendar, Weight } from 'lucide-react';
+import { Target, Brain, Calendar, Weight, Loader2 } from 'lucide-react';
 import type { GoalResponse } from '@/api/types';
 import { GoalApprovalHandler } from '../GoalApprovalHandler';
+import { useCompetencyNames } from '../../hooks/useCompetencyNames';
+import { useIdealActionsResolver } from '../../hooks/useIdealActionsResolver';
 
 /**
  * Props for the GoalApprovalCard component
@@ -28,6 +30,17 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
 }) {
   const isPerformanceGoal = goal.goalCategory === '業績目標';
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
+
+  // Resolve competency IDs to names for display
+  const { competencyNames, loading: competencyLoading } = useCompetencyNames(
+    isCompetencyGoal ? goal.competencyIds : null
+  );
+
+  // Resolve ideal action IDs to descriptive texts
+  const { resolvedActions, loading: actionsLoading } = useIdealActionsResolver(
+    isCompetencyGoal ? goal.selectedIdealActions : null,
+    goal.competencyIds
+  );
 
   const getCategoryIcon = () => {
     if (isPerformanceGoal) {
@@ -138,7 +151,18 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
               <div>
                 <h4 className="font-semibold mb-2">選択したコンピテンシー</h4>
                 <div className="bg-gray-50 p-3 rounded-md">
-                  <p className="text-sm">コンピテンシーID: {goal.competencyIds.join(', ')}</p>
+                  {competencyLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      コンピテンシー名を読み込み中...
+                    </div>
+                  ) : competencyNames.length > 0 ? (
+                    <p className="text-sm">{competencyNames.join(', ')}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      コンピテンシーID: {goal.competencyIds.join(', ')}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -147,18 +171,38 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
               <div>
                 <h4 className="font-semibold mb-2">理想的な行動</h4>
                 <div className="bg-gray-50 p-3 rounded-md">
-                  <div className="space-y-2">
-                    {Object.entries(goal.selectedIdealActions).map(([key, actions]) => (
-                      <div key={key} className="text-sm">
-                        <span className="font-medium">{key}:</span>
-                        <ul className="list-disc list-inside ml-2 mt-1">
-                          {actions.map((action, index) => (
-                            <li key={index}>{action}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
+                  {actionsLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      理想的な行動を読み込み中...
+                    </div>
+                  ) : resolvedActions.length > 0 ? (
+                    <div className="space-y-2">
+                      {resolvedActions.map((resolved, index) => (
+                        <div key={index} className="text-sm">
+                          <span className="font-medium">{resolved.competencyName}:</span>
+                          <ul className="list-disc list-inside ml-2 mt-1">
+                            {resolved.actions.map((action, actionIndex) => (
+                              <li key={actionIndex}>{action}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(goal.selectedIdealActions).map(([key, actions]) => (
+                        <div key={key} className="text-sm">
+                          <span className="font-medium">{key}:</span>
+                          <ul className="list-disc list-inside ml-2 mt-1">
+                            {actions.map((action, index) => (
+                              <li key={index}>行動 {action}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
