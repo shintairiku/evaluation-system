@@ -7,6 +7,7 @@ import { getGoalsAction } from '@/api/server-actions/goals';
 import { getUsersAction } from '@/api/server-actions/users';
 import { getCurrentEvaluationPeriodAction } from '@/api/server-actions/evaluation-periods';
 import { GoalApprovalCardSkeleton, DelayedSkeleton } from '@/components/ui/loading-skeleton';
+import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import type { GoalResponse, UserDetailResponse, EvaluationPeriod } from '@/api/types';
 import { EmployeeTabNavigation } from '../components/EmployeeTabNavigation';
 import { EmployeeInfoHeader } from '../components/EmployeeInfoHeader';
@@ -27,10 +28,16 @@ export default function GoalReviewPage() {
   const [totalPendingCount, setTotalPendingCount] = useState(0);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
+  const { setPendingCount } = useGoalReviewContext();
 
   useEffect(() => {
     loadGoalData();
-  }, []);
+
+    // Cleanup: reset count when component unmounts
+    return () => {
+      setPendingCount(0);
+    };
+  }, [setPendingCount]);
 
   // Format period name for display
   const formatPeriodDisplay = (period: EvaluationPeriod | null): string => {
@@ -171,6 +178,7 @@ export default function GoalReviewPage() {
       ];
 
       setTotalPendingCount(fakeGoals.length);
+      setPendingCount(fakeGoals.length); // Update global context
 
       // Group goals by employee
       const grouped: GroupedGoals[] = fakeUsers.map(user => {
