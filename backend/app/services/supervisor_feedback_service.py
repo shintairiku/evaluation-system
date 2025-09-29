@@ -19,7 +19,7 @@ from ..schemas.user import UserProfileOption
 from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
-from ..security.decorators import require_permission, require_any_permission
+from ..security.decorators import require_any_permission
 from ..security.rbac_helper import RBACHelper
 from ..security.rbac_types import ResourceType
 from ..core.exceptions import (

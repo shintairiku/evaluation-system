@@ -1,7 +1,7 @@
 import logging
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID
-from datetime import date, datetime
+from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,7 +60,7 @@ class EvaluationPeriodService:
             
             return EvaluationPeriod.model_validate(period_model)
             
-        except Exception as e:
+        except Exception:
             await self.session.rollback()
             raise
 
@@ -249,7 +249,7 @@ class EvaluationPeriodService:
             
             return EvaluationPeriod.model_validate(updated_period)
             
-        except Exception as e:
+        except Exception:
             await self.session.rollback()
             raise
 
@@ -286,7 +286,7 @@ class EvaluationPeriodService:
             
             return EvaluationPeriod.model_validate(updated_period)
             
-        except Exception as e:
+        except Exception:
             await self.session.rollback()
             raise
 
@@ -322,7 +322,7 @@ class EvaluationPeriodService:
             
             return deleted
             
-        except Exception as e:
+        except Exception:
             await self.session.rollback()
             raise
 

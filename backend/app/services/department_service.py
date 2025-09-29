@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List, Dict, Any
+from typing import List, Dict
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,7 @@ from ..security.rbac_types import ResourceType
 from ..security.decorators import require_permission
 from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, 
-    PermissionDeniedError, BadRequestError
+    PermissionDeniedError
 )
 
 logger = logging.getLogger(__name__)
