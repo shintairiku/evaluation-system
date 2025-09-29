@@ -44,18 +44,26 @@ graph TD
 ## 4. 既存API活用とサーバーアクション
 
 ### 4.1. 既存サーバーアクションの活用
-既存の `/src/api/server-actions/` から以下を活用予定：
-- ユーザー関連のサーバーアクション
-- 目標関連のサーバーアクション
-- レビュー関連のサーバーアクション
+既存の `/src/api/server-actions/` から以下を活用：
+- `getGoalsAction()` - 目標取得（`status=submitted`パラメータ）
+- `getSupervisorReviewsAction()` - スーパーバイザーレビュー取得
+- `createSupervisorReviewAction()` - スーパーバイザーレビュー作成
+- `getPendingSupervisorReviewsAction()` - 承認待ちレビュー取得
 
-### 4.2. 必要に応じた新規サーバーアクション
-以下が必要な場合は追加実装を検討：
-- `getSupervisorPendingReviews()` - 承認待ち目標取得
-- `submitGoalReview()` - 目標承認・差し戻し実行
+### 4.2. 使用するAPIエンドポイント
+バックエンドAPIエンドポイント：
+- `GET /api/v1/goals/?status=submitted` - 提出済み目標取得
+- `GET /api/v1/supervisor-reviews/pending` - 承認待ちレビュー取得
+- `POST /api/v1/supervisor-reviews/` - レビュー作成
+- `POST /api/v1/supervisor-reviews/{reviewId}/submit` - レビュー提出
 
-### 4.3. 既存エンドポイント活用
-既存の `/src/api/endpoints/` から関連エンドポイント関数を活用し、必要に応じてClient Componentで使用
+### 4.3. データフローと制約
+**重要な実装制約：**
+- 目標ステータス制約: `status IN ('draft', 'submitted', 'approved', 'rejected')`
+- 取得対象: `status=submitted`の目標のみ
+- SupervisorReview作成時の必須フィールド: `goalId`, `periodId`, `action`, `comment`（REJECTED時）
+- アクション値: `action IN ('APPROVED', 'REJECTED', 'PENDING')`
+- レビュー提出後、目標ステータスが自動更新: APPROVED→`approved`, REJECTED→`rejected`
 
 ## 5. UI/UX設計
 
@@ -111,21 +119,27 @@ page.tsx (Server Component)
 ```typescript
 // frontend/src/app/(evaluation)/(supervisor)/goal-review/page.tsx
 import GoalReviewDisplay from '@/feature/evaluation/superviser/goal-review/display';
-import { getSupervisorPendingReviews } from '@/api/server-actions/reviews';
+import { getGoalsAction } from '@/api/server-actions/goals';
 
 export default async function GoalReviewPage() {
-  const pendingReviews = await getSupervisorPendingReviews();
-  return <GoalReviewDisplay data={pendingReviews} />;
+  // 提出済み（submitted）の目標のみ取得
+  const submittedGoals = await getGoalsAction({ status: 'submitted' });
+  return <GoalReviewDisplay data={submittedGoals} />;
 }
 ```
 
 ```typescript
 // frontend/src/feature/evaluation/superviser/goal-review/display/index.tsx
 interface GoalReviewDisplayProps {
-  data: SupervisorPendingReviewsResponse;
+  data: {
+    success: boolean;
+    data?: GoalList;
+    error?: string;
+  };
 }
 export default function GoalReviewDisplay({ data }: GoalReviewDisplayProps) {
-  // メインの表示ロジック
+  // submittedステータスの目標のみを表示
+  // createSupervisorReviewActionを使用してレビュー作成
 }
 ```
 
@@ -149,10 +163,25 @@ interface GoalApprovalCardProps {
 
 ```typescript
 // frontend/src/feature/evaluation/superviser/goal-review/components/ApprovalForm/
+import { createSupervisorReviewAction } from '@/api/server-actions/supervisor-reviews';
+
 interface ApprovalFormProps {
   goalId: string;
+  periodId: string;
   onSubmit: (action: 'APPROVED' | 'REJECTED', comment?: string) => Promise<void>;
 }
+
+// 実装例:
+const handleSubmit = async (action: 'APPROVED' | 'REJECTED', comment?: string) => {
+  const reviewData = {
+    goalId,
+    periodId,
+    action,
+    comment,
+    status: 'submitted' // レビューを直接提出
+  };
+  await createSupervisorReviewAction(reviewData);
+};
 ```
 
 #### **共有コンポーネント活用**

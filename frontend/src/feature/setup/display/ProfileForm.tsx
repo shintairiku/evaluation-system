@@ -31,7 +31,10 @@ interface ProfileFormProps {
 export default function ProfileForm({ departments, stages, roles, users }: ProfileFormProps) {
   const { user } = useUser();
   const router = useRouter();
-  
+
+  // Filter out admin roles once
+  const availableRoles = roles.filter(role => role.name.toLowerCase() !== 'admin');
+
   // Form state
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
@@ -40,7 +43,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
   const [selectedSubordinates, setSelectedSubordinates] = useState<string[]>([]);
 
   // Server action wrapper for useActionState
-  const formActionWrapper = async (prevState: any, formData: FormData) => {
+  const formActionWrapper = async (_prevState: any, formData: FormData) => {
     const userData: UserCreate = {
       clerk_user_id: formData.get('clerk_user_id') as string,
       name: formData.get('name') as string,
@@ -75,18 +78,18 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
 
   const handleRoleSelectionChange = (selectedIds: number[]) => {
     const stringIds = selectedIds.map(index => {
-      const role = roles[index];
+      const role = availableRoles[index];
       return role ? role.id : '';
     }).filter(id => id !== '');
-    
+
     setSelectedRoles(stringIds);
-    
+
     if (stringIds.length > 0) {
       const selectedRoleNames = selectedIds
-        .map(index => roles[index]?.name)
+        .map(index => availableRoles[index]?.name)
         .filter(Boolean)
         .join(', ');
-      toast.success(`役職を選択しました: ${selectedRoleNames}`, { 
+      toast.success(`役職を選択しました: ${selectedRoleNames}`, {
         duration: 1500
       });
     }
@@ -200,13 +203,13 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
           <div>
             <label className="block text-sm font-medium mb-2">役職 *</label>
             <MultiSelectRoles
-              roles={roles.map((role, index) => ({
+              roles={availableRoles.map((role, index) => ({
                 id: index,
                 name: role.name,
                 description: role.description
               }))}
               selectedRoleIds={selectedRoles.map(roleId => {
-                return roles.findIndex(role => role.id === roleId);
+                return availableRoles.findIndex(role => role.id === roleId);
               }).filter(index => index !== -1)}
               onSelectionChange={handleRoleSelectionChange}
               required={true}

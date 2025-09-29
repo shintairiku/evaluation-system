@@ -15,9 +15,8 @@ if TYPE_CHECKING:
 
 
 class GoalStatus(str, Enum):
-    INCOMPLETE = "incomplete"
     DRAFT = "draft"
-    PENDING_APPROVAL = "pending_approval"
+    SUBMITTED = "submitted"
     APPROVED = "approved"
     REJECTED = "rejected"
 
@@ -87,7 +86,7 @@ class GoalCreate(BaseModel):
     period_id: UUID = Field(..., alias="periodId")
     goal_category: str = Field(..., min_length=1, max_length=100, alias="goalCategory")
     weight: float = Field(..., ge=0, le=100)
-    status: GoalStatus = Field(GoalStatus.INCOMPLETE, description="Goal status: only 'incomplete' allowed for creation (auto-save)")
+    status: GoalStatus = Field(GoalStatus.DRAFT, description="Goal status: only 'draft' allowed for creation (auto-save)")
     
     # Performance goal fields (5 fields) - required when goal_category = "業績目標"
     title: Optional[str] = Field(None, description="目標タイトル")
@@ -106,9 +105,9 @@ class GoalCreate(BaseModel):
     @model_validator(mode='after')
     @classmethod
     def validate_status_restrictions(cls, values):
-        """Restrict status for goal creation - only incomplete allowed"""
-        if values.status != GoalStatus.INCOMPLETE:
-            raise ValueError("Goal creation only allows status: 'incomplete'")
+        """Restrict status for goal creation - only draft allowed"""
+        if values.status != GoalStatus.DRAFT:
+            raise ValueError("Goal creation only allows status: 'draft'")
         return values
     
     @model_validator(mode='before')

@@ -9,9 +9,10 @@ from .base import Base
 
 
 class EvaluationPeriodStatus(str, Enum):
-    UPCOMING = "準備中"
-    ACTIVE = "実施中"
-    COMPLETED = "完了"
+    DRAFT = "draft"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 
 class EvaluationPeriodType(str, Enum):
@@ -33,7 +34,7 @@ class EvaluationPeriod(Base):
     end_date = Column(Date, nullable=False)
     goal_submission_deadline = Column(Date, nullable=False)
     evaluation_deadline = Column(Date, nullable=False)
-    status = Column(String(50), nullable=False, default=EvaluationPeriodStatus.UPCOMING)
+    status = Column(String(50), nullable=False, default=EvaluationPeriodStatus.DRAFT)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

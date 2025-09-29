@@ -11,7 +11,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
 import { Building2 } from 'lucide-react';
-import { getProfileOptionsAction, getUsersForOrgChartAction } from '@/api/server-actions/users';
+import { getUsersForOrgChartAction } from '@/api/server-actions/users';
+import { useProfileOptions } from '@/context/ProfileOptionsContext';
 import { getTopUsersByRole } from '../utils/hierarchyLayoutUtils';
 import { OrgNode, UserNode } from '../components/OrganizationNodes';
 import { useOrganizationLayout } from '../hooks/useOrganizationLayout';
@@ -27,7 +28,9 @@ const nodeTypes: NodeTypes = {
 };
 
 export default function ReadOnlyOrganizationView({ users = [], isFiltered = false }: ReadOnlyOrganizationViewProps) {
-  const [departments, setDepartments] = useState<Department[]>([]);
+  // Use profile options from context
+  const { options: { departments }, isLoading: isDepartmentsLoading } = useProfileOptions();
+
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
   const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map());
   const [departmentUserCounts, setDepartmentUserCounts] = useState<Map<string, number>>(new Map());
@@ -37,11 +40,6 @@ export default function ReadOnlyOrganizationView({ users = [], isFiltered = fals
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const result = await getProfileOptionsAction();
-        if (result && result.success && result.data && result.data.departments) {
-          setDepartments(result.data.departments);
-        }
-
         if (!isFiltered && users.length === 0) {
           setLoadingNodes(prev => new Set(prev).add('initial'));
           const topLevelResult = await getUsersForOrgChartAction({

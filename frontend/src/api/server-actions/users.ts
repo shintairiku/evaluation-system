@@ -12,7 +12,6 @@ import type {
   PaginationParams,
   UUID,
   UserExistsResponse,
-  ProfileOptionsResponse,
   SimpleUser,
 } from '../types';
 
@@ -168,6 +167,41 @@ export async function updateUserAction(
 }
 
 /**
+ * Server action to update a single user's stage
+ */
+export async function updateUserStageAction(userId: UUID, stageId: UUID): Promise<{
+  success: boolean;
+  data?: UserDetailResponse;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.updateUserStage(userId, { stage_id: stageId });
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to update user stage',
+      };
+    }
+
+    // Revalidate caches
+    revalidateTag(CACHE_TAGS.USERS);
+    revalidateTag(`${CACHE_TAGS.USERS}:${userId}`);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Update user stage action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating user stage',
+    };
+  }
+}
+
+/**
  * Server Action to update multiple user stages.
  * This action is moved from the deprecated `stage-management` server action.
  * It revalidates both USERS and STAGES caches upon completion.
@@ -287,42 +321,6 @@ export const checkUserExistsAction = cache(
   },
 );
 
-/**
- * Server action to get profile options for signup
- */
-export const getProfileOptionsAction = cache(
-  async (): Promise<{
-    success: boolean;
-    data?: ProfileOptionsResponse;
-    error?: string;
-  }> => {
-    try {
-      const response = await usersApi.getProfileOptions();
-
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.error || 'Failed to fetch profile options',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get profile options action error:', error);
-
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'An unexpected error occurred while fetching profile options',
-      };
-    }
-  },
-);
 
 /**
  * Server action to search users with filters and pagination

@@ -11,6 +11,12 @@ import type {
 
 const httpClient = getHttpClient();
 
+// Utility function to sanitize goal IDs by removing invisible characters
+const sanitizeGoalId = (id: string): string => {
+  // Remove zero-width spaces, zero-width non-joiner, and other invisible Unicode characters
+  return id.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim();
+};
+
 export const goalsApi = {
   /**
    * Get goals with optional filtering and pagination
@@ -51,7 +57,8 @@ export const goalsApi = {
    * Get a specific goal by ID
    */
   getGoalById: async (goalId: UUID): Promise<ApiResponse<GoalResponse>> => {
-    return httpClient.get<GoalResponse>(API_ENDPOINTS.GOALS.BY_ID(goalId));
+    const sanitizedId = sanitizeGoalId(goalId);
+    return httpClient.get<GoalResponse>(API_ENDPOINTS.GOALS.BY_ID(sanitizedId));
   },
 
   /**
@@ -65,21 +72,24 @@ export const goalsApi = {
    * Update an existing goal
    */
   updateGoal: async (goalId: UUID, data: GoalUpdateRequest): Promise<ApiResponse<GoalResponse>> => {
-    return httpClient.put<GoalResponse>(API_ENDPOINTS.GOALS.UPDATE(goalId), data);
+    const sanitizedId = sanitizeGoalId(goalId);
+    return httpClient.put<GoalResponse>(API_ENDPOINTS.GOALS.UPDATE(sanitizedId), data);
   },
 
   /**
    * Delete a goal
    */
   deleteGoal: async (goalId: UUID): Promise<ApiResponse<void>> => {
-    return httpClient.delete<void>(API_ENDPOINTS.GOALS.DELETE(goalId));
+    const sanitizedId = sanitizeGoalId(goalId);
+    return httpClient.delete<void>(API_ENDPOINTS.GOALS.DELETE(sanitizedId));
   },
 
   /**
    * Submit a goal with status change
    */
-  submitGoal: async (goalId: UUID, status: 'draft' | 'pending_approval'): Promise<ApiResponse<GoalResponse>> => {
-    const endpoint = `${API_ENDPOINTS.GOALS.SUBMIT(goalId)}?status=${status}`;
+  submitGoal: async (goalId: UUID, status: 'draft' | 'submitted'): Promise<ApiResponse<GoalResponse>> => {
+    const sanitizedId = sanitizeGoalId(goalId);
+    const endpoint = `${API_ENDPOINTS.GOALS.SUBMIT(sanitizedId)}?status=${status}`;
     return httpClient.post<GoalResponse>(endpoint);
   },
 
@@ -87,14 +97,16 @@ export const goalsApi = {
    * Approve a pending goal (supervisor action)
    */
   approveGoal: async (goalId: UUID): Promise<ApiResponse<GoalResponse>> => {
-    return httpClient.post<GoalResponse>(API_ENDPOINTS.GOALS.APPROVE(goalId));
+    const sanitizedId = sanitizeGoalId(goalId);
+    return httpClient.post<GoalResponse>(API_ENDPOINTS.GOALS.APPROVE(sanitizedId));
   },
 
   /**
    * Reject a pending goal with reason (supervisor action)
    */
   rejectGoal: async (goalId: UUID, reason: string): Promise<ApiResponse<GoalResponse>> => {
-    const endpoint = `${API_ENDPOINTS.GOALS.REJECT(goalId)}?reason=${encodeURIComponent(reason)}`;
+    const sanitizedId = sanitizeGoalId(goalId);
+    const endpoint = `${API_ENDPOINTS.GOALS.REJECT(sanitizedId)}?reason=${encodeURIComponent(reason)}`;
     return httpClient.post<GoalResponse>(endpoint);
   },
 };

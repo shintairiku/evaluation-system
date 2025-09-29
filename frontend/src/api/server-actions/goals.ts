@@ -167,7 +167,7 @@ export async function deleteGoalAction(id: UUID): Promise<{
 /**
  * Server action to submit a goal with status change and cache revalidation
  */
-export async function submitGoalAction(id: UUID, status: 'draft' | 'pending_approval'): Promise<{
+export async function submitGoalAction(id: UUID, status: 'draft' | 'submitted'): Promise<{
   success: boolean;
   data?: GoalResponse;
   error?: string;

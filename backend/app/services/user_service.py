@@ -338,10 +338,15 @@ class UserService:
             await self.session.commit()
             logger.info(f"✅ TRANSACTION: Transaction committed successfully for user {user_id}")
             
-            # Update Clerk publicMetadata with Users.id (only profile_completed and users_table_id)
+            # Get user's role names for Clerk metadata
+            user_roles = await self.user_repo.get_user_roles(user_id)
+            role_names = [role.name for role in user_roles]
+
+            # Update Clerk publicMetadata with Users.id, profile completion, and roles
             metadata = {
                 'users_table_id': str(user_id),
-                'profile_completed': True
+                'profile_completed': True,
+                'roles': role_names
             }
             
             # ClerkService methods are SYNCHRONOUS, do not use await
@@ -515,18 +520,23 @@ class UserService:
         - Update user's stage_id directly
         """
         try:
+            # Get organization context
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
             # Check if user exists
-            existing_user = await self.user_repo.get_user_by_id(user_id)
+            existing_user = await self.user_repo.get_user_by_id(user_id, org_id)
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
-            
+
             # Validate stage exists
-            stage = await self.stage_repo.get_by_id(stage_update.stage_id, current_user_context.organization_id)
+            stage = await self.stage_repo.get_by_id(stage_update.stage_id, org_id)
             if not stage:
                 raise NotFoundError(f"Stage with ID {stage_update.stage_id} not found")
-            
+
             # Update user's stage through repository
-            updated_user = await self.user_repo.update_user_stage(user_id, stage_update.stage_id)
+            updated_user = await self.user_repo.update_user_stage(user_id, stage_update.stage_id, org_id)
             if not updated_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
             
