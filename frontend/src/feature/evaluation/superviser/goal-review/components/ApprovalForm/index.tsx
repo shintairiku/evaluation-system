@@ -13,15 +13,16 @@ import type { GoalResponse } from '@/api/types';
 // Validation schema
 const approvalFormSchema = z.object({
   comment: z.string()
+    .min(1, 'コメントの入力が必要です')
     .max(500, '500文字以内で入力してください')
-    .optional()
+    .trim()
 });
 
 type ApprovalFormData = z.infer<typeof approvalFormSchema>;
 
 interface ApprovalFormProps {
   goal: GoalResponse;
-  onApprove: (comment?: string) => Promise<void>;
+  onApprove: (comment: string) => Promise<void>;
   onReject: (comment: string) => Promise<void>;
   isProcessing?: boolean;
 }
@@ -38,7 +39,8 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
       resolver: zodResolver(approvalFormSchema),
       defaultValues: {
         comment: ''
-      }
+      },
+      mode: 'onChange'
     });
 
     useImperativeHandle(ref, () => ({
@@ -54,10 +56,20 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
     const isValid = await form.trigger();
     if (!isValid) return;
 
+    const formData = form.getValues();
+    const approvalComment = formData.comment?.trim();
+
+    if (!approvalComment) {
+      form.setError('comment', {
+        type: 'manual',
+        message: '承認時はコメントの入力が必要です'
+      });
+      return;
+    }
+
     setPendingAction('approve');
     try {
-      const formData = form.getValues();
-      await onApprove(formData.comment);
+      await onApprove(approvalComment);
     } catch (error) {
       console.error('Approval error:', error);
     } finally {
@@ -107,8 +119,8 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
                 <FormLabel className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" />
                   コメント
-                  <span className="text-sm text-muted-foreground font-normal">
-                    (差し戻し時は必須)
+                  <span className="text-sm text-red-500 font-normal">
+                    (必須)
                   </span>
                 </FormLabel>
                 <FormControl>
