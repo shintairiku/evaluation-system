@@ -6,10 +6,11 @@ import { GoalApprovalHandler } from '../GoalApprovalHandler';
 
 interface GoalApprovalCardProps {
   goal: GoalResponse;
+  employeeName?: string;
   onGoalUpdate?: () => void;
 }
 
-export function GoalApprovalCard({ goal, onGoalUpdate }: GoalApprovalCardProps) {
+export function GoalApprovalCard({ goal, employeeName, onGoalUpdate }: GoalApprovalCardProps) {
   const isPerformanceGoal = goal.goalCategory === '業績目標';
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
 
@@ -25,7 +26,7 @@ export function GoalApprovalCard({ goal, onGoalUpdate }: GoalApprovalCardProps) 
 
   const getStatusBadge = () => {
     switch (goal.status) {
-      case 'pending_approval':
+      case 'submitted':
         return <Badge variant="secondary">承認待ち</Badge>;
       case 'approved':
         return <Badge variant="default">承認済み</Badge>;
@@ -168,9 +169,9 @@ export function GoalApprovalCard({ goal, onGoalUpdate }: GoalApprovalCardProps) 
         )}
 
         {/* Approval Handler - Only show for pending goals */}
-        {goal.status === 'pending_approval' && (
+        {goal.status === 'submitted' && (
           <div className="mt-6 pt-4 border-t">
-            <GoalApprovalHandler goal={goal} onSuccess={onGoalUpdate} />
+            <GoalApprovalHandler goal={goal} employeeName={employeeName} onSuccess={onGoalUpdate} />
           </div>
         )}
       </CardContent>

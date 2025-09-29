@@ -10,16 +10,17 @@ import { ConfirmationDialog } from '../ConfirmationDialog';
 
 interface GoalApprovalHandlerProps {
   goal: GoalResponse;
+  employeeName?: string;
   onSuccess?: () => void;
 }
 
 type OptimisticGoalUpdate = {
-  status: 'approved' | 'rejected' | 'pending_approval';
+  status: 'approved' | 'rejected' | 'submitted';
   approvedAt?: string;
   rejectedAt?: string;
 };
 
-export function GoalApprovalHandler({ goal, onSuccess }: GoalApprovalHandlerProps) {
+export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalApprovalHandlerProps) {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmationDialog, setConfirmationDialog] = useState<{
@@ -91,7 +92,7 @@ export function GoalApprovalHandler({ goal, onSuccess }: GoalApprovalHandlerProp
       } else {
         if (!comment) {
           // Revert optimistic update on validation error
-          updateOptimisticGoal({ status: 'pending_approval' });
+          updateOptimisticGoal({ status: 'submitted' });
           toast.error('差し戻し時はコメントが必要です');
           return;
         }
@@ -107,7 +108,7 @@ export function GoalApprovalHandler({ goal, onSuccess }: GoalApprovalHandlerProp
 
       if (!result.success) {
         // Revert optimistic update on server error
-        updateOptimisticGoal({ status: 'pending_approval' });
+        updateOptimisticGoal({ status: 'submitted' });
 
         toast.error('操作に失敗しました', {
           description: result.error || '不明なエラーが発生しました。'
@@ -126,7 +127,7 @@ export function GoalApprovalHandler({ goal, onSuccess }: GoalApprovalHandlerProp
       console.error('Goal action error:', error);
 
       // Revert optimistic update on network error
-      updateOptimisticGoal({ status: 'pending_approval' });
+      updateOptimisticGoal({ status: 'submitted' });
 
       toast.error('操作に失敗しました', {
         description: '不明なエラーが発生しました。'
@@ -136,8 +137,8 @@ export function GoalApprovalHandler({ goal, onSuccess }: GoalApprovalHandlerProp
     }
   };
 
-  // Find employee name from goal data or use fallback
-  const employeeName = goal.user?.name || 'Unknown User';
+  // Use provided employee name or fallback
+  const finalEmployeeName = employeeName || 'Unknown User';
 
   return (
     <>
@@ -154,7 +155,7 @@ export function GoalApprovalHandler({ goal, onSuccess }: GoalApprovalHandlerProp
         onConfirm={confirmAction}
         type={confirmationDialog.type}
         goalTitle={optimisticGoal.title}
-        employeeName={employeeName}
+        employeeName={finalEmployeeName}
         comment={confirmationDialog.comment}
         isProcessing={isProcessing}
       />
