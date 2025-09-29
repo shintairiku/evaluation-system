@@ -9,18 +9,32 @@ import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { ApprovalForm } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 
+/**
+ * Props for the GoalApprovalHandler component
+ */
 interface GoalApprovalHandlerProps {
+  /** The goal to be approved or rejected */
   goal: GoalResponse;
+  /** Optional employee name for display in messages */
   employeeName?: string;
+  /** Callback function called after successful approval/rejection */
   onSuccess?: () => void;
 }
 
+/**
+ * Type for optimistic UI updates
+ */
 type OptimisticGoalUpdate = {
   status: 'approved' | 'rejected' | 'submitted';
   approvedAt?: string;
-  rejectedAt?: string;
 };
 
+/**
+ * Handles goal approval and rejection functionality with optimistic UI updates
+ *
+ * @param props - The component props
+ * @returns JSX element containing approval form and confirmation dialog
+ */
 export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalApprovalHandlerProps) {
   const router = useRouter();
   const { refreshPendingCount } = useGoalReviewContext();
@@ -39,12 +53,11 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         ...currentGoal,
         status: optimisticUpdate.status,
         approvedAt: optimisticUpdate.approvedAt || currentGoal.approvedAt,
-        rejectedAt: optimisticUpdate.rejectedAt || currentGoal.rejectedAt,
       };
     }
   );
 
-  const handleApprove = async (goalId: string, comment?: string) => {
+  const handleApprove = async (comment?: string) => {
     setConfirmationDialog({
       open: true,
       type: 'approve',
@@ -52,7 +65,7 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
     });
   };
 
-  const handleReject = async (goalId: string, comment: string) => {
+  const handleReject = async (comment: string) => {
     setConfirmationDialog({
       open: true,
       type: 'reject',
