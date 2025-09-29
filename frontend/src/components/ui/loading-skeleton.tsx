@@ -208,8 +208,8 @@ export function SearchResultsSkeleton({ count = 3, className }: LoadingSkeletonP
   return (
     <div className={cn("space-y-3", className)}>
       {Array.from({ length: count }).map((_, i) => (
-        <div 
-          key={i} 
+        <div
+          key={i}
           className="flex items-center space-x-4 p-3 border rounded-lg bg-muted/30 animate-pulse"
           style={{ animationDelay: `${i * 150}ms` }}
         >
@@ -219,6 +219,94 @@ export function SearchResultsSkeleton({ count = 3, className }: LoadingSkeletonP
             <Skeleton className="h-2 w-1/2" />
           </div>
           <Skeleton className="h-6 w-12" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Goal approval card skeleton with accurate layout structure
+export function GoalApprovalCardSkeleton({ count = 1, className }: LoadingSkeletonProps & { count?: number }) {
+  return (
+    <div className={cn("space-y-4", className)}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="w-full border rounded-lg bg-card animate-pulse"
+          style={{ animationDelay: `${i * 100}ms` }}
+        >
+          {/* Card Header */}
+          <div className="p-6 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-5 w-24" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-6 w-16 rounded-full" />
+                <div className="flex items-center gap-1">
+                  <Skeleton className="h-3 w-3" />
+                  <Skeleton className="h-4 w-8" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 mt-4">
+              <Skeleton className="h-3 w-3" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          </div>
+
+          {/* Card Content */}
+          <div className="px-6 pb-6">
+            <div className="space-y-4">
+              {/* Title section */}
+              <div>
+                <Skeleton className="h-5 w-20 mb-2" />
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <Skeleton className="h-4 w-full" />
+                </div>
+              </div>
+
+              {/* Content sections */}
+              <div>
+                <Skeleton className="h-5 w-32 mb-2" />
+                <div className="bg-gray-50 p-3 rounded-md space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
+              </div>
+
+              <div>
+                <Skeleton className="h-5 w-16 mb-2" />
+                <div className="bg-gray-50 p-3 rounded-md space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              </div>
+
+              <div>
+                <Skeleton className="h-5 w-12 mb-2" />
+                <div className="bg-gray-50 p-3 rounded-md space-y-2">
+                  <Skeleton className="h-4 w-4/5" />
+                  <Skeleton className="h-4 w-3/5" />
+                </div>
+              </div>
+
+              {/* Action buttons section */}
+              <div className="mt-6 pt-4 border-t">
+                <div className="space-y-3">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-20 w-full" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-10 w-20" />
+                    <Skeleton className="h-10 w-24" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       ))}
     </div>
