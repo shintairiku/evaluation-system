@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { GoalResponse } from '@/api/types';
 import { approveGoalAction, rejectGoalAction } from '@/api/server-actions/goals';
+import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { ApprovalForm } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 
@@ -22,6 +23,7 @@ type OptimisticGoalUpdate = {
 
 export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalApprovalHandlerProps) {
   const router = useRouter();
+  const { refreshPendingCount } = useGoalReviewContext();
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmationDialog, setConfirmationDialog] = useState<{
     open: boolean;
@@ -115,6 +117,9 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         });
         return;
       }
+
+      // Refresh global pending count
+      await refreshPendingCount();
 
       // Call success callback to refresh parent data
       if (onSuccess) {
