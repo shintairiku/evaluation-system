@@ -2,10 +2,6 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from uuid import UUID
 
-# Import base class and models for runtime use
-from .user import UserBase, Department, Role, UserProfileOption
-from .stage_competency import Stage
-
 
 # ========================================
 # AUTH USER FROM TOKEN
@@ -16,7 +12,8 @@ class AuthUser(BaseModel):
     email: str = Field(..., description="User email address")
     first_name: Optional[str] = Field(None, description="User first name")
     last_name: Optional[str] = Field(None, description="User last name")
-    role: Optional[str] = Field(None, description="User role")
+    roles: Optional[List[str]] = Field(None, description="User roles array from JWT")
+    role: Optional[str] = Field(None, description="Legacy single role field (deprecated)")
     organization_id: Optional[str] = Field(None, description="Clerk organization ID from JWT")
     organization_name: Optional[str] = Field(None, description="Organization name from JWT")
     organization_slug: Optional[str] = Field(None, description="Organization slug for routing from JWT")
