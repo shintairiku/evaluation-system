@@ -6,7 +6,6 @@ import re
 from fastapi import Request, Response, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.organization_repo import OrganizationRepository
 from ..services.auth_service import AuthService
