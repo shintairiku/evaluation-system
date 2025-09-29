@@ -7,11 +7,7 @@ from uuid import UUID
 from .common import PaginatedResponse
 
 if TYPE_CHECKING:
-    from .evaluation import EvaluationPeriod
-    from .self_assessment import SelfAssessment
-    from .supervisor_feedback import SupervisorFeedback
-    from .user import UserProfileOption
-    from .stage_competency import Competency
+    pass
 
 
 class GoalStatus(str, Enum):
