@@ -73,3 +73,6 @@ backend/tests/logs
 
 # Kiro
 .kiro/local_kiro/
+
+# PR
+PR*.md
