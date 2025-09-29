@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, Optional, List
+from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,9 +11,7 @@ from ...schemas.evaluation import (
     EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList,
     EvaluationPeriodCreate, EvaluationPeriodUpdate, EvaluationPeriodStatus
 )
-from ...schemas.goal import GoalList
 from ...schemas.goal import GoalStatistics
-from ...schemas.self_assessment import SelfAssessment
 from ...schemas.supervisor_feedback import SupervisorFeedback
 from ...schemas.supervisor_review import SupervisorReview
 from ...schemas.common import PaginationParams
@@ -65,7 +63,7 @@ async def get_evaluation_periods(
         
     except (NotFoundError, ConflictError, PermissionDeniedError, BadRequestError) as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -92,7 +90,7 @@ async def create_evaluation_period(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -156,7 +154,7 @@ async def update_evaluation_period(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -188,7 +186,7 @@ async def delete_evaluation_period(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
