@@ -1,38 +1,34 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { getGoalsAction } from '@/api/server-actions/goals';
-import { getUsersAction } from '@/api/server-actions/users';
-import { getCurrentEvaluationPeriodAction } from '@/api/server-actions/evaluation-periods';
 import { GoalApprovalCardSkeleton, DelayedSkeleton } from '@/components/ui/loading-skeleton';
-import { useGoalReviewContext } from '@/context/GoalReviewContext';
-import type { GoalResponse, UserDetailResponse, EvaluationPeriod } from '@/api/types';
 import { EmployeeTabNavigation } from '../components/EmployeeTabNavigation';
 import { EmployeeInfoHeader } from '../components/EmployeeInfoHeader';
 import { GoalApprovalCard } from '../components/GoalApprovalCard';
 import { GuidelinesAlert } from '../components/GuidelinesAlert';
 import { ApprovalGuidelinesPanel } from '../components/ApprovalGuidelinesPanel';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { useGoalReviewData } from '../hooks/useGoalReviewData';
+import type { EvaluationPeriod } from '@/api/types';
 
-interface GroupedGoals {
-  employee: UserDetailResponse;
-  goals: GoalResponse[];
-  pendingCount: number;
-}
-
+/**
+ * Main goal review page for supervisors to approve/reject employee goals
+ * Displays submitted goals organized by employee with approval functionality
+ *
+ * @returns JSX element containing the complete goal review interface
+ */
 export default function GoalReviewPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [groupedGoals, setGroupedGoals] = useState<GroupedGoals[]>([]);
-  const [totalPendingCount, setTotalPendingCount] = useState(0);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
-  const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
-  const { refreshPendingCount } = useGoalReviewContext();
-
-  useEffect(() => {
-    loadGoalData();
-  }, []);
+  const {
+    loading,
+    error,
+    groupedGoals,
+    totalPendingCount,
+    selectedEmployeeId,
+    currentPeriod,
+    setSelectedEmployeeId,
+    reloadData
+  } = useGoalReviewData();
 
   // Format period name for display
   const formatPeriodDisplay = (period: EvaluationPeriod | null): string => {
@@ -48,61 +44,6 @@ export default function GoalReviewPage() {
     return <>現在の評価期間: {formatPeriodDisplay(currentPeriod)}</>;
   };
 
-  const loadGoalData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Load current evaluation period
-      const periodResult = await getCurrentEvaluationPeriodAction();
-      if (periodResult.success && periodResult.data) {
-        setCurrentPeriod(periodResult.data);
-      }
-
-      // TODO: Replace with real API calls when ready
-      // For now, using real APIs but they may return empty data
-      const goalsResult = await getGoalsAction();
-      const usersResult = await getUsersAction();
-
-      let goals: GoalResponse[] = [];
-      let users: UserDetailResponse[] = [];
-
-      if (goalsResult.success && goalsResult.data?.items) {
-        goals = goalsResult.data.items.filter(goal => goal.status === 'submitted');
-      }
-
-      if (usersResult.success && usersResult.data?.items) {
-        users = usersResult.data.items;
-      }
-
-      setTotalPendingCount(goals.length);
-
-      // Group goals by employee
-      const grouped: GroupedGoals[] = users
-        .map(user => {
-          const userGoals = goals.filter(goal => goal.userId === user.id);
-          return {
-            employee: user,
-            goals: userGoals,
-            pendingCount: userGoals.length
-          };
-        })
-        .filter(group => group.goals.length > 0);
-
-      setGroupedGoals(grouped);
-
-      // Set first employee as selected by default
-      if (grouped.length > 0) {
-        setSelectedEmployeeId(grouped[0].employee.id);
-      }
-
-    } catch (err) {
-      console.error('Error loading goal data:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -147,7 +88,7 @@ export default function GoalReviewPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-red-600">エラーが発生しました</h1>
           <p className="text-muted-foreground text-sm sm:text-base">{error}</p>
           <button
-            onClick={loadGoalData}
+            onClick={reloadData}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             再試行
@@ -182,7 +123,7 @@ export default function GoalReviewPage() {
               現在、承認が必要な目標はありません。
             </p>
             <button
-              onClick={loadGoalData}
+              onClick={reloadData}
               className="mt-4 px-4 py-2 text-sm text-blue-600 hover:text-blue-700 underline"
             >
               データを再読み込み
@@ -196,54 +137,56 @@ export default function GoalReviewPage() {
   const selectedGroup = groupedGoals.find(group => group.employee.id === selectedEmployeeId);
 
   return (
-    <div className="container mx-auto p-4 md:p-6">
-      <div className="space-y-4 md:space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold">目標承認</h1>
-            <Badge variant="secondary" className="text-sm">
-              {totalPendingCount}
-            </Badge>
+    <ErrorBoundary>
+      <div className="container mx-auto p-4 md:p-6">
+        <div className="space-y-4 md:space-y-6">
+          {/* Page Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold">目標承認</h1>
+              <Badge variant="secondary" className="text-sm">
+                {totalPendingCount}
+              </Badge>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <PeriodDisplay />
+            </div>
           </div>
-          <div className="text-sm text-muted-foreground">
-            <PeriodDisplay />
-          </div>
-        </div>
 
-        {/* Guidelines */}
-        <GuidelinesAlert />
-        <ApprovalGuidelinesPanel />
+          {/* Guidelines */}
+          <GuidelinesAlert />
+          <ApprovalGuidelinesPanel />
 
-        {/* Employee Navigation Tabs */}
-        <Tabs value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-          <EmployeeTabNavigation
-            groupedGoals={groupedGoals}
-          />
+          {/* Employee Navigation Tabs */}
+          <Tabs value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+            <EmployeeTabNavigation
+              groupedGoals={groupedGoals}
+            />
 
-          {/* Selected Employee Content */}
-          {selectedGroup && (
-            <TabsContent value={selectedEmployeeId} className="mt-4 md:mt-6">
-              <div className="space-y-4 md:space-y-6">
-                {/* Employee Info Header */}
-                <EmployeeInfoHeader employee={selectedGroup.employee} />
+            {/* Selected Employee Content */}
+            {selectedGroup && (
+              <TabsContent value={selectedEmployeeId} className="mt-4 md:mt-6">
+                <div className="space-y-4 md:space-y-6">
+                  {/* Employee Info Header */}
+                  <EmployeeInfoHeader employee={selectedGroup.employee} />
 
-                {/* Goals List */}
-                <div className="space-y-4">
-                  {selectedGroup.goals.map((goal) => (
-                    <GoalApprovalCard
-                      key={goal.id}
-                      goal={goal}
-                      employeeName={selectedGroup.employee.name}
-                      onGoalUpdate={loadGoalData}
-                    />
-                  ))}
+                  {/* Goals List */}
+                  <div className="space-y-4">
+                    {selectedGroup.goals.map((goal) => (
+                      <GoalApprovalCard
+                        key={goal.id}
+                        goal={goal}
+                        employeeName={selectedGroup.employee.name}
+                        onGoalUpdate={reloadData}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </TabsContent>
-          )}
-        </Tabs>
+              </TabsContent>
+            )}
+          </Tabs>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
