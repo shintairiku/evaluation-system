@@ -111,6 +111,7 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/evaluation-periods/${id}`,
     DELETE: (id: string) => `/evaluation-periods/${id}`,
     CURRENT: '/evaluation-periods/current',
+    GOAL_STATISTICS: (id: string) => `/evaluation-periods/${id}/goal-statistics`,
   },
   
   // Goal endpoints

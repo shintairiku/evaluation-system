@@ -6,6 +6,7 @@ import type {
   EvaluationPeriodCreate,
   EvaluationPeriodUpdate,
   EvaluationPeriodList,
+  GoalStatistics,
   PaginationParams,
   ApiResponse,
   UUID,
@@ -66,5 +67,12 @@ export const evaluationPeriodsApi = {
    */
   deleteEvaluationPeriod: async (periodId: UUID): Promise<ApiResponse<void>> => {
     return httpClient.delete<void>(API_ENDPOINTS.EVALUATION_PERIODS.DELETE(periodId));
+  },
+
+  /**
+   * Get goal statistics for an evaluation period
+   */
+  getEvaluationPeriodGoalStatistics: async (periodId: UUID): Promise<ApiResponse<GoalStatistics>> => {
+    return httpClient.get<GoalStatistics>(API_ENDPOINTS.EVALUATION_PERIODS.GOAL_STATISTICS(periodId));
   },
 };
