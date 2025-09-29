@@ -4,6 +4,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { jaJP } from "@clerk/localizations";
 import { LoadingProvider } from "@/context/LoadingContext";
+import { GoalReviewProvider } from "@/context/GoalReviewContext";
 import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
@@ -40,8 +41,10 @@ export default function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
           <LoadingProvider>
-            {children}
-            <Toaster richColors position="top-right" />
+            <GoalReviewProvider>
+              {children}
+              <Toaster richColors position="top-right" />
+            </GoalReviewProvider>
           </LoadingProvider>
         </body>
       </html>
