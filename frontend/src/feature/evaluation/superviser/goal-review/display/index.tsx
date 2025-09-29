@@ -104,8 +104,7 @@ export default function GoalReviewPage() {
           meansMethodsText: '・コード分割とレイジーローディングの実装\n・画像最適化とキャッシュ戦略の見直し\n・不要な依存関係の削除\n・ネイティブモジュールの活用検討',
           performanceGoalType: 'quantitative',
           weight: 40,
-          status: 'pending_approval',
-          user: fakeUsers[0],
+          status: 'submitted',
           createdAt: '2024-09-20T10:30:00Z',
           updatedAt: '2024-09-20T10:30:00Z'
         },
@@ -127,8 +126,7 @@ export default function GoalReviewPage() {
           },
           actionPlan: '月1回の技術勉強会を企画し、チーム全体のスキル向上を図る。新人エンジニア2名のメンタリングを通じて、自身のリーダーシップスキルも向上させる。',
           weight: 30,
-          status: 'pending_approval',
-          user: fakeUsers[0],
+          status: 'submitted',
           createdAt: '2024-09-20T11:00:00Z',
           updatedAt: '2024-09-20T11:00:00Z'
         },
@@ -143,8 +141,7 @@ export default function GoalReviewPage() {
           meansMethodsText: '・インフルエンサーマーケティングの活用\n・ターゲット層に合わせたコンテンツ制作\n・A/Bテストによる広告効果の最適化\n・月次効果測定と戦略調整',
           performanceGoalType: 'quantitative',
           weight: 50,
-          status: 'pending_approval',
-          user: fakeUsers[1],
+          status: 'submitted',
           createdAt: '2024-09-21T09:15:00Z',
           updatedAt: '2024-09-21T09:15:00Z'
         }
@@ -285,6 +282,7 @@ export default function GoalReviewPage() {
                     <GoalApprovalCard
                       key={goal.id}
                       goal={goal}
+                      employeeName={selectedGroup.employee.name}
                       onGoalUpdate={loadGoalData}
                     />
                   ))}
