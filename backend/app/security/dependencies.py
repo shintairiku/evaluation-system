@@ -98,14 +98,29 @@ async def get_auth_context(
         
         if not user_data:
             # User has valid Clerk token but doesn't exist in our database yet (signup case)
-            # Derive role from token to allow org-scoped, role-based access where appropriate
+            # Derive roles from token to allow org-scoped, role-based access where appropriate
             derived_roles: List[RoleInfo] = []
-            if getattr(auth_user, "role", None):
+
+            # Try new roles array first
+            if hasattr(auth_user, "roles") and auth_user.roles:
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "User %s not found in DB for org %s; using token-derived roles %s",
+                    auth_user.clerk_id,
+                    auth_user.organization_id,
+                    auth_user.roles,
+                )
+                derived_roles = [
+                    RoleInfo(id=i, name=role.strip().lower(), description="Token-derived role (no DB user)")
+                    for i, role in enumerate(auth_user.roles) if role and role.strip()
+                ]
+            # Fallback to legacy single role field
+            elif getattr(auth_user, "role", None):
                 logger = logging.getLogger(__name__)
                 fallback_role = str(auth_user.role).strip().lower()
                 if fallback_role:
                     logger.warning(
-                        "User %s not found in DB for org %s; using token-derived role '%s'",
+                        "User %s not found in DB for org %s; using token-derived legacy role '%s'",
                         auth_user.clerk_id,
                         auth_user.organization_id,
                         fallback_role,
@@ -132,34 +147,64 @@ async def get_auth_context(
             for role in user_roles
         ]
 
-        # Fallback: if no DB roles found for this org, derive from JWT org_role
-        if not role_infos and getattr(auth_user, "role", None):
+        # Fallback: if no DB roles found for this org, derive from JWT roles
+        if not role_infos:
             logger = logging.getLogger(__name__)
-            fallback_role = str(auth_user.role).strip().lower()
-            if fallback_role:
+
+            # Try new roles array first
+            if hasattr(auth_user, "roles") and auth_user.roles:
                 logger.warning(
-                    "No DB roles found for user %s in org %s; falling back to token role '%s'",
+                    "No DB roles found for user %s in org %s; falling back to token roles %s",
                     auth_user.clerk_id,
                     auth_user.organization_id,
-                    fallback_role,
+                    auth_user.roles,
                 )
-                role_infos = [RoleInfo(id=0, name=fallback_role, description="Token-derived role")]
-        else:
-            # If roles exist but map to no permissions (e.g., org-custom names), append token role as safety net
-            derived_perm_count = 0
-            for r in role_infos:
-                derived_perm_count += len(PermissionManager.get_role_permissions(r.name))
-            if derived_perm_count == 0 and getattr(auth_user, "role", None):
-                logger = logging.getLogger(__name__)
+                role_infos = [
+                    RoleInfo(id=i, name=role.strip().lower(), description="Token-derived role")
+                    for i, role in enumerate(auth_user.roles) if role and role.strip()
+                ]
+            # Fallback to legacy single role field
+            elif getattr(auth_user, "role", None):
                 fallback_role = str(auth_user.role).strip().lower()
-                if fallback_role and all(r.name.lower() != fallback_role for r in role_infos):
+                if fallback_role:
                     logger.warning(
-                        "DB roles for user %s in org %s have no mapped permissions; adding token role '%s'",
+                        "No DB roles found for user %s in org %s; falling back to token legacy role '%s'",
                         auth_user.clerk_id,
                         auth_user.organization_id,
                         fallback_role,
                     )
-                    role_infos.append(RoleInfo(id=0, name=fallback_role, description="Token-derived role"))
+                    role_infos = [RoleInfo(id=0, name=fallback_role, description="Token-derived role")]
+        else:
+            # If roles exist but map to no permissions (e.g., org-custom names), append token roles as safety net
+            derived_perm_count = 0
+            for r in role_infos:
+                derived_perm_count += len(PermissionManager.get_role_permissions(r.name))
+
+            if derived_perm_count == 0:
+                logger = logging.getLogger(__name__)
+
+                # Try new roles array first
+                if hasattr(auth_user, "roles") and auth_user.roles:
+                    for i, role in enumerate(auth_user.roles):
+                        if role and role.strip() and all(r.name.lower() != role.strip().lower() for r in role_infos):
+                            logger.warning(
+                                "DB roles for user %s in org %s have no mapped permissions; adding token role '%s'",
+                                auth_user.clerk_id,
+                                auth_user.organization_id,
+                                role,
+                            )
+                            role_infos.append(RoleInfo(id=len(role_infos) + i, name=role.strip().lower(), description="Token-derived role"))
+                # Fallback to legacy single role field
+                elif getattr(auth_user, "role", None):
+                    fallback_role = str(auth_user.role).strip().lower()
+                    if fallback_role and all(r.name.lower() != fallback_role for r in role_infos):
+                        logger.warning(
+                            "DB roles for user %s in org %s have no mapped permissions; adding token legacy role '%s'",
+                            auth_user.clerk_id,
+                            auth_user.organization_id,
+                            fallback_role,
+                        )
+                        role_infos.append(RoleInfo(id=0, name=fallback_role, description="Token-derived role"))
         
         # Create and return AuthContext
         return AuthContext(
