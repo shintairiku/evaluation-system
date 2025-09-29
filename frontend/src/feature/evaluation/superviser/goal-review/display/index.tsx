@@ -28,16 +28,11 @@ export default function GoalReviewPage() {
   const [totalPendingCount, setTotalPendingCount] = useState(0);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
-  const { setPendingCount } = useGoalReviewContext();
+  const { refreshPendingCount } = useGoalReviewContext();
 
   useEffect(() => {
     loadGoalData();
-
-    // Cleanup: reset count when component unmounts
-    return () => {
-      setPendingCount(0);
-    };
-  }, [setPendingCount]);
+  }, []);
 
   // Format period name for display
   const formatPeriodDisplay = (period: EvaluationPeriod | null): string => {
@@ -81,7 +76,6 @@ export default function GoalReviewPage() {
       }
 
       setTotalPendingCount(goals.length);
-      setPendingCount(goals.length); // Update global context
 
       // Group goals by employee
       const grouped: GroupedGoals[] = users
