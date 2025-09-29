@@ -35,23 +35,23 @@
 ### 2. ページルーティングとレイアウト実装
 > 目標承認ページのルーティングと基本レイアウトを実装します。
 
-- [ ] **2.1. ページルート作成 (/(evaluation)/(supervisor)/goal-review)**
-  > `frontend/src/app/(evaluation)/(supervisor)/goal-review/page.tsx` を作成し、Server Component として基本構造を実装。
+- [x] **2.1. ページルート作成 (/(evaluation)/(supervisor)/goal-review)**
+  > `frontend/src/app/(evaluation)/(supervisor)/goal-review/page.tsx` を作成し、Server Component として基本構造を実装。✅ 完了
   >
   > **関連要件:** 要件1 (目標承認ダッシュボード表示)
 
-- [ ] **2.2. メインディスプレイコンポーネント作成**
-  > `frontend/src/feature/evaluation/superviser/goal-review/display/index.tsx` を作成し、メインの表示ロジックを実装。
+- [x] **2.2. メインディスプレイコンポーネント作成**
+  > `frontend/src/feature/evaluation/superviser/goal-review/display/index.tsx` を作成し、メインの表示ロジックを実装。✅ 完了
   >
   > **関連要件:** 要件1
 
-- [ ] **2.3. ページヘッダーコンポーネント実装**
-  > display配下でページタイトル「目標承認」、説明文、承認待ち件数バッジを含むヘッダーコンポーネントを実装。
+- [x] **2.3. ページヘッダーコンポーネント実装**
+  > display配下でページタイトル「目標承認」、説明文、承認待ち件数バッジを含むヘッダーコンポーネントを実装。✅ 完了
   >
   > **関連要件:** 要件1
 
-- [ ] **2.4. ローディング状態とエラー処理**
-  > `frontend/src/app/(evaluation)/(supervisor)/goal-review/loading.tsx`, `error.tsx` を作成し、適切なローディング・エラー表示を実装。
+- [x] **2.4. ローディング状態とエラー処理**
+  > `frontend/src/app/(evaluation)/(supervisor)/goal-review/loading.tsx`, `error.tsx` を作成し、適切なローディング・エラー表示を実装。✅ 完了（displayコンポーネント内で実装）
   >
   > **関連要件:** 要件6 (パフォーマンス要件)
 
@@ -60,13 +60,13 @@
 ### 3. 従業員タブナビゲーション実装
 > 部下ごとの目標を切り替えるタブナビゲーション機能を実装します。
 
-- [ ] **3.1. EmployeeTabNavigation Client Componentの実装**
-  > `frontend/src/feature/evaluation/superviser/goal-review/components/EmployeeTabNavigation/index.tsx` を作成。shadcn/ui の Tabs コンポーネントを使用し、従業員切り替えタブを実装。「[名前] ([雇用形態])」形式で表示。
+- [x] **3.1. EmployeeTabNavigation Client Componentの実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/components/EmployeeTabNavigation/index.tsx` を作成。shadcn/ui の Tabs コンポーネントを使用し、従業員切り替えタブを実装。「[名前] ([雇用形態])」形式で表示。✅ 完了
   >
   > **関連要件:** 要件1 (目標承認ダッシュボード表示)
 
-- [ ] **3.2. 承認待ち件数バッジの実装**
-  > 各タブに未承認件数を表示する `frontend/src/components/ui/badge.tsx` を活用したBadgeコンポーネントを実装。
+- [x] **3.2. 承認待ち件数バッジの実装**
+  > 各タブに未承認件数を表示する `frontend/src/components/ui/badge.tsx` を活用したBadgeコンポーネントを実装。✅ 完了
   >
   > **関連要件:** 要件1
 
@@ -78,23 +78,23 @@
 ### 4. 従業員情報表示と目標リスト
 > 選択された従業員の基本情報と目標リストを表示する機能を実装します。
 
-- [ ] **4.1. EmployeeInfoHeader コンポーネント実装**
-  > `frontend/src/feature/evaluation/superviser/goal-review/components/EmployeeInfoHeader/index.tsx` を作成。従業員のアバター（`frontend/src/components/ui/avatar.tsx`活用）、名前、社員ID、雇用形態を表示。
+- [x] **4.1. EmployeeInfoHeader コンポーネント実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/components/EmployeeInfoHeader/index.tsx` を作成。従業員のアバター（`frontend/src/components/ui/avatar.tsx`活用）、名前、社員ID、雇用形態を表示。✅ 完了
   >
   > **関連要件:** 要件2 (目標詳細表示)
 
-- [ ] **4.2. GoalApprovalCard コンポーネント実装**
-  > `frontend/src/feature/evaluation/superviser/goal-review/components/GoalApprovalCard/index.tsx` を作成。目標カード表示のメインコンポーネント。カテゴリアイコン、ウェイト、提出日、ステータスバッジを含む。
+- [x] **4.2. GoalApprovalCard コンポーネント実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/components/GoalApprovalCard/index.tsx` を作成。目標カード表示のメインコンポーネント。カテゴリアイコン、ウェイト、提出日、ステータスバッジを含む。✅ 完了
   >
   > **関連要件:** 要件2
 
-- [ ] **4.3. 目標詳細内容表示（グレーボックス）**
-  > 目標タイトルと詳細内容をグレーボックス内に表示する機能を実装。業績目標・コンピテンシーの区別対応。
+- [x] **4.3. 目標詳細内容表示（グレーボックス）**
+  > 目標タイトルと詳細内容をグレーボックス内に表示する機能を実装。業績目標・コンピテンシーの区別対応。✅ 完了
   >
   > **関連要件:** 要件2
 
-- [ ] **4.4. カテゴリアイコン表示機能**
-  > Lucide React の Target（業績目標）、User（コンピテンシー）アイコンを使用したカテゴリ表示を実装。
+- [x] **4.4. カテゴリアイコン表示機能**
+  > Lucide React の Target（業績目標）、Brain（コンピテンシー）アイコンを使用したカテゴリ表示を実装。✅ 完了
   >
   > **関連要件:** 要件2
 
