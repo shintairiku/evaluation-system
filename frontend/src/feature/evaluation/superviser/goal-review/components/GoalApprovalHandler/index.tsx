@@ -8,6 +8,7 @@ import { approveGoalAction, rejectGoalAction } from '@/api/server-actions/goals'
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
+import { useCompetencyNames } from '../../hooks/useCompetencyNames';
 
 /**
  * Props for the GoalApprovalHandler component
@@ -47,6 +48,14 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
 
   // Reference to the ApprovalForm for form control
   const approvalFormRef = useRef<ApprovalFormRef>(null);
+
+  // Determine goal type
+  const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
+
+  // Get competency names for competency goals
+  const { competencyNames } = useCompetencyNames(
+    isCompetencyGoal ? goal.competencyIds : null
+  );
 
   // Optimistic updates for goal status
   const [optimisticGoal, updateOptimisticGoal] = useOptimistic(
@@ -167,6 +176,21 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
   // Use provided employee name or fallback
   const finalEmployeeName = employeeName || 'Unknown User';
 
+  // Generate appropriate goal title based on goal type
+  const getGoalTitle = (): string => {
+    if (isCompetencyGoal) {
+      // For competency goals, use competency names
+      if (competencyNames.length > 0) {
+        return competencyNames.join(', ');
+      }
+      // Fallback to competency category
+      return 'コンピテンシー目標';
+    } else {
+      // For performance goals, use title
+      return optimisticGoal.title || '業績目標';
+    }
+  };
+
   return (
     <>
       <ApprovalForm
@@ -182,7 +206,7 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         onOpenChange={(open) => setConfirmationDialog(prev => ({ ...prev, open }))}
         onConfirm={confirmAction}
         type={confirmationDialog.type}
-        goalTitle={optimisticGoal.title || 'タイトルなし'}
+        goalTitle={getGoalTitle()}
         employeeName={finalEmployeeName}
         comment={confirmationDialog.comment}
         isProcessing={isProcessing}
