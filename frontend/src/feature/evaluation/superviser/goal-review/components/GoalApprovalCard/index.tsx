@@ -1,16 +1,31 @@
+import React from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Target, Brain, Calendar, Weight } from 'lucide-react';
 import type { GoalResponse } from '@/api/types';
 import { GoalApprovalHandler } from '../GoalApprovalHandler';
 
+/**
+ * Props for the GoalApprovalCard component
+ */
 interface GoalApprovalCardProps {
+  /** The goal to display */
   goal: GoalResponse;
+  /** Optional employee name for approval handler */
   employeeName?: string;
+  /** Callback function called when goal is updated */
   onGoalUpdate?: () => void;
 }
 
-export function GoalApprovalCard({ goal, employeeName, onGoalUpdate }: GoalApprovalCardProps) {
+/**
+ * Card component displaying goal details with approval functionality
+ * Memoized to prevent unnecessary re-renders when parent updates
+ */
+export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalApprovalCard({
+  goal,
+  employeeName,
+  onGoalUpdate
+}) {
   const isPerformanceGoal = goal.goalCategory === '業績目標';
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
 
@@ -177,4 +192,4 @@ export function GoalApprovalCard({ goal, employeeName, onGoalUpdate }: GoalAppro
       </CardContent>
     </Card>
   );
-}
+});
