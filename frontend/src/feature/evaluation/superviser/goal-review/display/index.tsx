@@ -5,7 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { getGoalsAction } from '@/api/server-actions/goals';
 import { getUsersAction } from '@/api/server-actions/users';
-import type { GoalResponse, UserDetailResponse } from '@/api/types';
+import { getCurrentEvaluationPeriodAction } from '@/api/server-actions/evaluation-periods';
+import { GoalApprovalCardSkeleton, DelayedSkeleton } from '@/components/ui/loading-skeleton';
+import type { GoalResponse, UserDetailResponse, EvaluationPeriod } from '@/api/types';
 import { EmployeeTabNavigation } from '../components/EmployeeTabNavigation';
 import { EmployeeInfoHeader } from '../components/EmployeeInfoHeader';
 import { GoalApprovalCard } from '../components/GoalApprovalCard';
@@ -24,15 +26,36 @@ export default function GoalReviewPage() {
   const [groupedGoals, setGroupedGoals] = useState<GroupedGoals[]>([]);
   const [totalPendingCount, setTotalPendingCount] = useState(0);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+  const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
 
   useEffect(() => {
     loadGoalData();
   }, []);
 
+  // Format period name for display
+  const formatPeriodDisplay = (period: EvaluationPeriod | null): string => {
+    if (!period) return '評価期間未設定';
+    return period.name || '2024年度'; // Fallback to current year if name is empty
+  };
+
+  // Period display component with loading state
+  const PeriodDisplay = () => {
+    if (loading) {
+      return <div className="h-4 w-24 bg-gray-200 rounded animate-pulse inline-block"></div>;
+    }
+    return <>現在の評価期間: {formatPeriodDisplay(currentPeriod)}</>;
+  };
+
   const loadGoalData = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Load current evaluation period
+      const periodResult = await getCurrentEvaluationPeriodAction();
+      if (periodResult.success && periodResult.data) {
+        setCurrentPeriod(periodResult.data);
+      }
 
       // FAKE DATA FOR TESTING
       const fakeUsers: UserDetailResponse[] = [
@@ -177,11 +200,33 @@ export default function GoalReviewPage() {
   if (loading) {
     return (
       <div className="container mx-auto p-4 md:p-6">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-muted-foreground">目標データを読み込み中...</p>
+        <div className="space-y-4 md:space-y-6">
+          {/* Page Header Skeleton */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-32 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
           </div>
+
+          {/* Guidelines Skeleton */}
+          <div className="h-16 bg-gray-100 rounded-lg animate-pulse"></div>
+          <div className="h-48 bg-gray-100 rounded-lg animate-pulse"></div>
+
+          {/* Employee Tabs Skeleton */}
+          <div className="flex space-x-2">
+            <div className="h-10 w-24 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-10 w-28 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+
+          {/* Employee Info Skeleton */}
+          <div className="h-20 bg-gray-100 rounded-lg animate-pulse"></div>
+
+          {/* Goal Cards Skeleton */}
+          <DelayedSkeleton delay={300}>
+            <GoalApprovalCardSkeleton count={3} />
+          </DelayedSkeleton>
         </div>
       </div>
     );
@@ -218,7 +263,7 @@ export default function GoalReviewPage() {
               </Badge>
             </div>
             <div className="text-sm text-muted-foreground">
-              現在の評価期間: 2024年度
+              <PeriodDisplay />
             </div>
           </div>
 
@@ -255,7 +300,7 @@ export default function GoalReviewPage() {
             </Badge>
           </div>
           <div className="text-sm text-muted-foreground">
-            現在の評価期間: 2024年度
+            <PeriodDisplay />
           </div>
         </div>
 
