@@ -60,7 +60,7 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
     }
   );
 
-  const handleApprove = async (comment?: string) => {
+  const handleApprove = async (comment: string) => {
     setConfirmationDialog({
       open: true,
       type: 'approve',
@@ -99,6 +99,14 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
 
       let result;
 
+      // Both approval and rejection now require comments
+      if (!comment) {
+        // Revert optimistic update on validation error
+        updateOptimisticGoal({ status: 'submitted' });
+        toast.error('コメントが必要です');
+        return;
+      }
+
       if (type === 'approve') {
         result = await approveGoalAction(goal.id);
 
@@ -108,13 +116,6 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
           });
         }
       } else {
-        if (!comment) {
-          // Revert optimistic update on validation error
-          updateOptimisticGoal({ status: 'submitted' });
-          toast.error('差し戻し時はコメントが必要です');
-          return;
-        }
-
         result = await rejectGoalAction(goal.id, comment);
 
         if (result.success) {
