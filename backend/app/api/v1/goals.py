@@ -20,7 +20,7 @@ async def get_goals(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
     goal_category: Optional[str] = Query(None, alias="goalCategory", description="Filter by goal category (業績目標, コンピテンシー, コアバリュー)"),
-    status: Optional[List[str]] = Query(None, description="Filter by status (draft, incomplete, pending_approval, approved, rejected)"),
+    status: Optional[List[str]] = Query(None, description="Filter by status (draft, submitted, approved, rejected)"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -198,7 +198,7 @@ async def delete_goal(
 @router.post("/{goal_id}/submit", response_model=Goal)
 async def submit_goal(
     goal_id: UUID,
-    status: str = Query(..., description="Target status: 'draft' or 'pending_approval'"),
+    status: str = Query(..., description="Target status: 'draft' or 'submitted'"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):

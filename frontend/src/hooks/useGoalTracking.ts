@@ -56,21 +56,18 @@ export function useGoalTracking(): UseGoalTrackingReturn {
     const dataString = JSON.stringify(data);
     const originalData = originalDataRef.current.get(goalId);
 
-    console.log(`📊 Goal tracking: ${goalType} goal ${goalId} change tracked`);
     currentDataRef.current.set(goalId, dataString);
     goalTypesRef.current.set(goalId, goalType);
 
     // If there's no original baseline (brand new temp goal), treat as dirty
     if (!originalData) {
       dirtyGoalsRef.current.add(goalId);
-      console.log(`🆕 Goal tracking: ${goalType} goal ${goalId} marked as dirty (no baseline)`);
+      
     } else if (originalData !== dataString) {
       // Mark as dirty if different from original
       dirtyGoalsRef.current.add(goalId);
-      console.log(`🔄 Goal tracking: ${goalType} goal ${goalId} marked as dirty`);
-    } else {
+      } else {
       dirtyGoalsRef.current.delete(goalId);
-      console.log(`✅ Goal tracking: ${goalType} goal ${goalId} reverted to original state`);
     }
   }, []);
 
@@ -112,10 +109,8 @@ export function useGoalTracking(): UseGoalTrackingReturn {
   const clearChanges = useCallback((goalId?: string) => {
     if (goalId) {
       dirtyGoalsRef.current.delete(goalId);
-      if (process.env.NODE_ENV !== 'production') console.debug(`🧹 Goal tracking: Cleared changes for goal ${goalId}`);
     } else {
       dirtyGoalsRef.current.clear();
-      if (process.env.NODE_ENV !== 'production') console.debug('🧹 Goal tracking: Cleared all changes');
     }
   }, []);
 

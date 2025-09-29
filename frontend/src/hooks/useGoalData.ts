@@ -48,6 +48,12 @@ const initialGoalData: GoalData = {
   competencyGoals: [],
 };
 
+// Utility function to sanitize goal IDs by removing invisible characters
+const sanitizeGoalId = (id: string): string => {
+  // Remove zero-width spaces, zero-width non-joiner, and other invisible Unicode characters
+  return id.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim();
+};
+
 export function useGoalData(): UseGoalDataReturn {
   const [goalData, setGoalData] = useState<GoalData>(initialGoalData);
   
@@ -106,12 +112,15 @@ export function useGoalData(): UseGoalDataReturn {
 
   // Convert server goal data to frontend format and replace temporary IDs
   const replaceGoalWithServerData = useCallback((tempId: string, serverGoal: GoalResponse, goalType: 'performance' | 'competency') => {
+    // Sanitize the server goal ID to prevent invisible characters
+    const sanitizedServerId = sanitizeGoalId(serverGoal.id);
+
     if (goalType === 'performance') {
       setGoalData(prev => ({
         ...prev,
-        performanceGoals: prev.performanceGoals.map(goal => 
+        performanceGoals: prev.performanceGoals.map(goal =>
           goal.id === tempId ? {
-            id: serverGoal.id,
+            id: sanitizedServerId,
             type: serverGoal.performanceGoalType || 'quantitative',
             title: serverGoal.title || '',
             specificGoal: serverGoal.specificGoalText || '',
@@ -124,9 +133,9 @@ export function useGoalData(): UseGoalDataReturn {
     } else if (goalType === 'competency') {
       setGoalData(prev => ({
         ...prev,
-        competencyGoals: prev.competencyGoals.map(goal => 
+        competencyGoals: prev.competencyGoals.map(goal =>
           goal.id === tempId ? {
-            id: serverGoal.id,
+            id: sanitizedServerId,
             competencyIds: serverGoal.competencyIds || null,
             selectedIdealActions: serverGoal.selectedIdealActions || null,
             actionPlan: serverGoal.actionPlan || '',

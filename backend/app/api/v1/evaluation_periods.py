@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, Optional, List
+from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,11 +8,10 @@ from ...security.context import AuthContext
 from ...database.session import get_db_session
 from ...services.evaluation_period_service import EvaluationPeriodService
 from ...schemas.evaluation import (
-    EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList, 
+    EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList,
     EvaluationPeriodCreate, EvaluationPeriodUpdate, EvaluationPeriodStatus
 )
-from ...schemas.goal import GoalList
-from ...schemas.self_assessment import SelfAssessment
+from ...schemas.goal import GoalStatistics
 from ...schemas.supervisor_feedback import SupervisorFeedback
 from ...schemas.supervisor_review import SupervisorReview
 from ...schemas.common import PaginationParams
@@ -23,24 +22,23 @@ router = APIRouter(prefix="/evaluation-periods", tags=["evaluation-periods"])
 
 @router.get("/", response_model=EvaluationPeriodList)
 async def get_evaluation_periods(
-    status: Optional[str] = Query("実施中", description="Filter by status (実施中, 準備中, 完了, all). Defaults to '実施中' (active)"),
+    status: Optional[str] = Query("all", description="Filter by status (active, draft, completed, cancelled, all). Defaults to 'all'"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Get evaluation periods accessible to the current user.
-    
-    Defaults to showing active (実施中) periods only, similar to GitHub's default "open" filter.
-    Use status=all to see all periods, or specify other statuses as needed.
-    
+
+    Defaults to showing all periods. Use specific status values to filter by status.
+
     Currently accessible to all authenticated users.
     TODO: Consider adding user-specific restrictions in the future (may limit non-admin access).
     """
     try:
         service = EvaluationPeriodService(session)
         
-        # Parse status filter - default to active if not specified or if "active" is explicitly passed
+        # Parse status filter - return all if not specified or if "all" is explicitly passed
         status_filter = None
         if status and status.lower() != "all":
             try:
@@ -48,7 +46,7 @@ async def get_evaluation_periods(
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid status: {status}. Must be one of: 準備中, 実施中, 完了, all"
+                    detail=f"Invalid status: {status}. Must be one of: draft, active, completed, cancelled, all"
                 )
         
         # Create pagination params
@@ -65,7 +63,7 @@ async def get_evaluation_periods(
         
     except (NotFoundError, ConflictError, PermissionDeniedError, BadRequestError) as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -92,7 +90,7 @@ async def create_evaluation_period(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -156,7 +154,7 @@ async def update_evaluation_period(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -186,6 +184,34 @@ async def delete_evaluation_period(
         raise HTTPException(status_code=404, detail=str(e))
     except (ConflictError, BadRequestError) as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+
+@router.get("/{period_id}/goal-statistics", response_model=GoalStatistics)
+async def get_evaluation_period_goal_statistics(
+    period_id: UUID,
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get goal statistics for an evaluation period (admin only)."""
+    try:
+        service = EvaluationPeriodService(session)
+
+        result = await service.get_evaluation_period_goal_statistics(
+            current_user_context=context,
+            period_id=period_id
+        )
+
+        return result
+
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:

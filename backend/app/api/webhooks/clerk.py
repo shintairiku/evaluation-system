@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends, status, Backgrou
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from svix import Webhook, WebhookVerificationError
 import asyncio
 from datetime import datetime
@@ -12,7 +12,6 @@ from ...database.repositories.user_repo import UserRepository
 from ...database.repositories.organization_repo import OrganizationRepository
 from ...database.repositories.webhook_event_repo import WebhookEventRepository
 from ...core.config import settings
-from ...schemas.user import UserStatus
 
 logger = logging.getLogger(__name__)
 

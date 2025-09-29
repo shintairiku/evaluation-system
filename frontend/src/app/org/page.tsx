@@ -14,8 +14,8 @@ export default function OrgPage() {
         <>
           <h1 className="text-2xl font-semibold">組織を選択</h1>
           <OrganizationSwitcher
-            afterSelectOrganizationUrl="/"
-            afterCreateOrganizationUrl="/"
+            afterSelectOrganizationUrl="/setup"
+            afterCreateOrganizationUrl="/setup"
             hidePersonal
           />
           {orgId && (

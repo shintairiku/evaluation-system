@@ -10,7 +10,6 @@ from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
-from ..database.models.user import User
 from ..schemas.auth import AuthUser
 from ..schemas.user import Department, Role, UserProfileOption, UserExistsResponse, ProfileOptionsResponse
 from ..schemas.stage_competency import Stage
@@ -80,23 +79,32 @@ class AuthService:
     def _normalize_claims(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize JWT claims with org_id/org_slug/org_role prioritization."""
         normalized = {}
-        
+
         # Organization ID - prefer org_id over organization_id
         normalized["organization_id"] = payload.get("org_id") or payload.get("organization_id")
-        
-        # Organization slug - prefer org_slug over organization_name  
+
+        # Organization slug - prefer org_slug over organization_name
         normalized["organization_slug"] = payload.get("org_slug") or payload.get("organization_name")
-        
-        # Organization role - prefer org_role over role
-        normalized["role"] = payload.get("org_role") or payload.get("role", "")
-        
+
+        # Roles handling with backward compatibility
+        roles = payload.get("roles")
+        if roles and isinstance(roles, list):
+            # New format: roles array from user.public_metadata.roles
+            normalized["roles"] = roles
+            normalized["role"] = roles[0] if roles else None  # Primary role for legacy compatibility
+        else:
+            # Legacy format: single role field
+            legacy_role = payload.get("org_role") or payload.get("role", "")
+            normalized["roles"] = [legacy_role] if legacy_role else []
+            normalized["role"] = legacy_role
+
         # Standard claims
         normalized["sub"] = payload.get("sub")
         normalized["email"] = payload.get("email", "")
         normalized["given_name"] = payload.get("given_name", "")
         normalized["family_name"] = payload.get("family_name", "")
-        
-        logger.debug(f"Normalized claims: org_id={normalized['organization_id']}, org_slug={normalized['organization_slug']}, role={normalized['role']}")
+
+        logger.debug(f"Normalized claims: org_id={normalized['organization_id']}, org_slug={normalized['organization_slug']}, roles={normalized['roles']}, legacy_role={normalized['role']}")
         return normalized
 
     async def get_user_from_token(self, token: str) -> AuthUser:
@@ -168,7 +176,8 @@ class AuthService:
                 email=normalized.get("email", ""),
                 first_name=normalized.get("given_name", ""),
                 last_name=normalized.get("family_name", ""),
-                role=normalized.get("role", ""),
+                roles=normalized.get("roles", []),
+                role=normalized.get("role", ""),  # Keep legacy field for backward compatibility
                 organization_id=normalized.get("organization_id"),
                 organization_name=normalized.get("organization_slug"),  # Keep for backward compatibility
                 organization_slug=normalized.get("organization_slug")   # For organization-scoped routing

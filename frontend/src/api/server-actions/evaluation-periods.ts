@@ -242,8 +242,8 @@ export const getCategorizedEvaluationPeriodsAction = cache(async (): Promise<{
       };
     }
 
-    const current = allPeriods.find(p => p.status === '実施中') || null;
-    const upcoming = allPeriods.filter(p => p.status === '準備中');
+    const current = allPeriods.find(p => p.status === 'active') || null;
+    const upcoming = allPeriods.filter(p => p.status === 'draft');
 
     return {
       success: true,

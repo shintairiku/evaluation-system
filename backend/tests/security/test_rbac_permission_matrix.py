@@ -10,14 +10,14 @@ This test suite verifies:
 """
 
 import pytest
-from uuid import UUID, uuid4
-from typing import List, Dict, Set
+from uuid import uuid4
+from typing import List
 from unittest.mock import Mock, AsyncMock
 
 from app.security.rbac_helper import RBACHelper, subordinate_cache, resource_access_cache
 from app.security.rbac_types import ResourceType, ResourcePermissionMap
 from app.security.context import AuthContext, RoleInfo
-from app.security.permissions import Permission, PermissionManager, Role
+from app.security.permissions import Permission, PermissionManager
 from app.security.decorators import require_permission, require_any_permission, require_role
 from app.core.exceptions import PermissionDeniedError
 

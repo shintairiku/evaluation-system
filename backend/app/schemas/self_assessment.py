@@ -1,13 +1,11 @@
-from typing import Optional, TYPE_CHECKING, List
+from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 from pydantic import BaseModel, Field
 from datetime import datetime
 from .common import SubmissionStatus, PaginatedResponse
 
 if TYPE_CHECKING:
-    from .goal import Goal
-    from .evaluation import EvaluationPeriod
-    from .user import UserProfileOption
+    pass
 
 
 class SelfAssessmentBase(BaseModel):

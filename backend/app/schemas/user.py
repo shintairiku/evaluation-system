@@ -8,7 +8,7 @@ from .common import Permission, PaginatedResponse
 from .stage_competency import Stage
 
 if TYPE_CHECKING:
-    from .stage_competency import StageDetail
+    pass
 
 
 # ========================================

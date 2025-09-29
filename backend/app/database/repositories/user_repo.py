@@ -365,6 +365,26 @@ class UserRepository(BaseRepository[User]):
             logger.error(f"Error fetching users by organization {org_id}: {e}")
             raise
 
+    async def get_all_users(self, org_id: str) -> list[User]:
+        """Get all users within a specific organization (regardless of status)."""
+        try:
+            self.ensure_org_filter_applied("get_all_users", org_id)
+
+            query = select(User).options(
+                joinedload(User.department),
+                joinedload(User.stage),
+                joinedload(User.roles)
+            )
+
+            query = self.apply_org_scope_direct(query, User.clerk_organization_id, org_id)
+            query = query.order_by(User.name)
+
+            result = await self.session.execute(query)
+            return result.scalars().unique().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching all users for org {org_id}: {e}")
+            raise
+
     async def search_users(
         self,
         org_id: str,

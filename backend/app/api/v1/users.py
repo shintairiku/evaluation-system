@@ -4,12 +4,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.user import User, UserCreate, UserUpdate, UserStageUpdate, UserDetailResponse, UserStatus, SimpleUser
+from ...schemas.user import UserCreate, UserUpdate, UserStageUpdate, UserDetailResponse, UserStatus, SimpleUser
 from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
 from ...security import AuthContext, get_auth_context
 from ...security.dependencies import require_admin
-from ...middleware.org_guard import OrganizationContext
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
 
 router = APIRouter(prefix="/users", tags=["users"])

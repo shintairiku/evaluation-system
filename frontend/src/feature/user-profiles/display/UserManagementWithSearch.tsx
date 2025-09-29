@@ -22,8 +22,10 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   const [error, setError] = useState<string | null>(null);
   const [isFiltered, setIsFiltered] = useState<boolean>(false);
   // Keep Organization Chart dataset isolated so filters there don't affect Table/Gallery
-  const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>([]);
+  const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [orgIsFiltered, setOrgIsFiltered] = useState<boolean>(false);
+  // Track edit mode for organization view
+  const [isOrganizationEditMode, setIsOrganizationEditMode] = useState<boolean>(false);
 
   const { viewMode, setViewMode } = useViewMode('table');
 
@@ -31,6 +33,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   useEffect(() => {
     if (initialUsers.length > 0) {
       setUsers(initialUsers);
+      setOrgUsers(initialUsers);
       setTotalUsers(initialUsers.length);
     }
   }, [initialUsers]);
@@ -42,13 +45,30 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
         user.id === updatedUser.id ? updatedUser : user
       )
     );
+    setOrgUsers(prevOrgUsers => 
+      prevOrgUsers.map(user => 
+        user.id === updatedUser.id ? updatedUser : user
+      )
+    );
+  };
+
+  // Callback to handle edit mode changes from OrganizationViewWithOrgChart
+  const handleEditModeChange = (editMode: boolean) => {
+    setIsOrganizationEditMode(editMode);
   };
 
   // Callback to handle search results from UserSearch component
   const handleSearchResults = (searchUsers: UserDetailResponse[], total: number, isFilteredArg?: boolean) => {
     setError(null);
     if (viewMode === 'organization') {
-      // Apply only to Organization Chart
+      // Apply security restriction only in edit mode for non-admin users
+      if (isOrganizationEditMode && initialUsers.length === 1) {
+        // Employee heuristic: initialUsers length == 1 → restrict to self only in edit mode
+        setOrgUsers(initialUsers);
+        setOrgIsFiltered(false);
+        return;
+      }
+      // Apply search results normally (admin in edit mode OR any user in readonly mode)
       setOrgUsers(searchUsers);
       setOrgIsFiltered(Boolean(isFilteredArg));
       // Do not touch table/gallery dataset
@@ -74,7 +94,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
       case 'gallery':
         return <UserGalleryView users={users} onUserUpdate={handleUserUpdate} />;
       case 'organization':
-        return <OrganizationViewWithOrgChart users={orgUsers} onUserUpdate={handleUserUpdate} isFiltered={orgIsFiltered} />;
+        return <OrganizationViewWithOrgChart users={orgUsers} onUserUpdate={handleUserUpdate} isFiltered={orgIsFiltered} onEditModeChange={handleEditModeChange} />;
       default:
         return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
     }
@@ -112,16 +132,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
           </div>
         )}
 
-        {/* Empty state */}
-        {users.length === 0 && viewMode !== 'organization' && (
-          <div className="text-center py-8">
-            <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold text-muted-foreground">該当するユーザーが見つかりませんでした</h3>
-            <p className="text-sm text-muted-foreground mt-2">
-              検索条件を変更してもう一度お試しください。
-            </p>
-          </div>
-        )}
+        {/* Empty state is handled within each view component to avoid duplication */}
 
         {/* Current view */}
         {renderCurrentView()}

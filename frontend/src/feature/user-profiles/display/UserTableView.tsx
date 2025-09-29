@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { UserDetailResponse } from '@/api/types';
 import UserEditViewModal from './UserEditViewModal';
+import { EmptyState } from '@/components/ui/empty-state';
+import { MESSAGES } from '@/components/constants/messages';
 
 interface UserTableViewProps {
   users: UserDetailResponse[];
@@ -81,7 +83,7 @@ export default function UserTableView({ users, onUserUpdate }: UserTableViewProp
               {users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center">
-                    該当するユーザーが見つかりませんでした。
+                    <EmptyState title={MESSAGES.users.emptyTitle} description={MESSAGES.users.emptyDescription} />
                   </TableCell>
                 </TableRow>
               ) : (

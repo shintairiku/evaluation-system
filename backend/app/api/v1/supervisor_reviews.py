@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
 from uuid import UUID
 
-from ...security.dependencies import require_admin, get_auth_context, require_supervisor_or_above
+from ...security.dependencies import get_auth_context, require_supervisor_or_above
 from ...security.context import AuthContext
 from ...schemas.supervisor_review import SupervisorReview, SupervisorReviewDetail, SupervisorReviewList, SupervisorReviewCreate, SupervisorReviewUpdate
 from ...schemas.common import PaginationParams, BaseResponse

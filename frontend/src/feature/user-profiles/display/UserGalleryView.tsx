@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Edit, User, Mail, Building, Trophy } from "lucide-react";
 import type { UserDetailResponse } from '@/api/types';
 import UserEditViewModal from './UserEditViewModal';
+import { EmptyState } from '@/components/ui/empty-state';
+import { MESSAGES } from '@/components/constants/messages';
 
 interface UserGalleryViewProps {
   users: UserDetailResponse[];
@@ -52,13 +54,7 @@ export default function UserGalleryView({ users, onUserUpdate }: UserGalleryView
   if (users.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-center">
-        <div>
-          <User className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold text-muted-foreground">該当するユーザーが見つかりませんでした</h3>
-          <p className="text-sm text-muted-foreground mt-2">
-            検索条件を変更してもう一度お試しください。
-          </p>
-        </div>
+        <EmptyState title={MESSAGES.users.emptyTitle} description={MESSAGES.users.emptyDescription} />
       </div>
     );
   }

@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 
 from sqlalchemy import select, update, func, and_
 from sqlalchemy.exc import SQLAlchemyError

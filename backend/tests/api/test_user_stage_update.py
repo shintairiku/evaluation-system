@@ -3,10 +3,9 @@ Unit tests for user stage update API endpoint.
 Tests the new admin-only PATCH /api/v1/users/{user_id}/stage endpoint.
 """
 import pytest
-import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock
-from uuid import UUID, uuid4
+from uuid import UUID
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -14,7 +13,7 @@ from app.main import app
 from app.services.user_service import UserService
 from app.schemas.user import UserStageUpdate, UserDetailResponse, UserStatus
 from app.security.context import AuthContext, RoleInfo
-from app.core.exceptions import NotFoundError, PermissionDeniedError, ValidationError
+from app.core.exceptions import NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
 

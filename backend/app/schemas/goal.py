@@ -1,23 +1,18 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Any, Union, Dict, TYPE_CHECKING
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from uuid import UUID
 
 from .common import PaginatedResponse
 
 if TYPE_CHECKING:
-    from .evaluation import EvaluationPeriod
-    from .self_assessment import SelfAssessment
-    from .supervisor_feedback import SupervisorFeedback
-    from .user import UserProfileOption
-    from .stage_competency import Competency
+    pass
 
 
 class GoalStatus(str, Enum):
-    INCOMPLETE = "incomplete"
     DRAFT = "draft"
-    PENDING_APPROVAL = "pending_approval"
+    SUBMITTED = "submitted"
     APPROVED = "approved"
     REJECTED = "rejected"
 
@@ -87,7 +82,7 @@ class GoalCreate(BaseModel):
     period_id: UUID = Field(..., alias="periodId")
     goal_category: str = Field(..., min_length=1, max_length=100, alias="goalCategory")
     weight: float = Field(..., ge=0, le=100)
-    status: GoalStatus = Field(GoalStatus.INCOMPLETE, description="Goal status: only 'incomplete' allowed for creation (auto-save)")
+    status: GoalStatus = Field(GoalStatus.DRAFT, description="Goal status: only 'draft' allowed for creation (auto-save)")
     
     # Performance goal fields (5 fields) - required when goal_category = "業績目標"
     title: Optional[str] = Field(None, description="目標タイトル")
@@ -106,9 +101,9 @@ class GoalCreate(BaseModel):
     @model_validator(mode='after')
     @classmethod
     def validate_status_restrictions(cls, values):
-        """Restrict status for goal creation - only incomplete allowed"""
-        if values.status != GoalStatus.INCOMPLETE:
-            raise ValueError("Goal creation only allows status: 'incomplete'")
+        """Restrict status for goal creation - only draft allowed"""
+        if values.status != GoalStatus.DRAFT:
+            raise ValueError("Goal creation only allows status: 'draft'")
         return values
     
     @model_validator(mode='before')
@@ -388,6 +383,31 @@ class GoalDetail(Goal):
 class GoalList(PaginatedResponse[Goal]):
     """Schema for paginated goal list responses"""
     pass
+
+
+class UserActivity(BaseModel):
+    """User activity information for goal statistics."""
+    user_id: UUID
+    user_name: str
+    employee_code: str
+    user_role: str
+    department_name: str
+    subordinate_name: Optional[str] = None
+    supervisor_name: Optional[str] = None
+    last_goal_submission: Optional[datetime] = None
+    last_review_submission: Optional[datetime] = None
+    goal_count: int = Field(..., ge=0)
+    goal_statuses: Dict[str, int] = Field(default_factory=dict)
+
+
+class GoalStatistics(BaseModel):
+    """Goal statistics for an evaluation period."""
+    period_id: UUID
+    total: int = Field(..., ge=0)
+    by_status: Dict[str, int] = Field(default_factory=dict)
+    user_activities: List[UserActivity] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ========================================

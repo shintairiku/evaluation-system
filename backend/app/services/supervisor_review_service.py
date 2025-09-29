@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List, Tuple
+from typing import Optional
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -27,7 +27,6 @@ from ..core.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     BadRequestError,
-    ValidationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -366,7 +365,7 @@ class SupervisorReviewService:
         elif review.action == "rejected":
             await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.REJECTED, org_id)
         elif review.action == "pending":
-            # Keep goal in pending_approval
+            # Keep goal in submitted
             pass
 
 

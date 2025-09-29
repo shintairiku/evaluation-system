@@ -2,7 +2,6 @@
 Tests for SupervisorReviewService following existing service test patterns.
 """
 import pytest
-import pytest_asyncio
 from unittest.mock import MagicMock
 from uuid import UUID
 
@@ -19,8 +18,6 @@ from tests.services.test_logging_utils import (
     log_test_start,
     log_test_success,
     log_test_failure,
-    log_service_operation,
-    log_mock_setup,
     log_assertion_success,
     log_business_logic_verification,
 )

@@ -14,7 +14,7 @@ from ..database.repositories.supervisor_review_repository import SupervisorRevie
 from ..database.models.goal import Goal as GoalModel
 from ..schemas.goal import (
     GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus,
-    PerformanceGoalUpdate, CompetencyGoalUpdate, CoreValueGoalUpdate
+    CompetencyGoalUpdate
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -165,14 +165,15 @@ class GoalService:
                 raise PermissionDeniedError("Organization context required")
             await self._validate_goal_creation(goal_data, target_user_id, org_id)
             
-            # Validate weight limits
-            await self._validate_weight_limits(
-                target_user_id,
-                goal_data.period_id,
-                goal_data.goal_category,
-                goal_data.weight,
-                org_id
-            )
+            # Validate weight limits only for submitted goals, not drafts
+            if goal_data.status == GoalStatus.SUBMITTED:
+                await self._validate_weight_limits(
+                    target_user_id,
+                    goal_data.period_id,
+                    goal_data.goal_category,
+                    goal_data.weight,
+                    org_id
+                )
             
             # Create goal
             created_goal = await self.goal_repo.create_goal(goal_data, target_user_id, org_id)
@@ -182,7 +183,7 @@ class GoalService:
             await self.session.refresh(created_goal)
             
             # If goal is submitted for approval, create related assessment records
-            if goal_data.status == GoalStatus.PENDING_APPROVAL:
+            if goal_data.status == GoalStatus.SUBMITTED:
                 await self._create_related_assessment_records(created_goal)
                 await self.session.commit()
             
@@ -227,8 +228,8 @@ class GoalService:
             # Business validation
             await self._validate_goal_update(goal_data, existing_goal, org_id)
             
-            # Validate weight limits if weight is being changed
-            if goal_data.weight is not None:
+            # Validate weight limits if weight is being changed and goal is in submitted status
+            if goal_data.weight is not None and existing_goal.status == GoalStatus.SUBMITTED.value:
                 await self._validate_weight_limits(
                     existing_goal.user_id,
                     existing_goal.period_id,
@@ -283,9 +284,9 @@ class GoalService:
             if not can_delete:
                 raise PermissionDeniedError("You can only delete your own goals")
             
-            # Business rule: can only delete draft, incomplete, or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only delete draft, incomplete, or rejected goals")
+            # Business rule: can only delete draft or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only delete draft or rejected goals")
             
             # Delete goal
             success = await self.goal_repo.delete_goal(goal_id)
@@ -308,13 +309,13 @@ class GoalService:
         status: str,
         current_user_context: AuthContext
     ) -> Goal:
-        """Submit a goal with specified status (draft or pending_approval)."""
+        """Submit a goal with specified status (draft or submitted)."""
         try:
             # Validate status parameter
-            if status not in ["draft", "pending_approval"]:
-                raise ValidationError("Status must be either 'draft' or 'pending_approval'")
-            
-            target_status = GoalStatus.DRAFT if status == "draft" else GoalStatus.PENDING_APPROVAL
+            if status not in ["draft", "submitted"]:
+                raise ValidationError("Status must be either 'draft' or 'submitted'")
+
+            target_status = GoalStatus.DRAFT if status == "draft" else GoalStatus.SUBMITTED
             
             # Check if goal exists and user can update it
             org_id = current_user_context.organization_id
@@ -328,10 +329,13 @@ class GoalService:
             if current_user_context.user_id != existing_goal.user_id:
                 raise PermissionDeniedError("You can only submit your own goals")
             
-            # Business rule: can only submit draft, incomplete, or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only submit draft, incomplete, or rejected goals")
-            
+            # Business rule: can only submit draft or rejected goals
+            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
+                raise BadRequestError("Can only submit draft or rejected goals")
+
+            # Note: Weight validation is now handled on frontend before submission starts
+            # Individual goal submission should not validate total weights
+
             # Update status using dedicated method with validation
             updated_goal = await self.goal_repo.update_goal_status(goal_id, target_status, org_id)
             
@@ -339,7 +343,7 @@ class GoalService:
             await self.session.commit()
             
             # Auto-create draft supervisor review(s) only when submitting for approval
-            if target_status == GoalStatus.PENDING_APPROVAL:
+            if target_status == GoalStatus.SUBMITTED:
                 try:
                     # Get supervisors of goal owner
                     supervisors = await self.user_repo.get_user_supervisors(existing_goal.user_id, org_id)
@@ -395,7 +399,7 @@ class GoalService:
                 raise PermissionDeniedError("You can only approve goals for your subordinates")
             
             # Business validation
-            if goal.status != GoalStatus.PENDING_APPROVAL.value:
+            if goal.status != GoalStatus.SUBMITTED.value:
                 raise BadRequestError("Goal must be in pending approval status")
             
             # Update status
@@ -447,7 +451,7 @@ class GoalService:
                 raise PermissionDeniedError("You can only reject goals for your subordinates")
             
             # Business validation
-            if goal.status != GoalStatus.PENDING_APPROVAL.value:
+            if goal.status != GoalStatus.SUBMITTED.value:
                 raise BadRequestError("Goal must be in pending approval status")
             
             # Update status
@@ -602,6 +606,25 @@ class GoalService:
                 f"Current: {current_total}%, Adding: {new_weight}%, Total: {new_total}%"
             )
 
+    async def _validate_total_weight_before_submission(
+        self,
+        user_id: UUID,
+        period_id: UUID,
+        org_id: UUID
+    ):
+        """Validate that performance goals total exactly 100% before submission."""
+        # Get current weight totals by category for all goals
+        weight_totals = await self.goal_repo.get_weight_totals_by_category(
+            user_id, period_id, org_id
+        )
+
+        # Check performance goals total 100%
+        performance_total = weight_totals.get('業績目標', Decimal('0'))
+        if performance_total != Decimal('100'):
+            raise ValidationError(
+                f"業績目標の合計ウェイトは100%である必要があります。現在の合計: {performance_total}%"
+            )
+
     async def _enrich_goal_data(self, goal_model: GoalModel) -> Goal:
         """Convert GoalModel to Goal response schema with enriched data."""
         # Base goal data
@@ -652,13 +675,13 @@ class GoalService:
         detail_dict.update({
             "has_self_assessment": False,  # Placeholder for future assessment integration
             "has_supervisor_feedback": False,  # Placeholder for future feedback integration
-            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.INCOMPLETE.value, GoalStatus.REJECTED.value],
+            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value],
             "is_assessment_open": False,  # Placeholder for future period status check
             "is_overdue": False,  # Placeholder for future deadline check
         })
         
         # Days since submission for pending goals
-        if goal_model.created_at and goal_model.status == GoalStatus.PENDING_APPROVAL.value:
+        if goal_model.created_at and goal_model.status == GoalStatus.SUBMITTED.value:
             days_since = (datetime.utcnow() - goal_model.created_at).days
             detail_dict["days_since_submission"] = days_since
         
