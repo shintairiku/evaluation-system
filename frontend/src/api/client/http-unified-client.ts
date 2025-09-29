@@ -761,7 +761,7 @@ export async function testOrgScoping() {
   ];
 
   let passedTests = 0;
-  let totalTests = testCases.length;
+  const totalTests = testCases.length;
 
   for (const [endpoint, expected, description] of testCases) {
     const result = client.testShouldApplyOrgScoping(endpoint);

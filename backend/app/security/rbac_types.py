@@ -7,7 +7,7 @@ all service functions.
 """
 
 from enum import Enum
-from typing import Dict, List
+from typing import Dict
 from .permissions import Permission
 
 

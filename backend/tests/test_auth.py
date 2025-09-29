@@ -4,7 +4,7 @@ from jose import jwt
 from datetime import datetime, timedelta
 
 from app.core.clerk_config import ClerkConfig
-from app.core.auth import ClerkAuth, AuthUser
+from app.schemas.auth import AuthUser
 from app.services.auth_service import AuthService
 from app.dependencies.auth import get_current_user, get_admin_user, get_supervisor_or_admin_user
 from app.schemas.auth import UserAuthResponse, TokenVerifyRequest, TokenVerifyResponse
@@ -22,13 +22,14 @@ def mock_clerk_config():
 
 @pytest.fixture
 def mock_jwt_token(mock_clerk_config):
-    """JWT token using actual Clerk secret key."""
+    """JWT token using actual Clerk secret key with new roles array format."""
     payload = {
         "sub": "user_123",
         "email": "test@example.com",
         "first_name": "Test",
         "last_name": "User",
-        "role": "employee",
+        "roles": ["employee"],  # New format: roles array
+        "role": "employee",     # Keep legacy field for backward compatibility
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1)
     }
@@ -37,13 +38,14 @@ def mock_jwt_token(mock_clerk_config):
 
 @pytest.fixture
 def mock_admin_jwt_token(mock_clerk_config):
-    """Admin JWT token using actual Clerk secret key."""
+    """Admin JWT token using actual Clerk secret key with new roles array format."""
     payload = {
         "sub": "admin_123",
         "email": "admin@example.com",
         "first_name": "Admin",
         "last_name": "User",
-        "role": "admin",
+        "roles": ["admin"],  # New format: roles array
+        "role": "admin",     # Keep legacy field for backward compatibility
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1)
     }
@@ -83,18 +85,20 @@ class TestClerkConfig:
 # Test AuthUser
 class TestAuthUser:
     def test_auth_user_creation(self):
-        """Test AuthUser model creation."""
+        """Test AuthUser model creation with new roles array."""
         user = AuthUser(
             clerk_id="user_123",
             email="test@example.com",
             first_name="Test",
             last_name="User",
+            roles=["employee"],
             role="employee"
         )
         assert user.clerk_id == "user_123"
         assert user.email == "test@example.com"
         assert user.first_name == "Test"
         assert user.last_name == "User"
+        assert user.roles == ["employee"]
         assert user.role == "employee"
 
     def test_auth_user_optional_fields(self):
@@ -107,49 +111,29 @@ class TestAuthUser:
         assert user.email == "test@example.com"
         assert user.first_name is None
         assert user.last_name is None
-        assert user.role == "employee"  # default value
+        assert user.roles is None
+        assert user.role is None
 
+    def test_auth_user_multiple_roles(self):
+        """Test AuthUser with multiple roles array."""
+        user = AuthUser(
+            clerk_id="user_123",
+            email="test@example.com",
+            roles=["manager", "employee"],
+            role="manager"  # Primary role
+        )
+        assert user.roles == ["manager", "employee"]
+        assert user.role == "manager"
 
-# Test ClerkAuth
-class TestClerkAuth:
-    def test_clerk_auth_initialization(self, mock_clerk_config):
-        """Test ClerkAuth initialization."""
-        auth = ClerkAuth(config=mock_clerk_config)
-        assert auth.config == mock_clerk_config
-
-    def test_verify_token_success(self, mock_clerk_config, mock_jwt_token):
-        """Test successful token verification."""
-        auth = ClerkAuth(config=mock_clerk_config)
-        user = auth.verify_token(mock_jwt_token)
-        
-        assert isinstance(user, AuthUser)
-        assert user.clerk_id == "user_123"
-        assert user.email == "test@example.com"
-        assert user.first_name == "Test"
-        assert user.last_name == "User"
-        assert user.role == "employee"
-
-    def test_verify_token_invalid_token(self, mock_clerk_config):
-        """Test token verification with invalid token."""
-        auth = ClerkAuth(config=mock_clerk_config)
-        
-        with pytest.raises(Exception):
-            auth.verify_token("invalid_token")
-
-    def test_verify_token_expired_token(self, mock_clerk_config):
-        """Test token verification with expired token."""
-        auth = ClerkAuth(config=mock_clerk_config)
-        
-        # Create expired token
-        payload = {
-            "sub": "user_123",
-            "email": "test@example.com",
-            "exp": datetime.utcnow() - timedelta(hours=1)  # Expired
-        }
-        expired_token = jwt.encode(payload, mock_clerk_config.secret_key, algorithm="HS256")
-        
-        with pytest.raises(Exception):
-            auth.verify_token(expired_token)
+    def test_auth_user_backward_compatibility(self):
+        """Test AuthUser still works with legacy single role field."""
+        user = AuthUser(
+            clerk_id="user_123",
+            email="test@example.com",
+            role="supervisor"
+        )
+        assert user.role == "supervisor"
+        assert user.roles is None
 
 
 # Test AuthService
@@ -191,15 +175,16 @@ class TestAuthDependencies:
                 email="test@example.com",
                 first_name="Test",
                 last_name="User",
+                roles=["employee"],
                 role="employee"
             )
             mock_clerk_auth.verify_token.return_value = mock_user
-            
+
             result = await get_current_user(credentials)
-            
+
             assert result["sub"] == "user_123"
             assert result["email"] == "test@example.com"
-            assert result["role"] == "employee"
+            assert result["role"] == "employee"  # This still returns the legacy role field
 
     @pytest.mark.asyncio
     async def test_get_current_user_invalid_token(self):
@@ -284,19 +269,18 @@ class TestAuthDependencies:
 class TestAuthSchemas:
     def test_user_response_creation(self):
         """Test UserAuthResponse schema creation."""
+        from uuid import uuid4
+
         response = UserAuthResponse(
-            id="user_123",
+            id=uuid4(),
             email="test@example.com",
-            first_name="Test",
-            last_name="User",
-            role="employee"
+            name="Test User",
+            clerk_user_id="user_123"
         )
-        
-        assert response.id == "user_123"
+
         assert response.email == "test@example.com"
-        assert response.first_name == "Test"
-        assert response.last_name == "User"
-        assert response.role == "employee"
+        assert response.name == "Test User"
+        assert response.clerk_user_id == "user_123"
 
     def test_token_verify_request(self):
         """Test TokenVerifyRequest schema."""

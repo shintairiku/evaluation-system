@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import {
   Home, Target, ClipboardList, List, Users, CheckCircle, MessageSquare,
-  UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield
+  UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield, Calendar
 } from 'lucide-react';
 
 // Link interface to match the structure from routes.ts
@@ -34,6 +34,7 @@ const iconMap: Record<string, React.ReactElement> = {
   'message-square': <MessageSquare size={20} />,
   'user-cog': <UserCog size={20} />,
   'building': <Building size={20} />,
+  'calendar': <Calendar size={20} />,
   'trending-up': <TrendingUp size={20} />,
   'brain': <Brain size={20} />,
   'bell': <Bell size={20} />,

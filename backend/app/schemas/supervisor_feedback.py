@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING, List
+from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 from pydantic import BaseModel, Field
 from datetime import datetime

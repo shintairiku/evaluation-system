@@ -4,13 +4,14 @@ import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { evaluationPeriodsApi } from '../endpoints/evaluation-periods';
 import { CACHE_TAGS } from '../utils/cache';
-import type { 
-  EvaluationPeriod, 
-  EvaluationPeriodDetail, 
-  EvaluationPeriodCreate, 
+import type {
+  EvaluationPeriod,
+  EvaluationPeriodDetail,
+  EvaluationPeriodCreate,
   EvaluationPeriodUpdate,
   EvaluationPeriodList,
   CategorizedEvaluationPeriods,
+  GoalStatistics,
   UUID,
 } from '../types';
 
@@ -255,9 +256,43 @@ export const getCategorizedEvaluationPeriodsAction = cache(async (): Promise<{
     };
   } catch (error) {
     console.error('Get categorized evaluation periods action error:', error);
-    return { 
-      success: false, 
-      error: 'An unexpected error occurred while fetching categorized evaluation periods' 
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching categorized evaluation periods'
+    };
+  }
+});
+
+/**
+ * Server action to get goal statistics for an evaluation period.
+ * This action is memoized to prevent duplicate requests within a single render.
+ */
+export const getEvaluationPeriodGoalStatisticsAction = cache(async (
+  periodId: UUID
+): Promise<{
+  success: boolean;
+  data?: GoalStatistics;
+  error?: string;
+}> => {
+  try {
+    const response = await evaluationPeriodsApi.getEvaluationPeriodGoalStatistics(periodId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch goal statistics'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('Get evaluation period goal statistics action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching goal statistics'
     };
   }
 });

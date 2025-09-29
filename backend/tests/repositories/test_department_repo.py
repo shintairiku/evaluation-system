@@ -5,7 +5,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 import pytest_asyncio
 
-from app.database.models.user import Department
 from app.database.repositories.department_repo import DepartmentRepository
 from app.schemas.department import DepartmentCreate, DepartmentUpdate
 from app.database.session import get_db_session
@@ -234,7 +233,7 @@ class TestDepartmentRepository:
                 # Verify it's gone
                 verified_deleted = await department_repo.get_by_id(created_dept.id)
                 assert verified_deleted is None
-                log_assertion_success(f"Department deleted successfully")
+                log_assertion_success("Department deleted successfully")
 
     @pytest.mark.asyncio
     async def test_delete_department_with_users_fails(self, department_repo: DepartmentRepository):
@@ -256,7 +255,7 @@ class TestDepartmentRepository:
         log_test_start("create_duplicate_name_fails")
 
         create_schema = DepartmentCreate(name="Engineering", description="This should fail")
-        logging.info(f"Attempting to create department with duplicate name: 'Engineering'")
+        logging.info("Attempting to create department with duplicate name: 'Engineering'")
 
         with pytest.raises(ValueError) as excinfo:
             await department_repo.create_department(create_schema)

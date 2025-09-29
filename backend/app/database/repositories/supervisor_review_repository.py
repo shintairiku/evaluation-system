@@ -2,13 +2,12 @@ import logging
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, update as sa_update, delete as sa_delete, and_, or_, func
+from sqlalchemy import select, update as sa_update, delete as sa_delete, and_, func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.supervisor_review import SupervisorReview
 from ..models.goal import Goal
-from ..models.user import UserSupervisor
 from ...schemas.common import PaginationParams
 from .base import BaseRepository
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Dict, Any, Optional, List
+from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,11 +8,10 @@ from ...security.context import AuthContext
 from ...database.session import get_db_session
 from ...services.evaluation_period_service import EvaluationPeriodService
 from ...schemas.evaluation import (
-    EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList, 
+    EvaluationPeriod, EvaluationPeriodDetail, EvaluationPeriodList,
     EvaluationPeriodCreate, EvaluationPeriodUpdate, EvaluationPeriodStatus
 )
-from ...schemas.goal import GoalList
-from ...schemas.self_assessment import SelfAssessment
+from ...schemas.goal import GoalStatistics
 from ...schemas.supervisor_feedback import SupervisorFeedback
 from ...schemas.supervisor_review import SupervisorReview
 from ...schemas.common import PaginationParams
@@ -64,7 +63,7 @@ async def get_evaluation_periods(
         
     except (NotFoundError, ConflictError, PermissionDeniedError, BadRequestError) as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -91,7 +90,7 @@ async def create_evaluation_period(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -155,7 +154,7 @@ async def update_evaluation_period(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -185,6 +184,34 @@ async def delete_evaluation_period(
         raise HTTPException(status_code=404, detail=str(e))
     except (ConflictError, BadRequestError) as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+
+@router.get("/{period_id}/goal-statistics", response_model=GoalStatistics)
+async def get_evaluation_period_goal_statistics(
+    period_id: UUID,
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get goal statistics for an evaluation period (admin only)."""
+    try:
+        service = EvaluationPeriodService(session)
+
+        result = await service.get_evaluation_period_goal_statistics(
+            current_user_context=context,
+            period_id=period_id
+        )
+
+        return result
+
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:

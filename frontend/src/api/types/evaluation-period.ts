@@ -7,10 +7,20 @@ import type { UUID } from './common';
 
 export type EvaluationPeriodStatus = 'draft' | 'active' | 'completed' | 'cancelled';
 
+export type PeriodType = '半期' | '月次' | '四半期' | '年次' | 'その他';
+
+export const PERIOD_TYPE_LABELS: Record<PeriodType, string> = {
+  '半期': '半期',
+  '月次': '月次',
+  '四半期': '四半期',
+  '年次': '年次',
+  'その他': 'その他'
+};
+
 export interface EvaluationPeriod {
   id: UUID;
   name: string;
-  period_type: string;
+  period_type: PeriodType;
   start_date: string; // ISO date string
   end_date: string; // ISO date string
   goal_submission_deadline: string;
@@ -29,7 +39,7 @@ export interface EvaluationPeriodDetail extends EvaluationPeriod {
 
 export interface EvaluationPeriodCreate {
   name: string;
-  period_type: string;
+  period_type: PeriodType;
   start_date: string;
   end_date: string;
   goal_submission_deadline: string;
@@ -39,7 +49,7 @@ export interface EvaluationPeriodCreate {
 
 export interface EvaluationPeriodUpdate {
   name?: string;
-  period_type?: string;
+  period_type?: PeriodType;
   start_date?: string;
   end_date?: string;
   goal_submission_deadline?: string;
@@ -62,4 +72,37 @@ export interface CategorizedEvaluationPeriods {
   current: EvaluationPeriod | null;
   upcoming: EvaluationPeriod[];
   all: EvaluationPeriod[];
+}
+
+// Goal Statistics interfaces
+export interface UserActivity {
+  user_id: UUID;
+  user_name: string;
+  employee_code: string;
+  user_role: string;
+  department_name: string;
+  subordinate_name?: string;
+  supervisor_name?: string;
+  last_goal_submission?: string | Date; // ISO date string or Date object
+  last_review_submission?: string | Date; // ISO date string or Date object
+  goal_count: number;
+  goal_statuses: Record<string, number>;
+}
+
+export interface GoalStatistics {
+  period_id: UUID;
+  total: number;
+  by_status: Record<string, number>;
+  user_activities: UserActivity[];
+}
+
+// Form data interface for create/edit modals
+export interface EvaluationPeriodFormData {
+  name: string;
+  period_type: PeriodType;
+  start_date: string; // ISO date string
+  end_date: string;
+  goal_submission_deadline: string;
+  evaluation_deadline: string;
+  description?: string;
 }

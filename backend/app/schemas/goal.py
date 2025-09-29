@@ -1,17 +1,13 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Any, Union, Dict, TYPE_CHECKING
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from uuid import UUID
 
 from .common import PaginatedResponse
 
 if TYPE_CHECKING:
-    from .evaluation import EvaluationPeriod
-    from .self_assessment import SelfAssessment
-    from .supervisor_feedback import SupervisorFeedback
-    from .user import UserProfileOption
-    from .stage_competency import Competency
+    pass
 
 
 class GoalStatus(str, Enum):
@@ -387,6 +383,31 @@ class GoalDetail(Goal):
 class GoalList(PaginatedResponse[Goal]):
     """Schema for paginated goal list responses"""
     pass
+
+
+class UserActivity(BaseModel):
+    """User activity information for goal statistics."""
+    user_id: UUID
+    user_name: str
+    employee_code: str
+    user_role: str
+    department_name: str
+    subordinate_name: Optional[str] = None
+    supervisor_name: Optional[str] = None
+    last_goal_submission: Optional[datetime] = None
+    last_review_submission: Optional[datetime] = None
+    goal_count: int = Field(..., ge=0)
+    goal_statuses: Dict[str, int] = Field(default_factory=dict)
+
+
+class GoalStatistics(BaseModel):
+    """Goal statistics for an evaluation period."""
+    period_id: UUID
+    total: int = Field(..., ge=0)
+    by_status: Dict[str, int] = Field(default_factory=dict)
+    user_activities: List[UserActivity] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ========================================

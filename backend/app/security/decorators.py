@@ -9,7 +9,7 @@ data filtering should use the RBACHelper class directly.
 import logging
 import inspect
 from functools import wraps
-from typing import List, Callable, Any, Union
+from typing import List, Callable, Any
 
 from .context import AuthContext
 from .permissions import Permission

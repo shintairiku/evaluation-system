@@ -11,10 +11,9 @@ This test suite verifies:
 """
 
 import pytest
-import asyncio
 import inspect
 from uuid import UUID, uuid4
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch
 
 from app.security.decorators import (
     require_permission, 
