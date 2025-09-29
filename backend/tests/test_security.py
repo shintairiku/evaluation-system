@@ -37,13 +37,14 @@ class TestSecurityPenetration:
     
     @pytest.fixture
     def valid_employee_token(self, clerk_config):
-        """Create valid employee JWT token"""
+        """Create valid employee JWT token with new roles array format"""
         payload = {
             "sub": "employee_123",
             "email": "employee@example.com",
             "first_name": "Employee",
             "last_name": "User",
-            "role": "employee",
+            "roles": ["employee"],  # New format: roles array
+            "role": "employee",     # Keep legacy field for backward compatibility
             "iat": datetime.utcnow(),
             "exp": datetime.utcnow() + timedelta(hours=1)
         }
@@ -57,7 +58,8 @@ class TestSecurityPenetration:
         employee_payload = {
             "sub": "employee_123",
             "email": "employee@example.com",
-            "role": "employee",
+            "roles": ["employee"],  # New format: roles array
+            "role": "employee",     # Keep legacy field for backward compatibility
             "iat": datetime.utcnow(),
             "exp": datetime.utcnow() + timedelta(hours=1)
         }
@@ -85,7 +87,8 @@ class TestSecurityPenetration:
         user_a_payload = {
             "sub": "user_a_123",
             "email": "user_a@example.com",
-            "role": "employee",
+            "roles": ["employee"],  # New format: roles array
+            "role": "employee",     # Keep legacy field for backward compatibility
             "iat": datetime.utcnow(),
             "exp": datetime.utcnow() + timedelta(hours=1)
         }
@@ -95,7 +98,8 @@ class TestSecurityPenetration:
         tampered_payload = {
             "sub": "user_b_123",  # Spoofed user ID
             "email": "user_a@example.com",
-            "role": "employee",
+            "roles": ["employee"],  # New format: roles array
+            "role": "employee",     # Keep legacy field for backward compatibility
             "iat": datetime.utcnow(),
             "exp": datetime.utcnow() + timedelta(hours=1)
         }
