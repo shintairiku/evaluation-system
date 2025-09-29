@@ -510,7 +510,6 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
 
     async def _validate_self_assessment_exists(self, self_assessment_id: UUID, org_id: str) -> SelfAssessment:
         """Validate self-assessment exists within organization scope and return it, raise NotFoundError if not."""
-        from ..models.goal import Goal
         from ..models.user import User
         
         result = await self.session.execute(

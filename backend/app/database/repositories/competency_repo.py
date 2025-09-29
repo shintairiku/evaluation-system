@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, update, delete, func
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
