@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
+import { getGoalsAction } from '@/api/server-actions/goals';
 
 export interface GoalReviewState {
   pendingCount: number;
@@ -10,6 +11,7 @@ interface GoalReviewContextType {
   pendingCount: number;
   setPendingCount: (count: number) => void;
   resetPendingCount: () => void;
+  refreshPendingCount: () => Promise<void>;
 }
 
 const GoalReviewContext = createContext<GoalReviewContextType | undefined>(undefined);
@@ -30,11 +32,29 @@ export function GoalReviewProvider({ children }: GoalReviewProviderProps) {
     setPendingCountState(0);
   }, []);
 
+  const refreshPendingCount = useCallback(async () => {
+    try {
+      const result = await getGoalsAction({ status: 'submitted' });
+      if (result.success && result.data?.items) {
+        setPendingCountState(result.data.items.length);
+      }
+    } catch (error) {
+      console.error('Error refreshing pending count:', error);
+      // Don't reset count on error, keep previous value
+    }
+  }, []);
+
+  // Load pending count on provider initialization
+  useEffect(() => {
+    refreshPendingCount();
+  }, [refreshPendingCount]);
+
   const value: GoalReviewContextType = useMemo(() => ({
     pendingCount,
     setPendingCount,
     resetPendingCount,
-  }), [pendingCount, setPendingCount, resetPendingCount]);
+    refreshPendingCount,
+  }), [pendingCount, setPendingCount, resetPendingCount, refreshPendingCount]);
 
   return (
     <GoalReviewContext.Provider value={value}>
