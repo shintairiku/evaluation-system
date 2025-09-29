@@ -16,22 +16,26 @@ async def get_dev_keys():
         "dev_keys": {
             "admin": {
                 "key": "dev-admin-key",
-                "role": "admin",
+                "roles": ["admin"],
+                "role": "admin",  # Keep for backward compatibility
                 "description": "Full access to all endpoints including admin operations"
             },
             "manager": {
-                "key": "dev-manager-key", 
-                "role": "manager",
+                "key": "dev-manager-key",
+                "roles": ["manager"],
+                "role": "manager",  # Keep for backward compatibility
                 "description": "Access to management operations and team oversight"
             },
             "supervisor": {
                 "key": "dev-supervisor-key",
-                "role": "supervisor", 
+                "roles": ["supervisor"],
+                "role": "supervisor",  # Keep for backward compatibility
                 "description": "Access to supervisor operations and direct reports"
             },
             "employee": {
                 "key": "dev-employee-key",
-                "role": "employee",
+                "roles": ["employee"],
+                "role": "employee",  # Keep for backward compatibility
                 "description": "Basic employee access to own data and evaluations"
             }
         },
