@@ -77,6 +77,13 @@ export const groups = [
         permission: 'admin'
       },
       {
+        href: '/evaluation-period-management',
+        label: '評価期間設定',
+        sublabel: 'Evaluation Period Management',
+        icon: 'calendar',
+        permission: 'admin'
+      },
+      {
         href: '/stage-management',
         label: 'ステージ管理',
         sublabel: 'Stage Management',
