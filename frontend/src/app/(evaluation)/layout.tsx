@@ -1,6 +1,5 @@
 import Header from "@/components/display/header";
 import Sidebar from "@/components/display/sidebar";
-import { ProfileOptionsProvider } from '@/context/ProfileOptionsContext';
 import { AuthSyncProvider } from '@/components/auth/AuthSyncProvider';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
@@ -22,17 +21,15 @@ export default function EvaluationLayout({
 
   return (
     <AuthSyncProvider>
-      <ProfileOptionsProvider>
-        <div className="min-h-screen bg-background">
-          <Header />
-          <Sidebar />
-          <main className="ml-[64px] min-w-0">
-            <div className="mt-[45px]">
-              {children}
-            </div>
-          </main>
-        </div>
-      </ProfileOptionsProvider>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <Sidebar />
+        <main className="ml-[64px] min-w-0">
+          <div className="mt-[45px]">
+            {children}
+          </div>
+        </main>
+      </div>
     </AuthSyncProvider>
   );
 }
