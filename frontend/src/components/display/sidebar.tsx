@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import {
   Home, Target, ClipboardList, List, Users, CheckCircle, MessageSquare,
   UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield, Calendar
@@ -43,6 +44,20 @@ const iconMap: Record<string, React.ReactElement> = {
 
 export default function Sidebar() {
   const pathname = usePathname();
+
+  // Get goal review context with graceful fallback
+  // This follows the project pattern of defensive programming for contexts
+  const getGoalReviewData = () => {
+    try {
+      return useGoalReviewContext();
+    } catch (error) {
+      // Context not available (e.g., during SSR or outside provider)
+      // Return safe default values
+      return { pendingCount: 0 };
+    }
+  };
+
+  const { pendingCount } = getGoalReviewData();
 
   // 権限フィルタリング（現在はダミー実装）
   const filterByPermission = (links: SidebarLink[]) => {
@@ -88,19 +103,35 @@ export default function Sidebar() {
                         : 'text-white/90 hover:bg-white/10 hover:text-white'
                     )}
                   >
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 relative">
                       {iconMap[link.icon]}
+                      {/* Goal Review Pending Count - Only visible when sidebar is collapsed */}
+                      {link.href === '/goal-review' && pendingCount > 0 && (
+                        <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
+                          <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
+                            {pendingCount > 99 ? '99' : pendingCount}
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
                       <div className="font-medium truncate">{link.label}</div>
                     </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100 flex items-center gap-2">
+                      {/* Goal Review Count - Expanded view */}
+                      {link.href === '/goal-review' && pendingCount > 0 && (
+                        <Badge variant="destructive" className="text-xs bg-red-500 text-white">
+                          {pendingCount > 99 ? '99+' : pendingCount}
+                        </Badge>
+                      )}
+
                       {link.permission === 'admin' && (
                         <Badge variant="secondary" className="text-xs bg-white/20 text-white border-white/30">
                           管理者
                         </Badge>
                       )}
-                      {link.permission === 'supervisor' && (
+                      {link.permission === 'supervisor' && (link.href !== '/goal-review' || pendingCount === 0) && (
                         <Badge variant="outline" className="text-xs border-white/30 text-white">
                           上司
                         </Badge>

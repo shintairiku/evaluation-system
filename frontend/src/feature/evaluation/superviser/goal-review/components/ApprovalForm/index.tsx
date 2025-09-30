@@ -1,0 +1,190 @@
+'use client';
+
+import { useState, forwardRef, useImperativeHandle } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { CheckCircle, XCircle, MessageSquare } from 'lucide-react';
+import type { GoalResponse } from '@/api/types';
+
+// Validation schema
+const approvalFormSchema = z.object({
+  comment: z.string()
+    .min(1, 'コメントの入力が必要です')
+    .max(500, '500文字以内で入力してください')
+    .trim()
+});
+
+type ApprovalFormData = z.infer<typeof approvalFormSchema>;
+
+interface ApprovalFormProps {
+  goal: GoalResponse;
+  onApprove: (comment: string) => Promise<void>;
+  onReject: (comment: string) => Promise<void>;
+  isProcessing?: boolean;
+}
+
+export interface ApprovalFormRef {
+  resetForm: () => void;
+}
+
+export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
+  function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }, ref) {
+    const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null);
+
+    const form = useForm<ApprovalFormData>({
+      resolver: zodResolver(approvalFormSchema),
+      defaultValues: {
+        comment: ''
+      },
+      mode: 'onChange'
+    });
+
+    useImperativeHandle(ref, () => ({
+      resetForm: () => {
+        form.reset();
+      }
+    }));
+
+  const comment = form.watch('comment') || '';
+  const commentLength = comment.length;
+
+  const handleApprove = async () => {
+    const isValid = await form.trigger();
+    if (!isValid) return;
+
+    const formData = form.getValues();
+    const approvalComment = formData.comment?.trim();
+
+    if (!approvalComment) {
+      form.setError('comment', {
+        type: 'manual',
+        message: '承認時はコメントの入力が必要です'
+      });
+      return;
+    }
+
+    setPendingAction('approve');
+    try {
+      await onApprove(approvalComment);
+    } catch (error) {
+      console.error('Approval error:', error);
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const handleReject = async () => {
+    const formData = form.getValues();
+    const rejectionComment = formData.comment?.trim();
+
+    // Validation for rejection - comment is required
+    if (!rejectionComment) {
+      form.setError('comment', {
+        type: 'manual',
+        message: '差し戻し時はコメントの入力が必要です'
+      });
+      return;
+    }
+
+    const isValid = await form.trigger();
+    if (!isValid) return;
+
+    setPendingAction('reject');
+    try {
+      await onReject(rejectionComment);
+    } catch (error) {
+      console.error('Rejection error:', error);
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const isDisabled = isProcessing || pendingAction !== null;
+  const isApproving = pendingAction === 'approve';
+  const isRejecting = pendingAction === 'reject';
+
+  return (
+    <div className="space-y-4">
+      <Form {...form}>
+        <form className="space-y-4">
+          <FormField
+            control={form.control}
+            name="comment"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  コメント
+                  <span className="text-sm text-red-500 font-normal">
+                    (必須)
+                  </span>
+                </FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    placeholder="目標に対するフィードバックやコメントを入力してください..."
+                    className="min-h-[100px] resize-none"
+                    disabled={isDisabled}
+                  />
+                </FormControl>
+                <div className="flex justify-between items-start">
+                  <FormMessage />
+                  <div className={`text-xs ${commentLength > 450 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                    {commentLength}/500
+                  </div>
+                </div>
+              </FormItem>
+            )}
+          />
+        </form>
+      </Form>
+
+      <div className="flex gap-3 justify-end pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleReject}
+          disabled={isDisabled}
+          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+        >
+          {isRejecting ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2" />
+              差し戻し中...
+            </>
+          ) : (
+            <>
+              <XCircle className="h-4 w-4 mr-2" />
+              差し戻し
+            </>
+          )}
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleApprove}
+          disabled={isDisabled}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          {isApproving ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              承認中...
+            </>
+          ) : (
+            <>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              承認
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+});
