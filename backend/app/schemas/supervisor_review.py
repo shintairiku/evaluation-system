@@ -9,9 +9,9 @@ if TYPE_CHECKING:
     pass
 
 class SupervisorAction(str, Enum):
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    PENDING = "pending"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    PENDING = "PENDING"
     
     @classmethod
     def _missing_(cls, value):

@@ -83,11 +83,10 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
       
       try {
         // Goals should already be auto-saved, directly proceed to submission
-        // Get all goals and submit them
-        // Get all statuses for submission in a single API call
+        // Get all goals for the period to check their current status
         const goalsResult = await getGoalsAction({
           periodId,
-          status: ['draft']
+          status: ['draft', 'rejected'] // Only fetch goals that can be submitted
         });
         
         const goals = goalsResult.success ? goalsResult.data?.items || [] : [];
@@ -110,10 +109,16 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
 
         // Submit each goal individually (changes status to 'submitted')
         for (const goal of goals) {
-          const result = await submitGoalAction(goal.id, 'submitted');
-          if (!result.success) {
-            allSubmitted = false;
-            submitErrors.push(`${goal.goalCategory}目標の提出に失敗: ${result.error}`);
+          // Only attempt to submit if goal is in draft or rejected status
+          if (goal.status === 'draft' || goal.status === 'rejected') {
+            const result = await submitGoalAction(goal.id, 'submitted');
+            if (!result.success) {
+              allSubmitted = false;
+              submitErrors.push(`${goal.goalCategory}目標の提出に失敗: ${result.error}`);
+            }
+          } else {
+            // Goal is already submitted or in another status, skip it with info
+            console.info(`Goal ${goal.id} (${goal.goalCategory}) is already in ${goal.status} status, skipping submission`);
           }
         }
 

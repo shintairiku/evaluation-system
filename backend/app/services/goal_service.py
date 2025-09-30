@@ -353,7 +353,7 @@ class GoalService:
                             period_id=existing_goal.period_id,
                             supervisor_id=supervisor.id,
                             org_id=org_id,
-                            action="pending",
+                            action="PENDING",
                             comment="",
                             status="draft",
                         )

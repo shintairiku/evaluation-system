@@ -96,7 +96,7 @@ class TestSupervisorReviewRepository:
                 goal_id=goal_model.id,
                 period_id=goal_model.period_id,
                 supervisor_id=supervisor_id,
-                action="pending",
+                action="PENDING",
                 comment="",
                 status="draft",
             )
@@ -116,7 +116,7 @@ class TestSupervisorReviewRepository:
             assert review.period_id == goal_model.period_id
             assert review.supervisor_id == supervisor_id
             assert review.status == "draft"
-            assert review.action == "pending"
+            assert review.action == "PENDING"
 
             # Clean up: delete review and goal
             deleted = await review_repo.delete(review.id)
