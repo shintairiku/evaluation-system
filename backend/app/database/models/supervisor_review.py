@@ -56,7 +56,8 @@ class SupervisorReview(Base):
     # Relationships
     goal = relationship("Goal", back_populates="supervisor_reviews")
     period = relationship("EvaluationPeriod")
-    supervisor = relationship("User")
+    supervisor = relationship("User", foreign_keys=[supervisor_id])
+    subordinate = relationship("User", foreign_keys=[subordinate_id])
 
     def __repr__(self) -> str:
         return (
