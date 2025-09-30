@@ -110,29 +110,40 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         start_time = time.time()
-        
-        # Log the incoming request details
-        logger.info(f"Request: {request.method} {request.url}")
-        
+
         try:
             # Process the request and get the response
             response = await call_next(request)
             process_time = time.time() - start_time
-            
-            # Log the response details and processing time
-            logger.info(
-                f"Response: {response.status_code} - "
-                f"Process time: {process_time:.4f}s"
-            )
-            
+
+            # Only log slow requests (>2s) or errors
+            if process_time > 2.0:
+                logger.warning(
+                    f"Slow request: {request.method} {request.url} - "
+                    f"Status: {response.status_code} - "
+                    f"Process time: {process_time:.4f}s"
+                )
+            elif response.status_code >= 400:
+                logger.warning(
+                    f"Error response: {request.method} {request.url} - "
+                    f"Status: {response.status_code} - "
+                    f"Process time: {process_time:.4f}s"
+                )
+            # Use debug level for normal requests (won't show unless LOG_LEVEL=DEBUG)
+            else:
+                logger.debug(
+                    f"{request.method} {request.url} - "
+                    f"{response.status_code} - {process_time:.4f}s"
+                )
+
             return response
-        
+
         except Exception as e:
             process_time = time.time() - start_time
-            # Log any errors that occur during request processing
+            # Always log errors
             logger.error(
-                f"Error processing request: {str(e)} - "
-                f"Process time: {process_time:.4f}s"
+                f"Error processing request: {request.method} {request.url} - "
+                f"{str(e)} - Process time: {process_time:.4f}s"
             )
             raise
 
