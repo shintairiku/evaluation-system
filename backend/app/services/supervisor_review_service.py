@@ -360,11 +360,11 @@ class SupervisorReviewService:
         if not org_id:
             raise PermissionDeniedError("Organization context required")
 
-        if review.action == "approved":
+        if review.action == "APPROVED":
             await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.APPROVED, org_id, approved_by=current_user_context.user_id)
-        elif review.action == "rejected":
+        elif review.action == "REJECTED":
             await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.REJECTED, org_id)
-        elif review.action == "pending":
+        elif review.action == "PENDING":
             # Keep goal in submitted
             pass
 
