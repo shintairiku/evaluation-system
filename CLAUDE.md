@@ -90,3 +90,30 @@ cd backend
 ruff check .
 mypy .
 ```
+
+## Logging Configuration
+
+The application has optimized logging to reduce verbosity while maintaining visibility of important events.
+
+### Backend Logging
+- **SQLAlchemy query logging is disabled by default** to prevent duplicate logs
+- **Middleware only logs**: slow requests (>2s), errors (4xx/5xx status codes), and exceptions
+- **Log level**: Controlled via `LOG_LEVEL` environment variable in `.env.local`
+  - `DEBUG`: Shows all requests and SQL queries (very verbose)
+  - `INFO`: Shows important application events (default)
+  - `WARNING`: Shows only warnings, slow requests, and errors
+  - `ERROR`: Shows only errors
+
+### Frontend Logging
+- **API request/response logging is disabled by default**
+- **Error logging is always enabled** to catch issues
+- **To enable verbose request logging**: Set `NEXT_PUBLIC_ENABLE_REQUEST_LOGGING=true` in `.env.local`
+
+### Environment Variables
+```bash
+# Backend logging level
+LOG_LEVEL=INFO
+
+# Frontend API request logging (optional - commented out by default)
+# NEXT_PUBLIC_ENABLE_REQUEST_LOGGING=true
+```

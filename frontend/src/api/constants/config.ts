@@ -35,7 +35,7 @@ export const API_CONFIG = {
   IS_DEVELOPMENT: process.env.NODE_ENV === 'development',
   
   // Logging configuration
-  ENABLE_REQUEST_LOGGING: process.env.NODE_ENV !== 'production', // Disable in production for performance
+  ENABLE_REQUEST_LOGGING: process.env.NEXT_PUBLIC_ENABLE_REQUEST_LOGGING === 'true', // Opt-in request logging
   ENABLE_ERROR_LOGGING: true, // Always log errors
   
   // Performance settings
@@ -51,7 +51,9 @@ export const buildApiUrl = (endpoint: string, version?: string) => {
 // Helper function to build organization-scoped API URLs (returns relative paths for HTTP client)
 export const buildOrgApiUrl = (orgSlug: string, endpoint: string) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `/api/org/${encodeURIComponent(orgSlug)}${cleanEndpoint}`;
+  // Ensure trailing slash to prevent 307 redirects in FastAPI
+  const withTrailingSlash = cleanEndpoint.endsWith('/') ? cleanEndpoint : `${cleanEndpoint}/`;
+  return `/api/org/${encodeURIComponent(orgSlug)}${withTrailingSlash}`;
 };
 
 export const API_ENDPOINTS = {
