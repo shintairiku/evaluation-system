@@ -83,6 +83,56 @@ class BaseRepository(ABC, Generic[T]):
                 .join(User, Goal.user_id == User.id)
                 .where(User.clerk_organization_id == org_id))
 
+    def apply_org_scope_via_goal_with_status(self, query: Select, goal_fk_col, org_id: str, goal_status: str) -> Select:
+        """
+        Apply organization scope via goal→user relationship with goal status filter.
+
+        Args:
+            query: SQLAlchemy query to filter
+            goal_fk_col: Goal foreign key column reference (e.g., Model.goal_id)
+            org_id: Organization ID to filter by
+            goal_status: Goal status to filter by (e.g., 'submitted')
+
+        Returns:
+            Filtered query with goal status and organization scope
+        """
+        if not org_id:
+            raise ValueError("org_id is required and cannot be None")
+
+        from ..models.goal import Goal
+        from ..models.user import User
+        logger.debug(f"Applying organization scope via goal with status {goal_status}: org_id = {org_id}")
+        return (query
+                .join(Goal, goal_fk_col == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .where(User.clerk_organization_id == org_id)
+                .where(Goal.status == goal_status))
+
+    def apply_org_scope_via_goal_with_owner(self, query: Select, goal_fk_col, org_id: str, owner_user_id) -> Select:
+        """
+        Apply organization scope via goal→user relationship with goal owner filter.
+
+        Args:
+            query: SQLAlchemy query to filter
+            goal_fk_col: Goal foreign key column reference (e.g., Model.goal_id)
+            org_id: Organization ID to filter by
+            owner_user_id: User ID who owns the goals
+
+        Returns:
+            Filtered query with goal owner and organization scope
+        """
+        if not org_id:
+            raise ValueError("org_id is required and cannot be None")
+
+        from ..models.goal import Goal
+        from ..models.user import User
+        logger.debug(f"Applying organization scope via goal with owner {owner_user_id}: org_id = {org_id}")
+        return (query
+                .join(Goal, goal_fk_col == Goal.id)
+                .join(User, Goal.user_id == User.id)
+                .where(User.clerk_organization_id == org_id)
+                .where(Goal.user_id == owner_user_id))
+
     def verify_org_consistency_direct(self, org_id: str, target_org_id: Optional[str], entity_description: str = "record") -> None:
         """
         Verify organization consistency for records with direct organization columns.
