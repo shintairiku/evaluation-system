@@ -29,6 +29,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         goal_id: UUID,
         period_id: UUID,
         supervisor_id: UUID,
+        subordinate_id: UUID,
         org_id: str,
         action: str,
         comment: Optional[str],
@@ -46,6 +47,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
             goal_id=goal_id,
             period_id=period_id,
             supervisor_id=supervisor_id,
+            subordinate_id=subordinate_id,
             action=action,
             comment=comment or "",
             status=status,
@@ -53,7 +55,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         )
         self.session.add(review)
         logger.info(
-            f"Created SupervisorReview (pending commit) in org {org_id}: goal={goal_id}, period={period_id}, supervisor={supervisor_id}, status={status}, action={action}"
+            f"Created SupervisorReview (pending commit) in org {org_id}: goal={goal_id}, period={period_id}, supervisor={supervisor_id}, subordinate={subordinate_id}, status={status}, action={action}"
         )
         return review
 
@@ -99,6 +101,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         *,
         period_id: Optional[UUID] = None,
         goal_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
         status: Optional[str] = None,
         pagination: Optional[PaginationParams] = None,
     ) -> List[SupervisorReview]:
@@ -109,6 +112,8 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
             query = query.filter(SupervisorReview.period_id == period_id)
         if goal_id:
             query = query.filter(SupervisorReview.goal_id == goal_id)
+        if subordinate_id:
+            query = query.filter(SupervisorReview.subordinate_id == subordinate_id)
         if status:
             query = query.filter(SupervisorReview.status == status)
 
@@ -128,6 +133,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         *,
         period_id: Optional[UUID] = None,
         goal_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
         status: Optional[str] = None,
     ) -> int:
         query = select(func.count(SupervisorReview.id)).filter(
@@ -137,6 +143,8 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
             query = query.filter(SupervisorReview.period_id == period_id)
         if goal_id:
             query = query.filter(SupervisorReview.goal_id == goal_id)
+        if subordinate_id:
+            query = query.filter(SupervisorReview.subordinate_id == subordinate_id)
         if status:
             query = query.filter(SupervisorReview.status == status)
 
@@ -211,6 +219,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         org_id: str,
         *,
         period_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
         pagination: Optional[PaginationParams] = None,
     ) -> List[SupervisorReview]:
         # Pending = draft reviews for goals currently pending approval
@@ -227,6 +236,8 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         )
         if period_id:
             query = query.filter(SupervisorReview.period_id == period_id)
+        if subordinate_id:
+            query = query.filter(SupervisorReview.subordinate_id == subordinate_id)
         if pagination:
             query = query.offset(pagination.offset).limit(pagination.limit)
         # Enforce organization scope via goal -> user
@@ -241,6 +252,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         *,
         period_id: Optional[UUID] = None,
         goal_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
         status: Optional[str] = None,
         pagination: Optional[PaginationParams] = None,
     ) -> List[SupervisorReview]:
@@ -250,6 +262,8 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
             query = query.filter(SupervisorReview.period_id == period_id)
         if goal_id:
             query = query.filter(SupervisorReview.goal_id == goal_id)
+        if subordinate_id:
+            query = query.filter(SupervisorReview.subordinate_id == subordinate_id)
         if status:
             query = query.filter(SupervisorReview.status == status)
 
@@ -268,6 +282,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         *,
         period_id: Optional[UUID] = None,
         goal_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
         status: Optional[str] = None,
     ) -> int:
         query = select(func.count(SupervisorReview.id))
@@ -275,6 +290,8 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
             query = query.filter(SupervisorReview.period_id == period_id)
         if goal_id:
             query = query.filter(SupervisorReview.goal_id == goal_id)
+        if subordinate_id:
+            query = query.filter(SupervisorReview.subordinate_id == subordinate_id)
         if status:
             query = query.filter(SupervisorReview.status == status)
 

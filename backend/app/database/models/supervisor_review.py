@@ -21,6 +21,7 @@ class SupervisorReview(Base):
     goal_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("goals.id", ondelete="CASCADE"), nullable=False)
     period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
     supervisor_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    subordinate_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     # Business fields
     action = Column(String(50), nullable=False)  # approved | rejected | pending

@@ -352,6 +352,7 @@ class GoalService:
                             goal_id=existing_goal.id,
                             period_id=existing_goal.period_id,
                             supervisor_id=supervisor.id,
+                            subordinate_id=existing_goal.user_id,
                             org_id=org_id,
                             action="PENDING",
                             comment="",

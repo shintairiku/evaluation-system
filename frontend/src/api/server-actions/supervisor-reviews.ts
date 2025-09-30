@@ -15,13 +15,14 @@ import type {
 } from '../types';
 
 /**
- * Server action to get supervisor reviews with pagination
+ * Server action to get supervisor reviews with pagination and flexible filtering
  */
 export const getSupervisorReviewsAction = cache(
   async (params?: {
     pagination?: PaginationParams;
     periodId?: string;
     goalId?: string;
+    subordinateId?: string;
     status?: string;
   }): Promise<{
     success: boolean;
@@ -187,122 +188,22 @@ export async function deleteSupervisorReviewAction(reviewId: UUID): Promise<{
   }
 }
 
-/**
- * Server action to get supervisor reviews by supervisor ID
- */
-export const getSupervisorReviewsBySupervisorAction = cache(
-  async (
-    supervisorId: UUID,
-  ): Promise<{
-    success: boolean;
-    data?: SupervisorReviewList;
-    error?: string;
-  }> => {
-    try {
-      const response = await supervisorReviewsApi.getSupervisorReviewsBySupervisor(supervisorId);
-
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.errorMessage || 'Failed to fetch supervisor reviews by supervisor',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get supervisor reviews by supervisor action error:', error);
-      return {
-        success: false,
-        error: 'An unexpected error occurred while fetching supervisor reviews by supervisor',
-      };
-    }
-  },
-);
 
 /**
- * Server action to get supervisor reviews by employee ID
- */
-export const getSupervisorReviewsByEmployeeAction = cache(
-  async (
-    employeeId: UUID,
-  ): Promise<{
-    success: boolean;
-    data?: SupervisorReviewList;
-    error?: string;
-  }> => {
-    try {
-      const response = await supervisorReviewsApi.getSupervisorReviewsByEmployee(employeeId);
-
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.errorMessage || 'Failed to fetch supervisor reviews by employee',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get supervisor reviews by employee action error:', error);
-      return {
-        success: false,
-        error: 'An unexpected error occurred while fetching supervisor reviews by employee',
-      };
-    }
-  },
-);
-
-/**
- * Server action to get supervisor reviews by goal ID
- */
-export const getSupervisorReviewsByGoalAction = cache(
-  async (
-    goalId: UUID,
-  ): Promise<{
-    success: boolean;
-    data?: SupervisorReviewList;
-    error?: string;
-  }> => {
-    try {
-      const response = await supervisorReviewsApi.getSupervisorReviewsByGoal(goalId);
-
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.errorMessage || 'Failed to fetch supervisor reviews by goal',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get supervisor reviews by goal action error:', error);
-      return {
-        success: false,
-        error: 'An unexpected error occurred while fetching supervisor reviews by goal',
-      };
-    }
-  },
-);
-
-/**
- * Server action to get pending supervisor reviews
+ * Server action to get pending supervisor reviews with optional filtering
  */
 export const getPendingSupervisorReviewsAction = cache(
-  async (): Promise<{
+  async (params?: {
+    pagination?: PaginationParams;
+    periodId?: string;
+    subordinateId?: string;
+  }): Promise<{
     success: boolean;
     data?: SupervisorReviewList;
     error?: string;
   }> => {
     try {
-      const response = await supervisorReviewsApi.getPendingSupervisorReviews();
+      const response = await supervisorReviewsApi.getPendingSupervisorReviews(params);
 
       if (!response.success || !response.data) {
         return {
@@ -358,36 +259,3 @@ export async function submitSupervisorReviewAction(reviewId: UUID): Promise<{
   }
 }
 
-/**
- * Server action to bulk submit supervisor reviews with cache revalidation
- */
-export async function bulkSubmitSupervisorReviewsAction(
-  periodId: UUID,
-  goalIds?: UUID[],
-): Promise<{
-  success: boolean;
-  error?: string;
-}> {
-  try {
-    const response = await supervisorReviewsApi.bulkSubmitSupervisorReviews(periodId, goalIds);
-
-    if (!response.success) {
-      return {
-        success: false,
-        error: response.errorMessage || 'Failed to bulk submit supervisor reviews',
-      };
-    }
-
-    revalidateTag(CACHE_TAGS.SUPERVISOR_REVIEWS);
-
-    return {
-      success: true,
-    };
-  } catch (error) {
-    console.error('Bulk submit supervisor reviews action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while bulk submitting supervisor reviews',
-    };
-  }
-}

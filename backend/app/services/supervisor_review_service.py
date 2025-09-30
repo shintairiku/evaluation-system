@@ -129,6 +129,7 @@ class SupervisorReviewService:
         *,
         period_id: Optional[UUID] = None,
         goal_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
         status: Optional[str] = None,
         pagination: PaginationParams,
     ) -> PaginatedResponse[SupervisorReviewSchema]:
@@ -149,6 +150,7 @@ class SupervisorReviewService:
                     org_id,
                     period_id=period_id,
                     goal_id=goal_id,
+                    subordinate_id=subordinate_id,
                     status=status,
                     pagination=pagination,
                 )
@@ -156,6 +158,7 @@ class SupervisorReviewService:
                     org_id,
                     period_id=period_id,
                     goal_id=goal_id,
+                    subordinate_id=subordinate_id,
                     status=status,
                 )
             elif len(accessible_user_ids) == 1 and accessible_user_ids[0] == current_user_context.user_id:
@@ -182,6 +185,7 @@ class SupervisorReviewService:
                     org_id,
                     period_id=period_id,
                     goal_id=goal_id,
+                    subordinate_id=subordinate_id,
                     status=status,
                     pagination=pagination,
                 )
@@ -190,6 +194,7 @@ class SupervisorReviewService:
                     org_id,
                     period_id=period_id,
                     goal_id=goal_id,
+                    subordinate_id=subordinate_id,
                     status=status,
                 )
 
@@ -210,6 +215,7 @@ class SupervisorReviewService:
         current_user_context: AuthContext,
         *,
         period_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
         pagination: PaginationParams,
     ) -> PaginatedResponse[SupervisorReviewSchema]:
         # Permission check handled by @require_permission decorator
@@ -218,7 +224,7 @@ class SupervisorReviewService:
             raise PermissionDeniedError("Organization context required")
 
         items = await self.repo.get_pending_reviews(
-            current_user_context.user_id, org_id, period_id=period_id, pagination=pagination
+            current_user_context.user_id, org_id, period_id=period_id, subordinate_id=subordinate_id, pagination=pagination
         )
         total = len(items)
         schemas = [SupervisorReviewSchema.model_validate(r, from_attributes=True) for r in items]
