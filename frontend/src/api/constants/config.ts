@@ -35,7 +35,7 @@ export const API_CONFIG = {
   IS_DEVELOPMENT: process.env.NODE_ENV === 'development',
   
   // Logging configuration
-  ENABLE_REQUEST_LOGGING: process.env.NODE_ENV !== 'production', // Disable in production for performance
+  ENABLE_REQUEST_LOGGING: process.env.NEXT_PUBLIC_ENABLE_REQUEST_LOGGING === 'true', // Opt-in request logging
   ENABLE_ERROR_LOGGING: true, // Always log errors
   
   // Performance settings
