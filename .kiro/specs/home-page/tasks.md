@@ -102,42 +102,48 @@
 
 ### 5. 上司向けカードコンポーネント
 
-- [ ] **5.1. TeamProgressCardコンポーネントの作成**
+- [x] **5.1. TeamProgressCardコンポーネントの作成**
   > チーム進捗表示カード。
   > 部下の評価進捗サマリーをプログレスバーで表示。
   >
+  > **実装完了:** `/src/components/dashboard/supervisor/TeamProgressCard.tsx` - プログレスバー、ステータス表示、スケルトン
   > **関連要件:** 要件2
 
-- [ ] **5.2. SupervisorPendingApprovalsCardコンポーネントの作成**
+- [x] **5.2. SupervisorPendingApprovalsCardコンポーネントの作成**
   > 上司用承認待ちタスク表示カード。
   > 目標承認待ち、評価フィードバック待ちの件数表示。
   >
+  > **実装完了:** `/src/components/dashboard/supervisor/SupervisorPendingApprovalsCard.tsx` - 承認待ちタスク、優先度表示、クイックアクション
   > **関連要件:** 要件2
 
-- [ ] **5.3. SubordinatesCardコンポーネントの作成**
+- [x] **5.3. SubordinatesCardコンポーネントの作成**
   > 部下一覧表示カード。
   > 緊急対応が必要な部下の強調表示。
   >
+  > **実装完了:** `/src/components/dashboard/supervisor/SubordinatesCard.tsx` - 部下一覧、ステータス表示、緊急対応ハイライト
   > **関連要件:** 要件2
 
-- [ ] **5.4. SupervisorActionsCardコンポーネントの作成**
+- [x] **5.4. SupervisorActionsCardコンポーネントの作成**
   > 上司機能への直接アクセスボタン。
   > 目標承認、評価フィードバック画面へのリンク。
   >
+  > **実装完了:** `/src/components/dashboard/supervisor/SupervisorActionsCard.tsx` - クイックアクションボタン、ナビゲーション
   > **関連要件:** 要件2
 
 ### 6. 上司用データ取得・API連携
 
-- [ ] **6.1. getSupervisorDashboardData Server Actionの実装**
+- [x] **6.1. getSupervisorDashboardData Server Actionの実装**
   > 上司用ダッシュボードデータ取得のServer Action。
   > 部下の進捗、承認待ちタスク、部下一覧の取得。
   >
+  > **実装完了:** `/src/api/server-actions/supervisor-dashboard.ts` - Server Action、型定義、APIエンドポイント
   > **関連要件:** 要件2
 
-- [ ] **6.2. SupervisorDashboardレイアウトコンポーネントの実装**
+- [x] **6.2. SupervisorDashboardレイアウトコンポーネントの実装**
   > 上司用ダッシュボードの統合レイアウト。
   > レスポンシブ対応。
   >
+  > **実装完了:** `/src/components/dashboard/supervisor/SupervisorDashboard.tsx` - レスポンシブレイアウト、状態管理、エラーハンドリング
   > **関連要件:** 要件2, 要件4
 
 ## 機能D: 従業員・パート用ダッシュボード実装
