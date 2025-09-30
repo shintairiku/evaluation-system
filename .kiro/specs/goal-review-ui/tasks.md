@@ -92,8 +92,13 @@
   >
   > **関連要件:** 要件1
 
-- [ ] **3.3. レスポンシブタブデザインの実装**
-  > モバイル・タブレット・デスクトップ対応のタブレイアウトを実装。モバイルではドロップダウン形式も検討。
+- [x] **3.3. レスポンシブタブデザインの実装**
+  > モバイル・タブレット・デスクトップ対応のタブレイアウトを実装。✅ 完了
+  >
+  > **実装詳細:**
+  > - useResponsiveBreakpoint フックで画面サイズを検出
+  > - モバイル・タブレット・デスクトップで最適化されたタブレイアウト
+  > - 各画面サイズに適したタッチターゲットサイズを実装
   >
   > **関連要件:** 要件5 (レスポンシブデザイン)
 
@@ -257,41 +262,84 @@
 ### 10. アクセシビリティ対応
 > すべてのユーザーが利用可能なアクセシブルなUIを実装します。
 
-- [ ] **10.1. ARIA属性とラベル実装**
-  > すべてのインタラクティブ要素に適切な aria-label, aria-describedby を設定。
+- [x] **10.1. ARIA属性とラベル実装**
+  > すべてのインタラクティブ要素に適切な aria-label, aria-describedby を設定。✅ 完了
+  >
+  > **実装詳細:**
+  > - `/src/utils/accessibility.ts` に ARIA ユーティリティ関数を実装
+  > - `createAriaLabel()`, `createAriaExpandable()`, `createAriaPressed()`, `createAriaValidation()`, `createAriaDialog()` 等の関数を提供
+  > - GoalApprovalCard, ApprovalForm, ConfirmationDialog で使用
   >
   > **関連要件:** 要件7 (アクセシビリティ要件)
 
-- [ ] **10.2. キーボードナビゲーション対応**
-  > Tab, Enter, Space, Escape キーによる完全なキーボード操作を実装。
+- [x] **10.2. キーボードナビゲーション対応**
+  > Tab, Enter, Space, Escape キーによる完全なキーボード操作を実装。✅ 完了
+  >
+  > **実装詳細:**
+  > - `/src/hooks/useKeyboardNavigation.ts` カスタムフックを実装
+  > - Arrow keys, Tab, Enter, Space, Escape, Home, End キーをサポート
+  > - focusNext, focusPrevious, focusFirst, focusLast ナビゲーション関数を提供
+  > - GoalApprovalCard と ApprovalForm で使用
   >
   > **関連要件:** 要件7
 
-- [ ] **10.3. スクリーンリーダー対応**
-  > 状態変化時の aria-live アナウンス、適切な見出し構造を実装。
+- [x] **10.3. スクリーンリーダー対応**
+  > 状態変化時の aria-live アナウンス、適切な見出し構造を実装。✅ 完了
+  >
+  > **実装詳細:**
+  > - `announceToScreenReader()` 関数を実装（aria-live region 使用）
+  > - `createAriaLiveRegion()` でポライトネスレベル制御
+  > - GoalApprovalCard でステータス変更時にアナウンス
+  > - ConfirmationDialog でモーダル表示時にアナウンス
   >
   > **関連要件:** 要件7
 
-- [ ] **10.4. コントラスト比とフォーカス表示**
-  > WCAG準拠のコントラスト比、明確なフォーカスインジケーターを実装。
+- [x] **10.4. コントラスト比とフォーカス表示**
+  > WCAG準拠のコントラスト比、明確なフォーカスインジケーターを実装。✅ 完了
+  >
+  > **実装詳細:**
+  > - `/src/styles/accessibility.css` にフォーカス表示スタイルを実装
+  > - `.focus-visible` クラスで 2px blue outline を提供
+  > - High contrast mode サポート（`@media (prefers-contrast: high)`）
+  > - Reduced motion サポート（`@media (prefers-reduced-motion: reduce)`）
   >
   > **関連要件:** 要件7
 
 ### 11. レスポンシブデザイン実装
 > マルチデバイス対応のレスポンシブレイアウトを実装します。
 
-- [ ] **11.1. モバイル対応レイアウト（〜767px）**
-  > モバイルデバイス向けのスタック型レイアウト、44px以上のタッチターゲットを実装。
+- [x] **11.1. モバイル対応レイアウト（〜767px）**
+  > モバイルデバイス向けのスタック型レイアウト、44px以上のタッチターゲットを実装。✅ 完了
+  >
+  > **実装詳細:**
+  > - `/src/hooks/useResponsiveBreakpoint.ts` カスタムフックを実装
+  > - Tailwind breakpoints に対応（xs: 0, sm: 640, md: 768, lg: 1024, xl: 1280, 2xl: 1536）
+  > - `isMobile` フラグで < 768px を判定
+  > - accessibility.css に `.touch-target` (min 44px) スタイルを実装
+  > - `.touch-target-button` (min 48px)、`.touch-target-input` (min 44px) を提供
+  > - GoalApprovalCard と ApprovalForm でモバイルレイアウトに対応
   >
   > **関連要件:** 要件5 (レスポンシブデザイン)
 
-- [ ] **11.2. タブレット対応レイアウト（768px〜1023px）**
-  > タブレットサイズでの最適なレイアウトを実装。
+- [x] **11.2. タブレット対応レイアウト（768px〜1023px）**
+  > タブレットサイズでの最適なレイアウトを実装。✅ 完了
+  >
+  > **実装詳細:**
+  > - `isTablet` フラグで 768-1023px を判定
+  > - accessibility.css に `.tablet-grid` (2カラム) スタイルを実装
+  > - `.tablet-spacing` で適切な間隔を提供
+  > - タブレット向けに最適化されたカードレイアウト
   >
   > **関連要件:** 要件5
 
-- [ ] **11.3. デスクトップ対応レイアウト（1024px以上）**
-  > デスクトップでの2カラムグリッド、サイドパネル表示を実装。
+- [x] **11.3. デスクトップ対応レイアウト（1024px以上）**
+  > デスクトップでの2カラムグリッド、サイドパネル表示を実装。✅ 完了
+  >
+  > **実装詳細:**
+  > - `isDesktop` フラグで >= 1024px を判定
+  > - accessibility.css に `.desktop-grid` (2fr 1fr grid) スタイルを実装
+  > - `.desktop-sidebar` で sticky positioning を提供
+  > - デスクトップ向けに最適化されたサイドパネルレイアウト
   >
   > **関連要件:** 要件5
 
