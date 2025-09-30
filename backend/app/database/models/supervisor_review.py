@@ -39,7 +39,7 @@ class SupervisorReview(Base):
     __table_args__ = (
         # Validate action values
         CheckConstraint(
-            "action IN ('approved', 'rejected', 'pending')",
+            "action IN ('APPROVED', 'REJECTED', 'PENDING')",
             name="check_supervisor_review_action_values",
         ),
         # Validate status values
