@@ -37,6 +37,9 @@ export * from './admin-dashboard';
 // Supervisor Dashboard types
 export * from './supervisor-dashboard';
 
+// Employee Dashboard types
+export * from './employee-dashboard';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;
