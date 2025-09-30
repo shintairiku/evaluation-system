@@ -29,6 +29,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         goal_id: UUID,
         period_id: UUID,
         supervisor_id: UUID,
+        subordinate_id: UUID,
         org_id: str,
         action: str,
         comment: Optional[str],
@@ -46,6 +47,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
             goal_id=goal_id,
             period_id=period_id,
             supervisor_id=supervisor_id,
+            subordinate_id=subordinate_id,
             action=action,
             comment=comment or "",
             status=status,
@@ -53,7 +55,7 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         )
         self.session.add(review)
         logger.info(
-            f"Created SupervisorReview (pending commit) in org {org_id}: goal={goal_id}, period={period_id}, supervisor={supervisor_id}, status={status}, action={action}"
+            f"Created SupervisorReview (pending commit) in org {org_id}: goal={goal_id}, period={period_id}, supervisor={supervisor_id}, subordinate={subordinate_id}, status={status}, action={action}"
         )
         return review
 
