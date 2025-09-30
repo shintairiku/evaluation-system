@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,9 +19,14 @@ export function EvaluationPeriodSelector({ onPeriodSelected }: EvaluationPeriodS
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<EvaluationPeriod | null>(null);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    loadEvaluationPeriods();
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      loadEvaluationPeriods();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadEvaluationPeriods = async () => {
