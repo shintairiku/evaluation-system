@@ -54,42 +54,48 @@
 
 ### 3. 管理者向けカードコンポーネント
 
-- [ ] **3.1. SystemStatsCardコンポーネントの作成**
+- [x] **3.1. SystemStatsCardコンポーネントの作成**
   > システム全体の統計情報表示カード。
   > 総ユーザー数、部門数、アクティブ評価期間数を表示。
   >
+  > **実装完了:** `/src/components/dashboard/admin/SystemStatsCard.tsx` - システム統計・健康状態表示、リアルタイム更新対応
   > **関連要件:** 要件1
 
-- [ ] **3.2. PendingApprovalsCardコンポーネントの作成**
+- [x] **3.2. PendingApprovalsCardコンポーネントの作成**
   > 承認待ち項目表示カード。
   > 承認待ちユーザー数、未完了評価数をバッジ表示。
   >
+  > **実装完了:** `/src/components/dashboard/admin/PendingApprovalsCard.tsx` - 優先度別表示、クリック可能リンク対応
   > **関連要件:** 要件1
 
-- [ ] **3.3. SystemAlertsCardコンポーネントの作成**
+- [x] **3.3. SystemAlertsCardコンポーネントの作成**
   > システムアラート表示カード。
   > 緊急度に応じた色分け表示とアイコン。
   >
+  > **実装完了:** `/src/components/dashboard/admin/SystemAlertsCard.tsx` - 緊急度別色分け、アラート削除機能
   > **関連要件:** 要件1
 
-- [ ] **3.4. QuickActionsCardコンポーネントの作成**
+- [x] **3.4. QuickActionsCardコンポーネントの作成**
   > 管理機能への直接アクセスボタン。
   > ユーザー管理、部門管理、ステージ管理、コンピテンシー管理へのリンク。
   >
+  > **実装完了:** `/src/components/dashboard/admin/QuickActionsCard.tsx` - 管理機能ショートカット、レポート・緊急対応メニュー
   > **関連要件:** 要件1
 
 ### 4. 管理者用データ取得・API連携
 
-- [ ] **4.1. getAdminDashboardData Server Actionの実装**
+- [x] **4.1. getAdminDashboardData Server Actionの実装**
   > 管理者用ダッシュボードデータ取得のServer Action。
   > システム統計、承認待ち、アラート情報の取得。
   >
+  > **実装完了:** `/src/api/server-actions/admin-dashboard.ts` - Server Action、APIエンドポイント、型定義、キャッシュ設定
   > **関連要件:** 要件1
 
-- [ ] **4.2. AdminDashboardレイアウトコンポーネントの実装**
+- [x] **4.2. AdminDashboardレイアウトコンポーネントの実装**
   > 管理者用ダッシュボードの統合レイアウト。
   > レスポンシブ対応（3カラム→2カラム→1カラム）。
   >
+  > **実装完了:** `/src/components/dashboard/admin/AdminDashboard.tsx` - レスポンシブレイアウト、状態管理、エラーハンドリング
   > **関連要件:** 要件1, 要件4
 
 ## 機能C: 上司・管理職用ダッシュボード実装
