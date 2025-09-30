@@ -21,6 +21,7 @@ export interface SupervisorReview extends SupervisorReviewBase {
   goal_id: UUID;
   period_id: UUID;
   supervisor_id: UUID;
+  subordinate_id: UUID;
   status: SubmissionStatus;
   reviewed_at?: string; // ISO date string
   created_at: string;
