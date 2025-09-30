@@ -182,7 +182,8 @@ class GoalService:
             await self.session.commit()
             await self.session.refresh(created_goal)
             
-            # If goal is submitted for approval, create related assessment records
+            # Only create related assessment records when goal is submitted
+            # Goals start as draft and supervisor_review is created when submitted
             if goal_data.status == GoalStatus.SUBMITTED:
                 await self._create_related_assessment_records(created_goal)
                 await self.session.commit()
@@ -345,19 +346,7 @@ class GoalService:
             # Auto-create draft supervisor review(s) only when submitting for approval
             if target_status == GoalStatus.SUBMITTED:
                 try:
-                    # Get supervisors of goal owner
-                    supervisors = await self.user_repo.get_user_supervisors(existing_goal.user_id, org_id)
-                    for supervisor in supervisors:
-                        await self.supervisor_review_repo.create(
-                            goal_id=existing_goal.id,
-                            period_id=existing_goal.period_id,
-                            supervisor_id=supervisor.id,
-                            subordinate_id=existing_goal.user_id,
-                            org_id=org_id,
-                            action="PENDING",
-                            comment="",
-                            status="draft",
-                        )
+                    await self._create_related_assessment_records(updated_goal)
                     await self.session.commit()
                 except Exception as auto_create_error:
                     logger.error(f"Auto-create SupervisorReview failed for goal {goal_id}: {auto_create_error}")
@@ -689,7 +678,30 @@ class GoalService:
         return GoalDetail(**detail_dict)
 
     async def _create_related_assessment_records(self, goal: GoalModel):
-        """Create related self-assessment and supervisor review records when goal is submitted."""
-        # TODO: Implement creation of related assessment records
-        # This would create SelfAssessment and SupervisorReview records
-        pass
+        """Create related supervisor review records when goal is submitted."""
+        try:
+            supervisors = await self.user_repo.get_user_supervisors(goal.user_id, goal.org_id)
+            
+            if not supervisors:
+                logger.warning(f"No supervisors found for goal {goal.id} (user {goal.user_id})")
+                return
+            
+            logger.info(f"Creating {len(supervisors)} supervisor_review records for goal {goal.id}")
+            
+            for supervisor in supervisors:
+                await self.supervisor_review_repo.create(
+                    goal_id=goal.id,
+                    period_id=goal.period_id,
+                    supervisor_id=supervisor.id,
+                    subordinate_id=goal.user_id,
+                    org_id=goal.org_id,
+                    action="PENDING",
+                    comment="",
+                    status="draft",
+                )
+            
+            logger.info(f"Successfully created {len(supervisors)} supervisor_review records for goal {goal.id}")
+                
+        except Exception as e:
+            logger.error(f"Failed to create supervisor review records for goal {goal.id}: {e}")
+            # Don't raise exception to avoid breaking goal creation
