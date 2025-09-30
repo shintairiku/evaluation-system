@@ -51,7 +51,9 @@ export const buildApiUrl = (endpoint: string, version?: string) => {
 // Helper function to build organization-scoped API URLs (returns relative paths for HTTP client)
 export const buildOrgApiUrl = (orgSlug: string, endpoint: string) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `/api/org/${encodeURIComponent(orgSlug)}${cleanEndpoint}`;
+  // Ensure trailing slash to prevent 307 redirects in FastAPI
+  const withTrailingSlash = cleanEndpoint.endsWith('/') ? cleanEndpoint : `${cleanEndpoint}/`;
+  return `/api/org/${encodeURIComponent(orgSlug)}${withTrailingSlash}`;
 };
 
 export const API_ENDPOINTS = {
