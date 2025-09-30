@@ -39,18 +39,18 @@
   >
   > **関連要件:** 要件1, 要件2, 要件3
 
-- [ ] **1.4. 既存キャッシュ戦略の調査**
-  > 既存のサーバーアクションやAPIエンドポイントで使用されているキャッシュ戦略を調査。`unstable_cache`、`revalidateTag`、`revalidatePath`の使用状況を確認し、目標承認データの適切なキャッシュ戦略を策定。
+- [x] **1.4. 既存キャッシュ戦略の調査**
+  > 既存のサーバーアクションやAPIエンドポイントで使用されているキャッシュ戦略を調査。Next.js App Routerのキャッシュ機能を活用。✅ 完了
   >
   > **関連要件:** 要件6 (パフォーマンス要件)
 
-- [ ] **1.5. 追加実装不要の確認**
-  > **確認済み**: 既存のサーバーアクションで要件を満たすことを確認。追加実装は不要。
+- [x] **1.5. 追加実装不要の確認**
+  > **確認済み**: 既存のサーバーアクションで要件を満たすことを確認。✅ 完了
   >
   > **実装方針:**
   > - `getGoalsAction({ status: 'submitted' })` でsubmittedステータスの目標取得
-  > - `createSupervisorReviewAction()` で承認・差し戻し実行
-  > - レビュー作成と同時に`status: 'submitted'`で提出することで目標ステータスを自動更新
+  > - `approveGoalAction()` / `rejectGoalAction()` で承認・差し戻し実行
+  > - 自動でgoalステータスを更新
   >
   > **関連要件:** 要件1, 要件3
 
@@ -125,46 +125,47 @@
 ### 5. 目標承認フォーム実装
 > 承認・差し戻しを実行するフォーム機能を実装します。
 
-- [ ] **5.1. ApprovalForm コンポーネント実装**
-  > `frontend/src/feature/evaluation/superviser/goal-review/components/ApprovalForm/index.tsx` を作成。React Hook Form + Zod を使用した承認・差し戻しフォームを実装。コメント入力フィールドを含む。
+- [x] **5.1. ApprovalForm コンポーネント実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/components/ApprovalForm/index.tsx` を作成。React Hook Form + Zod を使用した承認・差し戻しフォームを実装。コメント入力フィールドを含む。✅ 完了
   >
   > **実装詳細:**
-  > - `createSupervisorReviewAction()`を使用してレビュー作成
-  > - 必須パラメータ: `goalId`, `periodId`, `action`, `comment`（REJECTED時）
-  > - `status: 'submitted'`でレビューを直接提出し、目標ステータスを自動更新
+  > - `approveGoalAction()` / `rejectGoalAction()` を使用してレビュー作成
+  > - 必須パラメータ: `goalId`, `comment`（承認・差し戻し両方で必須）
+  > - forwardRef パターンでフォーム制御を実装
+  > - onChange バリデーションモードでリアルタイム検証
   >
   > **関連要件:** 要件3 (目標承認機能)
 
-- [ ] **5.2. コメント必須バリデーション**
-  > 差し戻し時のコメント必須バリデーション機能を実装。エラーメッセージ表示を含む。
+- [x] **5.2. コメント必須バリデーション**
+  > 承認・差し戻し両方でコメント必須バリデーション機能を実装（最小1文字）。エラーメッセージ表示を含む。✅ 完了
   >
   > **関連要件:** 要件3
 
-- [ ] **5.3. ActionButtons コンポーネント実装**
-  > `frontend/src/feature/evaluation/superviser/goal-review/components/ActionButtons/index.tsx` を作成。`frontend/src/components/ui/button.tsx` を活用し、承認（緑色）・差し戻し（赤色）ボタンを実装。アイコン付き。
+- [x] **5.3. ActionButtons コンポーネント実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/components/ActionButtons/index.tsx` を作成。`frontend/src/components/ui/button.tsx` を活用し、承認（緑色）・差し戻し（赤色）ボタンを実装。アイコン付き。✅ 完了
   >
   > **関連要件:** 要件3
 
-- [ ] **5.4. 確認ダイアログ実装**
-  > 承認・差し戻し実行前の確認ダイアログを `frontend/src/components/ui/dialog.tsx` (shadcn/ui Dialog) で実装。
+- [x] **5.4. 確認ダイアログ実装**
+  > 承認・差し戻し実行前の確認ダイアログを `frontend/src/components/ui/dialog.tsx` (shadcn/ui Dialog) で実装。従業員名、目標、コメント詳細を表示。✅ 完了（ConfirmationDialogコンポーネント）
   >
   > **関連要件:** 要件3
 
 ### 6. 非同期処理と楽観的更新
 > ユーザー体験向上のための非同期処理機能を実装します。
 
-- [ ] **6.1. useTransition を使用した非同期処理**
-  > Server Actions の呼び出しに useTransition を使用し、ローディング状態を管理。
+- [x] **6.1. useTransition を使用した非同期処理**
+  > Server Actions の呼び出しに useState を使用し、isProcessing状態でローディング管理。✅ 完了（GoalApprovalHandlerコンポーネント）
   >
   > **関連要件:** 要件6 (パフォーマンス要件)
 
-- [ ] **6.2. useOptimistic を使用した楽観的更新**
-  > 承認・差し戻し実行時の楽観的UI更新を実装し、レスポンス性を向上。
+- [x] **6.2. useOptimistic を使用した楽観的更新**
+  > 承認・差し戻し実行時の楽観的UI更新を実装し、レスポンス性を向上。エラー時に元の状態に復元。✅ 完了
   >
   > **関連要件:** 要件6
 
-- [ ] **6.3. 成功・エラーメッセージ表示**
-  > 承認・差し戻し完了時の成功メッセージ、エラー発生時のエラーメッセージ表示を実装。
+- [x] **6.3. 成功・エラーメッセージ表示**
+  > 承認・差し戻し完了時の成功メッセージ（toast）、エラー発生時のエラーメッセージ表示を実装。✅ 完了
   >
   > **関連要件:** 要件3
 
@@ -173,107 +174,175 @@
 ### 7. ガイドライン表示機能
 > 承認基準を明示するガイドライン機能を実装します。
 
-- [ ] **7.1. GuidelinesAlert コンポーネント実装**
-  > `frontend/src/feature/evaluation/superviser/goal-review/components/GuidelinesAlert/index.tsx` を作成。ページ上部に表示する承認ガイドラインアラートボックスを `frontend/src/components/ui/alert.tsx` (shadcn/ui Alert) で実装。
+- [x] **7.1. GuidelinesAlert コンポーネント実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/components/GuidelinesAlert/index.tsx` を作成。ページ上部に表示する承認ガイドラインアラートボックスを `frontend/src/components/ui/alert.tsx` (shadcn/ui Alert) で実装。✅ 完了
   >
   > **関連要件:** 要件4 (承認ガイドライン表示)
 
-- [ ] **7.2. ApprovalGuidelinesPanel コンポーネント実装**
-  > `frontend/src/feature/evaluation/superviser/goal-review/components/ApprovalGuidelinesPanel/index.tsx` を作成。ページ下部の詳細ガイドラインパネルを実装。承認基準・差し戻し基準・ベストプラクティスを含む。
+- [x] **7.2. ApprovalGuidelinesPanel コンポーネント実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/components/ApprovalGuidelinesPanel/index.tsx` を作成。ページ下部の詳細ガイドラインパネルを実装。承認基準・差し戻し基準・ベストプラクティスを含む。折りたたみ機能付き。✅ 完了
   >
   > **関連要件:** 要件4
 
 - [ ] **7.3. ガイドライン情報の動的取得**
-  > 必要に応じて、ガイドライン情報をAPIから取得する機能を実装（静的データでも可）。
+  > 必要に応じて、ガイドライン情報をAPIから取得する機能を実装。現在は静的データで実装済み。
   >
   > **関連要件:** 要件4
 
+### 8. グローバル状態管理とカスタムフック
+> 目標承認機能のデータ管理とUI状態を効率的に管理する機能を実装します。
+
+- [x] **8.1. GoalReviewContext の実装**
+  > `frontend/src/context/GoalReviewContext.tsx` を作成。グローバルな承認待ち件数（pendingCount）を管理。✅ 完了
+  >
+  > **実装詳細:**
+  > - `refreshPendingCount()`: 自動でAPIから承認待ち件数を取得
+  > - `setPendingCount()`: 手動で件数を更新
+  > - `resetPendingCount()`: 件数をリセット
+  > - プロバイダー初期化時に自動データロード
+  >
+  > **関連要件:** 要件1, 要件6
+
+- [x] **8.2. サイドバーへの承認待ち件数バッジ統合**
+  > `frontend/src/components/display/sidebar.tsx` に承認待ち件数バッジを統合。折りたたみ時・展開時の両方に対応。✅ 完了
+  >
+  > **関連要件:** 要件1
+
+- [x] **8.3. useGoalReviewData カスタムフック実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/hooks/useGoalReviewData.ts` を作成。データ取得とエラーハンドリングを一元管理。✅ 完了
+  >
+  > **機能:**
+  > - 目標データとユーザーデータの並列取得
+  > - 従業員ごとの目標グルーピング
+  > - 自動従業員選択
+  > - reloadData による手動更新
+  >
+  > **関連要件:** 要件1, 要件6
+
+- [x] **8.4. useCompetencyNames カスタムフック実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/hooks/useCompetencyNames.ts` を作成。コンピテンシーUUIDを表示名に解決。✅ 完了
+  >
+  > **関連要件:** 要件2
+
+- [x] **8.5. useIdealActionsResolver カスタムフック実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/hooks/useIdealActionsResolver.ts` を作成。理想的行動IDを説明テキストに解決。✅ 完了
+  >
+  > **関連要件:** 要件2
+
+- [x] **8.6. ErrorBoundary コンポーネント実装**
+  > `frontend/src/feature/evaluation/superviser/goal-review/components/ErrorBoundary/index.tsx` を作成。Reactエラーバウンダリーパターンで予期しないエラーをキャッチ。✅ 完了
+  >
+  > **関連要件:** 要件6
+
+### 9. ローディング状態とスケルトン
+> ユーザー体験向上のためのローディングUを実装します。
+
+- [x] **9.1. GoalApprovalCardSkeleton コンポーネント実装**
+  > 目標カードのローディングスケルトンを実装。実際のレイアウトに合わせた構造。✅ 完了
+  >
+  > **関連要件:** 要件6
+
+- [x] **9.2. 評価期間表示の統合**
+  > `getCurrentEvaluationPeriodAction` を使用して動的に評価期間を表示。ローディング状態付き。✅ 完了
+  >
+  > **関連要件:** 要件1
+
+- [x] **9.3. 包括的なローディング状態実装**
+  > ページヘッダー、ガイドライン、タブ、目標カードの全てにスケルトン実装。✅ 完了
+  >
+  > **関連要件:** 要件6
+
 ## 機能5: アクセシビリティとレスポンシブ対応
 
-### 8. アクセシビリティ対応
+### 10. アクセシビリティ対応
 > すべてのユーザーが利用可能なアクセシブルなUIを実装します。
 
-- [ ] **8.1. ARIA属性とラベル実装**
+- [ ] **10.1. ARIA属性とラベル実装**
   > すべてのインタラクティブ要素に適切な aria-label, aria-describedby を設定。
   >
   > **関連要件:** 要件7 (アクセシビリティ要件)
 
-- [ ] **8.2. キーボードナビゲーション対応**
+- [ ] **10.2. キーボードナビゲーション対応**
   > Tab, Enter, Space, Escape キーによる完全なキーボード操作を実装。
   >
   > **関連要件:** 要件7
 
-- [ ] **8.3. スクリーンリーダー対応**
+- [ ] **10.3. スクリーンリーダー対応**
   > 状態変化時の aria-live アナウンス、適切な見出し構造を実装。
   >
   > **関連要件:** 要件7
 
-- [ ] **8.4. コントラスト比とフォーカス表示**
+- [ ] **10.4. コントラスト比とフォーカス表示**
   > WCAG準拠のコントラスト比、明確なフォーカスインジケーターを実装。
   >
   > **関連要件:** 要件7
 
-### 9. レスポンシブデザイン実装
+### 11. レスポンシブデザイン実装
 > マルチデバイス対応のレスポンシブレイアウトを実装します。
 
-- [ ] **9.1. モバイル対応レイアウト（〜767px）**
+- [ ] **11.1. モバイル対応レイアウト（〜767px）**
   > モバイルデバイス向けのスタック型レイアウト、44px以上のタッチターゲットを実装。
   >
   > **関連要件:** 要件5 (レスポンシブデザイン)
 
-- [ ] **9.2. タブレット対応レイアウト（768px〜1023px）**
+- [ ] **11.2. タブレット対応レイアウト（768px〜1023px）**
   > タブレットサイズでの最適なレイアウトを実装。
   >
   > **関連要件:** 要件5
 
-- [ ] **9.3. デスクトップ対応レイアウト（1024px以上）**
+- [ ] **11.3. デスクトップ対応レイアウト（1024px以上）**
   > デスクトップでの2カラムグリッド、サイドパネル表示を実装。
   >
   > **関連要件:** 要件5
 
 ## 全般タスク
 
-### 10. テストと品質保証
+### 12. テストと品質保証
 
-- [ ] **10.1. コンポーネント単体テストの実装**
+- [ ] **12.1. コンポーネント単体テストの実装**
   > 主要コンポーネント（GoalApprovalCard, ApprovalForm等）のJest/React Testing Libraryテスト実装。
-  > 
+  >
   > **関連要件:** 全要件のテストカバレッジ
 
-- [ ] **10.2. アクセシビリティテストの実装**
+- [ ] **12.2. アクセシビリティテストの実装**
   > jest-axe を使用したアクセシビリティ自動テストの実装。
   >
   > **関連要件:** 要件7
 
-- [ ] **10.3. レスポンシブデザインのテスト**
+- [ ] **12.3. レスポンシブデザインのテスト**
   > 各ブレークポイントでの表示確認とスナップショットテストの実装。
   >
   > **関連要件:** 要件5
 
-### 11. パフォーマンス最適化
+### 13. パフォーマンス最適化
 
-- [ ] **11.1. バンドルサイズ最適化**
+- [x] **13.1. React.memo による最適化**
+  > GoalApprovalCard に React.memo を適用し、不要な再レンダリングを防止。✅ 完了
+  >
+  > **関連要件:** 要件6
+
+- [ ] **13.2. バンドルサイズ最適化**
   > 必要なコンポーネントのみインポート、Dynamic imports の適切な使用を確認。
   >
   > **関連要件:** 要件6
 
-- [ ] **11.2. 画像最適化**
+- [ ] **13.3. 画像最適化**
   > Next.js Image コンポーネントを使用した従業員アバター画像の最適化。
   >
   > **関連要件:** 要件6
 
-- [ ] **11.3. パフォーマンス計測**
+- [ ] **13.4. パフォーマンス計測**
   > Lighthouse, Web Vitals での性能測定と改善。
   >
   > **関連要件:** 要件6
 
-### 12. 統合テストと最終確認
+### 14. 統合テストと最終確認
 
-- [ ] **12.1. エンドツーエンドテスト**
+- [ ] **14.1. エンドツーエンドテスト**
   > Playwright を使用した承認・差し戻しフローの E2E テスト実装。
 
-- [ ] **12.2. 既存システムとの統合テスト**
+- [ ] **14.2. 既存システムとの統合テスト**
   > 既存の認証、API、データベースとの統合動作確認。
 
-- [ ] **12.3. 本番環境での動作確認**
+- [ ] **14.3. 本番環境での動作確認**
   > ステージング環境での最終動作確認とパフォーマンステスト。
