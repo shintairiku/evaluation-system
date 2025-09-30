@@ -7,4 +7,5 @@ export { default as PendingApprovalNotification } from './PendingApprovalNotific
 export { default as UserInfoCard } from './UserInfoCard';
 export { default as InactiveAccountMessage } from './InactiveAccountMessage';
 export { default as LandingPage } from './LandingPage';
-export { default as ClerkInfoCard } from './ClerkInfoCard'; 
+export { default as ClerkInfoCard } from './ClerkInfoCard';
+export { EvaluationPeriodSelector } from './EvaluationPeriodSelector'; 

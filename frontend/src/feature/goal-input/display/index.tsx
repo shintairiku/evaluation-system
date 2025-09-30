@@ -10,7 +10,7 @@ import { StepIndicator } from '@/components/ui/step-indicator';
 import { PerformanceGoalsStep } from './PerformanceGoalsStep';
 import { CompetencyGoalsStep } from './CompetencyGoalsStep';
 import { ConfirmationStep } from './ConfirmationStep';
-import { EvaluationPeriodSelector } from './EvaluationPeriodSelector';
+import { EvaluationPeriodSelector } from '@/components/display/EvaluationPeriodSelector';
 import { useGoalData } from '@/hooks/useGoalData';
 import { usePeriodSelection } from '@/hooks/usePeriodSelection';
 import { useGoalAutoSave } from '@/hooks/useGoalAutoSave';
