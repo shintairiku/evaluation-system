@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
-import { getGoalsAction } from '@/api/server-actions/goals';
+import { getPendingSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
 
 export interface GoalReviewState {
   pendingCount: number;
@@ -34,7 +34,11 @@ export function GoalReviewProvider({ children }: GoalReviewProviderProps) {
 
   const refreshPendingCount = useCallback(async () => {
     try {
-      const result = await getGoalsAction({ status: 'submitted' });
+      // ARCHITECTURAL MIGRATION: Use supervisor_review table instead of goals table
+      // This aligns with the Goal Review page implementation using the same data source
+      const result = await getPendingSupervisorReviewsAction({
+        pagination: { limit: 100 }
+      });
       if (result.success && result.data?.items) {
         setPendingCountState(result.data.items.length);
       }
