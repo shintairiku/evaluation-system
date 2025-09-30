@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getGoalsAction } from '@/api/server-actions/goals';
 import { getUsersAction } from '@/api/server-actions/users';
-import { getCurrentEvaluationPeriodAction } from '@/api/server-actions/evaluation-periods';
+import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import type { GoalResponse, UserDetailResponse, EvaluationPeriod } from '@/api/types';
 
 /**
@@ -57,10 +57,10 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
       setLoading(true);
       setError(null);
 
-      // Load current evaluation period
-      const periodResult = await getCurrentEvaluationPeriodAction();
-      if (periodResult.success && periodResult.data) {
-        setCurrentPeriod(periodResult.data);
+      // Load current evaluation period using categorized periods action
+      const periodResult = await getCategorizedEvaluationPeriodsAction();
+      if (periodResult.success && periodResult.data?.current) {
+        setCurrentPeriod(periodResult.data.current);
       } else {
         setCurrentPeriod(null);
       }
