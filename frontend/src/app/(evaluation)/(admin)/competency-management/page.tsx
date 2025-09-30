@@ -13,10 +13,7 @@ import { getStagesAdminAction } from '@/api/server-actions/stages';
 export default async function CompetencyManagementPage() {
   // Check admin access by calling admin-only endpoint
   // Using getStagesAdminAction to verify admin permissions (similar to stage-management)
-  const [competenciesResult, stagesResult] = await Promise.all([
-    getCompetenciesAction({ page: 1, limit: 100 }),
-    getStagesAdminAction(),
-  ]);
+  const stagesResult = await getStagesAdminAction();
 
   // Handle non-admin access with 403 error display
   if (!stagesResult.success) {
@@ -38,7 +35,17 @@ export default async function CompetencyManagementPage() {
     );
   }
 
-  if (!competenciesResult.success) {
+  const stages = stagesResult.data!;
+
+  // Fetch competencies for ALL stages in parallel (for admin view)
+  const competencyPromises = stages.map(stage =>
+    getCompetenciesAction({ stageId: stage.id, limit: 100 })
+  );
+  const competencyResults = await Promise.all(competencyPromises);
+
+  // Check if any competency fetch failed
+  const failedResult = competencyResults.find(result => !result.success);
+  if (failedResult) {
     return (
       <div className="container mx-auto py-8">
         <div className="text-center space-y-4">
@@ -47,15 +54,24 @@ export default async function CompetencyManagementPage() {
             Failed to load competencies data.
           </p>
           <p className="text-xs text-gray-400 mt-4">
-            Error: {competenciesResult.error}
+            Error: {failedResult.error}
           </p>
         </div>
       </div>
     );
   }
 
-  const competencies = competenciesResult.data!;
-  const stages = stagesResult.data!;
+  // Combine all competencies from all stages into a single response
+  const allCompetencies = competencyResults.flatMap(result => result.data?.items || []);
+  const totalCompetencies = allCompetencies.length;
+
+  const competencies = {
+    items: allCompetencies,
+    total: totalCompetencies,
+    page: 1,
+    limit: totalCompetencies,
+    pages: 1,
+  };
 
   return (
     <div className="container mx-auto p-6">
