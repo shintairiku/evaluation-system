@@ -31,6 +31,12 @@ export * from './supervisor-review';
 // Supervisor Feedback types
 export * from './supervisor-feedback';
 
+// Admin Dashboard types
+export * from './admin-dashboard';
+
+// Supervisor Dashboard types
+export * from './supervisor-dashboard';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;

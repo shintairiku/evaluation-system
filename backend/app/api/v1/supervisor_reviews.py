@@ -13,47 +13,25 @@ from ...core.exceptions import NotFoundError, PermissionDeniedError, ValidationE
 
 router = APIRouter(prefix="/supervisor-reviews", tags=["supervisor-reviews"])
 
-@router.get("/goal/{goal_id}", response_model=SupervisorReviewList)
-async def get_reviews_for_goal(
-    goal_id: UUID,
-    pagination: PaginationParams = Depends(),
-    period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
-    status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
-    context: AuthContext = Depends(get_auth_context),
-    session: AsyncSession = Depends(get_db_session)
-):
-    """Get supervisor reviews for a specific goal (owner, supervisor, or admin)."""
-    try:
-        service = SupervisorReviewService(session)
-        result = await service.get_reviews(
-            current_user_context=context,
-            period_id=period_id,
-            goal_id=goal_id,
-            status=status,
-            pagination=pagination,
-        )
-        return SupervisorReviewList(items=result.items, total=result.total, page=result.page, limit=result.limit, pages=result.pages)
-    except (PermissionDeniedError, NotFoundError) as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching goal reviews: {str(e)}")
 
 @router.get("/", response_model=SupervisorReviewList)
 async def get_supervisor_reviews(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     goal_id: Optional[UUID] = Query(None, alias="goalId", description="Filter by goal ID"),
+    subordinate_id: Optional[UUID] = Query(None, alias="subordinateId", description="Filter by subordinate ID"),
     status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
-    """Get supervisor reviews."""
+    """Get supervisor reviews with flexible filtering."""
     try:
         service = SupervisorReviewService(session)
         result = await service.get_reviews(
             current_user_context=context,
             period_id=period_id,
             goal_id=goal_id,
+            subordinate_id=subordinate_id,
             status=status,
             pagination=pagination,
         )
@@ -85,6 +63,7 @@ async def create_supervisor_review(
 async def get_pending_reviews(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
+    subordinate_id: Optional[UUID] = Query(None, alias="subordinateId", description="Filter by subordinate ID"),
     context: AuthContext = Depends(require_supervisor_or_above),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -92,7 +71,7 @@ async def get_pending_reviews(
     try:
         service = SupervisorReviewService(session)
         result = await service.get_pending_reviews(
-            current_user_context=context, period_id=period_id, pagination=pagination
+            current_user_context=context, period_id=period_id, subordinate_id=subordinate_id, pagination=pagination
         )
         return SupervisorReviewList(items=result.items, total=result.total, page=result.page, limit=result.limit, pages=result.pages)
     except (PermissionDeniedError, BadRequestError) as e:
@@ -166,19 +145,4 @@ async def delete_supervisor_review(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting supervisor review: {str(e)}")
 
-@router.post("/bulk-submit")
-async def bulk_submit_reviews(
-    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
-    goal_ids: Optional[List[UUID]] = Query(None, alias="goalIds", description="Specific goal IDs"),
-    context: AuthContext = Depends(require_supervisor_or_above)
-):
-    """Submit multiple supervisor reviews at once."""
-    
-    # TODO: Implement bulk review submission service
-    # - Submit all supervisor's draft reviews for the period
-    # - Or submit only specified goal reviews
-    # - Change status from 'draft' to 'submitted'
-    # - Set reviewed_at timestamp
-    # - Update goal statuses based on review actions
-    return {"message": "Supervisor reviews submitted successfully"}
 

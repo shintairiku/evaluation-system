@@ -10,3 +10,5 @@ export * from './competencies';
 export * from './self-assessments';
 export * from './supervisor-reviews';
 export * from './supervisor-feedbacks';
+export * from './admin-dashboard';
+export * from './supervisor-dashboard';

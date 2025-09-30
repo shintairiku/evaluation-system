@@ -25,6 +25,7 @@ export const supervisorReviewsApi = {
     pagination?: PaginationParams;
     periodId?: UUID;
     goalId?: UUID;
+    subordinateId?: UUID;
     status?: string;
   }): Promise<ApiResponse<SupervisorReviewList>> => {
     const queryParams = new URLSearchParams();
@@ -32,49 +33,16 @@ export const supervisorReviewsApi = {
     if (params?.pagination?.limit) queryParams.append('limit', params.pagination.limit.toString());
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.goalId) queryParams.append('goalId', params.goalId);
+    if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
     if (params?.status) queryParams.append('status', params.status);
-    
-    const endpoint = queryParams.toString() 
+
+    const endpoint = queryParams.toString()
       ? `${API_ENDPOINTS.SUPERVISOR_REVIEWS.LIST}?${queryParams.toString()}`
       : API_ENDPOINTS.SUPERVISOR_REVIEWS.LIST;
-    
+
     return httpClient.get<SupervisorReviewList>(endpoint);
   },
 
-  /**
-   * Get supervisor reviews by supervisor ID
-   */
-  getSupervisorReviewsBySupervisor: async (supervisorId: UUID): Promise<ApiResponse<SupervisorReviewList>> => {
-    return httpClient.get<SupervisorReviewList>(API_ENDPOINTS.SUPERVISOR_REVIEWS.BY_SUPERVISOR(supervisorId));
-  },
-
-  /**
-   * Get supervisor reviews by employee ID
-   */
-  getSupervisorReviewsByEmployee: async (employeeId: UUID): Promise<ApiResponse<SupervisorReviewList>> => {
-    return httpClient.get<SupervisorReviewList>(API_ENDPOINTS.SUPERVISOR_REVIEWS.BY_EMPLOYEE(employeeId));
-  },
-
-  /**
-   * Get supervisor reviews for a specific goal
-   */
-  getSupervisorReviewsByGoal: async (goalId: UUID, params?: {
-    pagination?: PaginationParams;
-    periodId?: UUID;
-    status?: string;
-  }): Promise<ApiResponse<SupervisorReviewList>> => {
-    const queryParams = new URLSearchParams();
-    if (params?.pagination?.page) queryParams.append('page', params.pagination.page.toString());
-    if (params?.pagination?.limit) queryParams.append('limit', params.pagination.limit.toString());
-    if (params?.periodId) queryParams.append('periodId', params.periodId);
-    if (params?.status) queryParams.append('status', params.status);
-    
-    const endpoint = queryParams.toString() 
-      ? `${API_ENDPOINTS.SUPERVISOR_REVIEWS.BY_GOAL(goalId)}?${queryParams.toString()}`
-      : API_ENDPOINTS.SUPERVISOR_REVIEWS.BY_GOAL(goalId);
-    
-    return httpClient.get<SupervisorReviewList>(endpoint);
-  },
 
   /**
    * Get pending supervisor reviews (supervisor only)
@@ -82,16 +50,18 @@ export const supervisorReviewsApi = {
   getPendingSupervisorReviews: async (params?: {
     pagination?: PaginationParams;
     periodId?: UUID;
+    subordinateId?: UUID;
   }): Promise<ApiResponse<SupervisorReviewList>> => {
     const queryParams = new URLSearchParams();
     if (params?.pagination?.page) queryParams.append('page', params.pagination.page.toString());
     if (params?.pagination?.limit) queryParams.append('limit', params.pagination.limit.toString());
     if (params?.periodId) queryParams.append('periodId', params.periodId);
-    
-    const endpoint = queryParams.toString() 
+    if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
+
+    const endpoint = queryParams.toString()
       ? `${API_ENDPOINTS.SUPERVISOR_REVIEWS.PENDING}?${queryParams.toString()}`
       : API_ENDPOINTS.SUPERVISOR_REVIEWS.PENDING;
-    
+
     return httpClient.get<SupervisorReviewList>(endpoint);
   },
 
@@ -121,20 +91,6 @@ export const supervisorReviewsApi = {
    */
   submitSupervisorReview: async (reviewId: UUID): Promise<ApiResponse<SupervisorReview>> => {
     return httpClient.post<SupervisorReview>(API_ENDPOINTS.SUPERVISOR_REVIEWS.SUBMIT(reviewId), {});
-  },
-
-  /**
-   * Bulk submit supervisor reviews
-   */
-  bulkSubmitSupervisorReviews: async (periodId: UUID, goalIds?: UUID[]): Promise<ApiResponse<void>> => {
-    const queryParams = new URLSearchParams();
-    queryParams.append('periodId', periodId);
-    if (goalIds && goalIds.length > 0) {
-      goalIds.forEach(goalId => queryParams.append('goalIds', goalId));
-    }
-    
-    const endpoint = `${API_ENDPOINTS.SUPERVISOR_REVIEWS.BULK_SUBMIT}?${queryParams.toString()}`;
-    return httpClient.post<void>(endpoint, {});
   },
 
   /**
