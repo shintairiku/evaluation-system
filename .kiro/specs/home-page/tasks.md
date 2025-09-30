@@ -196,172 +196,179 @@
 
 ### 9. 管理者用APIエンドポイント
 
-- [ ] **9.1. GET /api/v1/admin/dashboard エンドポイントの実装**
+- [x] **9.1. GET /api/v1/admin/dashboard エンドポイントの実装**
   > 管理者用ダッシュボードの完全データを返すエンドポイント。
   > システム統計、承認待ち、アラート情報を統合して返す。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py` (新規作成)
+  > **実装完了:** `backend/app/api/v1/dashboard.py` - RBAC適用済み
   > **関連要件:** 要件1
 
-- [ ] **9.2. GET /api/v1/admin/dashboard/stats エンドポイントの実装**
+- [x] **9.2. GET /api/v1/admin/dashboard/stats エンドポイントの実装**
   > システム統計情報のみを返すエンドポイント。
   > 総ユーザー数、部門数、アクティブ評価期間数。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件1
 
-- [ ] **9.3. GET /api/v1/admin/dashboard/approvals エンドポイントの実装**
+- [x] **9.3. GET /api/v1/admin/dashboard/approvals エンドポイントの実装**
   > 承認待ち情報のみを返すエンドポイント。
   > 承認待ちユーザー数、未完了評価数。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件1
 
-- [ ] **9.4. GET /api/v1/admin/dashboard/alerts エンドポイントの実装**
+- [x] **9.4. GET /api/v1/admin/dashboard/alerts エンドポイントの実装**
   > システムアラート情報を返すエンドポイント。
   > 緊急度別アラートリスト。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件1
 
-- [ ] **9.5. POST /api/v1/admin/dashboard/alerts/{alert_id}/dismiss エンドポイントの実装**
+- [x] **9.5. POST /api/v1/admin/dashboard/alerts/{alert_id}/dismiss エンドポイントの実装**
   > アラートを削除(無効化)するエンドポイント。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件1
 
 ### 10. 上司・管理職用APIエンドポイント
 
-- [ ] **10.1. GET /api/v1/supervisor/dashboard/{user_id} エンドポイントの実装**
+- [x] **10.1. GET /api/v1/supervisor/dashboard エンドポイントの実装**
   > 上司用ダッシュボードの完全データを返すエンドポイント。
   > チーム進捗、承認待ちタスク、部下一覧を統合して返す。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py` - context.user_id自動使用、RBAC適用済み
   > **関連要件:** 要件2
 
-- [ ] **10.2. GET /api/v1/supervisor/dashboard/{user_id}/team-progress エンドポイントの実装**
+- [x] **10.2. GET /api/v1/supervisor/dashboard/team-progress エンドポイントの実装**
   > チーム進捗情報のみを返すエンドポイント。
   > 部下の評価進捗サマリー。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件2
 
-- [ ] **10.3. GET /api/v1/supervisor/dashboard/{user_id}/pending-tasks エンドポイントの実装**
+- [x] **10.3. GET /api/v1/supervisor/dashboard/pending-tasks エンドポイントの実装**
   > 承認待ちタスク情報を返すエンドポイント。
   > 目標承認待ち、評価フィードバック待ち件数。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件2
 
-- [ ] **10.4. GET /api/v1/supervisor/dashboard/{user_id}/subordinates エンドポイントの実装**
+- [x] **10.4. GET /api/v1/supervisor/dashboard/subordinates エンドポイントの実装**
   > 部下一覧と状態を返すエンドポイント。
   > 緊急対応が必要な部下の識別含む。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件2
 
 ### 11. 従業員・パート用APIエンドポイント
 
-- [ ] **11.1. GET /api/v1/employee/dashboard/{user_id} エンドポイントの実装**
+- [x] **11.1. GET /api/v1/employee/dashboard エンドポイントの実装**
   > 従業員用ダッシュボードの完全データを返すエンドポイント。
   > 現在の評価期間、個人進捗、TODOタスク、期限情報を統合して返す。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py` - 全認証ユーザー対応、context.user_id自動使用
   > **関連要件:** 要件3
 
-- [ ] **11.2. GET /api/v1/employee/dashboard/{user_id}/progress エンドポイントの実装**
+- [x] **11.2. GET /api/v1/employee/dashboard/progress エンドポイントの実装**
   > 個人評価進捗情報のみを返すエンドポイント。
   > 目標設定状況、評価入力状況。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件3
 
-- [ ] **11.3. GET /api/v1/employee/dashboard/{user_id}/todos エンドポイントの実装**
+- [x] **11.3. GET /api/v1/employee/dashboard/todos エンドポイントの実装**
   > 実行すべきタスク一覧を返すエンドポイント。
   > 目標入力、評価入力等の必要アクション。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件3
 
-- [ ] **11.4. GET /api/v1/employee/dashboard/{user_id}/deadlines エンドポイントの実装**
+- [x] **11.4. GET /api/v1/employee/dashboard/deadlines エンドポイントの実装**
   > 期限情報を返すエンドポイント。
   > 評価期限、目標提出期限等。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
+  > **関連要件:** 要件3
+
+- [x] **11.5. GET /api/v1/employee/dashboard/history エンドポイントの実装**
+  > 履歴データアクセスエンドポイント。
+  > 過去評価期間の情報取得。
+  >
+  > **実装完了:** `backend/app/api/v1/dashboard.py`
   > **関連要件:** 要件3
 
 ### 12. ダッシュボードサービス層の実装
 
-- [ ] **12.1. DashboardServiceクラスの作成**
+- [x] **12.1. DashboardServiceクラスの作成**
   > ダッシュボード用のビジネスロジックを集約するサービス層。
   > 各役職別のデータ取得ロジックを実装。
   >
-  > **実装ファイル:** `backend/app/services/dashboard_service.py` (新規作成)
+  > **実装完了:** `backend/app/services/dashboard_service.py` - RBAC修正済み（API層のみで認証）
   > **関連要件:** 要件1, 要件2, 要件3
 
-- [ ] **12.2. 管理者用データ集計ロジックの実装**
+- [x] **12.2. 管理者用データ集計ロジックの実装**
   > UserRepository, DepartmentRepository, EvaluationPeriodRepositoryを統合して統計情報を算出。
   > アラート生成ロジックの実装。
   >
-  > **実装ファイル:** `backend/app/services/dashboard_service.py`
+  > **実装完了:** `backend/app/services/dashboard_service.py` - システム統計、承認待ち、アラート生成
   > **関連要件:** 要件1
 
-- [ ] **12.3. 上司用データ集計ロジックの実装**
+- [x] **12.3. 上司用データ集計ロジックの実装**
   > GoalRepository, EvaluationRepositoryから部下データを集計。
   > 承認待ちタスクの抽出ロジック。
   >
-  > **実装ファイル:** `backend/app/services/dashboard_service.py`
+  > **実装完了:** `backend/app/services/dashboard_service.py` - チーム進捗、承認待ちタスク、部下一覧
   > **関連要件:** 要件2
 
-- [ ] **12.4. 従業員用データ集計ロジックの実装**
+- [x] **12.4. 従業員用データ集計ロジックの実装**
   > 個人の評価状態、TODOタスク、期限情報の算出。
   > 期限警告ロジックの実装。
   >
-  > **実装ファイル:** `backend/app/services/dashboard_service.py`
+  > **実装完了:** `backend/app/services/dashboard_service.py` - 個人進捗、TODOタスク、期限アラート、履歴
   > **関連要件:** 要件3
 
 ### 13. ダッシュボードレスポンスモデルの定義
 
-- [ ] **13.1. Pydanticスキーマの定義**
+- [x] **13.1. Pydanticスキーマの定義**
   > AdminDashboardResponse, SupervisorDashboardResponse, EmployeeDashboardResponseの定義。
   > フロントエンドの型定義と1:1対応させる。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py` または `backend/app/schemas/dashboard.py` (新規作成)
+  > **実装完了:** `backend/app/schemas/dashboard.py` - 全ダッシュボードレスポンススキーマ実装済み
   > **関連要件:** 要件1, 要件2, 要件3
 
-- [ ] **13.2. SystemStatsスキーマの定義**
+- [x] **13.2. SystemStatsスキーマの定義**
   > total_users, total_departments, active_evaluation_periodsの定義。
   >
-  > **実装ファイル:** `backend/app/schemas/dashboard.py`
+  > **実装完了:** `backend/app/schemas/dashboard.py` - SystemStatsData実装済み
   > **関連要件:** 要件1
 
-- [ ] **13.3. PendingApprovalsスキーマの定義**
+- [x] **13.3. PendingApprovalsスキーマの定義**
   > users, evaluationsの承認待ち件数定義。
   >
-  > **実装ファイル:** `backend/app/schemas/dashboard.py`
+  > **実装完了:** `backend/app/schemas/dashboard.py` - PendingApprovalsData, PendingTasksData実装済み
   > **関連要件:** 要件1, 要件2
 
-- [ ] **13.4. SystemAlertスキーマの定義**
+- [x] **13.4. SystemAlertスキーマの定義**
   > type, message, count, priorityの定義。
   >
-  > **実装ファイル:** `backend/app/schemas/dashboard.py`
+  > **実装完了:** `backend/app/schemas/dashboard.py` - SystemAlert, DeadlineAlert実装済み
   > **関連要件:** 要件1
 
 ### 14. APIルーター統合
 
-- [ ] **14.1. dashboard routerの作成とメインルーターへの統合**
+- [x] **14.1. dashboard routerの作成とメインルーターへの統合**
   > `/api/v1/dashboard`配下のエンドポイントをまとめたルーター作成。
   > `backend/app/main.py`への統合。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`, `backend/app/main.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py`, `backend/app/api/v1/__init__.py` - ルーター統合済み
   > **関連要件:** 要件1, 要件2, 要件3
 
-- [ ] **14.2. 権限チェックミドルウェアの実装**
+- [x] **14.2. 権限チェックミドルウェアの実装**
   > 管理者エンドポイントはadmin権限必須。
   > 上司エンドポイントはsupervisor権限必須。
-  > 従業員エンドポイントは本人または上司の権限必須。
+  > 従業員エンドポイントは全認証ユーザー対応。
   >
-  > **実装ファイル:** `backend/app/api/v1/dashboard.py`
+  > **実装完了:** `backend/app/api/v1/dashboard.py` - FastAPI Dependenciesで実装（require_admin, require_supervisor_or_above, get_auth_context）
   > **関連要件:** 要件1, 要件2, 要件3
 
 ## 機能F: 統合ダッシュボード実装
