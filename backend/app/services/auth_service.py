@@ -124,9 +124,10 @@ class AuthService:
             # Get environment variables for verification
             clerk_issuer = getattr(settings, 'CLERK_ISSUER', None)
             clerk_audience = getattr(settings, 'CLERK_AUDIENCE', None)
-            
+
             if not clerk_issuer or not clerk_audience:
-                logger.warning("CLERK_ISSUER or CLERK_AUDIENCE not configured, falling back to unverified token parsing")
+                # Log once at debug level to reduce noise (only visible when LOG_LEVEL=DEBUG)
+                logger.debug("CLERK_ISSUER or CLERK_AUDIENCE not configured, using unverified token parsing")
                 # Fallback to unverified parsing for backward compatibility
                 payload = jwt.get_unverified_claims(token)
             else:
