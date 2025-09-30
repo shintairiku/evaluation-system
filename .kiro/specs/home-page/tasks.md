@@ -150,28 +150,32 @@
 
 ### 7. 従業員向けカードコンポーネント
 
-- [ ] **7.1. PersonalProgressCardコンポーネントの作成**
+- [x] **7.1. PersonalProgressCardコンポーネントの作成**
   > 個人評価進捗表示カード。
   > 目標設定状況、評価入力状況をステップ表示。
   >
+  > **実装完了:** `/src/components/dashboard/employee/PersonalProgressCard.tsx` - ステップ表示、進捗率、承認状況対応
   > **関連要件:** 要件3
 
-- [ ] **7.2. TodoTasksCardコンポーネントの作成**
+- [x] **7.2. TodoTasksCardコンポーネントの作成**
   > 実行すべきタスク表示カード。
   > 「目標入力が必要」「評価入力が必要」等のアクションアイテム。
   >
+  > **実装完了:** `/src/components/dashboard/employee/TodoTasksCard.tsx` - 優先度別表示、期限管理、クリック対応
   > **関連要件:** 要件3
 
-- [ ] **7.3. DeadlineAlertsCardコンポーネントの作成**
+- [x] **7.3. DeadlineAlertsCardコンポーネントの作成**
   > 期限警告表示カード。
   > 期限までの残り日数を警告色で表示。
   >
+  > **実装完了:** `/src/components/dashboard/employee/DeadlineAlertsCard.tsx` - 緊急度別色分け、期限カウントダウン対応
   > **関連要件:** 要件3
 
-- [ ] **7.4. HistoryAccessCardコンポーネントの作成**
+- [x] **7.4. HistoryAccessCardコンポーネントの作成**
   > 履歴アクセスカード。
   > 目標・評価履歴への直接アクセスボタン。
   >
+  > **実装完了:** `/src/components/dashboard/employee/HistoryAccessCard.tsx` - 過去期間一覧、クイックアクセス機能
   > **関連要件:** 要件3
 
 ### 8. 従業員用データ取得・API連携
