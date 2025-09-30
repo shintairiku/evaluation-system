@@ -19,6 +19,7 @@ export const CACHE_TAGS = {
   SUPERVISOR_REVIEWS: 'supervisor-reviews',
   SUPERVISOR_FEEDBACKS: 'supervisor-feedbacks',
   EVALUATIONS: 'evaluations',
+  ADMIN_DASHBOARD: 'admin-dashboard',
 } as const;
 
 /**
@@ -85,6 +86,10 @@ export const CACHE_STRATEGIES = {
   [CACHE_TAGS.EVALUATIONS]: {
     duration: CACHE_DURATIONS.DYNAMIC,
     tags: [CACHE_TAGS.EVALUATIONS] as string[],
+  },
+  [CACHE_TAGS.ADMIN_DASHBOARD]: {
+    duration: CACHE_DURATIONS.REALTIME,
+    tags: [CACHE_TAGS.ADMIN_DASHBOARD] as string[],
   },
 } as const;
 
