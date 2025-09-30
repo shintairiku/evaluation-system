@@ -166,12 +166,8 @@ export const API_ENDPOINTS = {
     CREATE: '/supervisor-reviews',
     UPDATE: (id: string) => `/supervisor-reviews/${id}`,
     DELETE: (id: string) => `/supervisor-reviews/${id}`,
-    BY_SUPERVISOR: (supervisorId: string) => `/supervisor-reviews/supervisor/${supervisorId}`,
-    BY_EMPLOYEE: (employeeId: string) => `/supervisor-reviews/employee/${employeeId}`,
-    BY_GOAL: (goalId: string) => `/supervisor-reviews/goal/${goalId}`,
     PENDING: '/supervisor-reviews/pending',
     SUBMIT: (id: string) => `/supervisor-reviews/${id}/submit`,
-    BULK_SUBMIT: '/supervisor-reviews/bulk-submit',
   },
   
   // Supervisor Feedback endpoints
