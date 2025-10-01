@@ -30,7 +30,22 @@ interface GoalApprovalHandlerProps {
 type OptimisticGoalUpdate = {
   status: 'approved' | 'rejected' | 'submitted';
   approvedAt?: string;
+  rejectedAt?: string;
 };
+
+/**
+ * Success messages for approval/rejection actions
+ */
+const SUCCESS_MESSAGES = {
+  approve: {
+    title: '目標を承認しました',
+    description: (title: string) => `${title}を承認しました。`
+  },
+  reject: {
+    title: '目標を差し戻しました',
+    description: (title: string) => `${title}を差し戻しました。`
+  }
+} as const;
 
 /**
  * Handles goal approval and rejection functionality with optimistic UI updates
@@ -182,21 +197,28 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
     };
   }, []);
 
-  const handleApprove = async (comment: string) => {
+  // Unified confirmation handler to eliminate duplication
+  const handleConfirmation = useCallback((type: 'approve' | 'reject', comment: string) => {
     setConfirmationDialog({
       open: true,
-      type: 'approve',
+      type,
       comment
     });
-  };
+  }, []);
 
-  const handleReject = async (comment: string) => {
-    setConfirmationDialog({
-      open: true,
-      type: 'reject',
-      comment
+  // Helper function to show error toast (eliminates duplication)
+  const showErrorToast = useCallback((error?: string) => {
+    toast.error('操作に失敗しました', {
+      description: error || '不明なエラーが発生しました。'
     });
-  };
+  }, []);
+
+  // Helper function to revert optimistic update (eliminates duplication)
+  const revertOptimisticUpdate = useCallback(() => {
+    startTransition(() => {
+      updateOptimisticGoal({ status: 'submitted' });
+    });
+  }, [updateOptimisticGoal]);
 
   const confirmAction = async () => {
     if (!confirmationDialog.open) return;
@@ -229,14 +251,6 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
       // Close dialog immediately for better UX
       setConfirmationDialog({ open: false, type: 'approve' });
 
-      // Validation: comment is optional but recommended
-      // You can make it required by uncommenting below:
-      // if (!comment) {
-      //   updateOptimisticGoal({ status: 'submitted' });
-      //   toast.error('コメントが必要です');
-      //   return;
-      // }
-
       // Use NEW supervisor_review architecture
       // Update supervisor_review with action + comment + status='submitted'
       // Backend will automatically sync goal.status
@@ -248,26 +262,16 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
 
       if (!result.success) {
         // Revert optimistic update on server error
-        startTransition(() => {
-          updateOptimisticGoal({ status: 'submitted' });
-        });
-
-        toast.error('操作に失敗しました', {
-          description: result.error || '不明なエラーが発生しました。'
-        });
+        revertOptimisticUpdate();
+        showErrorToast(result.error);
         return;
       }
 
-      // Success toast
-      if (type === 'approve') {
-        toast.success('目標を承認しました', {
-          description: `${goal.title}を承認しました。`
-        });
-      } else {
-        toast.success('目標を差し戻しました', {
-          description: `${goal.title}を差し戻しました。`
-        });
-      }
+      // Success toast using extracted message map
+      const message = SUCCESS_MESSAGES[type];
+      toast.success(message.title, {
+        description: message.description(goal.title)
+      });
 
       // Reset the form
       if (approvalFormRef.current) {
@@ -288,20 +292,12 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
       console.error('Supervisor review action error:', error);
 
       // Revert optimistic update on network error
-      startTransition(() => {
-        updateOptimisticGoal({ status: 'submitted' });
-      });
-
-      toast.error('操作に失敗しました', {
-        description: '不明なエラーが発生しました。'
-      });
+      revertOptimisticUpdate();
+      showErrorToast();
     } finally {
       setIsProcessing(false);
     }
   };
-
-  // Use provided employee name or fallback
-  const finalEmployeeName = employeeName || 'Unknown User';
 
   // Generate appropriate goal title based on goal type
   const getGoalTitle = (): string => {
@@ -323,8 +319,8 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
       <ApprovalForm
         ref={approvalFormRef}
         goal={optimisticGoal}
-        onApprove={handleApprove}
-        onReject={handleReject}
+        onApprove={(comment) => handleConfirmation('approve', comment)}
+        onReject={(comment) => handleConfirmation('reject', comment)}
         isProcessing={isProcessing}
         onCommentChange={handleCommentChange}
         onCommentBlur={autoSaveDraft}
@@ -337,7 +333,7 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
         onConfirm={confirmAction}
         type={confirmationDialog.type}
         goalTitle={getGoalTitle()}
-        employeeName={finalEmployeeName}
+        employeeName={employeeName || 'Unknown User'}
         comment={confirmationDialog.comment}
         isProcessing={isProcessing}
       />
