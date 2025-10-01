@@ -20,6 +20,8 @@ interface GoalApprovalCardProps {
   employeeName?: string;
   /** Callback function called when goal is updated */
   onGoalUpdate?: () => void;
+  /** Supervisor review ID for this goal (for approval actions) */
+  reviewId?: string;
 }
 
 /**
@@ -29,7 +31,8 @@ interface GoalApprovalCardProps {
 export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalApprovalCard({
   goal,
   employeeName,
-  onGoalUpdate
+  onGoalUpdate,
+  reviewId
 }) {
   const isPerformanceGoal = goal.goalCategory === '業績目標';
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
@@ -291,7 +294,12 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
           <div className={`mt-6 pt-4 border-t ${isMobile ? 'mt-4 pt-3' : 'mt-6 pt-4'}`}
                role="region"
                aria-label="目標承認操作">
-            <GoalApprovalHandler goal={goal} employeeName={employeeName} onSuccess={onGoalUpdate} />
+            <GoalApprovalHandler
+              goal={goal}
+              employeeName={employeeName}
+              onSuccess={onGoalUpdate}
+              reviewId={reviewId}
+            />
           </div>
         )}
       </CardContent>
