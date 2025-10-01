@@ -240,7 +240,7 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
                     maxLength={500}
                     style={{ minHeight: isMobile ? '80px' : '100px', fontSize: isMobile ? '16px' : 'inherit' }}
                     onBlur={(e) => {
-                      field.onBlur(e);
+                      field.onBlur();
                       // Auto-save on blur
                       if (onCommentBlur && e.target.value) {
                         onCommentBlur(e.target.value);
