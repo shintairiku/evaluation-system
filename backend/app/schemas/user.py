@@ -222,9 +222,10 @@ class UserExistsResponse(BaseModel):
     """Minimal user info for existence check during auth flow"""
     exists: bool
     user_id: Optional[UUID] = None
-    name: Optional[str] = None  
+    name: Optional[str] = None
     email: Optional[EmailStr] = None
     status: Optional[UserStatus] = None
+    organization_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
