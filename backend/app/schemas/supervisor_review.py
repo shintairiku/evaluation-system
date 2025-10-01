@@ -25,7 +25,7 @@ class SupervisorAction(str, Enum):
 
 class SupervisorReviewBase(BaseModel):
     action: SupervisorAction
-    comment: str
+    comment: Optional[str] = None
 
 
 class SupervisorReviewCreate(SupervisorReviewBase):
