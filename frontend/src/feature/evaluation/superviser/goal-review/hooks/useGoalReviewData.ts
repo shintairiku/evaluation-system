@@ -15,6 +15,8 @@ export interface GroupedGoals {
   goals: GoalResponse[];
   /** Number of pending goals for this employee */
   pendingCount: number;
+  /** Map of goal_id to supervisor_review_id for approval actions */
+  goalToReviewMap: Map<string, string>;
 }
 
 /**
@@ -131,9 +133,19 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
       subordinateReviewsMap.forEach((subordinateReviews, subordinateId) => {
         const employee = users.find(user => user.id === subordinateId);
         if (employee) {
+          // Create map of goal_id to supervisor_review_id for this employee
+          const goalToReviewMap = new Map<string, string>();
+
           // Map reviews to real goals using the goals map
           const employeeGoals: GoalResponse[] = subordinateReviews
-            .map(review => goalsMap.get(review.goal_id))
+            .map(review => {
+              const goal = goalsMap.get(review.goal_id);
+              if (goal) {
+                // Store the mapping goal_id → review_id
+                goalToReviewMap.set(review.goal_id, review.id);
+              }
+              return goal;
+            })
             .filter((goal): goal is GoalResponse => goal !== undefined);
 
           // Only add employee if they have goals
@@ -141,7 +153,8 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
             grouped.push({
               employee,
               goals: employeeGoals,
-              pendingCount: employeeGoals.length
+              pendingCount: employeeGoals.length,
+              goalToReviewMap  // Add the mapping for approval actions
             });
 
             totalGoals += employeeGoals.length;
