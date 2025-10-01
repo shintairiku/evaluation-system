@@ -345,7 +345,7 @@ export function useGoalAutoSave({
   useAutoSave<GoalData>({
     data: goalData,
     onSave: handleAutoSave,
-    delay: 3000, // Increased to 3 seconds to prevent excessive calls
+    delay: 2000, // 2 seconds delay for responsive feedback while preventing excessive calls
     enabled: !!selectedPeriod?.id, // Enable when period is selected
     autoSaveReady: isAutoSaveReady && !!selectedPeriod?.id, // Only activate when explicitly ready AND period selected
     changeDetector: detectChanges, // Only get changed goals
