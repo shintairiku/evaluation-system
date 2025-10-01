@@ -101,7 +101,7 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
 
   // Auto-save on comment change (debounced in parent)
   React.useEffect(() => {
-    if (onCommentChange && comment) {
+    if (onCommentChange) {
       onCommentChange(comment);
     }
   }, [comment, onCommentChange]);
@@ -131,7 +131,6 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
       await onApprove(approvalComment);
       announceToScreenReader('目標が正常に承認されました', 'polite');
     } catch (error) {
-      console.error('Approval error:', error);
       announceToScreenReader('承認処理でエラーが発生しました', 'assertive');
     } finally {
       setPendingAction(null);
@@ -164,7 +163,6 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
       await onReject(rejectionComment);
       announceToScreenReader('目標が正常に差し戻しされました', 'polite');
     } catch (error) {
-      console.error('Rejection error:', error);
       announceToScreenReader('差し戻し処理でエラーが発生しました', 'assertive');
     } finally {
       setPendingAction(null);

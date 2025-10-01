@@ -104,10 +104,8 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
         setTimeout(() => setSaveStatus('idle'), 3000);
       } else {
         setSaveStatus('error');
-        console.error('Auto-save failed:', result.error);
       }
     } catch (error) {
-      console.error('Auto-save error:', error);
       setSaveStatus('error');
     }
   }, [reviewId, lastSavedComment, saveStatus]);
@@ -150,7 +148,7 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
           }
         }
       } catch (error) {
-        console.error('Error loading draft:', error);
+        // Silent fail - draft loading is not critical
       }
     };
 
