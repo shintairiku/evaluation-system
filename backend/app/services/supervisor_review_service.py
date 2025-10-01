@@ -266,6 +266,7 @@ class SupervisorReviewService:
 
             updated = await self.repo.update(
                 review_id,
+                org_id,
                 action=review_update.action.value if review_update.action is not None else None,
                 comment=review_update.comment,
                 status=status_value,
