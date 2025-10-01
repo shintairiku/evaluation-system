@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getPendingSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
 import { getUsersAction } from '@/api/server-actions/users';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
+import { getGoalsAction } from '@/api/server-actions/goals';
 import type { GoalResponse, UserDetailResponse, EvaluationPeriod, SupervisorReview } from '@/api/types';
 
 /**
@@ -42,12 +43,15 @@ export interface UseGoalReviewDataReturn {
  * Custom hook to manage goal review data loading and state
  *
  * ARCHITECTURAL MIGRATION: Now uses supervisor_review table as primary data source
- * instead of Goals table. This provides better performance (1 API call vs 2) and
- * aligns with the intended system architecture where supervisor_review contains
+ * for identifying which goals need review, then fetches complete goal data separately.
+ * This aligns with the intended system architecture where supervisor_review contains
  * the subordinate_id field for direct filtering.
  *
- * Maintains backward compatibility with existing UI components by converting
- * supervisor review data to the expected GroupedGoals format.
+ * Data Flow:
+ * 1. Load supervisor reviews (identifies goals needing review)
+ * 2. Load all submitted goals for the period (gets complete goal data)
+ * 3. Map reviews to real goals using goal_id
+ * 4. Group by employee for UI display
  *
  * @returns Object containing all goal review data and controls
  */
@@ -72,16 +76,25 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
         setCurrentPeriod(null);
       }
 
-      // Load supervisor reviews and users data in parallel for better performance
-      const [reviewsResult, usersResult] = await Promise.all([
+      // Load supervisor reviews, users, and goals data in parallel for better performance
+      const [reviewsResult, usersResult, goalsResult] = await Promise.all([
         getPendingSupervisorReviewsAction({
           pagination: { limit: 100 }
         }),
-        getUsersAction()
+        getUsersAction(),
+        // Fetch all submitted goals for the current period to get complete goal data
+        periodResult.success && periodResult.data?.current
+          ? getGoalsAction({
+              periodId: periodResult.data.current.id,
+              status: 'submitted',
+              limit: 100
+            })
+          : Promise.resolve({ success: false, data: undefined })
       ]);
 
       let reviews: SupervisorReview[] = [];
       let users: UserDetailResponse[] = [];
+      let goals: GoalResponse[] = [];
 
       if (reviewsResult.success && reviewsResult.data?.items) {
         reviews = reviewsResult.data.items;
@@ -91,7 +104,17 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
         users = usersResult.data.items;
       }
 
-      // Group reviews by subordinate (employee) and create mock goals for compatibility
+      if (goalsResult.success && goalsResult.data?.items) {
+        goals = goalsResult.data.items;
+      }
+
+      // Create a map of goals by ID for quick lookup
+      const goalsMap = new Map<string, GoalResponse>();
+      goals.forEach(goal => {
+        goalsMap.set(goal.id, goal);
+      });
+
+      // Group reviews by subordinate (employee) and map to real goals
       const subordinateReviewsMap = new Map<string, SupervisorReview[]>();
       reviews.forEach(review => {
         const subordinateId = review.subordinate_id;
@@ -104,31 +127,25 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
       const grouped: GroupedGoals[] = [];
       let totalGoals = 0;
 
-      // Convert supervisor reviews to grouped goals format for UI compatibility
+      // Convert supervisor reviews to grouped goals format using real goal data
       subordinateReviewsMap.forEach((subordinateReviews, subordinateId) => {
         const employee = users.find(user => user.id === subordinateId);
         if (employee) {
-          // Create mock goals from supervisor reviews for UI compatibility
-          const mockGoals: GoalResponse[] = subordinateReviews.map(review => ({
-            id: review.goal_id,
-            userId: review.subordinate_id,
-            periodId: review.period_id,
-            goalCategory: '業績目標', // Default category - will be populated from actual goal data if needed
-            weight: 1, // Default weight - will be populated from actual goal data if needed
-            status: 'submitted' as const,
-            createdAt: review.created_at,
-            updatedAt: review.updated_at,
-            // Note: Other goal fields would need to be fetched separately if needed
-            // For now, we'll use minimal data required for the approval interface
-          }));
+          // Map reviews to real goals using the goals map
+          const employeeGoals: GoalResponse[] = subordinateReviews
+            .map(review => goalsMap.get(review.goal_id))
+            .filter((goal): goal is GoalResponse => goal !== undefined);
 
-          grouped.push({
-            employee,
-            goals: mockGoals,
-            pendingCount: mockGoals.length
-          });
+          // Only add employee if they have goals
+          if (employeeGoals.length > 0) {
+            grouped.push({
+              employee,
+              goals: employeeGoals,
+              pendingCount: employeeGoals.length
+            });
 
-          totalGoals += mockGoals.length;
+            totalGoals += employeeGoals.length;
+          }
         }
       });
 
