@@ -696,7 +696,7 @@ class GoalService:
                     subordinate_id=goal.user_id,
                     org_id=goal.org_id,
                     action="PENDING",
-                    comment="",
+                    comment=None,
                     status="draft",
                 )
             
