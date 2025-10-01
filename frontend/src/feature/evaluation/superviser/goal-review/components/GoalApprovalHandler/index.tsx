@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useOptimistic, useRef } from 'react';
+import { useState, useOptimistic, useRef, startTransition, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { GoalResponse } from '@/api/types';
-import { approveGoalAction, rejectGoalAction } from '@/api/server-actions/goals';
+import { type GoalResponse, SupervisorAction, SubmissionStatus } from '@/api/types';
+import { updateSupervisorReviewAction, getSupervisorReviewByIdAction } from '@/api/server-actions/supervisor-reviews';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
@@ -20,6 +20,8 @@ interface GoalApprovalHandlerProps {
   employeeName?: string;
   /** Callback function called after successful approval/rejection */
   onSuccess?: () => void;
+  /** Supervisor review ID for this goal (required for approval actions) */
+  reviewId?: string;
 }
 
 /**
@@ -36,7 +38,7 @@ type OptimisticGoalUpdate = {
  * @param props - The component props
  * @returns JSX element containing approval form and confirmation dialog
  */
-export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalApprovalHandlerProps) {
+export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }: GoalApprovalHandlerProps) {
   const router = useRouter();
   const { refreshPendingCount } = useGoalReviewContext();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -48,6 +50,12 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
 
   // Reference to the ApprovalForm for form control
   const approvalFormRef = useRef<ApprovalFormRef>(null);
+
+  // Auto-save states
+  const [lastSavedComment, setLastSavedComment] = useState<string>('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Determine goal type
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
@@ -69,6 +77,113 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
     }
   );
 
+  // Auto-save draft function
+  const autoSaveDraft = useCallback(async (comment: string) => {
+    if (!reviewId || !comment?.trim() || comment === lastSavedComment) {
+      return; // Don't save if empty or unchanged
+    }
+
+    if (saveStatus === 'saving') {
+      return; // Prevent concurrent saves
+    }
+
+    setSaveStatus('saving');
+
+    try {
+      const result = await updateSupervisorReviewAction(reviewId, {
+        action: SupervisorAction.PENDING,
+        comment: comment.trim(),
+        status: SubmissionStatus.DRAFT
+      });
+
+      if (result.success) {
+        setLastSavedComment(comment);
+        setSaveStatus('saved');
+        
+        // Clear status after 3 seconds
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      } else {
+        setSaveStatus('error');
+        console.error('Auto-save failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Auto-save error:', error);
+      setSaveStatus('error');
+    }
+  }, [reviewId, lastSavedComment, saveStatus]);
+
+  // Debounced auto-save (2 seconds delay)
+  const handleCommentChange = useCallback((comment: string) => {
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new timer
+    debounceTimerRef.current = setTimeout(() => {
+      autoSaveDraft(comment);
+    }, 2000); // 2 seconds debounce
+  }, [autoSaveDraft]);
+
+  // Load existing draft on mount
+  useEffect(() => {
+    const loadExistingDraft = async () => {
+      if (!reviewId || isDraftLoaded) return;
+
+      try {
+        const result = await getSupervisorReviewByIdAction(reviewId);
+        
+        if (result.success && result.data) {
+          const review = result.data;
+          
+          // Only load if status is draft and has comment
+          if (review.status === 'draft' && review.comment) {
+            if (approvalFormRef.current) {
+              approvalFormRef.current.setComment(review.comment);
+            }
+            setLastSavedComment(review.comment);
+            setIsDraftLoaded(true);
+            
+            toast.info('下書きが読み込まれました', {
+              description: '前回保存したコメントが復元されました'
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading draft:', error);
+      }
+    };
+
+    loadExistingDraft();
+  }, [reviewId, isDraftLoaded]);
+
+  // Save before page unload
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const currentComment = approvalFormRef.current?.getComment();
+      if (currentComment && currentComment !== lastSavedComment && currentComment.trim()) {
+        // Try to save synchronously
+        autoSaveDraft(currentComment);
+        
+        // Show warning if there are unsaved changes
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [lastSavedComment, autoSaveDraft]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleApprove = async (comment: string) => {
     setConfirmationDialog({
       open: true,
@@ -88,11 +203,19 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
   const confirmAction = async () => {
     if (!confirmationDialog.open) return;
 
+    // Validate reviewId exists
+    if (!reviewId) {
+      toast.error('レビューIDが見つかりません', {
+        description: 'ページを更新してください。'
+      });
+      return;
+    }
+
     setIsProcessing(true);
     const { type, comment } = confirmationDialog;
 
     try {
-      // Optimistic update
+      // Optimistic update wrapped in transition
       const optimisticUpdate: OptimisticGoalUpdate = {
         status: type === 'approve' ? 'approved' : 'rejected',
         ...(type === 'approve'
@@ -101,42 +224,35 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         )
       };
 
-      updateOptimisticGoal(optimisticUpdate);
+      startTransition(() => {
+        updateOptimisticGoal(optimisticUpdate);
+      });
 
       // Close dialog immediately for better UX
       setConfirmationDialog({ open: false, type: 'approve' });
 
-      let result;
+      // Validation: comment is optional but recommended
+      // You can make it required by uncommenting below:
+      // if (!comment) {
+      //   updateOptimisticGoal({ status: 'submitted' });
+      //   toast.error('コメントが必要です');
+      //   return;
+      // }
 
-      // Both approval and rejection now require comments
-      if (!comment) {
-        // Revert optimistic update on validation error
-        updateOptimisticGoal({ status: 'submitted' });
-        toast.error('コメントが必要です');
-        return;
-      }
-
-      if (type === 'approve') {
-        result = await approveGoalAction(goal.id);
-
-        if (result.success) {
-          toast.success('目標を承認しました', {
-            description: `${goal.title}を承認しました。`
-          });
-        }
-      } else {
-        result = await rejectGoalAction(goal.id, comment);
-
-        if (result.success) {
-          toast.success('目標を差し戻しました', {
-            description: `${goal.title}を差し戻しました。`
-          });
-        }
-      }
+      // Use NEW supervisor_review architecture
+      // Update supervisor_review with action + comment + status='submitted'
+      // Backend will automatically sync goal.status
+      const result = await updateSupervisorReviewAction(reviewId, {
+        action: type === 'approve' ? SupervisorAction.APPROVED : SupervisorAction.REJECTED,
+        comment: comment || null,
+        status: SubmissionStatus.SUBMITTED  // This triggers backend sync to goal.status
+      });
 
       if (!result.success) {
         // Revert optimistic update on server error
-        updateOptimisticGoal({ status: 'submitted' });
+        startTransition(() => {
+          updateOptimisticGoal({ status: 'submitted' });
+        });
 
         toast.error('操作に失敗しました', {
           description: result.error || '不明なエラーが発生しました。'
@@ -144,7 +260,18 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         return;
       }
 
-      // Success: Reset the form
+      // Success toast
+      if (type === 'approve') {
+        toast.success('目標を承認しました', {
+          description: `${goal.title}を承認しました。`
+        });
+      } else {
+        toast.success('目標を差し戻しました', {
+          description: `${goal.title}を差し戻しました。`
+        });
+      }
+
+      // Reset the form
       if (approvalFormRef.current) {
         approvalFormRef.current.resetForm();
       }
@@ -160,10 +287,12 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
       }
 
     } catch (error) {
-      console.error('Goal action error:', error);
+      console.error('Supervisor review action error:', error);
 
       // Revert optimistic update on network error
-      updateOptimisticGoal({ status: 'submitted' });
+      startTransition(() => {
+        updateOptimisticGoal({ status: 'submitted' });
+      });
 
       toast.error('操作に失敗しました', {
         description: '不明なエラーが発生しました。'
@@ -199,6 +328,9 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         onApprove={handleApprove}
         onReject={handleReject}
         isProcessing={isProcessing}
+        onCommentChange={handleCommentChange}
+        onCommentBlur={autoSaveDraft}
+        saveStatus={saveStatus}
       />
 
       <ConfirmationDialog
