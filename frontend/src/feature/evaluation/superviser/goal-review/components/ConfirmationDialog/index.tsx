@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
-import { createAriaDialog, createFocusTrap, generateAccessibilityId, announceToScreenReader } from '@/utils/accessibility';
+import { generateAccessibilityId, announceToScreenReader } from '@/utils/accessibility';
 
 interface ConfirmationDialogProps {
   open: boolean;
@@ -58,9 +58,7 @@ export function ConfirmationDialog({
   });
   const { isMobile } = useResponsiveBreakpoint();
 
-  // Generate unique IDs for accessibility
-  const titleId = React.useMemo(() => generateAccessibilityId('dialog-title'), []);
-  const descriptionId = React.useMemo(() => generateAccessibilityId('dialog-description'), []);
+  // Generate unique ID for content region
   const contentId = React.useMemo(() => generateAccessibilityId('dialog-content'), []);
 
   // Announce dialog opening to screen readers
@@ -94,7 +92,6 @@ export function ConfirmationDialog({
         ref={containerRef as React.Ref<HTMLDivElement>}
         showCloseButton={false}
         className={`max-w-md ${isMobile ? 'mx-4 max-w-sm' : 'max-w-md'}`}
-        {...createAriaDialog(titleId, descriptionId, true)}
         onEscapeKeyDown={(e) => {
           if (!isProcessing) {
             handleCancel();
@@ -104,12 +101,7 @@ export function ConfirmationDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle
-            id={titleId}
-            className="flex items-center gap-2"
-            role="heading"
-            aria-level={1}
-          >
+          <DialogTitle className="flex items-center gap-2">
             {isApproval ? (
               <CheckCircle className="h-5 w-5 text-green-600" aria-hidden="true" />
             ) : (
@@ -117,10 +109,7 @@ export function ConfirmationDialog({
             )}
             {isApproval ? '目標を承認しますか？' : '目標を差し戻しますか？'}
           </DialogTitle>
-          <DialogDescription
-            id={descriptionId}
-            className="text-muted-foreground"
-          >
+          <DialogDescription className="text-muted-foreground">
             この操作を実行しますか？確認してください。
           </DialogDescription>
         </DialogHeader>
