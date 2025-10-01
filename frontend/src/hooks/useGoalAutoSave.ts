@@ -148,7 +148,10 @@ export function useGoalAutoSave({
           duration: 2000,
         });
 
-        clearChanges(goalId); // Mark as saved
+        // Update the baseline with the current data after successful save
+        // This ensures that future changes are compared against the newly saved state
+        trackGoalLoad(goalId, 'performance', currentData);
+
         return true;
       } else {
         if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to update performance goal ${goalId}:`, result?.error);
@@ -233,7 +236,10 @@ export function useGoalAutoSave({
           duration: 2000,
         });
 
-        clearChanges(goalId); // Mark as saved
+        // Update the baseline with the current data after successful save
+        // This ensures that future changes are compared against the newly saved state
+        trackGoalLoad(goalId, 'competency', currentData);
+
         return true;
       } else {
         if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to update competency goal ${goalId}:`, result?.error);
@@ -250,26 +256,25 @@ export function useGoalAutoSave({
   }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData]);
   
   const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
-    console.log('🔄 Auto-save: handleAutoSave called with changed goals:', changedGoals);
-    
+    if (process.env.NODE_ENV !== 'production') console.debug('🔄 Auto-save: handleAutoSave called with changed goals:', changedGoals);
+
     if (!selectedPeriod?.id) {
-      console.log('🚫 Auto-save: No period selected');
+      if (process.env.NODE_ENV !== 'production') console.debug('🚫 Auto-save: No period selected');
       return false;
     }
-    
+
     // Prevent concurrent save operations
     if (isSavingRef.current) {
-      console.log('🚫 Auto-save: already in progress, skipping');
+      if (process.env.NODE_ENV !== 'production') console.debug('🚫 Auto-save: already in progress, skipping');
       return false;
     }
-    
+
     // Skip auto-save when we're loading existing goals
     if (isLoadingExistingGoals) {
       if (process.env.NODE_ENV !== 'production') console.debug('🚫 Auto-save: skipping during goal loading');
       return false;
     }
-    
-    if (process.env.NODE_ENV !== 'production') console.debug('🔄 Auto-save: processing changed goals only', changedGoals);
+
     if (process.env.NODE_ENV !== 'production') console.debug(`📊 Auto-save: Found ${changedGoals.length} changed goals to process`);
     
     // EVENT-BASED CHECK 1: Filter out goals that aren't ready for saving (all fields filled)
@@ -280,7 +285,7 @@ export function useGoalAutoSave({
       }
       return isComplete;
     });
-    
+
     // EVENT-BASED CHECK 2: Filter out goals that haven't actually changed from baseline
     const actuallyChangedGoals = completeGoals.filter(changeInfo => {
       const hasChanges = isGoalDirty(changeInfo.goalId);
@@ -289,9 +294,9 @@ export function useGoalAutoSave({
       }
       return hasChanges;
     });
-    
+
     if (actuallyChangedGoals.length === 0) {
-      console.log('⏭️ Auto-save: No changed complete goals to save');
+      if (process.env.NODE_ENV !== 'production') console.debug('⏭️ Auto-save: No changed complete goals to save');
       return true; // Return true to avoid error state - this is normal for incomplete/unchanged goals
     }
     
