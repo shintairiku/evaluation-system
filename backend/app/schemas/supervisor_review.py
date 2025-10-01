@@ -46,6 +46,7 @@ class SupervisorReviewInDB(SupervisorReviewBase):
     goal_id: UUID
     period_id: UUID
     supervisor_id: UUID
+    subordinate_id: UUID
     status: SubmissionStatus = SubmissionStatus.DRAFT
     reviewed_at: Optional[datetime] = None
     created_at: datetime
