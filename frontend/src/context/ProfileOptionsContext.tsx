@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { getDepartmentsAction } from '@/api/server-actions/departments';
 import { getStagesAction } from '@/api/server-actions/stages';
 import { getRolesAction } from '@/api/server-actions/roles';
@@ -36,6 +36,7 @@ export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<number>(0);
+  const hasFetchedRef = useRef(false);
 
   const fetchOptions = async () => {
     const now = Date.now();
@@ -92,9 +93,12 @@ export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps
     await fetchOptions();
   };
 
-  // Auto-fetch on mount
+  // Auto-fetch on mount (with protection against React Strict Mode double-mount)
   useEffect(() => {
-    fetchOptions();
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchOptions();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 

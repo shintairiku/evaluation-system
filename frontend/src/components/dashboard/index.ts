@@ -5,6 +5,7 @@ export { default as TabContentContainer, clearComponentCache, getCacheStats, wit
 // Role-specific dashboards
 export * from './admin';
 export * from './supervisor';
+export * from './employee';
 
 // Re-export types
 export type { RoleTabNavigationProps } from './RoleTabNavigation';

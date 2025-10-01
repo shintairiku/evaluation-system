@@ -9,23 +9,24 @@ export const metadata: Metadata = {
 };
 
 interface EvaluationPeriodManagementPageProps {
-  searchParams: {
+  searchParams: Promise<{
     view?: ViewType;
     period?: string;
-  };
+  }>;
 }
 
 export default async function EvaluationPeriodManagementPage({
   searchParams
 }: EvaluationPeriodManagementPageProps) {
   // Admin access is now controlled by middleware - no need for checks here
+  const resolvedSearchParams = await searchParams;
   const periodsResult = await getCategorizedEvaluationPeriodsAction();
 
   return (
     <div className="container mx-auto p-6">
       <EvaluationPeriodManagementContainer
         initialPeriods={periodsResult.data || { current: null, upcoming: [], all: [] }}
-        initialView={(searchParams.view as ViewType) || 'list'}
+        initialView={(resolvedSearchParams.view as ViewType) || 'list'}
       />
     </div>
   );
