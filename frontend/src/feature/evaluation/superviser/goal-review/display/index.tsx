@@ -214,6 +214,7 @@ export default function GoalReviewPage() {
                         goal={goal}
                         employeeName={selectedGroup.employee.name}
                         onGoalUpdate={reloadData}
+                        reviewId={selectedGroup.goalToReviewMap.get(goal.id)}
                       />
                     ))}
                   </div>
