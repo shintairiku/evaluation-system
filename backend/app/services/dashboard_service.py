@@ -9,6 +9,7 @@ from typing import List, Optional, Dict
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
+from sqlalchemy.orm import joinedload
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
@@ -30,6 +31,7 @@ from ..schemas.dashboard import (
 )
 from ..schemas.user import UserStatus
 from ..core.exceptions import NotFoundError, PermissionDeniedError
+from ..core.cache import get_cache, make_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -51,36 +53,49 @@ class DashboardService:
     # ========================================
 
     async def get_admin_dashboard_data(self, org_id: str) -> AdminDashboardResponse:
-        """Get complete admin dashboard data"""
+        """Get complete admin dashboard data with caching (TTL: 30s)"""
+        cache = get_cache()
+        cache_key = make_cache_key("admin_dashboard", org_id)
+
+        # Try cache first
+        cached = await cache.get(cache_key)
+        if cached:
+            return cached
+
         logger.info(f"Fetching admin dashboard data for org {org_id}")
 
         system_stats = await self._get_system_stats(org_id)
         pending_approvals = await self._get_pending_approvals(org_id)
         system_alerts = await self._get_system_alerts(org_id)
 
-        return AdminDashboardResponse(
+        result = AdminDashboardResponse(
             system_stats=system_stats,
             pending_approvals=pending_approvals,
             system_alerts=system_alerts,
             last_updated=datetime.now(timezone.utc)
         )
 
+        # Cache for 30 seconds (dashboard data changes frequently)
+        await cache.set(cache_key, result, ttl_seconds=30)
+
+        return result
+
     async def _get_system_stats(self, org_id: str) -> SystemStatsData:
         """Calculate system-wide statistics"""
         # Count total users
-        total_users_query = select(func.count(User.id)).where(User.organization_id == org_id)
+        total_users_query = select(func.count(User.id)).where(User.clerk_organization_id == org_id)
         total_users_result = await self.session.execute(total_users_query)
         total_users = total_users_result.scalar() or 0
 
         # Count active users
         active_users_query = select(func.count(User.id)).where(
-            and_(User.organization_id == org_id, User.status == UserStatus.ACTIVE)
+            and_(User.clerk_organization_id == org_id, User.status == UserStatus.ACTIVE)
         )
         active_users_result = await self.session.execute(active_users_query)
         active_users = active_users_result.scalar() or 0
 
         # Count departments
-        from ..database.models.organization import Department
+        from ..database.models.user import Department
         departments_query = select(func.count(Department.id)).where(Department.organization_id == org_id)
         departments_result = await self.session.execute(departments_query)
         total_departments = departments_result.scalar() or 0
@@ -97,15 +112,17 @@ class DashboardService:
 
         # Count total goals (join through users for org scope)
         goals_query = select(func.count(Goal.id)).join(User, Goal.user_id == User.id).where(
-            User.organization_id == org_id
+            User.clerk_organization_id == org_id
         )
         goals_result = await self.session.execute(goals_query)
         total_goals = goals_result.scalar() or 0
 
         # Count total evaluations (self-assessments)
         evaluations_query = select(func.count(SelfAssessment.id)).join(
-            User, SelfAssessment.user_id == User.id
-        ).where(User.organization_id == org_id)
+            Goal, SelfAssessment.goal_id == Goal.id
+        ).join(
+            User, Goal.user_id == User.id
+        ).where(User.clerk_organization_id == org_id)
         evaluations_result = await self.session.execute(evaluations_query)
         total_evaluations = evaluations_result.scalar() or 0
 
@@ -122,24 +139,26 @@ class DashboardService:
         """Calculate pending approval counts"""
         # Pending users (pending_approval status)
         pending_users_query = select(func.count(User.id)).where(
-            and_(User.organization_id == org_id, User.status == UserStatus.PENDING_APPROVAL)
+            and_(User.clerk_organization_id == org_id, User.status == UserStatus.PENDING_APPROVAL)
         )
         pending_users_result = await self.session.execute(pending_users_query)
         pending_users = pending_users_result.scalar() or 0
 
         # Pending goals (submitted status, awaiting approval)
         pending_goals_query = select(func.count(Goal.id)).join(User, Goal.user_id == User.id).where(
-            and_(User.organization_id == org_id, Goal.status == "submitted")
+            and_(User.clerk_organization_id == org_id, Goal.status == "submitted")
         )
         pending_goals_result = await self.session.execute(pending_goals_query)
         pending_goals = pending_goals_result.scalar() or 0
 
         # Pending evaluations (submitted self-assessments without feedback)
         pending_evaluations_query = select(func.count(SelfAssessment.id)).join(
-            User, SelfAssessment.user_id == User.id
+            Goal, SelfAssessment.goal_id == Goal.id
+        ).join(
+            User, Goal.user_id == User.id
         ).where(
             and_(
-                User.organization_id == org_id,
+                User.clerk_organization_id == org_id,
                 SelfAssessment.status == "submitted"
             )
         )
@@ -176,7 +195,7 @@ class DashboardService:
                         Goal, and_(Goal.user_id == User.id, Goal.period_id == period.id)
                     ).where(
                         and_(
-                            User.organization_id == org_id,
+                            User.clerk_organization_id == org_id,
                             User.status == UserStatus.ACTIVE,
                             Goal.id.is_(None)
                         )
@@ -201,13 +220,15 @@ class DashboardService:
                 if 0 <= days_until_eval_deadline <= 7:
                     # Count incomplete evaluations
                     incomplete_evals_query = select(func.count(User.id)).select_from(User).outerjoin(
-                        SelfAssessment, and_(
-                            SelfAssessment.user_id == User.id,
-                            SelfAssessment.period_id == period.id
+                        Goal, and_(
+                            Goal.user_id == User.id,
+                            Goal.period_id == period.id
                         )
+                    ).outerjoin(
+                        SelfAssessment, SelfAssessment.goal_id == Goal.id
                     ).where(
                         and_(
-                            User.organization_id == org_id,
+                            User.clerk_organization_id == org_id,
                             User.status == UserStatus.ACTIVE,
                             or_(SelfAssessment.status != "submitted", SelfAssessment.id.is_(None))
                         )
@@ -243,19 +264,32 @@ class DashboardService:
     async def get_supervisor_dashboard_data(
         self, supervisor_id: UUID, org_id: str
     ) -> SupervisorDashboardResponse:
-        """Get complete supervisor dashboard data"""
+        """Get complete supervisor dashboard data with caching (TTL: 30s)"""
+        cache = get_cache()
+        cache_key = make_cache_key("supervisor_dashboard", org_id, str(supervisor_id))
+
+        # Try cache first
+        cached = await cache.get(cache_key)
+        if cached:
+            return cached
+
         logger.info(f"Fetching supervisor dashboard data for user {supervisor_id} in org {org_id}")
 
         team_progress = await self._get_team_progress(supervisor_id, org_id)
         pending_tasks = await self._get_supervisor_pending_tasks(supervisor_id, org_id)
         subordinates = await self._get_subordinates_list(supervisor_id, org_id)
 
-        return SupervisorDashboardResponse(
+        result = SupervisorDashboardResponse(
             team_progress=team_progress,
             pending_tasks=pending_tasks,
             subordinates=subordinates,
             last_updated=datetime.now(timezone.utc)
         )
+
+        # Cache for 30 seconds
+        await cache.set(cache_key, result, ttl_seconds=30)
+
+        return result
 
     async def _get_team_progress(self, supervisor_id: UUID, org_id: str) -> TeamProgressData:
         """Calculate team progress statistics"""
@@ -303,9 +337,13 @@ class DashboardService:
 
         # Count completed self-assessments
         period_filter_sa = [SelfAssessment.period_id == current_period.id] if current_period else []
-        assessments_completed_query = select(func.count(func.distinct(SelfAssessment.user_id))).where(
+        assessments_completed_query = select(func.count(func.distinct(Goal.user_id))).select_from(
+            SelfAssessment
+        ).join(
+            Goal, SelfAssessment.goal_id == Goal.id
+        ).where(
             and_(
-                SelfAssessment.user_id.in_(subordinate_ids),
+                Goal.user_id.in_(subordinate_ids),
                 SelfAssessment.status == "submitted",
                 *period_filter_sa
             )
@@ -314,11 +352,19 @@ class DashboardService:
         self_assessments_completed_count = assessments_completed_result.scalar() or 0
 
         # Count feedbacks provided
+        # Join path: SupervisorFeedback -> SelfAssessment -> Goal (to get user_id)
+        # Filter by period_id on SupervisorFeedback for data integrity (denormalized field)
         period_filter_sf = [SupervisorFeedback.period_id == current_period.id] if current_period else []
-        feedbacks_query = select(func.count(func.distinct(SupervisorFeedback.employee_id))).where(
+        feedbacks_query = select(func.count(func.distinct(Goal.user_id))).select_from(
+            SupervisorFeedback
+        ).join(
+            SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id
+        ).join(
+            Goal, SelfAssessment.goal_id == Goal.id
+        ).where(
             and_(
                 SupervisorFeedback.supervisor_id == supervisor_id,
-                SupervisorFeedback.employee_id.in_(subordinate_ids),
+                Goal.user_id.in_(subordinate_ids),
                 SupervisorFeedback.status == "submitted",
                 *period_filter_sf
             )
@@ -387,20 +433,21 @@ class DashboardService:
                 overdue_approvals = goal_approvals_pending
 
         # Count feedback pending (submitted assessments without feedback)
+        # Join path: SelfAssessment -> Goal -> User (for subordinate filtering)
+        # OUTER join SupervisorFeedback to find assessments WITHOUT feedback (id is NULL)
         period_filter_sa = [SelfAssessment.period_id == current_period.id] if current_period else []
         feedback_pending_query = select(func.count(SelfAssessment.id)).select_from(
             SelfAssessment
+        ).join(
+            Goal, SelfAssessment.goal_id == Goal.id
         ).outerjoin(
             SupervisorFeedback,
-            and_(
-                SupervisorFeedback.employee_id == SelfAssessment.user_id,
-                SupervisorFeedback.period_id == SelfAssessment.period_id
-            )
+            SupervisorFeedback.self_assessment_id == SelfAssessment.id
         ).where(
             and_(
-                SelfAssessment.user_id.in_(subordinate_ids),
+                Goal.user_id.in_(subordinate_ids),
                 SelfAssessment.status == "submitted",
-                SupervisorFeedback.id.is_(None),
+                SupervisorFeedback.id.is_(None),  # Critical: find assessments WITHOUT feedback
                 *period_filter_sa
             )
         )
@@ -424,7 +471,13 @@ class DashboardService:
         )
 
     async def _get_subordinates_list(self, supervisor_id: UUID, org_id: str) -> SubordinatesListData:
-        """Get detailed list of subordinates with their status"""
+        """
+        Get detailed list of subordinates with their status.
+
+        OPTIMIZED: Eliminates N+1 queries by batching all data fetches.
+        Before: 1 + (N * 4) queries for N subordinates
+        After: 6 queries total regardless of N
+        """
         subordinates = await self.user_repo.get_subordinates(supervisor_id, org_id)
 
         if not subordinates:
@@ -440,62 +493,107 @@ class DashboardService:
         )
         current_period = active_periods[0] if active_periods else None
 
+        subordinate_ids = [sub.id for sub in subordinates]
+
+        # OPTIMIZATION 1: Batch fetch all departments
+        from ..database.models.user import Department
+        department_ids = [sub.department_id for sub in subordinates if sub.department_id]
+        department_map = {}
+        if department_ids:
+            dept_query = select(Department).where(
+                and_(Department.id.in_(department_ids), Department.organization_id == org_id)
+            )
+            dept_result = await self.session.execute(dept_query)
+            departments = dept_result.scalars().all()
+            department_map = {dept.id: dept.name for dept in departments}
+
+        # OPTIMIZATION 2: Batch fetch all goals for all subordinates
+        goals_by_user = {}
+        if current_period:
+            goals_query = select(Goal).where(
+                and_(
+                    Goal.user_id.in_(subordinate_ids),
+                    Goal.period_id == current_period.id
+                )
+            )
+            goals_result = await self.session.execute(goals_query)
+            goals = list(goals_result.scalars().all())
+
+            # Group goals by user_id
+            for goal in goals:
+                if goal.user_id not in goals_by_user:
+                    goals_by_user[goal.user_id] = []
+                goals_by_user[goal.user_id].append(goal)
+
+        # OPTIMIZATION 3: Batch fetch all self-assessments for all subordinates
+        assessments_by_user = {}
+        if current_period:
+            assessment_query = select(SelfAssessment).join(
+                Goal, SelfAssessment.goal_id == Goal.id
+            ).where(
+                and_(
+                    Goal.user_id.in_(subordinate_ids),
+                    SelfAssessment.period_id == current_period.id,
+                    SelfAssessment.status == "submitted"
+                )
+            )
+            assessment_result = await self.session.execute(assessment_query)
+            assessments = list(assessment_result.scalars().all())
+
+            # Group assessments by user_id (via goal)
+            for assessment in assessments:
+                # Need to get user_id from goal
+                user_id = next((g.user_id for g in goals if g.id == assessment.goal_id), None)
+                if user_id:
+                    assessments_by_user[user_id] = True
+
+        # OPTIMIZATION 4: Batch fetch all feedbacks for all subordinates with eager loading
+        feedbacks_by_user = {}
+        if current_period:
+            # Use eager loading to fetch related SelfAssessment and Goal in one query
+            # This eliminates the need for manual nested loops and prevents N+1 queries
+            feedback_query = select(SupervisorFeedback).options(
+                joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal)
+            ).join(
+                SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id
+            ).join(
+                Goal, SelfAssessment.goal_id == Goal.id
+            ).where(
+                and_(
+                    SupervisorFeedback.supervisor_id == supervisor_id,
+                    Goal.user_id.in_(subordinate_ids),
+                    SupervisorFeedback.period_id == current_period.id
+                )
+            )
+            feedback_result = await self.session.execute(feedback_query)
+            feedbacks = list(feedback_result.unique().scalars().all())
+
+            # Group feedbacks by user_id using eager-loaded relationships
+            for feedback in feedbacks:
+                user_id = feedback.self_assessment.goal.user_id
+                feedbacks_by_user[user_id] = feedback
+
+        # Now process each subordinate using pre-fetched data
         subordinate_infos: List[SubordinateInfo] = []
         needs_attention_count = 0
 
         for subordinate in subordinates:
-            # Get department name
-            department_name = None
-            if subordinate.department_id:
-                department = await self.department_repo.get_by_id(subordinate.department_id, org_id)
-                if department:
-                    department_name = department.name
+            # Get department name from pre-fetched map
+            department_name = department_map.get(subordinate.department_id) if subordinate.department_id else None
 
-            # Get goal status for current period
-            has_pending_goals = False
-            goals_count = 0
-            goals_approved_count = 0
+            # Get goal status from pre-fetched goals
+            user_goals = goals_by_user.get(subordinate.id, [])
+            goals_count = len(user_goals)
+            goals_approved_count = sum(1 for g in user_goals if g.status == "approved")
+            has_pending_goals = any(g.status == "submitted" for g in user_goals)
 
-            if current_period:
-                goals_query = select(Goal).where(
-                    and_(Goal.user_id == subordinate.id, Goal.period_id == current_period.id)
-                )
-                goals_result = await self.session.execute(goals_query)
-                goals = list(goals_result.scalars().all())
-                goals_count = len(goals)
-                goals_approved_count = sum(1 for g in goals if g.status == "approved")
-                has_pending_goals = any(g.status == "submitted" for g in goals)
+            # Get self-assessment status from pre-fetched data
+            self_assessment_completed = subordinate.id in assessments_by_user
 
-            # Get self-assessment status
-            self_assessment_completed = False
-            if current_period:
-                assessment_query = select(SelfAssessment).where(
-                    and_(
-                        SelfAssessment.user_id == subordinate.id,
-                        SelfAssessment.period_id == current_period.id,
-                        SelfAssessment.status == "submitted"
-                    )
-                )
-                assessment_result = await self.session.execute(assessment_query)
-                self_assessment_completed = assessment_result.scalar_one_or_none() is not None
-
-            # Get feedback status
-            has_pending_feedback = False
-            feedback_provided = False
-            if current_period and self_assessment_completed:
-                feedback_query = select(SupervisorFeedback).where(
-                    and_(
-                        SupervisorFeedback.supervisor_id == supervisor_id,
-                        SupervisorFeedback.employee_id == subordinate.id,
-                        SupervisorFeedback.period_id == current_period.id
-                    )
-                )
-                feedback_result = await self.session.execute(feedback_query)
-                feedback = feedback_result.scalar_one_or_none()
-                if feedback:
-                    feedback_provided = feedback.status == "submitted"
-                else:
-                    has_pending_feedback = True
+            # Get feedback status from pre-fetched data
+            feedback = feedbacks_by_user.get(subordinate.id)
+            feedback_provided = feedback.status == "submitted" if feedback else False
+            has_pending_feedback = self_assessment_completed and not feedback_provided
 
             # Determine status and priority
             if has_pending_goals:
@@ -550,7 +648,15 @@ class DashboardService:
     async def get_employee_dashboard_data(
         self, employee_id: UUID, org_id: str
     ) -> EmployeeDashboardResponse:
-        """Get complete employee dashboard data (all authenticated users)"""
+        """Get complete employee dashboard data with caching (TTL: 30s)"""
+        cache = get_cache()
+        cache_key = make_cache_key("employee_dashboard", org_id, str(employee_id))
+
+        # Try cache first
+        cached = await cache.get(cache_key)
+        if cached:
+            return cached
+
         logger.info(f"Fetching employee dashboard data for user {employee_id} in org {org_id}")
 
         current_period_info = await self._get_current_period_info(org_id)
@@ -559,7 +665,7 @@ class DashboardService:
         deadline_alerts = await self._get_deadline_alerts(employee_id, org_id, current_period_info)
         history_access = await self._get_history_access(employee_id, org_id)
 
-        return EmployeeDashboardResponse(
+        result = EmployeeDashboardResponse(
             current_period=current_period_info,
             personal_progress=personal_progress,
             todo_tasks=todo_tasks,
@@ -567,6 +673,11 @@ class DashboardService:
             history_access=history_access,
             last_updated=datetime.now(timezone.utc)
         )
+
+        # Cache for 30 seconds
+        await cache.set(cache_key, result, ttl_seconds=30)
+
+        return result
 
     async def _get_current_period_info(self, org_id: str) -> CurrentPeriodInfo:
         """Get current active evaluation period information"""
@@ -647,9 +758,11 @@ class DashboardService:
         goals_rejected = sum(1 for g in goals if g.status == "rejected")
 
         # Get self-assessments
-        assessments_query = select(SelfAssessment).where(
+        assessments_query = select(SelfAssessment).join(
+            Goal, SelfAssessment.goal_id == Goal.id
+        ).where(
             and_(
-                SelfAssessment.user_id == employee_id,
+                Goal.user_id == employee_id,
                 SelfAssessment.period_id == current_period.period_id
             )
         )
@@ -661,15 +774,21 @@ class DashboardService:
         self_assessments_pending = self_assessments_count - self_assessments_completed
         has_completed_self_assessment = self_assessments_completed > 0
 
-        # Get feedbacks
-        feedbacks_query = select(SupervisorFeedback).where(
+        # Get feedbacks with eager loading for better performance
+        feedbacks_query = select(SupervisorFeedback).options(
+            joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal)
+        ).join(
+            SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id
+        ).join(
+            Goal, SelfAssessment.goal_id == Goal.id
+        ).where(
             and_(
-                SupervisorFeedback.employee_id == employee_id,
+                Goal.user_id == employee_id,
                 SupervisorFeedback.period_id == current_period.period_id
             )
         )
         feedbacks_result = await self.session.execute(feedbacks_query)
-        feedbacks = list(feedbacks_result.scalars().all())
+        feedbacks = list(feedbacks_result.unique().scalars().all())
 
         feedbacks_received = sum(1 for f in feedbacks if f.status == "submitted")
         feedbacks_pending = len(feedbacks) - feedbacks_received
@@ -786,20 +905,23 @@ class DashboardService:
                     ))
 
             # Check for approved goals without self-assessment
+            # OPTIMIZATION: Batch fetch all assessments to avoid N+1 queries
             approved_goals = [g for g in goals if g.status == "approved"]
             if approved_goals:
-                for goal in approved_goals:
-                    assessment_query = select(SelfAssessment).where(
-                        and_(
-                            SelfAssessment.user_id == employee_id,
-                            SelfAssessment.goal_id == goal.id,
-                            SelfAssessment.status == "submitted"
-                        )
+                approved_goal_ids = [g.id for g in approved_goals]
+                assessments_query = select(SelfAssessment).where(
+                    and_(
+                        SelfAssessment.goal_id.in_(approved_goal_ids),
+                        SelfAssessment.status == "submitted"
                     )
-                    assessment_result = await self.session.execute(assessment_query)
-                    assessment = assessment_result.scalar_one_or_none()
+                )
+                assessments_result = await self.session.execute(assessments_query)
+                completed_assessments = list(assessments_result.scalars().all())
+                completed_goal_ids = {a.goal_id for a in completed_assessments}
 
-                    if not assessment:
+                # Now check each goal against the pre-fetched assessment IDs
+                for goal in approved_goals:
+                    if goal.id not in completed_goal_ids:
                         is_overdue = current_period.is_evaluation_deadline_passed
                         tasks.append(TodoTask(
                             id=f"self_assess_{goal.id}",
@@ -814,16 +936,22 @@ class DashboardService:
                             related_entity_id=goal.id
                         ))
 
-        # Check for feedbacks to review
-        feedbacks_query = select(SupervisorFeedback).where(
+        # Check for feedbacks to review with eager loading
+        feedbacks_query = select(SupervisorFeedback).options(
+            joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal)
+        ).join(
+            SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id
+        ).join(
+            Goal, SelfAssessment.goal_id == Goal.id
+        ).where(
             and_(
-                SupervisorFeedback.employee_id == employee_id,
+                Goal.user_id == employee_id,
                 SupervisorFeedback.period_id == current_period.period_id,
                 SupervisorFeedback.status == "submitted"
             )
         )
         feedbacks_result = await self.session.execute(feedbacks_query)
-        feedbacks = list(feedbacks_result.scalars().all())
+        feedbacks = list(feedbacks_result.unique().scalars().all())
 
         if feedbacks:
             tasks.append(TodoTask(
@@ -945,9 +1073,11 @@ class DashboardService:
             goals_count = goals_result.scalar() or 0
 
             # Count completed assessments
-            assessments_query = select(func.count(SelfAssessment.id)).where(
+            assessments_query = select(func.count(SelfAssessment.id)).join(
+                Goal, SelfAssessment.goal_id == Goal.id
+            ).where(
                 and_(
-                    SelfAssessment.user_id == employee_id,
+                    Goal.user_id == employee_id,
                     SelfAssessment.period_id == period.id,
                     SelfAssessment.status == "submitted"
                 )
@@ -956,9 +1086,14 @@ class DashboardService:
             completed_assessments = assessments_result.scalar() or 0
 
             # Count received feedbacks
-            feedbacks_query = select(func.count(SupervisorFeedback.id)).where(
+            # Join path: SupervisorFeedback -> SelfAssessment -> Goal -> User
+            feedbacks_query = select(func.count(SupervisorFeedback.id)).join(
+                SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id
+            ).join(
+                Goal, SelfAssessment.goal_id == Goal.id
+            ).where(
                 and_(
-                    SupervisorFeedback.employee_id == employee_id,
+                    Goal.user_id == employee_id,
                     SupervisorFeedback.period_id == period.id,
                     SupervisorFeedback.status == "submitted"
                 )
