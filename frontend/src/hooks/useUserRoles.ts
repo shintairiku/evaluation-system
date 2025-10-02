@@ -148,8 +148,8 @@ export function useUserRoles(options: UseUserRolesOptions = {}): UseUserRolesRet
       return;
     }
     fetchUserData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]); // fetchUserData is stable as it only depends on userId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, initialUserData, skipFetchIfInitialData]);
 
   // Utility functions
   const hasRole = (role: string): boolean => {
