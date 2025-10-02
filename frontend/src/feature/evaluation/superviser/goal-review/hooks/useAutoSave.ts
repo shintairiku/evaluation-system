@@ -79,6 +79,7 @@ export function useAutoSave({
   const [lastSavedComment, setLastSavedComment] = useState<string>('');
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasLoadedRef = useRef<boolean>(false); // Prevent multiple load attempts
 
   /**
    * Core save function - saves comment as draft to supervisor review
@@ -132,10 +133,15 @@ export function useAutoSave({
 
   /**
    * Load existing draft on mount
+   * Uses useRef to prevent infinite loop caused by setComment dependency
+   * hasLoadedRef prevents multiple load attempts, isDraftLoaded only indicates successful load
    */
   useEffect(() => {
     const loadExistingDraft = async () => {
-      if (!reviewId || isDraftLoaded) return;
+      // Prevent multiple load attempts using ref (more reliable than state)
+      if (!reviewId || hasLoadedRef.current) return;
+
+      hasLoadedRef.current = true; // Mark as attempted immediately to prevent re-execution
 
       try {
         const result = await getSupervisorReviewByIdAction(reviewId);
@@ -147,20 +153,24 @@ export function useAutoSave({
           if (review.status === 'draft' && review.comment) {
             setComment(review.comment);
             setLastSavedComment(review.comment);
-            setIsDraftLoaded(true);
+            setIsDraftLoaded(true); // Mark as successfully loaded
 
             toast.info('下書きが読み込まれました', {
               description: '前回保存したコメントが復元されました'
             });
           }
+          // No else needed - hasLoadedRef already prevents re-execution
         }
+        // No else needed - hasLoadedRef already prevents re-execution
       } catch (error) {
         // Silent fail - draft loading is not critical
+        // hasLoadedRef already prevents retry
       }
     };
 
     loadExistingDraft();
-  }, [reviewId, isDraftLoaded, setComment]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId]); // Only depend on reviewId - setComment is stable via useRef pattern
 
   /**
    * Save before page unload

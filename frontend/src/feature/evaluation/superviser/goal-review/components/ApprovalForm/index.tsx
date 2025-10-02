@@ -99,10 +99,17 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
   const comment = form.watch('comment') || '';
   const commentLength = comment.length;
 
+  // Track previous comment value to prevent unnecessary auto-save calls
+  const prevCommentRef = React.useRef<string>('');
+
   // Auto-save on comment change (debounced in parent)
+  // Only trigger when comment actually changes to prevent infinite loop
   React.useEffect(() => {
-    if (onCommentChange) {
-      onCommentChange(comment);
+    if (comment !== prevCommentRef.current) {
+      prevCommentRef.current = comment;
+      if (onCommentChange) {
+        onCommentChange(comment);
+      }
     }
   }, [comment, onCommentChange]);
 
