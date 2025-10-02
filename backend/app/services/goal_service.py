@@ -677,31 +677,59 @@ class GoalService:
         
         return GoalDetail(**detail_dict)
 
-    async def _create_related_assessment_records(self, goal: GoalModel, org_id: str):
-        """Create related supervisor review records when goal is submitted."""
+    async def _create_related_assessment_records(self, goal: GoalModel, org_id: str) -> None:
+        """
+        Create related supervisor review records when goal is submitted.
+
+        This method creates draft supervisor reviews for all supervisors of the goal owner.
+        If no supervisors are found, logs a warning but continues (not an error condition).
+        If creation fails, logs the error but does not raise to avoid breaking goal submission.
+
+        Args:
+            goal: The goal model for which to create supervisor reviews
+            org_id: Organization ID for scoping
+        """
         try:
             supervisors = await self.user_repo.get_user_supervisors(goal.user_id, org_id)
 
             if not supervisors:
-                logger.warning(f"No supervisors found for goal {goal.id} (user {goal.user_id})")
+                logger.warning(
+                    f"No supervisors found for goal {goal.id} (user {goal.user_id}). "
+                    "Supervisor review records will not be created."
+                )
                 return
 
             logger.info(f"Creating {len(supervisors)} supervisor_review records for goal {goal.id}")
 
+            created_count = 0
             for supervisor in supervisors:
-                await self.supervisor_review_repo.create(
-                    goal_id=goal.id,
-                    period_id=goal.period_id,
-                    supervisor_id=supervisor.id,
-                    subordinate_id=goal.user_id,
-                    org_id=org_id,
-                    action="PENDING",
-                    comment=None,
-                    status="draft",
-                )
+                try:
+                    await self.supervisor_review_repo.create(
+                        goal_id=goal.id,
+                        period_id=goal.period_id,
+                        supervisor_id=supervisor.id,
+                        subordinate_id=goal.user_id,
+                        org_id=org_id,
+                        action="PENDING",
+                        comment=None,
+                        status="draft",
+                    )
+                    created_count += 1
+                except Exception as create_error:
+                    logger.error(
+                        f"Failed to create supervisor_review for supervisor {supervisor.id} "
+                        f"on goal {goal.id}: {create_error}"
+                    )
+                    # Continue creating for other supervisors
 
-            logger.info(f"Successfully created {len(supervisors)} supervisor_review records for goal {goal.id}")
+            logger.info(
+                f"Successfully created {created_count}/{len(supervisors)} "
+                f"supervisor_review records for goal {goal.id}"
+            )
 
         except Exception as e:
-            logger.error(f"Failed to create supervisor review records for goal {goal.id}: {e}")
-            # Don't raise exception to avoid breaking goal creation
+            logger.error(
+                f"Failed to create supervisor review records for goal {goal.id}: {e}. "
+                "Goal submission will continue, but manual review creation may be needed."
+            )
+            # Don't raise exception to avoid breaking goal submission flow
