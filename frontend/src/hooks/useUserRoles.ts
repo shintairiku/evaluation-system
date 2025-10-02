@@ -149,7 +149,7 @@ export function useUserRoles(options: UseUserRolesOptions = {}): UseUserRolesRet
     }
     fetchUserData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, initialUserData, skipFetchIfInitialData]);
+  }, [userId, initialUserData, skipFetchIfInitialData]); // fetchUserData is stable as it only depends on userId
 
   // Utility functions
   const hasRole = (role: string): boolean => {
