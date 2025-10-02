@@ -12,6 +12,13 @@ export interface UserRole {
   hierarchyLevel: number;
 }
 
+export interface UseUserRolesOptions {
+  /** Pre-fetched user data to avoid duplicate API calls */
+  initialUserData?: UserDetailResponse | null;
+  /** Skip fetching if initial data is provided (default: true) */
+  skipFetchIfInitialData?: boolean;
+}
+
 export interface UseUserRolesReturn {
   userRoles: UserRole[];
   isLoading: boolean;
@@ -44,15 +51,18 @@ export const DASHBOARD_ROLE_MAPPING: Record<string, string> = {
  * Custom hook for managing user roles and multi-role dashboard functionality
  *
  * This hook:
- * - Fetches user details including roles from the backend
+ * - Fetches user details including roles from the backend (or uses provided data)
  * - Provides role checking utilities
  * - Determines available dashboard views based on user's role hierarchy
  * - Manages loading and error states
+ *
+ * OPTIMIZATION: Accepts pre-fetched user data to eliminate duplicate API calls
  */
-export function useUserRoles(): UseUserRolesReturn {
+export function useUserRoles(options: UseUserRolesOptions = {}): UseUserRolesReturn {
+  const { initialUserData = null, skipFetchIfInitialData = true } = options;
   const { userId } = useAuth();
-  const [currentUser, setCurrentUser] = useState<UserDetailResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<UserDetailResponse | null>(initialUserData);
+  const [isLoading, setIsLoading] = useState(!initialUserData);
   const [error, setError] = useState<string | null>(null);
 
   // Convert backend roles to dashboard-compatible format
@@ -65,17 +75,21 @@ export function useUserRoles(): UseUserRolesReturn {
     const userHierarchyLevels = currentUser.roles.map(role => getRoleHierarchyLevel(role.name));
     const highestLevel = Math.min(...userHierarchyLevels);
 
-    // Admin view: only for admin (level 1) or manager (level 2) roles
+    // Dashboard view logic:
+    // - Show ONLY ONE dashboard tab per hierarchy tier
+    // - Admin view (管理者視点): for admin or manager roles (level 1-2)
+    // - Supervisor view (上司視点): for supervisor role (level 3)
+    // - Employee view (従業員視点): for all other roles (level 4+)
+
     if (highestLevel <= 2) {
+      // User has admin or manager role -> show admin view only
       availableRoles.push({
         role: 'admin',
         label: DASHBOARD_ROLE_MAPPING.admin,
         hierarchyLevel: 1
       });
-    }
-
-    // Supervisor view: for admin, manager, or supervisor roles (level 1-3)
-    if (highestLevel <= 3) {
+    } else if (highestLevel === 3) {
+      // User has supervisor role (but not admin/manager) -> show supervisor view only
       availableRoles.push({
         role: 'supervisor',
         label: DASHBOARD_ROLE_MAPPING.supervisor,
@@ -83,7 +97,7 @@ export function useUserRoles(): UseUserRolesReturn {
       });
     }
 
-    // Employee view: for all authenticated users
+    // Employee view: always available for all authenticated users
     availableRoles.push({
       role: 'employee',
       label: DASHBOARD_ROLE_MAPPING.employee,
@@ -129,8 +143,12 @@ export function useUserRoles(): UseUserRolesReturn {
   };
 
   useEffect(() => {
+    // Skip fetching if initial data provided and skipFetchIfInitialData is true
+    if (initialUserData && skipFetchIfInitialData) {
+      return;
+    }
     fetchUserData();
-  }, [userId]); // fetchUserData is stable as it only depends on userId
+  }, [userId, initialUserData, skipFetchIfInitialData]); // fetchUserData is stable as it only depends on userId
 
   // Utility functions
   const hasRole = (role: string): boolean => {
