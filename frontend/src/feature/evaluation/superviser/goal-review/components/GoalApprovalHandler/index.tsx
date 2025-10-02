@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, useOptimistic, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import type { GoalResponse } from '@/api/types';
-import { approveGoalAction, rejectGoalAction } from '@/api/server-actions/goals';
-import { useGoalReviewContext } from '@/context/GoalReviewContext';
+import { useRef } from 'react';
+import { type GoalResponse } from '@/api/types';
 import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 import { useCompetencyNames } from '../../hooks/useCompetencyNames';
+import { useAutoSave } from '../../hooks/useAutoSave';
+import { useGoalApprovalActions } from '../../hooks/useGoalApprovalActions';
 
 /**
  * Props for the GoalApprovalHandler component
@@ -20,32 +18,18 @@ interface GoalApprovalHandlerProps {
   employeeName?: string;
   /** Callback function called after successful approval/rejection */
   onSuccess?: () => void;
+  /** Supervisor review ID for this goal (required for approval actions) */
+  reviewId?: string;
 }
 
 /**
- * Type for optimistic UI updates
- */
-type OptimisticGoalUpdate = {
-  status: 'approved' | 'rejected' | 'submitted';
-  approvedAt?: string;
-};
-
-/**
- * Handles goal approval and rejection functionality with optimistic UI updates
+ * Handles goal approval and rejection functionality with optimistic UI updates.
+ * Refactored to use custom hooks for better separation of concerns.
  *
  * @param props - The component props
  * @returns JSX element containing approval form and confirmation dialog
  */
-export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalApprovalHandlerProps) {
-  const router = useRouter();
-  const { refreshPendingCount } = useGoalReviewContext();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [confirmationDialog, setConfirmationDialog] = useState<{
-    open: boolean;
-    type: 'approve' | 'reject';
-    comment?: string;
-  }>({ open: false, type: 'approve' });
-
+export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }: GoalApprovalHandlerProps) {
   // Reference to the ApprovalForm for form control
   const approvalFormRef = useRef<ApprovalFormRef>(null);
 
@@ -57,124 +41,36 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
     isCompetencyGoal ? goal.competencyIds : null
   );
 
-  // Optimistic updates for goal status
-  const [optimisticGoal, updateOptimisticGoal] = useOptimistic(
+  // Auto-save hook - handles draft save, load, and before unload
+  const { saveStatus, debouncedSave, save } = useAutoSave({
+    reviewId,
+    getComment: () => approvalFormRef.current?.getComment() || '',
+    setComment: (comment) => approvalFormRef.current?.setComment(comment)
+  });
+
+  // Approval actions hook - handles approve/reject with optimistic updates
+  const {
+    optimisticGoal,
+    isProcessing,
+    confirmationDialog,
+    handleApprove,
+    handleReject,
+    confirmAction,
+    closeDialog
+  } = useGoalApprovalActions({
     goal,
-    (currentGoal: GoalResponse, optimisticUpdate: OptimisticGoalUpdate) => {
-      return {
-        ...currentGoal,
-        status: optimisticUpdate.status,
-        approvedAt: optimisticUpdate.approvedAt || currentGoal.approvedAt,
-      };
-    }
-  );
-
-  const handleApprove = async (comment: string) => {
-    setConfirmationDialog({
-      open: true,
-      type: 'approve',
-      comment
-    });
-  };
-
-  const handleReject = async (comment: string) => {
-    setConfirmationDialog({
-      open: true,
-      type: 'reject',
-      comment
-    });
-  };
-
-  const confirmAction = async () => {
-    if (!confirmationDialog.open) return;
-
-    setIsProcessing(true);
-    const { type, comment } = confirmationDialog;
-
-    try {
-      // Optimistic update
-      const optimisticUpdate: OptimisticGoalUpdate = {
-        status: type === 'approve' ? 'approved' : 'rejected',
-        ...(type === 'approve'
-          ? { approvedAt: new Date().toISOString() }
-          : { rejectedAt: new Date().toISOString() }
-        )
-      };
-
-      updateOptimisticGoal(optimisticUpdate);
-
-      // Close dialog immediately for better UX
-      setConfirmationDialog({ open: false, type: 'approve' });
-
-      let result;
-
-      // Both approval and rejection now require comments
-      if (!comment) {
-        // Revert optimistic update on validation error
-        updateOptimisticGoal({ status: 'submitted' });
-        toast.error('コメントが必要です');
-        return;
-      }
-
-      if (type === 'approve') {
-        result = await approveGoalAction(goal.id);
-
-        if (result.success) {
-          toast.success('目標を承認しました', {
-            description: `${goal.title}を承認しました。`
-          });
-        }
-      } else {
-        result = await rejectGoalAction(goal.id, comment);
-
-        if (result.success) {
-          toast.success('目標を差し戻しました', {
-            description: `${goal.title}を差し戻しました。`
-          });
-        }
-      }
-
-      if (!result.success) {
-        // Revert optimistic update on server error
-        updateOptimisticGoal({ status: 'submitted' });
-
-        toast.error('操作に失敗しました', {
-          description: result.error || '不明なエラーが発生しました。'
-        });
-        return;
-      }
-
-      // Success: Reset the form
+    reviewId,
+    onSuccess: () => {
+      // Reset the form on success
       if (approvalFormRef.current) {
         approvalFormRef.current.resetForm();
       }
-
-      // Refresh global pending count
-      await refreshPendingCount();
-
-      // Call success callback to refresh parent data
+      // Call parent success callback
       if (onSuccess) {
         onSuccess();
-      } else {
-        router.refresh();
       }
-
-    } catch (error) {
-      console.error('Goal action error:', error);
-
-      // Revert optimistic update on network error
-      updateOptimisticGoal({ status: 'submitted' });
-
-      toast.error('操作に失敗しました', {
-        description: '不明なエラーが発生しました。'
-      });
-    } finally {
-      setIsProcessing(false);
     }
-  };
-
-  // Use provided employee name or fallback
-  const finalEmployeeName = employeeName || 'Unknown User';
+  });
 
   // Generate appropriate goal title based on goal type
   const getGoalTitle = (): string => {
@@ -199,15 +95,18 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess }: GoalAppro
         onApprove={handleApprove}
         onReject={handleReject}
         isProcessing={isProcessing}
+        onCommentChange={debouncedSave}
+        onCommentBlur={save}
+        saveStatus={saveStatus}
       />
 
       <ConfirmationDialog
         open={confirmationDialog.open}
-        onOpenChange={(open) => setConfirmationDialog(prev => ({ ...prev, open }))}
+        onOpenChange={closeDialog}
         onConfirm={confirmAction}
         type={confirmationDialog.type}
         goalTitle={getGoalTitle()}
-        employeeName={finalEmployeeName}
+        employeeName={employeeName || 'Unknown User'}
         comment={confirmationDialog.comment}
         isProcessing={isProcessing}
       />
