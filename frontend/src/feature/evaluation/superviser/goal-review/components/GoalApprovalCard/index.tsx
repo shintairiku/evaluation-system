@@ -1,14 +1,14 @@
 import React from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Target, Brain, Calendar, Weight, Loader2 } from 'lucide-react';
 import type { GoalResponse } from '@/api/types';
 import { GoalApprovalHandler } from '../GoalApprovalHandler';
+import { GoalStatusBadge } from '../GoalStatusBadge';
 import { useCompetencyNames } from '../../hooks/useCompetencyNames';
 import { useIdealActionsResolver } from '../../hooks/useIdealActionsResolver';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
-import { createAriaLabel, generateAccessibilityId, createAriaLiveRegion } from '@/utils/accessibility';
+import { generateAccessibilityId, createAriaLiveRegion } from '@/utils/accessibility';
 
 /**
  * Props for the GoalApprovalCard component
@@ -71,34 +71,6 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
     return <Target className="h-4 w-4" />;
   };
 
-  const getStatusBadge = () => {
-    const getStatusInfo = () => {
-      switch (goal.status) {
-        case 'submitted':
-          return { text: '承認待ち', description: 'この目標は承認待ちの状態です' };
-        case 'approved':
-          return { text: '承認済み', description: 'この目標は承認済みです' };
-        case 'rejected':
-          return { text: '差し戻し', description: 'この目標は差し戻されました' };
-        default:
-          return { text: goal.status, description: `この目標の状態は${goal.status}です` };
-      }
-    };
-
-    const statusInfo = getStatusInfo();
-    const ariaLabel = createAriaLabel(`目標の状態: ${statusInfo.text}`, statusInfo.description);
-
-    switch (goal.status) {
-      case 'submitted':
-        return <Badge variant="secondary" {...ariaLabel}>{statusInfo.text}</Badge>;
-      case 'approved':
-        return <Badge variant="default" {...ariaLabel}>{statusInfo.text}</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive" {...ariaLabel}>{statusInfo.text}</Badge>;
-      default:
-        return <Badge variant="outline" {...ariaLabel}>{statusInfo.text}</Badge>;
-    }
-  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('ja-JP', {
@@ -126,7 +98,7 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
             </span>
           </div>
           <div className={`flex items-center gap-2 ${isMobile ? 'self-start' : ''}`} id={statusId}>
-            {getStatusBadge()}
+            <GoalStatusBadge status={goal.status} />
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <Weight className="h-3 w-3" aria-hidden="true" />
               <span aria-label={`目標の重み: ${goal.weight}パーセント`}>{goal.weight}%</span>
