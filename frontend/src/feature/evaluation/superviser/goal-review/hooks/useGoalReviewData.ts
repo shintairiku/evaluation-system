@@ -78,25 +78,16 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
         setCurrentPeriod(null);
       }
 
-      // Load supervisor reviews, users, and goals data in parallel for better performance
-      const [reviewsResult, usersResult, goalsResult] = await Promise.all([
+      // Load supervisor reviews and users first
+      const [reviewsResult, usersResult] = await Promise.all([
         getPendingSupervisorReviewsAction({
           pagination: { limit: 100 }
         }),
-        getUsersAction(),
-        // Fetch all submitted goals for the current period to get complete goal data
-        periodResult.success && periodResult.data?.current
-          ? getGoalsAction({
-              periodId: periodResult.data.current.id,
-              status: 'submitted',
-              limit: 100
-            })
-          : Promise.resolve({ success: false, data: undefined })
+        getUsersAction()
       ]);
 
       let reviews: SupervisorReview[] = [];
       let users: UserDetailResponse[] = [];
-      let goals: GoalResponse[] = [];
 
       if (reviewsResult.success && reviewsResult.data?.items) {
         reviews = reviewsResult.data.items;
@@ -106,8 +97,28 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
         users = usersResult.data.items;
       }
 
-      if (goalsResult.success && goalsResult.data?.items) {
-        goals = goalsResult.data.items;
+      // Extract unique subordinate IDs from reviews to fetch their goals
+      const subordinateIds = [...new Set(reviews.map(r => r.subordinate_id))];
+
+      // Fetch goals for each subordinate separately (since bulk fetch may not work without GOAL_READ_SUBORDINATES permission)
+      let goals: GoalResponse[] = [];
+      if (periodResult.success && periodResult.data?.current && subordinateIds.length > 0) {
+        const goalsPromises = subordinateIds.map(subordinateId =>
+          getGoalsAction({
+            periodId: periodResult.data!.current!.id,
+            status: 'submitted',
+            userId: subordinateId,
+            limit: 100
+          })
+        );
+
+        const goalsResults = await Promise.all(goalsPromises);
+
+        goalsResults.forEach((result) => {
+          if (result.success && result.data?.items) {
+            goals.push(...result.data.items);
+          }
+        });
       }
 
       // Create a map of goals by ID for quick lookup
@@ -166,9 +177,9 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
 
       setGroupedGoals(grouped);
 
-      // Set first employee as selected by default
-      if (grouped.length > 0 && !selectedEmployeeId) {
-        setSelectedEmployeeId(grouped[0].employee.id);
+      // Set first employee as selected by default (only if not already set)
+      if (grouped.length > 0) {
+        setSelectedEmployeeId(prev => prev || grouped[0].employee.id);
       }
 
     } catch (err) {
@@ -177,11 +188,12 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
     } finally {
       setLoading(false);
     }
-  }, []);  // Remove selectedEmployeeId dependency to prevent infinite loops
+  }, []);
 
   useEffect(() => {
     loadGoalData();
-  }, [loadGoalData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   return {
     loading,
