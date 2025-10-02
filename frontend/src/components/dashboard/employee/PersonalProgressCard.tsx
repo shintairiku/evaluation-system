@@ -8,7 +8,7 @@ import { CheckCircle2, Circle, AlertCircle, Target } from 'lucide-react';
 import type { PersonalProgressData } from '@/api/types';
 
 export interface PersonalProgressCardProps {
-  data: PersonalProgressData;
+  data?: PersonalProgressData;
   isLoading?: boolean;
   className?: string;
 }
@@ -28,7 +28,8 @@ export default function PersonalProgressCard({
   isLoading = false,
   className = ''
 }: PersonalProgressCardProps) {
-  if (isLoading) {
+  // Handle undefined or null data
+  if (!data || isLoading) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -123,7 +124,7 @@ export default function PersonalProgressCard({
             <Target className="w-5 h-5 text-primary" />
             評価進捗状況
           </div>
-          {data.periodName && (
+          {data?.periodName && (
             <Badge variant="secondary" className="text-xs">
               {data.periodName}
             </Badge>
