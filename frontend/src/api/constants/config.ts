@@ -2,22 +2,38 @@ declare const process: {
   env: {
     [key: string]: string | undefined;
     NEXT_PUBLIC_API_BASE_URL?: string;
+    API_BASE_URL_SERVER?: string;
     NODE_ENV?: string;
   };
 };
 
+// Detect if we're running on server or client
+const isServer = typeof window === 'undefined';
+
 const getApiBaseUrl = () => {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!baseUrl) {
+  // Server-side: use Docker internal network (backend:8000)
+  if (isServer) {
+    const serverUrl = process.env.API_BASE_URL_SERVER;
+    if (!serverUrl) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('API_BASE_URL_SERVER is not set for production environment');
+      }
+      // Default to Docker service name for server-side calls
+      return 'http://backend:8000';
+    }
+    return serverUrl;
+  }
+
+  // Client-side: use localhost (browser access via Docker port mapping)
+  const clientUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!clientUrl) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('NEXT_PUBLIC_API_BASE_URL is not set for production environment');
     }
-    // In Docker environment, use service name 'backend' instead of 'localhost'
-    // This can be detected by checking if we're in a containerized environment
-    // For now, we'll use 'backend' as the default for Docker networking
-    return 'http://backend:8000';
+    // Default to localhost for browser access
+    return 'http://localhost:8000';
   }
-  return baseUrl;
+  return clientUrl;
 };
 
 export const API_CONFIG = {
@@ -51,12 +67,13 @@ export const buildApiUrl = (endpoint: string, version?: string) => {
 // Helper function to build organization-scoped API URLs (returns relative paths for HTTP client)
 export const buildOrgApiUrl = (orgSlug: string, endpoint: string) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  // Add trailing slash only if there are no query parameters (to prevent 307 redirects in FastAPI)
-  const hasQueryParams = cleanEndpoint.includes('?');
-  const withTrailingSlash = hasQueryParams || cleanEndpoint.endsWith('/')
-    ? cleanEndpoint
-    : `${cleanEndpoint}/`;
-  return `/api/org/${encodeURIComponent(orgSlug)}${withTrailingSlash}`;
+
+  // FastAPI handles both with and without trailing slashes via redirect_slashes=True (default)
+  // However, redirects (307) double the number of requests
+  // Therefore, we NEVER add trailing slashes automatically
+  // Backend routes should be defined without trailing slashes for consistency
+
+  return `/api/org/${encodeURIComponent(orgSlug)}${cleanEndpoint}`;
 };
 
 export const API_ENDPOINTS = {
