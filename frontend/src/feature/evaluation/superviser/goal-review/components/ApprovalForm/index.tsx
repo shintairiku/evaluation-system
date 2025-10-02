@@ -25,8 +25,8 @@ type ApprovalFormData = z.infer<typeof approvalFormSchema>;
 
 interface ApprovalFormProps {
   goal: GoalResponse;
-  onApprove: (comment: string) => Promise<void>;
-  onReject: (comment: string) => Promise<void>;
+  onApprove: (comment: string) => void;
+  onReject: (comment: string) => void;
   isProcessing?: boolean;
   onCommentChange?: (comment: string) => void;
   onCommentBlur?: (comment: string) => void;
@@ -127,14 +127,8 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
 
     setPendingAction('approve');
     announceToScreenReader('目標を承認しています...', 'polite');
-    try {
-      await onApprove(approvalComment);
-      announceToScreenReader('目標が正常に承認されました', 'polite');
-    } catch (error) {
-      announceToScreenReader('承認処理でエラーが発生しました', 'assertive');
-    } finally {
-      setPendingAction(null);
-    }
+    onApprove(approvalComment);
+    setPendingAction(null);
   };
 
   const handleReject = async () => {
@@ -159,14 +153,8 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
 
     setPendingAction('reject');
     announceToScreenReader('目標を差し戻ししています...', 'polite');
-    try {
-      await onReject(rejectionComment);
-      announceToScreenReader('目標が正常に差し戻しされました', 'polite');
-    } catch (error) {
-      announceToScreenReader('差し戻し処理でエラーが発生しました', 'assertive');
-    } finally {
-      setPendingAction(null);
-    }
+    onReject(rejectionComment);
+    setPendingAction(null);
   };
 
   const isDisabled = isProcessing || pendingAction !== null;
