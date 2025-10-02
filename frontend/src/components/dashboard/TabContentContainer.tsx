@@ -30,10 +30,11 @@ export interface TabContentContainerProps {
   unmountInactiveAfter?: number;
 }
 
-interface CacheEntry {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  component: ComponentType<any>;
-  timestamp: number;
+interface RoleVisibility {
+  [role: string]: {
+    rendered: boolean;
+    lastActive: number;
+  };
 }
 
 // Default loading component
@@ -116,10 +117,16 @@ export default function TabContentContainer({
     }
   }, [enableParallelRendering, roleComponents, activeRole]);
 
-  // Get component for active role
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const getActiveComponent = (): ComponentType<any> | null => {
-    const componentFactory = roleComponents[activeRole];
+  // Update last active timestamp when role changes
+  useEffect(() => {
+    if (enableParallelRendering) {
+      setRoleVisibility(prev => ({
+        ...prev,
+        [activeRole]: {
+          rendered: true,
+          lastActive: Date.now()
+        }
+      }));
 
       // Clear any existing cleanup timer
       if (cleanupTimerRef.current) {
@@ -281,37 +288,4 @@ export function getTabRenderingStats(container: HTMLElement) {
     visibleTabs: Array.from(tabs).filter(t => t.getAttribute('aria-hidden') === 'false').length,
     hiddenTabs: Array.from(tabs).filter(t => t.getAttribute('aria-hidden') === 'true').length
   };
-}
-
-/**
- * Higher-order component for creating lazy-loaded dashboard components
- *
- * Usage:
- * export default withLazyDashboard(() => import('./AdminDashboard'));
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function withLazyDashboard<T extends ComponentType<any>>(
-  importFn: () => Promise<{ default: T }>
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-): ComponentType<any> {
-  return lazy(importFn);
-}
-
-/**
- * Preload a dashboard component for better performance
- *
- * Usage:
- * preloadDashboard('admin', () => import('./AdminDashboard'));
- */
-export function preloadDashboard(
-  role: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  componentFactory: ComponentType<any>
-) {
-  if (!componentCache.has(role)) {
-    componentCache.set(role, {
-      component: componentFactory,
-      timestamp: Date.now()
-    });
-  }
 }
