@@ -69,7 +69,7 @@ export default function SupervisorDashboard({
     try {
       await onRefresh();
     } catch (err) {
-      console.error('Failed to refresh dashboard:', err);
+      // Error is handled by parent component - no need to log here
     } finally {
       setRefreshing(false);
     }
