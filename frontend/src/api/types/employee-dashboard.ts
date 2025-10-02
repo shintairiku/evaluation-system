@@ -161,10 +161,18 @@ export interface EmployeeDashboardData {
 
 /**
  * API response for employee dashboard
+ * Backend returns CurrentPeriodInfo with flat structure
  */
 export interface EmployeeDashboardResponse {
   current_period: {
-    period: EvaluationPeriod | null;
+    // Flat structure from backend (matches CurrentPeriodInfo schema)
+    period_id?: UUID;
+    period_name?: string;
+    period_type?: string;
+    start_date?: string;
+    end_date?: string;
+    goal_submission_deadline?: string;
+    evaluation_deadline?: string;
     days_until_goal_deadline?: number;
     days_until_evaluation_deadline?: number;
     is_goal_deadline_passed: boolean;

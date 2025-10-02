@@ -17,4 +17,5 @@ export interface AuthUserExistsResponse {
   name?: string | null;
   email?: string | null;
   status?: string | null;
+  organization_id?: string | null;
 }

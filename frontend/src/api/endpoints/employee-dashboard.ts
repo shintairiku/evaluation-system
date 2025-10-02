@@ -8,6 +8,7 @@ import type {
   DeadlineAlertsData,
   HistoryAccessData
 } from '../types/employee-dashboard';
+import type { EvaluationPeriod } from '../types/evaluation-period';
 
 const httpClient = getHttpClient();
 
@@ -18,17 +19,33 @@ const httpClient = getHttpClient();
 
 /**
  * Transform API response to frontend format
+ * Backend returns CurrentPeriodInfo (flat structure), transform to CurrentPeriodData (nested)
  */
 function transformEmployeeDashboardResponse(
   response: EmployeeDashboardResponse
 ): EmployeeDashboardData {
+  // Build nested period object from flat CurrentPeriodInfo
+  const currentPeriodRaw = response.current_period;
+  const period: EvaluationPeriod | null = currentPeriodRaw.period_id ? {
+    id: currentPeriodRaw.period_id,
+    name: currentPeriodRaw.period_name || '',
+    period_type: currentPeriodRaw.period_type || 'その他',
+    start_date: currentPeriodRaw.start_date || '',
+    end_date: currentPeriodRaw.end_date || '',
+    goal_submission_deadline: currentPeriodRaw.goal_submission_deadline || '',
+    evaluation_deadline: currentPeriodRaw.evaluation_deadline || '',
+    status: 'active' as const,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  } : null;
+
   return {
     currentPeriod: {
-      period: response.current_period.period,
-      daysUntilGoalDeadline: response.current_period.days_until_goal_deadline,
-      daysUntilEvaluationDeadline: response.current_period.days_until_evaluation_deadline,
-      isGoalDeadlinePassed: response.current_period.is_goal_deadline_passed,
-      isEvaluationDeadlinePassed: response.current_period.is_evaluation_deadline_passed
+      period,
+      daysUntilGoalDeadline: currentPeriodRaw.days_until_goal_deadline,
+      daysUntilEvaluationDeadline: currentPeriodRaw.days_until_evaluation_deadline,
+      isGoalDeadlinePassed: currentPeriodRaw.is_goal_deadline_passed ?? false,
+      isEvaluationDeadlinePassed: currentPeriodRaw.is_evaluation_deadline_passed ?? false
     },
     personalProgress: {
       periodId: response.personal_progress.period_id,
@@ -110,7 +127,7 @@ export const employeeDashboardApi = {
    * Get all employee dashboard data for the current user
    */
   getEmployeeDashboardData: async (): Promise<ApiResponse<EmployeeDashboardData>> => {
-    const response = await httpClient.get<EmployeeDashboardResponse>('/employee/dashboard');
+    const response = await httpClient.get<EmployeeDashboardResponse>('/dashboard/employee');
 
     if (response.success && response.data) {
       return {
@@ -127,7 +144,7 @@ export const employeeDashboardApi = {
    */
   getPersonalProgress: async (): Promise<ApiResponse<PersonalProgressData>> => {
     const response = await httpClient.get<{ personal_progress: EmployeeDashboardResponse['personal_progress'] }>(
-      '/employee/dashboard/progress'
+      '/dashboard/employee/progress'
     );
 
     if (response.success && response.data) {
@@ -165,7 +182,7 @@ export const employeeDashboardApi = {
    */
   getTodoTasks: async (): Promise<ApiResponse<TodoTasksData>> => {
     const response = await httpClient.get<{ todo_tasks: EmployeeDashboardResponse['todo_tasks'] }>(
-      '/employee/dashboard/todos'
+      '/dashboard/employee/todos'
     );
 
     if (response.success && response.data) {
@@ -203,7 +220,7 @@ export const employeeDashboardApi = {
    */
   getDeadlineAlerts: async (): Promise<ApiResponse<DeadlineAlertsData>> => {
     const response = await httpClient.get<{ deadline_alerts: EmployeeDashboardResponse['deadline_alerts'] }>(
-      '/employee/dashboard/deadlines'
+      '/dashboard/employee/deadlines'
     );
 
     if (response.success && response.data) {
@@ -240,7 +257,7 @@ export const employeeDashboardApi = {
    */
   getHistoryAccess: async (): Promise<ApiResponse<HistoryAccessData>> => {
     const response = await httpClient.get<{ history_access: EmployeeDashboardResponse['history_access'] }>(
-      '/employee/dashboard/history'
+      '/dashboard/employee/history'
     );
 
     if (response.success && response.data) {

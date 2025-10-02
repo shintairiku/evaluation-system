@@ -4,6 +4,7 @@ import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { supervisorDashboardApi } from '../endpoints/supervisor-dashboard';
 import { CACHE_TAGS } from '../utils/cache';
+import { convertKeysToCamelCase } from '../utils/case-converter';
 import type {
   SupervisorDashboardResponse,
   SupervisorDashboardData,
@@ -26,12 +27,46 @@ export const getSupervisorDashboardDataAction = cache(
         };
       }
 
-      // Transform the response to match component expected format
+      // Transform snake_case from backend to camelCase for frontend
+      const rawData = response.data as any;
+      const converted = convertKeysToCamelCase(rawData);
+
+      // Create synthetic items array for pending approvals
+      const pendingTasksData = converted.pendingTasks || {};
+      const items = [];
+
+      if (pendingTasksData.goalApprovalsPending > 0) {
+        items.push({
+          type: 'goal' as const,
+          count: pendingTasksData.goalApprovalsPending,
+          priority: pendingTasksData.overdueApprovals > 0 ? 'high' as const : 'medium' as const,
+          label: '目標承認',
+          href: '/supervisor/goals?status=pending',
+          overdueCount: pendingTasksData.overdueApprovals || 0
+        });
+      }
+
+      if (pendingTasksData.evaluationFeedbacksPending > 0) {
+        items.push({
+          type: 'feedback' as const,
+          count: pendingTasksData.evaluationFeedbacksPending,
+          priority: pendingTasksData.overdueFeedbacks > 0 ? 'high' as const : 'medium' as const,
+          label: '評価フィードバック',
+          href: '/supervisor/evaluations?status=pending',
+          overdueCount: pendingTasksData.overdueFeedbacks || 0
+        });
+      }
+
+      // Map backend field names to frontend expectations
       const dashboardData: SupervisorDashboardData = {
-        teamProgress: response.data.teamProgress,
-        pendingApprovals: response.data.pendingApprovals,
-        subordinatesList: response.data.subordinatesList,
-        currentPeriod: response.data.currentPeriod,
+        teamProgress: converted.teamProgress,
+        pendingApprovals: {
+          items,
+          totalPending: pendingTasksData.totalPending || 0,
+          lastUpdated: new Date().toISOString()
+        },
+        subordinatesList: converted.subordinates, // Backend uses 'subordinates'
+        currentPeriod: converted.currentPeriod,
         lastUpdated: new Date().toISOString()
       };
 

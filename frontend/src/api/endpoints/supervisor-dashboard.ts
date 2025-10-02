@@ -13,7 +13,7 @@ export const supervisorDashboardApi = {
    */
   getSupervisorDashboardData: async (): Promise<ApiResponse<SupervisorDashboardResponse>> => {
     try {
-      const response = await httpClient.get<SupervisorDashboardResponse>('/supervisor/dashboard');
+      const response = await httpClient.get<SupervisorDashboardResponse>('/dashboard/supervisor');
       return response;
     } catch (error) {
       console.error('Failed to fetch supervisor dashboard data:', error);
@@ -29,7 +29,7 @@ export const supervisorDashboardApi = {
    */
   getTeamProgress: async (): Promise<ApiResponse<SupervisorDashboardResponse['teamProgress']>> => {
     try {
-      const response = await httpClient.get<SupervisorDashboardResponse['teamProgress']>('/supervisor/dashboard/team-progress');
+      const response = await httpClient.get<SupervisorDashboardResponse['teamProgress']>('/dashboard/supervisor/team-progress');
       return response;
     } catch (error) {
       console.error('Failed to fetch team progress:', error);
@@ -45,7 +45,7 @@ export const supervisorDashboardApi = {
    */
   getPendingApprovals: async (): Promise<ApiResponse<SupervisorDashboardResponse['pendingApprovals']>> => {
     try {
-      const response = await httpClient.get<SupervisorDashboardResponse['pendingApprovals']>('/supervisor/dashboard/pending-approvals');
+      const response = await httpClient.get<SupervisorDashboardResponse['pendingApprovals']>('/dashboard/supervisor/pending-tasks');
       return response;
     } catch (error) {
       console.error('Failed to fetch pending approvals:', error);
@@ -61,7 +61,7 @@ export const supervisorDashboardApi = {
    */
   getSubordinatesList: async (): Promise<ApiResponse<SupervisorDashboardResponse['subordinatesList']>> => {
     try {
-      const response = await httpClient.get<SupervisorDashboardResponse['subordinatesList']>('/supervisor/dashboard/subordinates');
+      const response = await httpClient.get<SupervisorDashboardResponse['subordinatesList']>('/dashboard/supervisor/subordinates');
       return response;
     } catch (error) {
       console.error('Failed to fetch subordinates list:', error);
