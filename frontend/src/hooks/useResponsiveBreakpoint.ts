@@ -82,7 +82,7 @@ function checkTouchSupport(): boolean {
   return (
     'ontouchstart' in window ||
     navigator.maxTouchPoints > 0 ||
-    // @ts-ignore - Legacy check
+    // @ts-expect-error - Legacy check for old IE
     navigator.msMaxTouchPoints > 0
   );
 }
