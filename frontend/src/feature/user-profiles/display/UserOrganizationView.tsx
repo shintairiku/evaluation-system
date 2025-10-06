@@ -201,12 +201,12 @@ interface PendingChange {
 }
 
 export default function UserOrganizationView({ users, onUserUpdate }: UserOrganizationViewProps) {
-  
+
   // State for drag-and-drop functionality
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
-  const [layoutKey, setLayoutKey] = useState(0); // Force layout recalculation
+  const [, setLayoutKey] = useState(0); // Force layout recalculation
   
   // Build hierarchy from users data
   const { nodes, edges } = useMemo(() => {
@@ -614,11 +614,11 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
         // All changes failed, show error and force layout update
         setLayoutKey(prev => prev + 1);
       }
-    } catch (error) {
+    } catch {
       toast.error("保存エラー", {
         description: "変更の保存中に予期しないエラーが発生しました",
       });
-      
+
       // Revert all changes on unexpected error
       setPendingChanges(changesToProcess);
       setLayoutKey(prev => prev + 1);
@@ -706,12 +706,12 @@ export default function UserOrganizationView({ users, onUserUpdate }: UserOrgani
     setNodes(nodes);
     setEdges(edges);
   }, [handleSupervisorChange, nodes, edges, setNodes, setEdges]);
-  
+
   // Update nodes and edges when users change or layout is forced
   useEffect(() => {
     setNodes(nodes);
     setEdges(edges);
-  }, [nodes, edges, setNodes, setEdges, layoutKey]);
+  }, [nodes, edges, setNodes, setEdges]);
   
   if (users.length === 0) {
     return (
