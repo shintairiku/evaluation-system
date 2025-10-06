@@ -8,15 +8,26 @@ declare const process: {
 
 const getApiBaseUrl = () => {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!baseUrl) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('NEXT_PUBLIC_API_BASE_URL is not set for production environment');
+
+  // Production environment MUST have NEXT_PUBLIC_API_BASE_URL set
+  if (process.env.NODE_ENV === 'production') {
+    if (!baseUrl) {
+      throw new Error(
+        'NEXT_PUBLIC_API_BASE_URL is required in production. ' +
+        'Please set it to your Cloud Run backend URL (e.g., https://your-backend-xxx.run.app)'
+      );
     }
+    return baseUrl;
+  }
+
+  // Development/staging fallback
+  if (!baseUrl) {
     // In Docker environment, use service name 'backend' instead of 'localhost'
     // This can be detected by checking if we're in a containerized environment
     // For now, we'll use 'backend' as the default for Docker networking
     return 'http://backend:8000';
   }
+
   return baseUrl;
 };
 
