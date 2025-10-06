@@ -2,6 +2,32 @@
 
 > This document breaks down the implementation into specific development tasks based on the design document. Tasks are organized by feature area and include traceability to requirements.
 
+## ⚠️ CRITICAL IMPLEMENTATION NOTE
+
+**Rejection Comment Display Logic:**
+
+Throughout this implementation, **ALWAYS** display rejection comments based on `supervisorReview?.action === 'REJECTED'`, **NOT** based on `goal.status === 'rejected'`.
+
+**Why this matters:**
+- When subordinates edit rejected goals, status may change to `draft`
+- If UI only checks goal.status, comments disappear during editing
+- Subordinates lose critical feedback context
+- SupervisorReview records persist in database regardless of goal status changes
+
+**Correct Pattern:**
+```typescript
+// ✅ CORRECT
+const hasRejectionFeedback = goal.supervisorReview?.action === 'REJECTED';
+{hasRejectionFeedback && <RejectionAlert review={goal.supervisorReview} />}
+
+// ❌ WRONG
+{goal.status === 'rejected' && <RejectionAlert />}
+```
+
+This applies to ALL components: GoalCard, GoalDetailView, GoalEditPage, RejectionFeedbackBanner, etc.
+
+---
+
 ## Feature: Goal List & Rejection Flow UI
 
 ### 1. Frontend - Goal List Page Implementation
@@ -59,8 +85,8 @@
   > **Implementation:**
   > - Display goal title, category, weight, status
   > - Show StatusBadge component
-  > - Show rejection comment preview if rejected
-  > - Action buttons: "View Details", "Edit & Resubmit" (if rejected)
+  > - **CRITICAL:** Show rejection comment if `supervisorReview?.action === 'REJECTED'` (NOT based on goal.status)
+  > - Action buttons: "View Details", "Edit & Resubmit" (if rejection review exists)
   > - Color-coded border based on status
   > - Responsive layout (mobile-friendly)
   >
@@ -145,11 +171,12 @@
   >
   > **Implementation:**
   > - Loop through supervisorReviews array
-  > - Display each review with action, comment, date
-  > - Use RejectionAlert for REJECTED reviews
-  > - Use ApprovalBanner for APPROVED reviews
+  > - **CRITICAL:** Display reviews based on `review.action`, not goal.status
+  > - Use RejectionAlert for reviews where `action === 'REJECTED'`
+  > - Use ApprovalBanner for reviews where `action === 'APPROVED'`
   > - Sort reviews by date (newest first)
   > - Show "No reviews yet" if empty
+  > - Include review timestamp for context
   >
   > **Related Requirements:** 2, 6
 
@@ -193,7 +220,8 @@
   > **Implementation:**
   > - Detect `edit` and `mode` query params
   > - Load goal data if edit mode
-  > - Load rejection comments if mode=resubmit
+  > - **CRITICAL:** Check for rejection review (`supervisorReview?.action === 'REJECTED'`)
+  > - Display rejection banner ALWAYS when rejection review exists (even if status changed to draft)
   > - Pre-fill all form fields
   > - Display rejection banner at top (sticky)
   > - Change submit button to "Resubmit for Approval"
@@ -212,7 +240,8 @@
   > - Full rejection comment
   > - Expandable/collapsible
   > - "Show Full" / "Collapse" toggle
-  > - Reviewer info
+  > - **CRITICAL:** Include review timestamp to show when feedback was given
+  > - Reviewer info (name and date)
   >
   > **Related Requirements:** 3
 
@@ -224,7 +253,8 @@
   > **Implementation:**
   > - Add "Save Draft" button handler:
   >   - Call updateGoalAction (PUT /api/v1/goals/:id)
-  >   - Keep status as "rejected"
+  >   - Status may change to "draft" (backend logic)
+  >   - **NOTE:** SupervisorReview persists in database even when status changes
   >   - Show success toast
   > - Add "Resubmit for Approval" button handler:
   >   - Call updateGoalAction first (if changes)
