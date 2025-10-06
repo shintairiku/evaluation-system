@@ -14,15 +14,26 @@ Implement backend validation to prevent duplicate Goal creation when a Goal with
 - [ ] Verify existing index usage
 
 ### 2. Service Layer (`goal_service.py`)
+- [ ] **FIRST:** Import `ConflictError` in imports section (line ~25):
+  ```python
+  from ..core.exceptions import (
+      NotFoundError, PermissionDeniedError, BadRequestError, ValidationError, ConflictError
+  )
+  ```
 - [ ] Add validation in `create_goal()` after org context validation
-- [ ] Call `check_submitted_goals_exist()` before creating goal
-- [ ] If `True`: raise `ConflictError` with Japanese message:
+- [ ] Call `self.goal_repo.check_submitted_goals_exist(target_user_id, goal_data.period_id, org_id)`
+- [ ] If returns `True`: raise `ConflictError` with Japanese message:
+  ```python
+  raise ConflictError(
+      "目標は既に提出されています。提出済みの目標がある場合、"
+      "新しい目標を作成することはできません。"
+  )
   ```
-  "目標は既に提出されています。提出済みの目標がある場合、新しい目標を作成することはできません。"
+- [ ] If returns `False`: continue with normal flow
+- [ ] Add logging when blocking occurs:
+  ```python
+  logger.info(f"Goal creation blocked for user {target_user_id} period {goal_data.period_id}: submitted goals exist")
   ```
-- [ ] If `False`: continue with normal flow
-- [ ] Add logging when blocking occurs
-- [ ] Verify `ConflictError` is imported
 
 ### 3. API Endpoint (`goals.py`)
 - [ ] Verify endpoint already handles `ConflictError` → HTTP 409
@@ -64,7 +75,7 @@ backend/app/api/v1/goals.py (verification only)
 - [ ] Performance verified: query <50ms
 
 ## 📊 Estimate
-**1-1.5 days**
+**1-2 days** (includes unit tests)
 
 ## 🔗 Related
 - Parent: #272

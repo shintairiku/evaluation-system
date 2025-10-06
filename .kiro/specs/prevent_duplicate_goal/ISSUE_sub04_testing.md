@@ -1,21 +1,13 @@
-# [TASK-04] sub04 - Prevent duplicate Goal creation - Integration & E2E Testing
+# [TASK-04] sub04 - Prevent duplicate Goal creation - E2E Testing & Documentation
 
 ## 📝 Description
-Create backend integration tests and manual E2E tests to validate the complete duplicate Goal prevention flow.
+Execute manual E2E tests to validate the complete duplicate Goal prevention flow and document the feature.
+
+**Note:** Backend integration tests are included in sub02.
 
 ## ✅ Implementation Checklist
 
-### 1. Backend Integration Tests (`test_goals_api.py`)
-- [ ] Create file if doesn't exist: `backend/tests/api/test_goals_api.py`
-- [ ] Implement tests:
-  - [ ] `test_create_goal_returns_409_when_submitted_exists()`
-  - [ ] `test_create_goal_returns_201_when_no_submitted_exists()`
-  - [ ] `test_create_goal_409_response_format()`
-  - [ ] `test_create_goal_409_message_in_japanese()`
-- [ ] Verify Clerk authentication in tests
-- [ ] Validate JSON response structure
-
-### 2. Manual E2E Tests
+### 1. Manual E2E Tests
 
 #### Scenario 1: Block After Submission ✋
 - [ ] Login as employee
@@ -45,7 +37,7 @@ Create backend integration tests and manual E2E tests to validate the complete d
 - [ ] Monitor Network tab in DevTools
 - [ ] **Expected**: API response <500ms, query <50ms
 
-### 3. Documentation
+### 2. Documentation
 - [ ] Add inline comments explaining validation
 - [ ] Update `docs/requirement-definition/02-tech/api/endpoints.md` (if exists)
 - [ ] Create `.kiro/specs/prevent_duplicate_goal/ROLLBACK.md`
@@ -53,21 +45,20 @@ Create backend integration tests and manual E2E tests to validate the complete d
 
 ## 📁 Files Created/Modified
 ```
-backend/tests/api/test_goals_api.py (create)
 .kiro/specs/prevent_duplicate_goal/ROLLBACK.md (create)
 docs/requirement-definition/02-tech/api/endpoints.md (update if exists)
 ```
 
 ## ✅ Definition of Done
-- [ ] Integration tests implemented and passing
 - [ ] All 4 E2E scenarios executed successfully
-- [ ] Performance validated (<500ms API)
+- [ ] Performance validated (<500ms API, <50ms query)
 - [ ] Complete documentation
 - [ ] ROLLBACK.md created
+- [ ] Screenshots/video of E2E tests (optional but recommended)
 - [ ] Code review approved
 
 ## 📊 Estimate
-**0.5-1 day**
+**0.5 day** (manual E2E + documentation)
 
 ## 🔗 Related
 - Parent: #272
