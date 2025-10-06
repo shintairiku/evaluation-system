@@ -14,6 +14,18 @@ This document defines the requirements for preventing duplicate Goal creation af
 - Employees creating Goals
 - API consumers (frontend applications)
 
+**Scope Note:**
+This task (TASK-04) focuses **ONLY** on preventing duplicate goal creation via backend validation and basic frontend error handling.
+
+**Out of Scope (deferred to TASK-05):**
+- ❌ Displaying detailed list of submitted goals
+- ❌ Showing supervisor rejection comments
+- ❌ UI for editing rejected goals
+- ❌ Complete resubmission workflow
+- ❌ Notifications for supervisors about goal updates
+
+The goal of TASK-04 is to **block the creation**, not to build the complete UX for managing submitted/rejected goals.
+
 ## 2. Requirements List
 
 ### Requirement 1: Prevent Goal Creation When Submitted Goal Exists

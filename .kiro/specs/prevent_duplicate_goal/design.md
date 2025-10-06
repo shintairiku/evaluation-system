@@ -11,6 +11,22 @@ This document describes the technical design for preventing duplicate Goal creat
 - Minimal performance impact
 - Maintain existing Goal lifecycle workflows
 
+**Scope Limitation:**
+This task (TASK-04) implements **blocking logic only**. The complete UX for viewing, editing, and resubmitting goals is deferred to TASK-05 (Improve rejection flow).
+
+**Out of Scope:**
+- Detailed UI for displaying submitted goals list
+- Supervisor rejection comments display
+- Edit workflow for rejected goals
+- Complete resubmission flow with notifications
+
+**What TASK-04 Delivers:**
+- ✅ Backend validation prevents duplicate creation
+- ✅ API returns 409 Conflict when appropriate
+- ✅ Simple frontend error messages (toast/alert)
+- ✅ Boolean check for submitted goals existence
+- ⚠️ Minimal UI - just error feedback, not full goal management
+
 ## 2. Architecture Design
 
 ### 2.1. System Architecture Diagram
@@ -263,7 +279,14 @@ async def create_goal(...):
 - Add early validation when period is selected
 - Check for submitted goals via API
 - Display informational banner if submitted goals exist
-- Prevent access to goal creation form (optional, based on UX decision)
+- **Simple error feedback only** - detailed goal list UI is TASK-05
+
+**Implementation Notes:**
+- Fetch goals to check existence: `getGoalsAction({ periodId, status: ['submitted', 'approved'] })`
+- Store boolean state: `hasSubmittedGoals`
+- Show simple Alert or disable form
+- **Do NOT build detailed goal list UI** - out of scope
+- Link/message can reference "goal list page" (future TASK-05)
 
 ### 6.2. API Error Handling
 
