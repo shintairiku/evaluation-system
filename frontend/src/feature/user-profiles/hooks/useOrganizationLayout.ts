@@ -11,8 +11,7 @@ import {
   LAYOUT_CONSTANTS,
   calculateDynamicSpacing,
   detectFilterType,
-  createFlatUserLayout,
-  usersAreLowRoleResults,
+  createFlatUserLayout
 } from '../utils/hierarchyLayoutUtils';
 
 type OrganizationUser = UserDetailResponse | SimpleUser;
@@ -53,7 +52,6 @@ export function useOrganizationLayout({
 
     // Detect filter type to adapt layout strategy
     const filterType = detectFilterType(users);
-    const allLowRoles = usersAreLowRoleResults(users);
     // Flat layout for stage/role/status (company → users) unless forceDepartmentLayout=true
     const isFlatLayout = !forceDepartmentLayout && (filterType === 'stage' || filterType === 'role' || filterType === 'status');
     
@@ -255,7 +253,7 @@ export function useOrganizationLayout({
     }
 
     return { nodes: nodeList, edges: edgeList };
-  }, [departments, users, expandedDepartments, loadingNodes, loadedUsers, departmentUserCounts, onDepartmentClick, onUserClick]);
+  }, [departments, users, expandedDepartments, loadingNodes, loadedUsers, departmentUserCounts, onDepartmentClick, onUserClick, forceDepartmentLayout]);
 
   return { nodes, edges };
 }
@@ -269,17 +267,18 @@ function addDynamicSubordinates(
   onUserClick?: (userId: string) => void
 ): void {
   const { NODE_WIDTH, VERTICAL_SPACING } = LAYOUT_CONSTANTS;
-  
+
   // Process each user that has loaded subordinates via API
   loadedUsers.forEach((subordinates, cacheKey) => {
     if (!cacheKey.startsWith('user-') || subordinates.length === 0) return;
-    
+
     const userId = cacheKey.replace('user-', '');
     const parentNode = nodeList.find(n => n.id === `user-${userId}`);
-    
+
     if (parentNode && subordinates.length > 0) {
       // Constrain edges to internal hierarchy only (same department as parent if available)
       // Determine parent department by inspecting existing user node's data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parentUser = (parentNode as any).data?.user as OrganizationUser;
       const parentDeptId: string | undefined = parentUser?.department?.id;
       const internalSubs = parentDeptId ? subordinates.filter(s => s?.department?.id === parentDeptId) : subordinates;
