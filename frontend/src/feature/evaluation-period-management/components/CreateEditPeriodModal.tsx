@@ -135,6 +135,7 @@ export default function CreateEditPeriodModal({
 
         for (const field of fieldsToCheck) {
           if (data[field] !== period[field as keyof typeof period]) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (submitData as any)[field] = data[field];
           }
         }
@@ -142,15 +143,18 @@ export default function CreateEditPeriodModal({
         // Additional protection: don't send restricted fields for active/completed periods
         if (isActivePeriod || isCompletedPeriod) {
           if ('start_date' in submitData && data.start_date === period.start_date) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             delete (submitData as any).start_date;
           }
         }
 
         if (isCompletedPeriod) {
           if ('end_date' in submitData && data.end_date === period.end_date) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             delete (submitData as any).end_date;
           }
           if ('goal_submission_deadline' in submitData && data.goal_submission_deadline === period.goal_submission_deadline) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             delete (submitData as any).goal_submission_deadline;
           }
         }
