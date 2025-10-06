@@ -107,7 +107,7 @@ export function createMemoizedAction<T extends (...args: unknown[]) => Promise<u
  * Data Cache wrapper using unstable_cache() for persistent caching
  * Caches results across requests and deployments
  */
-export function createCachedAction<T extends (...args: any[]) => Promise<any>>(
+export function createCachedAction<T extends (...args: unknown[]) => Promise<unknown>>(
   action: T,
   cacheKey: string,
   tags: string[],
@@ -127,7 +127,7 @@ export function createCachedAction<T extends (...args: any[]) => Promise<any>>(
  * Combined wrapper that applies both Request Memoization and Data Cache
  * @deprecated Use React cache() directly for parameterized queries
  */
-export function createFullyCachedAction<T extends (...args: any[]) => Promise<any>>(
+export function createFullyCachedAction<T extends (...args: unknown[]) => Promise<unknown>>(
   action: T,
   cacheKey: string,
   cacheTag: keyof typeof CACHE_STRATEGIES

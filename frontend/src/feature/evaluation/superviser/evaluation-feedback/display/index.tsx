@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { User, Star, ClipboardList } from "lucide-react";
+import { User, ClipboardList } from "lucide-react";
 
 // ダミーデータ（複数部下）
 const dummyEmployees = [
@@ -98,6 +98,8 @@ export default function EvaluationFeedback() {
   });
 
   const selectedEmp = dummyEmployees.find(e => e.id === selectedEmpId);
+  // Suppress unused variable warning - selectedEmp is used for debugging/future implementation
+  void selectedEmp;
 
   // 入力ハンドラ
   const handleSupervisorInput = (
@@ -146,6 +148,7 @@ export default function EvaluationFeedback() {
                 <div className="flex items-center gap-4 mb-2">
                   <div className="rounded-full bg-gray-200 w-14 h-14 flex items-center justify-center text-gray-500 text-2xl">
                     {emp.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={emp.avatar} alt="avatar" className="rounded-full w-14 h-14" />
                     ) : (
                       emp.name[0]

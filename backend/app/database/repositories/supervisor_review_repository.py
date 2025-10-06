@@ -164,12 +164,9 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         status: Optional[str] = None,
         pagination: Optional[PaginationParams] = None,
     ) -> List[SupervisorReview]:
-        # Join with goals to filter by owner
-        query = (
-            select(SupervisorReview)
-            .join(Goal, Goal.id == SupervisorReview.goal_id)
-            .filter(Goal.user_id == owner_user_id)
-        )
+        # Base query without manual JOIN - apply_org_scope_via_goal_with_owner handles the JOIN
+        query = select(SupervisorReview)
+
         if period_id:
             query = query.filter(SupervisorReview.period_id == period_id)
         if goal_id:
@@ -177,8 +174,8 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         if status:
             query = query.filter(SupervisorReview.status == status)
 
-        # Enforce organization scope via goal -> user
-        query = self.apply_org_scope_via_goal(query, SupervisorReview.goal_id, org_id)
+        # Apply organization scope and owner filter via single JOIN to avoid duplication
+        query = self.apply_org_scope_via_goal_with_owner(query, SupervisorReview.goal_id, org_id, owner_user_id)
 
         query = query.order_by(SupervisorReview.updated_at.desc())
         if pagination:
@@ -195,11 +192,8 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         goal_id: Optional[UUID] = None,
         status: Optional[str] = None,
     ) -> int:
-        query = (
-            select(func.count(SupervisorReview.id))
-            .join(Goal, Goal.id == SupervisorReview.goal_id)
-            .filter(Goal.user_id == owner_user_id)
-        )
+        query = select(func.count(SupervisorReview.id))
+
         if period_id:
             query = query.filter(SupervisorReview.period_id == period_id)
         if goal_id:
@@ -207,8 +201,8 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         if status:
             query = query.filter(SupervisorReview.status == status)
 
-        # Enforce organization scope via goal -> user
-        query = self.apply_org_scope_via_goal(query, SupervisorReview.goal_id, org_id)
+        # Apply organization scope and owner filter via single JOIN to avoid duplication
+        query = self.apply_org_scope_via_goal_with_owner(query, SupervisorReview.goal_id, org_id, owner_user_id)
 
         result = await self.session.execute(query)
         return result.scalar() or 0
@@ -225,12 +219,10 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         # Pending = draft reviews for goals currently pending approval
         query = (
             select(SupervisorReview)
-            .join(Goal, Goal.id == SupervisorReview.goal_id)
             .filter(
                 and_(
                     SupervisorReview.supervisor_id == supervisor_id,
                     SupervisorReview.status == "draft",
-                    Goal.status == "submitted",
                 )
             )
         )
@@ -240,8 +232,10 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
             query = query.filter(SupervisorReview.subordinate_id == subordinate_id)
         if pagination:
             query = query.offset(pagination.offset).limit(pagination.limit)
-        # Enforce organization scope via goal -> user
-        query = self.apply_org_scope_via_goal(query, SupervisorReview.goal_id, org_id)
+
+        # Apply organization scope and goal status filter via single JOIN
+        # This replaces the manual JOIN to avoid duplication
+        query = self.apply_org_scope_via_goal_with_status(query, SupervisorReview.goal_id, org_id, "submitted")
         query = query.order_by(SupervisorReview.updated_at.asc())
         result = await self.session.execute(query)
         return result.scalars().all()

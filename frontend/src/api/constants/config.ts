@@ -11,29 +11,28 @@ declare const process: {
 const isServer = typeof window === 'undefined';
 
 const getApiBaseUrl = () => {
-  // Server-side: use Docker internal network (backend:8000)
-  if (isServer) {
-    const serverUrl = process.env.API_BASE_URL_SERVER;
-    if (!serverUrl) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('API_BASE_URL_SERVER is not set for production environment');
-      }
-      // Default to Docker service name for server-side calls
-      return 'http://backend:8000';
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  // Production environment MUST have NEXT_PUBLIC_API_BASE_URL set
+  if (process.env.NODE_ENV === 'production') {
+    if (!baseUrl) {
+      throw new Error(
+        'NEXT_PUBLIC_API_BASE_URL is required in production. ' +
+        'Please set it to your Cloud Run backend URL (e.g., https://your-backend-xxx.run.app)'
+      );
     }
-    return serverUrl;
+    return baseUrl;
   }
 
-  // Client-side: use localhost (browser access via Docker port mapping)
-  const clientUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!clientUrl) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('NEXT_PUBLIC_API_BASE_URL is not set for production environment');
-    }
-    // Default to localhost for browser access
-    return 'http://localhost:8000';
+  // Development/staging fallback
+  if (!baseUrl) {
+    // In Docker environment, use service name 'backend' instead of 'localhost'
+    // This can be detected by checking if we're in a containerized environment
+    // For now, we'll use 'backend' as the default for Docker networking
+    return 'http://backend:8000';
   }
-  return clientUrl;
+
+  return baseUrl;
 };
 
 export const API_CONFIG = {

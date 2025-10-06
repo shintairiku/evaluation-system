@@ -266,6 +266,7 @@ class SupervisorReviewService:
 
             updated = await self.repo.update(
                 review_id,
+                org_id,
                 action=review_update.action.value if review_update.action is not None else None,
                 comment=review_update.comment,
                 status=status_value,
@@ -323,9 +324,24 @@ class SupervisorReviewService:
     # ========================================
     # PRIVATE HELPERS
     # ========================================
-    async def _require_supervisor_of_goal_owner(self, goal: GoalModel, current_user_context: AuthContext) -> None:
-        """Validate user can access this goal using RBAC framework"""
-        # Use RBACHelper for resource access validation
+    async def _validate_goal_access(
+        self,
+        goal: GoalModel,
+        current_user_context: AuthContext,
+        error_message: str = "You do not have permission to access this goal"
+    ) -> None:
+        """
+        Validate user can access a goal using RBAC framework.
+        Consolidated helper to reduce code duplication.
+
+        Args:
+            goal: The goal to validate access for
+            current_user_context: Current user authentication context
+            error_message: Custom error message to raise if access denied
+
+        Raises:
+            PermissionDeniedError: If user cannot access the goal
+        """
         can_access = await RBACHelper.can_access_resource(
             auth_context=current_user_context,
             resource_id=goal.id,
@@ -333,32 +349,44 @@ class SupervisorReviewService:
             owner_user_id=goal.user_id
         )
         if not can_access:
-            raise PermissionDeniedError("You can only review goals for your subordinates")
+            raise PermissionDeniedError(error_message)
+
+    async def _require_supervisor_of_goal_owner(self, goal: GoalModel, current_user_context: AuthContext) -> None:
+        """Validate user can access this goal using RBAC framework"""
+        await self._validate_goal_access(
+            goal,
+            current_user_context,
+            "You can only review goals for your subordinates"
+        )
 
     async def _require_can_view_review(self, review, current_user_context: AuthContext) -> None:
-        """Validate user can view this review using RBAC framework"""
+        """
+        Validate user can view this review using RBAC framework.
+        Uses early returns for admin and supervisor checks.
+        """
+        # Early return for admin users
         if current_user_context.has_permission(Permission.GOAL_READ_ALL):
             return
+
+        # Early return if user is the review creator
         if review.supervisor_id == current_user_context.user_id:
             return
-        
-        # Use RBACHelper to check if user can access the related goal
+
+        # Check if user can access the related goal
         org_id = current_user_context.organization_id
         if not org_id:
             raise PermissionDeniedError("Organization context required")
 
         goal = await self.goal_repo.get_goal_by_id(review.goal_id, org_id)
-        if goal:
-            can_access = await RBACHelper.can_access_resource(
-                auth_context=current_user_context,
-                resource_id=goal.id,
-                resource_type=ResourceType.GOAL,
-                owner_user_id=goal.user_id
-            )
-            if can_access:
-                return
-                
-        raise PermissionDeniedError("You do not have permission to view this review")
+        if not goal:
+            raise PermissionDeniedError("You do not have permission to view this review")
+
+        # Reuse consolidated validation method
+        await self._validate_goal_access(
+            goal,
+            current_user_context,
+            "You do not have permission to view this review"
+        )
 
     async def _sync_goal_status_with_review(self, review, current_user_context: AuthContext) -> None:
         """Update goal status based on review action when submitted."""

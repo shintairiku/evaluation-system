@@ -74,16 +74,16 @@ export const createFormErrorMessage = (field: string, error: string): string => 
 
 export const formatZodError = (error: z.ZodError): Record<string, string> => {
   const formattedErrors: Record<string, string> = {};
-  
-  error.errors.forEach((err) => {
+
+  error.issues.forEach((err) => {
     const path = err.path.join('.');
     formattedErrors[path] = err.message;
   });
-  
+
   return formattedErrors;
 };
 
 // Status enums
 export const submissionStatusSchema = z.enum(['draft', 'submitted'], {
-  errorMap: () => ({ message: '有効なステータスを選択してください' }),
+  message: '有効なステータスを選択してください',
 });

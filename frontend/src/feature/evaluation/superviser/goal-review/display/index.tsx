@@ -13,7 +13,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useGoalReviewData } from '../hooks/useGoalReviewData';
 import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
-import { createSkipLink, generateAccessibilityId, createAriaLiveRegion } from '@/utils/accessibility';
+import { createSkipLink, generateAccessibilityId } from '@/utils/accessibility';
 import type { EvaluationPeriod } from '@/api/types';
 
 /**
@@ -44,9 +44,6 @@ export default function GoalReviewPage() {
 
   // Generate unique IDs for accessibility
   const mainContentId = React.useMemo(() => generateAccessibilityId('main-content'), []);
-  const headerSectionId = React.useMemo(() => generateAccessibilityId('header-section'), []);
-  const navigationSectionId = React.useMemo(() => generateAccessibilityId('navigation-section'), []);
-  const contentSectionId = React.useMemo(() => generateAccessibilityId('content-section'), []);
 
   // Create skip link when component mounts
   React.useEffect(() => {
@@ -214,6 +211,7 @@ export default function GoalReviewPage() {
                         goal={goal}
                         employeeName={selectedGroup.employee.name}
                         onGoalUpdate={reloadData}
+                        reviewId={selectedGroup.goalToReviewMap.get(goal.id)}
                       />
                     ))}
                   </div>

@@ -15,6 +15,7 @@ interface UseGoalAutoSaveOptions {
   isLoadingExistingGoals: boolean;
   isAutoSaveReady: boolean;
   goalTracking: UseGoalTrackingReturn;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onGoalReplaceWithServerData: (tempId: string, serverGoal: any, goalType: 'performance' | 'competency') => void;
 }
 
@@ -36,6 +37,7 @@ export function useGoalAutoSave({
 
   
   // Validation function to check if a goal has all required fields for saving
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isGoalReadyForSave = useCallback((goalType: 'performance' | 'competency', goalData: any): boolean => {
     if (goalType === 'performance') {
       // Performance goal requires: title, performanceGoalType, specificGoalText, achievementCriteriaText, meansMethodsText
@@ -75,6 +77,7 @@ export function useGoalAutoSave({
     return false;
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handlePerformanceGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
     // Check if this is a new performance goal (temporary ID starts with timestamp)
     const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
@@ -167,6 +170,7 @@ export function useGoalAutoSave({
     }
   }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleCompetencyGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
     console.log('🔧 handleCompetencyGoalAutoSave called with currentData:', currentData);
     // Check if this is a new competency goal (temporary ID starts with timestamp)

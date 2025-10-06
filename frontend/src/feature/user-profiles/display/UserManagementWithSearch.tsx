@@ -19,8 +19,8 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   // Initialize with initialUsers directly to avoid race condition
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [, setTotalUsers] = useState<number>(initialUsers.length);
+  const [, setIsFiltered] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [isFiltered, setIsFiltered] = useState<boolean>(false);
   // Keep Organization Chart dataset isolated so filters there don't affect Table/Gallery
   const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [orgIsFiltered, setOrgIsFiltered] = useState<boolean>(false);

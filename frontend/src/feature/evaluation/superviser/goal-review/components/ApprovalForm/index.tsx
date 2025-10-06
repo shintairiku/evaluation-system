@@ -25,17 +25,29 @@ type ApprovalFormData = z.infer<typeof approvalFormSchema>;
 
 interface ApprovalFormProps {
   goal: GoalResponse;
-  onApprove: (comment: string) => Promise<void>;
-  onReject: (comment: string) => Promise<void>;
+  onApprove: (comment: string) => void;
+  onReject: (comment: string) => void;
   isProcessing?: boolean;
+  onCommentChange?: (comment: string) => void;
+  onCommentBlur?: (comment: string) => void;
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
 }
 
 export interface ApprovalFormRef {
   resetForm: () => void;
+  setComment: (comment: string) => void;
+  getComment: () => string;
 }
 
 export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
-  function ApprovalForm({ goal, onApprove, onReject, isProcessing = false }, ref) {
+  function ApprovalForm({
+    onApprove,
+    onReject,
+    isProcessing = false,
+    onCommentChange,
+    onCommentBlur,
+    saveStatus = 'idle'
+  }, ref) {
     const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null);
 
     // Accessibility and responsive hooks
@@ -74,11 +86,24 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
     useImperativeHandle(ref, () => ({
       resetForm: () => {
         form.reset();
+      },
+      setComment: (comment: string) => {
+        form.setValue('comment', comment);
+      },
+      getComment: () => {
+        return form.getValues('comment') || '';
       }
     }));
 
   const comment = form.watch('comment') || '';
   const commentLength = comment.length;
+
+  // Auto-save on comment change (debounced in parent)
+  React.useEffect(() => {
+    if (onCommentChange) {
+      onCommentChange(comment);
+    }
+  }, [comment, onCommentChange]);
 
   const handleApprove = async () => {
     const isValid = await form.trigger();
@@ -101,15 +126,8 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
 
     setPendingAction('approve');
     announceToScreenReader('目標を承認しています...', 'polite');
-    try {
-      await onApprove(approvalComment);
-      announceToScreenReader('目標が正常に承認されました', 'polite');
-    } catch (error) {
-      console.error('Approval error:', error);
-      announceToScreenReader('承認処理でエラーが発生しました', 'assertive');
-    } finally {
-      setPendingAction(null);
-    }
+    onApprove(approvalComment);
+    setPendingAction(null);
   };
 
   const handleReject = async () => {
@@ -134,15 +152,8 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
 
     setPendingAction('reject');
     announceToScreenReader('目標を差し戻ししています...', 'polite');
-    try {
-      await onReject(rejectionComment);
-      announceToScreenReader('目標が正常に差し戻しされました', 'polite');
-    } catch (error) {
-      console.error('Rejection error:', error);
-      announceToScreenReader('差し戻し処理でエラーが発生しました', 'assertive');
-    } finally {
-      setPendingAction(null);
-    }
+    onReject(rejectionComment);
+    setPendingAction(null);
   };
 
   const isDisabled = isProcessing || pendingAction !== null;
@@ -171,14 +182,34 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
             render={({ field }) => (
               <FormItem>
                 <FormLabel
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 justify-between w-full"
                   htmlFor={commentFieldId}
                 >
-                  <MessageSquare className="h-4 w-4" aria-hidden="true" />
-                  コメント
-                  <span className="text-sm text-red-500 font-normal" aria-label="必須項目">
-                    (必須)
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                    コメント
+                    <span className="text-sm text-red-500 font-normal" aria-label="必須項目">
+                      (必須)
+                    </span>
+                  </div>
+                  
+                  {/* Auto-save status indicator */}
+                  {saveStatus === 'saving' && (
+                    <span className="text-xs text-blue-500 flex items-center gap-1 animate-pulse">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500" aria-hidden="true" />
+                      保存中...
+                    </span>
+                  )}
+                  {saveStatus === 'saved' && (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <span aria-hidden="true">✓</span> 一時保存済み
+                    </span>
+                  )}
+                  {saveStatus === 'error' && (
+                    <span className="text-xs text-red-500 flex items-center gap-1">
+                      <span aria-hidden="true">⚠</span> 保存失敗
+                    </span>
+                  )}
                 </FormLabel>
                 <FormControl>
                   <Textarea
@@ -195,6 +226,13 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
                     aria-describedby={`${charCountId} ${form.formState.errors.comment ? errorId : ''}`}
                     maxLength={500}
                     style={{ minHeight: isMobile ? '80px' : '100px', fontSize: isMobile ? '16px' : 'inherit' }}
+                    onBlur={(e) => {
+                      field.onBlur();
+                      // Auto-save on blur
+                      if (onCommentBlur && e.target.value) {
+                        onCommentBlur(e.target.value);
+                      }
+                    }}
                   />
                 </FormControl>
                 <div className="flex justify-between items-start">

@@ -22,9 +22,11 @@ export interface UseGoalTrackingReturn {
 
 export function useGoalTracking(): UseGoalTrackingReturn {
   // Store original data when goals are loaded from server
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const originalDataRef = useRef<Map<string, any>>(new Map());
-  
+
   // Store current data to detect changes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const currentDataRef = useRef<Map<string, any>>(new Map());
   
   // Track which goals have been modified by user

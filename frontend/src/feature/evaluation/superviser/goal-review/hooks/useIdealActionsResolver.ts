@@ -69,12 +69,13 @@ export function useIdealActionsResolver(
               const competencyResult = await getCompetencyAction(competencyKey);
 
               if (competencyResult.success && competencyResult.data) {
-                competencyName = competencyResult.data.name;
+                const competencyData = competencyResult.data;
+                competencyName = competencyData.name;
 
                 // Resolve action IDs to descriptions
-                if (competencyResult.data.description) {
+                if (competencyData.description) {
                   actionDescriptions = actionIds
-                    .map(actionId => competencyResult.data.description?.[actionId])
+                    .map(actionId => competencyData.description?.[actionId])
                     .filter((desc): desc is string => Boolean(desc));
                 }
               }
