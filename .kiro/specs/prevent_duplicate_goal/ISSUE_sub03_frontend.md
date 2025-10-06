@@ -3,6 +3,8 @@
 ## 📝 Description
 Implement frontend validation and visual feedback for users when attempting to create duplicate Goals after submission.
 
+**Scope Note:** This task implements **basic error feedback only**. The complete UI for viewing/editing submitted goals is handled in TASK-05.
+
 ## ✅ Implementation Checklist
 
 ### 1. Proactive Validation (on period selection)
@@ -25,13 +27,14 @@ Implement frontend validation and visual feedback for users when attempting to c
     <Alert variant="info">
       <AlertTitle>目標は既に提出されています</AlertTitle>
       <AlertDescription>
-        承認待ちの目標を編集する場合は、目標一覧から編集してください。
-        新しい目標を作成するには、提出済みの目標を下書きに戻す必要があります。
+        提出済みの目標があるため、新しい目標を作成できません。
+        目標一覧ページで確認してください。
       </AlertDescription>
     </Alert>
   )}
   ```
 - [ ] Position alert at top of page
+- [ ] **Note:** Do NOT build detailed goal list UI here - that's TASK-05 scope
 
 ### 3. Error Handling 409 (`useGoalAutoSave.ts`)
 - [ ] Add try-catch in goal creation
