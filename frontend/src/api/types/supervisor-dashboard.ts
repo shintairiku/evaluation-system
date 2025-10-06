@@ -76,6 +76,7 @@ export interface SupervisorPendingApprovalsData {
 /**
  * Subordinate information for listing
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface SubordinateInfo extends SubordinateProgress {
   // Additional display information can be added here
 }

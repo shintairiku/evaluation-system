@@ -76,6 +76,7 @@ export interface GoalResponse {
   actionPlan?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface GoalListResponse extends PaginatedResponse<GoalResponse> {}
 
 
