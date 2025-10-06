@@ -96,7 +96,8 @@ export const GOAL_VALIDATION_MESSAGES = {
 /**
  * Custom error map for Zod with Japanese messages
  */
-export const japaneseErrorMap: z.ZodErrorMap = (issue, ctx) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const japaneseErrorMap = ((issue: any, ctx: any) => {
   switch (issue.code) {
     case z.ZodIssueCode.invalid_type:
       if (issue.expected === 'string') {
@@ -110,31 +111,7 @@ export const japaneseErrorMap: z.ZodErrorMap = (issue, ctx) => {
       }
       return { message: `${issue.expected}型である必要があります` };
 
-    case z.ZodIssueCode.invalid_literal:
-      return { message: `"${issue.expected}" である必要があります` };
-
-    case z.ZodIssueCode.unrecognized_keys:
-      return { message: `無効なキー: ${issue.keys.join(', ')}` };
-
-    case z.ZodIssueCode.invalid_union:
-      return { message: '無効な入力です' };
-
-    case z.ZodIssueCode.invalid_union_discriminator:
-      return { message: `無効な判別子の値。期待値: ${issue.options.join(', ')}` };
-
-    case z.ZodIssueCode.invalid_enum_value:
-      return { message: `無効な選択肢。選択肢: ${issue.options.join(', ')}` };
-
-    case z.ZodIssueCode.invalid_arguments:
-      return { message: '無効な関数の引数です' };
-
-    case z.ZodIssueCode.invalid_return_type:
-      return { message: '無効な関数の戻り値です' };
-
-    case z.ZodIssueCode.invalid_date:
-      return { message: VALIDATION_MESSAGES.INVALID_DATE };
-
-    case z.ZodIssueCode.invalid_string:
+    case z.ZodIssueCode.invalid_format:
       if (issue.validation === 'email') {
         return { message: VALIDATION_MESSAGES.INVALID_EMAIL };
       }
@@ -182,25 +159,16 @@ export const japaneseErrorMap: z.ZodErrorMap = (issue, ctx) => {
     case z.ZodIssueCode.custom:
       return { message: issue.message || VALIDATION_MESSAGES.VALIDATION_ERROR };
 
-    case z.ZodIssueCode.invalid_intersection_types:
-      return { message: '交差型が一致しません' };
-
-    case z.ZodIssueCode.not_multiple_of:
-      return { message: `${issue.multipleOf} の倍数である必要があります` };
-
-    case z.ZodIssueCode.not_finite:
-      return { message: '有限の数値である必要があります' };
-
     default:
       return { message: ctx.defaultError };
   }
-};
+});
 
 /**
  * Set Japanese error messages as default for Zod
  */
 export const setJapaneseErrorMap = () => {
-  z.setErrorMap(japaneseErrorMap);
+  z.setErrorMap(japaneseErrorMap as z.ZodErrorMap);
 };
 
 /**
@@ -220,7 +188,8 @@ export const getLocalizedErrorMessage = (
 ): string => {
   const message = VALIDATION_MESSAGES[validationType];
   if (typeof message === 'function') {
-    return message(...args);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (message as any)(...args);
   }
-  return message;
+  return message as string;
 };

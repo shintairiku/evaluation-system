@@ -10,7 +10,7 @@ import {
 
 // User status enum schema
 export const userStatusSchema = z.enum(['pending_approval', 'active', 'inactive'], {
-  errorMap: () => ({ message: '有効なユーザーステータスを選択してください' }),
+  message: '有効なユーザーステータスを選択してください',
 });
 
 // Department schemas
