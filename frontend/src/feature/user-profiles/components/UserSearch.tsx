@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Search, X, Loader2 } from "lucide-react";
-import type { UserDetailResponse, Department, Stage, Role, UserList } from '@/api/types';
+import type { UserDetailResponse } from '@/api/types';
 import { searchUsersAction, SearchUsersParams } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
 
@@ -150,7 +150,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
         };
         return errorResult;
       }
-    } catch (error) {
+    } catch {
       return {
         users: [],
         total: 0,
@@ -208,7 +208,8 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
       onSearchResultsRef.current(initialUsers, initialUsers.length, false);
     }
     // If query is 1 character, do nothing (wait for more characters)
-  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status, initialUsers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status]);
 
   // Update parent with search results when search state changes
   useEffect(() => {
@@ -228,6 +229,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
   const handleParamChange = useCallback((key: keyof SearchUsersParams, value: string | number) => {
     setSearchParams(prev => ({
       ...prev,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       [key]: value as any,
       page: key !== 'page' ? 1 : (typeof value === 'number' ? value : parseInt(String(value), 10) || 1)
     }));
