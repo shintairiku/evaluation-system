@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UseFormSetError } from 'react-hook-form';
+import { UseFormSetError, FieldValues } from 'react-hook-form';
 
 /**
  * Utility functions for form validation with Zod and react-hook-form
@@ -16,7 +16,7 @@ export type FormErrors<T> = Partial<Record<keyof T, string>>;
 export const zodErrorToFormErrors = <T>(error: z.ZodError<T>): FormErrors<T> => {
   const formErrors: FormErrors<T> = {};
 
-  error.errors.forEach((err) => {
+  error.issues.forEach((err) => {
     const fieldName = err.path.join('.') as keyof T;
     if (!formErrors[fieldName]) {
       formErrors[fieldName] = err.message;
@@ -31,12 +31,13 @@ export const zodErrorToFormErrors = <T>(error: z.ZodError<T>): FormErrors<T> => 
  * @param error - Zod validation error
  * @param setError - react-hook-form setError function
  */
-export const setFormErrors = <T>(
+export const setFormErrors = <T extends FieldValues>(
   error: z.ZodError<T>,
   setError: UseFormSetError<T>
 ): void => {
-  error.errors.forEach((err) => {
-    const fieldName = err.path.join('.') as keyof T & string;
+  error.issues.forEach((err) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fieldName = err.path.join('.') as any;
     setError(fieldName, {
       type: 'manual',
       message: err.message,
@@ -51,7 +52,7 @@ export const setFormErrors = <T>(
  * @param setError - Optional react-hook-form setError function
  * @returns Validation result with success flag and parsed data or errors
  */
-export const validateFormData = <T, U>(
+export const validateFormData = <T, U extends FieldValues>(
   schema: z.ZodSchema<T>,
   data: U,
   setError?: UseFormSetError<U>
@@ -108,10 +109,10 @@ export const validateField = <T>(
     return { success: true };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const fieldError = error.errors.find(err => err.path.includes(field as string));
+      const fieldError = error.issues.find(err => err.path.includes(field as string));
       if (fieldError) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: fieldError.message
         };
       }
@@ -168,49 +169,28 @@ export const createValidationResolver = <T>(schema: z.ZodSchema<T>) => {
  * @param error - Zod error
  * @returns Error with Japanese messages
  */
-export const localizeZodError = (error: z.ZodError): z.ZodError => {
-  const localizedErrors = error.errors.map(err => {
+export const localizeZodError = <T = unknown>(error: z.ZodError<T>): z.ZodError<T> => {
+  const localizedErrors = error.issues.map(err => {
     // Map common Zod error types to Japanese messages
     switch (err.code) {
       case 'invalid_type':
-        if (err.expected === 'string' && err.received === 'undefined') {
-          return { ...err, message: 'この項目は必須です' };
-        }
-        return { ...err, message: `${err.expected}型である必要があります` };
-      
+        return { ...err, message: 'この項目は必須です' };
+
       case 'too_small':
-        if (err.type === 'string') {
-          return { ...err, message: `${err.minimum}文字以上入力してください` };
-        }
-        if (err.type === 'array') {
-          return { ...err, message: `${err.minimum}個以上選択してください` };
-        }
-        return { ...err, message: `最小値は${err.minimum}です` };
-      
+        return { ...err, message: '値が小さすぎます' };
+
       case 'too_big':
-        if (err.type === 'string') {
-          return { ...err, message: `${err.maximum}文字以下で入力してください` };
-        }
-        return { ...err, message: `最大値は${err.maximum}です` };
-      
-      case 'invalid_string':
-        if (err.validation === 'email') {
-          return { ...err, message: '有効なメールアドレスを入力してください' };
-        }
-        if (err.validation === 'uuid') {
-          return { ...err, message: '有効なUUIDを入力してください' };
-        }
+        return { ...err, message: '値が大きすぎます' };
+
+      case 'invalid_format':
         return { ...err, message: '無効な形式です' };
-      
-      case 'invalid_enum_value':
-        return { ...err, message: '有効な選択肢を選んでください' };
-      
+
       default:
         return err;
     }
   });
 
-  return new z.ZodError(localizedErrors);
+  return new z.ZodError(localizedErrors) as z.ZodError<T>;
 };
 
 /**

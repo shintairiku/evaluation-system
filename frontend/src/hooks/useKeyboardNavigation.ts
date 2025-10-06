@@ -32,7 +32,7 @@ interface KeyboardNavigationConfig {
  */
 interface UseKeyboardNavigationReturn {
   /** Ref to attach to the container element */
-  containerRef: React.RefObject<HTMLElement>;
+  containerRef: React.RefObject<HTMLElement | null>;
   /** Current focus index for navigation */
   focusIndex: number;
   /** Set focus to specific index */

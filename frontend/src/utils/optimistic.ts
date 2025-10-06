@@ -45,6 +45,7 @@ export function optimisticListReducer<T extends { id: string | number }>(
 /**
  * Creates optimistic update functions for form submissions
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createOptimisticFormHelpers<TFormData, TResult = any>() {
   return {
     // Immediately update UI state for form fields
@@ -125,6 +126,7 @@ export function createOptimisticDebounce<T>(
 
   return {
     // Apply optimistic update immediately with debounced API call
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     update: (value: T, apiCall?: () => Promise<any>) => {
       // Clear existing timeout
       if (timeoutId) {
@@ -175,10 +177,12 @@ export function createOptimisticDebounce<T>(
  * Creates optimistic validation helpers for forms
  */
 export function createOptimisticValidation<TFormData>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   validationRules: Record<keyof TFormData, (value: any) => string | null>
 ) {
   return {
     // Validate single field optimistically
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     validateField: (field: keyof TFormData, value: any): string | null => {
       const validator = validationRules[field];
       return validator ? validator(value) : null;
@@ -214,6 +218,7 @@ export class OptimisticUpdateError extends Error {
   constructor(
     message: string,
     public readonly originalError: Error,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     public readonly rollbackData?: any
   ) {
     super(message);
@@ -224,6 +229,7 @@ export class OptimisticUpdateError extends Error {
 /**
  * Creates a safe wrapper for optimistic operations
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function withOptimisticErrorBoundary<T extends any[], R>(
   operation: (...args: T) => Promise<R>,
   fallback: (...args: T) => R

@@ -40,9 +40,9 @@ export default function StageGrid({ initialStages, onError, onClearError }: Stag
   const [isLoading, setIsLoading] = useState(false);
   const [editingStage, setEditingStage] = useState<StageData | null>(null);
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
-  
+
   const isMounted = useHydration();
-  const { showSuccess, showError, handleServerActionResult } = useStageNotifications(onError, onClearError);
+  const { showError, handleServerActionResult } = useStageNotifications(onError, onClearError);
 
   // Update stages when initialStages changes (from search filtering)
   useEffect(() => {

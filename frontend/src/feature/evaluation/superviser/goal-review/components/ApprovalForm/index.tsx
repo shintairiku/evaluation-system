@@ -40,10 +40,9 @@ export interface ApprovalFormRef {
 }
 
 export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
-  function ApprovalForm({ 
-    goal, 
-    onApprove, 
-    onReject, 
+  function ApprovalForm({
+    onApprove,
+    onReject,
     isProcessing = false,
     onCommentChange,
     onCommentBlur,

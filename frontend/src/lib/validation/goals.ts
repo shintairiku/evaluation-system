@@ -3,11 +3,11 @@ import { uuidSchema, nonEmptyStringSchema, submissionStatusSchema } from './comm
 
 // Goal type enums
 export const goalTypeSchema = z.enum(['performance', 'competency', 'core_value'], {
-  errorMap: () => ({ message: '有効な目標タイプを選択してください' }),
+  message: '有効な目標タイプを選択してください',
 });
 
 export const performanceGoalTypeSchema = z.enum(['quantitative', 'qualitative'], {
-  errorMap: () => ({ message: '有効なパフォーマンス目標タイプを選択してください' }),
+  message: '有効なパフォーマンス目標タイプを選択してください',
 });
 
 // Performance Goal schema

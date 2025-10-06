@@ -4,10 +4,12 @@ import { useEffect, useRef } from 'react';
 
 interface UseAutoSaveOptions<T = unknown> {
   data: T;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSave: (changedData: any) => Promise<boolean>;
   delay?: number;
   enabled?: boolean;
   autoSaveReady?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   changeDetector?: () => any; // Function that returns changed items only
   dataKey?: unknown; // Lightweight key to detect changes instead of full data JSON
 }
@@ -52,7 +54,7 @@ export function useAutoSave<T>({ data, onSave, delay = 3000, enabled = true, aut
     }
 
     const currentDataString = JSON.stringify(dataKey ?? data);
-    
+
     // Don't save if data hasn't changed
     if (currentDataString === lastSavedDataRef.current) {
       if (process.env.NODE_ENV !== 'production') console.debug('🔧 Auto-save: data unchanged, skipping');
@@ -66,19 +68,19 @@ export function useAutoSave<T>({ data, onSave, delay = 3000, enabled = true, aut
     }
 
     if (process.env.NODE_ENV !== 'production') console.debug(`⏱️ Auto-save: scheduling save in ${delay}ms`);
-    
+
     // Set new timeout for auto-save
     timeoutRef.current = setTimeout(async () => {
       try {
         // Use change detector if provided, otherwise use full data
         const dataToSave = changeDetector ? changeDetector() : data;
-        
+
         // Only proceed if there are actual changes to save
         if (changeDetector && (!dataToSave || (Array.isArray(dataToSave) && dataToSave.length === 0))) {
           if (process.env.NODE_ENV !== 'production') console.debug('🔧 Auto-save: No changes detected, skipping save');
           return;
         }
-        
+
         const success = await onSave(dataToSave);
         if (success) {
           lastSavedDataRef.current = currentDataString;
@@ -95,7 +97,7 @@ export function useAutoSave<T>({ data, onSave, delay = 3000, enabled = true, aut
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [data, onSave, delay, enabled, autoSaveReady, changeDetector]);
+  }, [data, onSave, delay, enabled, autoSaveReady, changeDetector, dataKey]);
 
   // Cleanup on unmount and reset when auto-save becomes disabled
   useEffect(() => {

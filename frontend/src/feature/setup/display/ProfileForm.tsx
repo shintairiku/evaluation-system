@@ -43,6 +43,7 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
   const [selectedSubordinates, setSelectedSubordinates] = useState<string[]>([]);
 
   // Server action wrapper for useActionState
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formActionWrapper = async (_prevState: any, formData: FormData) => {
     const userData: UserCreate = {
       clerk_user_id: formData.get('clerk_user_id') as string,

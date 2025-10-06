@@ -96,7 +96,7 @@ export type ClerkWebhookEventType =
 export interface ClerkWebhookPayload {
   type: ClerkWebhookEventType;
   object: string;
-  data: any; // This will vary based on the event type
+  data: UserWebhookData | OrganizationWebhookData | OrganizationMembershipWebhookData; // This will vary based on the event type
 }
 
 // User Webhook Data
@@ -128,8 +128,8 @@ export interface OrganizationWebhookData {
   slug: string;
   created_at: number;
   updated_at: number;
-  public_metadata: Record<string, any>;
-  private_metadata: Record<string, any>;
+  public_metadata: Record<string, unknown>;
+  private_metadata: Record<string, unknown>;
 }
 
 // Organization Membership Webhook Data

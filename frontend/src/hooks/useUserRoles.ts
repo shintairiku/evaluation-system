@@ -130,6 +130,7 @@ export function useUserRoles(): UseUserRolesReturn {
 
   useEffect(() => {
     fetchUserData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]); // fetchUserData is stable as it only depends on userId
 
   // Utility functions

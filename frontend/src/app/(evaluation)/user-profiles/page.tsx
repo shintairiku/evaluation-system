@@ -4,10 +4,10 @@ import { ProfilePageSkeleton, DelayedSkeleton } from '@/components/ui/loading-sk
 import { ProfileOptionsProvider } from '@/context/ProfileOptionsContext';
 
 interface UserProfilesPageProps {
-  searchParams: {
+  searchParams: Promise<{
     page?: string;
     limit?: string;
-  };
+  }>;
 }
 
 export default async function UserProfilesPage({ searchParams }: UserProfilesPageProps) {

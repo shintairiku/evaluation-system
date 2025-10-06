@@ -209,7 +209,7 @@ export function useGoalApprovalActions({
       // Backend will automatically sync goal.status
       const result = await updateSupervisorReviewAction(reviewId, {
         action: type === 'approve' ? SupervisorAction.APPROVED : SupervisorAction.REJECTED,
-        comment: comment || null,
+        comment: comment || undefined,
         status: SubmissionStatus.SUBMITTED
       });
 
@@ -223,7 +223,7 @@ export function useGoalApprovalActions({
       // Success toast
       const message = SUCCESS_MESSAGES[type];
       toast.success(message.title, {
-        description: message.description(goal.title)
+        description: message.description(goal.title || '')
       });
 
       // Refresh global pending count

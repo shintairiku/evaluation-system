@@ -47,17 +47,15 @@ export default function Sidebar() {
 
   // Get goal review context with graceful fallback
   // This follows the project pattern of defensive programming for contexts
-  const getGoalReviewData = () => {
-    try {
-      return useGoalReviewContext();
-    } catch (error) {
-      // Context not available (e.g., during SSR or outside provider)
-      // Return safe default values
-      return { pendingCount: 0 };
-    }
-  };
-
-  const { pendingCount } = getGoalReviewData();
+  let pendingCount = 0;
+  try {
+    const context = useGoalReviewContext();
+    pendingCount = context.pendingCount;
+  } catch {
+    // Context not available (e.g., during SSR or outside provider)
+    // Use default value
+    pendingCount = 0;
+  }
 
   // 権限フィルタリング（現在はダミー実装）
   const filterByPermission = (links: SidebarLink[]) => {
