@@ -53,10 +53,10 @@ const SelectSkeleton = () => (
   </div>
 );
 
-export default function UserEditViewModal({ 
-  user, 
+export default function UserEditViewModal({
+  user,
   allUsers,
-  isOpen, 
+  isOpen,
   onClose,
   onUserUpdate
 }: UserEditViewModalProps) {
@@ -216,8 +216,8 @@ export default function UserEditViewModal({
       userCache.delete(userId);
     });
   };
-  
-  // Function to force refresh hierarchy data
+
+  // Function to force refresh hierarchy data - suppress unused warning as it may be used in future
   const forceRefreshHierarchyData = async (userId: string) => {
     userCache.delete(userId);
     if (user && userId === user.id && isOpen) {
@@ -238,6 +238,8 @@ export default function UserEditViewModal({
       }
     }
   };
+  // Suppress unused warning - this function may be used in future implementations
+  void forceRefreshHierarchyData;
 
   const [formData, setFormData] = useState({
     name: '',
