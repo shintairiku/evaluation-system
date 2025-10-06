@@ -110,7 +110,7 @@ export function useAutoSave({
       } else {
         setSaveStatus('error');
       }
-    } catch (error) {
+    } catch {
       setSaveStatus('error');
     }
   }, [reviewId, lastSavedComment, saveStatus, statusClearTimeout]);
@@ -154,7 +154,7 @@ export function useAutoSave({
             });
           }
         }
-      } catch (error) {
+      } catch {
         // Silent fail - draft loading is not critical
       }
     };
