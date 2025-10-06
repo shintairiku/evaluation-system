@@ -9,7 +9,7 @@ import ReactFlow, {
   NodeTypes,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
+import type { UserDetailResponse, SimpleUser } from '@/api/types';
 import { Building2 } from 'lucide-react';
 import { getUsersForOrgChartAction } from '@/api/server-actions/users';
 import { useProfileOptions } from '@/context/ProfileOptionsContext';
@@ -29,7 +29,7 @@ const nodeTypes: NodeTypes = {
 
 export default function ReadOnlyOrganizationView({ users = [], isFiltered = false }: ReadOnlyOrganizationViewProps) {
   // Use profile options from context
-  const { options: { departments }, isLoading: isDepartmentsLoading } = useProfileOptions();
+  const { options: { departments } } = useProfileOptions();
 
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
   const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map());
