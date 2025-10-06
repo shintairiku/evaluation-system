@@ -13,6 +13,15 @@
 ### 前提条件
 
 - [Docker](https://www.docker.com/products/docker-desktop/) がシステムにインストールされ、実行中であること。
+- [Node.js](https://nodejs.org/) (npm含む) がインストールされていること。
+
+### Claude Code のセットアップ
+
+開発効率を向上させるため、Claude Code をインストールすることを推奨します ([Docs](https://docs.anthropic.com/en/docs/claude-code/getting-started))。
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
 
 ### 1. リポジトリをクローンする
 
