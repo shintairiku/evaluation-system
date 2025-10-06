@@ -21,6 +21,10 @@ node_modules/
 # python
 __pycache__/
 
+# Python virtual environments
+venv/
+.venv/
+
 # production
 /build
 
@@ -36,9 +40,16 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env
+.env.local
 
 # vercel
 .vercel
+
+# cursor
+.cursor
+
+# personal notes
+.notes/
 
 # typescript
 *.tsbuildinfo
@@ -47,5 +58,21 @@ next-env.d.ts
 # clerk configuration (can include secrets)
 .clerk/
 
-# personal notes
-.notes/
+# Supabase
+.supabase/
+.supabase
+
+# Prisma
+.prisma/
+
+# logs
+backend/tests/logs
+
+# VS Code settings (personal configurations)
+.vscode/
+
+# Kiro
+.kiro/local_kiro/
+
+# PR
+PR*.md
