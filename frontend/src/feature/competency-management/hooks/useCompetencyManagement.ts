@@ -77,7 +77,7 @@ export function useCompetencyManagement({
   const handleSaveCompetency = useCallback(async (
     competencyId: UUID,
     data: { name: string; description?: Record<string, string>; stageId: UUID }
-  ) => {
+  ): Promise<void> => {
     if (!isAdmin) return;
 
     setIsLoading(true);
@@ -91,20 +91,19 @@ export function useCompetencyManagement({
         );
 
         toast.success(COMPETENCY_MESSAGES.SUCCESS.UPDATE);
-        return { success: true };
       } else {
         throw new Error(result.error || result.errorMessage || 'Failed to update competency');
       }
     } catch (error) {
       console.error('Failed to update competency:', error);
       toast.error(COMPETENCY_MESSAGES.ERROR.UPDATE);
-      return { success: false };
+      throw error;
     } finally {
       setIsLoading(false);
     }
   }, [isAdmin]);
 
-  const handleDeleteCompetency = useCallback(async (competencyId: UUID) => {
+  const handleDeleteCompetency = useCallback(async (competencyId: UUID): Promise<void> => {
     if (!isAdmin) return;
 
     setIsLoading(true);
@@ -116,14 +115,13 @@ export function useCompetencyManagement({
         setCompetencies(prev => prev.filter(comp => comp.id !== competencyId));
 
         toast.success(COMPETENCY_MESSAGES.SUCCESS.DELETE);
-        return { success: true };
       } else {
         throw new Error(result.error || 'Failed to delete competency');
       }
     } catch (error) {
       console.error('Failed to delete competency:', error);
       toast.error(COMPETENCY_MESSAGES.ERROR.DELETE);
-      return { success: false };
+      throw error;
     } finally {
       setIsLoading(false);
     }
