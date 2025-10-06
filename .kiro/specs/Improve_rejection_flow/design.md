@@ -322,7 +322,10 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, showActions = true }: GoalCardProps) {
+  // CRITICAL: Check for rejection based on SupervisorReview.action, not goal.status
+  // This ensures comments remain visible even when status changes to "draft" during editing
   const latestReview = goal.supervisorReviews?.[0]; // Most recent review
+  const hasRejectionFeedback = latestReview?.action === 'REJECTED';
 
   return (
     <Card className={cn("mb-4", getStatusBorderColor(goal.status))}>
@@ -338,7 +341,8 @@ export function GoalCard({ goal, showActions = true }: GoalCardProps) {
         </div>
       </CardHeader>
 
-      {goal.status === 'rejected' && latestReview && (
+      {/* Display rejection comment based on review action, NOT goal status */}
+      {hasRejectionFeedback && (
         <CardContent>
           <RejectionCommentPreview review={latestReview} />
         </CardContent>
@@ -349,7 +353,8 @@ export function GoalCard({ goal, showActions = true }: GoalCardProps) {
           <Button variant="outline" asChild>
             <Link href={`/goal-detail/${goal.id}`}>View Details</Link>
           </Button>
-          {goal.status === 'rejected' && (
+          {/* Show edit button if there's rejection feedback, regardless of current status */}
+          {hasRejectionFeedback && (
             <Button variant="default" asChild>
               <Link href={`/goal-input?edit=${goal.id}&mode=resubmit`}>
                 Edit & Resubmit
@@ -499,7 +504,7 @@ useEffect(() => {
 ```typescript
 // In goal edit page
 const [goalData, setGoalData] = useState<GoalUpdate | null>(null);
-const [rejectionComment, setRejectionComment] = useState<string>('');
+const [rejectionReview, setRejectionReview] = useState<SupervisorReview | null>(null);
 const [isDirty, setIsDirty] = useState(false);
 
 // Load goal and reviews
@@ -508,14 +513,20 @@ useEffect(() => {
     const result = await getGoalByIdAction(goalId);
     if (result.success) {
       setGoalData(result.data);
+
+      // CRITICAL: Store rejection review regardless of current goal status
+      // This ensures comments remain visible even if status changes to "draft"
       const latestReview = result.data.supervisorReviews?.[0];
       if (latestReview?.action === 'REJECTED') {
-        setRejectionComment(latestReview.comment || '');
+        setRejectionReview(latestReview);
       }
     }
   }
   loadGoal();
 }, [goalId]);
+
+// Display rejection banner based on review existence
+const showRejectionBanner = rejectionReview !== null;
 
 // Handle navigation away
 useEffect(() => {
@@ -648,24 +659,91 @@ If tests are added in future:
 
 See tasks.md for detailed E2E scenarios.
 
-## 13. Future Enhancements
+## 13. Critical Implementation Note: Review Display Logic
 
-### 13.1. Real-time Updates
+**⚠️ IMPORTANT UX REQUIREMENT:**
+
+Rejection comments MUST remain visible even when goal status changes during editing. This is critical for user experience.
+
+### The Problem
+When a subordinate edits a rejected goal:
+1. Goal status changes from `rejected` → `draft`
+2. If UI only checks `goal.status === 'rejected'`, comments disappear
+3. Subordinate loses context of supervisor feedback
+
+### The Solution
+**Display logic based on SupervisorReview existence, NOT goal status:**
+
+```typescript
+// ❌ WRONG - Comments disappear when status changes
+{goal.status === 'rejected' && goal.supervisorReview && (
+  <RejectionAlert comment={goal.supervisorReview.comment} />
+)}
+
+// ✅ CORRECT - Comments persist regardless of status
+{goal.supervisorReview?.action === 'REJECTED' && (
+  <RejectionAlert
+    comment={goal.supervisorReview.comment}
+    reviewedAt={goal.supervisorReview.reviewedAt}
+  />
+)}
+```
+
+### Implementation Checklist
+- [ ] GoalCard: Check `supervisorReview.action === 'REJECTED'`
+- [ ] GoalDetailView: Display reviews based on review.action
+- [ ] GoalEditPage: Show rejection banner based on review existence
+- [ ] RejectionAlert: Include timestamp for context
+- [ ] All components: Never rely solely on `goal.status` for review display
+
+### Database Persistence
+SupervisorReview records persist in the database even when goal.status changes. The relationship is maintained through foreign keys, ensuring historical review data is never lost during status transitions.
+
+## 14. Future Enhancements
+
+### 14.1. Review Timeline/History
+
+**Current State:** 1:1 relationship (goal ↔ supervisorReview)
+**Future Enhancement:** Allow multiple review cycles with full history
+
+```typescript
+interface GoalWithReviewHistory {
+  goal: Goal;
+  reviews: SupervisorReview[]; // Ordered by reviewedAt DESC
+}
+
+// Timeline UI showing all review iterations
+{reviews.map((review, index) => (
+  <TimelineItem
+    key={review.id}
+    iteration={reviews.length - index}
+    action={review.action}
+    comment={review.comment}
+    reviewedAt={review.reviewedAt}
+    reviewerName={review.supervisorName}
+  />
+))}
+```
+
+This would require backend schema changes to support multiple SupervisorReview records per goal.
+
+### 14.2. Real-time Updates
 
 - WebSocket notifications when supervisor reviews goal
 - Auto-refresh goal list when status changes
 
-### 13.2. Bulk Operations
+### 14.3. Bulk Operations
 
 - Select multiple rejected goals
 - Bulk edit and resubmit
 
-### 13.3. History Tracking
+### 14.4. Version Comparison
 
 - Show goal edit history
 - Compare versions before/after rejection
+- Highlight what changed since last review
 
-### 13.4. Comments Thread
+### 14.5. Comments Thread
 
 - Allow subordinates to reply to supervisor comments
 - Two-way communication within rejection flow

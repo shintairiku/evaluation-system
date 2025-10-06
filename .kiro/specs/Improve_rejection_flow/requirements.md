@@ -66,6 +66,9 @@ AND I should see approval date and approver name
 **User Story:**
 > As an employee, I want to see my supervisor's rejection comments clearly so that I understand what needs to be improved before resubmission.
 
+**Critical UX Requirement:**
+> Comments must remain visible even after the goal status changes from `rejected` to `draft` during editing. Display logic should be based on the **existence of a SupervisorReview with action='REJECTED'**, not on the current goal status.
+
 **Acceptance Criteria:**
 
 ```gherkin
@@ -78,15 +81,23 @@ AND the comment should include:
   - Rejected date
 AND the display should use a warning/alert style (e.g., yellow/red banner)
 
+GIVEN I edit a rejected goal and the status changes to "draft"
+WHEN I view the goal during editing
+THEN the rejection comment should STILL be visible
+AND the comment should persist until I successfully resubmit
+AND it should include the original review timestamp for context
+[CRITICAL: Display based on supervisorReview.action === 'REJECTED', not goal.status === 'rejected']
+
 GIVEN the rejection comment is long (>200 characters)
 WHEN viewing in list view
 THEN show truncated comment with "Read more" link
 AND clicking "Read more" expands full comment or opens detail view
 
-GIVEN a goal has multiple reviews (edge case: re-rejection)
-WHEN viewing comments
-THEN show all historical comments in chronological order
-AND latest comment should be most prominent
+GIVEN a goal has a SupervisorReview with action='REJECTED'
+WHEN viewing the goal regardless of current status (draft/rejected/submitted)
+THEN rejection comments should be visible
+AND the display should clarify the review timestamp
+AND it should help subordinates maintain context during editing
 
 GIVEN supervisor did not provide a comment (optional field)
 WHEN viewing rejected goal
@@ -104,12 +115,14 @@ THEN show generic message: "目標が差し戻されました。上司に詳細�
 GIVEN I have a goal with status "rejected"
 WHEN I click "Edit & Resubmit" button
 THEN I should be redirected to the goal edit page
-AND the rejection comment should remain visible while editing
+AND the rejection comment should remain visible while editing (persistent based on SupervisorReview)
 AND all goal fields should be editable
 
 GIVEN I am editing a rejected goal
-WHEN I make changes and save
-THEN the goal status should remain "rejected" until I explicitly resubmit
+WHEN I make changes and save as draft
+THEN the goal status may change to "draft"
+BUT the SupervisorReview with action='REJECTED' persists in the database
+AND rejection comments REMAIN visible in the UI during editing
 AND I should see a "Save Draft" button to save without resubmitting
 AND I should see a "Resubmit for Approval" button
 
