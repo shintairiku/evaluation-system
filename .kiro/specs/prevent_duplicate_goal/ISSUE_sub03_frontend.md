@@ -58,29 +58,15 @@ frontend/src/feature/goal-input/display/PerformanceGoalsStep.tsx (optional)
 frontend/src/feature/goal-input/display/CompetencyGoalsStep.tsx (optional)
 ```
 
-## 🧪 Unit Tests Included
-
-### Component Tests (`GoalInputPage.test.tsx`)
-- [ ] `test_renders_alert_when_submitted_goals_exist()`
-- [ ] `test_does_not_render_alert_when_no_submitted_goals()`
-- [ ] `test_calls_api_with_correct_status_filter()`
-- [ ] `test_displays_toast_on_409_error()`
-- [ ] `test_disables_add_buttons_when_submitted_goals_exist()` (if implemented)
-
-### Hook Tests (`useGoalAutoSave.test.ts`)
-- [ ] `test_handles_409_error_correctly()`
-- [ ] `test_shows_toast_with_backend_message()`
-- [ ] `test_updates_state_on_409_error()`
-
 ## ✅ Definition of Done
 - [ ] Code implemented and committed
-- [ ] All unit tests passing
 - [ ] Frontend linting OK (`npm run lint` and `npm run type-check`)
 - [ ] Visual alert working correctly
 - [ ] Error toast appears in 409 scenario
+- [ ] Manual testing completed (see sub04 for E2E scenarios)
 
 ## 📊 Estimate
-**1-1.5 days**
+**1 day** (implementation only, no automated tests)
 
 ## 🔗 Related
 - Parent: #272
