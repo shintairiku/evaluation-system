@@ -13,8 +13,12 @@ load_dotenv(env_path)
 DATABASE_URL = os.getenv("SUPABASE_DATABASE_URL")
 
 # Convert PostgreSQL URL to async version for SQLAlchemy
-if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+# Handle both postgres:// and postgresql:// URL formats
+if DATABASE_URL:
+    if DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+    elif DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://")
 
 engine = create_async_engine(
     DATABASE_URL,
