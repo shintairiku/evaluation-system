@@ -1,0 +1,290 @@
+"use client";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { 
+  Users, 
+  UserCheck, 
+  Crown,
+  ChevronDown,
+  ChevronUp 
+} from "lucide-react";
+import type { UserDetailResponse } from '@/api/types';
+
+interface HierarchyDisplayCardProps {
+  user: UserDetailResponse;
+  isLoading?: boolean;
+}
+
+export default function HierarchyDisplayCard({ user, isLoading }: HierarchyDisplayCardProps) {
+
+  const getUserInitials = (name: string) => {
+    return name.split(' ').map(part => part[0]).join('').toUpperCase();
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'inactive':
+        return 'bg-red-100 text-red-800';
+      case 'pending_approval':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            階層関係
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Supervisor Section Skeleton */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Crown className="h-4 w-4" />
+              上司
+            </Label>
+            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-32" />
+              </div>
+              <Skeleton className="h-4 w-4" />
+            </div>
+          </div>
+
+          {/* Current User Section Skeleton */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              現在のユーザー
+            </Label>
+            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border-2 border-green-200">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-5 w-18 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-36" />
+              </div>
+            </div>
+          </div>
+
+          {/* Subordinates Section Skeleton */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <ChevronDown className="h-4 w-4" />
+              <Skeleton className="h-4 w-16" />
+            </Label>
+            <div className="grid gap-2 grid-cols-1">
+              {[1, 2, 3].map((index) => (
+                <div key={index} className="flex items-center gap-2 p-2 bg-orange-50 rounded-md border">
+                  <Skeleton className="h-7 w-7 rounded-full" />
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-4 w-4 rounded-full" />
+                    </div>
+                    <Skeleton className="h-2 w-24" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Statistics Section Skeleton */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              組織情報
+            </Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-blue-50 rounded-lg text-center">
+                <Skeleton className="h-6 w-4 mx-auto mb-1" />
+                <Skeleton className="h-3 w-8 mx-auto" />
+              </div>
+              <div className="p-3 bg-orange-50 rounded-lg text-center">
+                <Skeleton className="h-6 w-4 mx-auto mb-1" />
+                <Skeleton className="h-3 w-8 mx-auto" />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Users className="h-5 w-5" />
+          階層関係
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Supervisor Section */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Crown className="h-4 w-4" />
+            上司
+          </Label>
+          {user.supervisor ? (
+            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-blue-100 text-blue-700 text-sm">
+                  {getUserInitials(user.supervisor.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm truncate">
+                    {user.supervisor.name}
+                  </span>
+                  <Badge variant="outline" className={getStatusColor(user.supervisor.status)}>
+                    {user.supervisor.status === 'active' ? 'アクティブ' : 
+                     user.supervisor.status === 'inactive' ? '非アクティブ' : '承認待ち'}
+                  </Badge>
+                </div>
+                <div className="text-sm text-muted-foreground truncate">
+                  {user.supervisor.employee_code} • {user.supervisor.job_title || '役職未設定'}
+                </div>
+              </div>
+              <ChevronUp className="h-4 w-4 text-blue-500" />
+            </div>
+          ) : (
+            <div className="p-3 text-center text-sm text-muted-foreground bg-gray-50 rounded-lg border-2 border-dashed">
+              上司が設定されていません
+            </div>
+          )}
+        </div>
+
+        {/* Current User Position */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <UserCheck className="h-4 w-4" />
+            現在のユーザー
+          </Label>
+          <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border-2 border-green-200">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="bg-green-100 text-green-700 text-sm">
+                {getUserInitials(user.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm truncate">
+                  {user.name}
+                </span>
+                <Badge variant="outline" className={getStatusColor(user.status)}>
+                  {user.status === 'active' ? 'アクティブ' : 
+                   user.status === 'inactive' ? '非アクティブ' : '承認待ち'}
+                </Badge>
+              </div>
+              <div className="text-sm text-muted-foreground truncate">
+                {user.employee_code} • {user.job_title || '役職未設定'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Subordinates Section */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <ChevronDown className="h-4 w-4" />
+            部下 ({user.subordinates?.length || 0}人)
+          </Label>
+          {user.subordinates && user.subordinates.length > 0 ? (
+            <div className="relative">
+              <div className={`grid gap-2 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 ${
+                user.subordinates.length >= 4 ? 'grid-cols-2' : 'grid-cols-1'
+              }`}>
+              {user.subordinates.map((subordinate) => (
+                <div key={subordinate.id} className="flex items-center gap-2 p-2 bg-orange-50 rounded-md border">
+                  <Avatar className="h-7 w-7 flex-shrink-0">
+                    <AvatarFallback className="bg-orange-100 text-orange-700 text-xs">
+                      {getUserInitials(subordinate.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-medium text-xs truncate">
+                        {subordinate.name}
+                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className={`${getStatusColor(subordinate.status)} text-[10px] px-1 py-0 h-4 cursor-help`}>
+                              {subordinate.status === 'active' ? 'A' : 
+                               subordinate.status === 'inactive' ? 'I' : 'P'}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{subordinate.status === 'active' ? 'アクティブ' : 
+                               subordinate.status === 'inactive' ? '非アクティブ' : '承認待ち'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      {subordinate.employee_code} • {subordinate.job_title || '役職未設定'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 text-center text-sm text-muted-foreground bg-gray-50 rounded-lg border-2 border-dashed">
+              部下がいません
+            </div>
+          )}
+        </div>
+
+        {/* Summary Statistics */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            組織情報
+          </Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-blue-50 rounded-lg text-center">
+              <div className="text-lg font-semibold text-blue-700">
+                {user.supervisor ? '1' : '0'}
+              </div>
+              <div className="text-xs text-blue-600">上司</div>
+            </div>
+            <div className="p-3 bg-orange-50 rounded-lg text-center">
+              <div className="text-lg font-semibold text-orange-700">
+                {user.subordinates?.length || 0}
+              </div>
+              <div className="text-xs text-orange-600">部下</div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

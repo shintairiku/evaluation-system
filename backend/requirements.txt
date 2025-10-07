@@ -1,16 +1,34 @@
+# Core Framework
 fastapi
 uvicorn[standard]
+
+# Production WSGI Server
+gunicorn
+
+# Performance Enhancements
+uvloop
+httptools
+
+# Database
 psycopg2-binary
-pydantic-settings
-passlib[bcrypt]
 asyncpg
 sqlalchemy[asyncio]
-python-jose[cryptography]
-python-multipart
-python-dotenv
+
+# Authentication & Security
 clerk-backend-api
-pydantic[email]
+python-jose[cryptography]
+passlib[bcrypt]
 svix
+
+# Configuration & Environment
+pydantic-settings
+pydantic[email]
+python-dotenv
+python-multipart
+
+# Caching
+cachetools
+
+# Testing (Development/CI only)
 pytest
 pytest-asyncio
-cachetools

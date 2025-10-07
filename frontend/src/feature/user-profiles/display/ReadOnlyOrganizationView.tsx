@@ -1,0 +1,288 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from 'react';
+import ReactFlow, {
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  NodeTypes,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import type { UserDetailResponse, SimpleUser } from '@/api/types';
+import { Building2 } from 'lucide-react';
+import { getUsersForOrgChartAction } from '@/api/server-actions/users';
+import { useProfileOptions } from '@/context/ProfileOptionsContext';
+import { getTopUsersByRole } from '../utils/hierarchyLayoutUtils';
+import { OrgNode, UserNode } from '../components/OrganizationNodes';
+import { useOrganizationLayout } from '../hooks/useOrganizationLayout';
+
+interface ReadOnlyOrganizationViewProps {
+  users?: UserDetailResponse[] | SimpleUser[];
+  isFiltered?: boolean;
+}
+
+const nodeTypes: NodeTypes = {
+  orgNode: OrgNode,
+  userNode: UserNode,
+};
+
+export default function ReadOnlyOrganizationView({ users = [], isFiltered = false }: ReadOnlyOrganizationViewProps) {
+  // Use profile options from context
+  const { options: { departments } } = useProfileOptions();
+
+  const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
+  const [loadedUsers, setLoadedUsers] = useState<Map<string, SimpleUser[]>>(new Map());
+  const [departmentUserCounts, setDepartmentUserCounts] = useState<Map<string, number>>(new Map());
+  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
+  const [allUsers, setAllUsers] = useState<(UserDetailResponse | SimpleUser)[]>(users);
+
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        if (!isFiltered && users.length === 0) {
+          setLoadingNodes(prev => new Set(prev).add('initial'));
+          const topLevelResult = await getUsersForOrgChartAction({
+            supervisor_id: undefined
+          });
+          
+          if (topLevelResult.success && topLevelResult.data) {
+            setAllUsers(topLevelResult.data);
+            setLoadedUsers(prev => new Map(prev).set('top-level', topLevelResult.data!));
+            // Precompute department counts so department cards show numbers immediately
+            const counts = new Map<string, number>();
+            topLevelResult.data.forEach(u => {
+              const deptId = u.department?.id;
+              if (deptId) counts.set(deptId, (counts.get(deptId) || 0) + 1);
+            });
+            setDepartmentUserCounts(counts);
+          }
+          setLoadingNodes(prev => {
+            const newSet = new Set(prev);
+            newSet.delete('initial');
+            return newSet;
+          });
+        } else {
+          setAllUsers(users);
+          // If users are provided (e.g., from search), also precompute department counts
+          const counts = new Map<string, number>();
+          users.forEach(u => {
+            const deptId = u.department?.id;
+            if (deptId) counts.set(deptId, (counts.get(deptId) || 0) + 1);
+          });
+          if (counts.size > 0) setDepartmentUserCounts(counts);
+        }
+      } catch (error) {
+        console.error('Error loading initial organization data:', error);
+        setLoadingNodes(prev => {
+          const newSet = new Set(prev);
+          newSet.delete('initial');
+          return newSet;
+        });
+      }
+    };
+    
+    loadInitialData();
+  }, [users, isFiltered]);
+
+  const handleDepartmentClick = useCallback(async (departmentId: string) => {
+    const isCurrentlyExpanded = expandedDepartments.has(departmentId);
+    
+    if (isCurrentlyExpanded) {
+      setExpandedDepartments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(departmentId);
+        return newSet;
+      });
+    } else {
+      const cacheKey = `dept-${departmentId}`;
+      const cached = loadedUsers.get(cacheKey);
+      
+      if (cached) {
+        setExpandedDepartments(prev => new Set(prev).add(departmentId));
+      } else {
+        setLoadingNodes(prev => new Set(prev).add(departmentId));
+        
+        try {
+          const result = await getUsersForOrgChartAction({
+            department_ids: [departmentId]
+          });
+          
+          if (result.success && result.data) {
+            const topUsers = getTopUsersByRole(result.data) as SimpleUser[];
+            setDepartmentUserCounts(prev => new Map(prev).set(departmentId, result.data?.length || 0));
+            setLoadedUsers(prev => new Map(prev).set(cacheKey, topUsers));
+            setExpandedDepartments(prev => new Set(prev).add(departmentId));
+          }
+        } catch (error) {
+          console.error('Error loading department users:', error);
+        } finally {
+          setLoadingNodes(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(departmentId);
+            return newSet;
+          });
+        }
+      }
+    }
+  }, [expandedDepartments, loadedUsers]);
+
+  const handleUserClick = useCallback(async (userId: string) => {
+    const cacheKey = `user-${userId}`;
+    const cached = loadedUsers.get(cacheKey);
+    
+    if (cached) {
+      return;
+    }
+    
+    setLoadingNodes(prev => new Set(prev).add(userId));
+    
+    try {
+      const result = await getUsersForOrgChartAction({
+        supervisor_id: userId
+      });
+      
+      if (result.success && result.data) {
+        const subordinates = result.data;
+
+        if (!subordinates || subordinates.length === 0) {
+          return;
+        }
+
+        setLoadedUsers(prev => new Map(prev).set(cacheKey, subordinates));
+        
+        setAllUsers(prev => {
+          const existingIds = new Set(prev.map(u => u.id));
+          const newUsers = subordinates.filter(u => !existingIds.has(u.id));
+          return [...prev, ...newUsers];
+        });
+      }
+    } catch (error) {
+      console.error('Error loading subordinates:', error);
+    } finally {
+      setLoadingNodes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
+  }, [loadedUsers]);
+
+  const { nodes, edges } = useOrganizationLayout({
+    users: allUsers,
+    departments,
+    expandedDepartments,
+    loadingNodes,
+    loadedUsers,
+    departmentUserCounts,
+    onDepartmentClick: handleDepartmentClick,
+    onUserClick: handleUserClick,
+    // Match admin/supervisor behavior: department-first only when not filtered;
+    // for filtered views, allow flat/role/status layouts
+    forceDepartmentLayout: !isFiltered
+  });
+
+  const [nodesState, setNodes] = useNodesState(nodes);
+  const [edgesState, setEdges] = useEdgesState(edges);
+
+  useEffect(() => {
+    setNodes(nodes);
+    setEdges(edges);
+  }, [nodes, edges, setNodes, setEdges]);
+
+  const stats = {
+    departments: departments.length,
+    totalUsers: allUsers.length,
+    adminsAndManagers: allUsers.filter(u => 
+      u.roles?.some(r => 
+        r.name.toLowerCase().includes('admin') || 
+        r.name.toLowerCase().includes('manager')
+      )
+    ).length,
+    pendingApproval: allUsers.filter(u => u.status === 'pending_approval').length
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-950 rounded-xl p-6 border border-slate-700 shadow-xl">
+        <div className="flex items-center justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-white">組織図</h3>
+                <p className="text-blue-100 text-sm">Organization Chart</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-white font-bold text-lg">{stats.departments}</div>
+                <div className="text-blue-100 text-xs">部署</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-white font-bold text-lg">{stats.totalUsers}</div>
+                <div className="text-blue-100 text-xs">ユーザー</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-white font-bold text-lg">{stats.adminsAndManagers}</div>
+                <div className="text-blue-100 text-xs">管理者・マネージャー</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-white font-bold text-lg">{stats.pendingApproval}</div>
+                <div className="text-blue-100 text-xs">承認待ち</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="hidden md:block">
+            <div className="bg-white/10 rounded-lg p-4 text-center">
+              <div className="text-white font-bold text-sm mb-2">操作ガイド</div>
+              <div className="text-blue-100 text-xs space-y-1">
+                <div>🏢 部署をクリック</div>
+                <div>👥 メンバー表示・非表示</div>
+                <div>🔍 ズーム・パン操作</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="w-full h-[800px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white shadow-xl">
+        <ReactFlow
+          nodes={nodesState}
+          edges={edgesState}
+          nodeTypes={nodeTypes}
+          fitView={false}
+          minZoom={0.1}
+          maxZoom={1.2}
+          defaultViewport={{ x: 150, y: 50, zoom: 0.85 }}
+          proOptions={{ hideAttribution: true }}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={true}
+          panOnDrag={true}
+          zoomOnScroll={true}
+          zoomOnPinch={true}
+          zoomOnDoubleClick={true}
+        >
+          <Background 
+            color="#e2e8f0" 
+            gap={40}
+            size={1}
+            className="opacity-30"
+          />
+          <Controls 
+            position="top-right"
+            className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg z-10"
+            showZoom={true}
+            showFitView={true}
+            showInteractive={false}
+          />
+        </ReactFlow>
+      </div>
+    </div>
+  );
+}

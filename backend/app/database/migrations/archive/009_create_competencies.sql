@@ -1,0 +1,10 @@
+CREATE TABLE competencies (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    stage_id UUID NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (stage_id) REFERENCES stages(id) ON DELETE CASCADE
+);
