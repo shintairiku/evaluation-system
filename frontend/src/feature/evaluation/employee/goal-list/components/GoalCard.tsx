@@ -3,15 +3,15 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from '@/components/ui/button';
 import { GoalStatusBadge } from '@/feature/evaluation/superviser/goal-review/components/GoalStatusBadge';
 import { RejectionCommentBanner } from './RejectionCommentBanner';
-import type { GoalResponse } from '@/api/types';
+import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { useRouter } from 'next/navigation';
 
 /**
  * Props for GoalCard component
  */
 interface GoalCardProps {
-  /** Goal data to display */
-  goal: GoalResponse & { supervisorReview?: { action: 'approved' | 'rejected' | 'pending'; comment: string; reviewed_at?: string } | null };
+  /** Goal data to display with mapped supervisor review */
+  goal: GoalResponse & { supervisorReview?: SupervisorReview | null };
   /** Optional custom className */
   className?: string;
 }
