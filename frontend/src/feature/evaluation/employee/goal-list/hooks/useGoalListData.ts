@@ -1,18 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getGoalsAction } from '@/api/server-actions/goals';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
-import type { GoalResponse, GoalStatus, EvaluationPeriod } from '@/api/types';
+import { getSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
+import type { GoalResponse, GoalStatus, EvaluationPeriod, SupervisorReview } from '@/api/types';
 
 /**
  * Extended GoalResponse with optional supervisorReview
- * TODO: Update this when backend includes supervisorReview in GoalResponse
+ * We fetch reviews separately and map them to goals using goal_id
+ * This follows the same pattern as supervisor goal-review
  */
 type GoalWithReview = GoalResponse & {
-  supervisorReview?: {
-    action: 'approved' | 'rejected' | 'pending';
-    comment: string;
-    reviewed_at?: string;
-  } | null;
+  supervisorReview?: SupervisorReview | null;
 };
 
 /**
@@ -42,15 +40,23 @@ export interface UseGoalListDataReturn {
  *
  * Features:
  * - Fetches all goals for current user and period
+ * - Fetches supervisor reviews separately and maps them to goals
  * - Provides status filtering
  * - Handles loading and error states
  * - Auto-loads on mount
  * - Provides refetch function for manual reload
  *
+ * Architecture:
+ * This follows the same pattern as supervisor goal-review (useGoalReviewData):
+ * 1. Fetch goals and reviews in parallel (Promise.all)
+ * 2. Map reviews to goals using goal_id
+ * 3. This approach reuses existing APIs without backend changes
+ *
  * Data Flow:
  * 1. Load current evaluation period
- * 2. Load all goals for current period (all statuses)
- * 3. Apply client-side filtering based on selected statuses
+ * 2. Load goals AND supervisor reviews in parallel
+ * 3. Map reviews to goals by goal_id
+ * 4. Apply client-side filtering based on selected statuses
  *
  * @returns Object containing goals data, filters, and control functions
  *
@@ -68,6 +74,10 @@ export function useGoalListData(): UseGoalListDataReturn {
 
   /**
    * Load goals data from server
+   *
+   * This follows the same pattern as supervisor goal-review:
+   * 1. Fetch goals and reviews in parallel
+   * 2. Map reviews to goals using goal_id
    */
   const loadGoalData = useCallback(async () => {
     try {
@@ -78,18 +88,58 @@ export function useGoalListData(): UseGoalListDataReturn {
       const periodResult = await getCategorizedEvaluationPeriodsAction();
       if (periodResult.success && periodResult.data?.current) {
         setCurrentPeriod(periodResult.data.current);
+        const currentPeriodId = periodResult.data.current.id;
 
-        // Load all goals for current period (all statuses)
+        // Load goals first to get user's goals
         const goalsResult = await getGoalsAction({
-          periodId: periodResult.data.current.id,
+          periodId: currentPeriodId,
           limit: 100, // TODO: Implement pagination if needed
         });
 
-        if (goalsResult.success && goalsResult.data?.items) {
-          setGoals(goalsResult.data.items as GoalWithReview[]);
-        } else {
+        if (!goalsResult.success || !goalsResult.data?.items) {
           setError(goalsResult.error || '目標の読み込みに失敗しました');
+          return;
         }
+
+        const goals = goalsResult.data.items;
+
+        // If employee has goals, fetch reviews for those specific goals
+        // This avoids permission issues - employees can only see reviews for their own goals
+        let reviews: SupervisorReview[] = [];
+        if (goals.length > 0) {
+          // Fetch reviews for each goal (employees can access reviews for their own goals)
+          const reviewPromises = goals.map(goal =>
+            getSupervisorReviewsAction({
+              goalId: goal.id,
+              pagination: { limit: 10 }
+            })
+          );
+
+          const reviewResults = await Promise.all(reviewPromises);
+          reviewResults.forEach(result => {
+            if (result.success && result.data?.items) {
+              reviews.push(...result.data.items);
+            }
+          });
+        }
+
+        // Create a map of goal_id → review for quick lookup
+        // Use the most recent review for each goal
+        const reviewsMap = new Map<string, SupervisorReview>();
+        reviews.forEach(review => {
+          const existing = reviewsMap.get(review.goal_id);
+          if (!existing || new Date(review.created_at) > new Date(existing.created_at)) {
+            reviewsMap.set(review.goal_id, review);
+          }
+        });
+
+        // Map reviews to goals
+        const goalsWithReviews: GoalWithReview[] = goals.map(goal => ({
+          ...goal,
+          supervisorReview: reviewsMap.get(goal.id) || null
+        }));
+
+        setGoals(goalsWithReviews);
       } else {
         setCurrentPeriod(null);
         setError('評価期間が設定されていません');
