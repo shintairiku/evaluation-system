@@ -123,14 +123,40 @@ export function useGoalListData(): UseGoalListDataReturn {
           });
         }
 
+        console.log('🔍 [useGoalListData] Total goals:', goals.length);
+        console.log('🔍 [useGoalListData] Total reviews fetched:', reviews.length);
+        if (reviews.length > 0) {
+          console.log('🔍 [useGoalListData] Sample review:', reviews[0]);
+        }
+
         // Create a map of goal_id → review for quick lookup
-        // Use the most recent review for each goal
+        // Use the most recent review for each goal (based on reviewed_at or updated_at)
         const reviewsMap = new Map<string, SupervisorReview>();
         reviews.forEach(review => {
           const existing = reviewsMap.get(review.goal_id);
-          if (!existing || new Date(review.created_at) > new Date(existing.created_at)) {
+          if (!existing) {
             reviewsMap.set(review.goal_id, review);
+          } else {
+            // Compare by reviewed_at (if exists), otherwise updated_at, otherwise created_at
+            const reviewDate = review.reviewed_at || review.updated_at || review.created_at;
+            const existingDate = existing.reviewed_at || existing.updated_at || existing.created_at;
+            if (new Date(reviewDate) > new Date(existingDate)) {
+              reviewsMap.set(review.goal_id, review);
+            }
           }
+        });
+
+        console.log('🔍 [useGoalListData] Reviews mapped:', reviewsMap.size);
+
+        // Debug: Show which review was selected for each goal
+        reviewsMap.forEach((review, goalId) => {
+          console.log(`🔍 [useGoalListData] Goal ${goalId.substring(0, 8)} → Review:`, {
+            action: review.action,
+            comment: review.comment,
+            reviewed_at: review.reviewed_at,
+            updated_at: review.updated_at,
+            created_at: review.created_at
+          });
         });
 
         // Map reviews to goals
@@ -138,6 +164,15 @@ export function useGoalListData(): UseGoalListDataReturn {
           ...goal,
           supervisorReview: reviewsMap.get(goal.id) || null
         }));
+
+        console.log('🔍 [useGoalListData] Goals with reviews:',
+          goalsWithReviews.filter(g => g.supervisorReview !== null).length
+        );
+        goalsWithReviews.forEach(goal => {
+          if (goal.supervisorReview) {
+            console.log(`🔍 Goal ${goal.id.substring(0, 8)} has review with action: ${goal.supervisorReview.action}`);
+          }
+        });
 
         setGoals(goalsWithReviews);
       } else {
