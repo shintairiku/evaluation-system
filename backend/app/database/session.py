@@ -2,6 +2,7 @@ import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.pool import NullPool
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -23,7 +24,15 @@ if DATABASE_URL:
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Disable SQLAlchemy query logging to reduce log verbosity
-    pool_pre_ping=True,  # Verify connections before using them
+    poolclass=NullPool,  # Disable SQLAlchemy pooling when using pgbouncer transaction mode
+    connect_args={
+        "server_settings": {
+            "jit": "off",
+        },
+        # Disable prepared statement caching for pgbouncer transaction pooling compatibility
+        # pgbouncer transaction mode rotates backend connections, which breaks prepared statements
+        "statement_cache_size": 0,
+    }
 )
 AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
