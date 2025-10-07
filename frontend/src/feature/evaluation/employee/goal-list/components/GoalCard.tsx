@@ -115,12 +115,6 @@ export const GoalCard = React.memo<GoalCardProps>(
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Display supervisor comment (rejection or approval) */}
-          <SupervisorCommentBanner
-            supervisorReview={goal.supervisorReview || null}
-            goalStatus={goal.status}
-          />
-
           {/* Goal details preview */}
           <div className="space-y-2">
             {goal.goalCategory === '業績目標' && goal.specificGoalText && (
@@ -142,6 +136,12 @@ export const GoalCard = React.memo<GoalCardProps>(
               </div>
             )}
           </div>
+
+          {/* Display supervisor comment (rejection or approval) */}
+          <SupervisorCommentBanner
+            supervisorReview={goal.supervisorReview || null}
+            goalStatus={goal.status}
+          />
         </CardContent>
 
         <CardFooter className="flex justify-end">
