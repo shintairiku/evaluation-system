@@ -27,7 +27,7 @@ class Settings:
     APP_DESCRIPTION: str = "Human Resources Evaluation and Performance Management System"
     
     # Environment configuration
-    ENVIRONMENT: Environment = Environment(os.getenv("ENVIRONMENT", "development"))
+    ENVIRONMENT: Environment = Environment(os.getenv("ENVIRONMENT") or "development")
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     
     # =============================================================================
