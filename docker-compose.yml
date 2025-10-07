@@ -44,4 +44,7 @@ services:
       - CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET}
       - CLERK_ORGANIZATION_ENABLED=${CLERK_ORGANIZATION_ENABLED}
       - DEBUG=${DEBUG}
-      - LOG_LEVEL=${LOG_LEVEL} 
+      - LOG_LEVEL=${LOG_LEVEL}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4 
