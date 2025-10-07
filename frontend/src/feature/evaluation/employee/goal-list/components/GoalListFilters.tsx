@@ -76,7 +76,7 @@ export const GoalListFilters = React.memo<GoalListFiltersProps>(
           )}
         </div>
 
-        <div className="space-y-3">
+        <div className="flex flex-wrap gap-4">
           {STATUS_OPTIONS.map((option) => {
             const isChecked = selectedStatuses.includes(option.value);
             const checkboxId = `status-${option.value}`;
