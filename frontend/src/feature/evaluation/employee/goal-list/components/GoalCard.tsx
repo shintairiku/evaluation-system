@@ -78,12 +78,13 @@ export const GoalCard = React.memo<GoalCardProps>(
     };
 
     // Determine button text and action based on status
+    // Only show action buttons when employee can/should take action
     const getActionButton = () => {
       switch (goal.status) {
         case 'draft':
           return (
             <Button
-              onClick={() => router.push(`/goal-input?edit=${goal.id}`)}
+              onClick={() => router.push(`/goal-edit/${goal.id}`)}
               variant="outline"
             >
               編集
@@ -92,7 +93,7 @@ export const GoalCard = React.memo<GoalCardProps>(
         case 'rejected':
           return (
             <Button
-              onClick={() => router.push(`/goal-input?edit=${goal.id}`)}
+              onClick={() => router.push(`/goal-edit/${goal.id}`)}
               variant="default"
             >
               編集・再提出
@@ -100,14 +101,8 @@ export const GoalCard = React.memo<GoalCardProps>(
           );
         case 'submitted':
         case 'approved':
-          return (
-            <Button
-              onClick={() => router.push(`/goal-input?view=${goal.id}`)}
-              variant="outline"
-            >
-              確認
-            </Button>
-          );
+          // No action needed - all info is already visible in the card
+          return null;
         default:
           return null;
       }
