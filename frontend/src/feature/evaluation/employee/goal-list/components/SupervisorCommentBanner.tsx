@@ -107,16 +107,19 @@ export const SupervisorCommentBanner = React.memo<SupervisorCommentBannerProps>(
       return (
         <Alert variant="destructive" className={className}>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>目標が差し戻されました</AlertTitle>
+          <AlertTitle className="flex items-center justify-between">
+            <span>目標が差し戻されました</span>
+            {reviewedAt && (
+              <span className="text-sm font-normal opacity-90">
+                差し戻し日: {reviewedAt}
+              </span>
+            )}
+          </AlertTitle>
           <AlertDescription className="mt-2 space-y-2">
+            <div className="text-sm font-semibold">上司からのコメント:</div>
             <div className="font-medium">
               {comment}
             </div>
-            {reviewedAt && (
-              <div className="text-sm opacity-90">
-                差し戻し日: {reviewedAt}
-              </div>
-            )}
           </AlertDescription>
         </Alert>
       );
@@ -127,16 +130,19 @@ export const SupervisorCommentBanner = React.memo<SupervisorCommentBannerProps>(
       return (
         <Alert className={className}>
           <CheckCircle className="h-4 w-4" />
-          <AlertTitle>目標が承認されました</AlertTitle>
+          <AlertTitle className="flex items-center justify-between">
+            <span>目標が承認されました</span>
+            {reviewedAt && (
+              <span className="text-sm font-normal opacity-90">
+                承認日: {reviewedAt}
+              </span>
+            )}
+          </AlertTitle>
           <AlertDescription className="mt-2 space-y-2">
+            <div className="text-sm font-semibold text-muted-foreground">上司からのコメント:</div>
             <div className="font-medium">
               {comment}
             </div>
-            {reviewedAt && (
-              <div className="text-sm opacity-90">
-                承認日: {reviewedAt}
-              </div>
-            )}
           </AlertDescription>
         </Alert>
       );
