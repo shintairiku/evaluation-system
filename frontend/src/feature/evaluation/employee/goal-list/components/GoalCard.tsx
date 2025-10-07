@@ -172,12 +172,6 @@ export const GoalCard = React.memo<GoalCardProps>(
                   </div>
                 </div>
               )}
-
-              {goal.performanceGoalType && (
-                <div className="text-sm text-muted-foreground">
-                  <span>タイプ: {goal.performanceGoalType === 'quantitative' ? '定量的' : '定性的'}</span>
-                </div>
-              )}
             </div>
           )}
 

@@ -221,23 +221,6 @@ export default function GoalEditDisplay() {
                   placeholder="方法を入力"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  タイプ
-                </label>
-                <select
-                  value={performanceFormData.performanceGoalType}
-                  onChange={(e) => setPerformanceFormData({
-                    ...performanceFormData,
-                    performanceGoalType: e.target.value as 'quantitative' | 'qualitative'
-                  })}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="quantitative">定量的</option>
-                  <option value="qualitative">定性的</option>
-                </select>
-              </div>
             </>
           )}
 
