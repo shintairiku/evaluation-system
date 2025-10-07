@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GoalStatusBadge } from '@/feature/evaluation/superviser/goal-review/components/GoalStatusBadge';
-import { RejectionCommentBanner } from './RejectionCommentBanner';
+import { SupervisorCommentBanner } from './SupervisorCommentBanner';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { useRouter } from 'next/navigation';
 
@@ -21,7 +21,7 @@ interface GoalCardProps {
  *
  * Features:
  * - Displays goal title/category and status badge
- * - Shows rejection comments if applicable (persists based on supervisorReview.action)
+ * - Shows supervisor comments (rejection or approval) if applicable
  * - Provides action buttons based on goal status:
  *   - draft: 編集 / 提出
  *   - submitted: 確認 (read-only)
@@ -39,6 +39,16 @@ interface GoalCardProps {
 export const GoalCard = React.memo<GoalCardProps>(
   function GoalCard({ goal, className }: GoalCardProps) {
     const router = useRouter();
+
+    // Debug log for rejected goals
+    if (goal.status === 'rejected') {
+      console.log('🔴 [GoalCard] REJECTED GOAL:', {
+        id: goal.id,
+        status: goal.status,
+        supervisorReview: goal.supervisorReview,
+        reviewAction: goal.supervisorReview?.action
+      });
+    }
 
     // Determine display title based on goal category
     const displayTitle = goal.goalCategory === '業績目標'
@@ -105,10 +115,11 @@ export const GoalCard = React.memo<GoalCardProps>(
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Display rejection comment if exists - based on supervisorReview.action */}
-          {goal.supervisorReview && (
-            <RejectionCommentBanner supervisorReview={goal.supervisorReview} />
-          )}
+          {/* Display supervisor comment (rejection or approval) */}
+          <SupervisorCommentBanner
+            supervisorReview={goal.supervisorReview || null}
+            goalStatus={goal.status}
+          />
 
           {/* Goal details preview */}
           <div className="space-y-2">
