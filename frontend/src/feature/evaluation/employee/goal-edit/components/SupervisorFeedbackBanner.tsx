@@ -70,61 +70,90 @@ export const SupervisorFeedbackBanner = React.memo<SupervisorFeedbackBannerProps
     // Render rejection feedback
     if (isRejected) {
       return (
-        <Alert variant="destructive" className={`${className} border-2`}>
-          <AlertCircle className="h-5 w-5" />
-          <AlertTitle className="text-base font-bold">
-            この目標は差し戻されました
-          </AlertTitle>
-          <AlertDescription className="mt-3 space-y-3">
-            <div>
-              <p className="text-sm font-semibold mb-1">上司からのフィードバック:</p>
-              <div className="bg-white/10 p-3 rounded-md">
-                <p className="whitespace-pre-wrap">{comment}</p>
-              </div>
+        <div className={`${className} bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 rounded-lg p-6 shadow-md`}>
+          {/* Header with icon and title */}
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex-shrink-0 w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-white" />
             </div>
-            {reviewedAt && (
-              <p className="text-sm opacity-90">
-                差し戻し日時: {formatDate(reviewedAt)}
-              </p>
-            )}
-            <div className="border-t border-white/20 pt-3 mt-3">
-              <p className="text-sm font-semibold">次のステップ:</p>
-              <p className="text-sm mt-1">
-                上記のフィードバックを参考に目標を修正し、再度提出してください。
-              </p>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-red-900 mb-1">
+                目標が差し戻されました
+              </h3>
+              {reviewedAt && (
+                <p className="text-sm text-red-700">
+                  {formatDate(reviewedAt)}
+                </p>
+              )}
             </div>
-          </AlertDescription>
-        </Alert>
+          </div>
+
+          {/* Feedback section */}
+          <div className="bg-white rounded-lg p-4 shadow-sm border border-red-200 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-6 bg-red-500 rounded-full"></div>
+              <h4 className="font-bold text-gray-900">上司からのフィードバック</h4>
+            </div>
+            <div className="pl-4 border-l-2 border-red-200">
+              <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">{comment}</p>
+            </div>
+          </div>
+
+          {/* Next steps */}
+          <div className="bg-red-500/10 rounded-lg p-4 border border-red-300">
+            <h4 className="font-semibold text-red-900 mb-2">
+              次のステップ
+            </h4>
+            <p className="text-sm text-red-800">
+              上記のフィードバックを参考に目標を修正し、下記のフォームから再度提出してください。
+            </p>
+          </div>
+        </div>
       );
     }
 
     // Render approval feedback
     if (isApproved) {
       return (
-        <Alert className={`${className} border-2 border-green-200 bg-green-50`}>
-          <CheckCircle className="h-5 w-5 text-green-600" />
-          <AlertTitle className="text-base font-bold text-green-900">
-            この目標は承認されました
-          </AlertTitle>
-          <AlertDescription className="mt-3 space-y-3 text-green-900">
-            <div>
-              <p className="text-sm font-semibold mb-1">上司からのコメント:</p>
-              <div className="bg-white p-3 rounded-md border border-green-200">
-                <p className="whitespace-pre-wrap">{comment}</p>
-              </div>
+        <div className={`${className} bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-lg p-6 shadow-md`}>
+          {/* Header with icon and title */}
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+              <CheckCircle className="h-6 w-6 text-white" />
             </div>
-            {reviewedAt && (
-              <p className="text-sm opacity-75">
-                承認日時: {formatDate(reviewedAt)}
-              </p>
-            )}
-            <div className="border-t border-green-200 pt-3 mt-3">
-              <p className="text-sm">
-                この目標は承認済みです。必要に応じて編集できますが、再度承認が必要になります。
-              </p>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-green-900 mb-1">
+                目標が承認されました
+              </h3>
+              {reviewedAt && (
+                <p className="text-sm text-green-700">
+                  {formatDate(reviewedAt)}
+                </p>
+              )}
             </div>
-          </AlertDescription>
-        </Alert>
+          </div>
+
+          {/* Feedback section */}
+          <div className="bg-white rounded-lg p-4 shadow-sm border border-green-200 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-6 bg-green-500 rounded-full"></div>
+              <h4 className="font-bold text-gray-900">上司からのコメント</h4>
+            </div>
+            <div className="pl-4 border-l-2 border-green-200">
+              <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">{comment}</p>
+            </div>
+          </div>
+
+          {/* Info note */}
+          <div className="bg-green-500/10 rounded-lg p-4 border border-green-300">
+            <h4 className="font-semibold text-green-900 mb-2">
+              お知らせ
+            </h4>
+            <p className="text-sm text-green-800">
+              この目標は承認済みです。必要に応じて編集できますが、変更した場合は再度承認が必要になります。
+            </p>
+          </div>
+        </div>
       );
     }
 
