@@ -265,6 +265,7 @@ class Goal(BaseModel):
     status: GoalStatus
     approved_by: Optional[UUID] = Field(None, alias="approvedBy")
     approved_at: Optional[datetime] = Field(None, alias="approvedAt")
+    previous_goal_id: Optional[UUID] = Field(None, alias="previousGoalId")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
     
