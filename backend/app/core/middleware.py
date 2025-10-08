@@ -6,6 +6,7 @@ import re
 from fastapi import Request, Response, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import Headers
 
 from ..database.repositories.organization_repo import OrganizationRepository
 from ..services.auth_service import AuthService
@@ -23,9 +24,38 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
         # Pattern to match /api/org/{org_slug}/... routes
         self.org_route_pattern = re.compile(r'^/api/org/([^/]+)/')
 
+        # Public routes that don't require authentication
+        self.public_routes = {
+            '/',
+            '/health',
+            '/docs',
+            '/redoc',
+            '/openapi.json',
+        }
+
+        # Public route prefixes (for pattern matching)
+        self.public_prefixes = [
+            '/webhooks/',  # Webhooks use signature verification
+            '/api/v1/auth/',  # Auth endpoints are organization-agnostic
+        ]
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Check if this is an organization-scoped route
         path = request.url.path
+
+        # Allow OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        # Allow public routes to pass through without authentication
+        if path in self.public_routes:
+            return await call_next(request)
+
+        # Allow public route prefixes to pass through
+        for prefix in self.public_prefixes:
+            if path.startswith(prefix):
+                return await call_next(request)
+
+        # Check if this is an organization-scoped route
         match = self.org_route_pattern.match(path)
 
         if not match:
@@ -36,15 +66,19 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
         org_slug = match.group(1)
 
         try:
-            # Get authorization header
-            auth_header = request.headers.get("Authorization")
-            if not auth_header or not auth_header.startswith("Bearer "):
+            # Normalize headers for case-insensitive lookup
+            headers = Headers(request.headers)
+
+            # Support any casing for the Authorization header, including lowercase from proxies
+            auth_header = headers.get("authorization")
+            if not auth_header or not auth_header.lower().startswith("bearer "):
                 raise HTTPException(
                     status_code=401,
                     detail="Missing or invalid Authorization header"
                 )
 
-            token = auth_header.split(" ")[1]
+            # Preserve token casing while ignoring prefix casing
+            token = auth_header.split(" ", 1)[1]
 
             # Get database session and validate organization
             session_gen = self.get_session()
@@ -66,10 +100,26 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
                     )
 
                 # Check if user belongs to this organization
-                if auth_user.organization_id != organization.id:
+                # Both auth_user.organization_id and organization.id are Clerk org IDs (String type)
+                # We compare IDs for authoritative check, and log slugs for debugging
+                user_org_id = auth_user.organization_id
+                user_org_slug = auth_user.organization_slug
+                db_org_id = organization.id
+                db_org_slug = organization.slug
+
+                logger.debug(
+                    f"Org validation: URL slug='{org_slug}', "
+                    f"JWT org_id='{user_org_id}', JWT slug='{user_org_slug}', "
+                    f"DB org_id='{db_org_id}', DB slug='{db_org_slug}'"
+                )
+
+                # Primary check: organization ID must match
+                if user_org_id != db_org_id:
                     logger.warning(
-                        f"User {auth_user.clerk_id} attempted to access org {org_slug} "
-                        f"but belongs to org {auth_user.organization_id}"
+                        f"Organization access denied: User {auth_user.clerk_id} "
+                        f"(org_id={user_org_id}, slug={user_org_slug}) "
+                        f"attempted to access org slug '{org_slug}' "
+                        f"(db_org_id={db_org_id}, db_slug={db_org_slug})"
                     )
                     raise HTTPException(
                         status_code=403,
