@@ -25,11 +25,11 @@ export const groups = [
         permission: 'employee'
       },
       {
-        href: '/past-goal',
-        label: '目標etc一覧',
-        sublabel: 'Goal History',
+        href: '/goal-list',
+        label: '目標一覧',
+        sublabel: 'Goal List',
         icon: 'list',
-        permission: 'authenticated'
+        permission: 'employee'
       },
       {
         href: '/user-profiles',
