@@ -12,6 +12,12 @@ interface GoalListFiltersProps {
   selectedStatuses: GoalStatus[];
   /** Callback when status filter changes */
   onStatusChange: (statuses: GoalStatus[]) => void;
+  /** Show only resubmissions flag */
+  showResubmissionsOnly: boolean;
+  /** Callback when resubmissions filter changes */
+  onResubmissionsOnlyChange: (value: boolean) => void;
+  /** Count of goals with previousGoalId (for display) */
+  resubmissionCount?: number;
   /** Optional custom className */
   className?: string;
 }
@@ -46,7 +52,14 @@ const STATUS_OPTIONS: { value: GoalStatus; label: string }[] = [
  * ```
  */
 export const GoalListFilters = React.memo<GoalListFiltersProps>(
-  function GoalListFilters({ selectedStatuses, onStatusChange, className }: GoalListFiltersProps) {
+  function GoalListFilters({
+    selectedStatuses,
+    onStatusChange,
+    showResubmissionsOnly,
+    onResubmissionsOnlyChange,
+    resubmissionCount = 0,
+    className
+  }: GoalListFiltersProps) {
 
     const handleStatusToggle = (status: GoalStatus) => {
       if (selectedStatuses.includes(status)) {
@@ -58,6 +71,7 @@ export const GoalListFilters = React.memo<GoalListFiltersProps>(
 
     const handleReset = () => {
       onStatusChange([]);
+      onResubmissionsOnlyChange(false);
     };
 
     return (
@@ -99,10 +113,35 @@ export const GoalListFilters = React.memo<GoalListFiltersProps>(
           })}
         </div>
 
-        {selectedStatuses.length > 0 && (
+        {/* Resubmissions filter */}
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="resubmissions-only"
+              checked={showResubmissionsOnly}
+              onCheckedChange={(checked) => onResubmissionsOnlyChange(checked === true)}
+            />
+            <Label
+              htmlFor="resubmissions-only"
+              className="text-sm font-normal cursor-pointer"
+            >
+              再提出が必要な目標のみ表示
+              {resubmissionCount > 0 && (
+                <span className="ml-1 text-muted-foreground">
+                  ({resubmissionCount}件)
+                </span>
+              )}
+            </Label>
+          </div>
+        </div>
+
+        {(selectedStatuses.length > 0 || showResubmissionsOnly) && (
           <div className="mt-4 pt-4 border-t">
             <p className="text-sm text-muted-foreground">
-              {selectedStatuses.length}件のステータスで絞り込み中
+              {selectedStatuses.length > 0 && `${selectedStatuses.length}件のステータス`}
+              {selectedStatuses.length > 0 && showResubmissionsOnly && ' + '}
+              {showResubmissionsOnly && '再提出のみ'}
+              で絞り込み中
             </p>
           </div>
         )}

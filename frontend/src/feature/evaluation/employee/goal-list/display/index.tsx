@@ -37,7 +37,10 @@ export default function GoalListPage() {
     error,
     selectedStatuses,
     currentPeriod,
+    showResubmissionsOnly,
+    resubmissionCount,
     setSelectedStatuses,
+    setShowResubmissionsOnly,
     refetch,
   } = useGoalListData();
 
@@ -95,7 +98,7 @@ export default function GoalListPage() {
 
   // Empty state
   if (filteredGoals.length === 0) {
-    const isFiltered = selectedStatuses.length > 0;
+    const isFiltered = selectedStatuses.length > 0 || showResubmissionsOnly;
 
     return (
       <div className="container mx-auto p-4 md:p-6">
@@ -113,6 +116,9 @@ export default function GoalListPage() {
             <GoalListFilters
               selectedStatuses={selectedStatuses}
               onStatusChange={setSelectedStatuses}
+              showResubmissionsOnly={showResubmissionsOnly}
+              onResubmissionsOnlyChange={setShowResubmissionsOnly}
+              resubmissionCount={resubmissionCount}
             />
           </div>
 
@@ -127,7 +133,10 @@ export default function GoalListPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedStatuses([])}
+                onClick={() => {
+                  setSelectedStatuses([]);
+                  setShowResubmissionsOnly(false);
+                }}
                 className="mt-4"
               >
                 フィルターをリセット
@@ -161,6 +170,9 @@ export default function GoalListPage() {
           <GoalListFilters
             selectedStatuses={selectedStatuses}
             onStatusChange={setSelectedStatuses}
+            showResubmissionsOnly={showResubmissionsOnly}
+            onResubmissionsOnlyChange={setShowResubmissionsOnly}
+            resubmissionCount={resubmissionCount}
           />
         </div>
 

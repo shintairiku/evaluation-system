@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Target, Brain, Calendar, Weight, Loader2, AlertCircle } from 'lucide-react';
 import { GoalStatusBadge } from '@/feature/evaluation/superviser/goal-review/components/GoalStatusBadge';
@@ -142,6 +143,11 @@ export const GoalCard = React.memo<GoalCardProps>(
             </div>
             <div className="flex items-center gap-2">
               <GoalStatusBadge status={goal.status} />
+              {goal.previousGoalId && (
+                <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50">
+                  再提出
+                </Badge>
+              )}
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Weight className="h-3 w-3" />
                 <span>{goal.weight}%</span>

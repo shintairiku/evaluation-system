@@ -29,8 +29,14 @@ export interface UseGoalListDataReturn {
   selectedStatuses: GoalStatus[];
   /** Current evaluation period */
   currentPeriod: EvaluationPeriod | null;
+  /** Show only resubmissions flag */
+  showResubmissionsOnly: boolean;
+  /** Count of goals with previousGoalId */
+  resubmissionCount: number;
   /** Function to update status filters */
   setSelectedStatuses: (statuses: GoalStatus[]) => void;
+  /** Function to update resubmissions filter */
+  setShowResubmissionsOnly: (value: boolean) => void;
   /** Function to reload data */
   refetch: () => Promise<void>;
 }
@@ -70,6 +76,7 @@ export function useGoalListData(): UseGoalListDataReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStatuses, setSelectedStatuses] = useState<GoalStatus[]>([]);
+  const [showResubmissionsOnly, setShowResubmissionsOnly] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
 
   /**
@@ -107,6 +114,13 @@ export function useGoalListData(): UseGoalListDataReturn {
         // Filter out rejected goals from display (they're replaced by new draft copies)
         const activeGoals = goals.filter(goal => goal.status !== 'rejected');
 
+        console.log('🔍 [useGoalListData] All goals:', goals.map(g => ({
+          id: g.id.substring(0, 8),
+          status: g.status,
+          previousGoalId: g.previousGoalId?.substring(0, 8) || null
+        })));
+        console.log('🔍 [useGoalListData] Active goals (non-rejected):', activeGoals.length);
+
         // If employee has goals, fetch reviews for those specific goals
         // This avoids permission issues - employees can only see reviews for their own goals
         let reviews: SupervisorReview[] = [];
@@ -122,18 +136,26 @@ export function useGoalListData(): UseGoalListDataReturn {
           // Also fetch reviews for previous goals (if goal has previousGoalId)
           const previousGoalReviewPromises = activeGoals
             .filter(goal => goal.previousGoalId)
-            .map(goal =>
-              getSupervisorReviewsAction({
+            .map(goal => {
+              console.log('🔍 [useGoalListData] Fetching review for previousGoalId:', goal.previousGoalId?.substring(0, 8));
+              return getSupervisorReviewsAction({
                 goalId: goal.previousGoalId!,
                 pagination: { limit: 10 }
-              })
-            );
+              });
+            });
+
+          console.log('🔍 [useGoalListData] Fetching reviews for', previousGoalReviewPromises.length, 'previous goals');
 
           const allReviewPromises = [...reviewPromises, ...previousGoalReviewPromises];
           const reviewResults = await Promise.all(allReviewPromises);
 
           reviewResults.forEach(result => {
             if (result.success && result.data?.items) {
+              console.log('🔍 [useGoalListData] Review result:', result.data.items.map(r => ({
+                goal_id: r.goal_id.substring(0, 8),
+                action: r.action,
+                comment: r.comment?.substring(0, 50)
+              })));
               reviews.push(...result.data.items);
             }
           });
@@ -204,14 +226,30 @@ export function useGoalListData(): UseGoalListDataReturn {
   }, []);
 
   /**
-   * Filter goals based on selected statuses
+   * Count goals with previousGoalId (resubmissions)
+   */
+  const resubmissionCount = useMemo(() => {
+    return goals.filter(goal => goal.previousGoalId !== null && goal.previousGoalId !== undefined).length;
+  }, [goals]);
+
+  /**
+   * Filter goals based on selected statuses and resubmissions flag
    */
   const filteredGoals = useMemo(() => {
-    if (selectedStatuses.length === 0) {
-      return goals; // No filter, return all
+    let result = goals;
+
+    // Step 1: Filter by status
+    if (selectedStatuses.length > 0) {
+      result = result.filter(goal => selectedStatuses.includes(goal.status));
     }
-    return goals.filter(goal => selectedStatuses.includes(goal.status));
-  }, [goals, selectedStatuses]);
+
+    // Step 2: Filter by resubmissions only (if checked)
+    if (showResubmissionsOnly) {
+      result = result.filter(goal => goal.previousGoalId !== null && goal.previousGoalId !== undefined);
+    }
+
+    return result;
+  }, [goals, selectedStatuses, showResubmissionsOnly]);
 
   /**
    * Load data on mount
@@ -227,7 +265,10 @@ export function useGoalListData(): UseGoalListDataReturn {
     error,
     selectedStatuses,
     currentPeriod,
+    showResubmissionsOnly,
+    resubmissionCount,
     setSelectedStatuses,
+    setShowResubmissionsOnly,
     refetch: loadGoalData,
   };
 }
