@@ -140,7 +140,7 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx  # From Clerk
 CLERK_SECRET_KEY=sk_live_xxxxx                   # From Clerk (same as backend)
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co # From Supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...        # From Supabase
-NEXT_PUBLIC_API_URL=https://backend-xxx.run.app  # Will get after backend deploy
+NEXT_PUBLIC_API_BASE_URL=https://backend-xxx.run.app  # Will get after backend deploy
 ```
 
 ---
@@ -293,7 +293,7 @@ echo "✅ Backend deployed successfully!"
 echo "Backend URL: $BACKEND_URL"
 echo ""
 echo "⚠️  IMPORTANT: Save this URL! You'll need it for:"
-echo "   1. Frontend deployment (NEXT_PUBLIC_API_URL)"
+echo "   1. Frontend deployment (NEXT_PUBLIC_API_BASE_URL)"
 echo "   2. Clerk webhook configuration"
 ```
 
@@ -324,38 +324,181 @@ open $BACKEND_URL/docs  # Opens FastAPI Swagger UI in browser
 1. **Create Development Secrets** (separate from production)
 
 ```bash
-# Create service account
+# Create development-specific secrets
+echo -n "sk_test_YOUR_CLERK_DEV_SECRET_KEY" | gcloud secrets create clerk-secret-key-dev --data-file=-
+echo -n "postgresql://postgres.[DEV-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true" | gcloud secrets create database-url-dev --data-file=-
+echo -n "https://your-dev-app.clerk.accounts.dev" | gcloud secrets create clerk-issuer-dev --data-file=-
+echo -n "your-dev-domain.com" | gcloud secrets create clerk-audience-dev --data-file=-
+echo -n "whsec_DEV_WEBHOOK_SECRET" | gcloud secrets create clerk-webhook-secret-dev --data-file=-
+echo -n "$(openssl rand -hex 32)" | gcloud secrets create app-secret-key-dev --data-file=-
+
+# Grant permissions for dev secrets
+for secret in clerk-secret-key-dev database-url-dev clerk-issuer-dev clerk-audience-dev clerk-webhook-secret-dev app-secret-key-dev; do
+  gcloud secrets add-iam-policy-binding $secret \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+done
+```
+
+2. **Deploy Development Environment**
+
+```bash
+# Build and deploy development version
+docker build -t gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:latest -f backend/Dockerfile.prod ./backend
+docker push gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:latest
+
+# Deploy to separate Cloud Run service
+gcloud run deploy hr-evaluation-backend-dev \
+  --image gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:latest \
+  --region $REGION \
+  --platform managed \
+  --allow-unauthenticated \
+  --set-env-vars "ENVIRONMENT=development,LOG_LEVEL=DEBUG,DEBUG=True" \
+  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,SUPABASE_DATABASE_URL=database-url-dev:latest,CLERK_ISSUER=clerk-issuer-dev:latest,CLERK_AUDIENCE=clerk-audience-dev:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,SECRET_KEY=app-secret-key-dev:latest" \
+  --min-instances 0 \
+  --max-instances 5 \
+  --memory 512Mi \
+  --cpu 1 \
+  --timeout 300s \
+  --port 8000
+
+# Get development backend URL
+export DEV_BACKEND_URL=$(gcloud run services describe hr-evaluation-backend-dev \
+  --region $REGION \
+  --format 'value(status.url)')
+
+echo "✅ Development backend deployed!"
+echo "Development Backend URL: $DEV_BACKEND_URL"
+```
+
+3. **Automated Deployment via GitHub Actions**
+
+Create `.github/workflows/deploy-backend.yml`:
+
+```yaml
+name: Deploy Backend to Cloud Run
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['backend/**']
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+    
+    - name: Configure Docker
+      run: gcloud auth configure-docker
+    
+    - name: Set environment variables
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "SERVICE_NAME=hr-evaluation-backend" >> $GITHUB_ENV
+          echo "IMAGE_TAG=prod" >> $GITHUB_ENV
+          echo "SECRETS_SUFFIX=" >> $GITHUB_ENV
+          echo "ENV_MODE=production" >> $GITHUB_ENV
+          echo "DEBUG_MODE=False" >> $GITHUB_ENV
+        else
+          echo "SERVICE_NAME=hr-evaluation-backend-dev" >> $GITHUB_ENV
+          echo "IMAGE_TAG=dev" >> $GITHUB_ENV
+          echo "SECRETS_SUFFIX=-dev" >> $GITHUB_ENV
+          echo "ENV_MODE=development" >> $GITHUB_ENV
+          echo "DEBUG_MODE=True" >> $GITHUB_ENV
+        fi
+    
+    - name: Build Docker image
+      run: |
+        docker build -t gcr.io/$PROJECT_ID/$SERVICE_NAME:$IMAGE_TAG \
+          -f backend/Dockerfile.prod ./backend
+    
+    - name: Push Docker image
+      run: docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:$IMAGE_TAG
+    
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy $SERVICE_NAME \
+          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:$IMAGE_TAG \
+          --region $REGION \
+          --platform managed \
+          --allow-unauthenticated \
+          --set-env-vars "ENVIRONMENT=$ENV_MODE,LOG_LEVEL=INFO,DEBUG=$DEBUG_MODE" \
+          --set-secrets "CLERK_SECRET_KEY=clerk-secret-key$SECRETS_SUFFIX:latest,SUPABASE_DATABASE_URL=database-url$SECRETS_SUFFIX:latest,CLERK_ISSUER=clerk-issuer$SECRETS_SUFFIX:latest,CLERK_AUDIENCE=clerk-audience$SECRETS_SUFFIX:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret$SECRETS_SUFFIX:latest,SECRET_KEY=app-secret-key$SECRETS_SUFFIX:latest" \
+          --min-instances 0 \
+          --max-instances 10 \
+          --memory 512Mi \
+          --cpu 1 \
+          --timeout 300s \
+          --port 8000
+```
+
+4. **Setup GitHub Secrets**
+
+Go to GitHub repository → Settings → Secrets and variables → Actions:
+
+- `GCP_PROJECT_ID`: Your GCP project ID
+- `GCP_SA_KEY`: Service account JSON key (create as shown below)
+- `GCP_REGION`: Your deployment region (e.g., `asia-northeast1`)
+
+**Create Service Account:**
+```bash
+# Create service account for GitHub Actions
 gcloud iam service-accounts create github-actions \
   --display-name="GitHub Actions Deployment"
 
 # Grant necessary permissions
-gcloud projects add-iam-policy-binding hr-evaluation-system \
-  --member="serviceAccount:github-actions@hr-evaluation-system.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:github-actions@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/run.admin"
 
-gcloud projects add-iam-policy-binding hr-evaluation-system \
-  --member="serviceAccount:github-actions@hr-evaluation-system.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:github-actions@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/storage.admin"
 
-gcloud projects add-iam-policy-binding hr-evaluation-system \
-  --member="serviceAccount:github-actions@hr-evaluation-system.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:github-actions@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/iam.serviceAccountUser"
 
 # Create and download JSON key
 gcloud iam service-accounts keys create github-actions-key.json \
-  --iam-account=github-actions@hr-evaluation-system.iam.gserviceaccount.com
+  --iam-account=github-actions@$PROJECT_ID.iam.gserviceaccount.com
+
+# Copy contents of github-actions-key.json to GCP_SA_KEY secret
 ```
 
-2. **Add GitHub Secrets**
+5. **Deploy by Pushing to Branches**
 
-Go to your GitHub repository → Settings → Secrets and variables → Actions
+```bash
+# Deploy to production (main branch)
+git checkout main
+git add .
+git commit -m "Deploy to production"
+git push origin main
 
-Add the following secrets:
-- `GCP_PROJECT_ID`: `hr-evaluation-system`
-- `GCP_SA_KEY`: Contents of `github-actions-key.json`
-- `GCP_REGION`: `us-central1` (or your preferred region)
+# Deploy to development (develop branch)
+git checkout develop
+git add .
+git commit -m "Deploy to development"
+git push origin develop
+```
 
-3. **Push to Deploy**
+**Result:**
+- `main` branch → `https://hr-evaluation-backend-xxx.run.app` (production)
+- `develop` branch → `https://hr-evaluation-backend-dev-xxx.run.app` (development)
+
+---
+
 
 ```bash
 git add .
