@@ -20,7 +20,8 @@ app = FastAPI(
     description="API for managing employee evaluations, goals, and performance reports",
     version="1.0.0",
     docs_url="/docs" if settings.is_development else None,
-    redoc_url="/redoc" if settings.is_development else None
+    redoc_url="/redoc" if settings.is_development else None,
+    redirect_slashes=False  # Disable automatic trailing slash redirects to prevent auth header loss
 )
 
 # CORS configuration - use settings for environment-specific origins
