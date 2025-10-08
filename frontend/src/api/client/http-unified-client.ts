@@ -347,11 +347,11 @@ class UnifiedHttpClient {
   private async getAuthHeaders(): Promise<Record<string, string>> {
     try {
       if (isServer) {
-        // Server-side: Use @clerk/nextjs/server
+        // Server-side: Use @clerk/nextjs/server (Next.js 15 - auth() is async)
         const { auth } = await import('@clerk/nextjs/server');
-        const { getToken } = await auth();
-        const token = await getToken({ template: 'org-jwt' });
-        
+        const authData = await auth();
+        const token = await authData.getToken({ template: 'org-jwt' });
+
         if (token) {
           return {
             'Authorization': `Bearer ${token}`,
