@@ -68,131 +68,131 @@ export const buildOrgApiUrl = (orgSlug: string, endpoint: string) => {
 export const API_ENDPOINTS = {
   // Auth endpoints (organization-agnostic)
   AUTH: {
-    USER_BY_CLERK_ID: (clerkId: string) => buildApiUrl(`/auth/user/${clerkId}/`),
-    SIGNUP_PROFILE_OPTIONS: buildApiUrl('/auth/signup/profile-options/'),
-    LOGOUT: buildApiUrl('/auth/logout/'),
-    // DEV_KEYS: buildApiUrl('/auth/dev-keys/'),
+    USER_BY_CLERK_ID: (clerkId: string) => buildApiUrl(`/auth/user/${clerkId}`),
+    SIGNUP_PROFILE_OPTIONS: buildApiUrl('/auth/signup/profile-options'),
+    LOGOUT: buildApiUrl('/auth/logout'),
+    // DEV_KEYS: buildApiUrl('/auth/dev-keys'),
   },
 
   // User endpoints (organization-scoped)
   USERS: {
     LIST: '/users/',
-    BY_ID: (id: string) => `/users/${id}/`,
+    BY_ID: (id: string) => `/users/${id}`,
     CREATE: '/users/',
-    UPDATE: (id: string) => `/users/${id}/`,
-    UPDATE_STAGE: (id: string) => `/users/${id}/stage/`,
-    DELETE: (id: string) => `/users/${id}/`,
-    ORG_CHART: '/users/org-chart/',
+    UPDATE: (id: string) => `/users/${id}`,
+    UPDATE_STAGE: (id: string) => `/users/${id}/stage`,
+    DELETE: (id: string) => `/users/${id}`,
+    ORG_CHART: '/users/org-chart',
   },
 
   // Department endpoints
   DEPARTMENTS: {
     LIST: '/departments/',
-    BY_ID: (id: string) => `/departments/${id}/`,
+    BY_ID: (id: string) => `/departments/${id}`,
     CREATE: '/departments/',
-    UPDATE: (id: string) => `/departments/${id}/`,
-    DELETE: (id: string) => `/departments/${id}/`,
+    UPDATE: (id: string) => `/departments/${id}`,
+    DELETE: (id: string) => `/departments/${id}`,
   },
 
   // Role endpoints
   ROLES: {
     LIST: '/roles/',
-    BY_ID: (id: string) => `/roles/${id}/`,
+    BY_ID: (id: string) => `/roles/${id}`,
     CREATE: '/roles/',
-    UPDATE: (id: string) => `/roles/${id}/`,
-    DELETE: (id: string) => `/roles/${id}/`,
-    REORDER: '/roles/reorder/',
+    UPDATE: (id: string) => `/roles/${id}`,
+    DELETE: (id: string) => `/roles/${id}`,
+    REORDER: '/roles/reorder',
   },
 
   // Stage endpoints
   STAGES: {
     LIST: '/stages/',
-    BY_ID: (id: string) => `/stages/${id}/`,
+    BY_ID: (id: string) => `/stages/${id}`,
     CREATE: '/stages/',
-    UPDATE: (id: string) => `/stages/${id}/`,
-    DELETE: (id: string) => `/stages/${id}/`,
-    ADMIN: '/stages/admin/',
+    UPDATE: (id: string) => `/stages/${id}`,
+    DELETE: (id: string) => `/stages/${id}`,
+    ADMIN: '/stages/admin',
   },
 
   // Evaluation Period endpoints
   EVALUATION_PERIODS: {
     LIST: '/evaluation-periods/',
-    BY_ID: (id: string) => `/evaluation-periods/${id}/`,
+    BY_ID: (id: string) => `/evaluation-periods/${id}`,
     CREATE: '/evaluation-periods/',
-    UPDATE: (id: string) => `/evaluation-periods/${id}/`,
-    DELETE: (id: string) => `/evaluation-periods/${id}/`,
-    CURRENT: '/evaluation-periods/current/',
-    GOAL_STATISTICS: (id: string) => `/evaluation-periods/${id}/goal-statistics/`,
+    UPDATE: (id: string) => `/evaluation-periods/${id}`,
+    DELETE: (id: string) => `/evaluation-periods/${id}`,
+    CURRENT: '/evaluation-periods/current',
+    GOAL_STATISTICS: (id: string) => `/evaluation-periods/${id}/goal-statistics`,
   },
 
   // Goal endpoints
   GOALS: {
     LIST: '/goals/',
-    BY_ID: (id: string) => `/goals/${id}/`,
+    BY_ID: (id: string) => `/goals/${id}`,
     CREATE: '/goals/',
-    UPDATE: (id: string) => `/goals/${id}/`,
-    DELETE: (id: string) => `/goals/${id}/`,
-    SUBMIT: (id: string) => `/goals/${id}/submit/`,
-    APPROVE: (id: string) => `/goals/${id}/approve/`,
-    REJECT: (id: string) => `/goals/${id}/reject/`,
-    // BY_USER: (userId: string) => `/goals/user/${userId}/`,
-    // BY_PERIOD: (periodId: string) => `/goals/period/${periodId}/`,
+    UPDATE: (id: string) => `/goals/${id}`,
+    DELETE: (id: string) => `/goals/${id}`,
+    SUBMIT: (id: string) => `/goals/${id}/submit`,
+    APPROVE: (id: string) => `/goals/${id}/approve`,
+    REJECT: (id: string) => `/goals/${id}/reject`,
+    // BY_USER: (userId: string) => `/goals/user/${userId}`,
+    // BY_PERIOD: (periodId: string) => `/goals/period/${periodId}`,
   },
 
   // Goal Category endpoints
   GOAL_CATEGORIES: {
     LIST: '/goal-categories/',
-    BY_ID: (id: string) => `/goal-categories/${id}/`,
+    BY_ID: (id: string) => `/goal-categories/${id}`,
     CREATE: '/goal-categories/',
-    UPDATE: (id: string) => `/goal-categories/${id}/`,
-    DELETE: (id: string) => `/goal-categories/${id}/`,
+    UPDATE: (id: string) => `/goal-categories/${id}`,
+    DELETE: (id: string) => `/goal-categories/${id}`,
   },
 
   // Competency endpoints
   COMPETENCIES: {
     LIST: '/competencies/',
-    BY_ID: (id: string) => `/competencies/${id}/`,
+    BY_ID: (id: string) => `/competencies/${id}`,
     CREATE: '/competencies/',
-    UPDATE: (id: string) => `/competencies/${id}/`,
-    DELETE: (id: string) => `/competencies/${id}/`,
+    UPDATE: (id: string) => `/competencies/${id}`,
+    DELETE: (id: string) => `/competencies/${id}`,
   },
 
   // Self Assessment endpoints
   SELF_ASSESSMENTS: {
     LIST: '/self-assessments/',
-    BY_ID: (id: string) => `/self-assessments/${id}/`,
+    BY_ID: (id: string) => `/self-assessments/${id}`,
     CREATE: '/self-assessments/',
-    UPDATE: (id: string) => `/self-assessments/${id}/`,
-    DELETE: (id: string) => `/self-assessments/${id}/`,
-    BY_USER: (userId: string) => `/self-assessments/user/${userId}/`,
-    BY_PERIOD: (periodId: string) => `/self-assessments/period/${periodId}/`,
-    BY_GOAL: (goalId: string) => `/self-assessments/goal/${goalId}/`,
-    SUBMIT: (id: string) => `/self-assessments/${id}/submit/`,
+    UPDATE: (id: string) => `/self-assessments/${id}`,
+    DELETE: (id: string) => `/self-assessments/${id}`,
+    BY_USER: (userId: string) => `/self-assessments/user/${userId}`,
+    BY_PERIOD: (periodId: string) => `/self-assessments/period/${periodId}`,
+    BY_GOAL: (goalId: string) => `/self-assessments/goal/${goalId}`,
+    SUBMIT: (id: string) => `/self-assessments/${id}/submit`,
   },
 
   // Supervisor Review endpoints
   SUPERVISOR_REVIEWS: {
     LIST: '/supervisor-reviews/',
-    BY_ID: (id: string) => `/supervisor-reviews/${id}/`,
+    BY_ID: (id: string) => `/supervisor-reviews/${id}`,
     CREATE: '/supervisor-reviews/',
-    UPDATE: (id: string) => `/supervisor-reviews/${id}/`,
-    DELETE: (id: string) => `/supervisor-reviews/${id}/`,
-    PENDING: '/supervisor-reviews/pending/',
-    SUBMIT: (id: string) => `/supervisor-reviews/${id}/submit/`,
+    UPDATE: (id: string) => `/supervisor-reviews/${id}`,
+    DELETE: (id: string) => `/supervisor-reviews/${id}`,
+    PENDING: '/supervisor-reviews/pending',
+    SUBMIT: (id: string) => `/supervisor-reviews/${id}/submit`,
   },
 
   // Supervisor Feedback endpoints
   SUPERVISOR_FEEDBACKS: {
     LIST: '/supervisor-feedbacks/',
-    BY_ID: (id: string) => `/supervisor-feedbacks/${id}/`,
+    BY_ID: (id: string) => `/supervisor-feedbacks/${id}`,
     CREATE: '/supervisor-feedbacks/',
-    UPDATE: (id: string) => `/supervisor-feedbacks/${id}/`,
-    DELETE: (id: string) => `/supervisor-feedbacks/${id}/`,
-    BY_SUPERVISOR: (supervisorId: string) => `/supervisor-feedbacks/supervisor/${supervisorId}/`,
-    BY_EMPLOYEE: (employeeId: string) => `/supervisor-feedbacks/employee/${employeeId}/`,
-    BY_ASSESSMENT: (assessmentId: string) => `/supervisor-feedbacks/assessment/${assessmentId}/`,
-    SUBMIT: (id: string) => `/supervisor-feedbacks/${id}/submit/`,
-    DRAFT: (id: string) => `/supervisor-feedbacks/${id}/draft/`,
+    UPDATE: (id: string) => `/supervisor-feedbacks/${id}`,
+    DELETE: (id: string) => `/supervisor-feedbacks/${id}`,
+    BY_SUPERVISOR: (supervisorId: string) => `/supervisor-feedbacks/supervisor/${supervisorId}`,
+    BY_EMPLOYEE: (employeeId: string) => `/supervisor-feedbacks/employee/${employeeId}`,
+    BY_ASSESSMENT: (assessmentId: string) => `/supervisor-feedbacks/assessment/${assessmentId}`,
+    SUBMIT: (id: string) => `/supervisor-feedbacks/${id}/submit`,
+    DRAFT: (id: string) => `/supervisor-feedbacks/${id}/draft`,
   },
 } as const;
 
