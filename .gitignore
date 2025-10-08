@@ -76,3 +76,7 @@ backend/tests/logs
 
 # PR
 PR*.md
+
+# production
+docker-compose-prod.yml
+.env.production
