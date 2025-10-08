@@ -1,5 +1,6 @@
 import os
 from typing import AsyncGenerator
+from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import NullPool
@@ -45,10 +46,16 @@ if is_production or is_transaction_pooler:
         "server_settings": {
             "jit": "off",
         },
-        # Disable prepared statement caching for pgbouncer transaction pooling compatibility
-        # pgbouncer transaction mode rotates backend connections, which breaks prepared statements
-        "statement_cache_size": 0,  # This disables asyncpg's prepared statement cache
-        "prepared_statement_cache_size": 0,  # Extra safety for different asyncpg versions
+        # CRITICAL FIX: Use UUID-based prepared statement names to prevent collisions
+        # This is the recommended solution from SQLAlchemy docs for pgbouncer transaction mode
+        # Each statement gets a unique name, avoiding DuplicatePreparedStatementError
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+        # Also disable statement caching as additional safety
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        # Add timeouts for robustness
+        "timeout": 10,
+        "command_timeout": 60,
     }
 else:
     # Local development: Use QueuePool for connection reuse and better performance
@@ -68,8 +75,6 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Disable SQLAlchemy query logging to reduce log verbosity
     connect_args=connect_args,
-    # CRITICAL: Use execution_options to completely disable prepared statements for pgbouncer
-    execution_options={"prepared_statement_cache_size": 0} if (is_production or is_transaction_pooler) else {},
     **pool_config
 )
 AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
