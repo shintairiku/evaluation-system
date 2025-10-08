@@ -74,8 +74,13 @@ export default function GoalEditDisplay() {
   const handleSave = async () => {
     if (!goal) return;
 
+    // For performance goals, include the performanceGoalType from original goal
+    // (it's required by backend but not editable in the form)
     const goalData = goal.goalCategory === '業績目標'
-      ? performanceFormData
+      ? {
+          ...performanceFormData,
+          performanceGoalType: goal.performanceGoalType || 'quantitative', // Keep original value
+        }
       : competencyFormData;
 
     const success = await saveDraft(goalData);
@@ -88,8 +93,13 @@ export default function GoalEditDisplay() {
   const handleSubmit = async () => {
     if (!goal) return;
 
+    // For performance goals, include the performanceGoalType from original goal
+    // (it's required by backend but not editable in the form)
     const goalData = goal.goalCategory === '業績目標'
-      ? performanceFormData
+      ? {
+          ...performanceFormData,
+          performanceGoalType: goal.performanceGoalType || 'quantitative', // Keep original value
+        }
       : competencyFormData;
 
     const success = await submitGoal(goalData);
