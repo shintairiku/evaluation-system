@@ -629,7 +629,7 @@ open https://your-app-git-develop-username.vercel.app
 # Both should work but connect to different backends
 ```
 
-### Step 3.5: Update Backend CORS for Multiple Environments
+### [x] Step 3.5: Update Backend CORS for Multiple Environments
 
 ```bash
 # Update production backend CORS
