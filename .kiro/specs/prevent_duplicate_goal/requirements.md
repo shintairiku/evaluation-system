@@ -15,7 +15,13 @@ This document defines the requirements for preventing duplicate Goal creation af
 - API consumers (frontend applications)
 
 **Scope Note:**
-This task (TASK-04) focuses **ONLY** on preventing duplicate goal creation via backend validation and basic frontend error handling.
+This task (TASK-04) focuses **ONLY** on preventing duplicate goal creation via **frontend validation** with minimal backend changes.
+
+**Implementation Approach:**
+✅ **Frontend-first validation** - Check for blocking statuses (submitted/approved) before allowing goal creation
+✅ **Reuse existing APIs** - Use current `GET /api/v1/goals` endpoint with status filtering
+✅ **Minimal backend changes** - Backend already supports all necessary functionality
+✅ **Quick to implement and test** - Reduced complexity, faster delivery
 
 **Out of Scope (deferred to TASK-05):**
 - ❌ Displaying detailed list of submitted goals
@@ -23,6 +29,7 @@ This task (TASK-04) focuses **ONLY** on preventing duplicate goal creation via b
 - ❌ UI for editing rejected goals
 - ❌ Complete resubmission workflow
 - ❌ Notifications for supervisors about goal updates
+- ❌ New backend validation endpoints (not needed - frontend checks are sufficient)
 
 The goal of TASK-04 is to **block the creation**, not to build the complete UX for managing submitted/rejected goals.
 
@@ -56,27 +63,35 @@ THEN the system should allow the Goal creation
 AND return HTTP 200 OK with the created Goal
 ```
 
-### Requirement 2: Backend Validation with Clear Error Messages
+### Requirement 2: Frontend Validation Logic (Primary Implementation)
 
 **User Story:**
-> As a system, I want to validate Goal creation requests at the backend to ensure data integrity. Because client-side validation alone is insufficient for maintaining data consistency.
+> As a system, I want to validate Goal creation at the frontend using existing API data to prevent duplicate submissions efficiently.
 
 **Acceptance Criteria:**
 
 ```gherkin
-GIVEN a Goal creation request is received
-WHEN the system validates the request
-THEN it should query the database for existing submitted Goals for the same user and period
-AND if a submitted Goal exists, reject with error: "目標は既に提出されています。提出済みの目標がある場合、新しい目標を作成することはできません。"
-AND return HTTP 409 Conflict status code
+GIVEN the user navigates to the Goal creation page
+WHEN the page loads or period is selected
+THEN the system should fetch existing Goals using GET /api/v1/goals
+AND filter Goals by periodId and check for blocking statuses
+AND determine if goal creation should be allowed
 
-GIVEN a Goal creation request is rejected due to existing submitted Goal
-WHEN the error response is returned
-THEN it should include:
-- Clear error message in Japanese
-- HTTP 409 Conflict status code
-- Structured error format matching existing API error patterns
+GIVEN Goals are fetched for the current period
+WHEN processing the goal list
+THEN check if any goal has status "submitted" OR "approved"
+AND if blocking goals exist, set UI to blocking state
+AND if no blocking goals exist, allow normal goal creation flow
+
+GIVEN a blocking goal is detected
+WHEN rendering the UI
+THEN display alert message: "目標は既に提出されています。提出済みの目標がある場合、新しい目標を作成することはできません。"
+AND disable the goal creation form
+AND provide link to goal list page for viewing submitted goals
 ```
+
+**Implementation Note:**
+Backend validation is **optional** and can be added later as a safety net. The frontend validation using existing API endpoints is sufficient for the MVP and reduces implementation complexity.
 
 ### Requirement 3: Frontend Validation and User Feedback
 
@@ -105,55 +120,62 @@ THEN it should provide guidance such as:
 - "新しい目標を作成するには、提出済みの目標を下書きに戻す必要があります"
 ```
 
-### Requirement 4: Comprehensive Test Coverage
+### Requirement 4: Manual Testing Coverage
 
 **User Story:**
-> As a developer, I want comprehensive tests to ensure the validation works correctly in all scenarios. Because this business rule is critical for data integrity.
+> As a developer, I want comprehensive manual tests to ensure the validation works correctly in all scenarios. Because this business rule is critical for data integrity.
 
 **Acceptance Criteria:**
 
 ```gherkin
 GIVEN the implementation is complete
-WHEN running the test suite
-THEN it should include:
-- Backend unit tests for the validation logic in GoalRepository
-- Backend service tests for GoalService.create_goal with submitted Goals
-- Backend API endpoint tests for POST /api/v1/goals
-- Frontend unit tests for validation hooks/functions
-- Integration tests covering the full flow
+WHEN running manual E2E tests
+THEN it should cover:
+- Creating Goal when no submitted Goals exist (should allow)
+- Creating Goal when submitted Goal exists (should block)
+- Creating Goal when approved Goal exists (should block)
+- Creating Goal when only rejected/draft Goals exist (should allow)
+- Creating Goal for different period (should allow)
+- Switching between periods with/without blocking goals
+- Alert message display and link to goal list
+- Form disable state when blocked
 
 GIVEN test scenarios are defined
 WHEN tests are executed
-THEN they should cover:
-- Creating Goal when no submitted Goals exist (success)
-- Creating Goal when submitted Goal exists (rejection)
-- Creating Goal for different period (success)
-- Multiple users with submitted Goals (isolation)
-- Edge cases: rejected Goals, approved Goals, draft Goals
+THEN they should verify:
+- UI correctly displays blocking alert
+- Form is properly disabled when blocked
+- Link to goal list works correctly
+- No blocking when only draft/rejected goals exist
+- Period-specific validation works
 ```
+
+**Note:** Frontend automated tests are not in project scope. Backend unit tests are **optional** since no new backend logic is added.
 
 ### Requirement 5: Non-functional Requirements - Performance
 
 **Requirements:**
-The validation query should execute efficiently without impacting Goal creation performance.
+The validation should execute efficiently without impacting user experience.
 
 **Acceptance Criteria:**
 
 ```gherkin
 GIVEN the validation is implemented
-WHEN a Goal creation request is processed
-THEN the database query to check for submitted Goals should:
-- Use indexed columns (user_id, period_id, status)
-- Execute in under 50ms for typical dataset sizes
-- Not cause N+1 query problems
+WHEN the Goal creation page loads
+THEN the GET /api/v1/goals request should:
+- Use existing indexed columns (user_id, period_id, status)
+- Execute in under 200ms for typical dataset sizes (already optimized)
+- Not cause additional database queries beyond what currently exists
 
-GIVEN multiple concurrent Goal creation requests
-WHEN the system is under load
-THEN the validation should:
-- Maintain data consistency using appropriate transaction isolation
-- Not cause race conditions allowing duplicate submissions
-- Handle concurrent requests gracefully
+GIVEN the user changes evaluation period
+WHEN the page refetches goals
+THEN the validation check should:
+- Execute instantly on client-side (no additional API calls)
+- Not cause UI lag or blocking
+- Reuse data already fetched for displaying draft goals
 ```
+
+**Note:** Performance is already optimized since we're reusing existing API calls. No new queries or endpoints are added.
 
 ### Requirement 6: Maintain Existing Goal Lifecycle
 
