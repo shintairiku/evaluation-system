@@ -29,13 +29,6 @@ interface SupervisorFeedbackBannerProps {
  */
 export const SupervisorFeedbackBanner = React.memo<SupervisorFeedbackBannerProps>(
   function SupervisorFeedbackBanner({ supervisorReview, goalStatus, className }: SupervisorFeedbackBannerProps) {
-    console.log('🔍 [SupervisorFeedbackBanner] Props:', {
-      hasReview: !!supervisorReview,
-      reviewAction: supervisorReview?.action,
-      reviewComment: supervisorReview?.comment?.substring(0, 50),
-      goalStatus
-    });
-
     // Determine if goal is rejected (handle both lowercase and uppercase from backend)
     const isRejected =
       supervisorReview?.action?.toUpperCase() === 'REJECTED' ||
@@ -45,12 +38,6 @@ export const SupervisorFeedbackBanner = React.memo<SupervisorFeedbackBannerProps
     const isApproved =
       supervisorReview?.action?.toUpperCase() === 'APPROVED' ||
       goalStatus === 'approved';
-
-    console.log('🔍 [SupervisorFeedbackBanner] Checks:', {
-      isRejected,
-      isApproved,
-      willShowDraftMessage: goalStatus === 'draft' && !supervisorReview
-    });
 
     // If draft, show info message
     if (goalStatus === 'draft' && !supervisorReview) {
