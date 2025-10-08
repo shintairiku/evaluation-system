@@ -29,15 +29,28 @@ interface SupervisorFeedbackBannerProps {
  */
 export const SupervisorFeedbackBanner = React.memo<SupervisorFeedbackBannerProps>(
   function SupervisorFeedbackBanner({ supervisorReview, goalStatus, className }: SupervisorFeedbackBannerProps) {
-    // Determine if goal is rejected
+    console.log('🔍 [SupervisorFeedbackBanner] Props:', {
+      hasReview: !!supervisorReview,
+      reviewAction: supervisorReview?.action,
+      reviewComment: supervisorReview?.comment?.substring(0, 50),
+      goalStatus
+    });
+
+    // Determine if goal is rejected (handle both lowercase and uppercase from backend)
     const isRejected =
-      (supervisorReview?.action === SupervisorAction.REJECTED || supervisorReview?.action === 'rejected') ||
+      supervisorReview?.action?.toUpperCase() === 'REJECTED' ||
       goalStatus === 'rejected';
 
-    // Determine if goal is approved
+    // Determine if goal is approved (handle both lowercase and uppercase from backend)
     const isApproved =
-      (supervisorReview?.action === SupervisorAction.APPROVED || supervisorReview?.action === 'approved') ||
+      supervisorReview?.action?.toUpperCase() === 'APPROVED' ||
       goalStatus === 'approved';
+
+    console.log('🔍 [SupervisorFeedbackBanner] Checks:', {
+      isRejected,
+      isApproved,
+      willShowDraftMessage: goalStatus === 'draft' && !supervisorReview
+    });
 
     // If draft, show info message
     if (goalStatus === 'draft' && !supervisorReview) {
@@ -70,7 +83,7 @@ export const SupervisorFeedbackBanner = React.memo<SupervisorFeedbackBannerProps
     // Render rejection feedback
     if (isRejected) {
       return (
-        <div className={`${className} bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 rounded-lg p-6 shadow-md`}>
+        <div className={`${className} bg-white border-2 border-red-300 rounded-lg p-6 shadow-md`}>
           {/* Header with icon and title */}
           <div className="flex items-start gap-3 mb-4">
             <div className="flex-shrink-0 w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
@@ -89,7 +102,7 @@ export const SupervisorFeedbackBanner = React.memo<SupervisorFeedbackBannerProps
           </div>
 
           {/* Feedback section */}
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-red-200 mb-4">
+          <div className="bg-gray-50 rounded-lg p-4 shadow-sm border border-red-200 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-1 h-6 bg-red-500 rounded-full"></div>
               <h4 className="font-bold text-gray-900">上司からのフィードバック</h4>
@@ -100,7 +113,7 @@ export const SupervisorFeedbackBanner = React.memo<SupervisorFeedbackBannerProps
           </div>
 
           {/* Next steps */}
-          <div className="bg-red-500/10 rounded-lg p-4 border border-red-300">
+          <div className="bg-red-50 rounded-lg p-4 border border-red-300">
             <h4 className="font-semibold text-red-900 mb-2">
               次のステップ
             </h4>

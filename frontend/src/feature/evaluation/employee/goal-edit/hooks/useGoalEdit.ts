@@ -56,11 +56,34 @@ export function useGoalEdit(goalId: UUID): UseGoalEditReturn {
 
         setGoal(goalResult.data);
 
-        // If goal is rejected or approved, load supervisor review
-        if (goalResult.data.status === 'rejected' || goalResult.data.status === 'approved') {
+        console.log('🔍 [useGoalEdit] Goal loaded:', {
+          id: goalResult.data.id.substring(0, 8),
+          status: goalResult.data.status,
+          previousGoalId: goalResult.data.previousGoalId?.substring(0, 8) || null
+        });
+
+        // Load supervisor review:
+        // 1. If goal has previousGoalId (created from rejection), load review from previous goal
+        // 2. Else if goal is rejected or approved, load review from current goal
+        const reviewGoalId = goalResult.data.previousGoalId ||
+          (goalResult.data.status === 'rejected' || goalResult.data.status === 'approved' ? goalId : null);
+
+        console.log('🔍 [useGoalEdit] reviewGoalId:', reviewGoalId?.substring(0, 8) || null);
+
+        if (reviewGoalId) {
           const reviewResult = await getSupervisorReviewsAction({
-            goalId: goalId,
+            goalId: reviewGoalId,
             pagination: { limit: 10 }
+          });
+
+          console.log('🔍 [useGoalEdit] Review result:', {
+            success: reviewResult.success,
+            itemsCount: reviewResult.data?.items?.length || 0,
+            items: reviewResult.data?.items?.map(r => ({
+              id: r.id.substring(0, 8),
+              action: r.action,
+              comment: r.comment?.substring(0, 50)
+            }))
           });
 
           if (reviewResult.success && reviewResult.data?.items && reviewResult.data.items.length > 0) {
@@ -70,6 +93,12 @@ export function useGoalEdit(goalId: UUID): UseGoalEditReturn {
               const latestDate = latest.reviewed_at || latest.updated_at || latest.created_at;
               const currentDate = current.reviewed_at || current.updated_at || current.created_at;
               return new Date(currentDate) > new Date(latestDate) ? current : latest;
+            });
+
+            console.log('🔍 [useGoalEdit] Most recent review:', {
+              id: mostRecentReview.id.substring(0, 8),
+              action: mostRecentReview.action,
+              comment: mostRecentReview.comment
             });
 
             setSupervisorReview(mostRecentReview);
