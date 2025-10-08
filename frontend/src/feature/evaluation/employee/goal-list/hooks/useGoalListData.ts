@@ -5,12 +5,13 @@ import { getSupervisorReviewsAction } from '@/api/server-actions/supervisor-revi
 import type { GoalResponse, GoalStatus, EvaluationPeriod, SupervisorReview } from '@/api/types';
 
 /**
- * Extended GoalResponse with optional supervisorReview
+ * Extended GoalResponse with optional supervisorReview and previousGoalReview
  * We fetch reviews separately and map them to goals using goal_id
  * This follows the same pattern as supervisor goal-review
  */
 type GoalWithReview = GoalResponse & {
   supervisorReview?: SupervisorReview | null;
+  previousGoalReview?: SupervisorReview | null;
 };
 
 /**
@@ -166,7 +167,8 @@ export function useGoalListData(): UseGoalListDataReturn {
         // Map reviews to goals (using activeGoals which excludes rejected)
         const goalsWithReviews: GoalWithReview[] = activeGoals.map(goal => ({
           ...goal,
-          supervisorReview: reviewsMap.get(goal.id) || null
+          supervisorReview: reviewsMap.get(goal.id) || null,
+          previousGoalReview: goal.previousGoalId ? reviewsMap.get(goal.previousGoalId) || null : null
         }));
 
         setGoals(goalsWithReviews);
