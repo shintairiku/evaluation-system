@@ -114,13 +114,6 @@ export function useGoalListData(): UseGoalListDataReturn {
         // Filter out rejected goals from display (they're replaced by new draft copies)
         const activeGoals = goals.filter(goal => goal.status !== 'rejected');
 
-        console.log('🔍 [useGoalListData] All goals:', goals.map(g => ({
-          id: g.id.substring(0, 8),
-          status: g.status,
-          previousGoalId: g.previousGoalId?.substring(0, 8) || null
-        })));
-        console.log('🔍 [useGoalListData] Active goals (non-rejected):', activeGoals.length);
-
         // If employee has goals, fetch reviews for those specific goals
         // This avoids permission issues - employees can only see reviews for their own goals
         let reviews: SupervisorReview[] = [];
@@ -136,35 +129,21 @@ export function useGoalListData(): UseGoalListDataReturn {
           // Also fetch reviews for previous goals (if goal has previousGoalId)
           const previousGoalReviewPromises = activeGoals
             .filter(goal => goal.previousGoalId)
-            .map(goal => {
-              console.log('🔍 [useGoalListData] Fetching review for previousGoalId:', goal.previousGoalId?.substring(0, 8));
-              return getSupervisorReviewsAction({
+            .map(goal =>
+              getSupervisorReviewsAction({
                 goalId: goal.previousGoalId!,
                 pagination: { limit: 10 }
-              });
-            });
-
-          console.log('🔍 [useGoalListData] Fetching reviews for', previousGoalReviewPromises.length, 'previous goals');
+              })
+            );
 
           const allReviewPromises = [...reviewPromises, ...previousGoalReviewPromises];
           const reviewResults = await Promise.all(allReviewPromises);
 
           reviewResults.forEach(result => {
             if (result.success && result.data?.items) {
-              console.log('🔍 [useGoalListData] Review result:', result.data.items.map(r => ({
-                goal_id: r.goal_id.substring(0, 8),
-                action: r.action,
-                comment: r.comment?.substring(0, 50)
-              })));
               reviews.push(...result.data.items);
             }
           });
-        }
-
-        console.log('🔍 [useGoalListData] Total goals:', goals.length);
-        console.log('🔍 [useGoalListData] Total reviews fetched:', reviews.length);
-        if (reviews.length > 0) {
-          console.log('🔍 [useGoalListData] Sample review:', reviews[0]);
         }
 
         // Create a map of goal_id → review for quick lookup
@@ -184,33 +163,11 @@ export function useGoalListData(): UseGoalListDataReturn {
           }
         });
 
-        console.log('🔍 [useGoalListData] Reviews mapped:', reviewsMap.size);
-
-        // Debug: Show which review was selected for each goal
-        reviewsMap.forEach((review, goalId) => {
-          console.log(`🔍 [useGoalListData] Goal ${goalId.substring(0, 8)} → Review:`, {
-            action: review.action,
-            comment: review.comment,
-            reviewed_at: review.reviewed_at,
-            updated_at: review.updated_at,
-            created_at: review.created_at
-          });
-        });
-
         // Map reviews to goals (using activeGoals which excludes rejected)
         const goalsWithReviews: GoalWithReview[] = activeGoals.map(goal => ({
           ...goal,
           supervisorReview: reviewsMap.get(goal.id) || null
         }));
-
-        console.log('🔍 [useGoalListData] Goals with reviews:',
-          goalsWithReviews.filter(g => g.supervisorReview !== null).length
-        );
-        goalsWithReviews.forEach(goal => {
-          if (goal.supervisorReview) {
-            console.log(`🔍 Goal ${goal.id.substring(0, 8)} has review with action: ${goal.supervisorReview.action}`);
-          }
-        });
 
         setGoals(goalsWithReviews);
       } else {
