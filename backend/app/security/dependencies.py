@@ -17,11 +17,14 @@ from ..services.auth_service import AuthService
 from .permissions import Permission, PermissionManager
 from .context import AuthContext, RoleInfo
 
-security = HTTPBearer()
+security = HTTPBearer(
+    scheme_name="Bearer",  # Label in OpenAPI docs
+    auto_error=False,       # We'll raise detailed errors ourselves
+)
 
 
 async def get_auth_context(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     session: AsyncSession = Depends(get_db_session)
 ) -> AuthContext:
     """
@@ -37,8 +40,26 @@ async def get_auth_context(
         HTTPException: If authentication fails or user not found
     """
     try:
-        # Get token from request
+        # Extract token, tolerating missing credentials (HTTPBearer with auto_error=False)
+        if not credentials or not credentials.scheme:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing Authorization header",
+            )
+
+        scheme = credentials.scheme.lower()
+        if scheme != "bearer":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization header must use Bearer scheme",
+            )
+
         token = credentials.credentials
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing Bearer token",
+            )
         
         # SECURITY: Only allow development tokens in development environment
         from ..core.config import Settings
