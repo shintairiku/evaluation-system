@@ -10,15 +10,16 @@ import { useCompetencyNames } from '@/feature/evaluation/superviser/goal-review/
 import { useIdealActionsResolver } from '@/feature/evaluation/superviser/goal-review/hooks/useIdealActionsResolver';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { getSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
 
 /**
  * Props for GoalCard component
  */
 interface GoalCardProps {
-  /** Goal data to display with mapped supervisor review */
-  goal: GoalResponse & { supervisorReview?: SupervisorReview | null };
+  /** Goal data to display with mapped supervisor review and previousGoalReview */
+  goal: GoalResponse & {
+    supervisorReview?: SupervisorReview | null;
+    previousGoalReview?: SupervisorReview | null;
+  };
   /** Optional custom className */
   className?: string;
 }
@@ -49,27 +50,6 @@ export const GoalCard = React.memo<GoalCardProps>(
     const router = useRouter();
     const isPerformanceGoal = goal.goalCategory === '業績目標';
     const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
-
-    // Track previous goal review (for rejection history)
-    const [previousReview, setPreviousReview] = useState<SupervisorReview | null>(null);
-
-    // Fetch previous goal's review if this goal has previousGoalId
-    useEffect(() => {
-      if (!goal.previousGoalId) return;
-
-      const fetchPreviousReview = async () => {
-        const result = await getSupervisorReviewsAction({
-          goalId: goal.previousGoalId!,
-          pagination: { limit: 1 }
-        });
-
-        if (result.success && result.data?.items && result.data.items.length > 0) {
-          setPreviousReview(result.data.items[0]);
-        }
-      };
-
-      fetchPreviousReview();
-    }, [goal.previousGoalId]);
 
     // Resolve competency IDs to names for display
     const { competencyNames, loading: competencyLoading } = useCompetencyNames(
@@ -165,7 +145,7 @@ export const GoalCard = React.memo<GoalCardProps>(
 
         <CardContent className="pt-0 space-y-4">
           {/* Rejection History Banner - shown if this goal was created from a rejected goal */}
-          {goal.previousGoalId && previousReview && (
+          {goal.previousGoalId && goal.previousGoalReview && (
             <Alert variant="default" className="border-amber-200 bg-amber-50">
               <AlertCircle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="ml-2">
@@ -173,13 +153,13 @@ export const GoalCard = React.memo<GoalCardProps>(
                   <p className="font-semibold text-amber-900">
                     この目標は以前差し戻されました
                   </p>
-                  {previousReview.comment && (
+                  {goal.previousGoalReview.comment && (
                     <div className="bg-white p-3 rounded border border-amber-200">
                       <p className="text-sm font-medium text-gray-700 mb-1">
                         前回のコメント:
                       </p>
                       <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                        {previousReview.comment}
+                        {goal.previousGoalReview.comment}
                       </p>
                     </div>
                   )}
