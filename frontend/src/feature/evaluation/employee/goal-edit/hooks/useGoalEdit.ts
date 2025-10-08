@@ -130,18 +130,9 @@ export function useGoalEdit(goalId: UUID): UseGoalEditReturn {
         return false;
       }
 
-      // WORKAROUND: If goal is currently rejected, change to draft first
-      // Backend excludes rejected goals from weight calculation, causing validation errors
-      // when resubmitting. Changing to draft first allows proper weight validation.
-      if (goal.status === 'rejected') {
-        const draftResult = await submitGoalAction(goal.id, 'draft');
-        if (!draftResult.success) {
-          setError(draftResult.error || '下書きへの変更に失敗しました');
-          return false;
-        }
-      }
-
-      // Then submit for review
+      // Submit for review
+      // Note: Rejected goals are now replaced by new draft goals (previousGoalId link),
+      // so we don't need the rejected→draft→submitted workaround anymore
       const submitResult = await submitGoalAction(goal.id, 'submitted');
 
       if (submitResult.success && submitResult.data) {

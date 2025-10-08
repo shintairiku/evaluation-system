@@ -91,6 +91,7 @@ export function useGoalListData(): UseGoalListDataReturn {
         const currentPeriodId = periodResult.data.current.id;
 
         // Load goals first to get user's goals
+        // Exclude 'rejected' status - rejected goals are replaced by new draft copies
         const goalsResult = await getGoalsAction({
           periodId: currentPeriodId,
           limit: 100, // TODO: Implement pagination if needed
@@ -103,19 +104,34 @@ export function useGoalListData(): UseGoalListDataReturn {
 
         const goals = goalsResult.data.items;
 
+        // Filter out rejected goals from display (they're replaced by new draft copies)
+        const activeGoals = goals.filter(goal => goal.status !== 'rejected');
+
         // If employee has goals, fetch reviews for those specific goals
         // This avoids permission issues - employees can only see reviews for their own goals
         let reviews: SupervisorReview[] = [];
-        if (goals.length > 0) {
-          // Fetch reviews for each goal (employees can access reviews for their own goals)
-          const reviewPromises = goals.map(goal =>
+        if (activeGoals.length > 0) {
+          // Fetch reviews for each active goal
+          const reviewPromises = activeGoals.map(goal =>
             getSupervisorReviewsAction({
               goalId: goal.id,
               pagination: { limit: 10 }
             })
           );
 
-          const reviewResults = await Promise.all(reviewPromises);
+          // Also fetch reviews for previous goals (if goal has previousGoalId)
+          const previousGoalReviewPromises = activeGoals
+            .filter(goal => goal.previousGoalId)
+            .map(goal =>
+              getSupervisorReviewsAction({
+                goalId: goal.previousGoalId!,
+                pagination: { limit: 10 }
+              })
+            );
+
+          const allReviewPromises = [...reviewPromises, ...previousGoalReviewPromises];
+          const reviewResults = await Promise.all(allReviewPromises);
+
           reviewResults.forEach(result => {
             if (result.success && result.data?.items) {
               reviews.push(...result.data.items);
@@ -159,8 +175,8 @@ export function useGoalListData(): UseGoalListDataReturn {
           });
         });
 
-        // Map reviews to goals
-        const goalsWithReviews: GoalWithReview[] = goals.map(goal => ({
+        // Map reviews to goals (using activeGoals which excludes rejected)
+        const goalsWithReviews: GoalWithReview[] = activeGoals.map(goal => ({
           ...goal,
           supervisorReview: reviewsMap.get(goal.id) || null
         }));
