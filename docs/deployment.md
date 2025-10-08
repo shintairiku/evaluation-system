@@ -499,8 +499,170 @@ git push origin develop
 
 ---
 
+## Phase 3: Frontend Deployment (Vercel)
+
+**Now that we have the backend URL**, we can deploy the frontend.
+
+### [x] Step 3.1: Prepare for Vercel Deployment
 
 ```bash
+# Optional: Install Vercel CLI for local testing
+npm install -g vercel
+vercel login  # Opens browser to login
+```
+
+### [x] Step 3.2: Deploy via Vercel Dashboard (Recommended for First Deploy)
+
+**Follow these steps carefully:**
+
+1. **Go to Vercel Dashboard**
+   - Visit [vercel.com/dashboard](https://vercel.com/dashboard)
+   - Click "Add New..." → "Project"
+
+2. **Import Git Repository**
+   - Click "Import Git Repository"
+   - Select your GitHub organization
+   - Find and select `evaluation-system` repository
+   - Click "Import"
+
+3. **Configure Build Settings**
+   - **Framework Preset**: Next.js (auto-detected)
+   - **Root Directory**: `frontend` ⚠️ **IMPORTANT** - Click "Edit" and enter `frontend`
+   - **Build Command**: `npm run build` (default)
+   - **Output Directory**: `.next` (default)
+   - **Install Command**: `npm install` (default)
+
+4. **Set Environment Variables** ⚠️ **DO THIS BEFORE DEPLOYING**
+
+   Click "Environment Variables" and add these **one by one**:
+
+   | Name | Value | Source |
+   |------|-------|--------|
+   | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_xxxxx` | From Clerk (Step 1.2) |
+   | `CLERK_SECRET_KEY` | `sk_live_xxxxx` | From Clerk (Step 1.2) |
+   | `NEXT_PUBLIC_SUPABASE_URL` | `https://xxx.supabase.co` | From Supabase (Step 1.1) |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGci...` | From Supabase (Step 1.1) |
+   | `NEXT_PUBLIC_API_BASE_URL` | `https://backend-xxx.run.app` | **From Step 2.3** ⚠️ |
+
+   **For each variable:**
+   - Set Environment: `Production`, `Preview`, and `Development` (check all three)
+   - Click "Add"
+
+5. **Deploy**
+   - Click "Deploy" button
+   - Wait 2-3 minutes for build to complete
+   - ✅ You'll see "Congratulations!" when done
+
+6. **Get Your Frontend URL**
+   - Copy the production URL (e.g., `https://evaluation-system-xxxxx.vercel.app`)
+   - **Save this URL** - you'll need it next!
+
+### Step 3.3: Update Backend CORS Settings
+
+Now that frontend is deployed, update backend to allow requests from Vercel:
+
+```bash
+# Update Cloud Run with frontend URL for CORS
+gcloud run services update hr-evaluation-backend \
+  --region $REGION \
+  --update-env-vars "CORS_ORIGINS=https://your-app-name.vercel.app"
+
+# Verify the update
+gcloud run services describe hr-evaluation-backend \
+  --region $REGION \
+  --format='value(spec.template.spec.containers[0].env)'
+
+echo "✅ Backend CORS updated to allow frontend requests!"
+```
+
+### Step 3.4: Configure Multi-Environment Frontend
+
+**Vercel automatically creates preview deployments for every branch and PR.** Here's how to configure them to use the correct backend:
+
+1. **Set Environment Variables by Environment**
+
+In Vercel Dashboard → Project → Settings → Environment Variables:
+
+**Production Environment** (main branch):
+| Variable | Value | Environment |
+|----------|-------|-------------|
+| `NEXT_PUBLIC_API_BASE_URL` | `https://hr-evaluation-backend-xxx.run.app` | Production |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_xxxxx` | Production |
+| `CLERK_SECRET_KEY` | `sk_live_xxxxx` | Production |
+
+**Preview Environment** (develop branch & PRs):
+| Variable | Value | Environment |
+|----------|-------|-------------|
+| `NEXT_PUBLIC_API_BASE_URL` | `https://hr-evaluation-backend-dev-xxx.run.app` | Preview |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_xxxxx` | Preview |
+| `CLERK_SECRET_KEY` | `sk_test_xxxxx` | Preview |
+
+**Development Environment** (local):
+| Variable | Value | Environment |
+|----------|-------|-------------|
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | Development |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_xxxxx` | Development |
+| `CLERK_SECRET_KEY` | `sk_test_xxxxx` | Development |
+
+2. **How Vercel Preview Deployments Work**
+
+```bash
+# When you push to develop branch:
+git checkout develop
+git push origin develop
+
+# Vercel automatically:
+# 1. Creates preview deployment: https://your-app-git-develop-username.vercel.app
+# 2. Uses "Preview" environment variables
+# 3. Connects to development backend: https://hr-evaluation-backend-dev-xxx.run.app
+```
+
+3. **Test Multi-Environment Setup**
+
+```bash
+# Test production (main branch)
+open https://your-app.vercel.app
+
+# Test development (develop branch preview)
+open https://your-app-git-develop-username.vercel.app
+
+# Both should work but connect to different backends
+```
+
+### Step 3.5: Update Backend CORS for Multiple Environments
+
+```bash
+# Update production backend CORS
+gcloud run services update hr-evaluation-backend \
+  --region $REGION \
+  --update-env-vars "CORS_ORIGINS=https://your-app.vercel.app"
+
+# Update development backend CORS
+gcloud run services update hr-evaluation-backend-dev \
+  --region $REGION \
+  --update-env-vars "CORS_ORIGINS=https://your-app-git-develop-username.vercel.app,http://localhost:3000"
+
+echo "✅ CORS updated for both environments!"
+```
+
+### Step 3.6: Test Frontend Deployments
+
+```bash
+# Test production deployment
+open https://your-app.vercel.app
+
+# Test development preview
+open https://your-app-git-develop-username.vercel.app
+
+# Test authentication on both (should see Clerk login page)
+```
+
+**Expected behavior:**
+- ✅ Production: Connects to production backend and Clerk
+- ✅ Preview: Connects to development backend and Clerk (test mode)
+- ✅ No CORS errors in browser console (F12 → Console)
+- ✅ Different data/users in each environment
+
 git add .
 git commit -m "Deploy backend to Cloud Run"
 git push origin main
