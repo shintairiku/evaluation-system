@@ -1,22 +1,27 @@
-# Deployment Guide
+# 🚀 HR Evaluation System - Complete Deployment Guide
 
-This guide covers deploying the HR Evaluation System to production with:
-- **Frontend**: Vercel
-- **Backend**: Google Cloud Run
+**For First-Time Deployers: A Step-by-Step Guide**
+
+This guide walks you through deploying the HR Evaluation System to production with:
+- **Frontend**: Vercel (Next.js)
+- **Backend**: Google Cloud Run (FastAPI)
 - **Database**: Supabase (PostgreSQL)
 - **Authentication**: Clerk
 
+**Estimated Time**: 60-90 minutes for first deployment
+
 ---
 
-## Table of Contents
+## 📋 Table of Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Backend Deployment (Cloud Run)](#backend-deployment-cloud-run)
-3. [Frontend Deployment (Vercel)](#frontend-deployment-vercel)
-4. [Environment Variables Setup](#environment-variables-setup)
-5. [Post-Deployment Steps](#post-deployment-steps)
-6. [Troubleshooting](#troubleshooting)
-7. [Rollback Procedures](#rollback-procedures)
+2. [Phase 1: Preparation](#phase-1-preparation)
+3. [Phase 2: Backend Deployment (Cloud Run)](#phase-2-backend-deployment-cloud-run)
+4. [Phase 3: Frontend Deployment (Vercel)](#phase-3-frontend-deployment-vercel)
+5. [Phase 4: Post-Deployment Configuration](#phase-4-post-deployment-configuration)
+6. [Verification & Testing](#verification--testing)
+7. [Troubleshooting](#troubleshooting)
+8. [Rollback Procedures](#rollback-procedures)
 
 ---
 
@@ -24,148 +29,299 @@ This guide covers deploying the HR Evaluation System to production with:
 
 ### Required Accounts & Services
 
-- [ ] Google Cloud Platform account with billing enabled
-- [ ] Vercel account (free tier works for small teams)
-- [ ] Supabase account (production database)
-- [ ] Clerk account (production instance)
-- [ ] GitHub repository access
+**Before you begin, ensure you have:**
 
-### Required Tools
+- [x] **Google Cloud Platform** account with billing enabled ([Sign up](https://cloud.google.com/))
+- [x] **Vercel** account ([Sign up - Free tier](https://vercel.com/signup))
+- [x] **Supabase** account ([Sign up - Free tier](https://app.supabase.com/))
+- [x] **Clerk** account ([Sign up - Free tier](https://dashboard.clerk.com/sign-up))
+- [x] **GitHub** repository access (admin permissions)
 
+### Required Tools Installation
+
+**macOS/Linux:**
 ```bash
-# Install Google Cloud SDK
+# 1. Install Google Cloud SDK
 brew install google-cloud-sdk  # macOS
 # OR
 curl https://sdk.cloud.google.com | bash  # Linux
 
-# Install Vercel CLI (optional)
+# 2. Install Vercel CLI (optional but recommended)
 npm install -g vercel
 
-# Verify installations
+# 3. Verify installations
 gcloud --version
 vercel --version
+git --version
 ```
 
-### Prepare Supabase Database
-
-1. Go to [Supabase Dashboard](https://app.supabase.com/)
-2. Create a new project (Production)
-3. Note down:
-   - Database URL (connection string)
-   - Anon public key
-   - Service role key
-4. Run database migrations (if applicable)
-
-### Prepare Clerk Production Instance
-
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com/)
-2. Create a production instance
-3. Note down:
-   - Publishable key
-   - Secret key
-   - Issuer URL
-   - Audience (if using organizations)
-4. Configure:
-   - Production domains (your Vercel URL)
-   - Organization settings (if enabled)
-   - Webhooks (point to Cloud Run URL)
+**Windows:**
+- Download Google Cloud SDK: https://cloud.google.com/sdk/docs/install
+- Install Node.js: https://nodejs.org/ (includes npm)
+- Run: `npm install -g vercel`
 
 ---
 
-## Backend Deployment (Cloud Run)
+## Phase 1: Preparation
 
-### Step 1: Set Up Google Cloud Project
+### [x] Step 1.1: Prepare Supabase Production Database
+
+1. **Create Production Project**
+   - Go to [Supabase Dashboard](https://app.supabase.com/)
+   - Click "New Project"
+   - Fill in:
+     - Name: `hr-evaluation-prod`
+     - Database Password: (Generate a strong password, save it!)
+     - Region: Choose closest to your users (e.g., `Northeast Asia (Tokyo)`)
+   - Click "Create new project" (takes ~2 minutes)
+
+2. **Get Database Connection Details**
+   - Go to Project Settings → Database
+   - Copy these values to a notepad:
+     ```
+     Connection string (URI):
+     postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
+
+     Connection pooling (recommended for serverless):
+     postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true
+     ```
+   - Copy API keys:
+     - `anon public` key
+     - `service_role` key (keep this secret!)
+
+3. **Run Database Migrations** (if you have SQL files)
+   - Go to SQL Editor in Supabase
+   - Create tables using your schema
+   - Or restore from backup if migrating
+
+### [ ] Step 1.2: Prepare Clerk Production Instance
+
+1. **Create Production Application**
+   - Go to [Clerk Dashboard](https://dashboard.clerk.com/)
+   - Click "Add application"
+   - Name: `HR Evaluation - Production`
+   - Select authentication methods (Email, Google, etc.)
+   - Click "Create application"
+
+2. **Get Production Keys**
+   - In your new application dashboard, find:
+     - **Publishable key** (starts with `pk_live_`)
+     - **Secret key** (starts with `sk_live_`) - Click "Show" to reveal
+   - Copy these to your notepad
+
+3. **Configure Organization Settings** (if using multi-tenant)
+   - Go to "Organizations" in sidebar
+   - Enable organizations
+   - Configure roles and permissions
+
+4. **Note JWT Configuration** (for backend)
+   - Go to "JWT Templates" → "Blank" or default template
+   - Note the **Issuer** URL (e.g., `https://your-app.clerk.accounts.dev`)
+   - **Audience** can be your domain or leave as is
+
+> ⚠️ **Important**: We'll configure webhooks AFTER backend deployment (Step 4.2)
+
+### [x] Step 1.3: Prepare Your Environment Variables
+
+Create a checklist of all values you'll need (use the `.env.prod` template):
+
+**Backend (Cloud Run):**
+```bash
+CLERK_SECRET_KEY=sk_live_xxxxx              # From Clerk
+SUPABASE_DATABASE_URL=postgresql://...      # From Supabase (pooler URL)
+CLERK_ISSUER=https://xxx.clerk.accounts.dev # From Clerk JWT settings
+CLERK_AUDIENCE=your-domain.com              # Your domain or Clerk default
+CLERK_WEBHOOK_SECRET=whsec_xxxxx            # Will get after webhook setup
+```
+
+**Frontend (Vercel):**
+```bash
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx  # From Clerk
+CLERK_SECRET_KEY=sk_live_xxxxx                   # From Clerk (same as backend)
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co # From Supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...        # From Supabase
+NEXT_PUBLIC_API_URL=https://backend-xxx.run.app  # Will get after backend deploy
+```
+
+---
+
+## Phase 2: Backend Deployment (Cloud Run)
+
+**Why Backend First?** The frontend needs the backend URL to build correctly.
+
+### [x] Step 2.1: Set Up Google Cloud Project
+
+**Important**: Have your credit card ready - GCP requires billing to be enabled (free tier available).
 
 ```bash
-# Login to Google Cloud
+# 1. Login to Google Cloud (opens browser for authentication)
 gcloud auth login
 
-# Create a new project (or use existing)
-gcloud projects create hr-evaluation-system --name="HR Evaluation System"
+# 2. Create a new project (choose a unique project ID)
+# Replace 'hr-eval-prod-12345' with your unique project ID
+export PROJECT_ID="hr-evaluation-app-474400"
+gcloud projects create $PROJECT_ID --name="HR Evaluation System Production"
 
-# Set the project
-gcloud config set project hr-evaluation-system
+# 3. Set this as your active project
+gcloud config set project $PROJECT_ID
 
-# Enable required APIs
+# 4. Link billing account (required for Cloud Run)
+# First, list your billing accounts
+gcloud billing accounts list
+
+# Then link billing (replace BILLING_ACCOUNT_ID with the ID from above)
+gcloud billing projects link $PROJECT_ID --billing-account=BILLING_ACCOUNT_ID
+
+# 5. Enable required APIs (takes ~2-3 minutes)
+echo "Enabling required GCP APIs..."
 gcloud services enable run.googleapis.com
 gcloud services enable containerregistry.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable secretmanager.googleapis.com
+
+echo "✅ GCP project setup complete!"
 ```
 
-### Step 2: Set Up Secrets in Google Secret Manager
+**Troubleshooting**:
+- If billing link fails, go to [GCP Console](https://console.cloud.google.com/) → Billing → Link a billing account
+- If you get permission errors, ensure you're using your personal Google account or have Owner role
+
+### [x] Step 2.2: Set Up Secrets in Google Secret Manager
+
+**What are secrets?** Sensitive data (API keys, database passwords) stored securely in GCP.
 
 ```bash
-# Create secrets for sensitive data
-echo -n "your-clerk-secret-key" | gcloud secrets create clerk-secret --data-file=-
-echo -n "postgresql://..." | gcloud secrets create db-url --data-file=-
-echo -n "your-clerk-issuer" | gcloud secrets create clerk-issuer --data-file=-
-echo -n "your-clerk-audience" | gcloud secrets create clerk-audience --data-file=-
-echo -n "your-webhook-secret" | gcloud secrets create clerk-webhook-secret --data-file=-
+# Get your project number (needed for permissions)
+export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
 
-# Grant Cloud Run access to secrets
-PROJECT_NUMBER=$(gcloud projects describe hr-evaluation-system --format='value(projectNumber)')
-gcloud secrets add-iam-policy-binding clerk-secret \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+# Create secrets (replace placeholder values with your actual secrets from Step 1.3)
 
-# Repeat for all secrets
-gcloud secrets add-iam-policy-binding db-url \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+# 1. Clerk Secret Key
+echo -n "sk_live_YOUR_CLERK_SECRET_KEY" | gcloud secrets create clerk-secret-key --data-file=-
 
-gcloud secrets add-iam-policy-binding clerk-issuer \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+<START FROM HERE>
 
-gcloud secrets add-iam-policy-binding clerk-audience \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+# 2. Database URL (use connection pooling URL from Supabase)
+echo -n "postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true" | gcloud secrets create database-url --data-file=-
 
-gcloud secrets add-iam-policy-binding clerk-webhook-secret \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+# 3. Clerk Issuer
+echo -n "https://your-app.clerk.accounts.dev" | gcloud secrets create clerk-issuer --data-file=-
+
+# 4. Clerk Audience (your domain or Clerk default)
+echo -n "your-domain.com" | gcloud secrets create clerk-audience --data-file=-
+
+# 5. Clerk Webhook Secret (we'll update this later, use placeholder for now)
+echo -n "PLACEHOLDER_WILL_UPDATE_LATER" | gcloud secrets create clerk-webhook-secret --data-file=-
+
+# 6. Application Secret Key (generate with: openssl rand -hex 32)
+echo -n "$(openssl rand -hex 32)" | gcloud secrets create app-secret-key --data-file=-
+
+echo "✅ Secrets created!"
+
+# Grant Cloud Run service account access to all secrets
+echo "Granting Cloud Run access to secrets..."
+for secret in clerk-secret-key database-url clerk-issuer clerk-audience clerk-webhook-secret app-secret-key; do
+  gcloud secrets add-iam-policy-binding $secret \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+done
+
+echo "✅ Secrets permissions configured!"
+
+# Verify secrets were created
+echo "Listing all secrets:"
+gcloud secrets list
 ```
 
-### Step 3: Build and Deploy Backend
+**Troubleshooting**:
+- If secret creation fails with "already exists", delete it first: `gcloud secrets delete SECRET_NAME`
+- To update a secret: `echo -n "new-value" | gcloud secrets versions add SECRET_NAME --data-file=-`
+- To view secret names: `gcloud secrets list`
 
-#### Option A: Manual Deployment
+### Step 2.3: Build and Deploy Backend
+
+**Choose your deployment method:**
+- **Option A (Recommended for first deploy)**: Manual deployment - Full control, understand each step
+- **Option B (For CI/CD later)**: Automated via Cloud Build - Deploys on git push
+
+#### Option A: Manual Deployment (Recommended)
 
 ```bash
-# Build the Docker image
-cd backend
-docker build -t gcr.io/hr-evaluation-system/hr-evaluation-backend:latest -f Dockerfile.prod .
+# Navigate to project root
+cd /path/to/evaluation-system
 
-# Configure Docker authentication
+# Set region (choose one close to your users)
+export REGION="asia-northeast1"  # or asia-northeast1 (Tokyo), europe-west1 (Belgium)
+
+# Build the Docker image using production Dockerfile
+echo "Building Docker image for AMD64..."
+docker build --platform linux/amd64 \
+  -t gcr.io/$PROJECT_ID/hr-evaluation-backend:latest \
+  -f backend/Dockerfile.prod \
+  ./backend
+
+# Configure Docker to authenticate with GCP
 gcloud auth configure-docker
 
-# Push to Google Container Registry
-docker push gcr.io/hr-evaluation-system/hr-evaluation-backend:latest
+# Push image to Google Container Registry (takes ~1-2 minutes)
+echo "Pushing image to GCR..."
+docker push gcr.io/$PROJECT_ID/hr-evaluation-backend:latest
 
-# Deploy to Cloud Run
+# Deploy to Cloud Run (takes ~2-3 minutes)
+echo "Deploying to Cloud Run..."
 gcloud run deploy hr-evaluation-backend \
-  --image gcr.io/hr-evaluation-system/hr-evaluation-backend:latest \
-  --region us-central1 \
+  --image gcr.io/$PROJECT_ID/hr-evaluation-backend:latest \
+  --region $REGION \
   --platform managed \
   --allow-unauthenticated \
-  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,FRONTEND_URL=https://your-app.vercel.app" \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret:latest,SUPABASE_DATABASE_URL=db-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest" \
+  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False" \
+  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
   --min-instances 0 \
-  --max-instances 10 \
+  --max-instances 5 \
   --memory 512Mi \
   --cpu 1 \
+  --cpu-throttling \
   --timeout 300s \
   --port 8000
 
-# Get the service URL
-gcloud run services describe hr-evaluation-backend \
-  --region us-central1 \
-  --format 'value(status.url)'
+# Get and save the backend URL
+export BACKEND_URL=$(gcloud run services describe hr-evaluation-backend \
+  --region $REGION \
+  --format 'value(status.url)')
+
+echo "✅ Backend deployed successfully!"
+echo "Backend URL: $BACKEND_URL"
+echo ""
+echo "⚠️  IMPORTANT: Save this URL! You'll need it for:"
+echo "   1. Frontend deployment (NEXT_PUBLIC_API_URL)"
+echo "   2. Clerk webhook configuration"
 ```
 
-#### Option B: Automated Deployment via GitHub Actions
+**Expected output:**
+```
+Service [hr-evaluation-backend] revision [hr-evaluation-backend-00001-abc] has been deployed and is serving 100 percent of traffic.
+Service URL: https://hr-evaluation-backend-xxxxx-uc.a.run.app
+```
 
-1. **Create Service Account for GitHub Actions**
+**Test the deployment:**
+```bash
+# Test health endpoint
+curl $BACKEND_URL/health
+
+# Expected response:
+# {"status":"healthy"}
+
+# Test API docs (optional)
+open $BACKEND_URL/docs  # Opens FastAPI Swagger UI in browser
+```
+
+#### Option B: Multi-Environment Deployment (Production + Development)
+
+**This setup deploys:**
+- `main` branch → `hr-evaluation-backend` (production)
+- `develop` branch → `hr-evaluation-backend-dev` (development)
+
+1. **Create Development Secrets** (separate from production)
 
 ```bash
 # Create service account

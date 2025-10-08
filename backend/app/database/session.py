@@ -11,7 +11,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(o
 env_path = os.path.join(project_root, '.env')
 load_dotenv(env_path)
 
-DATABASE_URL = os.getenv("SUPABASE_DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DATABASE_URL")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 
 # Convert PostgreSQL URL to async version for SQLAlchemy
@@ -28,6 +28,14 @@ if DATABASE_URL:
 is_transaction_pooler = ":6543/" in DATABASE_URL if DATABASE_URL else False
 is_production = ENVIRONMENT.lower() == "production"
 
+# For pgbouncer transaction pooling: disable prepared statements via URL parameter
+# This is the most reliable method to prevent prepared statement errors
+if (is_production or is_transaction_pooler) and DATABASE_URL:
+    if "?" in DATABASE_URL:
+        DATABASE_URL += "&prepared_statement_cache_size=0"
+    else:
+        DATABASE_URL += "?prepared_statement_cache_size=0"
+
 if is_production or is_transaction_pooler:
     # Cloud Run or transaction pooler: Use NullPool (required for pgbouncer transaction mode)
     pool_config = {
@@ -39,7 +47,8 @@ if is_production or is_transaction_pooler:
         },
         # Disable prepared statement caching for pgbouncer transaction pooling compatibility
         # pgbouncer transaction mode rotates backend connections, which breaks prepared statements
-        "statement_cache_size": 0,
+        "statement_cache_size": 0,  # This disables asyncpg's prepared statement cache
+        "prepared_statement_cache_size": 0,  # Extra safety for different asyncpg versions
     }
 else:
     # Local development: Use QueuePool for connection reuse and better performance
@@ -59,6 +68,8 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Disable SQLAlchemy query logging to reduce log verbosity
     connect_args=connect_args,
+    # CRITICAL: Use execution_options to completely disable prepared statements for pgbouncer
+    execution_options={"prepared_statement_cache_size": 0} if (is_production or is_transaction_pooler) else {},
     **pool_config
 )
 AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
