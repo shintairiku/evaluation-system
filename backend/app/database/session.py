@@ -1,5 +1,6 @@
 import os
 from typing import AsyncGenerator
+from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import NullPool
@@ -11,7 +12,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(o
 env_path = os.path.join(project_root, '.env')
 load_dotenv(env_path)
 
-DATABASE_URL = os.getenv("SUPABASE_DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DATABASE_URL")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 
 # Convert PostgreSQL URL to async version for SQLAlchemy
@@ -28,6 +29,14 @@ if DATABASE_URL:
 is_transaction_pooler = ":6543/" in DATABASE_URL if DATABASE_URL else False
 is_production = ENVIRONMENT.lower() == "production"
 
+# For pgbouncer transaction pooling: disable prepared statements via URL parameter
+# This is the most reliable method to prevent prepared statement errors
+if (is_production or is_transaction_pooler) and DATABASE_URL:
+    if "?" in DATABASE_URL:
+        DATABASE_URL += "&prepared_statement_cache_size=0"
+    else:
+        DATABASE_URL += "?prepared_statement_cache_size=0"
+
 if is_production or is_transaction_pooler:
     # Cloud Run or transaction pooler: Use NullPool (required for pgbouncer transaction mode)
     pool_config = {
@@ -37,9 +46,16 @@ if is_production or is_transaction_pooler:
         "server_settings": {
             "jit": "off",
         },
-        # Disable prepared statement caching for pgbouncer transaction pooling compatibility
-        # pgbouncer transaction mode rotates backend connections, which breaks prepared statements
+        # CRITICAL FIX: Use UUID-based prepared statement names to prevent collisions
+        # This is the recommended solution from SQLAlchemy docs for pgbouncer transaction mode
+        # Each statement gets a unique name, avoiding DuplicatePreparedStatementError
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+        # Also disable statement caching as additional safety
         "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        # Add timeouts for robustness
+        "timeout": 10,
+        "command_timeout": 60,
     }
 else:
     # Local development: Use QueuePool for connection reuse and better performance

@@ -76,3 +76,12 @@ backend/tests/logs
 
 # PR
 PR*.md
+
+# production
+docker-compose-prod.yml
+.env.production
+
+# GCP service account keys (never commit these!)
+gcp-key.json
+*-key.json
+*.json.key

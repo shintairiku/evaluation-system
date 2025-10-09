@@ -62,12 +62,7 @@ export const buildApiUrl = (endpoint: string, version?: string) => {
 // Helper function to build organization-scoped API URLs (returns relative paths for HTTP client)
 export const buildOrgApiUrl = (orgSlug: string, endpoint: string) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  // Add trailing slash only if there are no query parameters (to prevent 307 redirects in FastAPI)
-  const hasQueryParams = cleanEndpoint.includes('?');
-  const withTrailingSlash = hasQueryParams || cleanEndpoint.endsWith('/')
-    ? cleanEndpoint
-    : `${cleanEndpoint}/`;
-  return `/api/org/${encodeURIComponent(orgSlug)}${withTrailingSlash}`;
+  return `/api/org/${encodeURIComponent(orgSlug)}${cleanEndpoint}`;
 };
 
 export const API_ENDPOINTS = {
@@ -78,63 +73,63 @@ export const API_ENDPOINTS = {
     LOGOUT: buildApiUrl('/auth/logout'),
     // DEV_KEYS: buildApiUrl('/auth/dev-keys'),
   },
-  
+
   // User endpoints (organization-scoped)
   USERS: {
-    LIST: '/users',
+    LIST: '/users/',
     BY_ID: (id: string) => `/users/${id}`,
-    CREATE: '/users',
+    CREATE: '/users/',
     UPDATE: (id: string) => `/users/${id}`,
     UPDATE_STAGE: (id: string) => `/users/${id}/stage`,
     DELETE: (id: string) => `/users/${id}`,
     ORG_CHART: '/users/org-chart',
   },
-  
+
   // Department endpoints
   DEPARTMENTS: {
-    LIST: '/departments',
+    LIST: '/departments/',
     BY_ID: (id: string) => `/departments/${id}`,
-    CREATE: '/departments',
+    CREATE: '/departments/',
     UPDATE: (id: string) => `/departments/${id}`,
     DELETE: (id: string) => `/departments/${id}`,
   },
-  
+
   // Role endpoints
   ROLES: {
-    LIST: '/roles',
+    LIST: '/roles/',
     BY_ID: (id: string) => `/roles/${id}`,
-    CREATE: '/roles',
+    CREATE: '/roles/',
     UPDATE: (id: string) => `/roles/${id}`,
     DELETE: (id: string) => `/roles/${id}`,
     REORDER: '/roles/reorder',
   },
-  
+
   // Stage endpoints
   STAGES: {
-    LIST: '/stages',
+    LIST: '/stages/',
     BY_ID: (id: string) => `/stages/${id}`,
-    CREATE: '/stages',
+    CREATE: '/stages/',
     UPDATE: (id: string) => `/stages/${id}`,
     DELETE: (id: string) => `/stages/${id}`,
     ADMIN: '/stages/admin',
   },
-  
+
   // Evaluation Period endpoints
   EVALUATION_PERIODS: {
-    LIST: '/evaluation-periods',
+    LIST: '/evaluation-periods/',
     BY_ID: (id: string) => `/evaluation-periods/${id}`,
-    CREATE: '/evaluation-periods',
+    CREATE: '/evaluation-periods/',
     UPDATE: (id: string) => `/evaluation-periods/${id}`,
     DELETE: (id: string) => `/evaluation-periods/${id}`,
     CURRENT: '/evaluation-periods/current',
     GOAL_STATISTICS: (id: string) => `/evaluation-periods/${id}/goal-statistics`,
   },
-  
+
   // Goal endpoints
   GOALS: {
-    LIST: '/goals',
+    LIST: '/goals/',
     BY_ID: (id: string) => `/goals/${id}`,
-    CREATE: '/goals',
+    CREATE: '/goals/',
     UPDATE: (id: string) => `/goals/${id}`,
     DELETE: (id: string) => `/goals/${id}`,
     SUBMIT: (id: string) => `/goals/${id}/submit`,
@@ -143,30 +138,30 @@ export const API_ENDPOINTS = {
     // BY_USER: (userId: string) => `/goals/user/${userId}`,
     // BY_PERIOD: (periodId: string) => `/goals/period/${periodId}`,
   },
-  
+
   // Goal Category endpoints
   GOAL_CATEGORIES: {
-    LIST: '/goal-categories',
+    LIST: '/goal-categories/',
     BY_ID: (id: string) => `/goal-categories/${id}`,
-    CREATE: '/goal-categories',
+    CREATE: '/goal-categories/',
     UPDATE: (id: string) => `/goal-categories/${id}`,
     DELETE: (id: string) => `/goal-categories/${id}`,
   },
-  
+
   // Competency endpoints
   COMPETENCIES: {
-    LIST: '/competencies',
+    LIST: '/competencies/',
     BY_ID: (id: string) => `/competencies/${id}`,
-    CREATE: '/competencies',
+    CREATE: '/competencies/',
     UPDATE: (id: string) => `/competencies/${id}`,
     DELETE: (id: string) => `/competencies/${id}`,
   },
-  
+
   // Self Assessment endpoints
   SELF_ASSESSMENTS: {
-    LIST: '/self-assessments',
+    LIST: '/self-assessments/',
     BY_ID: (id: string) => `/self-assessments/${id}`,
-    CREATE: '/self-assessments',
+    CREATE: '/self-assessments/',
     UPDATE: (id: string) => `/self-assessments/${id}`,
     DELETE: (id: string) => `/self-assessments/${id}`,
     BY_USER: (userId: string) => `/self-assessments/user/${userId}`,
@@ -174,23 +169,23 @@ export const API_ENDPOINTS = {
     BY_GOAL: (goalId: string) => `/self-assessments/goal/${goalId}`,
     SUBMIT: (id: string) => `/self-assessments/${id}/submit`,
   },
-  
+
   // Supervisor Review endpoints
   SUPERVISOR_REVIEWS: {
-    LIST: '/supervisor-reviews',
+    LIST: '/supervisor-reviews/',
     BY_ID: (id: string) => `/supervisor-reviews/${id}`,
-    CREATE: '/supervisor-reviews',
+    CREATE: '/supervisor-reviews/',
     UPDATE: (id: string) => `/supervisor-reviews/${id}`,
     DELETE: (id: string) => `/supervisor-reviews/${id}`,
     PENDING: '/supervisor-reviews/pending',
     SUBMIT: (id: string) => `/supervisor-reviews/${id}/submit`,
   },
-  
+
   // Supervisor Feedback endpoints
   SUPERVISOR_FEEDBACKS: {
-    LIST: '/supervisor-feedbacks',
+    LIST: '/supervisor-feedbacks/',
     BY_ID: (id: string) => `/supervisor-feedbacks/${id}`,
-    CREATE: '/supervisor-feedbacks',
+    CREATE: '/supervisor-feedbacks/',
     UPDATE: (id: string) => `/supervisor-feedbacks/${id}`,
     DELETE: (id: string) => `/supervisor-feedbacks/${id}`,
     BY_SUPERVISOR: (supervisorId: string) => `/supervisor-feedbacks/supervisor/${supervisorId}`,

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import status as http_status
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,7 +46,7 @@ async def get_evaluation_periods(
                 status_filter = EvaluationPeriodStatus(status)
             except ValueError:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid status: {status}. Must be one of: draft, active, completed, cancelled, all"
                 )
         
@@ -65,7 +66,7 @@ async def get_evaluation_periods(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
 
@@ -92,7 +93,7 @@ async def create_evaluation_period(
         raise HTTPException(status_code=403, detail=str(e))
     except Exception:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
 
@@ -125,7 +126,7 @@ async def get_evaluation_period(
         logger = logging.getLogger(__name__)
         logger.error(f"Error in get_evaluation_period: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}"
         )
 
@@ -156,7 +157,7 @@ async def update_evaluation_period(
         raise HTTPException(status_code=403, detail=str(e))
     except Exception:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
 
@@ -188,7 +189,7 @@ async def delete_evaluation_period(
         raise HTTPException(status_code=403, detail=str(e))
     except Exception:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
 
@@ -216,7 +217,7 @@ async def get_evaluation_period_goal_statistics(
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
 
@@ -248,7 +249,7 @@ async def get_evaluation_period_goal_statistics(
 #         raise HTTPException(status_code=403, detail=str(e))
 #     except Exception as e:
 #         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
 #             detail="Internal server error"
 #         )
 
