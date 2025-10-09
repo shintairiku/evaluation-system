@@ -11,26 +11,32 @@ declare const process: {
 const isServer = typeof window === 'undefined';
 
 const getApiBaseUrl = () => {
-  // Server-side: use Docker internal network (backend:8000)
+  // Server-side: use Docker internal network (backend:8000) or fallback to public URL
   if (isServer) {
     const serverUrl = process.env.API_BASE_URL_SERVER;
     if (!serverUrl) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('API_BASE_URL_SERVER is not set for production environment');
+      // In production (Vercel), fall back to the same public URL as client-side
+      const publicUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (publicUrl) {
+        return publicUrl;
       }
-      // Default to Docker service name for server-side calls
+
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Either API_BASE_URL_SERVER or NEXT_PUBLIC_API_BASE_URL must be set for production environment');
+      }
+      // Default to Docker service name for server-side calls in development
       return 'http://backend:8000';
     }
     return serverUrl;
   }
 
-  // Client-side: use localhost (browser access via Docker port mapping)
+  // Client-side: use public API URL
   const clientUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!clientUrl) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('NEXT_PUBLIC_API_BASE_URL is not set for production environment');
     }
-    // Default to localhost for browser access
+    // Default to localhost for browser access in development
     return 'http://localhost:8000';
   }
   return clientUrl;
