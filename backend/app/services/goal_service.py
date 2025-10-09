@@ -627,6 +627,7 @@ class GoalService:
             "status": goal_model.status,
             "approved_by": goal_model.approved_by,
             "approved_at": goal_model.approved_at,
+            "previous_goal_id": goal_model.previous_goal_id,
             "created_at": goal_model.created_at,
             "updated_at": goal_model.updated_at
         }

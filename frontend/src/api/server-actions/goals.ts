@@ -58,6 +58,37 @@ export const getGoalsAction = cache(async (params?: {
   return _getGoalsAction(params);
 });
 
+
+/**
+ * Server action to get a single goal by ID with caching
+ */
+export const getGoalByIdAction = cache(async (goalId: UUID): Promise<{
+  success: boolean;
+  data?: GoalResponse;
+  error?: string;
+}> => {
+  try {
+    const response = await goalsApi.getGoalById(goalId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch goal',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get goal by ID action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching goal',
+    };
+  }
+});
 /**
  * Server action to create a new goal with cache revalidation
  */

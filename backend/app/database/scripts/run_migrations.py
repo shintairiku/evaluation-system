@@ -52,9 +52,11 @@ async def run_migrations():
         applied_migrations = await get_applied_migrations(conn)
         
         # Find migration files from production and seed directories
+        # Get script directory and construct absolute paths
+        script_dir = Path(__file__).parent
         migration_dirs = [
-            Path("../migrations/production"),
-            Path("../migrations/seeds"),
+            script_dir.parent / "migrations" / "production",
+            script_dir.parent / "migrations" / "seeds",
         ]
 
         migration_files = []
