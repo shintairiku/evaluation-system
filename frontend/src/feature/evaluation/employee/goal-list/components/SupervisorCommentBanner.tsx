@@ -47,11 +47,6 @@ interface SupervisorCommentBannerProps {
  */
 export const SupervisorCommentBanner = React.memo<SupervisorCommentBannerProps>(
   function SupervisorCommentBanner({ supervisorReview, goalStatus, className }: SupervisorCommentBannerProps) {
-    // Debug log
-    console.log('🔍 [SupervisorCommentBanner] supervisorReview:', supervisorReview);
-    console.log('🔍 [SupervisorCommentBanner] goalStatus:', goalStatus);
-    console.log('🔍 [SupervisorCommentBanner] comment field:', supervisorReview?.comment);
-
     // Determine if goal is rejected (check both review action and goal status)
     const isRejected =
       (supervisorReview?.action === SupervisorAction.REJECTED || supervisorReview?.action === 'rejected') ||
