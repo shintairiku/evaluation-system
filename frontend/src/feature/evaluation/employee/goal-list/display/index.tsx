@@ -9,6 +9,7 @@ import { GoalListFilters } from '../components/GoalListFilters';
 import { EmployeeSelector } from '../components/EmployeeSelector';
 import { EmployeeInfoCard } from '../components/EmployeeInfoCard';
 import { useGoalListData } from '../hooks/useGoalListData';
+import { useUserRoles } from '@/hooks/useUserRoles';
 
 /**
  * Main goal list page for employees to view and manage their goals.
@@ -48,6 +49,8 @@ export default function GoalListPage() {
     setSelectedEmployeeId,
     refetch,
   } = useGoalListData();
+
+  const { currentUser } = useUserRoles();
 
   // Get selected employee info for display
   const selectedEmployee = useMemo(() => {
@@ -206,7 +209,7 @@ export default function GoalListPage() {
         {/* Goals List */}
         <div className="space-y-4">
           {filteredGoals.map((goal) => (
-            <GoalCard key={goal.id} goal={goal} />
+            <GoalCard key={goal.id} goal={goal} currentUserId={currentUser?.id} />
           ))}
         </div>
       </div>
