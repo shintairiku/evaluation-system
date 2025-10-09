@@ -3,9 +3,8 @@ import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Target, Brain, Calendar, Weight, Loader2, AlertCircle } from 'lucide-react';
+import { Target, Brain, Calendar, Weight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { GoalStatusBadge } from '@/feature/evaluation/superviser/goal-review/components/GoalStatusBadge';
-import { SupervisorCommentBanner } from './SupervisorCommentBanner';
 import { useCompetencyNames } from '@/feature/evaluation/superviser/goal-review/hooks/useCompetencyNames';
 import { useIdealActionsResolver } from '@/feature/evaluation/superviser/goal-review/hooks/useIdealActionsResolver';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
@@ -22,6 +21,8 @@ interface GoalCardProps {
   };
   /** Optional custom className */
   className?: string;
+  /** Current user ID to determine if edit button should be shown */
+  currentUserId?: string;
 }
 
 /**
@@ -46,7 +47,7 @@ interface GoalCardProps {
  * ```
  */
 export const GoalCard = React.memo<GoalCardProps>(
-  function GoalCard({ goal, className }: GoalCardProps) {
+  function GoalCard({ goal, className, currentUserId }: GoalCardProps) {
     const router = useRouter();
     const isPerformanceGoal = goal.goalCategory === '業績目標';
     const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
@@ -82,35 +83,30 @@ export const GoalCard = React.memo<GoalCardProps>(
       });
     };
 
-    // Determine button text and action based on status
-    // Only show action buttons when employee can/should take action
+    // Determine button text and action based on status and ownership
+    // Only show edit button for own goals in draft status
     const getActionButton = () => {
-      switch (goal.status) {
-        case 'draft':
-          return (
-            <Button
-              onClick={() => router.push(`/goal-edit/${goal.id}`)}
-              variant="outline"
-            >
-              編集
-            </Button>
-          );
-        case 'rejected':
-          return (
-            <Button
-              onClick={() => router.push(`/goal-edit/${goal.id}`)}
-              variant="default"
-            >
-              編集・再提出
-            </Button>
-          );
-        case 'submitted':
-        case 'approved':
-          // No action needed - all info is already visible in the card
-          return null;
-        default:
-          return null;
+      // Check if this is the current user's goal
+      const isOwnGoal = currentUserId && currentUserId === goal.userId;
+
+      // Only show edit button for own goals in draft status
+      if (isOwnGoal && goal.status === 'draft') {
+        return (
+          <Button
+            onClick={() => router.push(`/goal-edit/${goal.id}`)}
+            variant="outline"
+          >
+            編集
+          </Button>
+        );
       }
+
+      // No action for:
+      // - Other users' goals (supervisor viewing subordinates)
+      // - Submitted goals (awaiting review)
+      // - Approved goals (finalized)
+      // - Rejected goals (read-only, new draft created automatically)
+      return null;
     };
 
     return (
@@ -168,6 +164,33 @@ export const GoalCard = React.memo<GoalCardProps>(
                       </p>
                     </div>
                   )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Approval Banner - shown if this goal is approved */}
+          {goal.status === 'approved' && goal.supervisorReview && goal.supervisorReview.comment && (
+            <Alert variant="default" className="border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="ml-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-green-900">
+                      目標が承認されました
+                    </p>
+                    <p className="text-sm text-green-800 ml-auto">
+                      承認日: {formatDate(goal.supervisorReview.reviewed_at || goal.supervisorReview.updated_at || goal.supervisorReview.created_at)}
+                    </p>
+                  </div>
+                  <div className="bg-white p-3 rounded border border-green-200">
+                    <p className="text-sm font-medium text-gray-700 mb-1">
+                      上司からのコメント:
+                    </p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                      {goal.supervisorReview.comment}
+                    </p>
+                  </div>
                 </div>
               </AlertDescription>
             </Alert>
@@ -291,12 +314,6 @@ export const GoalCard = React.memo<GoalCardProps>(
               )}
             </div>
           )}
-
-          {/* Display supervisor comment (rejection or approval) */}
-          <SupervisorCommentBanner
-            supervisorReview={goal.supervisorReview || null}
-            goalStatus={goal.status}
-          />
         </CardContent>
 
         <CardFooter className="flex justify-end">
