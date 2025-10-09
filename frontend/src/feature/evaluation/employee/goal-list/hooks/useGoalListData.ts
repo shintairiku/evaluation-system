@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getGoalsAction } from '@/api/server-actions/goals';
+import { getGoalsAction, getGoalByIdAction } from '@/api/server-actions/goals';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
 import { getUsersAction } from '@/api/server-actions/users';
@@ -13,6 +13,7 @@ import type { GoalResponse, GoalStatus, EvaluationPeriod, SupervisorReview, User
 type GoalWithReview = GoalResponse & {
   supervisorReview?: SupervisorReview | null;
   previousGoalReview?: SupervisorReview | null;
+  rejectionHistory?: SupervisorReview[]; // Array of all rejection reviews in chronological order
 };
 
 /**
@@ -102,11 +103,49 @@ export function useGoalListData(): UseGoalListDataReturn {
   const [users, setUsers] = useState<UserDetailResponse[]>([]);
 
   /**
+   * Recursively fetch rejection history for a goal
+   * Follows the previousGoalId chain backwards to collect all rejection reviews
+   */
+  const fetchRejectionHistory = useCallback(async (goalId: string): Promise<SupervisorReview[]> => {
+    const history: SupervisorReview[] = [];
+    let currentGoalId: string | null = goalId;
+    const visited = new Set<string>(); // Prevent infinite loops
+
+    while (currentGoalId && !visited.has(currentGoalId)) {
+      visited.add(currentGoalId);
+
+      // Fetch the goal to get its previousGoalId
+      const goalResult = await getGoalByIdAction(currentGoalId);
+      if (!goalResult.success || !goalResult.data) break;
+
+      const goal = goalResult.data;
+
+      // Only fetch review if this goal was rejected
+      if (goal.status === 'rejected') {
+        const reviewResult = await getSupervisorReviewsAction({
+          goalId: currentGoalId,
+          pagination: { limit: 1 }
+        });
+
+        if (reviewResult.success && reviewResult.data?.items?.[0]) {
+          history.unshift(reviewResult.data.items[0]); // Add at beginning (chronological order)
+        }
+      }
+
+      // Move to previous goal in chain
+      currentGoalId = goal.previousGoalId || null;
+    }
+
+    return history;
+  }, []);
+
+  /**
    * Load goals data from server
    *
    * This follows the same pattern as supervisor goal-review:
    * 1. Fetch goals and reviews in parallel
    * 2. Map reviews to goals using goal_id
+   * 3. Fetch rejection history for goals with previousGoalId
    */
   const loadGoalData = useCallback(async () => {
     try {
@@ -194,12 +233,23 @@ export function useGoalListData(): UseGoalListDataReturn {
           }
         });
 
-        // Map reviews to goals (using activeGoals which excludes rejected)
-        const goalsWithReviews: GoalWithReview[] = activeGoals.map(goal => ({
-          ...goal,
-          supervisorReview: reviewsMap.get(goal.id) || null,
-          previousGoalReview: goal.previousGoalId ? reviewsMap.get(goal.previousGoalId) || null : null
-        }));
+        // Map reviews to goals and fetch rejection history for goals with previousGoalId
+        const goalsWithReviews: GoalWithReview[] = await Promise.all(
+          activeGoals.map(async (goal) => {
+            // Fetch full rejection history if this goal has previousGoalId
+            let rejectionHistory: SupervisorReview[] = [];
+            if (goal.previousGoalId) {
+              rejectionHistory = await fetchRejectionHistory(goal.previousGoalId);
+            }
+
+            return {
+              ...goal,
+              supervisorReview: reviewsMap.get(goal.id) || null,
+              previousGoalReview: goal.previousGoalId ? reviewsMap.get(goal.previousGoalId) || null : null,
+              rejectionHistory: rejectionHistory.length > 0 ? rejectionHistory : undefined
+            };
+          })
+        );
 
         setGoals(goalsWithReviews);
       } else {
@@ -212,7 +262,7 @@ export function useGoalListData(): UseGoalListDataReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchRejectionHistory]);
 
   /**
    * Count goals with previousGoalId (resubmissions)
