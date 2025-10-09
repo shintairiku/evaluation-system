@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getGoalsAction } from '@/api/server-actions/goals';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
-import type { GoalResponse, GoalStatus, EvaluationPeriod, SupervisorReview } from '@/api/types';
+import { getUsersAction } from '@/api/server-actions/users';
+import type { GoalResponse, GoalStatus, EvaluationPeriod, SupervisorReview, UserDetailResponse } from '@/api/types';
 
 /**
  * Extended GoalResponse with optional supervisorReview and previousGoalReview
@@ -15,6 +16,18 @@ type GoalWithReview = GoalResponse & {
 };
 
 /**
+ * Interface for goals grouped by employee (for supervisor view)
+ */
+export interface GroupedGoals {
+  /** Employee information */
+  employee: UserDetailResponse;
+  /** Array of goals belonging to this employee */
+  goals: GoalWithReview[];
+  /** Total count of goals for this employee */
+  goalCount: number;
+}
+
+/**
  * Return type for the useGoalListData hook
  */
 export interface UseGoalListDataReturn {
@@ -22,6 +35,10 @@ export interface UseGoalListDataReturn {
   goals: GoalWithReview[];
   /** Goals after applying filters */
   filteredGoals: GoalWithReview[];
+  /** Goals grouped by employee (for supervisor view) */
+  groupedGoals: GroupedGoals[];
+  /** Currently selected employee ID (for supervisor filtering) */
+  selectedEmployeeId: string;
   /** Loading state */
   isLoading: boolean;
   /** Error message if any */
@@ -38,6 +55,8 @@ export interface UseGoalListDataReturn {
   setSelectedStatuses: (statuses: GoalStatus[]) => void;
   /** Function to update resubmissions filter */
   setShowResubmissionsOnly: (value: boolean) => void;
+  /** Function to set selected employee */
+  setSelectedEmployeeId: (id: string) => void;
   /** Function to reload data */
   refetch: () => Promise<void>;
 }
@@ -79,6 +98,8 @@ export function useGoalListData(): UseGoalListDataReturn {
   const [selectedStatuses, setSelectedStatuses] = useState<GoalStatus[]>([]);
   const [showResubmissionsOnly, setShowResubmissionsOnly] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(''); // '' means "all"
+  const [users, setUsers] = useState<UserDetailResponse[]>([]);
 
   /**
    * Load goals data from server
@@ -92,8 +113,17 @@ export function useGoalListData(): UseGoalListDataReturn {
       setIsLoading(true);
       setError(null);
 
-      // Load current evaluation period
-      const periodResult = await getCategorizedEvaluationPeriodsAction();
+      // Load current evaluation period and users in parallel
+      const [periodResult, usersResult] = await Promise.all([
+        getCategorizedEvaluationPeriodsAction(),
+        getUsersAction()
+      ]);
+
+      // Set users data
+      if (usersResult.success && usersResult.data?.items) {
+        setUsers(usersResult.data.items);
+      }
+
       if (periodResult.success && periodResult.data?.current) {
         setCurrentPeriod(periodResult.data.current);
         const currentPeriodId = periodResult.data.current.id;
@@ -192,23 +222,59 @@ export function useGoalListData(): UseGoalListDataReturn {
   }, [goals]);
 
   /**
-   * Filter goals based on selected statuses and resubmissions flag
+   * Group goals by employee (user_id) - sorted alphabetically by employee name
+   */
+  const groupedGoals = useMemo(() => {
+    const userGoalsMap = new Map<string, GoalWithReview[]>();
+
+    // Group goals by user_id
+    goals.forEach(goal => {
+      if (!userGoalsMap.has(goal.userId)) {
+        userGoalsMap.set(goal.userId, []);
+      }
+      userGoalsMap.get(goal.userId)!.push(goal);
+    });
+
+    // Convert to GroupedGoals array
+    const grouped: GroupedGoals[] = [];
+    userGoalsMap.forEach((userGoals, userId) => {
+      const employee = users.find(user => user.id === userId);
+      if (employee) {
+        grouped.push({
+          employee,
+          goals: userGoals,
+          goalCount: userGoals.length
+        });
+      }
+    });
+
+    // Sort by employee name
+    return grouped.sort((a, b) => a.employee.name.localeCompare(b.employee.name, 'ja'));
+  }, [goals, users]);
+
+  /**
+   * Filter goals based on selected statuses, resubmissions flag, and selected employee
    */
   const filteredGoals = useMemo(() => {
     let result = goals;
 
-    // Step 1: Filter by status
+    // Step 1: Filter by selected employee (if any)
+    if (selectedEmployeeId) {
+      result = result.filter(goal => goal.userId === selectedEmployeeId);
+    }
+
+    // Step 2: Filter by status
     if (selectedStatuses.length > 0) {
       result = result.filter(goal => selectedStatuses.includes(goal.status));
     }
 
-    // Step 2: Filter by resubmissions only (if checked)
+    // Step 3: Filter by resubmissions only (if checked)
     if (showResubmissionsOnly) {
       result = result.filter(goal => goal.previousGoalId !== null && goal.previousGoalId !== undefined);
     }
 
     return result;
-  }, [goals, selectedStatuses, showResubmissionsOnly]);
+  }, [goals, selectedEmployeeId, selectedStatuses, showResubmissionsOnly]);
 
   /**
    * Load data on mount
@@ -220,6 +286,8 @@ export function useGoalListData(): UseGoalListDataReturn {
   return {
     goals,
     filteredGoals,
+    groupedGoals,
+    selectedEmployeeId,
     isLoading,
     error,
     selectedStatuses,
@@ -228,6 +296,7 @@ export function useGoalListData(): UseGoalListDataReturn {
     resubmissionCount,
     setSelectedStatuses,
     setShowResubmissionsOnly,
+    setSelectedEmployeeId,
     refetch: loadGoalData,
   };
 }

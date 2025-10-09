@@ -1,11 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { GoalCard } from '../components/GoalCard';
 import { GoalListFilters } from '../components/GoalListFilters';
+import { EmployeeSelector } from '../components/EmployeeSelector';
+import { EmployeeInfoCard } from '../components/EmployeeInfoCard';
 import { useGoalListData } from '../hooks/useGoalListData';
 
 /**
@@ -33,6 +35,8 @@ import { useGoalListData } from '../hooks/useGoalListData';
 export default function GoalListPage() {
   const {
     filteredGoals,
+    groupedGoals,
+    selectedEmployeeId,
     isLoading,
     error,
     selectedStatuses,
@@ -41,8 +45,15 @@ export default function GoalListPage() {
     resubmissionCount,
     setSelectedStatuses,
     setShowResubmissionsOnly,
+    setSelectedEmployeeId,
     refetch,
   } = useGoalListData();
+
+  // Get selected employee info for display
+  const selectedEmployee = useMemo(() => {
+    if (!selectedEmployeeId) return null;
+    return groupedGoals.find(g => g.employee.id === selectedEmployeeId)?.employee || null;
+  }, [selectedEmployeeId, groupedGoals]);
 
   // Format period name for display
   const periodDisplay = currentPeriod?.name || '評価期間未設定';
@@ -164,6 +175,22 @@ export default function GoalListPage() {
             評価期間: {periodDisplay}
           </p>
         </div>
+
+        {/* Employee Selector - only show if user has access to multiple employees' goals */}
+        {groupedGoals.length > 1 && (
+          <div className="bg-card border rounded-lg p-4">
+            <EmployeeSelector
+              groupedGoals={groupedGoals}
+              selectedEmployeeId={selectedEmployeeId}
+              onSelectEmployee={setSelectedEmployeeId}
+            />
+          </div>
+        )}
+
+        {/* Selected Employee Info Card - only show when specific employee is selected */}
+        {selectedEmployee && (
+          <EmployeeInfoCard employee={selectedEmployee} />
+        )}
 
         {/* Filters */}
         <div className="bg-card border rounded-lg p-4">
