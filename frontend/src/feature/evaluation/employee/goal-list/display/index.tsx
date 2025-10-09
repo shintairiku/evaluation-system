@@ -187,9 +187,9 @@ export default function GoalListPage() {
           </div>
         )}
 
-        {/* Selected Employee Info Card - only show when specific employee is selected */}
-        {selectedEmployee && (
-          <EmployeeInfoCard employee={selectedEmployee} />
+        {/* Employee Info Card - show when employee is selected OR when there's only one employee */}
+        {(selectedEmployee || (groupedGoals.length === 1 && groupedGoals[0])) && (
+          <EmployeeInfoCard employee={selectedEmployee || groupedGoals[0].employee} />
         )}
 
         {/* Filters */}
