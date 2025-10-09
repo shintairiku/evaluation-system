@@ -9,49 +9,67 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: ${{ secrets.GCP_REGION }}
   SERVICE_NAME: hr-evaluation-backend
+  IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/hr-evaluation-backend:${{ github.sha }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
+      id: auth
+      uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    - name: Setup Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
-      with:
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
 
-    - name: Configure Docker
-      run: gcloud auth configure-docker
+    - name: Configure Docker for GCR
+      run: gcloud auth configure-docker --quiet
 
     - name: Build Docker image
       run: |
         docker build --platform linux/amd64 \
-          -t gcr.io/$PROJECT_ID/$SERVICE_NAME:latest \
+          -t ${{ env.IMAGE_NAME }} \
+          -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
           -f backend/Dockerfile.prod \
           ./backend
 
     - name: Push Docker image
-      run: docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:latest
+      run: |
+        docker push ${{ env.IMAGE_NAME }}
+        docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
 
     - name: Deploy to Cloud Run
-      run: |
-        gcloud run deploy $SERVICE_NAME \
-          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:latest \
-          --region $REGION \
-          --platform managed \
-          --allow-unauthenticated \
-          --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False" \
-          --set-secrets "CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
-          --min-instances 0 \
-          --max-instances 5 \
-          --memory 512Mi \
-          --cpu 1 \
-          --cpu-throttling \
-          --timeout 300s \
-          --port 8000
+      id: deploy
+      uses: google-github-actions/deploy-cloudrun@v3
+      with:
+        service: ${{ env.SERVICE_NAME }}
+        image: ${{ env.IMAGE_NAME }}
+        region: ${{ env.REGION }}
+        flags: |
+          --platform=managed
+          --allow-unauthenticated
+          --min-instances=0
+          --max-instances=5
+          --memory=512Mi
+          --cpu=1
+          --cpu-throttling
+          --timeout=300s
+          --port=8000
+        env_vars: |
+          ENVIRONMENT=production
+          LOG_LEVEL=INFO
+          DEBUG=False
+        secrets: |
+          CLERK_SECRET_KEY=clerk-secret-key:latest
+          SUPABASE_DATABASE_URL=database-url:latest
+          CLERK_ISSUER=clerk-issuer:latest
+          CLERK_AUDIENCE=clerk-audience:latest
+          CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest
+          SECRET_KEY=app-secret-key:latest
+
+    - name: Show deployment URL
+      run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
