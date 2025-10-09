@@ -265,10 +265,15 @@ export function useGoalListData(): UseGoalListDataReturn {
   }, [fetchRejectionHistory]);
 
   /**
-   * Count goals with previousGoalId (resubmissions)
+   * Count goals with previousGoalId in draft status (rejected goals awaiting re-submission)
+   * Only draft goals with previousGoalId need action from employee
    */
   const resubmissionCount = useMemo(() => {
-    return goals.filter(goal => goal.previousGoalId !== null && goal.previousGoalId !== undefined).length;
+    return goals.filter(goal =>
+      goal.status === 'draft' &&
+      goal.previousGoalId !== null &&
+      goal.previousGoalId !== undefined
+    ).length;
   }, [goals]);
 
   /**
@@ -319,8 +324,13 @@ export function useGoalListData(): UseGoalListDataReturn {
     }
 
     // Step 3: Filter by resubmissions only (if checked)
+    // Only show draft goals with previousGoalId (rejected goals awaiting re-submission)
     if (showResubmissionsOnly) {
-      result = result.filter(goal => goal.previousGoalId !== null && goal.previousGoalId !== undefined);
+      result = result.filter(goal =>
+        goal.status === 'draft' &&
+        goal.previousGoalId !== null &&
+        goal.previousGoalId !== undefined
+      );
     }
 
     return result;
