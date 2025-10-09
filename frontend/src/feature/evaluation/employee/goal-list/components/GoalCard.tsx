@@ -150,13 +150,18 @@ export const GoalCard = React.memo<GoalCardProps>(
               <AlertCircle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="ml-2">
                 <div className="space-y-2">
-                  <p className="font-semibold text-amber-900">
-                    この目標は以前差し戻されました
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-amber-900">
+                      この目標は以前差し戻されました
+                    </p>
+                    <p className="text-sm text-amber-800 ml-auto">
+                      差し戻し日: {formatDate(goal.previousGoalReview.reviewed_at || goal.previousGoalReview.updated_at || goal.previousGoalReview.created_at)}
+                    </p>
+                  </div>
                   {goal.previousGoalReview.comment && (
                     <div className="bg-white p-3 rounded border border-amber-200">
                       <p className="text-sm font-medium text-gray-700 mb-1">
-                        前回のコメント:
+                        上司からのコメント:
                       </p>
                       <p className="text-sm text-gray-800 whitespace-pre-wrap">
                         {goal.previousGoalReview.comment}
