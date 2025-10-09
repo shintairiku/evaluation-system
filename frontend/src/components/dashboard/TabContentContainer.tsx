@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, lazy, ComponentType, ReactNode, useState, useEffect } from 'react';
+import { Suspense, ComponentType, ReactNode, useState, useEffect, useCallback, useRef } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,12 +24,17 @@ export interface TabContentContainerProps {
   disableCache?: boolean;
   /** Custom container styling */
   className?: string;
+  /** Enable parallel rendering (all tabs rendered simultaneously) - DEFAULT TRUE */
+  enableParallelRendering?: boolean;
+  /** Unmount inactive tabs after this duration (ms, default: 5 minutes) */
+  unmountInactiveAfter?: number;
 }
 
-interface CacheEntry {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  component: ComponentType<any>;
-  timestamp: number;
+interface RoleVisibility {
+  [role: string]: {
+    rendered: boolean;
+    lastActive: number;
+  };
 }
 
 // Default loading component
@@ -55,28 +60,30 @@ const DefaultErrorFallback = ({ error, retry }: { error: Error; retry: () => voi
   </Alert>
 );
 
-// Component cache for lazy-loaded components
-const componentCache = new Map<string, CacheEntry>();
-
 /**
- * TabContentContainer component for managing dashboard tab content with lazy loading
+ * TabContentContainer component with parallel rendering support
+ *
+ * NEW ARCHITECTURE:
+ * - Renders ALL role dashboards simultaneously (hidden via CSS)
+ * - Uses display: none for inactive tabs (instant switching)
+ * - Intelligently unmounts inactive tabs after timeout
+ * - Zero latency tab switching for better UX
  *
  * This component:
- * - Lazy loads dashboard components only when needed
- * - Caches loaded components for performance
+ * - Supports both parallel and sequential rendering modes
+ * - Manages visibility state for instant tab switching
  * - Provides error boundaries for each tab
- * - Supports custom loading and error states
- * - Manages component lifecycle efficiently
+ * - Handles lifecycle management efficiently
  *
  * Usage:
  * <TabContentContainer
  *   activeRole={activeRole}
  *   roleComponents={{
- *     admin: AdminDashboard,
- *     supervisor: SupervisorDashboard,
- *     employee: EmployeeDashboard
+ *     admin: AdminDashboardServer,
+ *     supervisor: SupervisorDashboardServer,
+ *     employee: EmployeeDashboardServer
  *   }}
- *   componentProps={{ userId: currentUser.id }}
+ *   enableParallelRendering={true}
  * />
  */
 export default function TabContentContainer({
@@ -87,85 +94,157 @@ export default function TabContentContainer({
   errorFallback: ErrorFallback = DefaultErrorFallback,
   cacheTimeout = 5 * 60 * 1000, // 5 minutes
   disableCache = false,
-  className = ''
+  className = '',
+  enableParallelRendering = true, // DEFAULT TRUE for instant switching
+  unmountInactiveAfter = 5 * 60 * 1000 // 5 minutes
 }: TabContentContainerProps) {
-  const [error, setError] = useState<Error | null>(null);
+  const [errors, setErrors] = useState<Record<string, Error>>({});
   const [retryKey, setRetryKey] = useState(0);
+  const [roleVisibility, setRoleVisibility] = useState<RoleVisibility>({});
+  const cleanupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Clear error when active role changes
+  // Initialize visibility state for all roles
   useEffect(() => {
-    setError(null);
-  }, [activeRole]);
-
-  // Get component for active role
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const getActiveComponent = (): ComponentType<any> | null => {
-    const componentFactory = roleComponents[activeRole];
-
-    if (!componentFactory) {
-      console.warn(`No component found for role: ${activeRole}`);
-      return null;
+    if (enableParallelRendering) {
+      const initialVisibility: RoleVisibility = {};
+      Object.keys(roleComponents).forEach(role => {
+        initialVisibility[role] = {
+          rendered: true, // CRITICAL FIX: Render ALL tabs for instant switching (hidden with display:none)
+          lastActive: role === activeRole ? Date.now() : 0
+        };
+      });
+      setRoleVisibility(initialVisibility);
     }
+  }, [enableParallelRendering, roleComponents, activeRole]);
 
-    // Check cache first
-    if (!disableCache) {
-      const cached = componentCache.get(activeRole);
-      if (cached && Date.now() - cached.timestamp < cacheTimeout) {
-        return cached.component;
+  // Update last active timestamp when role changes
+  useEffect(() => {
+    if (enableParallelRendering) {
+      setRoleVisibility(prev => ({
+        ...prev,
+        [activeRole]: {
+          rendered: true,
+          lastActive: Date.now()
+        }
+      }));
+
+      // Clear any existing cleanup timer
+      if (cleanupTimerRef.current) {
+        clearTimeout(cleanupTimerRef.current);
+      }
+
+      // Schedule cleanup of inactive tabs
+      if (unmountInactiveAfter > 0) {
+        cleanupTimerRef.current = setTimeout(() => {
+          const now = Date.now();
+          setRoleVisibility(prev => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach(role => {
+              if (role !== activeRole && updated[role].rendered) {
+                const timeSinceActive = now - updated[role].lastActive;
+                if (timeSinceActive > unmountInactiveAfter) {
+                  updated[role] = { ...updated[role], rendered: false };
+                }
+              }
+            });
+            return updated;
+          });
+        }, unmountInactiveAfter);
       }
     }
 
-    // Create new component instance
-    const component = componentFactory;
+    return () => {
+      if (cleanupTimerRef.current) {
+        clearTimeout(cleanupTimerRef.current);
+      }
+    };
+  }, [activeRole, enableParallelRendering, unmountInactiveAfter]);
 
-    // Cache the component
-    if (!disableCache) {
-      componentCache.set(activeRole, {
-        component,
-        timestamp: Date.now()
-      });
-    }
-
-    return component;
-  };
+  // Clear error when active role changes
+  useEffect(() => {
+    setErrors(prev => {
+      const updated = { ...prev };
+      delete updated[activeRole];
+      return updated;
+    });
+  }, [activeRole]);
 
   // Handle retry action
-  const handleRetry = () => {
-    setError(null);
+  const handleRetry = useCallback((role: string) => {
+    setErrors(prev => {
+      const updated = { ...prev };
+      delete updated[role];
+      return updated;
+    });
     setRetryKey(prev => prev + 1);
+  }, []);
 
-    // Clear cache for current role
-    if (componentCache.has(activeRole)) {
-      componentCache.delete(activeRole);
-    }
-  };
-
-  // Error boundary component
-  const ErrorBoundary = ({ children }: { children: ReactNode }) => {
+  // Error boundary wrapper for each role
+  const RoleErrorBoundary = ({ role, children }: { role: string; children: ReactNode }) => {
     useEffect(() => {
       const handleError = (event: ErrorEvent) => {
-        setError(new Error(event.message || 'Unknown error occurred'));
+        setErrors(prev => ({
+          ...prev,
+          [role]: new Error(event.message || 'Unknown error occurred')
+        }));
       };
 
       window.addEventListener('error', handleError);
       return () => window.removeEventListener('error', handleError);
-    }, []);
+    }, [role]);
 
     return <>{children}</>;
   };
 
-  // Show error state
-  if (error) {
+  // PARALLEL RENDERING MODE: Render all tabs simultaneously
+  if (enableParallelRendering) {
     return (
-      <div className={className}>
-        <ErrorFallback error={error} retry={handleRetry} />
+      <div className={`w-full ${className}`} key={retryKey}>
+        {Object.entries(roleComponents).map(([role, Component]) => {
+          const isActive = role === activeRole;
+          const shouldRender = roleVisibility[role]?.rendered ?? isActive;
+          const hasError = !!errors[role];
+
+          // Don't render if not needed
+          if (!shouldRender) {
+            return null;
+          }
+
+          return (
+            <div
+              key={role}
+              className="w-full"
+              style={{
+                display: isActive ? 'block' : 'none'
+              }}
+              aria-hidden={!isActive}
+            >
+              {hasError ? (
+                <ErrorFallback
+                  error={errors[role]}
+                  retry={() => handleRetry(role)}
+                />
+              ) : (
+                <RoleErrorBoundary role={role}>
+                  <Suspense fallback={loadingComponent}>
+                    <Component
+                      {...componentProps}
+                      role={role}
+                      initialData={componentProps.dashboardCache?.[role]}
+                    />
+                  </Suspense>
+                </RoleErrorBoundary>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
-  const ActiveComponent = getActiveComponent();
+  // SEQUENTIAL RENDERING MODE (Legacy): Only render active tab
+  const ActiveComponent = roleComponents[activeRole];
 
-  // Show not found message if no component
   if (!ActiveComponent) {
     return (
       <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
@@ -179,71 +258,34 @@ export default function TabContentContainer({
     );
   }
 
+  const hasError = !!errors[activeRole];
+
   return (
     <div className={`w-full ${className}`} key={`${activeRole}-${retryKey}`}>
-      <ErrorBoundary>
-        <Suspense fallback={loadingComponent}>
-          <ActiveComponent {...componentProps} role={activeRole} />
-        </Suspense>
-      </ErrorBoundary>
+      {hasError ? (
+        <ErrorFallback
+          error={errors[activeRole]}
+          retry={() => handleRetry(activeRole)}
+        />
+      ) : (
+        <RoleErrorBoundary role={activeRole}>
+          <Suspense fallback={loadingComponent}>
+            <ActiveComponent {...componentProps} role={activeRole} />
+          </Suspense>
+        </RoleErrorBoundary>
+      )}
     </div>
   );
 }
 
 /**
- * Clear component cache (useful for memory management or forced refresh)
+ * Get rendering statistics for debugging
  */
-export function clearComponentCache(role?: string) {
-  if (role) {
-    componentCache.delete(role);
-  } else {
-    componentCache.clear();
-  }
-}
-
-/**
- * Get cache statistics for debugging
- */
-export function getCacheStats() {
+export function getTabRenderingStats(container: HTMLElement) {
+  const tabs = container.querySelectorAll('[aria-hidden]');
   return {
-    size: componentCache.size,
-    entries: Array.from(componentCache.entries()).map(([role, entry]) => ({
-      role,
-      timestamp: entry.timestamp,
-      age: Date.now() - entry.timestamp
-    }))
+    totalTabs: tabs.length,
+    visibleTabs: Array.from(tabs).filter(t => t.getAttribute('aria-hidden') === 'false').length,
+    hiddenTabs: Array.from(tabs).filter(t => t.getAttribute('aria-hidden') === 'true').length
   };
-}
-
-/**
- * Higher-order component for creating lazy-loaded dashboard components
- *
- * Usage:
- * export default withLazyDashboard(() => import('./AdminDashboard'));
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function withLazyDashboard<T extends ComponentType<any>>(
-  importFn: () => Promise<{ default: T }>
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-): ComponentType<any> {
-  return lazy(importFn);
-}
-
-/**
- * Preload a dashboard component for better performance
- *
- * Usage:
- * preloadDashboard('admin', () => import('./AdminDashboard'));
- */
-export function preloadDashboard(
-  role: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  componentFactory: ComponentType<any>
-) {
-  if (!componentCache.has(role)) {
-    componentCache.set(role, {
-      component: componentFactory,
-      timestamp: Date.now()
-    });
-  }
 }

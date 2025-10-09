@@ -193,34 +193,8 @@ export async function getCurrentOrgContext(): Promise<{
 /**
  * Server-side utility to extract organization slug from Clerk token
  * Used in server actions to get org context for API calls
+ *
+ * NOTE: This function is NOT exported to avoid importing server-only code in client components.
+ * It has been moved to a separate server-only file.
+ * If you need this function, import it from '@/api/utils/jwt-parser-server' instead.
  */
-export async function getCurrentOrgSlug(): Promise<string | null> {
-  try {
-    // Import Clerk server-side auth
-    const { auth } = await import('@clerk/nextjs/server');
-    const { getToken } = await auth();
-    const token = await getToken({ template: 'org-jwt' });
-
-    if (!token) {
-      console.warn('No auth token found in server action');
-      return null;
-    }
-
-    // Parse JWT payload to extract org_slug
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      console.warn('Invalid JWT format');
-      return null;
-    }
-
-    const payload = parts[1];
-    const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-    const decoded = atob(paddedPayload.replace(/-/g, '+').replace(/_/g, '/'));
-    const jwtPayload = JSON.parse(decoded);
-
-    return jwtPayload.organization_slug || null;
-  } catch (error) {
-    console.warn('Failed to get org slug from token:', error);
-    return null;
-  }
-}

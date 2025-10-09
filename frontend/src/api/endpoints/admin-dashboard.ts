@@ -13,7 +13,7 @@ export const adminDashboardApi = {
    */
   getAdminDashboardData: async (): Promise<ApiResponse<AdminDashboardResponse>> => {
     try {
-      const response = await httpClient.get<AdminDashboardResponse>('/admin/dashboard');
+      const response = await httpClient.get<AdminDashboardResponse>('/dashboard/admin');
       return response;
     } catch (error) {
       console.error('Failed to fetch admin dashboard data:', error);
@@ -29,7 +29,7 @@ export const adminDashboardApi = {
    */
   getSystemStats: async (): Promise<ApiResponse<AdminDashboardResponse['systemStats']>> => {
     try {
-      const response = await httpClient.get<AdminDashboardResponse['systemStats']>('/admin/dashboard/stats');
+      const response = await httpClient.get<AdminDashboardResponse['systemStats']>('/dashboard/admin/stats');
       return response;
     } catch (error) {
       console.error('Failed to fetch system stats:', error);
@@ -45,7 +45,7 @@ export const adminDashboardApi = {
    */
   getPendingApprovals: async (): Promise<ApiResponse<AdminDashboardResponse['pendingApprovals']>> => {
     try {
-      const response = await httpClient.get<AdminDashboardResponse['pendingApprovals']>('/admin/dashboard/approvals');
+      const response = await httpClient.get<AdminDashboardResponse['pendingApprovals']>('/dashboard/admin/approvals');
       return response;
     } catch (error) {
       console.error('Failed to fetch pending approvals:', error);
@@ -61,7 +61,7 @@ export const adminDashboardApi = {
    */
   getSystemAlerts: async (): Promise<ApiResponse<AdminDashboardResponse['systemAlerts']>> => {
     try {
-      const response = await httpClient.get<AdminDashboardResponse['systemAlerts']>('/admin/dashboard/alerts');
+      const response = await httpClient.get<AdminDashboardResponse['systemAlerts']>('/dashboard/admin/alerts');
       return response;
     } catch (error) {
       console.error('Failed to fetch system alerts:', error);
@@ -77,7 +77,7 @@ export const adminDashboardApi = {
    */
   dismissAlert: async (alertId: string): Promise<ApiResponse<void>> => {
     try {
-      const response = await httpClient.post<void>(`/admin/dashboard/alerts/${alertId}/dismiss`);
+      const response = await httpClient.post<void>(`/dashboard/admin/alerts/${alertId}/dismiss`);
       return response;
     } catch (error) {
       console.error('Failed to dismiss alert:', error);

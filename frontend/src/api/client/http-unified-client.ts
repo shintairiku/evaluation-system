@@ -128,8 +128,8 @@ class UnifiedHttpClient {
   private async fetchOrgSlug(): Promise<string | null> {
     try {
       if (isServer) {
-        // Server-side: Use getCurrentOrgSlug from jwt-parser
-        const { getCurrentOrgSlug } = await import('../utils/jwt-parser');
+        // Server-side: Use getCurrentOrgSlug from server-only jwt-parser
+        const { getCurrentOrgSlug } = await import('../utils/jwt-parser-server');
         return await getCurrentOrgSlug();
       } else {
         // Client-side: Use ClientAuth helper

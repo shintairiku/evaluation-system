@@ -111,6 +111,10 @@ class AdminDashboardResponse(BaseModel):
     system_alerts: SystemAlertsData
     last_updated: datetime = Field(default_factory=datetime.utcnow)
 
+    class Config:
+        populate_by_name = True
+        alias_generator = lambda string: ''.join(word.capitalize() if i else word for i, word in enumerate(string.split('_')))
+
 
 # ========================================
 # SUPERVISOR DASHBOARD SCHEMAS

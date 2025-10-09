@@ -20,7 +20,7 @@ import {
 import type { DeadlineAlertsData, DeadlineAlert } from '@/api/types';
 
 export interface DeadlineAlertsCardProps {
-  data: DeadlineAlertsData;
+  data?: DeadlineAlertsData;
   isLoading?: boolean;
   className?: string;
   onAlertClick?: (alert: DeadlineAlert) => void;
@@ -41,7 +41,7 @@ export default function DeadlineAlertsCard({
   className = '',
   onAlertClick
 }: DeadlineAlertsCardProps) {
-  if (isLoading) {
+  if (!data || isLoading) {
     return (
       <Card className={className}>
         <CardHeader>

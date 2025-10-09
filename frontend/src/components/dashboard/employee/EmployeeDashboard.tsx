@@ -70,7 +70,7 @@ export default function EmployeeDashboard({
     try {
       await onRefresh();
     } catch (err) {
-      console.error('Failed to refresh dashboard:', err);
+      // Error is handled by parent component - no need to log here
     } finally {
       setRefreshing(false);
     }
@@ -149,7 +149,7 @@ export default function EmployeeDashboard({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">マイダッシュボード</h1>
-          {initialData.currentPeriod.period && (
+          {initialData.currentPeriod?.period?.name && (
             <p className="text-sm text-muted-foreground mt-1">
               {initialData.currentPeriod.period.name}
             </p>
@@ -169,7 +169,7 @@ export default function EmployeeDashboard({
       </div>
 
       {/* Current period alert if no period is active */}
-      {!initialData.currentPeriod.period && (
+      {!initialData.currentPeriod?.period && (
         <Alert>
           <AlertDescription>
             現在、アクティブな評価期間がありません。新しい評価期間が開始されるまでお待ちください。

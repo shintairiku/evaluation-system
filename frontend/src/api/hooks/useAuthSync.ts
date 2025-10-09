@@ -16,7 +16,8 @@ export function useAuthSync() {
     const syncToken = async () => {
       if (isSignedIn) {
         try {
-          const token = await getToken();
+          // Request org-jwt template to include organization data
+          const token = await getToken({ template: 'org-jwt' });
           ClientAuth.setToken(token);
         } catch (error) {
           console.warn('Failed to sync auth token:', error);
@@ -34,7 +35,8 @@ export function useAuthSync() {
     isSignedIn,
     syncToken: async () => {
       if (isSignedIn) {
-        const token = await getToken();
+        // Request org-jwt template to include organization data
+        const token = await getToken({ template: 'org-jwt' });
         ClientAuth.setToken(token);
         return token;
       }

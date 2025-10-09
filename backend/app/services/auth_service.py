@@ -202,7 +202,8 @@ class AuthService:
                     user_id=user_data["id"],
                     name=user_data["name"],
                     email=user_data["email"],
-                    status=user_data["status"]
+                    status=user_data["status"],
+                    organization_id=user_data.get("clerk_organization_id")
                 )
             else:
                 return UserExistsResponse(exists=False)

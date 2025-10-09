@@ -3,8 +3,9 @@
  * Works with Clerk's client-side auth outside of React components
  */
 
-// Global token store for client-side
+// Global token and org context store for client-side
 let clientAuthToken: string | null = null;
+let clientOrgSlug: string | null = null;
 
 export const ClientAuth = {
   /**
@@ -27,6 +28,27 @@ export const ClientAuth = {
    */
   clearToken: () => {
     clientAuthToken = null;
+  },
+
+  /**
+   * Set the organization slug for client-side requests
+   */
+  setOrgSlug: (orgSlug: string | null) => {
+    clientOrgSlug = orgSlug;
+  },
+
+  /**
+   * Get the current organization slug for client-side requests
+   */
+  getOrgSlug: (): string | null => {
+    return clientOrgSlug;
+  },
+
+  /**
+   * Clear the organization slug
+   */
+  clearOrgSlug: () => {
+    clientOrgSlug = null;
   },
 
   /**

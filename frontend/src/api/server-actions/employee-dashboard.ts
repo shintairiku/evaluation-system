@@ -24,10 +24,39 @@ import type {
 export const getEmployeeDashboardDataAction = cache(
   async (): Promise<ApiResponse<EmployeeDashboardData>> => {
     try {
+      // The endpoint already transforms the data from backend format to frontend format
+      // No need for additional transformation here
       const response = await employeeDashboardApi.getEmployeeDashboardData();
+
+      console.log('[Employee Dashboard Server Action] Response:', {
+        success: response.success,
+        hasData: !!response.data,
+        error: response.error
+      });
+
+      if (response.success && response.data) {
+        console.log('[Employee Dashboard Server Action] Data structure:', {
+          hasCurrentPeriod: !!response.data.currentPeriod,
+          hasPersonalProgress: !!response.data.personalProgress,
+          hasTodoTasks: !!response.data.todoTasks,
+          hasDeadlineAlerts: !!response.data.deadlineAlerts,
+          hasHistoryAccess: !!response.data.historyAccess
+        });
+
+        // Just add the lastUpdated timestamp
+        return {
+          success: true,
+          data: {
+            ...response.data,
+            lastUpdated: new Date().toISOString()
+          }
+        };
+      }
+
+      console.error('[Employee Dashboard Server Action] Failed response:', response);
       return response;
     } catch (error) {
-      console.error('Failed to fetch employee dashboard data:', error);
+      console.error('[Employee Dashboard Server Action] Error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fetch employee dashboard data'

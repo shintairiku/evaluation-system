@@ -49,31 +49,6 @@ export default function SystemStatsCard({
     );
   }
 
-  const getHealthColor = (health: SystemStatsData['systemHealth']) => {
-    switch (health) {
-      case 'healthy':
-        return 'bg-green-500';
-      case 'warning':
-        return 'bg-yellow-500';
-      case 'critical':
-        return 'bg-red-500';
-      default:
-        return 'bg-gray-500';
-    }
-  };
-
-  const getHealthLabel = (health: SystemStatsData['systemHealth']) => {
-    switch (health) {
-      case 'healthy':
-        return '正常';
-      case 'warning':
-        return '注意';
-      case 'critical':
-        return '異常';
-      default:
-        return '不明';
-    }
-  };
 
   return (
     <Card className={className}>
@@ -115,20 +90,6 @@ export default function SystemStatsCard({
             </div>
             <Badge variant="secondary" className="text-base font-semibold">
               {data.activeEvaluationPeriods}期間
-            </Badge>
-          </div>
-
-          {/* System Health */}
-          <div className="flex items-center justify-between pt-2 border-t">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${getHealthColor(data.systemHealth)}`} />
-              <span className="text-sm font-medium">システム状態</span>
-            </div>
-            <Badge
-              variant={data.systemHealth === 'healthy' ? 'default' : 'destructive'}
-              className="text-sm font-semibold"
-            >
-              {getHealthLabel(data.systemHealth)}
             </Badge>
           </div>
 

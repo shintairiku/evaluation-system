@@ -643,7 +643,8 @@ class UserService:
                     user_id=user.id,
                     name=user.name,
                     email=user.email,
-                    status=UserStatus(user.status)
+                    status=UserStatus(user.status),
+                    organization_id=user.clerk_organization_id
                 )
             else:
                 return UserExistsResponse(exists=False)

@@ -9,14 +9,11 @@ import {
   SystemStatsCardSkeleton,
   PendingApprovalsCard,
   PendingApprovalsCardSkeleton,
-  SystemAlertsCard,
-  SystemAlertsCardSkeleton,
   QuickActionsCard
 } from './index';
 import type {
   AdminDashboardData,
-  PendingApprovalItem,
-  SystemAlert
+  PendingApprovalItem
 } from '@/api/types';
 import type { QuickAction } from './QuickActionsCard';
 
@@ -33,10 +30,6 @@ export interface AdminDashboardProps {
   onRefresh?: () => Promise<void>;
   /** Handle pending approval item click */
   onApprovalClick?: (item: PendingApprovalItem) => void;
-  /** Handle system alert click */
-  onAlertClick?: (alert: SystemAlert) => void;
-  /** Handle alert dismissal */
-  onDismissAlert?: (alertId: string) => void;
   /** Handle quick action click */
   onQuickActionClick?: (action: QuickAction) => void;
 }
@@ -45,10 +38,9 @@ export interface AdminDashboardProps {
  * AdminDashboard component - Main layout for admin dashboard
  *
  * Features:
- * - Responsive 3-column → 2-column → 1-column layout
+ * - Responsive 2-column → 1-column layout
  * - System statistics overview
  * - Pending approvals management
- * - System alerts monitoring
  * - Quick access to admin functions
  * - Real-time data refresh capabilities
  */
@@ -59,8 +51,6 @@ export default function AdminDashboard({
   className = '',
   onRefresh,
   onApprovalClick,
-  onAlertClick,
-  onDismissAlert,
   onQuickActionClick
 }: AdminDashboardProps) {
   const [refreshing, setRefreshing] = useState(false);
@@ -72,7 +62,7 @@ export default function AdminDashboard({
     try {
       await onRefresh();
     } catch (err) {
-      console.error('Failed to refresh dashboard:', err);
+      // Error is handled by parent component - no need to log here
     } finally {
       setRefreshing(false);
     }
@@ -89,16 +79,15 @@ export default function AdminDashboard({
         </div>
 
         {/* Dashboard grid skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
             <SystemStatsCardSkeleton />
-            <QuickActionsCard />
           </div>
           <div className="space-y-6">
             <PendingApprovalsCardSkeleton />
           </div>
-          <div className="space-y-6 lg:col-span-2 xl:col-span-1">
-            <SystemAlertsCardSkeleton />
+          <div className="lg:col-span-2">
+            <QuickActionsCard />
           </div>
         </div>
       </div>
@@ -170,20 +159,17 @@ export default function AdminDashboard({
         )}
       </div>
 
-      {/* Dashboard Grid - Responsive Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {/* Left Column - Stats & Quick Actions */}
+      {/* Dashboard Grid - Responsive 2-Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column - System Stats */}
         <div className="space-y-6">
           <SystemStatsCard
             data={initialData.systemStats}
             isLoading={refreshing}
           />
-          <QuickActionsCard
-            onActionClick={onQuickActionClick}
-          />
         </div>
 
-        {/* Middle Column - Pending Approvals */}
+        {/* Right Column - Pending Approvals */}
         <div className="space-y-6">
           <PendingApprovalsCard
             data={initialData.pendingApprovals}
@@ -192,13 +178,10 @@ export default function AdminDashboard({
           />
         </div>
 
-        {/* Right Column - System Alerts (full width on lg, single column on xl) */}
-        <div className="space-y-6 lg:col-span-2 xl:col-span-1">
-          <SystemAlertsCard
-            data={initialData.systemAlerts}
-            isLoading={refreshing}
-            onAlertClick={onAlertClick}
-            onDismissAlert={onDismissAlert}
+        {/* Full Width - Quick Actions */}
+        <div className="lg:col-span-2">
+          <QuickActionsCard
+            onActionClick={onQuickActionClick}
           />
         </div>
       </div>

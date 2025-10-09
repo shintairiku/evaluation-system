@@ -26,12 +26,53 @@ export const getAdminDashboardDataAction = cache(
         };
       }
 
-      // Transform the response to match component expected format
+      // Transform snake_case from backend to camelCase for frontend
+      const rawData = response.data as any;
       const dashboardData: AdminDashboardData = {
-        systemStats: response.data.systemStats,
-        pendingApprovals: response.data.pendingApprovals,
-        systemAlerts: response.data.systemAlerts,
-        lastUpdated: new Date().toISOString()
+        systemStats: {
+          totalUsers: rawData.systemStats?.total_users ?? 0,
+          activeUsers: rawData.systemStats?.active_users ?? 0,
+          totalDepartments: rawData.systemStats?.total_departments ?? 0,
+          activeEvaluationPeriods: rawData.systemStats?.active_evaluation_periods ?? 0,
+          totalGoals: rawData.systemStats?.total_goals ?? 0,
+          totalEvaluations: rawData.systemStats?.total_evaluations ?? 0,
+        },
+        pendingApprovals: {
+          items: [
+            ...(rawData.pendingApprovals?.pending_users > 0 ? [{
+              id: 'pending-users',
+              type: 'user_approval' as const,
+              title: 'ユーザー承認',
+              count: rawData.pendingApprovals.pending_users,
+              priority: 'high' as const,
+              url: '/admin/users?status=pending'
+            }] : []),
+            ...(rawData.pendingApprovals?.pending_goals > 0 ? [{
+              id: 'pending-goals',
+              type: 'goal_approval' as const,
+              title: '目標承認',
+              count: rawData.pendingApprovals.pending_goals,
+              priority: 'medium' as const,
+              url: '/admin/goals?status=pending'
+            }] : []),
+            ...(rawData.pendingApprovals?.pending_evaluations > 0 ? [{
+              id: 'pending-evaluations',
+              type: 'evaluation_review' as const,
+              title: '評価レビュー',
+              count: rawData.pendingApprovals.pending_evaluations,
+              priority: 'medium' as const,
+              url: '/admin/evaluations?status=pending'
+            }] : [])
+          ],
+          totalPending: rawData.pendingApprovals?.total_pending ?? 0,
+        },
+        systemAlerts: {
+          alerts: rawData.systemAlerts?.alerts ?? [],
+          totalAlerts: rawData.systemAlerts?.total_alerts ?? 0,
+          criticalCount: rawData.systemAlerts?.critical_count ?? 0,
+          warningCount: rawData.systemAlerts?.warning_count ?? 0,
+        },
+        lastUpdated: rawData.lastUpdated || new Date().toISOString()
       };
 
       return {

@@ -17,7 +17,7 @@ import {
 import type { HistoryAccessData, HistoricalPeriodSummary } from '@/api/types';
 
 export interface HistoryAccessCardProps {
-  data: HistoryAccessData;
+  data?: HistoryAccessData;
   isLoading?: boolean;
   className?: string;
   onPeriodClick?: (period: HistoricalPeriodSummary) => void;
@@ -37,7 +37,7 @@ export default function HistoryAccessCard({
   className = '',
   onPeriodClick
 }: HistoryAccessCardProps) {
-  if (isLoading) {
+  if (!data || isLoading) {
     return (
       <Card className={className}>
         <CardHeader>

@@ -19,7 +19,7 @@ import {
 import type { TodoTasksData, TodoTask } from '@/api/types';
 
 export interface TodoTasksCardProps {
-  data: TodoTasksData;
+  data?: TodoTasksData;
   isLoading?: boolean;
   className?: string;
   onTaskClick?: (task: TodoTask) => void;
@@ -40,7 +40,7 @@ export default function TodoTasksCard({
   className = '',
   onTaskClick
 }: TodoTasksCardProps) {
-  if (isLoading) {
+  if (!data || isLoading) {
     return (
       <Card className={className}>
         <CardHeader>
