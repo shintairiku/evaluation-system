@@ -7,7 +7,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import { GoalCard } from '../components/GoalCard';
 import { GoalListFilters } from '../components/GoalListFilters';
 import { EmployeeSelector } from '../components/EmployeeSelector';
-import { EmployeeInfoCard } from '../components/EmployeeInfoCard';
+import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
 import { useGoalListData } from '../hooks/useGoalListData';
 import { useUserRoles } from '@/hooks/useUserRoles';
 

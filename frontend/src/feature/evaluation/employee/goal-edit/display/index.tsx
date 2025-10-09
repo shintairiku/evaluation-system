@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Save, Send, Loader2 } from 'lucide-react';
 import { SupervisorFeedbackBanner } from '../components/SupervisorFeedbackBanner';
 import { useGoalEdit } from '../hooks/useGoalEdit';
-import { GoalStatusBadge } from '@/feature/evaluation/superviser/goal-review/components/GoalStatusBadge';
+import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import type { UUID } from '@/api/types';
 
 /**

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { GoalApprovalCardSkeleton, DelayedSkeleton } from '@/components/ui/loading-skeleton';
 import { EmployeeTabNavigation } from '../components/EmployeeTabNavigation';
-import { EmployeeInfoHeader } from '../components/EmployeeInfoHeader';
+import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
 import { GoalApprovalCard } from '../components/GoalApprovalCard';
 import { GuidelinesAlert } from '../components/GuidelinesAlert';
 import { ApprovalGuidelinesPanel } from '../components/ApprovalGuidelinesPanel';
@@ -204,7 +204,7 @@ export default function GoalReviewPage() {
               <TabsContent value={selectedEmployeeId} className="mt-4 md:mt-6">
                 <div className="space-y-4 md:space-y-6">
                   {/* Employee Info Header */}
-                  <EmployeeInfoHeader employee={selectedGroup.employee} />
+                  <EmployeeInfoCard employee={selectedGroup.employee} />
 
                   {/* Goals List */}
                   <div className="space-y-4">

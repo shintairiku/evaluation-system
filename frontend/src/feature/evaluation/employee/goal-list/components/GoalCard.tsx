@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Target, Brain, Calendar, Weight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
-import { GoalStatusBadge } from '@/feature/evaluation/superviser/goal-review/components/GoalStatusBadge';
-import { useCompetencyNames } from '@/feature/evaluation/superviser/goal-review/hooks/useCompetencyNames';
-import { useIdealActionsResolver } from '@/feature/evaluation/superviser/goal-review/hooks/useIdealActionsResolver';
+import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
+import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
+import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { useRouter } from 'next/navigation';
 
