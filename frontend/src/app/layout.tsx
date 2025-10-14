@@ -23,6 +23,10 @@ export const metadata: Metadata = {
   description: "Employee evaluation management system",
 };
 
+// Force dynamic rendering to avoid prerendering during build
+// This prevents requiring valid Clerk keys at build time
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: Readonly<{

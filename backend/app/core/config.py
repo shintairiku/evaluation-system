@@ -27,7 +27,7 @@ class Settings:
     APP_DESCRIPTION: str = "Human Resources Evaluation and Performance Management System"
     
     # Environment configuration
-    ENVIRONMENT: Environment = Environment(os.getenv("ENVIRONMENT", "development"))
+    ENVIRONMENT: Environment = Environment(os.getenv("ENVIRONMENT") or "development")
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     
     # =============================================================================
@@ -57,20 +57,40 @@ class Settings:
     # CORS & SECURITY SETTINGS
     # =============================================================================
     ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0"]
-    
+
+    # Frontend URL for CORS and redirects
+    FRONTEND_URL: Optional[str] = os.getenv("FRONTEND_URL")
+
     @property
     def CORS_ORIGINS(self) -> List[str]:
         """Dynamic CORS origins based on environment."""
         if self.ENVIRONMENT == Environment.PRODUCTION:
-            return [
-                "https://your-production-domain.com",
-                "https://hr-eval.company.com",
-            ]
+            # Use FRONTEND_URL from environment variable in production
+            origins = []
+            if self.FRONTEND_URL:
+                origins.append(self.FRONTEND_URL)
+
+            # Allow additional origins from environment variable (comma-separated)
+            additional_origins = os.getenv("ADDITIONAL_CORS_ORIGINS", "")
+            if additional_origins:
+                origins.extend([origin.strip() for origin in additional_origins.split(",")])
+
+            # Fallback to default if no origins configured
+            if not origins:
+                origins = ["https://your-production-domain.vercel.app"]
+
+            return origins
         elif self.ENVIRONMENT == Environment.STAGING:
-            return [
-                "https://staging-hr-eval.company.com",
+            origins = []
+            if self.FRONTEND_URL:
+                origins.append(self.FRONTEND_URL)
+
+            # Always allow localhost in staging
+            origins.extend([
                 "http://localhost:3000",
-            ]
+                "http://127.0.0.1:3000",
+            ])
+            return origins
         else:  # development/testing
             return [
                 "http://localhost:3000",

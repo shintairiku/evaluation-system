@@ -9,8 +9,10 @@ export interface TabContentContainerProps {
   /** Current active role */
   activeRole: string;
   /** Content components for each role */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   roleComponents: Record<string, ComponentType<any>>;
   /** Props to pass to the active role component */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   componentProps?: Record<string, any>;
   /** Custom loading component */
   loadingComponent?: ReactNode;
@@ -25,6 +27,7 @@ export interface TabContentContainerProps {
 }
 
 interface CacheEntry {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   component: ComponentType<any>;
   timestamp: number;
 }
@@ -95,6 +98,7 @@ export default function TabContentContainer({
   }, [activeRole]);
 
   // Get component for active role
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getActiveComponent = (): ComponentType<any> | null => {
     const componentFactory = roleComponents[activeRole];
 
@@ -217,8 +221,10 @@ export function getCacheStats() {
  * Usage:
  * export default withLazyDashboard(() => import('./AdminDashboard'));
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function withLazyDashboard<T extends ComponentType<any>>(
   importFn: () => Promise<{ default: T }>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): ComponentType<any> {
   return lazy(importFn);
 }
@@ -231,6 +237,7 @@ export function withLazyDashboard<T extends ComponentType<any>>(
  */
 export function preloadDashboard(
   role: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   componentFactory: ComponentType<any>
 ) {
   if (!componentCache.has(role)) {

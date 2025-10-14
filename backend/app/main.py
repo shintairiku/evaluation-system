@@ -20,13 +20,14 @@ app = FastAPI(
     description="API for managing employee evaluations, goals, and performance reports",
     version="1.0.0",
     docs_url="/docs" if settings.is_development else None,
-    redoc_url="/redoc" if settings.is_development else None
+    redoc_url="/redoc" if settings.is_development else None,
+    redirect_slashes=False  # Disable automatic trailing slash redirects to prevent auth header loss
 )
 
-# CORS configuration
+# CORS configuration - use settings for environment-specific origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

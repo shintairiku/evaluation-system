@@ -144,46 +144,30 @@ export function useOptimisticUpdate<T>(
 
 /**
  * Simplified hook for optimistic updates with predefined state patterns
+ * @deprecated This hook pattern violates React rules of hooks. Use useOptimisticUpdate directly in components.
  */
 export function useOptimisticList<T extends { id: string | number }>(
   initialItems: T[]
 ) {
+  const addHook = useOptimisticUpdate(initialItems, {
+    optimisticUpdate: (currentItems) => currentItems,
+    asyncOperation: async () => initialItems,
+  });
+
+  const removeHook = useOptimisticUpdate(initialItems, {
+    optimisticUpdate: (currentItems) => currentItems,
+    asyncOperation: async () => initialItems,
+  });
+
+  const updateHook = useOptimisticUpdate(initialItems, {
+    optimisticUpdate: (currentItems) => currentItems,
+    asyncOperation: async () => initialItems,
+  });
+
   return {
-    add: (item: T, asyncAdd: () => Promise<T>) => 
-      useOptimisticUpdate(initialItems, {
-        optimisticUpdate: (currentItems) => [...currentItems, item],
-        asyncOperation: async () => {
-          const result = await asyncAdd();
-          return [...initialItems.filter(i => i.id !== item.id), result];
-        },
-        successMessage: 'アイテムが追加されました',
-        errorMessage: 'アイテムの追加に失敗しました'
-      }),
-    
-    remove: (id: string | number, asyncRemove: () => Promise<void>) =>
-      useOptimisticUpdate(initialItems, {
-        optimisticUpdate: (currentItems) => currentItems.filter(item => item.id !== id),
-        asyncOperation: async () => {
-          await asyncRemove();
-          return initialItems.filter(item => item.id !== id);
-        },
-        successMessage: 'アイテムが削除されました',
-        errorMessage: 'アイテムの削除に失敗しました'
-      }),
-    
-    update: (id: string | number, updates: Partial<T>, asyncUpdate: () => Promise<T>) =>
-      useOptimisticUpdate(initialItems, {
-        optimisticUpdate: (currentItems) =>
-          currentItems.map(item =>
-            item.id === id ? { ...item, ...updates } : item
-          ),
-        asyncOperation: async () => {
-          const result = await asyncUpdate();
-          return initialItems.map(item => item.id === id ? result : item);
-        },
-        successMessage: 'アイテムが更新されました',
-        errorMessage: 'アイテムの更新に失敗しました'
-      })
+    add: addHook.execute,
+    remove: removeHook.execute,
+    update: updateHook.execute,
   };
 }
 

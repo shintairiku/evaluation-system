@@ -101,7 +101,7 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
       const subordinateIds = [...new Set(reviews.map(r => r.subordinate_id))];
 
       // Fetch goals for each subordinate separately (since bulk fetch may not work without GOAL_READ_SUBORDINATES permission)
-      let goals: GoalResponse[] = [];
+      const goals: GoalResponse[] = [];
       if (periodResult.success && periodResult.data?.current && subordinateIds.length > 0) {
         const goalsPromises = subordinateIds.map(subordinateId =>
           getGoalsAction({
@@ -192,8 +192,7 @@ export function useGoalReviewData(): UseGoalReviewDataReturn {
 
   useEffect(() => {
     loadGoalData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, [loadGoalData]); // Only run once on mount
 
   return {
     loading,

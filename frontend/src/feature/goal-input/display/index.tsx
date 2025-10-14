@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 
 // Lightweight debug logger that is no-op in production
 const debugLog = (...args: unknown[]) => {
   if (process.env.NODE_ENV !== 'production') console.debug(...args);
 };
 import { StepIndicator } from '@/components/ui/step-indicator';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 import { PerformanceGoalsStep } from './PerformanceGoalsStep';
 import { CompetencyGoalsStep } from './CompetencyGoalsStep';
 import { ConfirmationStep } from './ConfirmationStep';
@@ -47,6 +50,8 @@ export default function GoalInputPage() {
     isLoadingExistingGoals,
     isAutoSaveReady,
     isGoalFetching,
+    hasBlockingGoals,
+    blockingMessage,
     loadedGoals,
     handlePeriodSelected,
     activateAutoSave,
@@ -229,17 +234,36 @@ export default function GoalInputPage() {
         </div>
       </div>
 
-      <div className="mb-8">
-        <StepIndicator
-          steps={steps}
-          currentStep={currentStep}
-          className="mb-8"
-        />
-      </div>
+      {/* TASK-04: Show blocking alert when submitted/approved goals exist */}
+      {hasBlockingGoals && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>新しい目標を作成できません</AlertTitle>
+          <AlertDescription>
+            {blockingMessage}
+            <Link href="/goal-list" className="underline ml-2 font-medium hover:text-red-900">
+              目標一覧ページで確認してください
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
 
-      <div>
-        {renderCurrentStep()}
-      </div>
+      {/* Only show steps and form when NOT blocked */}
+      {!hasBlockingGoals && (
+        <>
+          <div className="mb-8">
+            <StepIndicator
+              steps={steps}
+              currentStep={currentStep}
+              className="mb-8"
+            />
+          </div>
+
+          <div>
+            {renderCurrentStep()}
+          </div>
+        </>
+      )}
     </div>
   );
 }

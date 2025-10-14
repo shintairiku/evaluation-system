@@ -31,7 +31,7 @@ interface PerformanceGoalsStepProps {
   periodId?: string;
 }
 
-export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, periodId: _periodId }: PerformanceGoalsStepProps) {
+export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext }: PerformanceGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoals = goals;
 

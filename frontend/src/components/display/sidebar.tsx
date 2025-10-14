@@ -52,9 +52,10 @@ export default function Sidebar() {
   try {
     const context = useGoalReviewContext();
     pendingCount = context.pendingCount;
-  } catch (error) {
+  } catch {
     // Context not available (e.g., during SSR or outside provider)
-    // Use safe default value
+    // Use default value
+    pendingCount = 0;
   }
 
   // Get goal list context with graceful fallback
@@ -62,9 +63,10 @@ export default function Sidebar() {
   try {
     const context = useGoalListContext();
     rejectedGoalsCount = context.rejectedGoalsCount;
-  } catch (error) {
+  } catch {
     // Context not available (e.g., during SSR or outside provider)
-    // Use safe default value
+    // Use default value
+    rejectedGoalsCount = 0;
   }
 
   // 権限フィルタリング（現在はダミー実装）

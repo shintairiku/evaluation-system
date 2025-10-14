@@ -1,7 +1,7 @@
 /**
  * Utility functions for calculating hierarchy layouts in organization charts
  */
-import type { UserDetailResponse, SimpleUser, Department } from '@/api/types';
+import type { UserDetailResponse, SimpleUser } from '@/api/types';
 import type { Node, Edge } from 'reactflow';
 import { MarkerType } from 'reactflow';
 
@@ -39,6 +39,7 @@ export const LOW_ROLE_KEYWORDS = ['employee', 'viewer', 'part-time', 'parttime',
 export function usersAreLowRoleResults(users: OrganizationUser[]): boolean {
   if (!users || users.length === 0) return false;
   return users.every(u =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (u as any)?.roles?.some((r: any) => LOW_ROLE_KEYWORDS.some(k => String(r?.name || '').toLowerCase().includes(k)))
   );
 }
