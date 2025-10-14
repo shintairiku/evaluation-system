@@ -102,20 +102,25 @@ export default function GoalEditDisplay() {
     setFormData
   });
 
+  // Helper function for performance goal field changes
+  const handlePerformanceFieldChange = useCallback((field: keyof typeof performanceFormData, value: string) => {
+    const newData = { ...performanceFormData, [field]: value };
+    setPerformanceFormData(newData);
+    debouncedSave({ ...newData, performanceGoalType: goal?.performanceGoalType || 'quantitative' });
+  }, [performanceFormData, debouncedSave, goal?.performanceGoalType]);
+
+  // Helper function for competency goal field changes
+  const handleCompetencyFieldChange = useCallback((field: keyof typeof competencyFormData, value: string) => {
+    const newData = { ...competencyFormData, [field]: value };
+    setCompetencyFormData(newData);
+    debouncedSave(newData);
+  }, [competencyFormData, debouncedSave]);
+
   // Handle submit for review
   const handleSubmit = async () => {
     if (!goal) return;
 
-    // For performance goals, include the performanceGoalType from original goal
-    // (it's required by backend but not editable in the form)
-    const goalData = goal.goalCategory === '業績目標'
-      ? {
-          ...performanceFormData,
-          performanceGoalType: goal.performanceGoalType || 'quantitative', // Keep original value
-        }
-      : competencyFormData;
-
-    const success = await submitGoal(goalData);
+    const success = await submitGoal(getFormData());
     if (success) {
       router.push('/goal-list');
     }
@@ -220,11 +225,7 @@ export default function GoalEditDisplay() {
                 <input
                   type="text"
                   value={performanceFormData.title}
-                  onChange={(e) => {
-                    const newData = { ...performanceFormData, title: e.target.value };
-                    setPerformanceFormData(newData);
-                    debouncedSave({ ...newData, performanceGoalType: goal?.performanceGoalType || 'quantitative' });
-                  }}
+                  onChange={(e) => handlePerformanceFieldChange('title', e.target.value)}
                   onBlur={() => autoSave(getFormData())}
                   className="w-full p-2 border rounded-md"
                   placeholder="目標のタイトルを入力"
@@ -237,11 +238,7 @@ export default function GoalEditDisplay() {
                 </label>
                 <textarea
                   value={performanceFormData.specificGoalText}
-                  onChange={(e) => {
-                    const newData = { ...performanceFormData, specificGoalText: e.target.value };
-                    setPerformanceFormData(newData);
-                    debouncedSave({ ...newData, performanceGoalType: goal?.performanceGoalType || 'quantitative' });
-                  }}
+                  onChange={(e) => handlePerformanceFieldChange('specificGoalText', e.target.value)}
                   onBlur={() => autoSave(getFormData())}
                   className="w-full p-2 border rounded-md min-h-[100px]"
                   placeholder="具体的な目標内容を入力"
@@ -254,11 +251,7 @@ export default function GoalEditDisplay() {
                 </label>
                 <textarea
                   value={performanceFormData.achievementCriteriaText}
-                  onChange={(e) => {
-                    const newData = { ...performanceFormData, achievementCriteriaText: e.target.value };
-                    setPerformanceFormData(newData);
-                    debouncedSave({ ...newData, performanceGoalType: goal?.performanceGoalType || 'quantitative' });
-                  }}
+                  onChange={(e) => handlePerformanceFieldChange('achievementCriteriaText', e.target.value)}
                   onBlur={() => autoSave(getFormData())}
                   className="w-full p-2 border rounded-md min-h-[100px]"
                   placeholder="達成基準を入力"
@@ -271,11 +264,7 @@ export default function GoalEditDisplay() {
                 </label>
                 <textarea
                   value={performanceFormData.meansMethodsText}
-                  onChange={(e) => {
-                    const newData = { ...performanceFormData, meansMethodsText: e.target.value };
-                    setPerformanceFormData(newData);
-                    debouncedSave({ ...newData, performanceGoalType: goal?.performanceGoalType || 'quantitative' });
-                  }}
+                  onChange={(e) => handlePerformanceFieldChange('meansMethodsText', e.target.value)}
                   onBlur={() => autoSave(getFormData())}
                   className="w-full p-2 border rounded-md min-h-[100px]"
                   placeholder="方法を入力"
@@ -292,11 +281,7 @@ export default function GoalEditDisplay() {
               </label>
               <textarea
                 value={competencyFormData.actionPlan}
-                onChange={(e) => {
-                  const newData = { ...competencyFormData, actionPlan: e.target.value };
-                  setCompetencyFormData(newData);
-                  debouncedSave(newData);
-                }}
+                onChange={(e) => handleCompetencyFieldChange('actionPlan', e.target.value)}
                 onBlur={() => autoSave(getFormData())}
                 className="w-full p-2 border rounded-md min-h-[200px]"
                 placeholder="行動計画を入力"
