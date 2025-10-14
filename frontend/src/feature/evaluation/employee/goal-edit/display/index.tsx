@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Save, Send, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import { SupervisorFeedbackBanner } from '../components/SupervisorFeedbackBanner';
 import { useGoalEdit } from '../hooks/useGoalEdit';
 import { useGoalAutoSave } from '../hooks/useGoalAutoSave';
@@ -101,25 +101,6 @@ export default function GoalEditDisplay() {
     getFormData,
     setFormData
   });
-
-  // Handle save as draft
-  const handleSave = async () => {
-    if (!goal) return;
-
-    // For performance goals, include the performanceGoalType from original goal
-    // (it's required by backend but not editable in the form)
-    const goalData = goal.goalCategory === '業績目標'
-      ? {
-          ...performanceFormData,
-          performanceGoalType: goal.performanceGoalType || 'quantitative', // Keep original value
-        }
-      : competencyFormData;
-
-    const success = await saveDraft(goalData);
-    if (success) {
-      alert('保存しました');
-    }
-  };
 
   // Handle submit for review
   const handleSubmit = async () => {
@@ -329,24 +310,7 @@ export default function GoalEditDisplay() {
       </Card>
 
       {/* Action Buttons */}
-      <div className="flex justify-end gap-3 mt-6">
-        <Button
-          onClick={handleSave}
-          variant="outline"
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              保存中...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              下書き保存
-            </>
-          )}
-        </Button>
+      <div className="flex justify-end mt-6">
         <Button
           onClick={handleSubmit}
           disabled={isSaving}
