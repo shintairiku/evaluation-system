@@ -10,6 +10,10 @@ This guide walks you through deploying the HR Evaluation System to production wi
 
 **Estimated Time**: 60-90 minutes for first deployment
 
+> **📚 Related Documentation:**
+> - **[Development Environment Setup](./development-environment-setup.md)** - Complete guide for setting up local dev, Cloud Run dev, and production environments
+> - **[Architecture Overview](./ARCHITECTURE.md)** - System architecture and technical details
+
 ---
 
 ## 📋 Table of Contents
@@ -19,9 +23,10 @@ This guide walks you through deploying the HR Evaluation System to production wi
 3. [Phase 2: Backend Deployment (Cloud Run)](#phase-2-backend-deployment-cloud-run)
 4. [Phase 3: Frontend Deployment (Vercel)](#phase-3-frontend-deployment-vercel)
 5. [Phase 4: Post-Deployment Configuration](#phase-4-post-deployment-configuration)
-6. [Verification & Testing](#verification--testing)
-7. [Troubleshooting](#troubleshooting)
-8. [Rollback Procedures](#rollback-procedures)
+6. [Development Environment](#development-environment)
+7. [Verification & Testing](#verification--testing)
+8. [Troubleshooting](#troubleshooting)
+9. [Rollback Procedures](#rollback-procedures)
 
 ---
 
@@ -840,6 +845,139 @@ CREATE SCHEMA development;
      - **Sign-out redirect**: `https://your-app.vercel.app/`
 
 2. **Save changes**
+
+---
+
+## Development Environment
+
+### Overview
+
+After completing the production deployment, you can set up a complete development environment that mirrors production. This allows you to safely test changes before deploying to production.
+
+**Development Environment Includes:**
+- 🔧 Local development (Docker Compose)
+- ☁️ Cloud Run development instance (`hr-evaluation-backend-dev`)
+- 🌐 Vercel preview deployments for all non-main branches
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Local Development                                           │
+│  ├─ Docker Compose (localhost:3000, localhost:8000)         │
+│  └─ ENVIRONMENT=development                                  │
+│                                                               │
+│  ↓ Push to develop branch                                    │
+│                                                               │
+│  Cloud Development                                           │
+│  ├─ Vercel Preview + Cloud Run Dev                          │
+│  └─ ENVIRONMENT=production (with test Clerk/Supabase)       │
+│                                                               │
+│  ↓ Merge to main                                             │
+│                                                               │
+│  Production                                                  │
+│  ├─ Vercel Production + Cloud Run Prod                      │
+│  └─ ENVIRONMENT=production (with live Clerk/Supabase)       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Quick Setup
+
+The development environment is **automatically configured** via GitHub Actions:
+
+1. **Push to `develop` branch** → Triggers:
+   - Backend: Deploys to `hr-evaluation-backend-dev` on Cloud Run
+   - Frontend: Creates Vercel preview deployment
+
+2. **GitHub Actions Workflow** automatically:
+   - Builds separate Docker image for dev
+   - Deploys to separate Cloud Run service
+   - Uses development-specific secrets (with `-dev` suffix)
+   - Configures lower resource limits (3 max instances vs 5)
+
+### Prerequisites
+
+Before first development deployment:
+
+1. **Create GCP Development Secrets** (one-time setup):
+   ```bash
+   # See detailed instructions in development-environment-setup.md
+   # You need to create -dev versions of all secrets:
+   # - clerk-secret-key-dev
+   # - database-url-dev
+   # - clerk-issuer-dev
+   # - clerk-audience-dev
+   # - clerk-webhook-secret-dev
+   # - app-secret-key-dev
+   ```
+
+2. **Configure Vercel Preview Environment** (one-time setup):
+   - Go to Vercel Dashboard → Settings → Environment Variables
+   - Add preview environment variables pointing to dev backend
+   - See [Development Environment Setup Guide](./development-environment-setup.md) for details
+
+### Deployment Workflow
+
+```bash
+# 1. Create/switch to develop branch
+git checkout develop
+
+# 2. Make your changes
+# ... edit code ...
+
+# 3. Commit and push (triggers auto-deployment)
+git add .
+git commit -m "feat: add new feature"
+git push origin develop
+
+# 4. Monitor deployments:
+# - GitHub Actions: https://github.com/your-org/repo/actions
+# - Vercel: https://vercel.com/dashboard
+
+# 5. Test on preview URL
+# Get URL from Vercel dashboard or GitHub PR
+
+# 6. After testing, create PR to main for production deployment
+gh pr create --title "feat: add new feature" --base main
+```
+
+### Environment Differences
+
+| Aspect | Local Dev | Cloud Dev | Production |
+|--------|-----------|-----------|------------|
+| **Frontend** | localhost:3000 | Vercel Preview | Vercel Production |
+| **Backend** | localhost:8000 | Cloud Run Dev | Cloud Run Prod |
+| **ENVIRONMENT** | `development` | `production` | `production` |
+| **Clerk Mode** | Test keys | Test keys | Live keys |
+| **Database** | Dev Supabase | Dev Supabase | Prod Supabase |
+| **Trigger** | Manual | Push to develop | Push to main |
+| **Auto-deploy** | No | Yes | Yes |
+
+> **Important:** Both Cloud Run instances use `ENVIRONMENT=production` - they differ only in the secrets/credentials used (test vs live).
+
+### Cost Optimization
+
+Both Cloud Run instances scale to zero when idle:
+- **Production**: 0-5 instances, ~$10-30/month
+- **Development**: 0-3 instances, ~$5-15/month
+
+To completely stop development instance when not in use:
+```bash
+gcloud run services update hr-evaluation-backend-dev \
+  --region $REGION \
+  --no-traffic
+```
+
+### Complete Setup Guide
+
+For detailed step-by-step instructions including:
+- GCP secrets creation commands
+- Vercel environment variable configuration
+- CORS setup
+- Troubleshooting
+- Monitoring and logs
+
+**See: [Development Environment Setup Guide](./development-environment-setup.md)**
 
 ---
 
