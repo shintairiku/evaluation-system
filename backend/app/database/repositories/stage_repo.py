@@ -80,12 +80,12 @@ class StageRepository(BaseRepository[Stage]):
     async def count_users_by_stage(self, stage_id: UUID, org_id: str) -> int:
         """Count number of users in a stage within organization scope."""
         from ..models.user import User
-        
+
         # First verify stage exists in organization
         existing = await self.get_by_id(stage_id, org_id)
         if not existing:
             return 0
-        
+
         result = await self.session.execute(
             select(func.count(User.id)).where(
                 User.stage_id == stage_id,
@@ -93,3 +93,24 @@ class StageRepository(BaseRepository[Stage]):
             )
         )
         return result.scalar_one()
+
+    async def get_all_with_user_counts(self, org_id: str) -> List[tuple]:
+        """
+        Get all stages with their user counts in a single query.
+
+        Returns:
+            List of tuples: [(Stage, user_count), ...]
+        """
+        from ..models.user import User
+
+        # Single query with LEFT JOIN and GROUP BY to get stages and user counts
+        query = (
+            select(Stage, func.count(User.id).label('user_count'))
+            .outerjoin(User, (Stage.id == User.stage_id) & (User.clerk_organization_id == org_id))
+            .where(Stage.organization_id == org_id)
+            .group_by(Stage.id)
+            .order_by(Stage.name)
+        )
+
+        result = await self.session.execute(query)
+        return result.all()
