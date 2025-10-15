@@ -457,14 +457,14 @@ class CompetencyService:
     async def _validate_stage_access(self, current_user_context: AuthContext, required_stage_id: Optional[UUID] = None) -> Optional[UUID]:
         """
         Validate that the user has access to a stage and return the user's stage_id.
-        
+
         Args:
             current_user_context: The current user's auth context
             required_stage_id: If provided, validate user has access to this specific stage
-            
+
         Returns:
             Optional[UUID]: The user's stage_id (may be None for admin users without explicit stage)
-            
+
         Raises:
             PermissionDeniedError: If user has no stage or doesn't have access to required_stage_id
         """
@@ -475,15 +475,22 @@ class CompetencyService:
             # If no specific stage required, we still need to get user's stage for some operations
             user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
             return user_stage_id
+        elif current_user_context.is_supervisor_or_above():
+            # Supervisors can access any stage (needed to review subordinates' goals with different competencies)
+            if required_stage_id:
+                return required_stage_id
+            # If no specific stage required, get user's own stage
+            user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
+            return user_stage_id
         else:
-            # Non-admin users can only access their own stage
+            # Regular employees can only access their own stage
             user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
             if user_stage_id is None:
                 raise PermissionDeniedError("User has no stage assigned")
-            
+
             if required_stage_id and required_stage_id != user_stage_id:
                 raise PermissionDeniedError("Access denied to competencies from different stage")
-            
+
             return user_stage_id
     
     async def _enrich_competency_data(self, competency_model: CompetencyModel) -> Competency:
