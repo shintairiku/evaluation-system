@@ -94,6 +94,7 @@ export const GoalCard = React.memo<GoalCardProps>(
         return (
           <Button
             onClick={() => router.push(`/goal-edit/${goal.id}`)}
+            className="border-orange-500 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
             variant="outline"
           >
             編集
