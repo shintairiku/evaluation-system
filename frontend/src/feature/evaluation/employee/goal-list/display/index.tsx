@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw } from 'lucide-react';
@@ -8,6 +8,7 @@ import { GoalCard } from '../components/GoalCard';
 import { GoalListFilters } from '../components/GoalListFilters';
 import { EmployeeSelector } from '../components/EmployeeSelector';
 import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
+import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
 import { useGoalListData } from '../hooks/useGoalListData';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useGoalListContext } from '@/context/GoalListContext';
@@ -35,6 +36,9 @@ import { useGoalListContext } from '@/context/GoalListContext';
  * @returns JSX element containing the complete goal list interface
  */
 export default function GoalListPage() {
+  // State for selected period
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+
   const {
     filteredGoals,
     groupedGoals,
@@ -43,13 +47,14 @@ export default function GoalListPage() {
     error,
     selectedStatuses,
     currentPeriod,
+    allPeriods,
     showResubmissionsOnly,
     resubmissionCount,
     setSelectedStatuses,
     setShowResubmissionsOnly,
     setSelectedEmployeeId,
     refetch,
-  } = useGoalListData();
+  } = useGoalListData({ selectedPeriodId: selectedPeriodId || undefined });
 
   const { currentUser } = useUserRoles();
 
@@ -61,14 +66,23 @@ export default function GoalListPage() {
     refreshRejectedGoalsCount();
   }, [filteredGoals, refreshRejectedGoalsCount]);
 
+  // Initialize selected period to current period when data loads
+  React.useEffect(() => {
+    if (!selectedPeriodId && currentPeriod) {
+      setSelectedPeriodId(currentPeriod.id);
+    }
+  }, [currentPeriod, selectedPeriodId]);
+
   // Get selected employee info for display
   const selectedEmployee = useMemo(() => {
     if (!selectedEmployeeId) return null;
     return groupedGoals.find(g => g.employee.id === selectedEmployeeId)?.employee || null;
   }, [selectedEmployeeId, groupedGoals]);
 
-  // Format period name for display
-  const periodDisplay = currentPeriod?.name || '評価期間未設定';
+  // Handle period change
+  const handlePeriodChange = (periodId: string) => {
+    setSelectedPeriodId(periodId);
+  };
 
   // Loading skeleton
   if (isLoading) {
@@ -78,7 +92,11 @@ export default function GoalListPage() {
           {/* Page Header Skeleton */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="h-8 w-48 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+
+          {/* Period Selector Skeleton */}
+          <div className="bg-card border rounded-lg p-4">
+            <div className="h-9 w-80 bg-gray-200 rounded animate-pulse"></div>
           </div>
 
           {/* Filter Skeleton */}
@@ -129,9 +147,17 @@ export default function GoalListPage() {
           {/* Page Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <h1 className="text-2xl font-bold">目標一覧</h1>
-            <p className="text-sm text-muted-foreground">
-              評価期間: {periodDisplay}
-            </p>
+          </div>
+
+          {/* Period Selector */}
+          <div className="bg-card border rounded-lg p-4">
+            <EvaluationPeriodSelector
+              periods={allPeriods}
+              selectedPeriodId={selectedPeriodId}
+              currentPeriodId={currentPeriod?.id || null}
+              onPeriodChange={handlePeriodChange}
+              isLoading={isLoading}
+            />
           </div>
 
           {/* Filters */}
@@ -183,9 +209,17 @@ export default function GoalListPage() {
               {filteredGoals.length}件の目標を表示中
             </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            評価期間: {periodDisplay}
-          </p>
+        </div>
+
+        {/* Period Selector */}
+        <div className="bg-card border rounded-lg p-4">
+          <EvaluationPeriodSelector
+            periods={allPeriods}
+            selectedPeriodId={selectedPeriodId}
+            currentPeriodId={currentPeriod?.id || null}
+            onPeriodChange={handlePeriodChange}
+            isLoading={isLoading}
+          />
         </div>
 
         {/* Employee Selector - only show if user has access to multiple employees' goals */}
