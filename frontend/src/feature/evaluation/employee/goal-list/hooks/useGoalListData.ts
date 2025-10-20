@@ -48,6 +48,8 @@ export interface UseGoalListDataReturn {
   selectedStatuses: GoalStatus[];
   /** Current evaluation period */
   currentPeriod: EvaluationPeriod | null;
+  /** All available evaluation periods */
+  allPeriods: EvaluationPeriod[];
   /** Show only resubmissions flag */
   showResubmissionsOnly: boolean;
   /** Count of goals with previousGoalId */
@@ -63,6 +65,14 @@ export interface UseGoalListDataReturn {
 }
 
 /**
+ * Input parameters for the useGoalListData hook
+ */
+export interface UseGoalListDataParams {
+  /** Optional: Specific period ID to load. If not provided, uses current period */
+  selectedPeriodId?: string;
+}
+
+/**
  * Custom hook to manage goal list data loading, filtering, and state.
  *
  * Features:
@@ -72,6 +82,7 @@ export interface UseGoalListDataReturn {
  * - Handles loading and error states
  * - Auto-loads on mount
  * - Provides refetch function for manual reload
+ * - Supports period selection (defaults to current period)
  *
  * Architecture:
  * This follows the same pattern as supervisor goal-review (useGoalReviewData):
@@ -80,25 +91,32 @@ export interface UseGoalListDataReturn {
  * 3. This approach reuses existing APIs without backend changes
  *
  * Data Flow:
- * 1. Load current evaluation period
- * 2. Load goals AND supervisor reviews in parallel
- * 3. Map reviews to goals by goal_id
- * 4. Apply client-side filtering based on selected statuses
+ * 1. Load all evaluation periods
+ * 2. Determine which period to use (selected or current)
+ * 3. Load goals AND supervisor reviews in parallel for that period
+ * 4. Map reviews to goals by goal_id
+ * 5. Apply client-side filtering based on selected statuses
  *
+ * @param params - Optional parameters including selectedPeriodId
  * @returns Object containing goals data, filters, and control functions
  *
  * @example
  * ```tsx
- * const { filteredGoals, isLoading, selectedStatuses, setSelectedStatuses } = useGoalListData();
+ * // Use current period (default)
+ * const { filteredGoals, isLoading } = useGoalListData();
+ *
+ * // Use specific period
+ * const { filteredGoals, isLoading } = useGoalListData({ selectedPeriodId: 'period-123' });
  * ```
  */
-export function useGoalListData(): UseGoalListDataReturn {
+export function useGoalListData(params?: UseGoalListDataParams): UseGoalListDataReturn {
   const [goals, setGoals] = useState<GoalWithReview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStatuses, setSelectedStatuses] = useState<GoalStatus[]>([]);
   const [showResubmissionsOnly, setShowResubmissionsOnly] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
+  const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(''); // '' means "all"
   const [users, setUsers] = useState<UserDetailResponse[]>([]);
 
@@ -152,7 +170,7 @@ export function useGoalListData(): UseGoalListDataReturn {
       setIsLoading(true);
       setError(null);
 
-      // Load current evaluation period and users in parallel
+      // Load all evaluation periods and users in parallel
       const [periodResult, usersResult] = await Promise.all([
         getCategorizedEvaluationPeriodsAction(),
         getUsersAction()
@@ -163,14 +181,35 @@ export function useGoalListData(): UseGoalListDataReturn {
         setUsers(usersResult.data.items);
       }
 
-      if (periodResult.success && periodResult.data?.current) {
-        setCurrentPeriod(periodResult.data.current);
-        const currentPeriodId = periodResult.data.current.id;
+      // Set current period and all periods
+      if (periodResult.success && periodResult.data) {
+        setCurrentPeriod(periodResult.data.current || null);
+
+        // Combine all periods (past, current, future) into one array
+        const allPeriodsArray = [
+          ...(periodResult.data.past || []),
+          ...(periodResult.data.current ? [periodResult.data.current] : []),
+          ...(periodResult.data.future || [])
+        ];
+        setAllPeriods(allPeriodsArray);
+
+        // Determine which period to use: selected period or current period
+        const periodToUse = params?.selectedPeriodId
+          ? allPeriodsArray.find(p => p.id === params.selectedPeriodId)
+          : periodResult.data.current;
+
+        if (!periodToUse) {
+          setError(params?.selectedPeriodId ? '選択された評価期間が見つかりません' : '評価期間が設定されていません');
+          setGoals([]);
+          return;
+        }
+
+        const targetPeriodId = periodToUse.id;
 
         // Load goals first to get user's goals
         // Exclude 'rejected' status - rejected goals are replaced by new draft copies
         const goalsResult = await getGoalsAction({
-          periodId: currentPeriodId,
+          periodId: targetPeriodId,
           limit: 100, // TODO: Implement pagination if needed
         });
 
@@ -254,7 +293,9 @@ export function useGoalListData(): UseGoalListDataReturn {
         setGoals(goalsWithReviews);
       } else {
         setCurrentPeriod(null);
+        setAllPeriods([]);
         setError('評価期間が設定されていません');
+        setGoals([]);
       }
     } catch (err) {
       console.error('Error loading goal data:', err);
@@ -262,7 +303,7 @@ export function useGoalListData(): UseGoalListDataReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchRejectionHistory]);
+  }, [fetchRejectionHistory, params?.selectedPeriodId]);
 
   /**
    * Count goals with previousGoalId in draft status (rejected goals awaiting re-submission)
@@ -352,6 +393,7 @@ export function useGoalListData(): UseGoalListDataReturn {
     error,
     selectedStatuses,
     currentPeriod,
+    allPeriods,
     showResubmissionsOnly,
     resubmissionCount,
     setSelectedStatuses,
