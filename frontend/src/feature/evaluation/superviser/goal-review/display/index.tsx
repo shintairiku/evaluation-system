@@ -87,10 +87,6 @@ export default function GoalReviewPage() {
               <div className="h-8 w-32 bg-gray-200 rounded animate-pulse"></div>
               <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
             </div>
-          </div>
-
-          {/* Period Selector Skeleton */}
-          <div className="bg-card border rounded-lg p-4">
             <div className="h-9 w-80 bg-gray-200 rounded animate-pulse"></div>
           </div>
 
@@ -146,10 +142,6 @@ export default function GoalReviewPage() {
                 {totalPendingCount}
               </Badge>
             </div>
-          </div>
-
-          {/* Period Selector */}
-          <div className="bg-card border rounded-lg p-4">
             <EvaluationPeriodSelector
               periods={allPeriods}
               selectedPeriodId={selectedPeriodId}
@@ -196,17 +188,15 @@ export default function GoalReviewPage() {
                 {totalPendingCount}
               </Badge>
             </div>
-          </div>
-
-          {/* Period Selector */}
-          <div className="bg-card border rounded-lg p-4">
-            <EvaluationPeriodSelector
-              periods={allPeriods}
-              selectedPeriodId={selectedPeriodId}
-              currentPeriodId={currentPeriod?.id || null}
-              onPeriodChange={handlePeriodChange}
-              isLoading={loading}
-            />
+            <div className="shrink-0">
+              <EvaluationPeriodSelector
+                periods={allPeriods}
+                selectedPeriodId={selectedPeriodId}
+                currentPeriodId={currentPeriod?.id || null}
+                onPeriodChange={handlePeriodChange}
+                isLoading={loading}
+              />
+            </div>
           </div>
 
           {/* Guidelines */}

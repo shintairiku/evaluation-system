@@ -92,10 +92,6 @@ export default function GoalListPage() {
           {/* Page Header Skeleton */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="h-8 w-48 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-
-          {/* Period Selector Skeleton */}
-          <div className="bg-card border rounded-lg p-4">
             <div className="h-9 w-80 bg-gray-200 rounded animate-pulse"></div>
           </div>
 
@@ -147,10 +143,6 @@ export default function GoalListPage() {
           {/* Page Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <h1 className="text-2xl font-bold">目標一覧</h1>
-          </div>
-
-          {/* Period Selector */}
-          <div className="bg-card border rounded-lg p-4">
             <EvaluationPeriodSelector
               periods={allPeriods}
               selectedPeriodId={selectedPeriodId}
@@ -202,24 +194,22 @@ export default function GoalListPage() {
     <div className="container mx-auto p-4 md:p-6">
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">目標一覧</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {filteredGoals.length}件の目標を表示中
             </p>
           </div>
-        </div>
-
-        {/* Period Selector */}
-        <div className="bg-card border rounded-lg p-4">
-          <EvaluationPeriodSelector
-            periods={allPeriods}
-            selectedPeriodId={selectedPeriodId}
-            currentPeriodId={currentPeriod?.id || null}
-            onPeriodChange={handlePeriodChange}
-            isLoading={isLoading}
-          />
+          <div className="shrink-0">
+            <EvaluationPeriodSelector
+              periods={allPeriods}
+              selectedPeriodId={selectedPeriodId}
+              currentPeriodId={currentPeriod?.id || null}
+              onPeriodChange={handlePeriodChange}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
 
         {/* Employee Selector - only show if user has access to multiple employees' goals */}
