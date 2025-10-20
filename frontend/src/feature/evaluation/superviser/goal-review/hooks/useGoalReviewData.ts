@@ -91,12 +91,8 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
       if (periodResult.success && periodResult.data) {
         setCurrentPeriod(periodResult.data.current || null);
 
-        // Combine all periods (past, current, future) into one array
-        const allPeriodsArray = [
-          ...(periodResult.data.past || []),
-          ...(periodResult.data.current ? [periodResult.data.current] : []),
-          ...(periodResult.data.future || [])
-        ];
+        // Use all periods from API response (includes past, current, and upcoming periods)
+        const allPeriodsArray = periodResult.data.all || [];
         setAllPeriods(allPeriodsArray);
 
         // Determine which period to use: selected period or current period
