@@ -70,10 +70,8 @@ export default function AdminDashboardContainer({
     // Navigate to alert details or action URL
     if (alert.actionUrl) {
       window.location.href = alert.actionUrl;
-    } else {
-      // Default action - maybe show alert details modal
-      console.log('Alert clicked:', alert);
     }
+    // No default action needed - alert click is informational
   }, []);
 
   const handleDismissAlert = useCallback(async (alertId: string) => {
@@ -104,10 +102,12 @@ export default function AdminDashboardContainer({
           };
         });
       } else {
-        console.error('Failed to dismiss alert:', result.errorMessage);
+        // Alert dismissal failed - could show a toast notification
+        setError('アラートの非表示に失敗しました');
       }
     } catch (err) {
-      console.error('Error dismissing alert:', err);
+      // Error dismissing alert - could show a toast notification
+      setError('アラートの非表示中にエラーが発生しました');
     }
   }, [dashboardData]);
 

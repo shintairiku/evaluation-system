@@ -17,6 +17,8 @@ export interface UseTabStateOptions {
   replaceUrl?: boolean;
   /** Validate role changes against user permissions (default: true) */
   validateRole?: boolean;
+  /** Pre-computed available roles (to avoid fetching on client) */
+  availableRoles?: string[];
 }
 
 export interface UseTabStateReturn {
@@ -59,18 +61,25 @@ export function useTabState(options: UseTabStateOptions = {}): UseTabStateReturn
     syncWithUrl = true,
     enableHistory = true,
     replaceUrl = false,
-    validateRole = true
+    validateRole = true,
+    availableRoles: providedRoles
   } = options;
 
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { userRoles, isLoading: rolesLoading, error: rolesError } = useUserRoles();
 
-  // Get available roles
+  // Only fetch user roles if not provided (OPTIMIZATION: avoid unnecessary API calls)
+  const shouldFetchRoles = !providedRoles;
+  const { userRoles, isLoading: rolesLoading, error: rolesError } = useUserRoles(
+    shouldFetchRoles ? {} : { initialUserData: null, skipFetchIfInitialData: true }
+  );
+
+  // Get available roles from props or fetched data
   const availableRoles = useMemo(() => {
+    if (providedRoles) return providedRoles;
     return userRoles.map(role => role.role);
-  }, [userRoles]);
+  }, [providedRoles, userRoles]);
 
   // Determine default role
   const defaultRoleValue = useMemo(() => {
@@ -100,7 +109,7 @@ export function useTabState(options: UseTabStateOptions = {}): UseTabStateReturn
 
   // Update active role when URL changes (browser navigation)
   useEffect(() => {
-    if (!syncWithUrl || rolesLoading) return;
+    if (!syncWithUrl || (shouldFetchRoles && rolesLoading)) return;
 
     const urlRole = searchParams.get(paramName);
 
@@ -112,7 +121,7 @@ export function useTabState(options: UseTabStateOptions = {}): UseTabStateReturn
       setActiveRoleState(defaultRoleValue);
       setError(null);
     }
-  }, [searchParams, paramName, availableRoles, syncWithUrl, rolesLoading, activeRole, defaultRoleValue]);
+  }, [searchParams, paramName, availableRoles, syncWithUrl, shouldFetchRoles, rolesLoading, activeRole, defaultRoleValue]);
 
   // Update URL when active role changes
   const updateUrl = useCallback((role: string, force = false) => {
@@ -140,7 +149,7 @@ export function useTabState(options: UseTabStateOptions = {}): UseTabStateReturn
 
   // Update active role when available roles change (user roles loaded/changed)
   useEffect(() => {
-    if (rolesLoading || availableRoles.length === 0) return;
+    if ((shouldFetchRoles && rolesLoading) || availableRoles.length === 0) return;
 
     // Check if current active role is still valid
     if (!availableRoles.includes(activeRole)) {
@@ -151,7 +160,7 @@ export function useTabState(options: UseTabStateOptions = {}): UseTabStateReturn
         updateUrl(newRole, true); // Force URL update for invalid role
       }
     }
-  }, [availableRoles, activeRole, defaultRoleValue, rolesLoading, syncWithUrl, updateUrl]);
+  }, [availableRoles, activeRole, defaultRoleValue, shouldFetchRoles, rolesLoading, syncWithUrl, updateUrl]);
 
   // Validate if a role is available for the user
   const isValidRole = useCallback((role: string): boolean => {
@@ -180,18 +189,18 @@ export function useTabState(options: UseTabStateOptions = {}): UseTabStateReturn
     setActiveRole(defaultRoleValue);
   }, [setActiveRole, defaultRoleValue]);
 
-  // Handle errors from user roles hook
+  // Handle errors from user roles hook (only if fetching)
   useEffect(() => {
-    if (rolesError) {
+    if (shouldFetchRoles && rolesError) {
       setError(rolesError);
     }
-  }, [rolesError]);
+  }, [shouldFetchRoles, rolesError]);
 
   return {
     activeRole,
     setActiveRole,
     availableRoles,
-    isLoading: rolesLoading,
+    isLoading: shouldFetchRoles ? rolesLoading : false,
     error,
     resetToDefault,
     isValidRole

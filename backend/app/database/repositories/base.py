@@ -223,12 +223,12 @@ class BaseRepository(ABC, Generic[T]):
     def ensure_org_filter_applied(self, query_description: str, org_id: Optional[str]) -> None:
         """
         Audit logging for organization filter application.
-        
+
         Args:
             query_description: Description of the query for logging
             org_id: Organization ID being filtered by
         """
         if org_id:
-            logger.info(f"Organization filter applied to {query_description}: org_id={org_id}")
+            logger.debug(f"Organization filter applied to {query_description}: org_id={org_id}")
         else:
             logger.warning(f"No organization filter applied to {query_description} - potential security risk")

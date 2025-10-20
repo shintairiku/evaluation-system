@@ -2,33 +2,44 @@ declare const process: {
   env: {
     [key: string]: string | undefined;
     NEXT_PUBLIC_API_BASE_URL?: string;
+    API_BASE_URL_SERVER?: string;
     NODE_ENV?: string;
   };
 };
 
+// Detect if we're running on server or client
+const isServer = typeof window === 'undefined';
+
 const getApiBaseUrl = () => {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  // Server-side: use Docker internal network (backend:8000) or fallback to public URL
+  if (isServer) {
+    const serverUrl = process.env.API_BASE_URL_SERVER;
+    if (!serverUrl) {
+      // In production (Vercel), fall back to the same public URL as client-side
+      const publicUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (publicUrl) {
+        return publicUrl;
+      }
 
-  // Production environment MUST have NEXT_PUBLIC_API_BASE_URL set
-  if (process.env.NODE_ENV === 'production') {
-    if (!baseUrl) {
-      throw new Error(
-        'NEXT_PUBLIC_API_BASE_URL is required in production. ' +
-        'Please set it to your Cloud Run backend URL (e.g., https://your-backend-xxx.run.app)'
-      );
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Either API_BASE_URL_SERVER or NEXT_PUBLIC_API_BASE_URL must be set for production environment');
+      }
+      // Default to Docker service name for server-side calls in development
+      return 'http://backend:8000';
     }
-    return baseUrl;
+    return serverUrl;
   }
 
-  // Development/staging fallback
-  if (!baseUrl) {
-    // In Docker environment, use service name 'backend' instead of 'localhost'
-    // This can be detected by checking if we're in a containerized environment
-    // For now, we'll use 'backend' as the default for Docker networking
-    return 'http://backend:8000';
+  // Client-side: use public API URL
+  const clientUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!clientUrl) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('NEXT_PUBLIC_API_BASE_URL is not set for production environment');
+    }
+    // Default to localhost for browser access in development
+    return 'http://localhost:8000';
   }
-
-  return baseUrl;
+  return clientUrl;
 };
 
 export const API_CONFIG = {

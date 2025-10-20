@@ -3,14 +3,22 @@
 import { useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { useUserRoles, type UserRole } from '@/hooks/useUserRoles';
 import { Shield, Users, User } from 'lucide-react';
+
+// Import UserRole type directly to avoid server-only imports
+export interface UserRole {
+  role: string;
+  label: string;
+  hierarchyLevel: number;
+}
 
 export interface RoleTabNavigationProps {
   /** Currently active role tab */
   activeRole: string;
   /** Callback when role tab changes */
   onRoleChange: (role: string) => void;
+  /** Available user roles (pass from parent to avoid client-side fetching) */
+  userRoles?: UserRole[];
   /** Custom styling classes */
   className?: string;
   /** Disable tab switching (useful during loading) */
@@ -43,10 +51,18 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
 export default function RoleTabNavigation({
   activeRole,
   onRoleChange,
+  userRoles,
   className = '',
   disabled = false
 }: RoleTabNavigationProps) {
-  const { userRoles, isLoading, error } = useUserRoles();
+  // Roles must be provided as props to avoid server-only imports
+  if (!userRoles) {
+    return (
+      <div className={`p-4 text-center ${className}`}>
+        <p className="text-sm text-muted-foreground">ロール情報を読み込めませんでした</p>
+      </div>
+    );
+  }
 
   // Calculate grid columns based on number of available roles
   const gridColumns = useMemo(() => {
@@ -56,26 +72,6 @@ export default function RoleTabNavigation({
     if (count === 2) return 'grid-cols-2';
     return 'grid-cols-3';
   }, [userRoles.length]);
-
-  // Handle loading state
-  if (isLoading) {
-    return (
-      <div className={`flex items-center justify-center p-4 ${className}`}>
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-        <span className="ml-2 text-sm text-muted-foreground">ダッシュボード準備中...</span>
-      </div>
-    );
-  }
-
-  // Handle error state
-  if (error) {
-    return (
-      <div className={`p-4 text-center ${className}`}>
-        <p className="text-sm text-destructive">ダッシュボードの読み込みに失敗しました</p>
-        <p className="text-xs text-muted-foreground mt-1">{error}</p>
-      </div>
-    );
-  }
 
   // Handle no roles available
   if (userRoles.length === 0) {
@@ -171,11 +167,10 @@ export function RoleIndicator({ role }: { role: UserRole }) {
 export function CompactRoleSwitcher({
   activeRole,
   onRoleChange,
+  userRoles,
   className = ''
 }: Omit<RoleTabNavigationProps, 'disabled'>) {
-  const { userRoles, isLoading } = useUserRoles();
-
-  if (isLoading || userRoles.length <= 1) {
+  if (!userRoles || userRoles.length <= 1) {
     return null;
   }
 

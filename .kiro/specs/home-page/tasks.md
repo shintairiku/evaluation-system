@@ -58,7 +58,8 @@
   > システム全体の統計情報表示カード。
   > 総ユーザー数、部門数、アクティブ評価期間数を表示。
   >
-  > **実装完了:** `/src/components/dashboard/admin/SystemStatsCard.tsx` - システム統計・健康状態表示、リアルタイム更新対応
+  > **実装完了:** `/src/components/dashboard/admin/SystemStatsCard.tsx` - システム統計表示、リアルタイム更新対応
+  > **更新:** システム状態（確認中）セクションを削除し、統計情報のみに整理
   > **関連要件:** 要件1
 
 - [x] **3.2. PendingApprovalsCardコンポーネントの作成**
@@ -73,13 +74,15 @@
   > 緊急度に応じた色分け表示とアイコン。
   >
   > **実装完了:** `/src/components/dashboard/admin/SystemAlertsCard.tsx` - 緊急度別色分け、アラート削除機能
+  > **更新:** 管理者ダッシュボードから削除（コンポーネントは保持、今後の用途のため）
   > **関連要件:** 要件1
 
 - [x] **3.4. QuickActionsCardコンポーネントの作成**
   > 管理機能への直接アクセスボタン。
   > ユーザー管理、部門管理、ステージ管理、コンピテンシー管理へのリンク。
   >
-  > **実装完了:** `/src/components/dashboard/admin/QuickActionsCard.tsx` - 管理機能ショートカット、レポート・緊急対応メニュー
+  > **実装完了:** `/src/components/dashboard/admin/QuickActionsCard.tsx` - 管理機能ショートカット、レポートメニュー
+  > **更新:** 緊急時対応セクション（メンテナンスモード）を削除、実際のルートパスに更新
   > **関連要件:** 要件1
 
 ### 4. 管理者用データ取得・API連携
@@ -93,9 +96,10 @@
 
 - [x] **4.2. AdminDashboardレイアウトコンポーネントの実装**
   > 管理者用ダッシュボードの統合レイアウト。
-  > レスポンシブ対応（3カラム→2カラム→1カラム）。
+  > レスポンシブ対応（2カラム→1カラム）。
   >
   > **実装完了:** `/src/components/dashboard/admin/AdminDashboard.tsx` - レスポンシブレイアウト、状態管理、エラーハンドリング
+  > **更新:** 3カラムから2カラムレイアウトに変更、SystemAlertsCard削除、QuickActionsCard全幅表示
   > **関連要件:** 要件1, 要件4
 
 ## 機能C: 上司・管理職用ダッシュボード実装

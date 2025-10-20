@@ -49,7 +49,7 @@ export default function QuickActionsCard({
       id: 'user-management',
       label: 'ユーザー管理',
       description: 'ユーザーの追加・編集・権限設定',
-      href: '/admin/users',
+      href: '/user-profiles',
       icon: <Users className="w-5 h-5" />,
       variant: 'default'
     },
@@ -57,7 +57,7 @@ export default function QuickActionsCard({
       id: 'department-management',
       label: '部門管理',
       description: '部門の作成・編集・階層設定',
-      href: '/admin/departments',
+      href: '/departments',
       icon: <Building2 className="w-5 h-5" />,
       variant: 'secondary'
     },
@@ -65,7 +65,7 @@ export default function QuickActionsCard({
       id: 'stage-management',
       label: 'ステージ管理',
       description: '評価ステージの設定・管理',
-      href: '/admin/stages',
+      href: '/stage-management',
       icon: <Layers className="w-5 h-5" />,
       variant: 'secondary'
     },
@@ -73,7 +73,7 @@ export default function QuickActionsCard({
       id: 'competency-management',
       label: 'コンピテンシー管理',
       description: 'コンピテンシーの設定・編集',
-      href: '/admin/competencies',
+      href: '/competency-management',
       icon: <Target className="w-5 h-5" />,
       variant: 'secondary'
     },
@@ -81,7 +81,7 @@ export default function QuickActionsCard({
       id: 'evaluation-periods',
       label: '評価期間管理',
       description: '評価期間の作成・設定・管理',
-      href: '/admin/evaluation-periods',
+      href: '/evaluation-period-management',
       icon: <Calendar className="w-5 h-5" />,
       variant: 'outline'
     },
@@ -89,7 +89,7 @@ export default function QuickActionsCard({
       id: 'system-settings',
       label: 'システム設定',
       description: 'システム全体の設定・構成',
-      href: '/admin/settings',
+      href: '/settings',
       icon: <Settings className="w-5 h-5" />,
       variant: 'outline'
     }
@@ -157,17 +157,7 @@ export default function QuickActionsCard({
               className="justify-start text-xs h-8"
               asChild
             >
-              <Link href="/admin/reports/system">
-                システム利用状況
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start text-xs h-8"
-              asChild
-            >
-              <Link href="/admin/reports/evaluations">
+              <Link href="/report">
                 評価進捗レポート
               </Link>
             </Button>
@@ -177,38 +167,8 @@ export default function QuickActionsCard({
               className="justify-start text-xs h-8"
               asChild
             >
-              <Link href="/admin/reports/performance">
+              <Link href="/report">
                 パフォーマンス分析
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start text-xs h-8"
-              asChild
-            >
-              <Link href="/admin/logs">
-                システムログ
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        {/* Emergency Actions */}
-        <div className="mt-4 pt-4 border-t">
-          <h4 className="text-sm font-medium mb-3 text-destructive flex items-center gap-2">
-            <Settings className="w-4 h-4" />
-            緊急時対応
-          </h4>
-          <div className="space-y-2">
-            <Button
-              variant="destructive"
-              size="sm"
-              className="w-full text-xs h-8"
-              asChild
-            >
-              <Link href="/admin/maintenance">
-                メンテナンスモード
               </Link>
             </Button>
           </div>

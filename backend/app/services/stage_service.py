@@ -143,23 +143,20 @@ class StageService:
         """
         # Permission check handled by @require_permission decorator
 
-        stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
-        stages_with_count = []
+        # Use optimized single query instead of N+1 queries
+        stages_with_counts = await self.stage_repo.get_all_with_user_counts(current_user_context.organization_id)
 
-        for stage in stage_models:
-            user_count = await self.stage_repo.count_users_by_stage(stage.id, current_user_context.organization_id)
-            stages_with_count.append(
-                StageWithUserCount(
-                    id=stage.id,
-                    name=stage.name,
-                    description=stage.description,
-                    user_count=user_count,
-                    created_at=stage.created_at,
-                    updated_at=stage.updated_at
-                )
+        return [
+            StageWithUserCount(
+                id=stage.id,
+                name=stage.name,
+                description=stage.description,
+                user_count=user_count,
+                created_at=stage.created_at,
+                updated_at=stage.updated_at
             )
-
-        return stages_with_count
+            for stage, user_count in stages_with_counts
+        ]
     
     @require_permission(Permission.STAGE_MANAGE)
     async def update_stage(self, current_user_context: AuthContext, stage_id: UUID, stage_data: StageUpdate) -> StageDetail:

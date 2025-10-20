@@ -125,7 +125,6 @@ def custom_openapi():
 # Clear any existing schema cache and assign our custom function
 app.openapi_schema = None
 app.openapi = custom_openapi
-logger.info("Custom OpenAPI function assigned successfully")
 
 @app.get("/", response_model=HealthCheckResponse)
 async def root():
