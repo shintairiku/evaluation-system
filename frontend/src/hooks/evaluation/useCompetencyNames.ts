@@ -18,6 +18,10 @@ export interface UseCompetencyNamesReturn {
  * Custom hook to resolve competency IDs to their display names
  * Uses existing server actions with optimized caching
  *
+ * Shared hook used across evaluation features:
+ * - Employee goal-list (GoalCard)
+ * - Supervisor goal-review (GoalApprovalCard, GoalApprovalHandler)
+ *
  * @param competencyIds - Array of competency UUIDs to resolve
  * @returns Object containing competency names, loading state, and error
  */

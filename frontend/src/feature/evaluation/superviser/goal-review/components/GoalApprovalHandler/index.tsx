@@ -4,7 +4,7 @@ import { useRef } from 'react';
 import { type GoalResponse } from '@/api/types';
 import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
-import { useCompetencyNames } from '../../hooks/useCompetencyNames';
+import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { useGoalApprovalActions } from '../../hooks/useGoalApprovalActions';
 

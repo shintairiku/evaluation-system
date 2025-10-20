@@ -60,6 +60,7 @@ export interface GoalResponse {
   status: GoalStatus;
   approvedBy?: UUID | null;
   approvedAt?: string | null;
+  previousGoalId?: UUID | null;
   createdAt: string;
   updatedAt: string;
 

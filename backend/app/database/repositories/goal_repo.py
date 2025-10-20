@@ -35,6 +35,51 @@ class GoalRepository(BaseRepository[Goal]):
     # CREATE OPERATIONS
     # ========================================
 
+    async def create_goal_from_model(
+        self,
+        user_id: UUID,
+        period_id: UUID,
+        goal_category: str,
+        target_data: dict,
+        weight: float,
+        org_id: str,
+        status: GoalStatus = GoalStatus.DRAFT,
+        previous_goal_id: Optional[UUID] = None,
+    ) -> Goal:
+        """
+        Create a new goal directly from model data (used for internal operations like copying rejected goals).
+        This bypasses GoalCreate schema validation and weight constraints.
+        Adds to session (does not commit - let service layer handle transactions).
+        """
+        try:
+            # Validate user belongs to organization
+            await self.verify_org_consistency_via_user(org_id, str(user_id), "user")
+
+            # Create goal with provided data
+            goal = Goal(
+                user_id=user_id,
+                period_id=period_id,
+                goal_category=goal_category,
+                target_data=target_data,
+                weight=Decimal(str(weight)),
+                status=status.value if isinstance(status, GoalStatus) else status,
+                previous_goal_id=previous_goal_id,
+            )
+
+            self.session.add(goal)
+            logger.info(
+                f"Added goal copy to session for org {org_id}: user_id={user_id}, "
+                f"category={goal_category}, previous_goal_id={previous_goal_id}"
+            )
+            return goal
+
+        except IntegrityError as e:
+            logger.error(f"Integrity error creating goal from model for user {user_id}: {e}")
+            raise ConflictError(f"Database constraint violation: {e}")
+        except SQLAlchemyError as e:
+            logger.error(f"Database error creating goal from model for user {user_id}: {e}")
+            raise
+
     async def create_goal(self, goal_data: GoalCreate, user_id: UUID, org_id: str) -> Goal:
         """
         Create a new goal from GoalCreate schema with validation and error handling within organization scope.

@@ -397,9 +397,46 @@ class SupervisorReviewService:
         if review.action == "APPROVED":
             await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.APPROVED, org_id, approved_by=current_user_context.user_id)
         elif review.action == "REJECTED":
+            # Update rejected goal status
             await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.REJECTED, org_id)
+
+            # Create new draft goal as copy of rejected goal for resubmission
+            await self._create_draft_from_rejected_goal(review.goal_id, org_id)
         elif review.action == "PENDING":
             # Keep goal in submitted
             pass
+
+    async def _create_draft_from_rejected_goal(self, rejected_goal_id: UUID, org_id: str) -> None:
+        """
+        Create a new draft goal as a copy of the rejected goal.
+        This allows the employee to resubmit with modifications while preserving history.
+        """
+        try:
+            # Get the rejected goal
+            rejected_goal = await self.goal_repo.get_goal_by_id(rejected_goal_id, org_id)
+            if not rejected_goal:
+                logger.error(f"Cannot create draft from rejected goal: goal {rejected_goal_id} not found")
+                return
+
+            # Create new goal with same data but draft status and reference to previous goal
+            new_goal = await self.goal_repo.create_goal_from_model(
+                user_id=rejected_goal.user_id,
+                period_id=rejected_goal.period_id,
+                goal_category=rejected_goal.goal_category,
+                target_data=rejected_goal.target_data,  # Copy all target data
+                weight=float(rejected_goal.weight),
+                org_id=org_id,
+                status=GoalStatus.DRAFT,
+                previous_goal_id=rejected_goal_id,  # Link to rejected goal for history
+            )
+
+            logger.info(
+                f"Created new draft goal {new_goal.id} from rejected goal {rejected_goal_id} "
+                f"for user {rejected_goal.user_id}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to create draft from rejected goal {rejected_goal_id}: {e}")
+            # Don't raise - rejection should still succeed even if draft creation fails
 
 

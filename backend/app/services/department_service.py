@@ -91,7 +91,10 @@ class DepartmentService:
             )
             if not can_access:
                 # For departments, check if user can at least access their own department
-                current_user = await self.user_repo.get_user_by_id(current_user_context.user_id)
+                org_id = current_user_context.organization_id
+                if not org_id:
+                    raise PermissionDeniedError("Organization context required")
+                current_user = await self.user_repo.get_user_by_id(current_user_context.user_id, org_id)
                 if not current_user or current_user.department_id != dept_id:
                     raise PermissionDeniedError("You can only access your own department")
             

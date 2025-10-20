@@ -68,6 +68,11 @@ const getStatusInfo = (status: GoalStatus): StatusInfo => {
  * Reusable badge component for displaying goal status.
  * Provides consistent styling and accessibility across all goal status displays.
  *
+ * Shared component used across evaluation features:
+ * - Employee goal-list
+ * - Employee goal-edit
+ * - Supervisor goal-review
+ *
  * @param props - Component props
  * @returns JSX element containing the status badge
  *

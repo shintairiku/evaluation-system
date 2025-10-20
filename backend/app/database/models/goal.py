@@ -29,7 +29,10 @@ class Goal(Base):
     # Approval fields
     approved_by = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
-    
+
+    # Rejection history tracking
+    previous_goal_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("goals.id"), nullable=True)
+
     # Timestamps with timezone
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
@@ -61,12 +64,14 @@ class Goal(Base):
         # Performance index for common queries
         Index('idx_goals_user_period', 'user_id', 'period_id'),
         Index('idx_goals_status_category', 'status', 'goal_category'),
+        Index('idx_goals_previous_goal_id', 'previous_goal_id'),
     )
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="goals")
     period = relationship("EvaluationPeriod", back_populates="goals")
     approver = relationship("User", foreign_keys=[approved_by])
+    previous_goal = relationship("Goal", remote_side=[id], foreign_keys=[previous_goal_id])
     
     # Related assessment records
     self_assessments = relationship("SelfAssessment", back_populates="goal", cascade="all, delete-orphan")
