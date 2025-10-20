@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { GoalApprovalCardSkeleton, DelayedSkeleton } from '@/components/ui/loading-skeleton';
 import { EmployeeTabNavigation } from '../components/EmployeeTabNavigation';
 import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
+import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
 import { GoalApprovalCard } from '../components/GoalApprovalCard';
 import { GuidelinesAlert } from '../components/GuidelinesAlert';
 import { ApprovalGuidelinesPanel } from '../components/ApprovalGuidelinesPanel';
@@ -23,6 +24,9 @@ import type { EvaluationPeriod } from '@/api/types';
  * @returns JSX element containing the complete goal review interface
  */
 export default function GoalReviewPage() {
+  // State for selected period
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+
   const {
     loading,
     error,
@@ -30,9 +34,10 @@ export default function GoalReviewPage() {
     totalPendingCount,
     selectedEmployeeId,
     currentPeriod,
+    allPeriods,
     setSelectedEmployeeId,
     reloadData
-  } = useGoalReviewData();
+  } = useGoalReviewData({ selectedPeriodId: selectedPeriodId || undefined });
 
   // Responsive and accessibility hooks
   const { isMobile, isTablet, isDesktop } = useResponsiveBreakpoint();
@@ -59,18 +64,16 @@ export default function GoalReviewPage() {
     }
   }, [mainContentId]);
 
-  // Format period name for display
-  const formatPeriodDisplay = (period: EvaluationPeriod | null): string => {
-    if (!period) return '評価期間未設定';
-    return period.name || '2024年度'; // Fallback to current year if name is empty
-  };
-
-  // Period display component with loading state
-  const PeriodDisplay = () => {
-    if (loading) {
-      return <div className="h-4 w-24 bg-gray-200 rounded animate-pulse inline-block"></div>;
+  // Initialize selected period to current period when data loads
+  React.useEffect(() => {
+    if (!selectedPeriodId && currentPeriod) {
+      setSelectedPeriodId(currentPeriod.id);
     }
-    return <>現在の評価期間: {formatPeriodDisplay(currentPeriod)}</>;
+  }, [currentPeriod, selectedPeriodId]);
+
+  // Handle period change
+  const handlePeriodChange = (periodId: string) => {
+    setSelectedPeriodId(periodId);
   };
 
 
@@ -84,7 +87,11 @@ export default function GoalReviewPage() {
               <div className="h-8 w-32 bg-gray-200 rounded animate-pulse"></div>
               <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
             </div>
-            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+
+          {/* Period Selector Skeleton */}
+          <div className="bg-card border rounded-lg p-4">
+            <div className="h-9 w-80 bg-gray-200 rounded animate-pulse"></div>
           </div>
 
           {/* Guidelines Skeleton */}
@@ -139,9 +146,17 @@ export default function GoalReviewPage() {
                 {totalPendingCount}
               </Badge>
             </div>
-            <div className="text-sm text-muted-foreground">
-              <PeriodDisplay />
-            </div>
+          </div>
+
+          {/* Period Selector */}
+          <div className="bg-card border rounded-lg p-4">
+            <EvaluationPeriodSelector
+              periods={allPeriods}
+              selectedPeriodId={selectedPeriodId}
+              currentPeriodId={currentPeriod?.id || null}
+              onPeriodChange={handlePeriodChange}
+              isLoading={loading}
+            />
           </div>
 
           {/* Empty State */}
@@ -181,9 +196,17 @@ export default function GoalReviewPage() {
                 {totalPendingCount}
               </Badge>
             </div>
-            <div className="text-sm text-muted-foreground">
-              <PeriodDisplay />
-            </div>
+          </div>
+
+          {/* Period Selector */}
+          <div className="bg-card border rounded-lg p-4">
+            <EvaluationPeriodSelector
+              periods={allPeriods}
+              selectedPeriodId={selectedPeriodId}
+              currentPeriodId={currentPeriod?.id || null}
+              onPeriodChange={handlePeriodChange}
+              isLoading={loading}
+            />
           </div>
 
           {/* Guidelines */}
