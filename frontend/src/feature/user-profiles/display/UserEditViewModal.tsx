@@ -466,60 +466,58 @@ export default function UserEditViewModal({
                 <CardTitle className="text-lg">組織・ロール</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  {isLoadingOptions ? (
-                    <>
-                      <SelectSkeleton />
-                      <SelectSkeleton />
-                    </>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="department">部署</Label>
-                        <Select 
-                          value={formData.department_id} 
-                          onValueChange={(value) => handleInputChange('department_id', value)}
-                          disabled={isPending}
-                          name="department_id"
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="部署を選択" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unset">未設定</SelectItem>
-                            {options.departments.map((dept) => (
-                              <SelectItem key={dept.id} value={dept.id}>
-                                {dept.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                {isLoadingOptions ? (
+                  <div className="space-y-6">
+                    <SelectSkeleton />
+                    <SelectSkeleton />
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="department">部署</Label>
+                      <Select
+                        value={formData.department_id}
+                        onValueChange={(value) => handleInputChange('department_id', value)}
+                        disabled={isPending}
+                        name="department_id"
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="部署を選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unset">未設定</SelectItem>
+                          {options.departments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id}>
+                              {dept.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="stage">ステージ</Label>
-                        <Select 
-                          value={formData.stage_id} 
-                          onValueChange={(value) => handleInputChange('stage_id', value)}
-                          disabled={isPending}
-                          name="stage_id"
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="ステージを選択" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unset">未設定</SelectItem>
-                            {options.stages.map((stage) => (
-                              <SelectItem key={stage.id} value={stage.id}>
-                                {stage.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
-                  )}
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="stage">ステージ</Label>
+                      <Select
+                        value={formData.stage_id}
+                        onValueChange={(value) => handleInputChange('stage_id', value)}
+                        disabled={isPending}
+                        name="stage_id"
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="ステージを選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unset">未設定</SelectItem>
+                          {options.stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="status">ステータス</Label>
