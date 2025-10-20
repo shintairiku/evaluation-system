@@ -28,6 +28,10 @@ export interface UseIdealActionsResolverReturn {
  * Custom hook to resolve ideal action IDs to their descriptive texts
  * Fetches competency details and maps action IDs to descriptions
  *
+ * Shared hook used across evaluation features:
+ * - Employee goal-list (GoalCard)
+ * - Supervisor goal-review (GoalApprovalCard)
+ *
  * @param selectedIdealActions - Record of competency IDs to action IDs
  * @param competencyIds - Array of competency IDs for fallback names
  * @returns Object containing resolved actions, loading state, and error

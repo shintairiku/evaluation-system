@@ -4,11 +4,19 @@ import { Badge } from '@/components/ui/badge';
 import { User, IdCard, Briefcase } from 'lucide-react';
 import type { UserDetailResponse } from '@/api/types';
 
-interface EmployeeInfoHeaderProps {
+interface EmployeeInfoCardProps {
   employee: UserDetailResponse;
 }
 
-export function EmployeeInfoHeader({ employee }: EmployeeInfoHeaderProps) {
+/**
+ * Employee information card component
+ * Displays detailed employee information with avatar and role badges
+ *
+ * Shared component used across evaluation features:
+ * - Employee goal-list view
+ * - Supervisor goal-review view
+ */
+export function EmployeeInfoCard({ employee }: EmployeeInfoCardProps) {
   const primaryRole = employee.roles?.[0];
 
   return (
