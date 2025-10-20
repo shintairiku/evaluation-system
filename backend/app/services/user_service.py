@@ -567,8 +567,13 @@ class UserService:
         NOTE: Hard delete is permanent and irreversible.
         """
         try:
+            # Get organization context
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            
             # Check if user exists
-            existing_user = await self.user_repo.get_user_by_id(user_id)
+            existing_user = await self.user_repo.get_user_by_id(user_id, org_id)
             if not existing_user:
                 raise NotFoundError(f"User with ID {user_id} not found")
 
@@ -578,7 +583,7 @@ class UserService:
                     raise BadRequestError("You cannot inactivate your own account")
 
                 # Check if user is a supervisor of active users
-                subordinates = await self.user_repo.get_subordinates(user_id)
+                subordinates = await self.user_repo.get_subordinates(user_id, org_id)
                 if subordinates:
                     raise BadRequestError("Cannot inactivate user who is currently supervising active users")
                 
@@ -677,7 +682,14 @@ class UserService:
                 return None
             
             # 4. Lookup user by Users.id
-            user = await self.user_repo.get_user_by_id(UUID(users_table_id))
+            # Note: We need org_id but don't have it in this context
+            # This is a fallback lookup, so we'll need to get it from the clerk user's org
+            org_id = clerk_user.get('organization_memberships', [{}])[0].get('organization', {}).get('id')
+            if not org_id:
+                logger.error(f"Cannot determine organization for user lookup: {users_table_id}")
+                return None
+            
+            user = await self.user_repo.get_user_by_id(UUID(users_table_id), org_id)
             if not user:
                 logger.error(f"Metadata points to non-existent user: {users_table_id}")
                 return None
@@ -810,7 +822,7 @@ class UserService:
         
         # Validate supervisor exists and is active if being updated
         if user_data.supervisor_id is not None and user_data.supervisor_id:
-            supervisor = await self.user_repo.get_user_by_id(user_data.supervisor_id)
+            supervisor = await self.user_repo.get_user_by_id(user_data.supervisor_id, org_id)
             if not supervisor:
                 raise BadRequestError(f"Supervisor with ID {user_data.supervisor_id} does not exist")
             if supervisor.status != UserStatus.ACTIVE.value:
@@ -821,7 +833,7 @@ class UserService:
         # Validate subordinates exist and are active if being updated
         if user_data.subordinate_ids is not None:
             for subordinate_id in user_data.subordinate_ids:
-                subordinate = await self.user_repo.get_user_by_id(subordinate_id)
+                subordinate = await self.user_repo.get_user_by_id(subordinate_id, org_id)
                 if not subordinate:
                     raise BadRequestError(f"Subordinate with ID {subordinate_id} does not exist")
                 if subordinate.status != UserStatus.ACTIVE.value:
