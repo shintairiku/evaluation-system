@@ -243,22 +243,40 @@ Load time: 0.3-0.5 seconds
 │  │  ORDER BY sr.goal_id, sr.reviewed_at DESC;      │    │
 │  └──────────────────────────────────────────────────┘    │
 │                                                            │
-│  Query 3: Recursive History (optional)                    │
+│  Query 3: Recursive History (optional - Python loop)     │
 │  ┌──────────────────────────────────────────────────┐    │
-│  │  WITH RECURSIVE goal_chain AS (                  │    │
-│  │    SELECT id, previous_goal_id, 0 as depth       │    │
-│  │    FROM goals WHERE id = ?                       │    │
-│  │    UNION ALL                                      │    │
-│  │    SELECT g.id, g.previous_goal_id, depth + 1    │    │
-│  │    FROM goals g                                   │    │
-│  │    JOIN goal_chain gc ON g.id = gc.previous_goal_id│  │
-│  │    WHERE depth < 10                               │    │
-│  │  )                                                 │    │
-│  │  SELECT sr.* FROM supervisor_reviews sr          │    │
-│  │  JOIN goal_chain gc ON sr.goal_id = gc.id        │    │
-│  │  WHERE sr.action = 'rejected'                     │    │
-│  │  ORDER BY gc.depth DESC;                          │    │
+│  │  # Python loop in GoalService                     │    │
+│  │  async def get_rejection_history(goal_id):       │    │
+│  │    history = []                                   │    │
+│  │    current_id = goal_id                          │    │
+│  │    visited = set()                                │    │
+│  │    max_depth = 10                                 │    │
+│  │                                                   │    │
+│  │    while current_id and len(visited) < max_depth:│    │
+│  │      if current_id in visited:                   │    │
+│  │        break  # Prevent infinite loops            │    │
+│  │      visited.add(current_id)                     │    │
+│  │                                                   │    │
+│  │      # Fetch goal by ID                          │    │
+│  │      goal = await goal_repo.get_by_id(current_id)│    │
+│  │      if not goal or not goal.previous_goal_id:   │    │
+│  │        break                                      │    │
+│  │                                                   │    │
+│  │      # Fetch review for previous goal            │    │
+│  │      review = await review_repo.get_by_goal(     │    │
+│  │        goal.previous_goal_id, org_id             │    │
+│  │      )                                            │    │
+│  │      if review:                                   │    │
+│  │        history.insert(0, review[0])  # Prepend   │    │
+│  │                                                   │    │
+│  │      current_id = goal.previous_goal_id          │    │
+│  │                                                   │    │
+│  │    return history  # Chronological order         │    │
 │  └──────────────────────────────────────────────────┘    │
+│                                                            │
+│  Note: This approach is simpler than SQL recursive CTE    │
+│  and works well for typical rejection depth (1-3 levels). │
+│  Max depth limit (10) prevents infinite loops.            │
 │                                                            │
 └────────────────────────────────────────────────────────────┘
 ```
