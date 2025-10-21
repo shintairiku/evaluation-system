@@ -43,17 +43,16 @@ class SupervisorReviewUpdate(BaseModel):
 
 class SupervisorReviewInDB(SupervisorReviewBase):
     id: UUID
-    goal_id: UUID
-    period_id: UUID
-    supervisor_id: UUID
-    subordinate_id: UUID
+    goal_id: UUID = Field(..., alias="goalId")
+    period_id: UUID = Field(..., alias="periodId")
+    supervisor_id: UUID = Field(..., alias="supervisorId")
+    subordinate_id: UUID = Field(..., alias="subordinateId")
     status: SubmissionStatus = SubmissionStatus.DRAFT
-    reviewed_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
+    reviewed_at: Optional[datetime] = Field(None, alias="reviewedAt")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class SupervisorReview(SupervisorReviewInDB):
