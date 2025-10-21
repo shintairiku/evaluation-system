@@ -2,20 +2,37 @@ name: Deploy Backend to Cloud Run
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths: ['backend/**']
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: ${{ secrets.GCP_REGION }}
-  SERVICE_NAME: hr-evaluation-backend
-  IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/hr-evaluation-backend:${{ github.sha }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Set environment-specific variables
+      id: env-vars
+      run: |
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "SERVICE_NAME=hr-evaluation-backend" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=gcr.io/${{ env.PROJECT_ID }}/hr-evaluation-backend:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_LATEST=gcr.io/${{ env.PROJECT_ID }}/hr-evaluation-backend:latest" >> $GITHUB_OUTPUT
+          echo "MAX_INSTANCES=5" >> $GITHUB_OUTPUT
+          echo "SECRET_SUFFIX=" >> $GITHUB_OUTPUT
+          echo "ENVIRONMENT_NAME=Production" >> $GITHUB_OUTPUT
+        else
+          echo "SERVICE_NAME=hr-evaluation-backend-dev" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=gcr.io/${{ env.PROJECT_ID }}/hr-evaluation-backend-dev:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_LATEST=gcr.io/${{ env.PROJECT_ID }}/hr-evaluation-backend-dev:latest" >> $GITHUB_OUTPUT
+          echo "MAX_INSTANCES=3" >> $GITHUB_OUTPUT
+          echo "SECRET_SUFFIX=-dev" >> $GITHUB_OUTPUT
+          echo "ENVIRONMENT_NAME=Development" >> $GITHUB_OUTPUT
+        fi
 
     - name: Authenticate to Google Cloud
       id: auth
@@ -32,28 +49,28 @@ jobs:
     - name: Build Docker image
       run: |
         docker build --platform linux/amd64 \
-          -t ${{ env.IMAGE_NAME }} \
-          -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
+          -t ${{ steps.env-vars.outputs.IMAGE_TAG }} \
+          -t ${{ steps.env-vars.outputs.IMAGE_LATEST }} \
           -f backend/Dockerfile.prod \
           ./backend
 
     - name: Push Docker image
       run: |
-        docker push ${{ env.IMAGE_NAME }}
-        docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
+        docker push ${{ steps.env-vars.outputs.IMAGE_TAG }}
+        docker push ${{ steps.env-vars.outputs.IMAGE_LATEST }}
 
     - name: Deploy to Cloud Run
       id: deploy
       uses: google-github-actions/deploy-cloudrun@v3
       with:
-        service: ${{ env.SERVICE_NAME }}
-        image: ${{ env.IMAGE_NAME }}
+        service: ${{ steps.env-vars.outputs.SERVICE_NAME }}
+        image: ${{ steps.env-vars.outputs.IMAGE_TAG }}
         region: ${{ env.REGION }}
         flags: |
           --platform=managed
           --allow-unauthenticated
           --min-instances=0
-          --max-instances=5
+          --max-instances=${{ steps.env-vars.outputs.MAX_INSTANCES }}
           --memory=512Mi
           --cpu=1
           --cpu-throttling
@@ -64,12 +81,14 @@ jobs:
           LOG_LEVEL=INFO
           DEBUG=False
         secrets: |
-          CLERK_SECRET_KEY=clerk-secret-key:latest
+          CLERK_SECRET_KEY=clerk-secret-key${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
           SUPABASE_DATABASE_URL=database-url:latest
-          CLERK_ISSUER=clerk-issuer:latest
-          CLERK_AUDIENCE=clerk-audience:latest
-          CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest
-          SECRET_KEY=app-secret-key:latest
+          CLERK_ISSUER=clerk-issuer${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
+          CLERK_AUDIENCE=clerk-audience${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
+          CLERK_WEBHOOK_SECRET=clerk-webhook-secret${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
+          SECRET_KEY=app-secret-key${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
 
     - name: Show deployment URL
-      run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
+      run: |
+        echo "🚀 ${{ steps.env-vars.outputs.ENVIRONMENT_NAME }} deployment complete!"
+        echo "URL: ${{ steps.deploy.outputs.url }}"
