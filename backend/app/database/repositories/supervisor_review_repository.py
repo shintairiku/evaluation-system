@@ -115,6 +115,48 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         result = await self.session.execute(query)
         return result.scalars().first()
 
+    async def get_rejection_reviews_batch(self, goal_ids: List[UUID], org_id: str) -> dict[UUID, SupervisorReview]:
+        """
+        Batch fetch rejection reviews for multiple goals in a single SQL query.
+        Used for building rejection history chains efficiently.
+
+        Args:
+            goal_ids: List of goal UUIDs to fetch rejection reviews for
+            org_id: Organization ID for scoping
+
+        Returns:
+            Dictionary mapping goal_id to most recent rejection SupervisorReview
+        """
+        if not goal_ids:
+            return {}
+
+        query = select(SupervisorReview)
+        query = query.options(joinedload(SupervisorReview.supervisor)).filter(
+            and_(
+                SupervisorReview.goal_id.in_(goal_ids),
+                SupervisorReview.action == 'REJECTED'
+            )
+        )
+        # Enforce organization scope via goal -> user
+        query = self.apply_org_scope_via_goal(query, SupervisorReview.goal_id, org_id)
+        query = query.order_by(
+            SupervisorReview.goal_id,
+            SupervisorReview.reviewed_at.desc().nulls_last(),
+            SupervisorReview.updated_at.desc()
+        )
+
+        result = await self.session.execute(query)
+        reviews = result.scalars().all()
+
+        # Create map: goal_id -> most recent rejection review
+        reviews_map: dict[UUID, SupervisorReview] = {}
+        for review in reviews:
+            if review.goal_id not in reviews_map:
+                reviews_map[review.goal_id] = review
+
+        logger.info(f"Batch fetched {len(reviews_map)} rejection reviews for {len(goal_ids)} goals in org {org_id}")
+        return reviews_map
+
     async def get_by_goals_batch(
         self,
         goal_ids: List[UUID],
