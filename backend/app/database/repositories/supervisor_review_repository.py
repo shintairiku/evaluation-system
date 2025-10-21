@@ -94,6 +94,83 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         result = await self.session.execute(query)
         return result.scalars().all()
 
+    async def get_rejection_review_by_goal(self, goal_id: UUID, org_id: str) -> Optional[SupervisorReview]:
+        """
+        Get the rejection review for a specific goal (action='rejected').
+        Used for building rejection history chains.
+        """
+        query = select(SupervisorReview)
+        query = query.options(joinedload(SupervisorReview.supervisor)).filter(
+            and_(
+                SupervisorReview.goal_id == goal_id,
+                SupervisorReview.action == 'REJECTED'
+            )
+        )
+        # Enforce organization scope via goal -> user
+        query = self.apply_org_scope_via_goal(query, SupervisorReview.goal_id, org_id)
+        query = query.order_by(
+            SupervisorReview.reviewed_at.desc().nulls_last(),
+            SupervisorReview.updated_at.desc()
+        )
+        result = await self.session.execute(query)
+        return result.scalars().first()
+
+    async def get_by_goals_batch(
+        self,
+        goal_ids: List[UUID],
+        org_id: str,
+        limit_per_goal: int = 10
+    ) -> dict[UUID, SupervisorReview]:
+        """
+        Batch fetch most recent supervisor review for multiple goals in a single SQL query.
+        This eliminates N+1 query problems when fetching reviews for goal lists.
+
+        Args:
+            goal_ids: List of goal UUIDs to fetch reviews for
+            org_id: Organization ID for scoping
+            limit_per_goal: Maximum reviews per goal (default: 10, but we only return the most recent)
+
+        Returns:
+            Dictionary mapping goal_id -> most recent SupervisorReview
+
+        Performance:
+            - 1 SQL query for any number of goals (vs N queries)
+            - Uses IN clause for efficient batch fetching
+            - Sorted by (goal_id, reviewed_at DESC) for deterministic ordering
+        """
+        if not goal_ids:
+            return {}
+
+        # Fetch all reviews for all goal_ids in a single query
+        query = select(SupervisorReview).filter(
+            SupervisorReview.goal_id.in_(goal_ids)
+        )
+
+        # Enforce organization scope via goal -> user
+        query = self.apply_org_scope_via_goal(query, SupervisorReview.goal_id, org_id)
+
+        # Order by goal_id and reviewed_at to get most recent first for each goal
+        # Use NULLS LAST to ensure NULL reviewed_at values don't come first
+        query = query.order_by(
+            SupervisorReview.goal_id,
+            SupervisorReview.reviewed_at.desc().nulls_last(),
+            SupervisorReview.updated_at.desc(),
+            SupervisorReview.created_at.desc()
+        )
+
+        result = await self.session.execute(query)
+        reviews = result.scalars().all()
+
+        # Map goal_id -> most recent review
+        reviews_map: dict[UUID, SupervisorReview] = {}
+        for review in reviews:
+            # Only keep the first (most recent) review for each goal
+            if review.goal_id not in reviews_map:
+                reviews_map[review.goal_id] = review
+
+        logger.info(f"Batch fetched {len(reviews_map)} reviews for {len(goal_ids)} goals in org {org_id}")
+        return reviews_map
+
     async def get_by_supervisor(
         self,
         supervisor_id: UUID,
