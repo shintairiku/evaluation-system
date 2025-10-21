@@ -21,20 +21,39 @@ async def get_goals(
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
     goal_category: Optional[str] = Query(None, alias="goalCategory", description="Filter by goal category (業績目標, コンピテンシー, コアバリュー)"),
     status: Optional[List[str]] = Query(None, description="Filter by status (draft, submitted, approved, rejected)"),
+    include_reviews: bool = Query(
+        False,
+        alias="includeReviews",
+        description="Include supervisor reviews in response (performance optimization)"
+    ),
+    include_rejection_history: bool = Query(
+        False,
+        alias="includeRejectionHistory",
+        description="Include full rejection history chain (requires includeReviews=true)"
+    ),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Get goals for the current user or filtered goals for supervisors/admins."""
     try:
+        # Validate parameter combination
+        if include_rejection_history and not include_reviews:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="includeRejectionHistory requires includeReviews=true"
+            )
+
         service = GoalService(session)
-        
+
         result = await service.get_goals(
             current_user_context=context,
             user_id=user_id,
             period_id=period_id,
             goal_category=goal_category,
             status=status,
-            pagination=pagination
+            pagination=pagination,
+            include_reviews=include_reviews,
+            include_rejection_history=include_rejection_history
         )
         
         return result
