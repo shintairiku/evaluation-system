@@ -54,15 +54,21 @@ class GoalService:
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
         status: Optional[List[str]] = None,
-        pagination: Optional[PaginationParams] = None
+        pagination: Optional[PaginationParams] = None,
+        include_reviews: bool = False,
+        include_rejection_history: bool = False
     ) -> PaginatedResponse[Goal]:
         """
         Get goals based on current user's permissions and filters.
-        
+
         Access rules:
         - Employees: can only view their own goals
         - Supervisors: can view their subordinates' goals + their own
         - Admins: can view all goals
+
+        Performance optimization:
+        - include_reviews: Batch fetch supervisor reviews (eliminates N+1 queries)
+        - include_rejection_history: Fetch rejection history chain (requires include_reviews=True)
         """
         try:
             # Determine which users' goals the current user can access
@@ -91,11 +97,27 @@ class GoalService:
                 goal_category=goal_category,
                 status=status
             )
-            
+
+            # Batch fetch supervisor reviews if requested (performance optimization)
+            reviews_map = {}
+            if include_reviews and goals:
+                goal_ids = [goal.id for goal in goals]
+                reviews_map = await self.supervisor_review_repo.get_by_goals_batch(
+                    goal_ids=goal_ids,
+                    org_id=org_id
+                )
+                logger.info(f"Batch fetched {len(reviews_map)} reviews for {len(goal_ids)} goals")
+
             # Convert to response format
             enriched_goals = []
             for goal_model in goals:
-                enriched_goal = await self._enrich_goal_data(goal_model)
+                enriched_goal = await self._enrich_goal_data(
+                    goal_model,
+                    include_reviews=include_reviews,
+                    include_rejection_history=include_rejection_history,
+                    reviews_map=reviews_map,
+                    org_id=org_id
+                )
                 enriched_goals.append(enriched_goal)
             
             # Create paginated response
@@ -615,8 +637,73 @@ class GoalService:
                 f"業績目標の合計ウェイトは100%である必要があります。現在の合計: {performance_total}%"
             )
 
-    async def _enrich_goal_data(self, goal_model: GoalModel) -> Goal:
-        """Convert GoalModel to Goal response schema with enriched data."""
+    async def _get_rejection_history(
+        self,
+        goal_id: UUID,
+        org_id: str,
+        max_depth: int = 10
+    ) -> List:
+        """
+        Fetch complete rejection history by following previousGoalId chain.
+
+        This uses a Python loop which is simpler than SQL recursive CTE
+        and sufficient for typical rejection depths (1-3 levels).
+
+        Args:
+            goal_id: Starting goal ID (the previousGoalId to start from)
+            org_id: Organization ID for scoping
+            max_depth: Maximum depth to prevent infinite loops
+
+        Returns:
+            List of SupervisorReview in chronological order (oldest first)
+        """
+        history = []
+        current_id = goal_id
+        visited = set()
+
+        while current_id and len(visited) < max_depth:
+            # Prevent infinite loops
+            if current_id in visited:
+                logger.warning(f"Circular reference detected in rejection history at goal {current_id}")
+                break
+            visited.add(current_id)
+
+            # Fetch the rejection review for the current goal (the rejected goal)
+            review = await self.supervisor_review_repo.get_rejection_review_by_goal(
+                current_id,
+                org_id
+            )
+
+            if review:
+                # Add review to history (prepend for chronological order)
+                history.insert(0, review)
+
+            # Fetch the goal to get its previousGoalId to continue the chain
+            goal = await self.goal_repo.get_goal_by_id(current_id, org_id)
+            if not goal or not goal.previous_goal_id:
+                break
+
+            # Move to the previous goal in the chain
+            current_id = goal.previous_goal_id
+
+        logger.info(f"Fetched {len(history)} rejection reviews for goal chain starting at {goal_id}")
+        return history
+
+    async def _enrich_goal_data(
+        self,
+        goal_model: GoalModel,
+        include_reviews: bool = False,
+        include_rejection_history: bool = False,
+        reviews_map: dict = None,
+        org_id: str = None
+    ) -> Goal:
+        """
+        Convert GoalModel to Goal response schema with enriched data.
+
+        Performance optimization:
+        - When include_reviews=True, embeds supervisor_review from reviews_map
+        - When include_rejection_history=True, fetches rejection history chain
+        """
         # Base goal data
         goal_dict = {
             "id": goal_model.id,
@@ -635,25 +722,48 @@ class GoalService:
         # Add target_data fields directly (simplified)
         if goal_model.target_data:
             goal_dict.update(goal_model.target_data)
-        
+
         # Add competency name lookup for competency goals
-        if (goal_model.goal_category == "コンピテンシー" and 
-            goal_model.target_data and 
-            goal_model.target_data.get("competency_ids")):
-            
+        if (goal_model.goal_category == "コンピテンシー" and
+            goal_model.target_data and
+            goal_model.target_data.get("competency_ids") and
+            org_id):
+
             try:
                 competency_names = {}
                 for competency_id in goal_model.target_data["competency_ids"]:
-                    competency = await self.competency_repo.get_by_id(competency_id, goal_model.org_id)
+                    competency = await self.competency_repo.get_by_id(competency_id, org_id)
                     if competency:
                         competency_names[str(competency_id)] = competency.name
-                
+
                 if competency_names:
                     goal_dict["competency_names"] = competency_names
             except Exception as e:
                 logger.warning(f"Failed to fetch competency names for goal {goal_model.id}: {str(e)}")
                 # Continue without competency names if lookup fails
-        
+
+        # Performance optimization: Embed supervisor review if requested
+        if include_reviews and reviews_map is not None:
+            review = reviews_map.get(goal_model.id)
+            if review:
+                # Convert SupervisorReview to dict using model_dump for proper serialization
+                from ..schemas.supervisor_review import SupervisorReviewInDB
+                goal_dict["supervisor_review"] = SupervisorReviewInDB.model_validate(review).model_dump(by_alias=True)
+
+        # Performance optimization: Embed rejection history if requested
+        if include_rejection_history and goal_model.previous_goal_id and org_id:
+            rejection_history = await self._get_rejection_history(
+                goal_id=goal_model.previous_goal_id,
+                org_id=org_id
+            )
+            if rejection_history:
+                # Convert each review to dict using model_dump
+                from ..schemas.supervisor_review import SupervisorReviewInDB
+                goal_dict["rejection_history"] = [
+                    SupervisorReviewInDB.model_validate(review).model_dump(by_alias=True)
+                    for review in rejection_history
+                ]
+
         return Goal(**goal_dict)
 
     async def _enrich_goal_detail_data(self, goal_model: GoalModel) -> GoalDetail:
