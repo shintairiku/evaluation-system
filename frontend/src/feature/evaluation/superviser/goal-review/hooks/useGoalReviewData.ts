@@ -208,9 +208,11 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
 
       setGroupedGoals(grouped);
 
-      // Set first employee as selected by default (only if not already set)
+      // Always select first employee when data loads (including after period change)
       if (grouped.length > 0) {
-        setSelectedEmployeeId(prev => prev || grouped[0].employee.id);
+        setSelectedEmployeeId(grouped[0].employee.id);
+      } else {
+        setSelectedEmployeeId('');
       }
       } else {
         setCurrentPeriod(null);
