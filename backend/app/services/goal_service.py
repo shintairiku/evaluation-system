@@ -655,6 +655,14 @@ class GoalService:
         """
         Fetch complete rejection history by following previousGoalId chain.
 
+        DEPRECATED: This method is kept for backward compatibility only.
+        New code should use _get_rejection_histories_batch() for better performance.
+        This method performs N+1 queries (2 queries per rejection level).
+
+        Performance comparison:
+        - This method: N goals × M depth × 2 queries = O(N*M) queries
+        - Batch method: 2-3 queries total regardless of N or M
+
         This uses a Python loop which is simpler than SQL recursive CTE
         and sufficient for typical rejection depths (1-3 levels).
 
