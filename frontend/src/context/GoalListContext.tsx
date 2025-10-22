@@ -118,19 +118,10 @@ export function GoalListProvider({ children }: GoalListProviderProps) {
     }
   }, [clerkUserId]);
 
-  // Load rejected goals count on provider initialization and when user changes
+  // Load rejected goals count on provider initialization
   useEffect(() => {
-    // Initial refresh
     refreshRejectedGoalsCount();
-
-    // Set up interval to refresh count periodically (every 30 seconds)
-    // This ensures the counter stays up-to-date even without page navigation
-    const intervalId = setInterval(() => {
-      refreshRejectedGoalsCount();
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(intervalId);
-  }, [clerkUserId, refreshRejectedGoalsCount]);
+  }, [refreshRejectedGoalsCount]);
 
   const value: GoalListContextType = useMemo(() => ({
     rejectedGoalsCount,
