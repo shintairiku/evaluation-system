@@ -61,8 +61,36 @@ export const buildApiUrl = (endpoint: string, version?: string) => {
 
 // Helper function to build organization-scoped API URLs (returns relative paths for HTTP client)
 export const buildOrgApiUrl = (orgSlug: string, endpoint: string) => {
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `/api/org/${encodeURIComponent(orgSlug)}${cleanEndpoint}`;
+  const [pathPart, queryPart] = endpoint.split('?');
+  let cleanPath = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
+  const query = queryPart ? `?${queryPart}` : '';
+
+  let version: string | null = null;
+
+  const apiPrefixMatch = cleanPath.match(/^\/api\/(v\d+)\/(.*)$/);
+  if (apiPrefixMatch) {
+    version = apiPrefixMatch[1];
+    const restPath = apiPrefixMatch[2] ?? '';
+    cleanPath = restPath ? `/${restPath}` : '/';
+  } else {
+    const versionMatch = cleanPath.match(/^\/v(\d+)(\/.*)$/);
+    if (versionMatch) {
+      version = `v${versionMatch[1]}`;
+      cleanPath = versionMatch[2] || '/';
+    }
+  }
+
+  if (cleanPath.startsWith('/api/')) {
+    cleanPath = cleanPath.replace(/^\/api\//, '/');
+  }
+
+  const scopedPath = cleanPath === '/' ? '' : cleanPath;
+  const basePath =
+    version && version !== API_CONFIG.API_VERSION
+      ? `/api/${version}/org/${encodeURIComponent(orgSlug)}`
+      : `/api/org/${encodeURIComponent(orgSlug)}`;
+
+  return `${basePath}${scopedPath}${query}`;
 };
 
 export const API_ENDPOINTS = {
@@ -76,7 +104,7 @@ export const API_ENDPOINTS = {
 
   // User endpoints (organization-scoped)
   USERS: {
-    LIST: '/users/',
+    LIST: '/v2/users/',
     BY_ID: (id: string) => `/users/${id}`,
     CREATE: '/users/',
     UPDATE: (id: string) => `/users/${id}`,
