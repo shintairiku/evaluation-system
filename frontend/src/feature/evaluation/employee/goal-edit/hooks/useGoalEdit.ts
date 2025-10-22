@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getGoalByIdAction, updateGoalAction, submitGoalAction } from '@/api/server-actions/goals';
 import { getSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
+import { useGoalListContext } from '@/context/GoalListContext';
 import type { GoalResponse, SupervisorReview, UUID } from '@/api/types';
 
 export interface UseGoalEditReturn {
@@ -38,6 +39,7 @@ export function useGoalEdit(goalId: UUID): UseGoalEditReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { refreshRejectedGoalsCount } = useGoalListContext();
 
   // Load goal and supervisor review
   useEffect(() => {
@@ -142,6 +144,11 @@ export function useGoalEdit(goalId: UUID): UseGoalEditReturn {
 
       if (submitResult.success && submitResult.data) {
         setGoal(submitResult.data);
+
+        // Refresh rejected goals counter in sidebar
+        // When employee submits a rejected goal, it's no longer a "draft with previousGoalId"
+        await refreshRejectedGoalsCount();
+
         return true;
       } else {
         setError(submitResult.error || '提出に失敗しました');
