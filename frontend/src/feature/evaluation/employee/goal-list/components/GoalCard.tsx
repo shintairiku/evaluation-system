@@ -156,7 +156,7 @@ export const GoalCard = React.memo<GoalCardProps>(
                             : 'この目標は以前差し戻されました'}
                         </p>
                         <p className="text-sm text-amber-800 ml-auto">
-                          差し戻し日: {formatDate(rejection.reviewed_at || rejection.updated_at || rejection.created_at)}
+                          差し戻し日: {formatDate(rejection.reviewedAt || rejection.updatedAt || rejection.createdAt)}
                         </p>
                       </div>
                       {rejection.comment && (
@@ -187,7 +187,7 @@ export const GoalCard = React.memo<GoalCardProps>(
                       目標が承認されました
                     </p>
                     <p className="text-sm text-green-800 ml-auto">
-                      承認日: {formatDate(goal.supervisorReview.reviewed_at || goal.supervisorReview.updated_at || goal.supervisorReview.created_at)}
+                      承認日: {formatDate(goal.supervisorReview.reviewedAt || goal.supervisorReview.updatedAt || goal.supervisorReview.createdAt)}
                     </p>
                   </div>
                   <div className="bg-white p-3 rounded border border-green-200">

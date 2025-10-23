@@ -18,14 +18,14 @@ export interface SupervisorReviewBase {
 
 export interface SupervisorReview extends SupervisorReviewBase {
   id: UUID;
-  goal_id: UUID;
-  period_id: UUID;
-  supervisor_id: UUID;
-  subordinate_id: UUID;
+  goalId: UUID;
+  periodId: UUID;
+  supervisorId: UUID;
+  subordinateId: UUID;
   status: SubmissionStatus;
-  reviewed_at?: string; // ISO date string
-  created_at: string;
-  updated_at: string;
+  reviewedAt?: string; // ISO date string
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SupervisorReviewDetail extends SupervisorReview {

@@ -1,4 +1,5 @@
 import { UUID, PaginatedResponse } from './common';
+import type { SupervisorReview } from './supervisor-review';
 
 export type GoalStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 export type PerformanceGoalType = 'quantitative' | 'qualitative';
@@ -75,6 +76,10 @@ export interface GoalResponse {
   competencyIds?: UUID[] | null;
   selectedIdealActions?: Record<string, string[]> | null;
   actionPlan?: string;
+
+  // Performance optimization: Embedded reviews (populated when includeReviews=true)
+  supervisorReview?: SupervisorReview | null;
+  rejectionHistory?: SupervisorReview[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

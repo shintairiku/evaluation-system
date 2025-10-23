@@ -149,6 +149,36 @@ class GoalRepository(BaseRepository[Goal]):
             logger.error(f"Error fetching goal by ID {goal_id} in org {org_id}: {e}")
             raise
 
+    async def get_goals_by_ids_batch(self, goal_ids: List[UUID], org_id: str) -> dict[UUID, Goal]:
+        """
+        Batch fetch multiple goals by IDs in a single SQL query.
+        Used for rejection history chain processing.
+
+        Args:
+            goal_ids: List of goal UUIDs to fetch
+            org_id: Organization ID for scoping
+
+        Returns:
+            Dictionary mapping goal_id to Goal object
+        """
+        if not goal_ids:
+            return {}
+
+        try:
+            query = select(Goal).filter(Goal.id.in_(goal_ids))
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            result = await self.session.execute(query)
+            goals = result.scalars().all()
+
+            # Create map for quick lookup
+            goals_map = {goal.id: goal for goal in goals}
+
+            logger.info(f"Batch fetched {len(goals_map)} goals for {len(goal_ids)} IDs in org {org_id}")
+            return goals_map
+        except SQLAlchemyError as e:
+            logger.error(f"Error batch fetching goals in org {org_id}: {e}")
+            raise
+
     async def get_goal_by_id_with_details(self, goal_id: UUID, org_id: str) -> Optional[Goal]:
         """Get goal by ID with all related data within organization scope."""
         try:

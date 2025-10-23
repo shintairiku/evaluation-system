@@ -23,17 +23,19 @@ async function _getGoalsAction(params?: {
   status?: string | string[];
   page?: number;
   limit?: number;
+  includeReviews?: boolean;
+  includeRejectionHistory?: boolean;
 }): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
   try {
     const response = await goalsApi.getGoals(params);
-    
+
     if (!response.success || !response.data) {
       return {
         success: false,
         error: response.errorMessage || 'Failed to fetch goals',
       };
     }
-    
+
     return {
       success: true,
       data: response.data,
@@ -54,6 +56,8 @@ export const getGoalsAction = cache(async (params?: {
   status?: string | string[];
   page?: number;
   limit?: number;
+  includeReviews?: boolean;
+  includeRejectionHistory?: boolean;
 }): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> => {
   return _getGoalsAction(params);
 });
