@@ -21,8 +21,8 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, get_session):
         super().__init__(app)
         self.get_session = get_session
-        # Pattern to match /api/org/{org_slug}/... routes
-        self.org_route_pattern = re.compile(r'^/api/org/([^/]+)/')
+        # Pattern to match /api/org/{org_slug}/... or /api/v{n}/org/{org_slug}/...
+        self.org_route_pattern = re.compile(r'^/api(?:/v\d+)?/org/([^/]+)/')
 
         # Public routes that don't require authentication
         self.public_routes = {
