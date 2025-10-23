@@ -10,6 +10,7 @@ import { EmployeeSelector } from '../components/EmployeeSelector';
 import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
 import { useGoalListData } from '../hooks/useGoalListData';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { useGoalListContext } from '@/context/GoalListContext';
 
 /**
  * Main goal list page for employees to view and manage their goals.
@@ -51,6 +52,14 @@ export default function GoalListPage() {
   } = useGoalListData();
 
   const { currentUser } = useUserRoles();
+
+  // Get goal list context for rejected goals counter
+  const { refreshRejectedGoalsCount } = useGoalListContext();
+
+  // Refresh rejected goals count when goals data changes
+  React.useEffect(() => {
+    refreshRejectedGoalsCount();
+  }, [filteredGoals, refreshRejectedGoalsCount]);
 
   // Get selected employee info for display
   const selectedEmployee = useMemo(() => {
