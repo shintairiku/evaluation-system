@@ -74,8 +74,8 @@ export function useGoalEdit(goalId: UUID): UseGoalEditReturn {
             // Get the most recent review
             const reviews = reviewResult.data.items;
             const mostRecentReview = reviews.reduce((latest, current) => {
-              const latestDate = latest.reviewed_at || latest.updated_at || latest.created_at;
-              const currentDate = current.reviewed_at || current.updated_at || current.created_at;
+              const latestDate = latest.reviewedAt || latest.updatedAt || latest.createdAt;
+              const currentDate = current.reviewedAt || current.updatedAt || current.createdAt;
               return new Date(currentDate) > new Date(latestDate) ? current : latest;
             });
 
