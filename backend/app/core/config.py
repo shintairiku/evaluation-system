@@ -38,6 +38,8 @@ class Settings:
     CLERK_ISSUER: Optional[str] = os.getenv("CLERK_ISSUER")
     CLERK_AUDIENCE: Optional[str] = os.getenv("CLERK_AUDIENCE")
     CLERK_WEBHOOK_SECRET: Optional[str] = os.getenv("CLERK_WEBHOOK_SECRET")
+    # Comma-separated list of authorized parties (azp) allowed to call this backend
+    CLERK_AUTHORIZED_PARTIES: Optional[str] = os.getenv("CLERK_AUTHORIZED_PARTIES")
     CLERK_ORGANIZATION_ENABLED: bool = os.getenv("CLERK_ORGANIZATION_ENABLED", "True").lower() == "true"
     
     # =============================================================================
