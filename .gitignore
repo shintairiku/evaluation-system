@@ -85,3 +85,6 @@ docker-compose-prod.yml
 gcp-key.json
 *-key.json
 *.json.key
+
+# plan doc folder
+docs/plans/
