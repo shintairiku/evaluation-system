@@ -43,6 +43,19 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
 
+    - name: Enable required Google APIs (idempotent)
+      run: |
+        gcloud --project=$PROJECT_ID services enable \
+          cloudresourcemanager.googleapis.com \
+          serviceusage.googleapis.com \
+          run.googleapis.com \
+          containerregistry.googleapis.com \
+          cloudbuild.googleapis.com \
+          secretmanager.googleapis.com
+
+    - name: Set gcloud project
+      run: gcloud config set project $PROJECT_ID
+
     - name: Configure Docker for GCR
       run: gcloud auth configure-docker --quiet
 
