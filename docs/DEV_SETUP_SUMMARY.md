@@ -74,6 +74,123 @@ What to do:
 - Do not change the JWT template.
 - Provide the dev backend with a list of allowed audiences that matches the origins you use (stable Vercel preview domain and localhost).
 
+## One-Page Terminal Runbook (Copy/Paste)
+
+Run the following commands in order to create the development container first, then wire the preview environment. Replace placeholder values as noted.
+
+```bash
+# --- 0) Set context ---
+gcloud auth login
+export PROJECT_ID="hr-evaluation-app-474400"
+export REGION="asia-northeast1"
+
+# --- 1) Helper for idempotent secrets ---
+ensure_secret() {
+  local NAME="$1"; local VALUE="$2"
+  if gcloud secrets describe "$NAME" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    printf "%s" "$VALUE" | gcloud secrets versions add "$NAME" --data-file=- --project="$PROJECT_ID"
+  else
+    printf "%s" "$VALUE" | gcloud secrets create "$NAME" --data-file=- --replication-policy="automatic" --project="$PROJECT_ID"
+  fi
+}
+
+# --- 2) Dev secrets (no database-url-dev) ---
+ensure_secret clerk-secret-key-dev "sk_test_your_clerk_secret_key"
+ensure_secret clerk-issuer-dev "https://your-test-app.clerk.accounts.dev"
+ensure_secret clerk-audience-dev "evaluation-system-dev.vercel.app,localhost:3000"
+# Optional hardening (JWT azp allow-list)
+ensure_secret clerk-authorized-parties-dev "evaluation-system-dev.vercel.app,localhost:3000"
+ensure_secret clerk-webhook-secret-dev "whsec_your_dev_webhook_secret"
+# App secret key (random)
+python3 -c "import secrets; print(secrets.token_urlsafe(32))" | while read SK; do ensure_secret app-secret-key-dev "$SK"; done
+
+# --- 3) Grant Cloud Run service account secret access ---
+export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
+export SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+for SECRET in \
+  clerk-secret-key-dev clerk-issuer-dev clerk-audience-dev \
+  clerk-authorized-parties-dev clerk-webhook-secret-dev app-secret-key-dev \
+  database-url; do
+  gcloud secrets add-iam-policy-binding "$SECRET" \
+    --member="serviceAccount:$SERVICE_ACCOUNT" \
+    --role="roles/secretmanager.secretAccessor" \
+    --project="$PROJECT_ID"
+done
+
+# --- 4) Enable required Google APIs (idempotent) ---
+gcloud services enable \
+  run.googleapis.com \
+  cloudbuild.googleapis.com \
+  containerregistry.googleapis.com \
+  secretmanager.googleapis.com \
+  serviceusage.googleapis.com \
+  cloudresourcemanager.googleapis.com
+
+# --- 5) Build and push dev image with Cloud Build (uses backend/Dockerfile.prod) ---
+# Use a custom substitution that starts with an underscore (Cloud Build requirement)
+TAG="manual-$(date +%Y%m%d-%H%M%S)"
+cat > /tmp/cloudbuild.backend.yaml << 'YAML'
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build','-f','Dockerfile.prod','-t','gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:${_TAG}','.']
+images:
+- 'gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:${_TAG}'
+YAML
+# Submit only the backend directory as the build context (smaller upload)
+gcloud builds submit backend --config /tmp/cloudbuild.backend.yaml --substitutions _TAG=$TAG
+
+# --- 6) Deploy Cloud Run service (manual initial deploy) ---
+gcloud run deploy hr-evaluation-backend-dev \
+  --image gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:$TAG \
+  --region "$REGION" \
+  --platform managed \
+  --allow-unauthenticated \
+  --min-instances 0 \
+  --max-instances 3 \
+  --memory 512Mi \
+  --cpu 1 \
+  --port 8000 \
+  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False,CLERK_ENFORCE_AZP=false" \
+  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,\
+SUPABASE_DATABASE_URL=database-url:latest,\
+CLERK_ISSUER=clerk-issuer-dev:latest,\
+CLERK_AUDIENCE=clerk-audience-dev:latest,\
+CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,\
+SECRET_KEY=app-secret-key-dev:latest"
+
+# --- 7) Fetch dev backend URL ---
+DEV_API=$(gcloud run services describe hr-evaluation-backend-dev \
+  --region="$REGION" --format='value(status.url)')
+echo "Dev API: $DEV_API"
+
+# --- 8) Set CORS for preview + localhost ---
+export PREVIEW_DOMAIN="https://evaluation-system-dev.vercel.app"
+gcloud run services update hr-evaluation-backend-dev \
+  --region="$REGION" \
+  --update-env-vars "ENVIRONMENT=production,\
+FRONTEND_URL=${PREVIEW_DOMAIN},\
+ADDITIONAL_CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://127.0.0.1:3000"
+
+# Optional: enforce authorized parties at runtime (if you created the secret)
+gcloud run services update hr-evaluation-backend-dev \
+  --region="$REGION" \
+  --set-secrets "CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest"
+
+# --- 9) (Optional) Set Vercel Preview env via CLI ---
+# Requires: npm i -g vercel && vercel login
+vercel env add NEXT_PUBLIC_API_BASE_URL preview     # paste: $DEV_API
+vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY preview  # paste: pk_test_...
+vercel env add CLERK_SECRET_KEY preview             # paste: sk_test_...
+vercel env add NEXT_PUBLIC_SUPABASE_URL preview     # paste: https://xxx.supabase.co
+vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY preview # paste: eyJ...
+vercel env add NEXT_PUBLIC_APP_ENV preview          # optional: preview
+
+# --- 10) Smoke test ---
+curl -I "$DEV_API/health" || true
+curl -I "$DEV_API/api/v1/health" || true
+```
+
+
 ### Step 2: Create GCP Development Secrets (One-time)
 
 **Important:** We do NOT create `database-url-dev` - both environments share the production database!
@@ -208,30 +325,20 @@ ADDITIONAL_CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://127.0.
 ### Step 6: Test the Setup
 
 ```bash
-# 1. Create test data in "test-company" locally
-docker-compose up -d
-# Sign up, create "test-company" org, add test users
+# 1. Get the Cloud Run dev URL (if not saved)
+DEV_API=$(gcloud run services describe hr-evaluation-backend-dev \
+  --region="$REGION" --format='value(status.url)')
+echo "Dev API: $DEV_API"
 
-# 2. Push to develop branch
-git checkout develop
-echo "# Test deploy" >> backend/README.md
-git add .
-git commit -m "test: trigger dev deployment"
-git push origin develop
+# 2. Smoke test endpoints
+curl -I "$DEV_API/health" || true
+curl -I "$DEV_API/api/v1/health" || true
 
-# 3. Monitor GitHub Actions
-# Visit: https://github.com/your-org/repo/actions
+# 3. App-level test (after wiring Vercel Preview env)
+# Open the Vercel preview, sign in with a Clerk Test user, and verify basic flows.
 
-# 4. After deployment, test the preview
-# Get dev backend URL
-gcloud run services describe hr-evaluation-backend-dev \
-  --region=$REGION \
-  --format='value(status.url)'
-
-# 5. Test organization isolation
-# Log in as test-company user
-# Verify you can ONLY see test-company data
-# Check database has both test-company and real companies
+# 4. Test organization isolation (manual QA)
+# Log in as test-company user; verify only test-company data is visible.
 ```
 
 ## Environment Comparison
@@ -248,18 +355,25 @@ gcloud run services describe hr-evaluation-backend-dev \
 
 ## Cloud Run (Dev) — One-time Setup Summary
 
-1) Create the dev service (first deployment can do this):
+1) Create the dev service (manual initial deployment):
 
 ```bash
 export PROJECT_ID="hr-evaluation-app-474400"
 export REGION="asia-northeast1"
 
-# Build & push image via CI (recommended) or locally via Cloud Build
-# CI already tags dev images distinctly; if manual:
-gcloud builds submit --tag gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:latest ./backend
+# Build & push image via Cloud Build (uses backend/Dockerfile.prod)
+TAG="manual-$(date +%Y%m%d-%H%M%S)"
+cat > /tmp/cloudbuild.backend.yaml << 'YAML'
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build','-f','Dockerfile.prod','-t','gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:${_TAG}','.']
+images:
+- 'gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:${_TAG}'
+YAML
+gcloud builds submit backend --config /tmp/cloudbuild.backend.yaml --substitutions _TAG=$TAG
 
 gcloud run deploy hr-evaluation-backend-dev \
-  --image gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:latest \
+  --image gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:$TAG \
   --region $REGION \
   --platform managed \
   --allow-unauthenticated \
@@ -269,10 +383,10 @@ gcloud run deploy hr-evaluation-backend-dev \
 SUPABASE_DATABASE_URL=database-url:latest,\
 CLERK_ISSUER=clerk-issuer-dev:latest,\
 CLERK_AUDIENCE=clerk-audience-dev:latest,\
-CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest,\
 CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,\
-SECRET_KEY=app-secret-key-dev:latest" \
-  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO"
+SECRET_KEY=app-secret-key-dev:latest,\
+CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest" \
+  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,CLERK_ENFORCE_AZP=false"
 
 # Then set FRONTEND_URL and ADDITIONAL_CORS_ORIGINS as shown above
 ```

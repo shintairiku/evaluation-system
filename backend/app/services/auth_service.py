@@ -15,6 +15,7 @@ from ..schemas.user import Department, Role, UserProfileOption, UserExistsRespon
 from ..schemas.stage_competency import Stage
 from ..core.clerk_config import get_clerk_config
 from ..core.config import settings
+from ..core.exceptions import UnauthorizedError
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +160,8 @@ class AuthService:
                 public_key = jwk.construct(key_data)
                 
                 # Verify and decode token
-                decode_options = {
+                base_options = {
                     "verify_signature": True,
-                    "verify_aud": bool(clerk_audience),
                     "verify_iss": True,
                     "verify_exp": True,
                     "verify_nbf": True,
@@ -169,21 +169,43 @@ class AuthService:
                     "require_iat": True,
                 }
 
-                # Build kwargs conditionally to avoid passing None
-                decode_kwargs = {
+                # Build common kwargs (issuer always enforced when provided)
+                common_kwargs = {
                     "algorithms": ["RS256"],
-                    "options": decode_options,
+                    "issuer": clerk_issuer,
                 }
-                if clerk_audience:
-                    decode_kwargs["audience"] = clerk_audience
-                if clerk_issuer:
-                    decode_kwargs["issuer"] = clerk_issuer
 
-                payload = jwt.decode(
-                    token,
-                    public_key,
-                    **decode_kwargs,
-                )
+                # Handle audience validation robustly across environments
+                if isinstance(clerk_audience, list):
+                    # jose expects a string audience; try each allowed audience
+                    last_error: Optional[Exception] = None
+                    payload = None
+                    for aud in clerk_audience:
+                        try:
+                            payload = jwt.decode(
+                                token,
+                                public_key,
+                                options={**base_options, "verify_aud": True},
+                                audience=aud,
+                                **common_kwargs,
+                            )
+                            break
+                        except JWTError as e:
+                            last_error = e
+                            continue
+                    if payload is None:
+                        raise UnauthorizedError("Invalid JWT audience")
+                else:
+                    # Single audience (string) or not set
+                    options = {**base_options, "verify_aud": bool(clerk_audience)}
+                    decode_kwargs = {**common_kwargs, "options": options}
+                    if clerk_audience:
+                        decode_kwargs["audience"] = clerk_audience
+                    payload = jwt.decode(
+                        token,
+                        public_key,
+                        **decode_kwargs,
+                    )
                 logger.info("JWT signature verification successful")
 
                 # Additional hardening: verify 'azp' (authorized party) if configured
@@ -216,10 +238,12 @@ class AuthService:
             
         except JWTError as e:
             logger.error(f"JWT verification failed: {e}")
-            raise Exception(f"Invalid JWT token: {str(e)}")
+            # Propagate as 401 so middleware/routers return Unauthorized, not 500
+            raise UnauthorizedError("Invalid JWT token")
         except Exception as e:
             logger.error(f"Token validation failed: {e}")
-            raise Exception(f"Token validation failed: {str(e)}")
+            # Default to Unauthorized for token-related failures
+            raise UnauthorizedError(f"Token validation failed: {str(e)}")
 
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
         """Check if user exists in database with minimal info."""
