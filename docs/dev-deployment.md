@@ -35,46 +35,7 @@
 - **"test-company" organization** for development and testing
 - **Real company organizations** for production
 
-**Why This Is Better:**
-1. ✅ Tests real multi-tenant security in production environment
-2. ✅ Validates organization isolation works correctly
-3. ✅ No schema drift between environments
-4. ✅ Simpler setup (no database synchronization)
-5. ✅ Lower costs (no separate dev database)
-6. ✅ More realistic testing with production data volume
-
-## Updated Architecture
-
-```
-┌────────────────────────────────────────────────────┐
-│  Single Production Database (Supabase)              │
-│  ├─ Organization: "test-company" (for testing)     │
-│  │   └─ Used by: Local dev + Cloud Run dev        │
-│  ├─ Organization: "real-company-1"                 │
-│  │   └─ Used by: Production only                   │
-│  └─ Organization: "real-company-2"                 │
-│       └─ More real companies...                    │
-└────────────────────────────────────────────────────┘
-         ↑                           ↑
-         │                           │
-    Cloud Run Dev              Cloud Run Prod
-    (Clerk Test mode)          (Clerk Live mode)
-```
-
-## What You Need to Do Next
-
-This revision focuses on making the `develop` branch a full development application: preview frontend on Vercel and a separate Cloud Run dev backend, authenticated via Clerk Test mode without changing Clerk’s JWT template.
-
-### Step 1: Clerk — No JWT Template Changes Needed
-
-We keep Clerk’s default `aud` behavior. The backend now accepts multiple audiences by reading a comma‑separated `CLERK_AUDIENCE` and verifying against a list. This avoids switching JWT templates between prod and dev.
-
-What to do:
-- Use Clerk Test mode for development users as before.
-- Do not change the JWT template.
-- Provide the dev backend with a list of allowed audiences that matches the origins you use (stable Vercel preview domain and localhost).
-
-## One-Page Terminal Runbook (Copy/Paste)
+## Terminal Runbook (Copy/Paste)
 
 Run the following commands in order to create the development container first, then wire the preview environment. Replace placeholder values as noted.
 
@@ -98,8 +59,6 @@ ensure_secret() {
 ensure_secret clerk-secret-key-dev "sk_test_your_clerk_secret_key"
 ensure_secret clerk-issuer-dev "https://your-test-app.clerk.accounts.dev"
 ensure_secret clerk-audience-dev "evaluation-system-dev.vercel.app,localhost:3000"
-# Optional hardening (JWT azp allow-list)
-ensure_secret clerk-authorized-parties-dev "evaluation-system-dev.vercel.app,localhost:3000"
 ensure_secret clerk-webhook-secret-dev "whsec_your_dev_webhook_secret"
 # App secret key (random)
 python3 -c "import secrets; print(secrets.token_urlsafe(32))" | while read SK; do ensure_secret app-secret-key-dev "$SK"; done
@@ -109,7 +68,7 @@ export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(pro
 export SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 for SECRET in \
   clerk-secret-key-dev clerk-issuer-dev clerk-audience-dev \
-  clerk-authorized-parties-dev clerk-webhook-secret-dev app-secret-key-dev \
+  clerk-webhook-secret-dev app-secret-key-dev \
   database-url; do
   gcloud secrets add-iam-policy-binding "$SECRET" \
     --member="serviceAccount:$SERVICE_ACCOUNT" \
@@ -150,7 +109,7 @@ gcloud run deploy hr-evaluation-backend-dev \
   --memory 512Mi \
   --cpu 1 \
   --port 8000 \
-  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False,CLERK_ENFORCE_AZP=false" \
+  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False" \
   --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,\
 SUPABASE_DATABASE_URL=database-url:latest,\
 CLERK_ISSUER=clerk-issuer-dev:latest,\
@@ -171,11 +130,6 @@ gcloud run services update hr-evaluation-backend-dev \
 FRONTEND_URL=${PREVIEW_DOMAIN},\
 ADDITIONAL_CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://127.0.0.1:3000"
 
-# Optional: enforce authorized parties at runtime (if you created the secret)
-gcloud run services update hr-evaluation-backend-dev \
-  --region="$REGION" \
-  --set-secrets "CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest"
-
 # --- 9) (Optional) Set Vercel Preview env via CLI ---
 # Requires: npm i -g vercel && vercel login
 vercel env add NEXT_PUBLIC_API_BASE_URL preview     # paste: $DEV_API
@@ -190,98 +144,19 @@ curl -I "$DEV_API/health" || true
 curl -I "$DEV_API/api/v1/health" || true
 ```
 
+### GCP Dev Secrets (Reference)
 
-### Step 2: Create GCP Development Secrets (One-time)
+Secrets are created in the One‑Page Runbook before build/deploy. Keep this as reference only; do not repeat the commands here.
 
-**Important:** We do NOT create `database-url-dev` - both environments share the production database!
+Required secrets for dev:
+- `clerk-secret-key-dev`
+- `clerk-issuer-dev`
+- `clerk-audience-dev` (comma‑separated origins)
+- `clerk-webhook-secret-dev`
+- `app-secret-key-dev`
+- `database-url` (shared production DB)
 
-```bash
-gcloud auth login
-
-export PROJECT_ID="hr-evaluation-app-474400"
-export REGION="asia-northeast1"
-
-# [x] 1. Clerk Secret Key (Test mode)
-echo -n "sk_test_your_clerk_secret_key" | \
-  gcloud secrets create clerk-secret-key-dev \
-  --data-file=- \
-  --replication-policy="automatic" \
-  --project=$PROJECT_ID
-
-# [x] 2. Clerk Issuer (Test mode)
-echo -n "https://your-test-app.clerk.accounts.dev" | \
-  gcloud secrets create clerk-issuer-dev \
-  --data-file=- \
-  --replication-policy="automatic" \
-  --project=$PROJECT_ID
-
-# [x] 3. Clerk Audience (comma-separated; matches origins you use)
-# Example: stable preview domain + localhost
-echo -n "evaluation-system-dev.vercel.app,localhost:3000" | \
-  gcloud secrets create clerk-audience-dev \
-  --data-file=- \
-  --replication-policy="automatic" \
-  --project=$PROJECT_ID
-
-# [x] 3-b. Authorized Parties for extra safety (validates JWT 'azp')
-# This enforces that the token's 'azp' equals one of these origins.
-echo -n "evaluation-system-dev.vercel.app,localhost:3000" | \
-  gcloud secrets create clerk-authorized-parties-dev \
-  --data-file=- \
-  --replication-policy="automatic" \
-  --project=$PROJECT_ID
-
-# [x] 4. Clerk Webhook Secret (Test mode)
-echo -n "whsec_your_dev_webhook_secret" | \
-  gcloud secrets create clerk-webhook-secret-dev \
-  --data-file=- \
-  --replication-policy="automatic" \
-  --project=$PROJECT_ID
-
-# [x] 5. Application Secret Key
-python3 -c "import secrets; print(secrets.token_urlsafe(32))" | \
-  gcloud secrets create app-secret-key-dev \
-  --data-file=- \
-  --replication-policy="automatic" \
-  --project=$PROJECT_ID
-
-# Grant Cloud Run access to dev secrets
-export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
-export SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-
-for SECRET in clerk-secret-key-dev clerk-issuer-dev \
-              clerk-audience-dev clerk-authorized-parties-dev \
-              clerk-webhook-secret-dev app-secret-key-dev; do
-  gcloud secrets add-iam-policy-binding $SECRET \
-    --member="serviceAccount:$SERVICE_ACCOUNT" \
-    --role="roles/secretmanager.secretAccessor" \
-    --project=$PROJECT_ID
-done
-
-# IMPORTANT: Also grant access to PRODUCTION database-url (shared)
-gcloud secrets add-iam-policy-binding database-url \
-  --member="serviceAccount:$SERVICE_ACCOUNT" \
-  --role="roles/secretmanager.secretAccessor" \
-  --project=$PROJECT_ID
-```
-
-### Step 3: Create "test-company" Organization in Clerk
-
-1. **Create separate Clerk test mode application** (if you don't have one)
-   - Go to [Clerk Dashboard](https://dashboard.clerk.com/)
-   - Create new application in **Test mode**
-   - Enable **Organizations** feature
-
-2. **Create "test-company" organization**
-   - In your local app or Clerk dashboard
-   - Name: `test-company`
-   - This will be used for all development and testing
-
-3. **Your production Clerk should be separate**
-   - Use **Live mode** for production
-   - Real companies create their organizations here
-
-### Step 4: Configure Vercel — Preview on develop
+### Step 3: Configure Vercel — Preview on develop
 
 You do not need to “buy” a domain to test previews. Vercel provides branch previews automatically, e.g. `yourproj-git-develop-<hash>-yourteam.vercel.app`. Optionally, you can add a stable preview alias for `develop` (e.g. `evaluation-system-dev.vercel.app`) in Vercel → Project → Domains.
 
@@ -304,7 +179,7 @@ For **Production** (main):
    - Keep existing production Clerk live mode keys
    - Same Supabase credentials
 
-### Step 5: Update Cloud Run Dev — Environment & CORS
+### Step 4: Update Cloud Run Dev — Environment & CORS
 
 After first development deployment, set CORS using variables your code actually reads:
 
@@ -322,7 +197,7 @@ FRONTEND_URL=${PREVIEW_DOMAIN},\
 ADDITIONAL_CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://127.0.0.1:3000"
 ```
 
-### Step 6: Test the Setup
+### Step 5: Test the Setup
 
 ```bash
 # 1. Get the Cloud Run dev URL (if not saved)
@@ -346,60 +221,12 @@ curl -I "$DEV_API/api/v1/health" || true
 | Aspect | Local Dev | Cloud Dev | Production |
 |--------|-----------|-----------|------------|
 | **Frontend** | localhost:3000 | Vercel Preview | Vercel Production |
-| **Backend** | localhost:8000 | Cloud Run Dev | Cloud Run Prod |
+| **Backend** | localhost:8000 | Cloud Run `hr-evaluation-backend-dev` | Cloud Run `hr-evaluation-backend` |
 | **ENVIRONMENT** | `development` | `production` | `production` |
-| **Clerk** | Test mode | Test mode | Live mode |
-| **Organization** | test-company | test-company | Real companies |
+| **Clerk** | Development mode | Development mode | Development mode |
+| **Organization(recommended)** | test-company | test-company | Real companies |
 | **Database** | **Prod Supabase** | **Prod Supabase** | **Prod Supabase** |
 | **Trigger** | Manual | Push to develop | Push to main |
-
-## Cloud Run (Dev) — One-time Setup Summary
-
-1) Create the dev service (manual initial deployment):
-
-```bash
-export PROJECT_ID="hr-evaluation-app-474400"
-export REGION="asia-northeast1"
-
-# Build & push image via Cloud Build (uses backend/Dockerfile.prod)
-TAG="manual-$(date +%Y%m%d-%H%M%S)"
-cat > /tmp/cloudbuild.backend.yaml << 'YAML'
-steps:
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build','-f','Dockerfile.prod','-t','gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:${_TAG}','.']
-images:
-- 'gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:${_TAG}'
-YAML
-gcloud builds submit backend --config /tmp/cloudbuild.backend.yaml --substitutions _TAG=$TAG
-
-gcloud run deploy hr-evaluation-backend-dev \
-  --image gcr.io/$PROJECT_ID/hr-evaluation-backend-dev:$TAG \
-  --region $REGION \
-  --platform managed \
-  --allow-unauthenticated \
-  --memory 512Mi --cpu 1 \
-  --max-instances 3 --min-instances 0 \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,\
-SUPABASE_DATABASE_URL=database-url:latest,\
-CLERK_ISSUER=clerk-issuer-dev:latest,\
-CLERK_AUDIENCE=clerk-audience-dev:latest,\
-CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,\
-SECRET_KEY=app-secret-key-dev:latest,\
-CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest" \
-  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,CLERK_ENFORCE_AZP=false"
-
-# Then set FRONTEND_URL and ADDITIONAL_CORS_ORIGINS as shown above
-```
-
-2) Keep the dev service bound to the `develop` branch via GitHub Actions. The workflow already:
-   - Triggers on `develop`
-   - Builds an image tagged for dev
-   - Deploys to `hr-evaluation-backend-dev`
-
-3) Optional: Use a custom domain for the dev API
-   - Reserve, e.g., `api-dev.evaluation-system-one.vercel.app` or `api-dev.yourdomain.com`
-   - For custom domain you own: map via Cloud Run Custom Domains (or behind a HTTPS LB)
-   - Otherwise, use the generated `https://hr-evaluation-backend-dev-XXX.run.app`
 
 ## Key Differences from Original Plan
 
@@ -458,44 +285,9 @@ With the shared database approach, you can:
 4. ✅ Test deployment to develop branch
 5. ✅ Verify organization isolation works correctly
 
-## Troubleshooting
-
-### "database-url-dev not found" Error
-
-**This is expected!** Both environments now use `database-url` (no `-dev` suffix). Make sure the Cloud Run service account has access to the production `database-url` secret.
-
-```bash
-gcloud secrets add-iam-policy-binding database-url \
-  --member="serviceAccount:YOUR_SERVICE_ACCOUNT" \
-  --role="roles/secretmanager.secretAccessor"
-```
-
-### Can See Other Organizations' Data
-
-**This is a security bug!** Your backend must filter queries by `organization_id`. Check:
-1. Auth context extracts org_id from Clerk JWT
-2. All database queries include `WHERE organization_id = ?`
-3. Backend middleware enforces organization scope
-
-### Schema Migration Issues
-
-Since dev and prod share the database:
-1. Test migrations in `test-company` org first
-2. Verify migrations don't break existing real company data
-3. Use Supabase migration tools carefully
 
 ## Resources
 
 - **Detailed Setup Guide**: [docs/dev-env-setup.md](./dev-env-setup.md)
 - **Main Deployment Guide**: [docs/deployment.md](./deployment.md)
 - **GitHub Actions Workflow**: [.github/workflows/deploy-backend.yml](../.github/workflows/deploy-backend.yml)
-
-## Questions?
-
-The shared database approach is:
-- ✅ More realistic (tests actual production environment)
-- ✅ Simpler (no database sync needed)
-- ✅ Cheaper (no extra database costs)
-- ✅ Better security testing (validates multi-tenancy)
-
-Your idea to use "test-company" was **excellent** - it's the industry standard approach for multi-tenant SaaS applications!
