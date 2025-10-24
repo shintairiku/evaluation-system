@@ -120,9 +120,10 @@ git --version
    - Configure roles and permissions
 
 4. **Note JWT Configuration** (for backend)
-   - Go to "JWT Templates" → "Blank" or default template
-   - Note the **Issuer** URL (e.g., `https://your-app.clerk.accounts.dev`)
-   - **Audience** can be your domain or leave as is
+   - Go to "JWT Templates" → default template
+   - Note the **Issuer** URL (e.g., `https://your-app.clerk.accounts.dev`).
+   - If your template does not set `aud`, that is acceptable. Our backend can verify either `aud` or `azp` (Authorized Party).
+   - We recommend also validating `azp` via a new backend env `CLERK_AUTHORIZED_PARTIES` (comma-separated origins), which should include your production frontend origin (e.g., `your-app.vercel.app`).
 
 > ⚠️ **Important**: We'll configure webhooks AFTER backend deployment (Step 4.2)
 
@@ -136,6 +137,7 @@ CLERK_SECRET_KEY=sk_live_xxxxx              # From Clerk
 SUPABASE_DATABASE_URL=postgresql://...      # From Supabase (pooler URL)
 CLERK_ISSUER=https://xxx.clerk.accounts.dev # From Clerk JWT settings
 CLERK_AUDIENCE=your-domain.com              # Your domain or Clerk default
+CLERK_AUTHORIZED_PARTIES=your-app.vercel.app # Enforce JWT azp matches frontend origin
 CLERK_WEBHOOK_SECRET=whsec_xxxxx            # Will get after webhook setup
 ```
 
@@ -212,8 +214,11 @@ echo -n "postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.c
 # 3. Clerk Issuer
 echo -n "https://your-app.clerk.accounts.dev" | gcloud secrets create clerk-issuer --data-file=-
 
-# 4. Clerk Audience (your domain or Clerk default)
+# 4. Clerk Audience (your domain if you use `aud`)
 echo -n "your-domain.com" | gcloud secrets create clerk-audience --data-file=-
+
+# 4-b. (Recommended) Clerk Authorized Parties (enforce `azp`)
+echo -n "your-app.vercel.app" | gcloud secrets create clerk-authorized-parties --data-file=-
 
 # 5. Clerk Webhook Secret (we'll update this later, use placeholder for now)
 echo -n "PLACEHOLDER_WILL_UPDATE_LATER" | gcloud secrets create clerk-webhook-secret --data-file=-
@@ -225,7 +230,7 @@ echo "✅ Secrets created!"
 
 # Grant Cloud Run service account access to all secrets
 echo "Granting Cloud Run access to secrets..."
-for secret in clerk-secret-key database-url clerk-issuer clerk-audience clerk-webhook-secret app-secret-key; do
+for secret in clerk-secret-key database-url clerk-issuer clerk-audience clerk-authorized-parties clerk-webhook-secret app-secret-key; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
@@ -280,7 +285,7 @@ gcloud run deploy hr-evaluation-backend \
   --platform managed \
   --allow-unauthenticated \
   --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False" \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
+  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
   --min-instances 0 \
   --max-instances 5 \
   --memory 512Mi \
@@ -334,11 +339,12 @@ echo -n "sk_test_YOUR_CLERK_DEV_SECRET_KEY" | gcloud secrets create clerk-secret
 echo -n "postgresql://postgres.[DEV-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true" | gcloud secrets create database-url-dev --data-file=-
 echo -n "https://your-dev-app.clerk.accounts.dev" | gcloud secrets create clerk-issuer-dev --data-file=-
 echo -n "your-dev-domain.com" | gcloud secrets create clerk-audience-dev --data-file=-
+echo -n "your-dev-frontend.vercel.app,localhost:3000" | gcloud secrets create clerk-authorized-parties-dev --data-file=-
 echo -n "whsec_DEV_WEBHOOK_SECRET" | gcloud secrets create clerk-webhook-secret-dev --data-file=-
 echo -n "$(openssl rand -hex 32)" | gcloud secrets create app-secret-key-dev --data-file=-
 
 # Grant permissions for dev secrets
-for secret in clerk-secret-key-dev database-url-dev clerk-issuer-dev clerk-audience-dev clerk-webhook-secret-dev app-secret-key-dev; do
+for secret in clerk-secret-key-dev database-url-dev clerk-issuer-dev clerk-audience-dev clerk-authorized-parties-dev clerk-webhook-secret-dev app-secret-key-dev; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
@@ -359,7 +365,7 @@ gcloud run deploy hr-evaluation-backend-dev \
   --platform managed \
   --allow-unauthenticated \
   --set-env-vars "ENVIRONMENT=development,LOG_LEVEL=DEBUG,DEBUG=True" \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,SUPABASE_DATABASE_URL=database-url-dev:latest,CLERK_ISSUER=clerk-issuer-dev:latest,CLERK_AUDIENCE=clerk-audience-dev:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,SECRET_KEY=app-secret-key-dev:latest" \
+  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,SUPABASE_DATABASE_URL=database-url-dev:latest,CLERK_ISSUER=clerk-issuer-dev:latest,CLERK_AUDIENCE=clerk-audience-dev:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,SECRET_KEY=app-secret-key-dev:latest" \
   --min-instances 0 \
   --max-instances 5 \
   --memory 512Mi \
@@ -439,7 +445,7 @@ jobs:
           --platform managed \
           --allow-unauthenticated \
           --set-env-vars "ENVIRONMENT=$ENV_MODE,LOG_LEVEL=INFO,DEBUG=$DEBUG_MODE" \
-          --set-secrets "CLERK_SECRET_KEY=clerk-secret-key$SECRETS_SUFFIX:latest,SUPABASE_DATABASE_URL=database-url$SECRETS_SUFFIX:latest,CLERK_ISSUER=clerk-issuer$SECRETS_SUFFIX:latest,CLERK_AUDIENCE=clerk-audience$SECRETS_SUFFIX:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret$SECRETS_SUFFIX:latest,SECRET_KEY=app-secret-key$SECRETS_SUFFIX:latest" \
+          --set-secrets "CLERK_SECRET_KEY=clerk-secret-key$SECRETS_SUFFIX:latest,SUPABASE_DATABASE_URL=database-url$SECRETS_SUFFIX:latest,CLERK_ISSUER=clerk-issuer$SECRETS_SUFFIX:latest,CLERK_AUDIENCE=clerk-audience$SECRETS_SUFFIX:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties$SECRETS_SUFFIX:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret$SECRETS_SUFFIX:latest,SECRET_KEY=app-secret-key$SECRETS_SUFFIX:latest" \
           --min-instances 0 \
           --max-instances 10 \
           --memory 512Mi \
@@ -1042,7 +1048,7 @@ gcloud run services update hr-evaluation-backend \
 
 **Issue**: 401 Unauthorized on API calls
 - Check Clerk keys match in both frontend and backend
-- Verify JWT issuer and audience in backend secrets
+- Verify JWT issuer, audience and authorized parties in backend secrets
 
 **Issue**: Webhook not working
 ```bash
@@ -1074,7 +1080,8 @@ gcloud run services update hr-evaluation-backend --region $REGION --no-traffic
 | `CLERK_SECRET_KEY` | Yes | `sk_live_...` | Clerk secret key (Secret Manager) |
 | `SUPABASE_DATABASE_URL` | Yes | `postgresql://...` | Database connection string (Secret Manager) |
 | `CLERK_ISSUER` | Yes | `https://clerk.your-app.com` | Clerk JWT issuer |
-| `CLERK_AUDIENCE` | Yes | `your-audience` | Clerk JWT audience |
+| `CLERK_AUDIENCE` | Yes (if used) | `your-audience` | Clerk JWT audience |
+| `CLERK_AUTHORIZED_PARTIES` | Yes | `your-app.vercel.app` | Comma-separated list of allowed `azp` (Authorized Party) origins |
 | `CLERK_WEBHOOK_SECRET` | Yes | `whsec_...` | Clerk webhook secret |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
 | `DEBUG` | No | `false` | Debug mode (should be false) |
@@ -1225,7 +1232,7 @@ Use this checklist to ensure you've completed all steps correctly.
 - [ ] Copied Supabase connection URL (pooler URL) and API keys
 - [ ] Created Clerk production application
 - [ ] Copied Clerk publishable key and secret key
-- [ ] Noted Clerk JWT issuer and audience
+- [ ] Noted Clerk JWT issuer, audience (if used), and authorized parties (`azp`)
 - [ ] Created `.env.prod` file with all variables documented
 
 ### Phase 2: Backend Deployment ✅
@@ -1238,6 +1245,7 @@ Use this checklist to ensure you've completed all steps correctly.
   - [ ] `database-url`
   - [ ] `clerk-issuer`
   - [ ] `clerk-audience`
+  - [ ] `clerk-authorized-parties`
   - [ ] `clerk-webhook-secret` (placeholder)
   - [ ] `app-secret-key`
 - [ ] Granted Cloud Run access to secrets
@@ -1518,10 +1526,11 @@ gcloud run services update hr-evaluation-backend \
 
 **Solution**:
 1. Verify Clerk keys match in frontend and backend
-2. Check JWT issuer/audience in backend:
+2. Check JWT issuer/audience/authorized parties in backend:
    ```bash
    gcloud secrets versions access latest --secret=clerk-issuer
    gcloud secrets versions access latest --secret=clerk-audience
+   gcloud secrets versions access latest --secret=clerk-authorized-parties
    ```
 3. Ensure Clerk domains include your Vercel URL
 
@@ -1626,7 +1635,7 @@ gcloud run services update hr-evaluation-backend-dev --region $REGION --no-traff
 # Production Clerk app → Domains: your-app.vercel.app
 # Development Clerk app → Domains: your-app-git-develop-username.vercel.app
 
-# 3. Check JWT issuer/audience match
+# 3. Check JWT issuer/audience/authorized parties match
 echo "Production Clerk Issuer:"
 gcloud secrets versions access latest --secret=clerk-issuer
 

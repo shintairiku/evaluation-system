@@ -67,6 +67,17 @@ export default function Sidebar() {
     // Use safe default value
   }
 
+  // Get goal list context with graceful fallback
+  let rejectedGoalsCount = 0;
+  try {
+    const context = useGoalListContext();
+    rejectedGoalsCount = context.rejectedGoalsCount;
+  } catch {
+    // Context not available (e.g., during SSR or outside provider)
+    // Use default value
+    rejectedGoalsCount = 0;
+  }
+
   // 権限フィルタリング（現在はダミー実装）
   const filterByPermission = (links: SidebarLink[]) => {
     // TODO: 実際の権限チェックロジックを実装
