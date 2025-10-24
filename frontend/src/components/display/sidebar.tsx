@@ -54,17 +54,8 @@ export default function Sidebar() {
     pendingCount = context.pendingCount;
   } catch {
     // Context not available (e.g., during SSR or outside provider)
-    // Use safe default value
-  }
-
-  // Get goal list context with graceful fallback
-  let rejectedGoalsCount = 0;
-  try {
-    const context = useGoalListContext();
-    rejectedGoalsCount = context.rejectedGoalsCount;
-  } catch {
-    // Context not available (e.g., during SSR or outside provider)
-    // Use safe default value
+    // Use default value
+    pendingCount = 0;
   }
 
   // Get goal list context with graceful fallback
