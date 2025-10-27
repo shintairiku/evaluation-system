@@ -15,6 +15,7 @@ from ..schemas.user import Department, Role, UserProfileOption, UserExistsRespon
 from ..schemas.stage_competency import Stage
 from ..core.clerk_config import get_clerk_config
 from ..core.config import settings
+from ..core.exceptions import UnauthorizedError
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +124,25 @@ class AuthService:
         try:
             # Get environment variables for verification
             clerk_issuer = getattr(settings, 'CLERK_ISSUER', None)
-            clerk_audience = getattr(settings, 'CLERK_AUDIENCE', None)
+            # Allow comma-separated audiences for dev/preview without changing Clerk JWT
+            clerk_audience_raw = getattr(settings, 'CLERK_AUDIENCE', None)
+            if clerk_audience_raw and isinstance(clerk_audience_raw, str) and "," in clerk_audience_raw:
+                clerk_audience = [aud.strip() for aud in clerk_audience_raw.split(",") if aud.strip()]
+            else:
+                clerk_audience = clerk_audience_raw
 
-            if not clerk_issuer or not clerk_audience:
-                # Log once at debug level to reduce noise (only visible when LOG_LEVEL=DEBUG)
-                logger.debug("CLERK_ISSUER or CLERK_AUDIENCE not configured, using unverified token parsing")
-                # Fallback to unverified parsing for backward compatibility
+            # Authorized parties (azp) hardening: allow comma-separated list
+            authorized_parties_raw = getattr(settings, 'CLERK_AUTHORIZED_PARTIES', None)
+            authorized_parties = []
+            if authorized_parties_raw:
+                authorized_parties = [p.strip() for p in authorized_parties_raw.split(",") if p.strip()]
+
+            if not clerk_issuer or (not clerk_audience and not authorized_parties):
+                # In production, never allow unverified parsing
+                if settings.ENVIRONMENT == settings.Environment.PRODUCTION:
+                    raise Exception("Clerk JWT verification misconfigured: require CLERK_ISSUER and (CLERK_AUDIENCE or CLERK_AUTHORIZED_PARTIES) in production")
+                # In non-production, fallback to unverified parsing for developer convenience
+                logger.debug("CLERK_ISSUER or audience/authorized parties not configured; using unverified token parsing (non-production only)")
                 payload = jwt.get_unverified_claims(token)
             else:
                 # Get unverified header to extract kid
@@ -146,23 +160,61 @@ class AuthService:
                 public_key = jwk.construct(key_data)
                 
                 # Verify and decode token
-                payload = jwt.decode(
-                    token,
-                    public_key,
-                    algorithms=["RS256"],
-                    audience=clerk_audience,
-                    issuer=clerk_issuer,
-                    options={
-                        "verify_signature": True,
-                        "verify_aud": True,
-                        "verify_iss": True,
-                        "verify_exp": True,
-                        "verify_nbf": True,
-                        "require_exp": True,
-                        "require_iat": True
-                    }
-                )
+                base_options = {
+                    "verify_signature": True,
+                    "verify_iss": True,
+                    "verify_exp": True,
+                    "verify_nbf": True,
+                    "require_exp": True,
+                    "require_iat": True,
+                }
+
+                # Build common kwargs (issuer always enforced when provided)
+                common_kwargs = {
+                    "algorithms": ["RS256"],
+                    "issuer": clerk_issuer,
+                }
+
+                # Handle audience validation robustly across environments
+                if isinstance(clerk_audience, list):
+                    # jose expects a string audience; try each allowed audience
+                    last_error: Optional[Exception] = None
+                    payload = None
+                    for aud in clerk_audience:
+                        try:
+                            payload = jwt.decode(
+                                token,
+                                public_key,
+                                options={**base_options, "verify_aud": True},
+                                audience=aud,
+                                **common_kwargs,
+                            )
+                            break
+                        except JWTError as e:
+                            last_error = e
+                            continue
+                    if payload is None:
+                        raise UnauthorizedError("Invalid JWT audience")
+                else:
+                    # Single audience (string) or not set
+                    options = {**base_options, "verify_aud": bool(clerk_audience)}
+                    decode_kwargs = {**common_kwargs, "options": options}
+                    if clerk_audience:
+                        decode_kwargs["audience"] = clerk_audience
+                    payload = jwt.decode(
+                        token,
+                        public_key,
+                        **decode_kwargs,
+                    )
                 logger.info("JWT signature verification successful")
+
+                # Additional hardening: verify 'azp' (authorized party) if configured
+                if authorized_parties:
+                    azp = payload.get("azp") or payload.get("authorized_party")
+                    if not azp:
+                        raise Exception("Missing 'azp' claim while CLERK_AUTHORIZED_PARTIES is configured")
+                    if azp not in authorized_parties:
+                        raise Exception("Token 'azp' not in authorized parties")
             
             # Normalize claims with priority handling
             normalized = self._normalize_claims(payload)
@@ -186,10 +238,12 @@ class AuthService:
             
         except JWTError as e:
             logger.error(f"JWT verification failed: {e}")
-            raise Exception(f"Invalid JWT token: {str(e)}")
+            # Propagate as 401 so middleware/routers return Unauthorized, not 500
+            raise UnauthorizedError("Invalid JWT token")
         except Exception as e:
             logger.error(f"Token validation failed: {e}")
-            raise Exception(f"Token validation failed: {str(e)}")
+            # Default to Unauthorized for token-related failures
+            raise UnauthorizedError(f"Token validation failed: {str(e)}")
 
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
         """Check if user exists in database with minimal info."""
