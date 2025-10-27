@@ -115,4 +115,52 @@ export const goalsApi = {
     const endpoint = `${API_ENDPOINTS.GOALS.REJECT(sanitizedId)}?reason=${encodeURIComponent(reason)}`;
     return httpClient.post<GoalResponse>(endpoint);
   },
+
+  /**
+   * Get all goals for admin visualization (admin-only endpoint)
+   *
+   * This endpoint shows ALL users' goals in the organization.
+   * Performance: includeReviews defaults to true for batch optimization
+   */
+  getAdminGoals: async (params?: {
+    periodId?: UUID;
+    userId?: UUID;
+    departmentId?: UUID;
+    goalCategory?: string;
+    status?: string | string[];
+    page?: number;
+    limit?: number;
+    includeReviews?: boolean;
+    includeRejectionHistory?: boolean;
+  }): Promise<ApiResponse<GoalListResponse>> => {
+    const queryParams = new URLSearchParams();
+
+    if (params?.periodId) queryParams.append('periodId', params.periodId);
+    if (params?.userId) queryParams.append('userId', params.userId);
+    if (params?.departmentId) queryParams.append('departmentId', params.departmentId);
+    if (params?.goalCategory) queryParams.append('goalCategory', params.goalCategory);
+
+    if (params?.status) {
+      if (Array.isArray(params.status)) {
+        params.status.forEach(s => queryParams.append('status', s));
+      } else {
+        queryParams.append('status', params.status);
+      }
+    }
+
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+    // Performance optimization: includeReviews defaults to true (batch optimization)
+    const includeReviews = params?.includeReviews !== undefined ? params.includeReviews : true;
+    queryParams.append('includeReviews', includeReviews.toString());
+
+    if (params?.includeRejectionHistory) queryParams.append('includeRejectionHistory', 'true');
+
+    const endpoint = queryParams.toString()
+      ? `${API_ENDPOINTS.GOALS.ADMIN_LIST}?${queryParams.toString()}`
+      : API_ENDPOINTS.GOALS.ADMIN_LIST;
+
+    return httpClient.get<GoalListResponse>(endpoint);
+  },
 };
