@@ -245,45 +245,52 @@ class GoalRepository(BaseRepository[Goal]):
         org_id: str,
         user_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
+        department_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
         status: Optional[List[str]] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[Goal]:
         """Search goals with various filters within organization scope."""
         try:
+            from ..models.user import User
+
             query = select(Goal).options(
                 joinedload(Goal.user),
                 joinedload(Goal.period)
             )
-            
+
             # Apply organization filter first (required)
             query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
             self.ensure_org_filter_applied("search_goals", org_id)
-            
+
             # Apply filters
             if user_ids:
                 query = query.filter(Goal.user_id.in_(user_ids))
-            
+
             if period_id:
                 query = query.filter(Goal.period_id == period_id)
-            
+
+            # NEW: Department filter (requires JOIN with User)
+            if department_id:
+                query = query.join(User, Goal.user_id == User.id).filter(User.department_id == department_id)
+
             if goal_category:
                 query = query.filter(Goal.goal_category == goal_category)
-            
+
             if status:
                 if isinstance(status, list):
                     query = query.filter(Goal.status.in_(status))
                 else:
                     # Backward compatibility for single status
                     query = query.filter(Goal.status == status)
-            
+
             # Apply ordering
             query = query.order_by(Goal.created_at.desc())
-            
+
             # Apply pagination
             if pagination:
                 query = query.offset(pagination.offset).limit(pagination.limit)
-            
+
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
@@ -295,33 +302,40 @@ class GoalRepository(BaseRepository[Goal]):
         org_id: str,
         user_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
+        department_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
         status: Optional[List[str]] = None
     ) -> int:
         """Count goals matching the given filters within organization scope."""
         try:
+            from ..models.user import User
+
             query = select(func.count(Goal.id))
-            
+
             # Apply organization filter first (required)
             query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
-            
+
             # Apply same filters as search_goals
             if user_ids:
                 query = query.filter(Goal.user_id.in_(user_ids))
-            
+
             if period_id:
                 query = query.filter(Goal.period_id == period_id)
-            
+
+            # NEW: Department filter (requires JOIN with User)
+            if department_id:
+                query = query.join(User, Goal.user_id == User.id).filter(User.department_id == department_id)
+
             if goal_category:
                 query = query.filter(Goal.goal_category == goal_category)
-            
+
             if status:
                 if isinstance(status, list):
                     query = query.filter(Goal.status.in_(status))
                 else:
                     # Backward compatibility for single status
                     query = query.filter(Goal.status == status)
-            
+
             result = await self.session.execute(query)
             return result.scalar() or 0
         except SQLAlchemyError as e:
