@@ -91,3 +91,4 @@ docs/plans/
 
 # scripts
 scripts/deploy-prod.sh
+scripts/run-local.sh
