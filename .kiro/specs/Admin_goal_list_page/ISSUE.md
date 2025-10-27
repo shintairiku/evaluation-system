@@ -11,6 +11,20 @@ Create an **admin-only page** that displays all goals from every user in the sys
 - Design: `.kiro/specs/Admin_goal_list_page/design.md`
 - Tasks: `.kiro/specs/Admin_goal_list_page/tasks.md`
 
+### Why a Separate Admin Page?
+
+The system currently has two goal pages:
+1. **Employee Goal List** (`/goal-list`) - Employees manage own goals, supervisors view subordinates
+2. **Supervisor Goal Review** (`/goal-review`) - Supervisors approve/reject submitted goals
+
+This new **Admin Goal List** (`/admin/goal-list`) serves a different purpose:
+- **Purpose**: System-wide monitoring and analytics (not management or approval)
+- **Scope**: ALL users in organization (not limited to subordinates)
+- **View**: Table-based summary view (not detailed card view)
+- **Actions**: Read-only (no edit, submit, or approve actions)
+
+The existing `/goals` endpoint with `GOAL_READ_ALL` permission defaults to showing only the admin's own goals (secure by default). A separate `/admin/goals` endpoint is needed to provide system-wide visibility.
+
 ---
 
 ## 🎯 Business Value
@@ -90,6 +104,37 @@ AND all information remains accessible
 
 ## 🛠️ Technical Implementation
 
+### Key Technical Decisions
+
+#### Why a Separate `/admin/goals` Endpoint?
+
+The existing `/goals` endpoint has security-by-default behavior:
+
+**Current `/goals` Endpoint** (`goal_service.py` lines 548-581):
+```python
+if current_user_context.has_permission(Permission.GOAL_READ_ALL):
+    # Admin CAN see all goals, but defaults to OWN goals unless userId explicitly requested
+    if requested_user_id:
+        return [requested_user_id]  # See specific user's goals
+    # Default: scope to current user's own goals to avoid accidental data exposure
+    return [current_user_context.user_id]  # See ONLY own goals
+```
+
+**New `/admin/goals` Endpoint**: Intentionally bypasses this security filter to show ALL users' goals.
+
+| Aspect | `/goals` Endpoint | `/admin/goals` Endpoint |
+|--------|-------------------|------------------------|
+| **Permission** | GOAL_READ_ALL | GOAL_READ_ALL |
+| **Default Behavior** | Shows admin's OWN goals | Shows ALL users' goals |
+| **User Filter** | Requires explicit userId param | No user filtering (system-wide) |
+| **Security Philosophy** | Secure by default | Explicit system-wide access |
+| **Use Case** | Personal goal management | System monitoring |
+
+This separation ensures:
+- ✅ Existing `/goals` behavior remains secure (no breaking changes)
+- ✅ Admin intent is explicit when accessing system-wide data
+- ✅ Clear separation between personal management and system monitoring
+
 ### Backend Changes
 
 #### 1. New Admin Endpoint
@@ -114,6 +159,9 @@ async def get_admin_goals(
 
     Permissions: Requires admin role (GOAL_READ_ALL)
     Performance: Uses includeReviews=true by default (batch optimization)
+
+    NOTE: This endpoint intentionally shows ALL users' goals (no user filtering).
+    This is different from /goals which shows only admin's own goals by default.
     """
     # Permission check
     if not context.has_permission(Permission.GOAL_READ_ALL):
@@ -220,19 +268,30 @@ export default function Page() {
 }
 ```
 
-#### 2. Main Component (Simplified)
+#### 2. Main Component (with Component Reuse)
 
 **File**: `frontend/src/feature/evaluation/admin/admin-goal-list/display/index.tsx`
 
 ```tsx
 'use client';
 
+import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector'; // ← REUSE
+import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard'; // ← REUSE (from goal-list)
+
+/**
+ * Component Reuse Strategy:
+ * - EvaluationPeriodSelector: Existing component (use as-is)
+ * - EmployeeInfoCard: From goal-list (show when user filter selected)
+ * - GoalStatusBadge: Existing component (used in table)
+ */
 export default function AdminGoalListPage() {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
 
   const {
     filteredGoals,
     paginatedGoals,
+    selectedUserId,
+    selectedUserData,
     isLoading,
     error,
     // ... filters, pagination state
@@ -241,7 +300,7 @@ export default function AdminGoalListPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="space-y-6">
-        {/* Header + Period Selector */}
+        {/* Header + Period Selector (REUSE) */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">管理者用目標一覧</h1>
@@ -252,8 +311,13 @@ export default function AdminGoalListPage() {
           <EvaluationPeriodSelector {...} />
         </div>
 
-        {/* Filters */}
+        {/* Filters (adapted from goal-list patterns) */}
         <AdminGoalListFilters {...} />
+
+        {/* Employee Info Card (REUSE - show when user filter selected) */}
+        {selectedUserId && selectedUserData && (
+          <EmployeeInfoCard employee={selectedUserData} />
+        )}
 
         {/* Goals Table */}
         <AdminGoalListTable goals={paginatedGoals} />
@@ -401,12 +465,17 @@ export const getAdminGoalsAction = cache(async (params?: {...}) => {
   - File: `frontend/src/feature/evaluation/admin/admin-goal-list/hooks/useAdminGoalListData.ts`
   - Load data, filtering, pagination
 
-- [x] **Task 2.5**: Create main page component (1.5h)
+- [x] **Task 2.5**: Create main page component with EmployeeInfoCard (1.5h)
   - File: `frontend/src/feature/evaluation/admin/admin-goal-list/display/index.tsx`
   - Layout, states, sub-components
+  - **REUSE**: `EvaluationPeriodSelector` from `@/components/evaluation/`
+  - **REUSE**: `EmployeeInfoCard` from `@/components/evaluation/` (show when user filter selected)
 
-- [x] **Task 2.6**: Create filter component (1h)
+- [x] **Task 2.6**: Create filter component (reusing patterns) (1h)
   - File: `frontend/src/feature/evaluation/admin/admin-goal-list/components/AdminGoalListFilters.tsx`
+  - **REUSE**: Filter layout structure from `GoalListFilters` component
+  - **REUSE**: Active filter count badge pattern from `GoalListFilters`
+  - **ADAPT**: User selection pattern from `EmployeeSelector` (as filter dropdown)
 
 - [x] **Task 2.7**: Create table component (1.5h)
   - File: `frontend/src/feature/evaluation/admin/admin-goal-list/components/AdminGoalListTable.tsx`
@@ -577,11 +646,17 @@ test('makes ≤ 3 HTTP requests', async ({ page }) => {
 
 ### Reuse from Existing Code
 
-1. **Performance Optimization**: Reuse `includeReviews` batch fetching from `perf/optimize-goal-list-performance`
-2. **Permission System**: Use `GOAL_READ_ALL` from `backend/app/security/permissions.py`
-3. **Frontend Pattern**: Follow structure from `/admin/report/page.tsx`
-4. **Components**: Reuse `EvaluationPeriodSelector`, `GoalStatusBadge`, `EmployeeInfoCard`
-5. **Data Hook**: Follow pattern from `useGoalListData` hook
+1. **Performance Optimization**: Reuse `includeReviews=true` batch fetching from employee goal-list (eliminates N+1 queries)
+2. **Permission System**: Use `GOAL_READ_ALL` permission from `backend/app/security/permissions.py`
+3. **Frontend Pattern**: Follow structure from `/admin/report/page.tsx` and employee goal-list
+4. **Components to Reuse**:
+   - ✅ `EvaluationPeriodSelector` from `@/components/evaluation/` (use as-is)
+   - ✅ `GoalStatusBadge` from `@/components/evaluation/` (use as-is)
+   - ✅ `EmployeeInfoCard` from `@/components/evaluation/` (use as-is, show when user filter selected)
+5. **Components to Adapt**:
+   - 🔄 `GoalListFilters` - Adapt filter layout structure
+   - 🔄 `EmployeeSelector` - Adapt user selection pattern
+6. **Data Hook**: Follow pattern from `useGoalListData` hook (parallel data fetching, client-side filtering)
 
 ### Related Specifications
 

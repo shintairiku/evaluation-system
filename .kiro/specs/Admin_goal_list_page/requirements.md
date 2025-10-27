@@ -33,6 +33,88 @@ This document defines the requirements for implementing an **admin-only page** t
 
 ---
 
+## 1.1 Important: Difference from Regular Goal List
+
+### Why a Separate Admin Endpoint?
+
+The admin goal list endpoint (`/admin/goals`) is **intentionally separate** from the regular goal list endpoint (`/goals`) due to security and architectural reasons:
+
+#### Regular `/goals` Endpoint Behavior
+
+**With GOAL_READ_ALL Permission (Admin)**:
+```python
+# Current implementation in goal_service.py (lines 555-560)
+if current_user_context.has_permission(Permission.GOAL_READ_ALL):
+    # Admin can see all goals, but defaults to OWN goals unless userId explicitly requested
+    if requested_user_id:
+        return [requested_user_id]  # See specific user's goals
+    # Default: scope to current user's own goals to avoid accidental cross-user data exposure
+    return [current_user_context.user_id]  # See ONLY own goals
+```
+
+**Behavior Summary**:
+- Admin calls `/goals` **WITHOUT** `userId` → sees **ONLY their own goals**
+- Admin calls `/goals?userId=X` → sees **goals of user X**
+- **Does NOT** return all goals by default (secure by default)
+
+#### New `/admin/goals` Endpoint Behavior
+
+**With GOAL_READ_ALL Permission (Admin)**:
+```python
+# New implementation: get_all_goals_for_admin()
+async def get_all_goals_for_admin(...):
+    # Explicitly returns ALL goals from ALL users
+    goals = await self.goal_repo.search_goals(
+        org_id=org_id,
+        user_ids=None,  # None = ALL users (no filtering)
+        ...
+    )
+```
+
+**Behavior Summary**:
+- Admin calls `/admin/goals` → sees **ALL goals from ALL users**
+- Purpose-built for system-wide monitoring
+- Separate endpoint makes intent explicit and secure
+
+#### Design Rationale
+
+| Aspect | Regular `/goals` | Admin `/admin/goals` |
+|--------|-----------------|---------------------|
+| **Purpose** | Goal management | System monitoring |
+| **Default Scope** | Own goals (secure) | All goals (admin-only) |
+| **User Selection** | Explicit `userId` param | Optional filter |
+| **Intent** | Personal/team view | Organization-wide view |
+| **Security** | Secure by default | Explicit admin context |
+
+**Key Principle**: "Secure by Default"
+- Regular endpoint requires explicit `userId` to see other users
+- Admin endpoint requires explicit permission check (GOAL_READ_ALL)
+- Two endpoints with clear, distinct purposes
+
+#### Comparison with Existing Goal List Pages
+
+**Employee Goal List (`/goal-list`):**
+- **Employee**: Sees **only own goals** (GOAL_READ_SELF)
+- **Supervisor**: Sees **own goals + subordinates' goals** (GOAL_READ_SELF + GOAL_READ_SUBORDINATES)
+- **Actions**: Can edit draft goals, submit, resubmit rejected goals
+- **View**: Card-based layout with detailed information
+- **EmployeeSelector**: Supervisor can switch between subordinates
+
+**Admin Goal List (`/admin/goal-list`):** ← **NEW**
+- **Admin**: Sees **ALL goals from ALL users** (GOAL_READ_ALL)
+- **Actions**: Read-only (no editing, no approving)
+- **View**: Table-based layout with summary information
+- **Filters**: Status, category, department, user (more comprehensive)
+- **Purpose**: System-wide monitoring and analytics
+
+**Supervisor Goal Review (`/goal-review`):**
+- **Supervisor**: Sees **subordinates' submitted goals** (for approval)
+- **Actions**: Approve or reject goals with feedback
+- **View**: Detailed card view with approval form
+- **Purpose**: Goal approval workflow
+
+---
+
 ## 2. Requirements List
 
 ### Requirement 1: Admin-Only Access Control

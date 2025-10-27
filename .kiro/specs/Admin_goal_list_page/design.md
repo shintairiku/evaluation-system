@@ -20,6 +20,126 @@ This document outlines the technical design for implementing an admin-only page 
 
 ---
 
+## 1.1 Comparison with Existing Goal Pages
+
+### Overview of Goal-Related Pages
+
+The system has three distinct goal pages, each serving different purposes:
+
+| Page | Route | User Role | Purpose | View Type | Actions |
+|------|-------|-----------|---------|-----------|---------|
+| **Employee Goal List** | `/goal-list` | Employee / Supervisor | Manage own goals & view subordinates | Card (detailed) | Edit, Submit, Resubmit |
+| **Supervisor Goal Review** | `/goal-review` | Supervisor | Approve subordinates' goals | Card (approval) | Approve, Reject |
+| **Admin Goal List** ← NEW | `/admin/goal-list` | Admin | Monitor all goals | Table (summary) | None (read-only) |
+
+### Detailed Comparison
+
+#### 1. Employee Goal List (`/goal-list`)
+
+**Current Implementation:**
+- **File**: `frontend/src/feature/evaluation/employee/goal-list/display/index.tsx`
+- **Hook**: `useGoalListData` hook
+- **Permissions**:
+  - Employee: `GOAL_READ_SELF` (own goals only)
+  - Supervisor: `GOAL_READ_SELF` + `GOAL_READ_SUBORDINATES` (own + subordinates)
+- **Backend Logic** (`goal_service.py` lines 548-581):
+  ```python
+  # Employee: return [current_user_id]
+  # Supervisor: return [current_user_id] + subordinate_ids
+  # Admin (WITHOUT userId param): return [current_user_id]  # Secure by default
+  ```
+
+**Features:**
+- ✅ **View Type**: `GoalCard` - detailed card layout with full goal information
+- ✅ **Actions**: Edit draft goals, submit, resubmit rejected goals
+- ✅ **EmployeeSelector**: Supervisor can switch between subordinates (lines 216-224)
+- ✅ **EmployeeInfoCard**: Shows selected employee info (lines 227-229)
+- ✅ **Grouping**: Goals grouped by employee (`groupedGoals` - lines 221-247)
+- ✅ **Filters**: Status, resubmissions only
+- ✅ **Performance**: Uses `includeReviews=true` optimization
+
+**Use Cases:**
+- Employee manages their own goals
+- Supervisor reviews subordinates' goals (read-only, no approval here)
+- Supervisor can edit their own goals
+
+---
+
+#### 2. Supervisor Goal Review (`/goal-review`)
+
+**Current Implementation:**
+- **File**: `frontend/src/feature/evaluation/superviser/goal-review/display/index.tsx`
+- **Components**: `GoalApprovalCard`, `ApprovalForm`, `ActionButtons`
+- **Permissions**: `GOAL_APPROVE` (supervisors and above)
+
+**Features:**
+- ✅ **View Type**: `GoalApprovalCard` - detailed view with approval form
+- ✅ **Actions**: Approve or Reject goals with feedback
+- ✅ **Status Filter**: Only shows `submitted` goals (awaiting approval)
+- ✅ **Employee Navigation**: Tabs to switch between subordinates
+- ✅ **Guidelines**: `ApprovalGuidelinesPanel` with approval criteria
+
+**Use Cases:**
+- Supervisor approves/rejects subordinates' submitted goals
+- Focused workflow for goal approval process
+
+---
+
+#### 3. Admin Goal List (`/admin/goal-list`) ← **NEW**
+
+**Planned Implementation:**
+- **File**: `frontend/src/feature/evaluation/admin/admin-goal-list/display/index.tsx`
+- **Hook**: `useAdminGoalListData` (new, similar to `useGoalListData`)
+- **Permission**: `GOAL_READ_ALL` (admin only)
+- **Backend**: New endpoint `/admin/goals` with dedicated service method
+
+**Features:**
+- 🆕 **View Type**: `AdminGoalListTable` - table layout for system-wide overview
+- 🆕 **Actions**: **None** (read-only, no editing or approving)
+- 🆕 **Filters**: Status, Category, Department, User (more comprehensive than employee view)
+- 🆕 **EmployeeInfoCard**: Shows when specific user is selected (reuse from goal-list)
+- 🆕 **Scope**: ALL users in organization (not limited to subordinates)
+- 🆕 **Performance**: Reuses `includeReviews=true` optimization
+- 🆕 **Pagination**: Client-side, 50 items per page
+
+**Key Differences from Employee Goal List:**
+
+| Aspect | Employee Goal List | Admin Goal List |
+|--------|-------------------|-----------------|
+| **Backend Endpoint** | `/goals` (existing) | `/admin/goals` (new) |
+| **Service Method** | `get_goals()` with user filtering | `get_all_goals_for_admin()` - NO user filtering |
+| **Default Scope** | Own goals / subordinates | ALL users |
+| **View Type** | Card (detailed) | Table (summary) |
+| **Actions** | Edit, Submit, Resubmit | **None** (read-only) |
+| **Filters** | Status, Resubmissions | Status, Category, Dept, User |
+| **Employee Selection** | `EmployeeSelector` (supervisor) | User filter (admin) |
+| **Grouping** | By employee | Flat list, sortable |
+| **Purpose** | Goal management | System monitoring |
+
+**Use Cases:**
+- Admin monitors goal submission rates across organization
+- Admin identifies bottlenecks in approval process
+- Admin analyzes goal patterns by department
+- Admin ensures compliance (all employees have goals)
+
+---
+
+### Why Three Separate Pages?
+
+**Separation of Concerns:**
+1. **Employee Goal List**: Personal goal management + subordinate visibility
+2. **Supervisor Goal Review**: Focused approval workflow
+3. **Admin Goal List**: System-wide monitoring and analytics
+
+**Benefits:**
+- ✅ Clear user intent for each page
+- ✅ Optimized UI for specific tasks
+- ✅ Security: Different permission levels
+- ✅ Performance: Each page loads only necessary data
+- ✅ UX: No confusion between manage vs approve vs monitor
+
+---
+
 ## 2. System Architecture
 
 ### 2.1 High-Level Architecture
@@ -668,10 +788,32 @@ frontend/src/
 └─ components/
    ├─ ui/ (existing shadcn components)
    └─ evaluation/ (reusable components)
-      ├─ GoalStatusBadge.tsx        ← Reuse existing
-      ├─ EvaluationPeriodSelector.tsx ← Reuse existing
-      └─ EmployeeInfoCard.tsx       ← Reuse existing (if needed)
+      ├─ GoalStatusBadge.tsx        ← ✅ REUSE existing
+      ├─ EvaluationPeriodSelector.tsx ← ✅ REUSE existing
+      └─ EmployeeInfoCard.tsx       ← ✅ REUSE existing (show when user selected)
 ```
+
+---
+
+### 4.2.1 Component Reuse Strategy
+
+To maximize code reuse and maintain consistency, the admin goal list will reuse the following existing components:
+
+| Component | Source | Usage in Admin Goal List | Changes Needed |
+|-----------|--------|-------------------------|----------------|
+| **EvaluationPeriodSelector** | `@/components/evaluation/` | Period selection in header | ✅ None (use as-is) |
+| **GoalStatusBadge** | `@/components/evaluation/` | Status display in table | ✅ None (use as-is) |
+| **EmployeeInfoCard** | `@/components/evaluation/` | Show when user filter selected | ✅ None (use as-is) |
+| **GoalListFilters** (patterns) | `@/feature/evaluation/employee/goal-list/components/` | Base structure for AdminGoalListFilters | ⚠️ Adapt (add dept/user filters) |
+| **EmployeeSelector** (patterns) | `@/feature/evaluation/employee/goal-list/components/` | User filter dropdown | ⚠️ Adapt (convert to filter) |
+| **Loading Skeletons** | Existing goal-list | Loading states | ✅ Reuse patterns |
+| **Error/Empty States** | Existing goal-list | Error handling | ✅ Reuse patterns |
+
+**New Components Needed:**
+- `AdminGoalListTable.tsx` - Table view (not in existing goal-list which uses cards)
+- `AdminGoalListFilters.tsx` - Extended filters (dept + user filters)
+
+---
 
 ### 4.3 Key Components
 
@@ -682,11 +824,12 @@ frontend/src/
 ```tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAdminGoalListData } from '../hooks/useAdminGoalListData';
 import { AdminGoalListTable } from '../components/AdminGoalListTable';
 import { AdminGoalListFilters } from '../components/AdminGoalListFilters';
 import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
+import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard'; // ← REUSE
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw } from 'lucide-react';
@@ -699,6 +842,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
  * - Filter by period, status, category, department, user
  * - Sort and paginate results
  * - Read-only (no editing or approval)
+ * - Shows EmployeeInfoCard when specific user is selected (similar to supervisor view)
  *
  * Access Control:
  * - Admin only (enforced by backend)
@@ -708,6 +852,11 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
  * - Reuses includeReviews batch optimization
  * - Client-side filtering and pagination for smooth UX
  * - Loads all filtered data at once (up to 1000 goals)
+ *
+ * Component Reuse:
+ * - EvaluationPeriodSelector (existing)
+ * - EmployeeInfoCard (existing, from goal-list)
+ * - GoalStatusBadge (existing, used in table)
  */
 export default function AdminGoalListPage() {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');

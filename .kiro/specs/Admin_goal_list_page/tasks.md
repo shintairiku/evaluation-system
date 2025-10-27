@@ -728,7 +728,7 @@ Key features:
 
 ---
 
-### Task 2.5: Create Main Page Component
+### Task 2.5: Create Main Page Component (with Employee Info Card)
 **Estimated Time:** 1.5 hours
 **Assignee:** Frontend Developer
 **Dependencies:** Task 2.4
@@ -736,12 +736,19 @@ Key features:
 **Complexity:** Medium
 
 **Description:**
-Create main `AdminGoalListPage` component with layout and sub-components.
+Create main `AdminGoalListPage` component with layout and sub-components, **including EmployeeInfoCard when a specific user is selected** (similar to supervisor view in goal-list).
+
+**Component Reuse:**
+- ✅ **Reuse**: `EvaluationPeriodSelector` from `@/components/evaluation/EvaluationPeriodSelector`
+- ✅ **Reuse**: `EmployeeInfoCard` from `@/components/evaluation/EmployeeInfoCard` (show when user filter is selected)
+- ✅ **Reuse**: Loading skeleton pattern from existing goal-list
+- ✅ **Reuse**: Error/empty state patterns from existing goal-list
 
 **Acceptance Criteria:**
 - [ ] Component exists in `frontend/src/feature/evaluation/admin/admin-goal-list/display/index.tsx`
 - [ ] Uses `useAdminGoalListData` hook
-- [ ] Renders header with title and period selector
+- [ ] Renders header with title and period selector (**reuse EvaluationPeriodSelector**)
+- [ ] **NEW**: Renders `EmployeeInfoCard` when a specific user is selected in filters
 - [ ] Renders filter bar
 - [ ] Renders table/cards
 - [ ] Renders pagination controls
@@ -756,13 +763,24 @@ Create main `AdminGoalListPage` component with layout and sub-components.
 See design document Section 4.3.1 for complete implementation.
 
 Key sections:
-- Header with period selector
+- Header with period selector (**reuse existing component**)
+- **NEW**: Employee info card (show when user filter is active)
 - Filters bar
 - Goals table/cards
 - Pagination
 - Loading state
 - Error state
 - Empty state
+
+**New Feature: Show Employee Info When User Selected**
+```tsx
+// Add after filters, before table
+{selectedUserId && selectedUserData && (
+  <EmployeeInfoCard employee={selectedUserData} />
+)}
+```
+
+This provides context similar to supervisor view when viewing a specific user's goals.
 
 **Testing:**
 - [ ] Unit test: Component renders without crashing
@@ -776,7 +794,7 @@ Key sections:
 
 ---
 
-### Task 2.6: Create Filter Component
+### Task 2.6: Create Filter Component (Reusing Existing Patterns)
 **Estimated Time:** 1 hour
 **Assignee:** Frontend Developer
 **Dependencies:** Task 2.5
@@ -784,16 +802,27 @@ Key sections:
 **Complexity:** Medium
 
 **Description:**
-Create `AdminGoalListFilters` component with all filter controls.
+Create `AdminGoalListFilters` component with all filter controls, **reusing patterns from existing `GoalListFilters` and `EmployeeSelector` components**.
+
+**Component Reuse Strategy:**
+- ✅ **Reuse**: Filter layout structure from `GoalListFilters`
+- ✅ **Reuse**: Active filter count badge pattern from `GoalListFilters`
+- ✅ **Reuse**: Clear all button pattern from `GoalListFilters`
+- ✅ **Adapt**: User selection pattern from `EmployeeSelector` (but make it a filter dropdown)
+- 🆕 **New**: Department filter (not in existing goal-list)
+
+**Reference Components:**
+- `frontend/src/feature/evaluation/employee/goal-list/components/GoalListFilters.tsx` - Base structure
+- `frontend/src/feature/evaluation/employee/goal-list/components/EmployeeSelector.tsx` - User selection pattern
 
 **Acceptance Criteria:**
 - [ ] Component exists in `frontend/src/feature/evaluation/admin/admin-goal-list/components/AdminGoalListFilters.tsx`
-- [ ] Status filter (multi-select checkbox)
+- [ ] Status filter (multi-select checkbox) - **reuse pattern from GoalListFilters**
 - [ ] Category filter (dropdown)
-- [ ] Department filter (dropdown)
-- [ ] User filter (searchable select)
-- [ ] Active filter count badge
-- [ ] "Clear all filters" button
+- [ ] Department filter (dropdown) - **NEW**
+- [ ] User filter (searchable select) - **adapt from EmployeeSelector**
+- [ ] Active filter count badge - **reuse from GoalListFilters**
+- [ ] "Clear all filters" button - **reuse pattern from GoalListFilters**
 - [ ] Responsive layout
 - [ ] Accessible
 
