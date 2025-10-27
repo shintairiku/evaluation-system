@@ -10,6 +10,10 @@ This guide walks you through deploying the HR Evaluation System to production wi
 
 **Estimated Time**: 60-90 minutes for first deployment
 
+> **📚 Related Documentation:**
+> - **[Development Environment Setup](./development-environment-setup.md)** - Complete guide for setting up local dev, Cloud Run dev, and production environments
+> - **[Architecture Overview](./ARCHITECTURE.md)** - System architecture and technical details
+
 ---
 
 ## 📋 Table of Contents
@@ -19,9 +23,10 @@ This guide walks you through deploying the HR Evaluation System to production wi
 3. [Phase 2: Backend Deployment (Cloud Run)](#phase-2-backend-deployment-cloud-run)
 4. [Phase 3: Frontend Deployment (Vercel)](#phase-3-frontend-deployment-vercel)
 5. [Phase 4: Post-Deployment Configuration](#phase-4-post-deployment-configuration)
-6. [Verification & Testing](#verification--testing)
-7. [Troubleshooting](#troubleshooting)
-8. [Rollback Procedures](#rollback-procedures)
+6. [Development Environment](#development-environment)
+7. [Verification & Testing](#verification--testing)
+8. [Troubleshooting](#troubleshooting)
+9. [Rollback Procedures](#rollback-procedures)
 
 ---
 
@@ -115,9 +120,10 @@ git --version
    - Configure roles and permissions
 
 4. **Note JWT Configuration** (for backend)
-   - Go to "JWT Templates" → "Blank" or default template
-   - Note the **Issuer** URL (e.g., `https://your-app.clerk.accounts.dev`)
-   - **Audience** can be your domain or leave as is
+   - Go to "JWT Templates" → default template
+   - Note the **Issuer** URL (e.g., `https://your-app.clerk.accounts.dev`).
+   - If your template does not set `aud`, that is acceptable. Our backend can verify either `aud` or `azp` (Authorized Party).
+   - We recommend also validating `azp` via a new backend env `CLERK_AUTHORIZED_PARTIES` (comma-separated origins), which should include your production frontend origin (e.g., `your-app.vercel.app`).
 
 > ⚠️ **Important**: We'll configure webhooks AFTER backend deployment (Step 4.2)
 
@@ -131,6 +137,7 @@ CLERK_SECRET_KEY=sk_live_xxxxx              # From Clerk
 SUPABASE_DATABASE_URL=postgresql://...      # From Supabase (pooler URL)
 CLERK_ISSUER=https://xxx.clerk.accounts.dev # From Clerk JWT settings
 CLERK_AUDIENCE=your-domain.com              # Your domain or Clerk default
+CLERK_AUTHORIZED_PARTIES=your-app.vercel.app # Enforce JWT azp matches frontend origin
 CLERK_WEBHOOK_SECRET=whsec_xxxxx            # Will get after webhook setup
 ```
 
@@ -207,8 +214,11 @@ echo -n "postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.c
 # 3. Clerk Issuer
 echo -n "https://your-app.clerk.accounts.dev" | gcloud secrets create clerk-issuer --data-file=-
 
-# 4. Clerk Audience (your domain or Clerk default)
+# 4. Clerk Audience (your domain if you use `aud`)
 echo -n "your-domain.com" | gcloud secrets create clerk-audience --data-file=-
+
+# 4-b. (Recommended) Clerk Authorized Parties (enforce `azp`)
+echo -n "your-app.vercel.app" | gcloud secrets create clerk-authorized-parties --data-file=-
 
 # 5. Clerk Webhook Secret (we'll update this later, use placeholder for now)
 echo -n "PLACEHOLDER_WILL_UPDATE_LATER" | gcloud secrets create clerk-webhook-secret --data-file=-
@@ -220,7 +230,7 @@ echo "✅ Secrets created!"
 
 # Grant Cloud Run service account access to all secrets
 echo "Granting Cloud Run access to secrets..."
-for secret in clerk-secret-key database-url clerk-issuer clerk-audience clerk-webhook-secret app-secret-key; do
+for secret in clerk-secret-key database-url clerk-issuer clerk-audience clerk-authorized-parties clerk-webhook-secret app-secret-key; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
@@ -275,7 +285,7 @@ gcloud run deploy hr-evaluation-backend \
   --platform managed \
   --allow-unauthenticated \
   --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False" \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
+  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
   --min-instances 0 \
   --max-instances 5 \
   --memory 512Mi \
@@ -329,11 +339,12 @@ echo -n "sk_test_YOUR_CLERK_DEV_SECRET_KEY" | gcloud secrets create clerk-secret
 echo -n "postgresql://postgres.[DEV-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true" | gcloud secrets create database-url-dev --data-file=-
 echo -n "https://your-dev-app.clerk.accounts.dev" | gcloud secrets create clerk-issuer-dev --data-file=-
 echo -n "your-dev-domain.com" | gcloud secrets create clerk-audience-dev --data-file=-
+echo -n "your-dev-frontend.vercel.app,localhost:3000" | gcloud secrets create clerk-authorized-parties-dev --data-file=-
 echo -n "whsec_DEV_WEBHOOK_SECRET" | gcloud secrets create clerk-webhook-secret-dev --data-file=-
 echo -n "$(openssl rand -hex 32)" | gcloud secrets create app-secret-key-dev --data-file=-
 
 # Grant permissions for dev secrets
-for secret in clerk-secret-key-dev database-url-dev clerk-issuer-dev clerk-audience-dev clerk-webhook-secret-dev app-secret-key-dev; do
+for secret in clerk-secret-key-dev database-url-dev clerk-issuer-dev clerk-audience-dev clerk-authorized-parties-dev clerk-webhook-secret-dev app-secret-key-dev; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
@@ -354,7 +365,7 @@ gcloud run deploy hr-evaluation-backend-dev \
   --platform managed \
   --allow-unauthenticated \
   --set-env-vars "ENVIRONMENT=development,LOG_LEVEL=DEBUG,DEBUG=True" \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,SUPABASE_DATABASE_URL=database-url-dev:latest,CLERK_ISSUER=clerk-issuer-dev:latest,CLERK_AUDIENCE=clerk-audience-dev:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,SECRET_KEY=app-secret-key-dev:latest" \
+  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,SUPABASE_DATABASE_URL=database-url-dev:latest,CLERK_ISSUER=clerk-issuer-dev:latest,CLERK_AUDIENCE=clerk-audience-dev:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,SECRET_KEY=app-secret-key-dev:latest" \
   --min-instances 0 \
   --max-instances 5 \
   --memory 512Mi \
@@ -434,7 +445,7 @@ jobs:
           --platform managed \
           --allow-unauthenticated \
           --set-env-vars "ENVIRONMENT=$ENV_MODE,LOG_LEVEL=INFO,DEBUG=$DEBUG_MODE" \
-          --set-secrets "CLERK_SECRET_KEY=clerk-secret-key$SECRETS_SUFFIX:latest,SUPABASE_DATABASE_URL=database-url$SECRETS_SUFFIX:latest,CLERK_ISSUER=clerk-issuer$SECRETS_SUFFIX:latest,CLERK_AUDIENCE=clerk-audience$SECRETS_SUFFIX:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret$SECRETS_SUFFIX:latest,SECRET_KEY=app-secret-key$SECRETS_SUFFIX:latest" \
+          --set-secrets "CLERK_SECRET_KEY=clerk-secret-key$SECRETS_SUFFIX:latest,SUPABASE_DATABASE_URL=database-url$SECRETS_SUFFIX:latest,CLERK_ISSUER=clerk-issuer$SECRETS_SUFFIX:latest,CLERK_AUDIENCE=clerk-audience$SECRETS_SUFFIX:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties$SECRETS_SUFFIX:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret$SECRETS_SUFFIX:latest,SECRET_KEY=app-secret-key$SECRETS_SUFFIX:latest" \
           --min-instances 0 \
           --max-instances 10 \
           --memory 512Mi \
@@ -843,6 +854,139 @@ CREATE SCHEMA development;
 
 ---
 
+## Development Environment
+
+### Overview
+
+After completing the production deployment, you can set up a complete development environment that mirrors production. This allows you to safely test changes before deploying to production.
+
+**Development Environment Includes:**
+- 🔧 Local development (Docker Compose)
+- ☁️ Cloud Run development instance (`hr-evaluation-backend-dev`)
+- 🌐 Vercel preview deployments for all non-main branches
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Local Development                                           │
+│  ├─ Docker Compose (localhost:3000, localhost:8000)         │
+│  └─ ENVIRONMENT=development                                  │
+│                                                               │
+│  ↓ Push to develop branch                                    │
+│                                                               │
+│  Cloud Development                                           │
+│  ├─ Vercel Preview + Cloud Run Dev                          │
+│  └─ ENVIRONMENT=production (with test Clerk/Supabase)       │
+│                                                               │
+│  ↓ Merge to main                                             │
+│                                                               │
+│  Production                                                  │
+│  ├─ Vercel Production + Cloud Run Prod                      │
+│  └─ ENVIRONMENT=production (with live Clerk/Supabase)       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Quick Setup
+
+The development environment is **automatically configured** via GitHub Actions:
+
+1. **Push to `develop` branch** → Triggers:
+   - Backend: Deploys to `hr-evaluation-backend-dev` on Cloud Run
+   - Frontend: Creates Vercel preview deployment
+
+2. **GitHub Actions Workflow** automatically:
+   - Builds separate Docker image for dev
+   - Deploys to separate Cloud Run service
+   - Uses development-specific secrets (with `-dev` suffix)
+   - Configures lower resource limits (3 max instances vs 5)
+
+### Prerequisites
+
+Before first development deployment:
+
+1. **Create GCP Development Secrets** (one-time setup):
+   ```bash
+   # See detailed instructions in development-environment-setup.md
+   # You need to create -dev versions of all secrets:
+   # - clerk-secret-key-dev
+   # - database-url-dev
+   # - clerk-issuer-dev
+   # - clerk-audience-dev
+   # - clerk-webhook-secret-dev
+   # - app-secret-key-dev
+   ```
+
+2. **Configure Vercel Preview Environment** (one-time setup):
+   - Go to Vercel Dashboard → Settings → Environment Variables
+   - Add preview environment variables pointing to dev backend
+   - See [Development Environment Setup Guide](./development-environment-setup.md) for details
+
+### Deployment Workflow
+
+```bash
+# 1. Create/switch to develop branch
+git checkout develop
+
+# 2. Make your changes
+# ... edit code ...
+
+# 3. Commit and push (triggers auto-deployment)
+git add .
+git commit -m "feat: add new feature"
+git push origin develop
+
+# 4. Monitor deployments:
+# - GitHub Actions: https://github.com/your-org/repo/actions
+# - Vercel: https://vercel.com/dashboard
+
+# 5. Test on preview URL
+# Get URL from Vercel dashboard or GitHub PR
+
+# 6. After testing, create PR to main for production deployment
+gh pr create --title "feat: add new feature" --base main
+```
+
+### Environment Differences
+
+| Aspect | Local Dev | Cloud Dev | Production |
+|--------|-----------|-----------|------------|
+| **Frontend** | localhost:3000 | Vercel Preview | Vercel Production |
+| **Backend** | localhost:8000 | Cloud Run Dev | Cloud Run Prod |
+| **ENVIRONMENT** | `development` | `production` | `production` |
+| **Clerk Mode** | Test keys | Test keys | Live keys |
+| **Database** | Dev Supabase | Dev Supabase | Prod Supabase |
+| **Trigger** | Manual | Push to develop | Push to main |
+| **Auto-deploy** | No | Yes | Yes |
+
+> **Important:** Both Cloud Run instances use `ENVIRONMENT=production` - they differ only in the secrets/credentials used (test vs live).
+
+### Cost Optimization
+
+Both Cloud Run instances scale to zero when idle:
+- **Production**: 0-5 instances, ~$10-30/month
+- **Development**: 0-3 instances, ~$5-15/month
+
+To completely stop development instance when not in use:
+```bash
+gcloud run services update hr-evaluation-backend-dev \
+  --region $REGION \
+  --no-traffic
+```
+
+### Complete Setup Guide
+
+For detailed step-by-step instructions including:
+- GCP secrets creation commands
+- Vercel environment variable configuration
+- CORS setup
+- Troubleshooting
+- Monitoring and logs
+
+**See: [Development Environment Setup Guide](./development-environment-setup.md)**
+
+---
+
 ## Verification & Testing
 
 ### Quick Health Checks
@@ -904,7 +1048,7 @@ gcloud run services update hr-evaluation-backend \
 
 **Issue**: 401 Unauthorized on API calls
 - Check Clerk keys match in both frontend and backend
-- Verify JWT issuer and audience in backend secrets
+- Verify JWT issuer, audience and authorized parties in backend secrets
 
 **Issue**: Webhook not working
 ```bash
@@ -936,7 +1080,8 @@ gcloud run services update hr-evaluation-backend --region $REGION --no-traffic
 | `CLERK_SECRET_KEY` | Yes | `sk_live_...` | Clerk secret key (Secret Manager) |
 | `SUPABASE_DATABASE_URL` | Yes | `postgresql://...` | Database connection string (Secret Manager) |
 | `CLERK_ISSUER` | Yes | `https://clerk.your-app.com` | Clerk JWT issuer |
-| `CLERK_AUDIENCE` | Yes | `your-audience` | Clerk JWT audience |
+| `CLERK_AUDIENCE` | Yes (if used) | `your-audience` | Clerk JWT audience |
+| `CLERK_AUTHORIZED_PARTIES` | Yes | `your-app.vercel.app` | Comma-separated list of allowed `azp` (Authorized Party) origins |
 | `CLERK_WEBHOOK_SECRET` | Yes | `whsec_...` | Clerk webhook secret |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
 | `DEBUG` | No | `false` | Debug mode (should be false) |
@@ -1087,7 +1232,7 @@ Use this checklist to ensure you've completed all steps correctly.
 - [ ] Copied Supabase connection URL (pooler URL) and API keys
 - [ ] Created Clerk production application
 - [ ] Copied Clerk publishable key and secret key
-- [ ] Noted Clerk JWT issuer and audience
+- [ ] Noted Clerk JWT issuer, audience (if used), and authorized parties (`azp`)
 - [ ] Created `.env.prod` file with all variables documented
 
 ### Phase 2: Backend Deployment ✅
@@ -1100,6 +1245,7 @@ Use this checklist to ensure you've completed all steps correctly.
   - [ ] `database-url`
   - [ ] `clerk-issuer`
   - [ ] `clerk-audience`
+  - [ ] `clerk-authorized-parties`
   - [ ] `clerk-webhook-secret` (placeholder)
   - [ ] `app-secret-key`
 - [ ] Granted Cloud Run access to secrets
@@ -1380,10 +1526,11 @@ gcloud run services update hr-evaluation-backend \
 
 **Solution**:
 1. Verify Clerk keys match in frontend and backend
-2. Check JWT issuer/audience in backend:
+2. Check JWT issuer/audience/authorized parties in backend:
    ```bash
    gcloud secrets versions access latest --secret=clerk-issuer
    gcloud secrets versions access latest --secret=clerk-audience
+   gcloud secrets versions access latest --secret=clerk-authorized-parties
    ```
 3. Ensure Clerk domains include your Vercel URL
 
@@ -1488,7 +1635,7 @@ gcloud run services update hr-evaluation-backend-dev --region $REGION --no-traff
 # Production Clerk app → Domains: your-app.vercel.app
 # Development Clerk app → Domains: your-app-git-develop-username.vercel.app
 
-# 3. Check JWT issuer/audience match
+# 3. Check JWT issuer/audience/authorized parties match
 echo "Production Clerk Issuer:"
 gcloud secrets versions access latest --secret=clerk-issuer
 

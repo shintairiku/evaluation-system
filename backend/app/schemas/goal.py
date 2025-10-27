@@ -285,6 +285,19 @@ class Goal(BaseModel):
     # Core Value Goal fields (goal_category = "コアバリュー")
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
+    # Performance optimization: Embedded supervisor reviews (optional)
+    # These fields are populated when includeReviews=true or includeRejectionHistory=true
+    supervisor_review: Optional[Any] = Field(
+        None,
+        alias="supervisorReview",
+        description="Most recent supervisor review (populated when includeReviews=true)"
+    )
+    rejection_history: Optional[List[Any]] = Field(
+        None,
+        alias="rejectionHistory",
+        description="Full rejection history chain (populated when includeRejectionHistory=true)"
+    )
+
     @model_validator(mode='before')
     @classmethod
     def flatten_target_data(cls, data: Any) -> Any:

@@ -129,7 +129,7 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
       }
 
       // Extract unique subordinate IDs from reviews to fetch their goals
-      const subordinateIds = [...new Set(reviews.map(r => r.subordinate_id))];
+      const subordinateIds = [...new Set(reviews.map(r => r.subordinateId))];
 
       // Fetch goals for each subordinate separately (since bulk fetch may not work without GOAL_READ_SUBORDINATES permission)
       const goals: GoalResponse[] = [];
@@ -161,7 +161,7 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
       // Group reviews by subordinate (employee) and map to real goals
       const subordinateReviewsMap = new Map<string, SupervisorReview[]>();
       reviews.forEach(review => {
-        const subordinateId = review.subordinate_id;
+        const subordinateId = review.subordinateId;
         if (!subordinateReviewsMap.has(subordinateId)) {
           subordinateReviewsMap.set(subordinateId, []);
         }
@@ -181,10 +181,10 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
           // Map reviews to real goals using the goals map
           const employeeGoals: GoalResponse[] = subordinateReviews
             .map(review => {
-              const goal = goalsMap.get(review.goal_id);
+              const goal = goalsMap.get(review.goalId);
               if (goal) {
                 // Store the mapping goal_id → review_id
-                goalToReviewMap.set(review.goal_id, review.id);
+                goalToReviewMap.set(review.goalId, review.id);
               }
               return goal;
             })
@@ -208,9 +208,11 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
 
       setGroupedGoals(grouped);
 
-      // Set first employee as selected by default (only if not already set)
+      // Always select first employee when data loads (including after period change)
       if (grouped.length > 0) {
-        setSelectedEmployeeId(prev => prev || grouped[0].employee.id);
+        setSelectedEmployeeId(grouped[0].employee.id);
+      } else {
+        setSelectedEmployeeId('');
       }
       } else {
         setCurrentPeriod(null);

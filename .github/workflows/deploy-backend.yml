@@ -2,31 +2,67 @@ name: Deploy Backend to Cloud Run
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths: ['backend/**']
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: ${{ secrets.GCP_REGION }}
-  SERVICE_NAME: hr-evaluation-backend
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Validate GCP project id
+      run: |
+        if [[ -z "${PROJECT_ID}" ]]; then
+          echo "PROJECT_ID is empty. Set secrets.GCP_PROJECT_ID in repository settings." >&2
+          exit 1
+        fi
+        if [[ ! "${PROJECT_ID}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
+          echo "PROJECT_ID appears invalid: does not match GCP project-id pattern."
+          echo "Ensure you used the Project ID (e.g., hr-evaluation-app-12345), not the project name or number." >&2
+          exit 1
+        fi
+
+    - name: Set environment-specific variables
+      id: env-vars
+      run: |
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "SERVICE_NAME=hr-evaluation-backend" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=gcr.io/${{ env.PROJECT_ID }}/hr-evaluation-backend:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_LATEST=gcr.io/${{ env.PROJECT_ID }}/hr-evaluation-backend:latest" >> $GITHUB_OUTPUT
+          echo "MAX_INSTANCES=5" >> $GITHUB_OUTPUT
+          echo "SECRET_SUFFIX=" >> $GITHUB_OUTPUT
+          echo "ENVIRONMENT_NAME=Production" >> $GITHUB_OUTPUT
+        else
+          echo "SERVICE_NAME=hr-evaluation-backend-dev" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=gcr.io/${{ env.PROJECT_ID }}/hr-evaluation-backend-dev:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_LATEST=gcr.io/${{ env.PROJECT_ID }}/hr-evaluation-backend-dev:latest" >> $GITHUB_OUTPUT
+          echo "MAX_INSTANCES=3" >> $GITHUB_OUTPUT
+          echo "SECRET_SUFFIX=-dev" >> $GITHUB_OUTPUT
+          echo "ENVIRONMENT_NAME=Development" >> $GITHUB_OUTPUT
+        fi
 
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
+      id: auth
+      uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    - name: Setup Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Set gcloud project
+      run: gcloud config set project $PROJECT_ID
 
     - name: Enable required Google APIs (idempotent)
       run: |
-        gcloud --project=$PROJECT_ID services enable \
+        gcloud services enable \
           cloudresourcemanager.googleapis.com \
           serviceusage.googleapis.com \
           run.googleapis.com \
@@ -34,35 +70,52 @@ jobs:
           cloudbuild.googleapis.com \
           secretmanager.googleapis.com
 
-    - name: Set gcloud project
-      run: gcloud config set project $PROJECT_ID
-
-    - name: Configure Docker
-      run: gcloud auth configure-docker
+    - name: Configure Docker for GCR
+      run: gcloud auth configure-docker --quiet
 
     - name: Build Docker image
       run: |
         docker build --platform linux/amd64 \
-          -t gcr.io/$PROJECT_ID/$SERVICE_NAME:latest \
+          -t ${{ steps.env-vars.outputs.IMAGE_TAG }} \
+          -t ${{ steps.env-vars.outputs.IMAGE_LATEST }} \
           -f backend/Dockerfile.prod \
           ./backend
 
     - name: Push Docker image
-      run: docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:latest
+      run: |
+        docker push ${{ steps.env-vars.outputs.IMAGE_TAG }}
+        docker push ${{ steps.env-vars.outputs.IMAGE_LATEST }}
 
     - name: Deploy to Cloud Run
+      id: deploy
+      uses: google-github-actions/deploy-cloudrun@v3
+      with:
+        service: ${{ steps.env-vars.outputs.SERVICE_NAME }}
+        image: ${{ steps.env-vars.outputs.IMAGE_TAG }}
+        region: ${{ env.REGION }}
+        flags: |
+          --platform=managed
+          --allow-unauthenticated
+          --min-instances=0
+          --max-instances=${{ steps.env-vars.outputs.MAX_INSTANCES }}
+          --memory=512Mi
+          --cpu=1
+          --cpu-throttling
+          --timeout=300s
+          --port=8000
+        env_vars: |
+          ENVIRONMENT=production
+          LOG_LEVEL=INFO
+          DEBUG=False
+        secrets: |
+          CLERK_SECRET_KEY=clerk-secret-key${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
+          SUPABASE_DATABASE_URL=database-url:latest
+          CLERK_ISSUER=clerk-issuer${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
+          CLERK_AUDIENCE=clerk-audience${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
+          CLERK_WEBHOOK_SECRET=clerk-webhook-secret${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
+          SECRET_KEY=app-secret-key${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
+
+    - name: Show deployment URL
       run: |
-        gcloud run deploy $SERVICE_NAME \
-          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:latest \
-          --region $REGION \
-          --platform managed \
-          --allow-unauthenticated \
-          --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False" \
-          --set-secrets "CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
-          --min-instances 0 \
-          --max-instances 5 \
-          --memory 512Mi \
-          --cpu 1 \
-          --cpu-throttling \
-          --timeout 300s \
-          --port 8000
+        echo "🚀 ${{ steps.env-vars.outputs.ENVIRONMENT_NAME }} deployment complete!"
+        echo "URL: ${{ steps.deploy.outputs.url }}"

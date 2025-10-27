@@ -28,13 +28,15 @@ export const goalsApi = {
     status?: string | string[];
     page?: number;
     limit?: number;
+    includeReviews?: boolean;
+    includeRejectionHistory?: boolean;
   }): Promise<ApiResponse<GoalListResponse>> => {
     const queryParams = new URLSearchParams();
-    
+
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.userId) queryParams.append('userId', params.userId);
     if (params?.goalCategory) queryParams.append('goalCategory', params.goalCategory);
-    
+
     if (params?.status) {
       if (Array.isArray(params.status)) {
         params.status.forEach(s => queryParams.append('status', s));
@@ -42,14 +44,18 @@ export const goalsApi = {
         queryParams.append('status', params.status);
       }
     }
-    
+
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
-    
-    const endpoint = queryParams.toString() 
+
+    // Performance optimization parameters
+    if (params?.includeReviews) queryParams.append('includeReviews', 'true');
+    if (params?.includeRejectionHistory) queryParams.append('includeRejectionHistory', 'true');
+
+    const endpoint = queryParams.toString()
       ? `${API_ENDPOINTS.GOALS.LIST}?${queryParams.toString()}`
       : API_ENDPOINTS.GOALS.LIST;
-    
+
     return httpClient.get<GoalListResponse>(endpoint);
   },
 

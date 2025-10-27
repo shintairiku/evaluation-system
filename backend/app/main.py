@@ -5,6 +5,7 @@ from fastapi.openapi.utils import get_openapi
 import logging
 
 from .api.v1 import org_api_router
+from .api.v2 import org_api_router_v2
 from .api.v1.auth import router as auth_router
 from .core.middleware import LoggingMiddleware, OrgSlugValidationMiddleware, http_exception_handler, general_exception_handler
 from .core.config import settings
@@ -50,6 +51,7 @@ app.add_exception_handler(Exception, general_exception_handler)
 
 # Include API routers
 app.include_router(org_api_router)  # Organization-scoped routes only
+app.include_router(org_api_router_v2)  # v2 organization-scoped routes
 
 # Include auth routes separately (organization-agnostic)
 auth_api_router = APIRouter(prefix="/api/v1")
