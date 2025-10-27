@@ -76,7 +76,13 @@ jobs:
         # Container Registry (gcr.io) auth
         gcloud auth configure-docker gcr.io --quiet
         # Artifact Registry auth for this region (harmless if not used yet)
-        gcloud auth configure-docker $REGION-docker.pkg.dev --quiet || true
+        if [ -n "$REGION" ]; then
+          if ! gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet; then
+            echo "Warning: Failed to configure Artifact Registry Docker auth for region '$REGION'." >&2
+          fi
+        else
+          echo "Warning: REGION variable is not set; skipping Artifact Registry Docker auth." >&2
+        fi
 
     - name: Build Docker image
       run: |
