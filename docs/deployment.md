@@ -182,6 +182,7 @@ gcloud billing projects link $PROJECT_ID --billing-account=BILLING_ACCOUNT_ID
 # 5. Enable required APIs (takes ~2-3 minutes)
 echo "Enabling required GCP APIs..."
 gcloud services enable run.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
 gcloud services enable containerregistry.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable secretmanager.googleapis.com
@@ -480,6 +481,11 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:github-actions@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/iam.serviceAccountUser"
+
+# Required for pushing to Container/Artifact Registry (GCR now backed by AR)
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:github-actions@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
 
 # Create and download JSON key
 gcloud iam service-accounts keys create github-actions-key.json \

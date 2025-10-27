@@ -76,9 +76,16 @@ for SECRET in \
     --project="$PROJECT_ID"
 done
 
+# --- 3b) Grant GitHub Actions service account image push permission (one-time) ---
+# Replace the service account if you use a different name than "github-actions".
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:github-actions@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
+
 # --- 4) Enable required Google APIs (idempotent) ---
 gcloud services enable \
   run.googleapis.com \
+  artifactregistry.googleapis.com \
   cloudbuild.googleapis.com \
   containerregistry.googleapis.com \
   secretmanager.googleapis.com \
