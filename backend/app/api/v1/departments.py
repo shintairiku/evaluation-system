@@ -15,8 +15,8 @@ router = APIRouter(prefix="/departments", tags=["departments"])
 
 @router.get("/", response_model=List[Department])
 async def get_departments(
+    context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session),
-    _: AuthContext = Depends(get_auth_context)  # Ensure user is authenticated
 ):
     """
     Get all departments for dropdown/selection purposes.
@@ -26,7 +26,7 @@ async def get_departments(
     """
     try:
         service = DepartmentService(session)
-        result = await service.get_departments_for_dropdown()
+        result = await service.get_departments_for_dropdown(context)
         return result
         
     except Exception as e:
