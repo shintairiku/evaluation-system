@@ -46,9 +46,12 @@ async def test_get_departments_for_dropdown():
         service = DepartmentService(session)
         
         try:
-            # Test: Get all departments for dropdown
+            # Test: Get all departments for dropdown (org-scoped)
             logger.info("--- Test: Get all departments for dropdown ---")
-            result = await service.get_departments_for_dropdown()
+            # Create a simple mock context with an organization_id
+            mock_context = create_mock_auth_context(user_id=UUID('850e8400-e29b-41d4-a716-446655440001'))
+            mock_context.organization_id = 'org_1'  # Example org id used by seeds
+            result = await service.get_departments_for_dropdown(mock_context)
             
             logger.info("✅ Departments for dropdown result:")
             for dept in result:
@@ -125,7 +128,9 @@ async def test_get_department_by_id():
             
             # Fallback: try to get a department from dropdown
             try:
-                departments = await service.get_departments_for_dropdown()
+                mock_context = create_mock_auth_context(user_id=UUID('850e8400-e29b-41d4-a716-446655440001'))
+                mock_context.organization_id = 'org_1'
+                departments = await service.get_departments_for_dropdown(mock_context)
                 
                 if departments:
                     test_dept_id = departments[0].id
