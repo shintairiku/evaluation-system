@@ -88,3 +88,6 @@ gcp-key.json
 
 # plan doc folder
 docs/plans/
+
+# scripts
+scripts/deploy-prod.sh
