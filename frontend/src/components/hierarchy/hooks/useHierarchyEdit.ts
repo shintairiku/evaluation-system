@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback, useRef, useState } from 'react';
+import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useOptimisticUpdate } from '@/hooks/useOptimisticUpdate';
 import { useErrorHandler } from '@/utils/error-handling';
@@ -92,6 +92,7 @@ export function useHierarchyEdit({
   const [hasLocalPending, setHasLocalPending] = useState(false);
   // Prepare a dynamic async operation via ref so each action can append its own operation
   const nextOperationRef = useRef<() => Promise<UserDetailResponse>>(async () => user);
+  const lastSyncedSignatureRef = useRef<string | null>(null);
   // Use optimistic update; asyncOperation delegates to the ref set by each action
   const hierarchyUpdate = useOptimisticUpdate(user, {
     optimisticUpdate: (currentUser) => currentUser,
@@ -105,6 +106,26 @@ export function useHierarchyEdit({
       handleError(error, 'hierarchy-edit');
     },
   });
+  const resetHierarchyState = hierarchyUpdate.reset;
+
+  // Whenever the incoming user prop gains richer hierarchy data (e.g., detailed modal fetch),
+  // ensure the optimistic state reflects it so the UI renders supervisor/subordinate lists.
+  useEffect(() => {
+    const supervisorId = user.supervisor?.id ?? 'none';
+    const subordinateSignature = user.subordinates
+      ? [...user.subordinates].map((sub) => sub.id).sort().join(',')
+      : 'none';
+    const signature = `${user.id}|${supervisorId}|${subordinateSignature}`;
+
+    if (lastSyncedSignatureRef.current === signature) {
+      return;
+    }
+
+    resetHierarchyState(user);
+    nextOperationRef.current = async () => user;
+    setHasLocalPending(false);
+    lastSyncedSignatureRef.current = signature;
+  }, [user, resetHierarchyState, setHasLocalPending]);
 
   // Change supervisor
   const changeSupervisor = useCallback(async (newSupervisorId: string | null): Promise<void> => {

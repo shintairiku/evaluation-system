@@ -41,17 +41,19 @@ class DepartmentService:
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
 
-    async def get_departments_for_dropdown(self) -> List[DepartmentSchema]:
+    async def get_departments_for_dropdown(self, current_user_context: AuthContext) -> List[DepartmentSchema]:
         """
-        Get all departments for dropdown/selection purposes only.
+        Get all departments for dropdown/selection purposes only within the current organization.
         For advanced department listing with filtering, use UserService.get_users() instead.
-        
+
         Returns:
-            List[DepartmentSchema]: Simple department list for UI dropdowns
+            List[DepartmentSchema]: Simple department list for UI dropdowns, org-scoped
         """
-        result = await self.session.execute(select(DepartmentModel))
-        departments = result.scalars().all()
-        
+        # Enforce organization scoping consistently with other services
+        org_id = current_user_context.organization_id
+
+        departments = await self.dept_repo.get_all(org_id)
+
         return [
             DepartmentSchema(
                 id=dept.id,
