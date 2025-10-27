@@ -15,6 +15,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Validate GCP project id
+      run: |
+        if [[ -z "${PROJECT_ID}" ]]; then
+          echo "PROJECT_ID is empty. Set secrets.GCP_PROJECT_ID in repository settings." >&2
+          exit 1
+        fi
+        if [[ ! "${PROJECT_ID}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
+          echo "PROJECT_ID appears invalid: does not match GCP project-id pattern."
+          echo "Ensure you used the Project ID (e.g., hr-evaluation-app-12345), not the project name or number." >&2
+          exit 1
+        fi
+
     - name: Set environment-specific variables
       id: env-vars
       run: |
@@ -42,22 +54,21 @@ jobs:
 
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Set gcloud project
+      run: gcloud config set project $PROJECT_ID
 
     - name: Enable required Google APIs (idempotent)
       run: |
-        gcloud --project=$PROJECT_ID services enable \
+        gcloud services enable \
           cloudresourcemanager.googleapis.com \
           serviceusage.googleapis.com \
           run.googleapis.com \
           containerregistry.googleapis.com \
           cloudbuild.googleapis.com \
           secretmanager.googleapis.com
-
-    - name: Set gcloud project
-      run: gcloud config set project $PROJECT_ID
-
-    - name: Set gcloud project
-      run: gcloud config set project $PROJECT_ID
 
     - name: Configure Docker for GCR
       run: gcloud auth configure-docker --quiet
