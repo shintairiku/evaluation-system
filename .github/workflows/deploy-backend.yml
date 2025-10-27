@@ -66,12 +66,17 @@ jobs:
           cloudresourcemanager.googleapis.com \
           serviceusage.googleapis.com \
           run.googleapis.com \
+          artifactregistry.googleapis.com \
           containerregistry.googleapis.com \
           cloudbuild.googleapis.com \
           secretmanager.googleapis.com
 
-    - name: Configure Docker for GCR
-      run: gcloud auth configure-docker --quiet
+    - name: Configure Docker registries
+      run: |
+        # Container Registry (gcr.io) auth
+        gcloud auth configure-docker gcr.io --quiet
+        # Artifact Registry auth for this region (harmless if not used yet)
+        gcloud auth configure-docker $REGION-docker.pkg.dev --quiet || true
 
     - name: Build Docker image
       run: |
