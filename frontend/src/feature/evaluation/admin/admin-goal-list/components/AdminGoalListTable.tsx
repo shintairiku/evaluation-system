@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -7,7 +7,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
+import { GoalCard } from '@/feature/evaluation/employee/goal-list/components/GoalCard';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
@@ -63,6 +70,17 @@ interface AdminGoalListTableProps {
  */
 export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
   function AdminGoalListTable({ goals, userMap, isLoading, className }: AdminGoalListTableProps) {
+    const [selectedGoal, setSelectedGoal] = useState<GoalWithReview | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+    /**
+     * Handle row click to open goal details dialog
+     */
+    const handleRowClick = (goal: GoalWithReview) => {
+      setSelectedGoal(goal);
+      setIsDialogOpen(true);
+    };
+
     /**
      * Format date for display
      */
@@ -132,61 +150,82 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
     }
 
     return (
-      <div className={className}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[100px]">ステータス</TableHead>
-              <TableHead className="w-[120px]">所有者</TableHead>
-              <TableHead className="w-[120px]">部署</TableHead>
-              <TableHead className="min-w-[200px]">目標タイトル</TableHead>
-              <TableHead className="w-[120px]">カテゴリ</TableHead>
-              <TableHead className="w-[80px] text-right">重み</TableHead>
-              <TableHead className="w-[80px]">日付</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {goals.map((goal) => (
-              <TableRow key={goal.id}>
-                {/* Status */}
-                <TableCell>
-                  <GoalStatusBadge status={goal.status} />
-                </TableCell>
-
-                {/* Owner (User Name) */}
-                <TableCell className="font-medium">
-                  {getUserName(goal.userId)}
-                </TableCell>
-
-                {/* Department */}
-                <TableCell className="text-muted-foreground">
-                  {getDepartmentName(goal.userId)}
-                </TableCell>
-
-                {/* Goal Title */}
-                <TableCell className="max-w-[300px] truncate">
-                  {getGoalTitle(goal)}
-                </TableCell>
-
-                {/* Goal Category */}
-                <TableCell className="text-sm">
-                  {goal.goalCategory}
-                </TableCell>
-
-                {/* Weight */}
-                <TableCell className="text-right font-medium">
-                  {goal.weight}%
-                </TableCell>
-
-                {/* Date (Created At) */}
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(goal.createdAt)}
-                </TableCell>
+      <>
+        <div className={className}>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">ステータス</TableHead>
+                <TableHead className="w-[120px]">所有者</TableHead>
+                <TableHead className="w-[120px]">部署</TableHead>
+                <TableHead className="min-w-[200px]">目標タイトル</TableHead>
+                <TableHead className="w-[120px]">カテゴリ</TableHead>
+                <TableHead className="w-[80px] text-right">重み</TableHead>
+                <TableHead className="w-[80px]">日付</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {goals.map((goal) => (
+                <TableRow
+                  key={goal.id}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleRowClick(goal)}
+                >
+                  {/* Status */}
+                  <TableCell>
+                    <GoalStatusBadge status={goal.status} />
+                  </TableCell>
+
+                  {/* Owner (User Name) */}
+                  <TableCell className="font-medium">
+                    {getUserName(goal.userId)}
+                  </TableCell>
+
+                  {/* Department */}
+                  <TableCell className="text-muted-foreground">
+                    {getDepartmentName(goal.userId)}
+                  </TableCell>
+
+                  {/* Goal Title */}
+                  <TableCell className="max-w-[300px] truncate">
+                    {getGoalTitle(goal)}
+                  </TableCell>
+
+                  {/* Goal Category */}
+                  <TableCell className="text-sm">
+                    {goal.goalCategory}
+                  </TableCell>
+
+                  {/* Weight */}
+                  <TableCell className="text-right font-medium">
+                    {goal.weight}%
+                  </TableCell>
+
+                  {/* Date (Created At) */}
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatDate(goal.createdAt)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Goal Details Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>目標詳細</DialogTitle>
+            </DialogHeader>
+            {selectedGoal && (
+              <GoalCard
+                goal={selectedGoal}
+                currentUserId={undefined}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 );
