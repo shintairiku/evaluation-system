@@ -34,7 +34,7 @@ interface AdminGoalListTableProps {
   /** Array of goals to display */
   goals: GoalWithReview[];
   /** User data map (userId -> userName) for quick lookup */
-  userMap?: Map<string, { name: string; departmentName?: string }>;
+  userMap?: Map<string, { name: string; departmentName?: string; supervisorName?: string }>;
   /** Loading state */
   isLoading?: boolean;
   /** Optional custom className */
@@ -109,6 +109,13 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
     };
 
     /**
+     * Get supervisor name
+     */
+    const getSupervisorName = (userId: string): string => {
+      return userMap?.get(userId)?.supervisorName || '-';
+    };
+
+    /**
      * Get goal title from target_data
      */
     const getGoalTitle = (goal: GoalWithReview): string => {
@@ -158,6 +165,7 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
                 <TableHead className="w-[100px]">ステータス</TableHead>
                 <TableHead className="w-[120px]">所有者</TableHead>
                 <TableHead className="w-[120px]">部署</TableHead>
+                <TableHead className="w-[120px]">上司</TableHead>
                 <TableHead className="min-w-[200px]">目標タイトル</TableHead>
                 <TableHead className="w-[120px]">カテゴリ</TableHead>
                 <TableHead className="w-[80px] text-right">重み</TableHead>
@@ -184,6 +192,11 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
                   {/* Department */}
                   <TableCell className="text-muted-foreground">
                     {getDepartmentName(goal.userId)}
+                  </TableCell>
+
+                  {/* Supervisor */}
+                  <TableCell className="text-muted-foreground">
+                    {getSupervisorName(goal.userId)}
                   </TableCell>
 
                   {/* Goal Title */}
