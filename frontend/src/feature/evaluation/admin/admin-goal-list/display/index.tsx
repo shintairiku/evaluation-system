@@ -127,7 +127,9 @@ export default function AdminGoalListPage({ selectedPeriodId }: AdminGoalListPag
           <EvaluationPeriodSelector
             periods={allPeriods}
             selectedPeriodId={internalSelectedPeriodId || currentPeriod.id}
+            currentPeriodId={currentPeriod?.id || null}
             onPeriodChange={handlePeriodChange}
+            isLoading={isLoading}
           />
         )}
       </div>
