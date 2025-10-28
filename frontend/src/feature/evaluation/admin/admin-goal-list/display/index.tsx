@@ -85,11 +85,12 @@ export default function AdminGoalListPage({ selectedPeriodId }: AdminGoalListPag
    * Build user map for quick lookup in table
    */
   const userMap = React.useMemo(() => {
-    const map = new Map<string, { name: string; departmentName?: string }>();
+    const map = new Map<string, { name: string; departmentName?: string; supervisorName?: string }>();
     users.forEach((user) => {
       map.set(user.id, {
         name: user.name,
         departmentName: user.department?.name,
+        supervisorName: user.supervisor?.name,
       });
     });
     return map;
