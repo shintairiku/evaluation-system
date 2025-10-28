@@ -80,3 +80,93 @@ Vercel に戻り、「設定が完了しました」と報告（Refresh）し、
 
 1. ブラウザのアドレスバーに https://hr.shintairiku.jp を入力し、Vercel でデプロイしたアプリが正しく表示されることを確認します。
 2. 念のため、Google Workspace（Gmailなど）でメールの送受信が引き続き問題なく行えることを確認します。
+
+## 5. エンジニア側の変更（本番ドメイン切替に伴う）
+
+本節では、公開 URL を `https://hr.shintairiku.jp` に切り替える際に必要となるエンジニアリング作業をまとめます。対象は Clerk（認証）、フロントエンド（Vercel）、バックエンド（FastAPI/Cloud Run）、CORS/セキュリティ、Webhook 構成です。
+
+### 5.1 Clerk（ダッシュボード設定：Develop → Production）
+
+- 本番用 Clerk アプリケーション（Production インスタンス）を使用する（必要に応じて新規作成）。
+- API Keys（Publishable/Secret）を本番のものに切替。
+- Allowed Origins（必須）
+  - `https://hr.shintairiku.jp`
+  - バックエンドの公開 URL（例：`https://backend-xxxxx.run.app`）
+- Redirect URLs / Paths（サインイン/サインアップ後のリダイレクト）
+  - `https://hr.shintairiku.jp/sign-in`
+  - `https://hr.shintairiku.jp/sign-up`
+  - 必要に応じて `afterSignInUrl`/`afterSignUpUrl` を `https://hr.shintairiku.jp/` に設定
+- JWT Templates（Issuer/Audience）
+  - Issuer（例）：`https://<your-clerk-id>.clerk.accounts.dev`
+  - Audience を利用する場合は `hr.shintairiku.jp` を設定（後述のバックエンド設定と一致が必要）
+- Webhooks（ユーザー/組織同期を利用している場合）
+  - Endpoint：`POST https://<backend-domain>/api/webhooks/clerk`
+  - 署名シークレット（`whsec_...`）を取得し、後述バックエンドに反映
+
+### 5.2 フロントエンド（Vercel）
+
+- Vercel の Project → Settings → Domains に `hr.shintairiku.jp` を追加（本書 3章の手順済み想定）。
+- Environment Variables（Production）を本番鍵に切替：
+  - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...`
+  - `CLERK_SECRET_KEY=sk_live_...`（サーバーオンリー。Vercel では暗号化変数として保存）
+  - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`（既存のまま）
+  - `NEXT_PUBLIC_API_BASE_URL`（バックエンド URL が変わる場合のみ更新）
+- Redirect/Callback URLs は Clerk 側の設定に合わせ、アプリ内のリンク先は従来どおり `/sign-in`, `/sign-up` を利用（`frontend/src/app/layout.tsx` の `ClerkProvider` でパス指定済）。
+
+### 5.3 バックエンド（FastAPI / Cloud Run）
+
+- 環境変数（Production）を更新：
+  - `CLERK_SECRET_KEY=sk_live_...`
+  - `CLERK_ISSUER=https://<your-clerk-id>.clerk.accounts.dev`
+  - `CLERK_AUDIENCE=hr.shintairiku.jp`（Issuer とセットで検証に使用）
+  - `CLERK_WEBHOOK_SECRET=whsec_...`（Webhook を利用する場合）
+  - `FRONTEND_URL=https://hr.shintairiku.jp`（CORS 用）
+  - 必要に応じて `ADDITIONAL_CORS_ORIGINS` にプレビュー/検証用ドメインをカンマ区切りで指定
+- JWT 検証は `AuthService.get_user_from_token` で `issuer`/`audience` を厳格検証（署名/JWKS を含む）。環境変数の値を本番用に揃える。
+- 任意（推奨）: `azp`（Authorized Party）検証を導入する場合は `CLERK_AUTHORIZED_PARTIES=hr.shintairiku.jp` を設定し、バックエンドで `azp` チェックを有効化（実装が未導入の場合は別途タスク化）。
+- CORS は `backend/app/main.py` と `backend/app/core/config.py` の設定に従い、`FRONTEND_URL` を `https://hr.shintairiku.jp` にすることで許可。
+
+### 5.4 Webhook（Clerk → Backend）
+
+- Clerk ダッシュボードの Webhook エンドポイントを確認：`https://<backend-domain>/api/webhooks/clerk`
+- バックエンドの `CLERK_WEBHOOK_SECRET` を本番の Signing Secret に更新。
+- ログで検証：テストイベント送信 → Cloud Run のログで受信・署名検証成功を確認。
+
+### 5.5 OAuth/SAML（必要時）
+
+- Google/OAuth を Clerk 経由で利用している場合は、Clerk 側の Allowed Origins/Redirect URLs を `hr.shintairiku.jp` で更新（多くは Clerk 側で集約管理のためアプリ側変更は不要）。
+
+### 5.6 リリース手順（推奨順）
+
+1. Clerk 本番インスタンスで Allowed Origins / Redirect URLs / JWT Issuer/Audience を設定
+2. バックエンド本番（Cloud Run）の環境変数を更新（`CLERK_*`, `FRONTEND_URL`）しリビルド
+3. Vercel（Production）環境変数を本番鍵へ切替し再デプロイ
+4. DNS（Squarespace）の CNAME を追加済みであることを確認し、Vercel 側で `Valid Configuration` を確認
+5. 動作確認（下記チェックリスト）
+
+### 5.7 動作確認チェックリスト
+
+- サインイン/サインアップ/サインアウトが新ドメインで完結する
+- 組織必須ページで未所属ユーザーが `/org` にリダイレクトされる
+- 管理者専用ページで `org:admin` 以外は `/access-denied` に遷移する
+- API リクエストが 200/401/403 を期待どおり返す（Authorization: Bearer が保持される）
+- Webhook が受信・署名検証 OK（リトライ/冪等制御も正常動作）
+- CORS エラーがブラウザに出ない（`FRONTEND_URL`/Allowed Origins が一致）
+
+### 5.8 ロールバック指針
+
+- Vercel の Production 環境変数を旧（Develop）鍵に戻す
+- Cloud Run の `CLERK_ISSUER`/`CLERK_AUDIENCE`/`FRONTEND_URL` を旧値に戻す
+- Clerk の Allowed Origins / Redirect URLs を旧ドメインに戻す
+- DNS の CNAME を一時的に旧ドメインへ切替（伝播に最大 48 時間）
+
+---
+
+参考：
+- バックエンドの JWT 設定と CORS
+  - `backend/app/core/config.py` の `CLERK_ISSUER`, `CLERK_AUDIENCE`, `FRONTEND_URL`, `CORS_ORIGINS`
+  - `backend/app/main.py` の CORS ミドルウェア設定
+- Clerk Webhook ハンドラ
+  - `backend/app/api/webhooks/clerk.py`
+- フロントエンドの Clerk 初期化
+  - `frontend/src/app/layout.tsx` の `ClerkProvider`
