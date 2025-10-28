@@ -213,7 +213,7 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
 
         {/* Goal Details Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-6xl max-w-6xl max-h-[70vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>目標詳細</DialogTitle>
             </DialogHeader>
