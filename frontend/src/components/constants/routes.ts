@@ -63,6 +63,13 @@ export const groups = [
     title: '管理者機能',
     links: [
       {
+        href: '/admin-goal-list',
+        label: '全目標一覧',
+        sublabel: 'All Goals List',
+        icon: 'list-checks',
+        permission: 'admin'
+      },
+      {
         href: '/user-management',
         label: 'ユーザー管理',
         sublabel: 'User Management',
