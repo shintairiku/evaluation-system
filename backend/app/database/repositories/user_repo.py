@@ -1,8 +1,8 @@
 import logging
-from typing import Optional
+from typing import Dict, Optional, Sequence, Set
 from uuid import UUID
 
-from sqlalchemy import select, update, func, or_, delete, insert
+from sqlalchemy import case, select, update, func, or_, delete, insert
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -115,6 +115,21 @@ class UserRepository(BaseRepository[User]):
             return result.scalars().unique().first()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching user details for ID {user_id} in org {org_id}: {e}")
+            raise
+
+    async def get_user_statuses(self, org_id: str, user_ids: Sequence[UUID]) -> Dict[UUID, str]:
+        """Fetch statuses for a set of users within organization scope."""
+        if not user_ids:
+            return {}
+
+        try:
+            stmt = select(User.id, User.status).where(User.id.in_(list(user_ids)))
+            stmt = self.apply_org_scope_direct(stmt, User.clerk_organization_id, org_id)
+
+            result = await self.session.execute(stmt)
+            return {row.id: row.status for row in result}
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching user statuses for org {org_id}: {e}")
             raise
 
     async def get_user_by_clerk_id(self, clerk_user_id: str, org_id: Optional[str] = None) -> Optional[User]:
@@ -459,6 +474,34 @@ class UserRepository(BaseRepository[User]):
             return result.scalar_one_or_none() is not None
         except SQLAlchemyError as e:
             logger.error(f"Error updating user status for {user_id}: {e}")
+            raise
+
+    async def batch_update_user_statuses(self, org_id: str, updates: Dict[UUID, UserStatus]) -> Set[UUID]:
+        """Batch update user statuses using a single CASE statement."""
+        if not updates:
+            return set()
+
+        try:
+            update_ids = list(updates.keys())
+
+            status_case = case(
+                *[(User.id == user_id, status.value) for user_id, status in updates.items()],
+                else_=User.status,
+            )
+
+            stmt = (
+                update(User)
+                .where(User.clerk_organization_id == org_id)
+                .where(User.id.in_(update_ids))
+                .values(status=status_case, updated_at=func.now())
+                .returning(User.id)
+            )
+
+            result = await self.session.execute(stmt)
+            updated = set(result.scalars().all())
+            return updated
+        except SQLAlchemyError as e:
+            logger.error(f"Error batch updating user statuses in org {org_id}: {e}")
             raise
 
     
