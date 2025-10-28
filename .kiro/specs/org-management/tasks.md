@@ -13,24 +13,24 @@ Implement a performant v2 endpoint to bulk update user statuses with org scoping
   >
   > **Related Requirements:** 1, 3, 8
 
-- [ ] **1.2. Add schemas in `backend/app/schemas/user.py`**
+- [x] **1.2. Add schemas in `backend/app/schemas/user.py`**
   > `BulkUserStatusUpdateItem`, `BulkUserStatusUpdateResult`, `BulkUserStatusUpdateResponse`.
   >
   > **Related Requirements:** 8
 
 ### 2. Service & Repository
-- [ ] **2.1. Implement `bulk_update_user_statuses(...)` in `user_service.py`**
+- [x] **2.1. Implement `bulk_update_user_statuses(...)` in `user_service.py`**
   > Single DB session/transaction; pre-SELECT for org scope; one `UPDATE ... CASE` statement.
   >
   > **Related Requirements:** 3, 8
 
-- [ ] **2.2. Add `batch_update_user_statuses(...)` in `user_repo.py`**
+- [x] **2.2. Add `batch_update_user_statuses(...)` in `user_repo.py`**
   > Pre-validation SELECT + single UPDATE with CASE + single COMMIT.
   >
   > **Related Requirements:** 3, 8
 
 ### 3. Tests
-- [ ] **3.1. Unit/integration tests for v2 endpoint and repo batching**
+- [x] **3.1. Unit/integration tests for v2 endpoint and repo batching**
   > Happy path, invalid transitions, cross-org, >100 items, partial failures.
   >
   > **Related Requirements:** 8
