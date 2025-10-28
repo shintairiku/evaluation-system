@@ -179,8 +179,15 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
       }
 
       // Set departments data
-      if (departmentsResult.success && departmentsResult.data?.items) {
-        setDepartments(departmentsResult.data.items);
+      if (departmentsResult.success && departmentsResult.data) {
+        // Check if data is an array directly or has items property
+        const departmentsArray = Array.isArray(departmentsResult.data)
+          ? departmentsResult.data
+          : departmentsResult.data.items;
+
+        if (departmentsArray && departmentsArray.length > 0) {
+          setDepartments(departmentsArray);
+        }
       }
 
       // Set current period and all periods
@@ -266,7 +273,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
     if (selectedDepartmentId && selectedDepartmentId !== 'all') {
       result = result.filter(goal => {
         const user = users.find(u => u.id === goal.userId);
-        return user?.departmentId === selectedDepartmentId;
+        return user?.department?.id === selectedDepartmentId;
       });
     }
 
