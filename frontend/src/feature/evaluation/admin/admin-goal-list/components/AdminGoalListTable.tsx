@@ -164,10 +164,10 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
               <TableRow>
                 <TableHead className="w-[100px]">ステータス</TableHead>
                 <TableHead className="w-[120px]">所有者</TableHead>
-                <TableHead className="w-[120px]">部署</TableHead>
+                <TableHead className="w-[180px]">部署</TableHead>
                 <TableHead className="w-[120px]">上司</TableHead>
                 <TableHead className="min-w-[200px]">目標タイトル</TableHead>
-                <TableHead className="w-[120px]">カテゴリ</TableHead>
+                <TableHead className="w-[140px]">カテゴリ</TableHead>
                 <TableHead className="w-[80px] text-right">重み</TableHead>
                 <TableHead className="w-[80px]">日付</TableHead>
               </TableRow>
