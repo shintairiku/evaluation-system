@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -9,12 +10,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Search, X } from 'lucide-react';
 import type { GoalStatus, UserDetailResponse, DepartmentResponse } from '@/api/types';
 
 /**
  * Props for AdminGoalListFilters component
  */
 interface AdminGoalListFiltersProps {
+  /** Search query for filtering */
+  searchQuery: string;
+  /** Callback when search query changes */
+  onSearchChange: (query: string) => void;
   /** Currently selected status filters */
   selectedStatuses: GoalStatus[];
   /** Callback when status filter changes */
@@ -80,6 +86,8 @@ const GOAL_CATEGORY_OPTIONS = [
  */
 export const AdminGoalListFilters = React.memo<AdminGoalListFiltersProps>(
   function AdminGoalListFilters({
+    searchQuery,
+    onSearchChange,
     selectedStatuses,
     onStatusChange,
     selectedGoalCategory,
@@ -101,6 +109,7 @@ export const AdminGoalListFilters = React.memo<AdminGoalListFiltersProps>(
     };
 
     const handleClearAll = () => {
+      onSearchChange('');
       onStatusChange([]);
       onGoalCategoryChange('all');
       onDepartmentChange('all');
@@ -109,136 +118,122 @@ export const AdminGoalListFilters = React.memo<AdminGoalListFiltersProps>(
 
     // Calculate active filter count (exclude 'all' values)
     const activeFilterCount =
+      (searchQuery.length > 0 ? 1 : 0) +
       selectedStatuses.length +
       (selectedGoalCategory && selectedGoalCategory !== 'all' ? 1 : 0) +
       (selectedDepartmentId && selectedDepartmentId !== 'all' ? 1 : 0) +
       (selectedUserId && selectedUserId !== 'all' ? 1 : 0);
 
     return (
-      <div className={className}>
-        {/* Header with clear button */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium">フィルター</h3>
-            {activeFilterCount > 0 && (
-              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-primary rounded-full">
-                {activeFilterCount}
-              </span>
-            )}
-          </div>
-          {activeFilterCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearAll}
-              className="h-8 px-2"
+      <div className={`flex flex-wrap items-center gap-4 p-4 bg-card rounded-lg border ${className || ''}`}>
+        {/* Search Input */}
+        <div className="relative flex-1 min-w-[300px]">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            placeholder="目標タイトル・ユーザー名で検索... (2文字以上)"
+            className="pl-10 pr-10"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="検索クリア"
             >
-              すべてクリア
-            </Button>
+              <X className="w-4 h-4" />
+            </button>
           )}
         </div>
 
-        {/* Status filter - Checkboxes */}
-        <div className="mb-4">
-          <Label className="text-sm font-medium mb-2 block">ステータス</Label>
-          <div className="flex flex-wrap gap-4">
-            {STATUS_OPTIONS.map((option) => {
-              const isChecked = selectedStatuses.includes(option.value);
-              const checkboxId = `admin-status-${option.value}`;
+        {/* Status filter */}
+        <Select
+          value={selectedStatuses.length === 1 ? selectedStatuses[0] : selectedStatuses.length > 1 ? 'multiple' : 'all'}
+          onValueChange={(value) => {
+            if (value === 'all') {
+              onStatusChange([]);
+            } else if (value !== 'multiple') {
+              onStatusChange([value as GoalStatus]);
+            }
+          }}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="すべてのステータス" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">すべてのステータス</SelectItem>
+            {STATUS_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+            {selectedStatuses.length > 1 && (
+              <SelectItem value="multiple" disabled>
+                複数選択 ({selectedStatuses.length})
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
 
-              return (
-                <div key={option.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={checkboxId}
-                    checked={isChecked}
-                    onCheckedChange={() => handleStatusToggle(option.value)}
-                  />
-                  <Label
-                    htmlFor={checkboxId}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {option.label}
-                  </Label>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* Goal Category filter */}
+        <Select
+          value={selectedGoalCategory}
+          onValueChange={onGoalCategoryChange}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="全てのカテゴリ" />
+          </SelectTrigger>
+          <SelectContent>
+            {GOAL_CATEGORY_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        {/* Grid layout for dropdowns */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Goal Category filter */}
-          <div>
-            <Label htmlFor="goal-category-filter" className="text-sm font-medium mb-2 block">
-              目標カテゴリ
-            </Label>
-            <Select
-              value={selectedGoalCategory}
-              onValueChange={onGoalCategoryChange}
-            >
-              <SelectTrigger id="goal-category-filter">
-                <SelectValue placeholder="全てのカテゴリ" />
-              </SelectTrigger>
-              <SelectContent>
-                {GOAL_CATEGORY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Department filter */}
+        <Select value={selectedDepartmentId} onValueChange={onDepartmentChange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="全ての部署" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">すべての部署</SelectItem>
+            {departments.map((dept) => (
+              <SelectItem key={dept.id} value={dept.id}>
+                {dept.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-          {/* Department filter */}
-          <div>
-            <Label htmlFor="department-filter" className="text-sm font-medium mb-2 block">
-              部署
-            </Label>
-            <Select value={selectedDepartmentId} onValueChange={onDepartmentChange}>
-              <SelectTrigger id="department-filter">
-                <SelectValue placeholder="全ての部署" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全ての部署</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* User filter */}
+        <Select value={selectedUserId} onValueChange={onUserChange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="全てのユーザー" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">すべてのユーザー</SelectItem>
+            {users.map((user) => (
+              <SelectItem key={user.id} value={user.id}>
+                {user.name}
+                {user.department && ` (${user.department.name})`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-          {/* User filter */}
-          <div>
-            <Label htmlFor="user-filter" className="text-sm font-medium mb-2 block">
-              ユーザー
-            </Label>
-            <Select value={selectedUserId} onValueChange={onUserChange}>
-              <SelectTrigger id="user-filter">
-                <SelectValue placeholder="全てのユーザー" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全てのユーザー</SelectItem>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name}
-                    {user.department && ` (${user.department.name})`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Active filters summary */}
-        {activeFilterCount > 0 && (
-          <div className="mt-4 pt-4 border-t">
-            <p className="text-sm text-muted-foreground">
-              {activeFilterCount}件のフィルターで絞り込み中
-            </p>
-          </div>
-        )}
+        {/* Clear Filters Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2"
+          onClick={handleClearAll}
+          disabled={activeFilterCount === 0}
+        >
+          <X className="w-4 h-4" />
+          クリア
+        </Button>
       </div>
     );
   }
