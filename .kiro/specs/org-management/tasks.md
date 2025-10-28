@@ -8,7 +8,7 @@ Implement a performant v2 endpoint to bulk update user statuses with org scoping
 
 ## Implementation Details:
 ### 1. API & Schemas
-- [ ] **1.1. Add `PATCH /api/v2/users/bulk-status` in `backend/app/api/v2/users.py`**
+- [x] **1.1. Add `PATCH /api/v2/users/bulk-status` in `backend/app/api/v2/users.py`**
   > Admin-only with org scope checks; validates 1–100 items; aggregates per-item results.
   >
   > **Related Requirements:** 1, 3, 8
