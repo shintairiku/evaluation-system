@@ -59,6 +59,7 @@ export default function AdminGoalListPage({ selectedPeriodId }: AdminGoalListPag
     paginatedGoals,
     isLoading,
     error,
+    searchQuery,
     selectedStatuses,
     selectedGoalCategory,
     selectedDepartmentId,
@@ -71,6 +72,7 @@ export default function AdminGoalListPage({ selectedPeriodId }: AdminGoalListPag
     currentPage,
     itemsPerPage,
     totalPages,
+    setSearchQuery,
     setSelectedStatuses,
     setSelectedGoalCategory,
     setSelectedDepartmentId,
@@ -134,21 +136,21 @@ export default function AdminGoalListPage({ selectedPeriodId }: AdminGoalListPag
         )}
       </div>
 
-      {/* Filters Section */}
-      <div className="bg-card border rounded-lg p-6">
-        <AdminGoalListFilters
-          selectedStatuses={selectedStatuses}
-          onStatusChange={setSelectedStatuses}
-          selectedGoalCategory={selectedGoalCategory}
-          onGoalCategoryChange={setSelectedGoalCategory}
-          selectedDepartmentId={selectedDepartmentId}
-          onDepartmentChange={setSelectedDepartmentId}
-          selectedUserId={selectedUserId}
-          onUserChange={setSelectedUserId}
-          users={users}
-          departments={departments}
-        />
-      </div>
+      {/* Search and Filters Section */}
+      <AdminGoalListFilters
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        selectedStatuses={selectedStatuses}
+        onStatusChange={setSelectedStatuses}
+        selectedGoalCategory={selectedGoalCategory}
+        onGoalCategoryChange={setSelectedGoalCategory}
+        selectedDepartmentId={selectedDepartmentId}
+        onDepartmentChange={setSelectedDepartmentId}
+        selectedUserId={selectedUserId}
+        onUserChange={setSelectedUserId}
+        users={users}
+        departments={departments}
+      />
 
       {/* Employee Info Card (REUSE - show when user filter selected) */}
       {selectedUserId && selectedUserData && (
