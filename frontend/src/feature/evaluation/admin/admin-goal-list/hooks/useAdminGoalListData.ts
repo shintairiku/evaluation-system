@@ -202,7 +202,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
         // Admin endpoint: shows ALL users' goals (no user filtering)
         const goalsResult = await getAdminGoalsAction({
           periodId: targetPeriodId,
-          limit: 1000, // Load all goals at once for client-side filtering
+          limit: 100, // Backend max limit
           includeReviews: true, // Default: true (batch optimization)
         });
 

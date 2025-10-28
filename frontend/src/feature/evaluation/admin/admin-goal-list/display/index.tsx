@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { EvaluationPeriodSelector } from '@/components/display/EvaluationPeriodSelector';
+import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
 import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
 import { AdminGoalListFilters } from '../components/AdminGoalListFilters';
 import { AdminGoalListTable } from '../components/AdminGoalListTable';
