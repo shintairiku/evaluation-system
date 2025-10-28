@@ -34,6 +34,8 @@ export interface UseAdminGoalListDataReturn {
   isLoading: boolean;
   /** Error message if any */
   error: string | null;
+  /** Search query */
+  searchQuery: string;
   /** Currently selected status filters */
   selectedStatuses: GoalStatus[];
   /** Currently selected goal category */
@@ -58,6 +60,8 @@ export interface UseAdminGoalListDataReturn {
   itemsPerPage: number;
   /** Total pages */
   totalPages: number;
+  /** Function to update search query */
+  setSearchQuery: (query: string) => void;
   /** Function to update status filters */
   setSelectedStatuses: (statuses: GoalStatus[]) => void;
   /** Function to update goal category filter */
@@ -131,6 +135,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
   const [error, setError] = useState<string | null>(null);
 
   // Filter state
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedStatuses, setSelectedStatuses] = useState<GoalStatus[]>([]);
   const [selectedGoalCategory, setSelectedGoalCategory] = useState<string>('all'); // 'all' means "all"
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all'); // 'all' means "all"
@@ -241,6 +246,17 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
   const filteredGoals = useMemo(() => {
     let result = goals;
 
+    // Filter by search query (title or user name)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(goal => {
+        const titleMatch = goal.title?.toLowerCase().includes(query);
+        const user = users.find(u => u.id === goal.userId);
+        const userNameMatch = user?.name?.toLowerCase().includes(query);
+        return titleMatch || userNameMatch;
+      });
+    }
+
     // Filter by user (skip if 'all')
     if (selectedUserId && selectedUserId !== 'all') {
       result = result.filter(goal => goal.userId === selectedUserId);
@@ -265,7 +281,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
     }
 
     return result;
-  }, [goals, selectedUserId, selectedDepartmentId, selectedStatuses, selectedGoalCategory, users]);
+  }, [goals, searchQuery, selectedUserId, selectedDepartmentId, selectedStatuses, selectedGoalCategory, users]);
 
   /**
    * Calculate total pages based on filtered results
@@ -295,7 +311,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
    */
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedUserId, selectedDepartmentId, selectedStatuses, selectedGoalCategory]);
+  }, [searchQuery, selectedUserId, selectedDepartmentId, selectedStatuses, selectedGoalCategory]);
 
   return {
     goals,
@@ -303,6 +319,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
     paginatedGoals,
     isLoading,
     error,
+    searchQuery,
     selectedStatuses,
     selectedGoalCategory,
     selectedDepartmentId,
@@ -315,6 +332,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
     currentPage,
     itemsPerPage,
     totalPages,
+    setSearchQuery,
     setSelectedStatuses,
     setSelectedGoalCategory,
     setSelectedDepartmentId,
