@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Set
 from uuid import UUID
 from datetime import date
 from cachetools import TTLCache
@@ -16,7 +16,8 @@ from ..security.rbac_types import ResourceType
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB, SimpleUser,
-    Department, Stage, Role, UserStatus, UserExistsResponse, UserClerkIdUpdate
+    Department, Stage, Role, UserStatus, UserExistsResponse, UserClerkIdUpdate,
+    BulkUserStatusUpdateItem, BulkUserStatusUpdateResult, BulkUserStatusUpdateResponse
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -726,6 +727,125 @@ class UserService:
         except Exception as e:
             logger.error(f"User lookup with fallback failed: {e}")
             return None
+
+    async def bulk_update_user_statuses(
+        self,
+        items: list[BulkUserStatusUpdateItem],
+        current_user_context: AuthContext,
+    ) -> BulkUserStatusUpdateResponse:
+        """Bulk update user statuses with organization scope and transition validation."""
+
+        current_user_context.require_role("admin")
+
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        if len(items) > 100:
+            raise BadRequestError("Cannot update more than 100 users at once")
+
+        results: list[Optional[BulkUserStatusUpdateResult]] = [None] * len(items)
+
+        unique_ids: list[UUID] = []
+        seen_ids: Set[UUID] = set()
+        for index, item in enumerate(items):
+            if item.user_id in seen_ids:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=item.user_id,
+                    success=False,
+                    error="Duplicate userId in request",
+                )
+                continue
+            seen_ids.add(item.user_id)
+            unique_ids.append(item.user_id)
+
+        current_status_map = await self.user_repo.get_user_statuses(org_id, unique_ids)
+
+        allowed_transitions: dict[UserStatus, set[UserStatus]] = {
+            UserStatus.PENDING_APPROVAL: {UserStatus.ACTIVE},
+            UserStatus.ACTIVE: {UserStatus.INACTIVE},
+            UserStatus.INACTIVE: {UserStatus.ACTIVE},
+        }
+
+        pending_updates: Dict[UUID, UserStatus] = {}
+        pending_indices: Dict[UUID, int] = {}
+
+        for index, item in enumerate(items):
+            if results[index] is not None:
+                continue
+
+            user_id = item.user_id
+            requested_status = item.new_status
+
+            current_status_value = current_status_map.get(user_id)
+            if current_status_value is None:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=user_id,
+                    success=False,
+                    error="User not found in your organization",
+                )
+                continue
+
+            current_status = UserStatus(current_status_value)
+
+            if requested_status == current_status:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=user_id,
+                    success=False,
+                    error="User already has the requested status",
+                )
+                continue
+
+            allowed_targets = allowed_transitions.get(current_status, set())
+            if requested_status not in allowed_targets:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=user_id,
+                    success=False,
+                    error=f"Invalid status transition from {current_status.value} to {requested_status.value}",
+                )
+                continue
+
+            pending_updates[user_id] = requested_status
+            pending_indices[user_id] = index
+
+        updated_ids: Set[UUID] = set()
+
+        if pending_updates:
+            try:
+                updated_ids = await self.user_repo.batch_update_user_statuses(org_id, pending_updates)
+                if updated_ids:
+                    await self.session.commit()
+                else:
+                    logger.warning(
+                        "No user statuses were updated in batch operation; this may be due to concurrent changes or invalid transitions."
+                    )
+            except Exception as exc:
+                await self.session.rollback()
+                raise BadRequestError("Failed to update user statuses") from exc
+        # No DB changes were staged when there are no pending updates;
+        # avoid issuing an unnecessary rollback.
+
+        for user_id, index in pending_indices.items():
+            if user_id in updated_ids:
+                results[index] = BulkUserStatusUpdateResult(userId=user_id, success=True)
+            else:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=user_id,
+                    success=False,
+                    error="No status change was applied",
+                )
+
+        # Filter out None just in case (defensive)
+        finalized_results = [result for result in results if result is not None]
+
+        success_count = sum(1 for result in finalized_results if result.success)
+        failure_count = len(finalized_results) - success_count
+
+        return BulkUserStatusUpdateResponse(
+            results=finalized_results,
+            successCount=success_count,
+            failureCount=failure_count,
+        )
 
     
     # Private helper methods

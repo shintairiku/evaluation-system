@@ -21,6 +21,29 @@ class UserStatus(str, Enum):
     INACTIVE = "inactive"
 
 
+class BulkUserStatusUpdateItem(BaseModel):
+    user_id: UUID = Field(..., alias="userId")
+    new_status: UserStatus = Field(..., alias="newStatus")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class BulkUserStatusUpdateResult(BaseModel):
+    user_id: UUID = Field(..., alias="userId")
+    success: bool
+    error: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class BulkUserStatusUpdateResponse(BaseModel):
+    results: List[BulkUserStatusUpdateResult]
+    success_count: int = Field(..., alias="successCount")
+    failure_count: int = Field(..., alias="failureCount")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 # ========================================
 # DEPARTMENT SCHEMAS
 # ========================================
