@@ -7,29 +7,20 @@ import type {
   GoalResponse,
   GoalStatus,
   EvaluationPeriod,
-  SupervisorReview,
   UserDetailResponse,
   DepartmentResponse,
 } from '@/api/types';
-
-/**
- * Extended GoalResponse with optional supervisorReview and rejectionHistory
- */
-type GoalWithReview = GoalResponse & {
-  supervisorReview?: SupervisorReview | null;
-  rejectionHistory?: SupervisorReview[];
-};
 
 /**
  * Return type for the useAdminGoalListData hook
  */
 export interface UseAdminGoalListDataReturn {
   /** All goals loaded from server */
-  goals: GoalWithReview[];
+  goals: GoalResponse[];
   /** Goals after applying client-side filters */
-  filteredGoals: GoalWithReview[];
+  filteredGoals: GoalResponse[];
   /** Goals after pagination (current page only) */
-  paginatedGoals: GoalWithReview[];
+  paginatedGoals: GoalResponse[];
   /** Loading state */
   isLoading: boolean;
   /** Error message if any */
@@ -124,7 +115,7 @@ export interface UseAdminGoalListDataParams {
  */
 export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAdminGoalListDataReturn {
   // Data state
-  const [goals, setGoals] = useState<GoalWithReview[]>([]);
+  const [goals, setGoals] = useState<GoalResponse[]>([]);
   const [users, setUsers] = useState<UserDetailResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
@@ -226,13 +217,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
         const goals = goalsResult.data.items;
 
         // Reviews are already embedded in the goal objects (performance optimization)
-        const goalsWithReviews: GoalWithReview[] = goals.map(goal => ({
-          ...goal,
-          supervisorReview: goal.supervisorReview || null,
-          rejectionHistory: goal.rejectionHistory,
-        }));
-
-        setGoals(goalsWithReviews);
+        setGoals(goals);
       } else {
         setCurrentPeriod(null);
         setAllPeriods([]);
