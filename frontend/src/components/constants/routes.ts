@@ -70,9 +70,9 @@ export const groups = [
         permission: 'admin'
       },
       {
-        href: '/department-management',
-        label: '部門管理',
-        sublabel: 'Department Management',
+        href: '/org-management',
+        label: '組織管理',
+        sublabel: 'Organization Management',
         icon: 'building',
         permission: 'admin'
       },
