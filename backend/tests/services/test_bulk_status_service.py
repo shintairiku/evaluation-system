@@ -6,7 +6,6 @@ from app.services.user_service import UserService
 from app.schemas.user import (
     BulkUserStatusUpdateItem,
     BulkUserStatusUpdateResponse,
-    BulkUserStatusUpdateResult,
     UserStatus,
 )
 from app.security.context import AuthContext, RoleInfo
@@ -107,5 +106,4 @@ async def test_bulk_status_more_than_limit_100_raises():
     ctx = make_admin_context()
     with pytest.raises(BadRequestError):
         await service.bulk_update_user_statuses(items, ctx)
-
 
