@@ -8,7 +8,7 @@ import type {
   GoalStatus,
   EvaluationPeriod,
   UserDetailResponse,
-  DepartmentResponse,
+  Department,
 } from '@/api/types';
 
 /**
@@ -44,7 +44,7 @@ export interface UseAdminGoalListDataReturn {
   /** All users in organization */
   users: UserDetailResponse[];
   /** All departments in organization */
-  departments: DepartmentResponse[];
+  departments: Department[];
   /** Current page number (1-indexed) */
   currentPage: number;
   /** Items per page */
@@ -117,7 +117,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
   // Data state
   const [goals, setGoals] = useState<GoalResponse[]>([]);
   const [users, setUsers] = useState<UserDetailResponse[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
   const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>([]);
 
@@ -170,15 +170,8 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
       }
 
       // Set departments data
-      if (departmentsResult.success && departmentsResult.data) {
-        // Check if data is an array directly or has items property
-        const departmentsArray = Array.isArray(departmentsResult.data)
-          ? departmentsResult.data
-          : departmentsResult.data.items;
-
-        if (departmentsArray && departmentsArray.length > 0) {
-          setDepartments(departmentsArray);
-        }
+      if (departmentsResult.success && Array.isArray(departmentsResult.data) && departmentsResult.data.length > 0) {
+        setDepartments(departmentsResult.data);
       }
 
       // Set current period and all periods
