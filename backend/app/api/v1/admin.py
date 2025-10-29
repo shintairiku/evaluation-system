@@ -79,6 +79,9 @@ async def get_admin_goals(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
+    except HTTPException as exc:
+        # Preserve explicit HTTP errors such as validation responses.
+        raise exc
     except Exception as e:
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
