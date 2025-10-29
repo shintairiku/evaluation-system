@@ -11,12 +11,12 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import type { UserStatus, BulkUserStatusUpdateResponse } from '@/api/types';
+import { UserStatus, type BulkUserStatusUpdateResponse } from '@/api/types';
 
 const STATUS_OPTIONS: { value: UserStatus; label: string }[] = [
-  { value: 'active', label: 'アクティブ' },
-  { value: 'inactive', label: '無効' },
-  { value: 'pending_approval', label: '承認待ち' },
+  { value: UserStatus.ACTIVE, label: 'アクティブ' },
+  { value: UserStatus.INACTIVE, label: '無効' },
+  { value: UserStatus.PENDING_APPROVAL, label: '承認待ち' },
 ];
 
 interface UserBulkStatusBarProps {
@@ -34,11 +34,12 @@ export function UserBulkStatusBar({
   onSubmit,
   onClearSelection,
 }: UserBulkStatusBarProps) {
-  const [targetStatus, setTargetStatus] = useState<UserStatus>('active');
+  const [targetStatus, setTargetStatus] = useState<UserStatus>(UserStatus.ACTIVE);
 
   const progressValue = useMemo(() => {
     if (isProcessing) {
-      return selectedCount ? Math.min(95, Math.max(10, selectedCount ? 60 : 30)) : 50;
+      // When processing, show a sensible mid-progress value if there are selections, otherwise a minimal indicator.
+      return selectedCount ? 60 : 50;
     }
     if (lastResult && selectedCount) {
       return Math.round((lastResult.successCount / selectedCount) * 100);
