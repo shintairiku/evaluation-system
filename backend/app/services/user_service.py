@@ -816,7 +816,9 @@ class UserService:
                 if updated_ids:
                     await self.session.commit()
                 else:
-                    await self.session.rollback()
+                    logger.warning(
+                        "No user statuses were updated in batch operation; this may be due to concurrent changes or invalid transitions."
+                    )
             except Exception as exc:
                 await self.session.rollback()
                 raise BadRequestError("Failed to update user statuses") from exc
