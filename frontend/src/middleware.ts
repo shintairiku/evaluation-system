@@ -13,7 +13,8 @@ const isAdminRoute = createRouteMatcher([
   '/evaluation-period-management(.*)',
   '/department-management(.*)',
   '/stage-management(.*)',
-  '/competency-management(.*)'
+  '/competency-management(.*)',
+  '/admin-goal-list(.*)'
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
