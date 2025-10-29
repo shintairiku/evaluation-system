@@ -418,6 +418,31 @@ class UserRepositoryV2(BaseRepository[User]):
         subordinate_map = await self.fetch_users_by_ids(subordinate_ids, org_id)
         return list(subordinate_map.values())
 
+    async def fetch_subordinates_for_users(self, supervisor_ids: Iterable[UUID], org_id: str) -> Dict[UUID, List[User]]:
+        """
+        Fetch subordinate User models for multiple supervisors in a single query.
+        Returns a mapping: supervisor_id -> List[User].
+        """
+        id_list = [sup_id for sup_id in set(supervisor_ids) if sup_id]
+        if not id_list:
+            return {}
+
+        supervisor_alias = aliased(User)
+        stmt = (
+            select(UserSupervisor.supervisor_id, User)
+            .join(User, UserSupervisor.user_id == User.id)
+            .join(supervisor_alias, UserSupervisor.supervisor_id == supervisor_alias.id)
+            .where(UserSupervisor.supervisor_id.in_(id_list))
+            .where(User.clerk_organization_id == org_id)
+            .where(supervisor_alias.clerk_organization_id == org_id)
+        )
+
+        result = await self.session.execute(stmt)
+        mapping: Dict[UUID, List[User]] = {}
+        for supervisor_id, user in result.all():
+            mapping.setdefault(supervisor_id, []).append(user)
+        return mapping
+
     async def fetch_users_by_ids(self, ids: Iterable[UUID], org_id: str) -> Dict[UUID, User]:
         id_list = [user_id for user_id in set(ids) if user_id]
         if not id_list:
