@@ -83,7 +83,7 @@ async def list_users_v2(
 
 @router.patch("/bulk-status", response_model=BulkUserStatusUpdateResponse)
 async def bulk_update_status(
-    _org_slug: str,
+    org_slug: str,
     items: list[BulkUserStatusUpdateItem],
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session),
