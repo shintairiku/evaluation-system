@@ -31,6 +31,9 @@ export function OrgManagementView({
 }: OrgManagementViewProps) {
   return (
     <div className="space-y-8">
+      {/* Page Title */}
+      <h1 className="text-2xl font-bold">組織管理</h1>
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="space-y-1">
@@ -84,15 +87,15 @@ export function OrgManagementView({
           <TabsTrigger value="roles">ロール</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="users" className="space-y-6">
+        <TabsContent value="users" className="mt-6 space-y-6">
           {usersTab}
         </TabsContent>
 
-        <TabsContent value="departments" className="space-y-6">
+        <TabsContent value="departments" className="mt-6 space-y-6">
           {departmentsTab}
         </TabsContent>
 
-        <TabsContent value="roles" className="space-y-6">
+        <TabsContent value="roles" className="mt-6 space-y-6">
           {rolesTab}
         </TabsContent>
       </Tabs>
