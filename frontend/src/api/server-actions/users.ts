@@ -13,6 +13,8 @@ import type {
   UUID,
   UserExistsResponse,
   SimpleUser,
+  BulkUserStatusUpdateItem,
+  BulkUserStatusUpdateResponse,
 } from '../types';
 
 // Search parameters interface for server-side search
@@ -250,6 +252,58 @@ export async function updateUserStagesAction(changes: { userId: UUID; toStageId:
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * Server action to bulk update user statuses via v2 API
+ * Revalidates USERS cache and individual user detail tags for updated users
+ */
+export async function bulkUpdateUserStatusesAction(
+  items: BulkUserStatusUpdateItem[],
+): Promise<{
+  success: boolean;
+  data?: BulkUserStatusUpdateResponse;
+  error?: string;
+}> {
+  try {
+    if (!items.length) {
+      return {
+        success: true,
+        data: {
+          results: [],
+          successCount: 0,
+          failureCount: 0,
+        },
+      };
+    }
+
+    const response = await usersApi.bulkUpdateStatus(items);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || response.error || 'Failed to bulk update user statuses',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.USERS);
+
+    const uniqueUserIds = new Set(items.map((item) => item.userId));
+    uniqueUserIds.forEach((userId) => {
+      revalidateTag(`${CACHE_TAGS.USERS}:${userId}`);
+    });
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Bulk update user statuses action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating user statuses',
     };
   }
 }
