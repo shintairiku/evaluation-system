@@ -10,6 +10,8 @@ import type {
   UUID,
   UserExistsResponse,
   SimpleUser,
+  BulkUserStatusUpdateItem,
+  BulkUserStatusUpdateResponse,
 } from '../types';
 
 const httpClient = getHttpClient();
@@ -73,6 +75,18 @@ export const usersApi = {
    */
   updateUserStage: async (userId: UUID, data: { stage_id: UUID }): Promise<ApiResponse<UserDetailResponse>> => {
     return httpClient.patch<UserDetailResponse>(API_ENDPOINTS.USERS.UPDATE_STAGE(userId), data);
+  },
+
+  /**
+   * Bulk update user statuses
+   */
+  bulkUpdateStatus: async (
+    payload: BulkUserStatusUpdateItem[],
+  ): Promise<ApiResponse<BulkUserStatusUpdateResponse>> => {
+    return httpClient.patch<BulkUserStatusUpdateResponse>(
+      API_ENDPOINTS.USERS.BULK_STATUS_UPDATE,
+      payload,
+    );
   },
 
   /**
