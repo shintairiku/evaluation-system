@@ -121,24 +121,24 @@ Add tests for backend/frontend flows and document routing and v2 API behaviors.
 
 ## Implementation Details:
 ### 1. Backend & Repo Tests
-- [ ] **1.1. v2 bulk-status and repository batching tests**
+- [x] **1.1. v2 bulk-status and repository batching tests**
   > Success/invalid/cross-org/limits/partial failures.
   >
   > **Related Requirements:** 8
 
 ### 2. Frontend Tests
-- [ ] **2.1. Status toggle and bulk action flows**
+- [x] **2.1. Status toggle and bulk action flows**
   > Single and bulk transitions incl. confirm modal.
   >
   > **Related Requirements:** 3
 
 ### 3. Docs
-- [ ] **3.1. Update docs for `/org-management` and sidebar**
+- [x] **3.1. Update docs for `/org-management` and sidebar**
   > Replace `/department-management` references.
   >
   > **Related Requirements:** 1, 6
 
-- [ ] **3.2. Document `PATCH /api/v2/users/bulk-status`**
+- [x] **3.2. Document `PATCH /api/v2/users/bulk-status`**
   > Request/response, limits, transitions, org scoping.
   >
   > **Related Requirements:** 8
