@@ -11,7 +11,7 @@ const isPublicRoute = createRouteMatcher([
 
 const isAdminRoute = createRouteMatcher([
   '/evaluation-period-management(.*)',
-  '/department-management(.*)',
+  '/org-management(.*)',
   '/stage-management(.*)',
   '/competency-management(.*)'
 ]);
