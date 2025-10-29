@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, X } from 'lucide-react';
-import type { GoalStatus, UserDetailResponse, DepartmentResponse } from '@/api/types';
+import type { GoalStatus, UserDetailResponse, Department } from '@/api/types';
 
 /**
  * Props for AdminGoalListFilters component
@@ -38,7 +38,7 @@ interface AdminGoalListFiltersProps {
   /** List of all users */
   users: UserDetailResponse[];
   /** List of all departments */
-  departments: DepartmentResponse[];
+  departments: Department[];
   /** Optional custom className */
   className?: string;
 }
