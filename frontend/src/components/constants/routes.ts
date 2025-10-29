@@ -70,6 +70,13 @@ export const groups = [
         permission: 'admin'
       },
       {
+        href: '/admin-goal-list',
+        label: '全目標一覧',
+        sublabel: 'All Goals List',
+        icon: 'list-checks',
+        permission: 'admin'
+      },
+      {
         href: '/evaluation-period-management',
         label: '評価期間設定',
         sublabel: 'Evaluation Period Management',

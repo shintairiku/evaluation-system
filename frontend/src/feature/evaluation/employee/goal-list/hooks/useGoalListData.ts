@@ -2,16 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getGoalsAction } from '@/api/server-actions/goals';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getUsersAction } from '@/api/server-actions/users';
-import type { GoalResponse, GoalStatus, EvaluationPeriod, SupervisorReview, UserDetailResponse } from '@/api/types';
-
-/**
- * Extended GoalResponse with optional supervisorReview and rejectionHistory
- * Reviews are now embedded in the API response (performance optimization)
- */
-type GoalWithReview = GoalResponse & {
-  supervisorReview?: SupervisorReview | null;
-  rejectionHistory?: SupervisorReview[]; // Array of all rejection reviews in chronological order
-};
+import type { GoalResponse, GoalStatus, EvaluationPeriod, UserDetailResponse } from '@/api/types';
 
 /**
  * Interface for goals grouped by employee (for supervisor view)
@@ -20,7 +11,7 @@ export interface GroupedGoals {
   /** Employee information */
   employee: UserDetailResponse;
   /** Array of goals belonging to this employee */
-  goals: GoalWithReview[];
+  goals: GoalResponse[];
   /** Total count of goals for this employee */
   goalCount: number;
 }
@@ -30,9 +21,9 @@ export interface GroupedGoals {
  */
 export interface UseGoalListDataReturn {
   /** All goals loaded from server */
-  goals: GoalWithReview[];
+  goals: GoalResponse[];
   /** Goals after applying filters */
-  filteredGoals: GoalWithReview[];
+  filteredGoals: GoalResponse[];
   /** Goals grouped by employee (for supervisor view) */
   groupedGoals: GroupedGoals[];
   /** Currently selected employee ID (for supervisor filtering) */
@@ -105,7 +96,7 @@ export interface UseGoalListDataParams {
  * ```
  */
 export function useGoalListData(params?: UseGoalListDataParams): UseGoalListDataReturn {
-  const [goals, setGoals] = useState<GoalWithReview[]>([]);
+  const [goals, setGoals] = useState<GoalResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStatuses, setSelectedStatuses] = useState<GoalStatus[]>([]);
@@ -181,14 +172,7 @@ export function useGoalListData(params?: UseGoalListDataParams): UseGoalListData
 
         // Reviews and rejection history are already embedded in the goal objects!
         // No need for separate fetches - this is the performance optimization
-        const goalsWithReviews: GoalWithReview[] = activeGoals.map(goal => ({
-          ...goal,
-          supervisorReview: goal.supervisorReview || null,
-          // Keep rejection history as-is (already embedded from backend)
-          rejectionHistory: goal.rejectionHistory
-        }));
-
-        setGoals(goalsWithReviews);
+        setGoals(activeGoals);
       } else {
         setCurrentPeriod(null);
         setAllPeriods([]);
@@ -219,7 +203,7 @@ export function useGoalListData(params?: UseGoalListDataParams): UseGoalListData
    * Group goals by employee (user_id) - sorted alphabetically by employee name
    */
   const groupedGoals = useMemo(() => {
-    const userGoalsMap = new Map<string, GoalWithReview[]>();
+    const userGoalsMap = new Map<string, GoalResponse[]>();
 
     // Group goals by user_id
     goals.forEach(goal => {

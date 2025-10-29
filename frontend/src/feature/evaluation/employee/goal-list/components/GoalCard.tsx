@@ -176,6 +176,33 @@ export const GoalCard = React.memo<GoalCardProps>(
             </div>
           )}
 
+          {/* Rejection Banner - shown if this goal is currently rejected */}
+          {goal.status === 'rejected' && goal.supervisorReview && goal.supervisorReview.comment && (
+            <Alert variant="default" className="border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="ml-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-amber-900">
+                      この目標は差し戻されました
+                    </p>
+                    <p className="text-sm text-amber-800 ml-auto">
+                      差し戻し日: {formatDate(goal.supervisorReview.reviewedAt || goal.supervisorReview.updatedAt || goal.supervisorReview.createdAt)}
+                    </p>
+                  </div>
+                  <div className="bg-white p-3 rounded border border-amber-200">
+                    <p className="text-sm font-medium text-gray-700 mb-1">
+                      上司からのコメント:
+                    </p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                      {goal.supervisorReview.comment}
+                    </p>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Approval Banner - shown if this goal is approved */}
           {goal.status === 'approved' && goal.supervisorReview && goal.supervisorReview.comment && (
             <Alert variant="default" className="border-green-200 bg-green-50">

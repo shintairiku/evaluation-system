@@ -164,6 +164,7 @@ export const API_ENDPOINTS = {
     SUBMIT: (id: string) => `/goals/${id}/submit`,
     APPROVE: (id: string) => `/goals/${id}/approve`,
     REJECT: (id: string) => `/goals/${id}/reject`,
+    ADMIN_LIST: '/admin/goals', // Admin-only: system-wide goal visibility
     // BY_USER: (userId: string) => `/goals/user/${userId}`,
     // BY_PERIOD: (periodId: string) => `/goals/period/${periodId}`,
   },

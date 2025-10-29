@@ -299,4 +299,45 @@ export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{
     };
   }
 }
-  
+
+/**
+ * Server action to get all goals for admin visualization (admin-only)
+ *
+ * This action fetches ALL users' goals in the organization.
+ * Performance: includeReviews defaults to true for batch optimization
+ */
+async function _getAdminGoalsAction(params?: {
+  periodId?: UUID;
+  userId?: UUID;
+  departmentId?: UUID;
+  goalCategory?: string;
+  status?: string | string[];
+  page?: number;
+  limit?: number;
+  includeReviews?: boolean;
+  includeRejectionHistory?: boolean;
+}): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
+  try {
+    const response = await goalsApi.getAdminGoals(params);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch admin goals',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get admin goals action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching admin goals',
+    };
+  }
+}
+
+export const getAdminGoalsAction = cache(_getAdminGoalsAction);

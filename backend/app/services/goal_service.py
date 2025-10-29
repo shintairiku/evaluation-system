@@ -541,6 +541,115 @@ class GoalService:
             logger.error(f"Error getting pending approvals: {e}")
             raise
 
+    async def get_all_goals_for_admin(
+        self,
+        org_id: str,
+        period_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
+        department_id: Optional[UUID] = None,
+        goal_category: Optional[str] = None,
+        status: Optional[List[str]] = None,
+        pagination: Optional[PaginationParams] = None,
+        include_reviews: bool = True,
+        include_rejection_history: bool = False
+    ) -> PaginatedResponse[Goal]:
+        """
+        Get all goals for admin visualization (system-wide, no user filtering).
+
+        SECURITY: This method should ONLY be called from admin-protected endpoints.
+        It bypasses the normal user-level filtering and returns ALL users' goals.
+
+        Performance optimization:
+        - include_reviews: Batch fetch supervisor reviews (default: True)
+        - include_rejection_history: Fetch rejection history chain
+
+        Args:
+            org_id: Organization ID (required for scoping)
+            period_id: Optional filter by evaluation period
+            user_id: Optional filter by specific user
+            department_id: Optional filter by department
+            goal_category: Optional filter by goal category
+            status: Optional filter by status list
+            pagination: Pagination parameters
+            include_reviews: Include supervisor reviews (default True for performance)
+            include_rejection_history: Include rejection history chain
+
+        Returns:
+            PaginatedResponse[Goal]: Paginated list of goals with enriched data
+        """
+        try:
+            # Search goals with user_ids=None (ALL users in organization)
+            goals = await self.goal_repo.search_goals(
+                org_id=org_id,
+                user_ids=[user_id] if user_id else None,  # None = all users, [user_id] = specific user
+                period_id=period_id,
+                department_id=department_id,
+                goal_category=goal_category,
+                status=status,
+                pagination=pagination
+            )
+
+            # Get total count for pagination
+            total_count = await self.goal_repo.count_goals(
+                org_id=org_id,
+                user_ids=[user_id] if user_id else None,
+                period_id=period_id,
+                department_id=department_id,
+                goal_category=goal_category,
+                status=status
+            )
+
+            # Batch fetch supervisor reviews if requested (performance optimization)
+            reviews_map = {}
+            if include_reviews and goals:
+                goal_ids = [goal.id for goal in goals]
+                reviews_map = await self.supervisor_review_repo.get_by_goals_batch(
+                    goal_ids=goal_ids,
+                    org_id=org_id
+                )
+                logger.info(f"[Admin] Batch fetched {len(reviews_map)} reviews for {len(goal_ids)} goals")
+
+            # Batch fetch rejection histories if requested (performance optimization)
+            rejection_histories_map = {}
+            if include_rejection_history and goals:
+                rejection_histories_map = await self._get_rejection_histories_batch(
+                    goals=goals,
+                    org_id=org_id
+                )
+
+            # Convert to response format
+            enriched_goals = []
+            for goal_model in goals:
+                enriched_goal = await self._enrich_goal_data(
+                    goal_model,
+                    include_reviews=include_reviews,
+                    include_rejection_history=include_rejection_history,
+                    reviews_map=reviews_map,
+                    rejection_histories_map=rejection_histories_map,
+                    org_id=org_id
+                )
+                enriched_goals.append(enriched_goal)
+
+            # Create paginated response
+            if pagination:
+                total_pages = (total_count + pagination.limit - 1) // pagination.limit
+            else:
+                total_pages = 1
+
+            logger.info(f"[Admin] Returning {len(enriched_goals)} goals (total: {total_count})")
+
+            return PaginatedResponse(
+                items=enriched_goals,
+                total=total_count,
+                page=pagination.page if pagination else 1,
+                limit=pagination.limit if pagination else len(enriched_goals),
+                pages=total_pages
+            )
+
+        except Exception as e:
+            logger.error(f"Error in get_all_goals_for_admin: {e}")
+            raise
+
     # ========================================
     # PRIVATE HELPER METHODS
     # ========================================
