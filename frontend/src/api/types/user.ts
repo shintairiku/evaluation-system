@@ -97,10 +97,10 @@ export interface UserUpdate {
   email?: string;
   employee_code?: string;
   job_title?: string;
-  department_id?: UUID;
-  stage_id?: UUID;
+  department_id?: UUID | null;
+  stage_id?: UUID | null;
   role_ids?: UUID[];
-  supervisor_id?: UUID;
+  supervisor_id?: UUID | null;
   subordinate_ids?: UUID[];
   status?: UserStatus;
 }
@@ -176,4 +176,21 @@ export interface ProfileOptionsResponse {
   stages: Stage[];
   roles: Role[];
   users: UserProfileOption[];
+}
+
+export interface BulkUserStatusUpdateItem {
+  userId: UUID;
+  newStatus: UserStatus;
+}
+
+export interface BulkUserStatusUpdateResult {
+  userId: UUID;
+  success: boolean;
+  error?: string;
+}
+
+export interface BulkUserStatusUpdateResponse {
+  results: BulkUserStatusUpdateResult[];
+  successCount: number;
+  failureCount: number;
 }

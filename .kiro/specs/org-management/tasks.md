@@ -44,45 +44,45 @@ Build `/org-management` with tabs (users/departments/roles), integrate bulk stat
 
 ## Implementation Details:
 ### 1. Page & Tabs
-- [ ] **1.1. Create `app/(evaluation)/(admin)/org-management/page.tsx`**
+- [x] **1.1. Create `app/(evaluation)/(admin)/org-management/page.tsx`**
   > Server component with initial SSR data and container render.
   >
   > **Related Requirements:** 1, 2
 
-- [ ] **1.2. Create container/view under `feature/org-management/`**
+- [x] **1.2. Create container/view under `feature/org-management/`**
   > Tabs for Users, Departments, Roles.
   >
   > **Related Requirements:** 2
 
 ### 2. Users Tab
-- [ ] **2.1. Bulk status action bar**
+- [x] **2.1. Bulk status action bar**
   > `UserBulkStatusBar.tsx` + Server Action hook-up; progress + result summary.
   >
   > **Related Requirements:** 3, 7, 8
 
-- [ ] **2.2. Inline editors**
+- [x] **2.2. Inline editors**
   > Department/Roles/Stage/Supervisor/Subordinates/Status; name/email read-only.
   >
   > **Related Requirements:** 3, 7
 
 ### 3. Departments & Roles Tabs
-- [ ] **3.1. Department modals**
+- [x] **3.1. Department modals**
   > Create/Edit/Delete with validations; Users list; Add/Remove users modal.
   >
   > **Related Requirements:** 4, 7
 
-- [ ] **3.2. Role assignments modal**
+- [x] **3.2. Role assignments modal**
   > Show users by role; assign/unassign via v1 user update API; multi-role support.
   >
   > **Related Requirements:** 5, 7
 
 ### 4. API Client & Server Actions
-- [ ] **4.1. Add `usersApi.bulkUpdateStatus`**
+- [x] **4.1. Add `usersApi.bulkUpdateStatus`**
   > Path: `PATCH /api/v2/users/bulk-status`.
   >
   > **Related Requirements:** 8
 
-- [ ] **4.2. Add `bulkUpdateUserStatusesAction`**
+- [x] **4.2. Add `bulkUpdateUserStatusesAction`**
   > Revalidate `USERS` and related tags.
   >
   > **Related Requirements:** 7, 8
@@ -96,18 +96,18 @@ Replace sidebar entry to "組織管理" pointing to `/org-management`, add admin
 
 ## Implementation Details:
 ### 1. Navigation & Middleware
-- [ ] **1.1. Replace sidebar entry**
+- [x] **1.1. Replace sidebar entry**
   > Update `frontend/src/components/constants/routes.ts`.
   >
   > **Related Requirements:** 6
 
-- [ ] **1.2. Add `/org-management` to admin route matcher**
+- [x] **1.2. Add `/org-management` to admin route matcher**
   > Update `frontend/src/middleware.ts`.
   >
   > **Related Requirements:** 1, 6
 
 ### 2. Department Delete Validation
-- [ ] **2.1. Enforce zero active users prerequisite**
+- [x] **2.1. Enforce zero active users prerequisite**
   > Block deletion with guidance; handle success once zero active users.
   >
   > **Related Requirements:** 4
@@ -121,27 +121,25 @@ Add tests for backend/frontend flows and document routing and v2 API behaviors.
 
 ## Implementation Details:
 ### 1. Backend & Repo Tests
-- [ ] **1.1. v2 bulk-status and repository batching tests**
+- [x] **1.1. v2 bulk-status and repository batching tests**
   > Success/invalid/cross-org/limits/partial failures.
   >
   > **Related Requirements:** 8
 
 ### 2. Frontend Tests
-- [ ] **2.1. Status toggle and bulk action flows**
+- [x] **2.1. Status toggle and bulk action flows**
   > Single and bulk transitions incl. confirm modal.
   >
   > **Related Requirements:** 3
 
 ### 3. Docs
-- [ ] **3.1. Update docs for `/org-management` and sidebar**
+- [x] **3.1. Update docs for `/org-management` and sidebar**
   > Replace `/department-management` references.
   >
   > **Related Requirements:** 1, 6
 
-- [ ] **3.2. Document `PATCH /api/v2/users/bulk-status`**
+- [x] **3.2. Document `PATCH /api/v2/users/bulk-status`**
   > Request/response, limits, transitions, org scoping.
   >
   > **Related Requirements:** 8
 ```
-
-

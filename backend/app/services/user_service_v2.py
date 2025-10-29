@@ -37,7 +37,7 @@ class UserServiceV2:
     Optimised user listing service that orchestrates batched repository calls and RBAC filtering.
     """
 
-    DEFAULT_INCLUDES: Set[str] = frozenset({"department", "stage", "roles", "supervisor"})
+    DEFAULT_INCLUDES: Set[str] = frozenset({"department", "stage", "roles", "supervisor", "subordinates"})
     MAX_LIMIT = 100
 
     def __init__(self, session: AsyncSession):
@@ -178,6 +178,7 @@ class UserServiceV2:
 
         supervisor_map: Dict[UUID, UUID] = {}
         supervisor_models: Dict[UUID, UserModel] = {}
+        subordinates_models_map: Dict[UUID, List[UserModel]] = {}
 
         if "supervisor" in include:
             supervisor_map = await self._timed(
@@ -194,6 +195,20 @@ class UserServiceV2:
                 )
                 related_ids.update(supervisor_ids)
 
+        if "subordinates" in include:
+            subordinates_models_map = await self._timed(
+                self.user_repo.fetch_subordinates_for_users,
+                user_ids,
+                org_id,
+            )
+            # Collect subordinate user ids to fetch roles and department/stage
+            subordinate_ids: Set[UUID] = set()
+            for subs in subordinates_models_map.values():
+                for sub in subs:
+                    subordinate_ids.add(sub.id)
+            if subordinate_ids:
+                related_ids.update(subordinate_ids)
+
         department_ids = {user.department_id for user in users if user.department_id}
         stage_ids = {user.stage_id for user in users if user.stage_id}
 
@@ -202,6 +217,15 @@ class UserServiceV2:
                 department_ids.add(supervisor.department_id)
             if supervisor.stage_id:
                 stage_ids.add(supervisor.stage_id)
+
+        # Also include subordinate departments and stages for proper DTO building
+        if subordinates_models_map:
+            for subs in subordinates_models_map.values():
+                for sub in subs:
+                    if sub.department_id:
+                        department_ids.add(sub.department_id)
+                    if sub.stage_id:
+                        stage_ids.add(sub.stage_id)
 
         department_models = await self._timed(self.user_repo.fetch_departments, department_ids)
         stage_models = await self._timed(self.user_repo.fetch_stages, stage_ids)
@@ -237,6 +261,15 @@ class UserServiceV2:
                 if supervisor_id:
                     supervisor = supervisor_dtos.get(supervisor_id)
 
+            subordinates = None
+            if "subordinates" in include and subordinates_models_map:
+                models = subordinates_models_map.get(user.id) or []
+                if models:
+                    subordinates = [
+                        self._build_user_schema(sub, department_dtos, stage_dtos, role_dtos)
+                        for sub in models
+                    ]
+
             response_items.append(
                 UserDetailResponse(
                     id=user.id,
@@ -250,7 +283,7 @@ class UserServiceV2:
                     stage=stage_dtos.get(user.stage_id),
                     roles=role_dtos.get(user.id, []),
                     supervisor=supervisor,
-                    subordinates=None,
+                    subordinates=subordinates,
                 )
             )
 
