@@ -123,7 +123,8 @@ class UserRepository(BaseRepository[User]):
             return {}
 
         try:
-            stmt = select(User.id, User.status).where(User.id.in_(list(user_ids)))
+            # `in_` accepts any general sequence; no need to coerce to list
+            stmt = select(User.id, User.status).where(User.id.in_(user_ids))
             stmt = self.apply_org_scope_direct(stmt, User.clerk_organization_id, org_id)
 
             result = await self.session.execute(stmt)
