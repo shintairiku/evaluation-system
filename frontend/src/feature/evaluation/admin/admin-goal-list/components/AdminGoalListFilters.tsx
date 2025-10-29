@@ -1,8 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -100,14 +98,6 @@ export const AdminGoalListFilters = React.memo<AdminGoalListFiltersProps>(
     departments,
     className,
   }: AdminGoalListFiltersProps) {
-    const handleStatusToggle = (status: GoalStatus) => {
-      if (selectedStatuses.includes(status)) {
-        onStatusChange(selectedStatuses.filter((s) => s !== status));
-      } else {
-        onStatusChange([...selectedStatuses, status]);
-      }
-    };
-
     const handleClearAll = () => {
       onSearchChange('');
       onStatusChange([]);

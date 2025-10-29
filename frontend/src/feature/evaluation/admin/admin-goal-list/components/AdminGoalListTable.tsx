@@ -15,24 +15,16 @@ import {
 } from '@/components/ui/dialog';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import { GoalCard } from '@/feature/evaluation/employee/goal-list/components/GoalCard';
-import type { GoalResponse, SupervisorReview } from '@/api/types';
+import type { GoalResponse } from '@/api/types';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
-
-/**
- * Extended GoalResponse with optional supervisorReview
- */
-type GoalWithReview = GoalResponse & {
-  supervisorReview?: SupervisorReview | null;
-  rejectionHistory?: SupervisorReview[];
-};
 
 /**
  * Props for AdminGoalListTable component
  */
 interface AdminGoalListTableProps {
   /** Array of goals to display */
-  goals: GoalWithReview[];
+  goals: GoalResponse[];
   /** User data map (userId -> userName) for quick lookup */
   userMap?: Map<string, { name: string; departmentName?: string; supervisorName?: string }>;
   /** Loading state */
@@ -70,13 +62,13 @@ interface AdminGoalListTableProps {
  */
 export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
   function AdminGoalListTable({ goals, userMap, isLoading, className }: AdminGoalListTableProps) {
-    const [selectedGoal, setSelectedGoal] = useState<GoalWithReview | null>(null);
+    const [selectedGoal, setSelectedGoal] = useState<GoalResponse | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     /**
      * Handle row click to open goal details dialog
      */
-    const handleRowClick = (goal: GoalWithReview) => {
+    const handleRowClick = (goal: GoalResponse) => {
       setSelectedGoal(goal);
       setIsDialogOpen(true);
     };
@@ -118,7 +110,7 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
     /**
      * Get goal title from target_data
      */
-    const getGoalTitle = (goal: GoalWithReview): string => {
+    const getGoalTitle = (goal: GoalResponse): string => {
       // Performance goals have "title" field
       if ('title' in goal && goal.title) {
         return goal.title as string;
