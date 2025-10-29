@@ -820,8 +820,8 @@ class UserService:
             except Exception as exc:
                 await self.session.rollback()
                 raise BadRequestError("Failed to update user statuses") from exc
-        else:
-            await self.session.rollback()
+        # No DB changes were staged when there are no pending updates;
+        # avoid issuing an unnecessary rollback.
 
         for user_id, index in pending_indices.items():
             if user_id in updated_ids:
