@@ -196,21 +196,45 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
 
         // Performance optimization: Load ALL goals WITH embedded reviews in a single request
         // Admin endpoint: shows ALL users' goals (no user filtering)
-        const goalsResult = await getAdminGoalsAction({
+        const PER_PAGE_LIMIT = 100; // Backend maximum per request
+        const allGoals: GoalResponse[] = [];
+
+        // Fetch first page
+        const firstPageResult = await getAdminGoalsAction({
           periodId: targetPeriodId,
-          limit: 100, // Backend max limit
+          page: 1,
+          limit: PER_PAGE_LIMIT,
           includeReviews: true, // Default: true (batch optimization)
         });
 
-        if (!goalsResult.success || !goalsResult.data?.items) {
-          setError(goalsResult.error || '目標の読み込みに失敗しました');
+        if (!firstPageResult.success || !firstPageResult.data?.items) {
+          setError(firstPageResult.error || '目標の読み込みに失敗しました');
           return;
         }
 
-        const goals = goalsResult.data.items;
+        allGoals.push(...firstPageResult.data.items);
+
+        const totalPages = firstPageResult.data.pages ?? 1;
+
+        // Fetch remaining pages sequentially to avoid silent truncation
+        for (let nextPage = 2; nextPage <= totalPages; nextPage += 1) {
+          const pageResult = await getAdminGoalsAction({
+            periodId: targetPeriodId,
+            page: nextPage,
+            limit: PER_PAGE_LIMIT,
+            includeReviews: true,
+          });
+
+          if (!pageResult.success || !pageResult.data?.items) {
+            setError(pageResult.error || '追加の目標データ取得に失敗しました');
+            return;
+          }
+
+          allGoals.push(...pageResult.data.items);
+        }
 
         // Reviews are already embedded in the goal objects (performance optimization)
-        setGoals(goals);
+        setGoals(allGoals);
       } else {
         setCurrentPeriod(null);
         setAllPeriods([]);
