@@ -101,7 +101,7 @@ class CompetencyRepository(BaseRepository[Competency]):
         try:
             query = select(Competency).options(
                 joinedload(Competency.stage)
-            ).filter(Competency.stage_id == stage_id).order_by(Competency.name)
+            ).filter(Competency.stage_id == stage_id).order_by(Competency.display_order.nullslast(), Competency.name)
             query = self.apply_org_scope_direct(query, Competency.organization_id, org_id)
             result = await self.session.execute(query)
             return result.scalars().unique().all()
@@ -114,7 +114,7 @@ class CompetencyRepository(BaseRepository[Competency]):
         try:
             query = select(Competency).options(
                 joinedload(Competency.stage)
-            ).order_by(Competency.name)
+            ).order_by(Competency.display_order.nullslast(), Competency.name)
             query = self.apply_org_scope_direct(query, Competency.organization_id, org_id)
             result = await self.session.execute(query)
             return result.scalars().unique().all()
@@ -140,7 +140,7 @@ class CompetencyRepository(BaseRepository[Competency]):
             if stage_ids:
                 query = query.filter(Competency.stage_id.in_(stage_ids))
 
-            query = query.order_by(Competency.name)
+            query = query.order_by(Competency.display_order.nullslast(), Competency.name)
 
             result = await self.session.execute(query)
             return result.scalars().unique().all()

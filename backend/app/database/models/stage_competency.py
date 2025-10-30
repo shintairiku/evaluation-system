@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, text, UniqueConstraint
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID, JSONB
 from sqlalchemy.orm import relationship
 
@@ -35,6 +35,7 @@ class Competency(Base):
     stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id"), nullable=False)
     name = Column(Text, nullable=False)
     description = Column(JSONB)
+    display_order = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
