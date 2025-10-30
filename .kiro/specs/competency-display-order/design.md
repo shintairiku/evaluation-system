@@ -137,7 +137,9 @@ competencies table
 
 #### 4.1.1 Migration Script
 
-**File**: `backend/app/database/migrations/production/00X_add_display_order_to_competencies.sql`
+**File**: `backend/app/database/migrations/production/008_add_display_order_to_competencies.sql`
+
+**Note**: This migration will be automatically executed by `run_migrations.py` script.
 
 ```sql
 -- Add display_order column to competencies table
@@ -166,7 +168,9 @@ COMMENT ON COLUMN competencies.display_order IS
 
 #### 4.1.2 Seed Script
 
-**File**: `backend/app/database/migrations/seeds/003_update_competencies_display_order.sql`
+**File**: `backend/app/database/migrations/seeds/007_update_competencies_display_order.sql`
+
+**Note**: This seed script will be automatically executed by `run_migrations.py` after the migration.
 
 ```sql
 -- Update competencies with standardized display order
@@ -604,7 +608,53 @@ CREATE INDEX idx_competencies_display_order ON competencies(display_order);  -- 
 
 ---
 
-### 6.2 Migration Performance
+### 6.2 Migration System
+
+**Project Uses `run_migrations.py` Script:**
+
+The project has a built-in migration runner at `backend/app/database/scripts/run_migrations.py` that:
+- ✅ Automatically scans `migrations/production/` and `migrations/seeds/` directories
+- ✅ Tracks applied migrations in `schema_migrations` table
+- ✅ Executes pending migrations in alphabetical order
+- ✅ Runs each migration in a transaction (automatic rollback on error)
+- ✅ Prevents duplicate execution
+
+**File Naming Convention:**
+```
+backend/app/database/migrations/production/
+  ├── 005_roles_uuid_migration.sql
+  ├── 006_add_subordinate_id_to_supervisor_reviews.sql
+  ├── 007_add_previous_goal_id_to_goals.sql
+  └── 008_add_display_order_to_competencies.sql  ← NEW
+
+backend/app/database/migrations/seeds/
+  ├── 004_roles_data.sql
+  ├── 005_parttime_stages_competencies.sql
+  ├── 006_parttime_stages_org2.sql
+  └── 007_update_competencies_display_order.sql  ← NEW
+```
+
+**Running Migrations:**
+```bash
+cd backend
+python app/database/scripts/run_migrations.py
+
+# Output:
+# 🚀 Running migrations...
+# 📁 Scanned backend/app/database/migrations/production
+# 📁 Scanned backend/app/database/migrations/seeds
+# 📁 Found 2 pending migrations:
+#   - 008_add_display_order_to_competencies.sql
+#   - 007_update_competencies_display_order.sql
+# 📝 Running migration 1/2: 008_add_display_order_to_competencies.sql
+# ✅ Migration 1 completed
+# 📝 Running migration 2/2: 007_update_competencies_display_order.sql
+# ✅ Migration 2 completed
+```
+
+---
+
+### 6.3 Migration Performance
 
 **ALTER TABLE Performance:**
 ```
@@ -612,6 +662,7 @@ Table size: ~100-200 rows (2 orgs × 9 stages × 6 competencies)
 Operation: ADD COLUMN INTEGER
 Expected time: < 5 seconds
 Locking: Minimal (PostgreSQL 11+ supports fast ADD COLUMN)
+Transaction: Managed by run_migrations.py (automatic rollback on error)
 ```
 
 **UPDATE Performance:**
