@@ -15,6 +15,7 @@ export interface Competency {
   name: string;
   description?: CompetencyDescription;
   stageId: UUID;
+  displayOrder?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,10 +28,12 @@ export interface CompetencyCreate {
   name: string;
   description?: CompetencyDescription;
   stageId: UUID;
+  displayOrder?: number;
 }
 
 export interface CompetencyUpdate {
   name?: string;
   description?: CompetencyDescription;
   stageId?: UUID;
+  displayOrder?: number;
 }

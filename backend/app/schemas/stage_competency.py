@@ -14,6 +14,7 @@ class CompetencyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[Dict[str, str]] = Field(None, description="Sub-items with keys '1' through '5'")
     stage_id: UUID = Field(..., alias="stageId")
+    display_order: Optional[int] = Field(None, alias="displayOrder", description="Display order within stage (1-6)")
     
     @validator('description')
     def validate_description(cls, v):
@@ -32,6 +33,7 @@ class CompetencyUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[Dict[str, str]] = Field(None, description="Sub-items with keys '1' through '5'")
     stage_id: Optional[UUID] = Field(None, alias="stageId")
+    display_order: Optional[int] = Field(None, alias="displayOrder", description="Display order within stage (1-6)")
     
     @validator('description')
     def validate_description(cls, v):
@@ -49,6 +51,7 @@ class Competency(BaseModel):
     name: str
     description: Optional[Dict[str, str]] = None
     stage_id: UUID = Field(..., alias="stageId")
+    display_order: Optional[int] = Field(None, alias="displayOrder")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
     
@@ -63,6 +66,7 @@ class CompetencyDetail(BaseModel):
     name: str
     description: Optional[Dict[str, str]] = None
     stage_id: UUID = Field(..., alias="stageId")
+    display_order: Optional[int] = Field(None, alias="displayOrder")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
     users: Optional[List["User"]] = Field(default=None, alias="users")
