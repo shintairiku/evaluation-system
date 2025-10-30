@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any, Set
 from uuid import UUID
 from datetime import date
 from cachetools import TTLCache
+import asyncio
 
 from .clerk_service import ClerkService
 from ..database.repositories.user_repo import UserRepository
@@ -426,6 +427,15 @@ class UserService:
             # Business validation
             await self._validate_user_update(user_data, existing_user, org_id)
             
+            # Capture previous roles before any change for delta detection
+            prev_role_names: list[str] = []
+            if user_data.role_ids is not None:
+                try:
+                    prev_roles = await self.user_repo.get_user_roles(user_id)
+                    prev_role_names = [r.name.lower() for r in prev_roles]
+                except Exception:
+                    prev_role_names = []
+
             # Update user through repository using UserUpdate schema
             updated_user = await self.user_repo.update_user(user_id, user_data, org_id)
             if not updated_user:
@@ -497,6 +507,25 @@ class UserService:
             # Enrich user data for detailed response
             enriched_user = await self._enrich_detailed_user_data(updated_user)
             
+            # After commit, handle Clerk sync asynchronously
+            try:
+                # Fetch latest role names for metadata sync and admin delta
+                latest_roles = await self.user_repo.get_user_roles(user_id)
+                latest_role_names = [r.name for r in latest_roles]
+
+                # Fire-and-forget: update public_metadata.roles
+                if updated_user.clerk_user_id:
+                    async def _update_metadata_roles():
+                        try:
+                            await asyncio.to_thread(
+                                self.clerk_service.update_user_metadata,
+                                updated_user.clerk_user_id,
+                                {"roles": latest_role_names},
+                            )
+                            logger.info(f"Clerk public_metadata.roles updated for user {user_id}")
+                        except Exception as e:
+                            logger.error(f"Failed to update Clerk metadata roles for {user_id}: {e}")
+                    asyncio.create_task(_update_metadata_roles())
             logger.info(f"User updated successfully: {user_id}")
             return enriched_user
             
