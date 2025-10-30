@@ -29,16 +29,17 @@ This document breaks down the implementation of standardized competency display 
 Create migration script to add `display_order` column and index to competencies table.
 
 **Acceptance Criteria:**
-- [ ] File created: `backend/app/database/migrations/production/00X_add_display_order_to_competencies.sql`
+- [ ] File created: `backend/app/database/migrations/production/008_add_display_order_to_competencies.sql`
 - [ ] Migration adds `display_order INTEGER` column (nullable)
 - [ ] Migration creates index `idx_competencies_display_order`
 - [ ] Migration includes rollback statements in comments
 - [ ] Column comment added for documentation
+- [ ] Migration runs successfully via `run_migrations.py`
 
 **Implementation Details:**
 
 ```sql
--- File: backend/app/database/migrations/production/00X_add_display_order_to_competencies.sql
+-- File: backend/app/database/migrations/production/008_add_display_order_to_competencies.sql
 
 -- Add display_order column to competencies table
 -- This enables standardized ordering across all stages
@@ -61,21 +62,33 @@ COMMENT ON COLUMN competencies.display_order IS
 ```
 
 **Verification:**
-```sql
--- Check column exists
-\d competencies
 
--- Check index exists
-\di idx_competencies_display_order
+**Using run_migrations.py (Recommended):**
+```bash
+# Run migration using project's migration script
+cd backend
+python app/database/scripts/run_migrations.py
 
--- Check comment
-SELECT col_description('competencies'::regclass,
-  (SELECT ordinal_position FROM information_schema.columns
-   WHERE table_name='competencies' AND column_name='display_order'));
+# Expected output:
+# 🚀 Running migrations...
+# 📝 Running migration: 008_add_display_order_to_competencies.sql
+# ✅ Migration completed
+```
+
+**Manual verification (if needed):**
+```bash
+# Check column exists
+psql $DATABASE_URL -c "\d competencies"
+
+# Check index exists
+psql $DATABASE_URL -c "\di idx_competencies_display_order"
+
+# Check in schema_migrations table
+psql $DATABASE_URL -c "SELECT * FROM schema_migrations WHERE filename = '008_add_display_order_to_competencies.sql';"
 ```
 
 **Files to Create:**
-- `backend/app/database/migrations/production/00X_add_display_order_to_competencies.sql`
+- `backend/app/database/migrations/production/008_add_display_order_to_competencies.sql`
 
 ---
 
@@ -90,13 +103,14 @@ SELECT col_description('competencies'::regclass,
 Create seed script to populate `display_order` for all existing competencies (108 total: 54 per org × 2 orgs).
 
 **Acceptance Criteria:**
-- [ ] File created: `backend/app/database/migrations/seeds/003_update_competencies_display_order.sql`
+- [ ] File created: `backend/app/database/migrations/seeds/007_update_competencies_display_order.sql`
 - [ ] Updates all Stage 1-9 competencies for Organization 1
 - [ ] Updates all Stage 1-9 competencies for Organization 2
 - [ ] Total 108 UPDATE statements (9 stages × 6 competencies × 2 orgs)
 - [ ] Includes verification query at end
 - [ ] Includes mapping table in comments
 - [ ] Script is idempotent (can run multiple times safely)
+- [ ] Seed runs successfully via `run_migrations.py`
 
 **Implementation Details:**
 
@@ -147,8 +161,32 @@ GROUP BY stage_id;
 -- Expected: Each stage has [1,2,3,4,5,6]
 ```
 
+**Verification:**
+
+**Using run_migrations.py (Recommended):**
+```bash
+# Run all pending migrations (including seeds)
+cd backend
+python app/database/scripts/run_migrations.py
+
+# Expected output:
+# 📝 Running migration: 007_update_competencies_display_order.sql
+# ✅ Migration completed
+```
+
+**Verify data:**
+```bash
+# Check all competencies have display_order
+psql $DATABASE_URL -c "SELECT COUNT(*) as total, COUNT(display_order) as with_order FROM competencies;"
+# Expected: total=108, with_order=108
+
+# Check specific stage ordering
+psql $DATABASE_URL -c "SELECT display_order, name FROM competencies WHERE stage_id = '11111111-2222-3333-4444-555555555555' ORDER BY display_order;"
+# Expected: Returns 6 rows in order 1-6
+```
+
 **Files to Create:**
-- `backend/app/database/migrations/seeds/003_update_competencies_display_order.sql`
+- `backend/app/database/migrations/seeds/007_update_competencies_display_order.sql`
 
 ---
 
@@ -703,35 +741,49 @@ Deploy changes to staging environment and perform smoke tests.
 # 1. Backup staging database
 pg_dump -U postgres evaluation_system > backup_pre_display_order.sql
 
-# 2. Run migration
-psql -U postgres evaluation_system < backend/app/database/migrations/production/00X_add_display_order_to_competencies.sql
+# 2. Pull latest code
+cd backend
+git pull origin feat/competency-display-order
 
-# 3. Run seed script
-psql -U postgres evaluation_system < backend/app/database/migrations/seeds/003_update_competencies_display_order.sql
+# 3. Run migrations using project script (automatic)
+python app/database/scripts/run_migrations.py
+
+# Expected output:
+# 🚀 Running migrations...
+# 📁 Found 2 pending migrations:
+#   - 008_add_display_order_to_competencies.sql
+#   - 007_update_competencies_display_order.sql
+# 📝 Running migration 1/2: 008_add_display_order_to_competencies.sql
+# ✅ Migration 1 completed
+# 📝 Running migration 2/2: 007_update_competencies_display_order.sql
+# ✅ Migration 2 completed
 
 # 4. Verify database
-psql -U postgres evaluation_system -c "SELECT COUNT(*) FROM competencies WHERE display_order IS NULL;"
+psql $DATABASE_URL -c "SELECT COUNT(*) FROM competencies WHERE display_order IS NULL;"
 # Expected: 0
 
 # 5. Deploy backend
-cd backend
-git pull
 docker-compose up -d --build
 
 # 6. Deploy frontend
-cd frontend
+cd ../frontend
 git pull
 npm run build
 # ... deploy frontend
 
 # 7. Smoke test
 curl -X GET "https://staging.example.com/api/org/{org_slug}/competencies?stageId={stage1}" \
+  -H "Authorization: Bearer {token}" \
   | jq '.items | map(.displayOrder)'
 # Expected: [1, 2, 3, 4, 5, 6]
 
 # 8. Check logs
 docker-compose logs backend --tail=100
 # Expected: No errors related to display_order
+
+# 9. Verify migration tracking
+psql $DATABASE_URL -c "SELECT * FROM schema_migrations WHERE filename LIKE '%display_order%';"
+# Expected: 2 rows (migration + seed)
 ```
 
 **Rollback Plan (if needed):**
@@ -773,34 +825,50 @@ Deploy changes to production environment with monitoring.
 
 ```bash
 # 1. Create production backup
-pg_dump -U postgres evaluation_system_prod > backup_prod_$(date +%Y%m%d_%H%M%S).sql
+pg_dump $DATABASE_URL > backup_prod_$(date +%Y%m%d_%H%M%S).sql
 
-# 2. Run migration
-psql -U postgres evaluation_system_prod < backend/app/database/migrations/production/00X_add_display_order_to_competencies.sql
+# 2. Pull latest code
+cd backend
+git pull origin feat/competency-display-order
 
-# 3. Run seed script
-psql -U postgres evaluation_system_prod < backend/app/database/migrations/seeds/003_update_competencies_display_order.sql
+# 3. Run migrations using project script (automatic)
+python app/database/scripts/run_migrations.py
+
+# Expected output:
+# 🚀 Running migrations...
+# 📝 Running migration: 008_add_display_order_to_competencies.sql
+# ✅ Migration completed
+# 📝 Running migration: 007_update_competencies_display_order.sql
+# ✅ Migration completed
 
 # 4. Verify database
-psql -U postgres evaluation_system_prod -c "SELECT COUNT(*) FROM competencies WHERE display_order IS NULL;"
+psql $DATABASE_URL -c "SELECT COUNT(*) FROM competencies WHERE display_order IS NULL;"
 # Expected: 0
 
-# 5. Deploy backend (blue-green or rolling update)
-# ... deployment process
+# 5. Verify migration tracking
+psql $DATABASE_URL -c "SELECT * FROM schema_migrations WHERE filename LIKE '%display_order%' ORDER BY applied_at;"
+# Expected: 2 rows
 
-# 6. Deploy frontend
-# ... deployment process
+# 6. Deploy backend (blue-green or rolling update)
+docker-compose up -d --build
 
-# 7. Smoke tests
-# Test all 9 stages
-for stage_id in {list_of_stage_ids}; do
+# 7. Deploy frontend
+cd ../frontend
+git pull
+npm run build
+# ... deploy frontend
+
+# 8. Smoke tests - Test all 9 stages
+for stage_id in $(psql $DATABASE_URL -t -c "SELECT id FROM stages ORDER BY name"); do
+  echo "Testing stage: $stage_id"
   curl -X GET "https://app.example.com/api/org/{org_slug}/competencies?stageId=$stage_id" \
+    -H "Authorization: Bearer {token}" \
     | jq '.items | map(.displayOrder)'
 done
 # Expected: Each returns [1, 2, 3, 4, 5, 6]
 
-# 8. Monitor logs and metrics
-# Check error rates, response times, user activity
+# 9. Monitor logs and metrics
+docker-compose logs backend --tail=200 | grep -i "display_order\|error"
 ```
 
 **Post-Deployment Monitoring (first 24 hours):**
