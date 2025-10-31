@@ -65,7 +65,7 @@ export function EmployeeInfoCard({ employee }: EmployeeInfoCardProps) {
             {/* Role */}
             {primaryRole && (
               <div className="flex items-center gap-2">
-                <span className="truncate">役割: {primaryRole.name}</span>
+                <span className="truncate">役割: {primaryRole.description || primaryRole.name}</span>
               </div>
             )}
           </div>
