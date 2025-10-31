@@ -26,7 +26,7 @@ export default clerkMiddleware(async (auth, req) => {
       // 認証されていない場合、サインインページにリダイレクト（元のURLを保持）
       const signInUrl = new URL('/sign-in', req.url);
       const callbackPath = `${req.nextUrl.pathname}${req.nextUrl.search}`;
-      if (callbackPath) {
+      if (req.nextUrl.pathname !== '/') {
         signInUrl.searchParams.set('redirect_url', callbackPath);
       }
       return NextResponse.redirect(signInUrl);
