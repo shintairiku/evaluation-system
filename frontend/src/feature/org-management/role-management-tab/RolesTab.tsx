@@ -190,7 +190,7 @@ export function RolesTab({
       <Dialog open={!!roleDialogRole} onOpenChange={(open) => !open && closeRoleDialog()}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{roleDialogRole?.name} のユーザー割り当て</DialogTitle>
+            <DialogTitle>{roleDialogRole?.description || roleDialogRole?.name} のユーザー割り当て</DialogTitle>
             <DialogDescription>
               このロールに割り当てたいユーザーにチェックを入れてください。保存時に一括で反映されます。
             </DialogDescription>
