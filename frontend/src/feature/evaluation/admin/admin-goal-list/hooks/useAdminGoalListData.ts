@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getAdminGoalsAction } from '@/api/server-actions/goals';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getUsersAction } from '@/api/server-actions/users';
@@ -41,6 +41,8 @@ export interface UseAdminGoalListDataReturn {
   currentPeriod: EvaluationPeriod | null;
   /** All available evaluation periods */
   allPeriods: EvaluationPeriod[];
+  /** Evaluation period id actually used to fetch goals */
+  resolvedPeriodId: string | null;
   /** All users in organization */
   users: UserDetailResponse[];
   /** All departments in organization */
@@ -120,6 +122,10 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
   const [departments, setDepartments] = useState<Department[]>([]);
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
   const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>([]);
+  const [resolvedPeriodId, setResolvedPeriodId] = useState<string | null>(
+    params?.selectedPeriodId ?? null
+  );
+  const resolvedPeriodIdRef = useRef<string | null>(params?.selectedPeriodId ?? null);
 
   // UI state
   const [isLoading, setIsLoading] = useState(true);
@@ -176,23 +182,49 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
 
       // Set current period and all periods
       if (periodResult.success && periodResult.data) {
-        setCurrentPeriod(periodResult.data.current || null);
-
         const allPeriodsArray = periodResult.data.all || [];
         setAllPeriods(allPeriodsArray);
 
-        // Determine which period to use: selected period or current period
-        const periodToUse = params?.selectedPeriodId
-          ? allPeriodsArray.find(p => p.id === params.selectedPeriodId)
-          : periodResult.data.current;
+        // Always keep the true "current" (active) period for selector highlighting
+        setCurrentPeriod(periodResult.data.current || null);
+
+        // Determine which period to use: selected (if valid) > current active > first available
+        let periodToUse: EvaluationPeriod | undefined;
+        let requestedPeriodMissing = false;
+
+        if (params?.selectedPeriodId) {
+          periodToUse = allPeriodsArray.find(p => p.id === params.selectedPeriodId);
+          if (!periodToUse) {
+            requestedPeriodMissing = true;
+          }
+        }
+
+        const fallbackPeriod = periodResult.data.current ?? allPeriodsArray[0];
+        if (!periodToUse && fallbackPeriod) {
+          periodToUse = fallbackPeriod;
+        }
 
         if (!periodToUse) {
-          setError(params?.selectedPeriodId ? '選択された評価期間が見つかりません' : '評価期間が設定されていません');
+          resolvedPeriodIdRef.current = null;
+          setResolvedPeriodId(null);
+          setError('評価期間が設定されていません');
           setGoals([]);
           return;
         }
 
         const targetPeriodId = periodToUse.id;
+        const previousResolvedId = resolvedPeriodIdRef.current;
+        if (!previousResolvedId || previousResolvedId !== targetPeriodId) {
+          setCurrentPage(1);
+        }
+        resolvedPeriodIdRef.current = targetPeriodId;
+        setResolvedPeriodId(targetPeriodId);
+
+        if (requestedPeriodMissing) {
+          console.warn(
+            `Requested evaluation period (${params?.selectedPeriodId}) not found. Falling back to ${targetPeriodId}.`
+          );
+        }
 
         // Performance optimization: Load ALL goals WITH embedded reviews in a single request
         // Admin endpoint: shows ALL users' goals (no user filtering)
@@ -238,6 +270,8 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
       } else {
         setCurrentPeriod(null);
         setAllPeriods([]);
+        resolvedPeriodIdRef.current = null;
+        setResolvedPeriodId(null);
         setError('評価期間が設定されていません');
         setGoals([]);
       }
@@ -336,6 +370,7 @@ export function useAdminGoalListData(params?: UseAdminGoalListDataParams): UseAd
     selectedUserData,
     currentPeriod,
     allPeriods,
+    resolvedPeriodId,
     users,
     departments,
     currentPage,

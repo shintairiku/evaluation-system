@@ -67,6 +67,7 @@ export default function AdminGoalListPage({ selectedPeriodId }: AdminGoalListPag
     selectedUserData,
     currentPeriod,
     allPeriods,
+    resolvedPeriodId,
     users,
     departments,
     currentPage,
@@ -101,7 +102,11 @@ export default function AdminGoalListPage({ selectedPeriodId }: AdminGoalListPag
    */
   const handlePeriodChange = (periodId: string) => {
     setInternalSelectedPeriodId(periodId);
+    setCurrentPage(1);
   };
+
+  const activeSelectorPeriodId =
+    internalSelectedPeriodId || resolvedPeriodId || allPeriods[0]?.id || '';
 
   /**
    * Handle page change
@@ -126,10 +131,10 @@ export default function AdminGoalListPage({ selectedPeriodId }: AdminGoalListPag
         </div>
 
         {/* Period Selector (REUSE) */}
-        {currentPeriod && (
+        {allPeriods.length > 0 && (
           <EvaluationPeriodSelector
             periods={allPeriods}
-            selectedPeriodId={internalSelectedPeriodId || currentPeriod.id}
+            selectedPeriodId={activeSelectorPeriodId}
             currentPeriodId={currentPeriod?.id || null}
             onPeriodChange={handlePeriodChange}
             isLoading={isLoading}
