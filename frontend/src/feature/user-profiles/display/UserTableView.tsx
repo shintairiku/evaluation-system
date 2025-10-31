@@ -118,7 +118,7 @@ export default function UserTableView({ users, onUserUpdate }: UserTableViewProp
                         {user.roles.length > 0 ? (
                           user.roles.map((role) => (
                             <Badge key={role.id} variant="outline" className="text-xs">
-                              {role.name}
+                              {role.description || role.name}
                             </Badge>
                           ))
                         ) : (

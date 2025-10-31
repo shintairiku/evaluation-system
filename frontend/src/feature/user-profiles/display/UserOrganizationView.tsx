@@ -160,7 +160,7 @@ const UserNode = ({ data, selected, dragging }: { data: { user: UserDetailRespon
               {user.roles && user.roles.length > 0 ? (
                 user.roles.map((role) => (
                   <Badge key={role.id} variant="outline" className="text-xs font-medium bg-white/70 border-gray-300 text-gray-700">
-                    {role.name}
+                    {role.description || role.name}
                   </Badge>
                 ))
               ) : (
