@@ -327,7 +327,7 @@ export function UsersTab({
       <div className="flex flex-wrap gap-1">
         {user.roles.map((role) => (
           <Badge key={role.id} variant="secondary">
-            {role.name}
+            {role.description || role.name}
           </Badge>
         ))}
       </div>
@@ -454,7 +454,7 @@ export function UsersTab({
                                 checked={currentRoleIds.has(role.id)}
                                 onCheckedChange={(checked) => handleRolesToggle(user, role.id, Boolean(checked))}
                               >
-                                {role.name}
+                                {role.description || role.name}
                               </DropdownMenuCheckboxItem>
                             ))}
                           </DropdownMenuContent>
