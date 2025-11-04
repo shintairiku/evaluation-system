@@ -7,9 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...core.exceptions import BadRequestError, PermissionDeniedError
 from ...database.session import get_db_session
 from ...schemas.common import PaginatedResponse
-from ...schemas.user import UserDetailResponse, UserStatus
+from ...schemas.user import (
+    BulkUserStatusUpdateItem,
+    BulkUserStatusUpdateResponse,
+    UserDetailResponse,
+    UserStatus,
+)
 from ...security import AuthContext, get_auth_context
 from ...services.user_service_v2 import UserServiceV2
+from ...services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -72,4 +78,26 @@ async def list_users_v2(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch users",
+        ) from exc
+
+
+@router.patch("/bulk-status", response_model=BulkUserStatusUpdateResponse)
+async def bulk_update_status(
+    org_slug: str,
+    items: list[BulkUserStatusUpdateItem],
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = UserService(session)
+        response = await service.bulk_update_user_statuses(items, context)
+        return response
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to bulk update user statuses",
         ) from exc

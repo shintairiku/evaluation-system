@@ -130,6 +130,8 @@ class DepartmentService:
 
             # Create department
             new_dept = await self.dept_repo.create_department(dept_data, current_user_context.organization_id)
+            await self.session.commit()
+            await self.session.refresh(new_dept)
             
             # Enrich department data
             enriched_dept = await self._enrich_department_data(new_dept)
@@ -138,6 +140,7 @@ class DepartmentService:
             return enriched_dept
             
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error creating department: {str(e)}")
             raise
 
@@ -165,12 +168,18 @@ class DepartmentService:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
 
             # Validate update data
-            await self._validate_department_update(dept_data, existing_dept)
+            await self._validate_department_update(
+                dept_data,
+                existing_dept,
+                current_user_context.organization_id,
+            )
 
             # Update department
             updated_dept = await self.dept_repo.update_department(dept_id, dept_data, current_user_context.organization_id)
             if not updated_dept:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
+            await self.session.commit()
+            await self.session.refresh(updated_dept)
             
             # Enrich department data
             enriched_dept = await self._enrich_department_data(updated_dept)
@@ -179,6 +188,7 @@ class DepartmentService:
             return enriched_dept
             
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error updating department {dept_id}: {str(e)}")
             raise
     
@@ -211,11 +221,13 @@ class DepartmentService:
             success = await self.dept_repo.delete_department(dept_id, current_user_context.organization_id)
             if not success:
                 raise NotFoundError(f"Department with ID {dept_id} not found")
+            await self.session.commit()
             
             logger.info(f"Department deleted: {dept_id} by user {current_user_context.user_id}")
             return {"message": "Department deleted successfully"}
             
         except Exception as e:
+            await self.session.rollback()
             logger.error(f"Error deleting department {dept_id}: {str(e)}")
             raise
     

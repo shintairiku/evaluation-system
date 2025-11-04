@@ -11,9 +11,10 @@ const isPublicRoute = createRouteMatcher([
 
 const isAdminRoute = createRouteMatcher([
   '/evaluation-period-management(.*)',
-  '/department-management(.*)',
+  '/org-management(.*)',
   '/stage-management(.*)',
-  '/competency-management(.*)'
+  '/competency-management(.*)',
+  '/admin-goal-list(.*)'
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -22,8 +23,12 @@ export default clerkMiddleware(async (auth, req) => {
     const { userId, orgId, orgRole } = await auth();
 
     if (!userId) {
-      // 認証されていない場合、サインインページにリダイレクト
+      // 認証されていない場合、サインインページにリダイレクト（元のURLを保持）
       const signInUrl = new URL('/sign-in', req.url);
+      const callbackPath = `${req.nextUrl.pathname}${req.nextUrl.search}`;
+      if (req.nextUrl.pathname !== '/') {
+        signInUrl.searchParams.set('redirect_url', callbackPath);
+      }
       return NextResponse.redirect(signInUrl);
     }
 

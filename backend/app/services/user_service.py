@@ -1,9 +1,10 @@
 from __future__ import annotations
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Set
 from uuid import UUID
 from datetime import date
 from cachetools import TTLCache
+import asyncio
 
 from .clerk_service import ClerkService
 from ..database.repositories.user_repo import UserRepository
@@ -16,7 +17,8 @@ from ..security.rbac_types import ResourceType
 from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB, SimpleUser,
-    Department, Stage, Role, UserStatus, UserExistsResponse, UserClerkIdUpdate
+    Department, Stage, Role, UserStatus, UserExistsResponse, UserClerkIdUpdate,
+    BulkUserStatusUpdateItem, BulkUserStatusUpdateResult, BulkUserStatusUpdateResponse
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -425,6 +427,15 @@ class UserService:
             # Business validation
             await self._validate_user_update(user_data, existing_user, org_id)
             
+            # Capture previous roles before any change for delta detection
+            prev_role_names: list[str] = []
+            if user_data.role_ids is not None:
+                try:
+                    prev_roles = await self.user_repo.get_user_roles(user_id)
+                    prev_role_names = [r.name.lower() for r in prev_roles]
+                except Exception:
+                    prev_role_names = []
+
             # Update user through repository using UserUpdate schema
             updated_user = await self.user_repo.update_user(user_id, user_data, org_id)
             if not updated_user:
@@ -496,6 +507,46 @@ class UserService:
             # Enrich user data for detailed response
             enriched_user = await self._enrich_detailed_user_data(updated_user)
             
+            # After commit, handle Clerk sync asynchronously
+            try:
+                # Fetch latest role names for metadata sync and admin delta
+                latest_roles = await self.user_repo.get_user_roles(user_id)
+                latest_role_names = [r.name for r in latest_roles]
+
+                # Fire-and-forget: update public_metadata.roles
+                if updated_user.clerk_user_id:
+                    async def _update_metadata_roles():
+                        try:
+                            await asyncio.to_thread(
+                                self.clerk_service.update_user_metadata,
+                                updated_user.clerk_user_id,
+                                {"roles": latest_role_names},
+                            )
+                            logger.info(f"Clerk public_metadata.roles updated for user {user_id}")
+                        except Exception as e:
+                            logger.error(f"Failed to update Clerk metadata roles for {user_id}: {e}")
+                    asyncio.create_task(_update_metadata_roles())
+
+                # If roles changed and admin toggled, update organization membership role
+                if user_data.role_ids is not None and updated_user.clerk_user_id and updated_user.clerk_organization_id:
+                    prev_is_admin = 'admin' in prev_role_names
+                    new_is_admin = any(r.lower() == 'admin' for r in latest_role_names)
+                    if prev_is_admin != new_is_admin:
+                        async def _update_org_role():
+                            ok = await asyncio.to_thread(
+                                self.clerk_service.set_organization_role,
+                                updated_user.clerk_organization_id,
+                                updated_user.clerk_user_id,
+                                new_is_admin,
+                            )
+                            if ok:
+                                logger.info(f"Clerk org role set to {'admin' if new_is_admin else 'member'} for user {user_id}")
+                            else:
+                                logger.error(f"Clerk org role update failed for user {user_id}")
+                        asyncio.create_task(_update_org_role())
+            except Exception as e:
+                logger.error(f"Post-update Clerk sync scheduling failed for user {user_id}: {e}")
+
             logger.info(f"User updated successfully: {user_id}")
             return enriched_user
             
@@ -726,6 +777,125 @@ class UserService:
         except Exception as e:
             logger.error(f"User lookup with fallback failed: {e}")
             return None
+
+    async def bulk_update_user_statuses(
+        self,
+        items: list[BulkUserStatusUpdateItem],
+        current_user_context: AuthContext,
+    ) -> BulkUserStatusUpdateResponse:
+        """Bulk update user statuses with organization scope and transition validation."""
+
+        current_user_context.require_role("admin")
+
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        if len(items) > 100:
+            raise BadRequestError("Cannot update more than 100 users at once")
+
+        results: list[Optional[BulkUserStatusUpdateResult]] = [None] * len(items)
+
+        unique_ids: list[UUID] = []
+        seen_ids: Set[UUID] = set()
+        for index, item in enumerate(items):
+            if item.user_id in seen_ids:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=item.user_id,
+                    success=False,
+                    error="Duplicate userId in request",
+                )
+                continue
+            seen_ids.add(item.user_id)
+            unique_ids.append(item.user_id)
+
+        current_status_map = await self.user_repo.get_user_statuses(org_id, unique_ids)
+
+        allowed_transitions: dict[UserStatus, set[UserStatus]] = {
+            UserStatus.PENDING_APPROVAL: {UserStatus.ACTIVE},
+            UserStatus.ACTIVE: {UserStatus.INACTIVE},
+            UserStatus.INACTIVE: {UserStatus.ACTIVE},
+        }
+
+        pending_updates: Dict[UUID, UserStatus] = {}
+        pending_indices: Dict[UUID, int] = {}
+
+        for index, item in enumerate(items):
+            if results[index] is not None:
+                continue
+
+            user_id = item.user_id
+            requested_status = item.new_status
+
+            current_status_value = current_status_map.get(user_id)
+            if current_status_value is None:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=user_id,
+                    success=False,
+                    error="User not found in your organization",
+                )
+                continue
+
+            current_status = UserStatus(current_status_value)
+
+            if requested_status == current_status:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=user_id,
+                    success=False,
+                    error="User already has the requested status",
+                )
+                continue
+
+            allowed_targets = allowed_transitions.get(current_status, set())
+            if requested_status not in allowed_targets:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=user_id,
+                    success=False,
+                    error=f"Invalid status transition from {current_status.value} to {requested_status.value}",
+                )
+                continue
+
+            pending_updates[user_id] = requested_status
+            pending_indices[user_id] = index
+
+        updated_ids: Set[UUID] = set()
+
+        if pending_updates:
+            try:
+                updated_ids = await self.user_repo.batch_update_user_statuses(org_id, pending_updates)
+                if updated_ids:
+                    await self.session.commit()
+                else:
+                    logger.warning(
+                        "No user statuses were updated in batch operation; this may be due to concurrent changes or invalid transitions."
+                    )
+            except Exception as exc:
+                await self.session.rollback()
+                raise BadRequestError("Failed to update user statuses") from exc
+        # No DB changes were staged when there are no pending updates;
+        # avoid issuing an unnecessary rollback.
+
+        for user_id, index in pending_indices.items():
+            if user_id in updated_ids:
+                results[index] = BulkUserStatusUpdateResult(userId=user_id, success=True)
+            else:
+                results[index] = BulkUserStatusUpdateResult(
+                    userId=user_id,
+                    success=False,
+                    error="No status change was applied",
+                )
+
+        # Filter out None just in case (defensive)
+        finalized_results = [result for result in results if result is not None]
+
+        success_count = sum(1 for result in finalized_results if result.success)
+        failure_count = len(finalized_results) - success_count
+
+        return BulkUserStatusUpdateResponse(
+            results=finalized_results,
+            successCount=success_count,
+            failureCount=failure_count,
+        )
 
     
     # Private helper methods

@@ -47,7 +47,7 @@ export function MultiSelectRoles({
           <div className="flex flex-wrap gap-1">
             {selectedRoles.map(role => (
               <Badge key={role.id} variant="default" className="text-xs">
-                {role.name}
+                {role.description || role.name}
               </Badge>
             ))}
           </div>
@@ -73,7 +73,7 @@ export function MultiSelectRoles({
                     htmlFor={`role-${role.id}`}
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                   >
-                    {role.name}
+                    {role.description || role.name}
                   </Label>
                   <p className="text-xs text-muted-foreground">
                     {role.description}

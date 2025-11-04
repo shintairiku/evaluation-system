@@ -63,17 +63,17 @@ export const groups = [
     title: '管理者機能',
     links: [
       {
-        href: '/user-management',
-        label: 'ユーザー管理',
-        sublabel: 'User Management',
-        icon: 'user-cog',
+        href: '/org-management',
+        label: '組織管理',
+        sublabel: 'Organization Management',
+        icon: 'building',
         permission: 'admin'
       },
       {
-        href: '/department-management',
-        label: '部門管理',
-        sublabel: 'Department Management',
-        icon: 'building',
+        href: '/admin-goal-list',
+        label: '全目標一覧',
+        sublabel: 'All Goals List',
+        icon: 'list-checks',
         permission: 'admin'
       },
       {

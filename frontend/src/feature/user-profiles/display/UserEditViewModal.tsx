@@ -550,7 +550,7 @@ export default function UserEditViewModal({
                     <div className="flex flex-wrap gap-2">
                       {user.roles.map((role) => (
                         <Badge key={role.id} variant="outline">
-                          {role.name}
+                          {role.description || role.name}
                         </Badge>
                       ))}
                     </div>

@@ -206,7 +206,7 @@ class AuthService:
                         public_key,
                         **decode_kwargs,
                     )
-                logger.info("JWT signature verification successful")
+                logger.debug("JWT signature verification successful")
 
                 # Additional hardening: verify 'azp' (authorized party) if configured
                 if authorized_parties:

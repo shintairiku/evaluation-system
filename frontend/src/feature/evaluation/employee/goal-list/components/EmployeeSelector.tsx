@@ -54,7 +54,7 @@ export function EmployeeSelector({
             <span>{group.employee.name}</span>
             {group.employee.roles && group.employee.roles.length > 0 && (
               <span className="text-xs text-muted-foreground hidden sm:inline">
-                ({group.employee.roles[0].name})
+                ({group.employee.roles[0].description || group.employee.roles[0].name})
               </span>
             )}
             <Badge

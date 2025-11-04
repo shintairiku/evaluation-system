@@ -338,7 +338,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
           <SelectItem value="all">すべてのロール</SelectItem>
           {profileOptions.roles.map((role) => (
             <SelectItem key={role.id} value={role.id}>
-              {role.name}
+              {role.description || role.name}
             </SelectItem>
           ))}
           {isLoadingOptions && (

@@ -29,3 +29,11 @@
 - Duplicate `.env.sample` to `.env`, plus service-specific files like `frontend/.env.local`; never commit secrets.
 - Keep Clerk and Supabase keys in your secret manager and rerun `tests/clerk/simple-test.py` after updates.
 - Coordinate infra or deployment edits in `supabase/` or `docs/deployment.md` with DevOps before merge.
+
+### Engineering Philosophy (Required)
+-   Simplicity is the priority; avoid unnecessary complexity; less is more.
+-   Write human-understandable code.
+-   Prefer descriptive names over comments; let the code speak for itself.
+-   Core review question: "Can I maintain this code without any issues?"
+-   Favor a functional core with an imperative shell.
+-   Log only nondeterministic or side-effectful operations; nothing else.

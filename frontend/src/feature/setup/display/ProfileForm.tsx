@@ -86,11 +86,11 @@ export default function ProfileForm({ departments, stages, roles, users }: Profi
     setSelectedRoles(stringIds);
 
     if (stringIds.length > 0) {
-      const selectedRoleNames = selectedIds
-        .map(index => availableRoles[index]?.name)
+      const selectedRoleLabels = selectedIds
+        .map(index => availableRoles[index]?.description || availableRoles[index]?.name)
         .filter(Boolean)
         .join(', ');
-      toast.success(`役職を選択しました: ${selectedRoleNames}`, {
+      toast.success(`役職を選択しました: ${selectedRoleLabels}`, {
         duration: 1500
       });
     }
