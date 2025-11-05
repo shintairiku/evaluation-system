@@ -6,17 +6,17 @@ with simplified role-based permission checking.
 """
 
 from __future__ import annotations
-from typing import List, Set, Optional
+from typing import Dict, List, Set, Optional, Union
 from uuid import UUID
 from dataclasses import dataclass
 
-from .permissions import Permission, PermissionManager
+from .permissions import Permission
 
 
 @dataclass
 class RoleInfo:
     """Information about a user's role."""
-    id: int
+    id: Union[int, UUID]
     name: str
     description: str
 
@@ -29,7 +29,15 @@ class AuthContext:
     in a single, simple class that replaces the over-engineered SecurityContext.
     """
     
-    def __init__(self, user_id: Optional[UUID] = None, roles: Optional[List[RoleInfo]] = None, clerk_user_id: Optional[str] = None, organization_id: Optional[str] = None, organization_slug: Optional[str] = None):
+    def __init__(
+        self,
+        user_id: Optional[UUID] = None,
+        roles: Optional[List[RoleInfo]] = None,
+        clerk_user_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        organization_slug: Optional[str] = None,
+        role_permission_overrides: Optional[Dict[str, Set[Permission]]] = None,
+    ):
         self.user_id = user_id
         self.clerk_user_id = clerk_user_id
         self.organization_id = organization_id
@@ -37,6 +45,9 @@ class AuthContext:
         self.roles = roles or []
         self.role_names = [role.name for role in self.roles]
         self.role_ids = [role.id for role in self.roles]
+        self._role_permission_overrides = {
+            name.lower(): perms for name, perms in (role_permission_overrides or {}).items()
+        }
         
         # Compute permissions once at initialization
         self._permissions = self._compute_permissions()
@@ -45,7 +56,7 @@ class AuthContext:
         """Compute all permissions from user's roles."""
         all_permissions = set()
         for role in self.roles:
-            role_permissions = PermissionManager.get_role_permissions(role.name)
+            role_permissions = self._role_permission_overrides.get(role.name.lower(), set())
             all_permissions.update(role_permissions)
         return all_permissions
     
