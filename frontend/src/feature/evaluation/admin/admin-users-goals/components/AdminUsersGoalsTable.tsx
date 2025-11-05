@@ -43,6 +43,7 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading }: AdminUsersGoa
         <TableRow>
           <TableHead>ユーザー</TableHead>
           <TableHead>部署</TableHead>
+          <TableHead>上司</TableHead>
           <TableHead>ステージ</TableHead>
           <TableHead>目標数</TableHead>
           <TableHead>ステータス</TableHead>
@@ -62,6 +63,9 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading }: AdminUsersGoa
 
             {/* Department */}
             <TableCell>{summary.department?.name || '-'}</TableCell>
+
+            {/* Supervisor */}
+            <TableCell>{summary.supervisor?.name || '-'}</TableCell>
 
             {/* Stage */}
             <TableCell>{summary.stage?.name || '-'}</TableCell>
@@ -154,6 +158,7 @@ function TableSkeleton() {
         <TableRow>
           <TableHead>ユーザー</TableHead>
           <TableHead>部署</TableHead>
+          <TableHead>上司</TableHead>
           <TableHead>ステージ</TableHead>
           <TableHead>目標数</TableHead>
           <TableHead>ステータス</TableHead>
@@ -166,6 +171,9 @@ function TableSkeleton() {
           <TableRow key={i}>
             <TableCell>
               <Skeleton className="h-4 w-32" />
+            </TableCell>
+            <TableCell>
+              <Skeleton className="h-4 w-24" />
             </TableCell>
             <TableCell>
               <Skeleton className="h-4 w-24" />
