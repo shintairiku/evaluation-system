@@ -23,6 +23,8 @@ import { Eye, Users, AlertCircle } from 'lucide-react';
 import { GoalCard } from '../../../employee/goal-list/components/GoalCard';
 import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
 import type { UserDetailResponse } from '@/api/types';
+import { filterLatestGoals } from '@/lib/goal-utils';
+import { formatDateJP } from '@/lib/date-utils';
 
 interface AdminUsersGoalsTableProps {
   userSummaries: UserGoalSummary[];
@@ -51,19 +53,9 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
   }, [selectedSummary, users]);
 
   // Filter to show only latest versions of goals (not superseded by resubmissions)
-  // A goal is superseded if another goal has it as previousGoalId
   const latestGoals = useMemo(() => {
     if (!selectedSummary) return [];
-
-    const supersededGoalIds = new Set(
-      selectedSummary.goals
-        .map(g => g.previousGoalId)
-        .filter(id => id !== null && id !== undefined)
-    );
-
-    return selectedSummary.goals.filter(
-      goal => !supersededGoalIds.has(goal.id)
-    );
+    return filterLatestGoals(selectedSummary.goals);
   }, [selectedSummary]);
 
   if (isLoading) {
@@ -125,7 +117,7 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
 
               {/* Last Activity */}
               <TableCell>
-                {summary.lastActivity ? formatDate(summary.lastActivity) : '-'}
+                {formatDateJP(summary.lastActivity)}
               </TableCell>
 
               {/* Actions */}
@@ -168,7 +160,7 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
                   <h3 className="text-base font-semibold text-gray-800">目標設定サマリー</h3>
                   <span className="text-xs text-muted-foreground">
                     最終更新: {selectedSummary.lastActivity
-                      ? formatDate(selectedSummary.lastActivity)
+                      ? formatDateJP(selectedSummary.lastActivity)
                       : '-'}
                   </span>
                 </div>
@@ -370,13 +362,3 @@ function EmptyState() {
   );
 }
 
-/**
- * Format date to Japanese locale string
- */
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-}

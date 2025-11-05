@@ -16,8 +16,7 @@ import {
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import { GoalCard } from '@/feature/evaluation/employee/goal-list/components/GoalCard';
 import type { GoalResponse } from '@/api/types';
-import { format } from 'date-fns';
-import { ja } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 
 /**
  * Props for AdminGoalListTable component
@@ -73,18 +72,6 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
       setIsDialogOpen(true);
     };
 
-    /**
-     * Format date for display
-     */
-    const formatDate = (date: string | Date | null | undefined): string => {
-      if (!date) return '-';
-      try {
-        const dateObj = typeof date === 'string' ? new Date(date) : date;
-        return format(dateObj, 'MM/dd', { locale: ja });
-      } catch {
-        return '-';
-      }
-    };
 
     /**
      * Get user display name
@@ -208,7 +195,7 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
 
                   {/* Date (Created At) */}
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(goal.createdAt)}
+                    {formatDateShort(goal.createdAt)}
                   </TableCell>
                 </TableRow>
               ))}

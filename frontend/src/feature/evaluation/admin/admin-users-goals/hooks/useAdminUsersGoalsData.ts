@@ -11,6 +11,7 @@ import type {
   Stage,
 } from '@/api/types';
 import { UserGoalSummary, StatusFilterOption } from '../types';
+import { filterLatestGoals } from '@/lib/goal-utils';
 
 /**
  * Return type for the useAdminUsersGoalsData hook
@@ -293,13 +294,7 @@ export function useAdminUsersGoalsData(
       const userGoals = goalsByUserId[user.id] || [];
 
       // Filter to get only latest versions of goals (not superseded by resubmissions)
-      // A goal is superseded if another goal has it as previousGoalId
-      const supersededGoalIds = new Set(
-        userGoals
-          .map(g => g.previousGoalId)
-          .filter(id => id !== null && id !== undefined)
-      );
-      const latestGoals = userGoals.filter(goal => !supersededGoalIds.has(goal.id));
+      const latestGoals = filterLatestGoals(userGoals);
 
       // Calculate counts by category (using only latest versions)
       const performanceGoals = latestGoals.filter(g => g.goalCategory === '業績目標');
