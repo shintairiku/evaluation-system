@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -151,6 +152,9 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
         <DialogContent className="!max-w-[90vw] w-[90vw] max-h-[85vh] h-[85vh] overflow-hidden flex flex-col p-6">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-xl">{selectedSummary?.userName}の目標一覧</DialogTitle>
+            <DialogDescription className="sr-only">
+              {selectedSummary?.userName}さんの全目標詳細と設定状況を表示しています
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto pr-2">
           {selectedUser && selectedSummary && (
