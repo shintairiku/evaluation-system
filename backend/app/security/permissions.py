@@ -10,13 +10,11 @@ for the HR Evaluation System.
 Quick reference:
 - Permission enum: Defines all system permissions  
 - Role enum: Defines all system roles
-- ROLE_PERMISSIONS: Maps roles to their permissions
-- PermissionManager: Helper class for permission checking
+Note: Static role-to-permission maps are deprecated; permissions are resolved dynamically from the database.
 """
 
 from enum import Enum
-from typing import List, Set, Dict
-from dataclasses import dataclass
+from typing import List, Set
 
 
 class Role(Enum):
@@ -84,371 +82,58 @@ class Permission(Enum):
     HIERARCHY_MANAGE = "hierarchy:manage"    # Manage supervisor-subordinate relationships
 
 
-@dataclass
-class RolePermissions:
-    """Defines permissions for each role."""
-    role: Role
-    permissions: Set[Permission]
-    description: str
-
-
-# Simplified Role Permission Mapping
-ROLE_PERMISSIONS: Dict[Role, RolePermissions] = {
-    Role.ADMIN: RolePermissions(
-        role=Role.ADMIN,
-        description="管理者 - 全システム機能へのアクセス",
-        permissions={
-            # User Management - Full Access
-            Permission.USER_READ_ALL,
-            Permission.USER_READ_SUBORDINATES,
-            Permission.USER_READ_SELF,
-            Permission.USER_MANAGE,
-            Permission.USER_MANAGE_BASIC,
-            Permission.USER_MANAGE_PLUS,
-            
-            # Department Management - Full Access
-            Permission.DEPARTMENT_READ,
-            Permission.DEPARTMENT_MANAGE,
-            
-            # Role Management - Full Access
-            Permission.ROLE_READ_ALL,
-            Permission.ROLE_MANAGE,
-            
-            # Goal Management - Full Access
-            Permission.GOAL_READ_SELF,
-            Permission.GOAL_READ_ALL,
-            Permission.GOAL_READ_SUBORDINATES,
-            Permission.GOAL_MANAGE,
-            Permission.GOAL_MANAGE_SELF,
-            Permission.GOAL_APPROVE,
-            
-            # Evaluation Management - Full Access
-            Permission.EVALUATION_READ,
-            Permission.EVALUATION_MANAGE,
-            Permission.EVALUATION_REVIEW,
-            
-            # Competency Management - Full Access
-            Permission.COMPETENCY_READ,
-            Permission.COMPETENCY_READ_SELF,
-            Permission.COMPETENCY_MANAGE,
-            
-            # Self Assessment & Reports
-            Permission.ASSESSMENT_READ_ALL,
-            Permission.ASSESSMENT_READ_SUBORDINATES,
-            Permission.ASSESSMENT_READ_SELF,
-            Permission.ASSESSMENT_MANAGE_SELF,
-            Permission.REPORT_ACCESS,
-            
-            # Stage Management - Full Access
-            Permission.STAGE_READ_ALL,
-            Permission.STAGE_MANAGE,
-            
-            # Hierarchy Management - Full Access
-            Permission.HIERARCHY_MANAGE,
-        }
-    ),
-    
-    Role.MANAGER: RolePermissions(
-        role=Role.MANAGER,
-        description="管理者 - 部下と管理部門へのアクセス",
-        permissions={
-            # User Management - Subordinates
-            Permission.USER_READ_SUBORDINATES,
-            Permission.USER_READ_SELF,
-            Permission.USER_MANAGE_PLUS,
-            
-            # Department Management - Read access
-            Permission.DEPARTMENT_READ,
-            
-            # Role Management - Read access
-            Permission.ROLE_READ_ALL,
-            
-            # Goal Management - Self and subordinates
-            Permission.GOAL_READ_SELF,
-            Permission.GOAL_READ_SUBORDINATES,
-            Permission.GOAL_MANAGE_SELF,
-            Permission.GOAL_APPROVE,
-            
-            # Evaluation Management - Review subordinates
-            Permission.EVALUATION_READ,
-            Permission.EVALUATION_MANAGE,
-            Permission.EVALUATION_REVIEW,
-            
-            # Competency Management - Read access
-            Permission.COMPETENCY_READ_SELF,
-            
-            # Self Assessment & Reports
-            Permission.ASSESSMENT_READ_SUBORDINATES,
-            Permission.ASSESSMENT_MANAGE_SELF,
-            Permission.REPORT_ACCESS,
-            
-            # Stage Management - Read All
-            Permission.STAGE_READ_ALL,
-            
-            # Hierarchy Management - Manage subordinates
-            Permission.HIERARCHY_MANAGE,
-        }
-    ),
-    
-    Role.SUPERVISOR: RolePermissions(
-        role=Role.SUPERVISOR,
-        description="スーパーバイザー - 部下の評価と目標承認",
-        permissions={
-            # User Management - Read subordinates
-            Permission.USER_READ_SUBORDINATES,
-            Permission.USER_READ_SELF,
-            Permission.USER_MANAGE_PLUS,
-            
-            # Department Management - Read access
-            Permission.DEPARTMENT_READ,
-            
-            # Role Management - Read access
-            Permission.ROLE_READ_ALL,
-            
-            # Goal Management - Self and subordinates
-            Permission.GOAL_READ_SELF,
-            Permission.GOAL_READ_SUBORDINATES,
-            Permission.GOAL_MANAGE_SELF,
-            Permission.GOAL_APPROVE,
-            
-            # Evaluation Management - Review subordinates
-            Permission.EVALUATION_READ,
-            Permission.EVALUATION_MANAGE,
-            Permission.EVALUATION_REVIEW,
-            
-            # Competency Management - Read access
-            Permission.COMPETENCY_READ_SELF,
-            
-            # Self Assessment & Reports
-            Permission.ASSESSMENT_READ_SUBORDINATES,
-            Permission.ASSESSMENT_MANAGE_SELF,
-            Permission.REPORT_ACCESS,
-            
-            # Stage Management - Read All
-            Permission.STAGE_READ_ALL,
-            
-            # Hierarchy Management - Manage subordinates
-            Permission.HIERARCHY_MANAGE,
-        }
-    ),
-    
-    Role.VIEWER: RolePermissions(
-        role=Role.VIEWER,
-        description="閲覧者 - 指定された部門・ユーザーの閲覧のみ",
-        permissions={
-            # User Management - Read self
-            Permission.USER_READ_SELF,
-            
-            # Department Management - Read access
-            Permission.DEPARTMENT_READ,
-            
-            # Role Management - Read access
-            Permission.ROLE_READ_ALL,
-            
-            # Goal Management - Self only
-            Permission.GOAL_READ_SELF,
-            
-            # Evaluation Management - Read only
-            Permission.EVALUATION_READ,
-            
-            # Competency Management - Read access
-            Permission.COMPETENCY_READ_SELF,
-            
-            # Self Assessment only
-            Permission.ASSESSMENT_READ_SELF,
-            Permission.ASSESSMENT_MANAGE_SELF,
-            
-            # Stage Management - Read All
-            Permission.STAGE_READ_ALL,
-        }
-    ),
-    
-    Role.EMPLOYEE: RolePermissions(
-        role=Role.EMPLOYEE,
-        description="一般従業員 - 自身の情報と評価管理",
-        permissions={
-            # User Management - Self only
-            Permission.USER_READ_SELF,
-            Permission.USER_MANAGE_BASIC,
-            
-            # Department Management - Read own
-            Permission.DEPARTMENT_READ,
-            
-            # Role Management - Read access
-            Permission.ROLE_READ_ALL,
-            
-            # Goal Management - Self only (自分の目標のみ)
-            Permission.GOAL_READ_SELF,
-            Permission.GOAL_MANAGE_SELF,
-            
-            # Evaluation Management - Own evaluations
-            Permission.EVALUATION_READ,
-            Permission.EVALUATION_MANAGE,
-            
-            # Competency Management - Read access
-            Permission.COMPETENCY_READ_SELF,
-            
-            # Self Assessment
-            Permission.ASSESSMENT_READ_SELF,
-            Permission.ASSESSMENT_MANAGE_SELF,
-            
-            # Stage Management - Read All
-            Permission.STAGE_READ_ALL,
-        }
-    ),
-    
-    Role.PARTTIME: RolePermissions(
-        role=Role.PARTTIME,
-        description="パートタイム従業員 - 限定された機能アクセス",
-        permissions={
-            # User Management - Self only
-            Permission.USER_READ_SELF,
-            Permission.USER_MANAGE_BASIC,
-            
-            # Department Management - Read own
-            Permission.DEPARTMENT_READ,
-            
-            # Role Management - Read access
-            Permission.ROLE_READ_ALL,
-            
-            # Goal Management - Self only (自分の目標のみ)
-            Permission.GOAL_READ_SELF,
-            Permission.GOAL_MANAGE_SELF,
-            
-            # Evaluation Management - Basic functions
-            Permission.EVALUATION_READ,
-            Permission.EVALUATION_MANAGE,
-            
-            # Competency Management - Read access
-            Permission.COMPETENCY_READ_SELF,
-            
-            # Self Assessment
-            Permission.ASSESSMENT_READ_SELF,
-            Permission.ASSESSMENT_MANAGE_SELF,
-            
-            # Stage Management - Read All
-            Permission.STAGE_READ_ALL,
-        }
-    ),
-}
+"""
+DEPRECATION NOTE:
+The static ROLE_PERMISSIONS map has been removed. Permissions are now provided
+at runtime by AuthContext using database-backed role-permission assignments.
+"""
 
 
 class PermissionManager:
-    """Central permission management and checking."""
-    
+    """
+    DEPRECATED: Static permission checks are no longer supported.
+    All authorization is enforced via AuthContext (dynamic, DB-backed).
+    These methods intentionally raise to surface any lingering static usage.
+    """
+
     @staticmethod
     def get_role_permissions(role: str) -> Set[Permission]:
-        """Get all permissions for a given role."""
-        try:
-            role_enum = Role(role.lower())
-            return ROLE_PERMISSIONS[role_enum].permissions
-        except (ValueError, KeyError):
-            # Return empty permissions for unknown roles
-            return set()
-    
+        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext.has_permission().")
+
     @staticmethod
     def has_permission(user_role: str, required_permission: Permission) -> bool:
-        """Check if a user role has a specific permission."""
-        user_permissions = PermissionManager.get_role_permissions(user_role)
-        return required_permission in user_permissions
-    
+        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext.has_permission().")
+
     @staticmethod
     def has_any_permission(user_role: str, required_permissions: List[Permission]) -> bool:
-        """Check if a user role has any of the required permissions."""
-        user_permissions = PermissionManager.get_role_permissions(user_role)
-        return any(perm in user_permissions for perm in required_permissions)
-    
+        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext.require_any_permission().")
+
     @staticmethod
     def has_all_permissions(user_role: str, required_permissions: List[Permission]) -> bool:
-        """Check if a user role has all of the required permissions."""
-        user_permissions = PermissionManager.get_role_permissions(user_role)
-        return all(perm in user_permissions for perm in required_permissions)
-    
+        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext methods.")
+
     @staticmethod
     def get_all_roles() -> List[Role]:
-        """Get all available roles."""
+        # Kept for compatibility where a list of role names is needed (enum only)
         return list(Role)
-    
+
     @staticmethod
     def get_role_description(role: str) -> str:
-        """Get description for a role."""
-        try:
-            role_enum = Role(role.lower())
-            return ROLE_PERMISSIONS[role_enum].description
-        except (ValueError, KeyError):
-            return "Unknown role"
-    
+        raise NotImplementedError("PermissionManager is deprecated. Role descriptions are not static.")
+
     @staticmethod
     def is_admin_or_manager(user_role: str) -> bool:
-        """Check if user is admin or manager (common check)."""
-        return user_role.lower() in [Role.ADMIN.value, Role.MANAGER.value]
-    
+        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext permissions.")
+
     @staticmethod
     def is_supervisor_or_above(user_role: str) -> bool:
-        """Check if user is supervisor, manager, or admin."""
-        return user_role.lower() in [Role.ADMIN.value, Role.MANAGER.value, Role.SUPERVISOR.value]
-    
+        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext permissions.")
+
     @staticmethod
     def can_manage_users(user_role: str) -> bool:
-        """Check if user can manage other users."""
-        return PermissionManager.has_any_permission(user_role, [
-            Permission.USER_READ_ALL,
-            Permission.USER_READ_SUBORDINATES,
-            Permission.USER_MANAGE
-        ])
+        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext permissions.")
 
 
-# Convenience functions for common permission checks
-def require_admin(user_role: str) -> bool:
-    """Check if user is admin."""
-    return user_role.lower() == Role.ADMIN.value
+# Convenience functions removed; use AuthContext in request scope for checks.
 
-def require_manager_or_above(user_role: str) -> bool:
-    """Check if user is manager or admin."""
-    return PermissionManager.is_admin_or_manager(user_role)
-
-def require_supervisor_or_above(user_role: str) -> bool:
-    """Check if user is supervisor, manager, or admin."""
-    return PermissionManager.is_supervisor_or_above(user_role)
-
-# Legacy permission list for backwards compatibility
-# Based on the current endpoints.md specification
-LEGACY_PERMISSIONS = {
-    "admin": [
-        "user:read", "user:write", "user:delete",
-        "goal:read", "goal:write", "goal:delete", "goal:approve",
-        "evaluation:read", "evaluation:write", "evaluation:delete", "evaluation:review",
-        "report:read", "report:generate",
-        "department:read", "department:write", "department:delete",
-        "role:read", "role:write", "role:delete"
-    ],
-    "manager": [
-        "user:read:subordinates",
-        "goal:read", "goal:approve", 
-        "evaluation:read", "evaluation:review",
-        "report:read",
-        "department:read:managed"
-    ],
-    "supervisor": [
-        "user:read:subordinates",
-        "goal:read", "goal:approve",
-        "evaluation:read", "evaluation:review", 
-        "report:read"
-    ],
-    "viewer": [
-        "user:read:assigned",
-        "goal:read:assigned",
-        "evaluation:read:assigned",
-        "department:read:assigned"
-    ],
-    "employee": [
-        "goal:read", "goal:write",
-        "evaluation:read", "evaluation:write",
-        "self_assessment:create", "self_assessment:update", "self_assessment:submit"
-    ],
-    "parttime": [
-        "goal:read", "goal:write:limited",
-        "evaluation:read", "evaluation:write:limited",
-        "self_assessment:create", "self_assessment:update"
-    ]
-}
+# Legacy static permission lists removed.

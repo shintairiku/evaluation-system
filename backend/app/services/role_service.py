@@ -15,7 +15,7 @@ from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, BadRequestError
 )
 from ..security.context import AuthContext
-from ..security.permissions import Permission, PermissionManager
+from ..security.permissions import Permission
 from ..security.decorators import require_permission
 
 logger = logging.getLogger(__name__)
@@ -351,10 +351,6 @@ class RoleService:
                 for permission in role_permissions
             ]
         else:
-            fallback_permissions = PermissionManager.get_role_permissions(role.name) if role.name else set()
-            role_detail.permissions = [
-                PermissionSchema(name=perm.value, description=perm.value)
-                for perm in sorted(fallback_permissions, key=lambda p: p.value)
-            ]
+            role_detail.permissions = []
 
         return role_detail

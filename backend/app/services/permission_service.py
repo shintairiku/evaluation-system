@@ -17,7 +17,7 @@ from ..schemas.permission import (
 )
 from ..security.context import AuthContext
 from ..security.decorators import require_permission
-from ..security.permissions import Permission as PermissionEnum, PermissionManager
+from ..security.permissions import Permission as PermissionEnum
 from ..security.role_permission_cache import invalidate_role_permission_cache
 from ..core.exceptions import ConflictError, NotFoundError, PermissionDeniedError
 
@@ -61,11 +61,6 @@ class PermissionService:
             role.id,
             context.organization_id,
         )
-
-        if not permissions:
-            fallback_codes = [perm.value for perm in PermissionManager.get_role_permissions(role.name)]
-            if fallback_codes:
-                permissions = await self.permission_repo.get_by_codes(fallback_codes)
 
         version_token = version or "0"
 
@@ -236,11 +231,6 @@ class PermissionService:
         previous_version = await self.permission_repo.get_role_version(role.id, context.organization_id) or "0"
 
         permissions = await self.permission_repo.list_for_role(source_role.id, context.organization_id)
-
-        # Fallback: if source role has no DB-backed permissions yet, use enum defaults
-        if not permissions:
-            default_permissions = PermissionManager.get_role_permissions(source_role.name)
-            permissions = await self.permission_repo.get_by_codes([perm.value for perm in default_permissions])
 
         try:
             await self.role_permission_repo.replace_role_permissions(
