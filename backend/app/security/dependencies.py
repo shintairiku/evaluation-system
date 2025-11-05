@@ -6,6 +6,7 @@ This module provides clean, simple dependencies for RBAC without over-engineerin
 
 from typing import List
 import logging
+from uuid import UUID
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +15,8 @@ from ..database.session import get_db_session
 from ..database.repositories.role_repo import RoleRepository
 from ..database.repositories.user_repo import UserRepository
 from ..services.auth_service import AuthService
-from .permissions import Permission, PermissionManager
+from .permissions import Permission
+from .role_permission_cache import get_cached_role_permissions
 from .context import AuthContext, RoleInfo
 
 security = HTTPBearer(
@@ -91,7 +93,6 @@ async def get_auth_context(
             }
             
             if token in dev_keys:
-                from uuid import UUID
                 logger = logging.getLogger(__name__)
                 # Avoid logging raw tokens to prevent leaking sensitive credentials in logs
                 try:
@@ -106,7 +107,7 @@ async def get_auth_context(
                     clerk_user_id=dev_user["clerk_user_id"],
                     roles=dev_user["roles"],
                     organization_id="dev-org-1",  # Development organization ID
-                    organization_slug="dev-organization"
+                    organization_slug="dev-organization",
                 )
         
         # Verify with Clerk and get user info
@@ -153,9 +154,9 @@ async def get_auth_context(
                 clerk_user_id=auth_user.clerk_id,  # But we have Clerk ID
                 roles=derived_roles,
                 organization_id=auth_user.organization_id,
-                organization_slug=auth_user.organization_slug
+                organization_slug=auth_user.organization_slug,
             )
-        
+
         user_id = user_data["id"]
         
         # Get user roles
@@ -195,45 +196,37 @@ async def get_auth_context(
                         fallback_role,
                     )
                     role_infos = [RoleInfo(id=0, name=fallback_role, description="Token-derived role")]
-        else:
-            # If roles exist but map to no permissions (e.g., org-custom names), append token roles as safety net
-            derived_perm_count = 0
-            for r in role_infos:
-                derived_perm_count += len(PermissionManager.get_role_permissions(r.name))
-
-            if derived_perm_count == 0:
-                logger = logging.getLogger(__name__)
-
-                # Try new roles array first
-                if hasattr(auth_user, "roles") and auth_user.roles:
-                    for i, role in enumerate(auth_user.roles):
-                        if role and role.strip() and all(r.name.lower() != role.strip().lower() for r in role_infos):
-                            logger.warning(
-                                "DB roles for user %s in org %s have no mapped permissions; adding token role '%s'",
-                                auth_user.clerk_id,
-                                auth_user.organization_id,
-                                role,
-                            )
-                            role_infos.append(RoleInfo(id=len(role_infos) + i, name=role.strip().lower(), description="Token-derived role"))
-                # Fallback to legacy single role field
-                elif getattr(auth_user, "role", None):
-                    fallback_role = str(auth_user.role).strip().lower()
-                    if fallback_role and all(r.name.lower() != fallback_role for r in role_infos):
-                        logger.warning(
-                            "DB roles for user %s in org %s have no mapped permissions; adding token legacy role '%s'",
-                            auth_user.clerk_id,
-                            auth_user.organization_id,
-                            fallback_role,
-                        )
-                        role_infos.append(RoleInfo(id=0, name=fallback_role, description="Token-derived role"))
-        
         # Create and return AuthContext
+        dynamic_overrides = {}
+        if role_infos and auth_user.organization_id:
+            for role_info in role_infos:
+                if not isinstance(role_info.id, UUID):
+                    continue
+                try:
+                    cached_perms = await get_cached_role_permissions(
+                        session=session,
+                        organization_id=auth_user.organization_id,
+                        role_id=role_info.id,
+                        role_name=role_info.name,
+                    )
+                except Exception:  # pragma: no cover - cache failures should not block auth
+                    logger = logging.getLogger(__name__)
+                    logger.exception(
+                        "Failed to load dynamic permissions for role %s (%s); continuing without permissions",
+                        role_info.name,
+                        role_info.id,
+                    )
+                    cached_perms = None
+                if cached_perms is not None:
+                    dynamic_overrides[role_info.name.lower()] = cached_perms
+
         return AuthContext(
-            user_id=user_id, 
-            clerk_user_id=auth_user.clerk_id, 
+            user_id=user_id,
+            clerk_user_id=auth_user.clerk_id,
             roles=role_infos,
             organization_id=auth_user.organization_id,
-            organization_slug=auth_user.organization_slug
+            organization_slug=auth_user.organization_slug,
+            role_permission_overrides=dynamic_overrides or None,
         )
         
     except HTTPException:
