@@ -224,6 +224,13 @@ export const API_ENDPOINTS = {
     SUBMIT: (id: string) => `/supervisor-feedbacks/${id}/submit`,
     DRAFT: (id: string) => `/supervisor-feedbacks/${id}/draft`,
   },
+
+  // Permission management endpoints
+  PERMISSIONS: {
+    CATALOG: '/permissions/',
+    ROLE: (roleId: string) => `/roles/${roleId}/permissions`,
+    ROLE_CLONE: (roleId: string) => `/roles/${roleId}/permissions:clone`,
+  },
 } as const;
 
 export const HTTP_STATUS = {

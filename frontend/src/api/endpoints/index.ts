@@ -4,6 +4,7 @@ export * from './auth';
 export * from './goals';
 export * from './departments';
 export * from './roles';
+export * from './permissions';
 export * from './stages';
 export * from './evaluation-periods';
 export * from './competencies';
