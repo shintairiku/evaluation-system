@@ -55,7 +55,7 @@ export function AdminUsersGoalsFilters({
   return (
     <div className="space-y-4">
       {/* Filter Controls */}
-      <div className="flex flex-wrap gap-4 items-center">
+      <div className="flex flex-wrap gap-4 items-center p-4 bg-card rounded-lg border">
         {/* Search */}
         <div className="flex-1 min-w-[200px] relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
