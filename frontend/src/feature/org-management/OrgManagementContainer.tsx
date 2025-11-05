@@ -12,6 +12,7 @@ import { OrgManagementView } from './OrgManagementView';
 import { UsersTab } from './user-management-tab/UsersTab';
 import { DepartmentsTab } from './department-management-tab/DepartmentsTab';
 import { RolesTab } from './role-management-tab/RolesTab';
+import { PermissionsTab } from './permission-management-tab/PermissionsTab';
 
 interface OrgManagementContainerProps {
   initialUsers: UserDetailResponse[];
@@ -28,7 +29,7 @@ export function OrgManagementContainer({
   initialRoles,
   initialStages,
 }: OrgManagementContainerProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'roles'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'roles' | 'permissions'>('users');
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [departments, setDepartments] = useState<Department[]>(initialDepartments);
   const [roles] = useState<RoleDetail[]>(initialRoles);
@@ -126,6 +127,12 @@ export function OrgManagementContainer({
     />
   );
 
+  const permissionsTab = (
+    <PermissionsTab
+      roles={roles}
+    />
+  );
+
   return (
     <OrgManagementView
       activeTab={activeTab}
@@ -136,6 +143,7 @@ export function OrgManagementContainer({
       usersTab={usersTab}
       departmentsTab={departmentsTab}
       rolesTab={rolesTab}
+      permissionsTab={permissionsTab}
       bulkSummary={bulkResult}
     />
   );

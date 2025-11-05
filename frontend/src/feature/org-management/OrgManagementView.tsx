@@ -7,14 +7,15 @@ import { Badge } from '@/components/ui/badge';
 import type { BulkUserStatusUpdateResponse } from '@/api/types';
 
 interface OrgManagementViewProps {
-  activeTab: 'users' | 'departments' | 'roles';
-  onTabChange: (tab: 'users' | 'departments' | 'roles') => void;
+  activeTab: 'users' | 'departments' | 'roles' | 'permissions';
+  onTabChange: (tab: 'users' | 'departments' | 'roles' | 'permissions') => void;
   totalUsers: number;
   totalDepartments: number;
   totalRoles: number;
   usersTab: ReactNode;
   departmentsTab: ReactNode;
   rolesTab: ReactNode;
+  permissionsTab: ReactNode;
   bulkSummary: BulkUserStatusUpdateResponse | null;
 }
 
@@ -27,6 +28,7 @@ export function OrgManagementView({
   usersTab,
   departmentsTab,
   rolesTab,
+  permissionsTab,
   bulkSummary,
 }: OrgManagementViewProps) {
   return (
@@ -78,13 +80,14 @@ export function OrgManagementView({
 
       <Tabs
         value={activeTab}
-        onValueChange={(value) => onTabChange(value as 'users' | 'departments' | 'roles')}
+        onValueChange={(value) => onTabChange(value as 'users' | 'departments' | 'roles' | 'permissions')}
         className="space-y-6"
       >
-        <TabsList className="grid w-full max-w-xl grid-cols-3">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="users">ユーザー</TabsTrigger>
           <TabsTrigger value="departments">部門</TabsTrigger>
           <TabsTrigger value="roles">ロール</TabsTrigger>
+          <TabsTrigger value="permissions">権限</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="mt-6 space-y-6">
@@ -97,6 +100,10 @@ export function OrgManagementView({
 
         <TabsContent value="roles" className="mt-6 space-y-6">
           {rolesTab}
+        </TabsContent>
+
+        <TabsContent value="permissions" className="mt-6 space-y-6">
+          {permissionsTab}
         </TabsContent>
       </Tabs>
     </div>
