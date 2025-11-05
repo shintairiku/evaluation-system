@@ -10,7 +10,7 @@
 ## Implementation Details:
 ### 1. Backend: permissions catalog, role-permissions CRUD, clone
 
-- [ ] **1.1. Create DB objects for permissions and role_permissions**
+  > - Migration executed: `production/010_create_permissions_tables.sql` applied on 2025-11-05; created `permissions` and `role_permissions`, seeded defaults, and updated triggers/indexes successfully.
   > Tables: `permissions` (code, description), `role_permissions` (org_id, role_id, permission_id, created_at). Seed from `backend/app/security/permissions.py` + `ROLE_PERMISSIONS`.
   >
   > **Related Requirements:** R1, R3, R5
