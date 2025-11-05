@@ -63,14 +63,24 @@
   >
   > **Related Requirements:** R1
 
-- [x] **2.2. Role × Permission matrix**
+- [ ] **2.2. Role × Permission matrix**
   > Search/filter, toggle checkboxes, pending state, error handling, Save/Cancel.
-  > - Build `RolePermissionMatrix` component under `frontend/src/app/org-management/permissions/`.
-  > - Fetch catalog + per-role assignments via typed hooks; maintain local dirty state and optimistic toggle UX.
-  > - Provide filter box (permission code/description) and role selector; virtualize long lists to keep UI performant.
-  > - Implement Save/Cancel controls with loading indicators, inline error banner, and success toast.
-  > - Ensure read-only mode for non-admins by disabling toggles and hiding destructive actions.
-  > - Add unit tests covering toggle behavior, save flow, and permission gating.
+  > - [ ] **2.2.1. Build RolePermissionMatrix component**
+    > Create `frontend/src/app/org-management/permissions/RolePermissionMatrix.tsx` with grid layout showing roles vs permissions matrix.
+  > - [ ] **2.2.2. Fetch and display data**
+    > Fetch permissions catalog and role assignments using existing server actions; implement typed hooks for data management.
+  > - [ ] **2.2.3. Interactive toggles and dirty state**
+    > Add checkbox toggles with optimistic UI updates; maintain local dirty state tracking changes.
+  > - [ ] **2.2.4. Search and filter functionality**
+    > Add filter box for permission code/description search; role selector dropdown; virtualize long lists.
+  > - [ ] **2.2.5. Save/Cancel controls**
+    > Implement Save/Cancel buttons with loading states, inline error banners, and success toasts.
+  > - [ ] **2.2.6. Admin vs non-admin UX**
+    > Gate write controls to admin role; show read-only mode for non-admins (disable toggles, hide destructive actions).
+  > - [ ] **2.2.7. Error handling and pending states**
+    > Handle network errors, validation errors, and loading states throughout the component.
+  > - [ ] **2.2.8. Unit tests**
+    > Add unit tests covering toggle behavior, save flow, permission gating, and error states.
   >
   > **Related Requirements:** R1
 
@@ -80,22 +90,31 @@
   - [x] **2.2.b. Frontend server actions for permissions**
     > Implemented `frontend/src/api/server-actions/permissions.ts` with cached reads and revalidate-on-mutate (`CACHE_TAGS.ROLES`).
 
-- [x] **2.3. Clone from role**
+- [ ] **2.3. Clone from role**
   > UI to select source role (e.g., Manager/Viewer), confirm, call clone API, refresh.
-  > - Add `ClonePermissionsDialog` with searchable role dropdown seeded from `/api/roles`.
-  > - Display summary of permissions delta from draft diff before confirmation; require admin confirmation.
-  > - Call clone endpoint, refresh assignments, and show toast with audit id reference.
-  > - Handle API errors (409/403/500) with inline alerts and maintain modal state for retry.
-  > - Extend Cypress flow to verify clone path updates matrix and audit event surfaces.
+  > - [ ] **2.3.1. ClonePermissionsDialog component**
+    > Create dialog component with searchable role dropdown seeded from `/api/roles`.
+  > - [ ] **2.3.2. Permissions delta preview**
+    > Display summary of permissions delta from draft diff before confirmation; require admin confirmation.
+  > - [ ] **2.3.3. Clone API integration**
+    > Call clone endpoint, refresh assignments, and show toast with audit id reference.
+  > - [ ] **2.3.4. Error handling**
+    > Handle API errors (409/403/500) with inline alerts and maintain modal state for retry.
+  > - [ ] **2.3.5. Integration tests**
+    > Extend Cypress flow to verify clone path updates matrix and audit event surfaces.
   >
   > **Related Requirements:** R3
 
-- [x] **2.4. Concurrency errors**
+- [ ] **2.4. Concurrency errors**
   > Surface 409 with refresh prompt; preserve unsaved changes where possible.
-  > - When backend returns 409 + latest `version`, show sticky warning banner prompting manual refresh.
-  > - Keep local diff so admin can reapply after fetching latest data; provide "Retry with latest" CTA.
-  > - Disable auto retry for 409; log event for telemetry.
-  > - Write unit test verifying banner appears and diff persists after refresh action.
+  > - [ ] **2.4.1. 409 error handling**
+    > When backend returns 409 + latest `version`, show sticky warning banner prompting manual refresh.
+  > - [ ] **2.4.2. Preserve unsaved changes**
+    > Keep local diff so admin can reapply after fetching latest data; provide "Retry with latest" CTA.
+  > - [ ] **2.4.3. Error telemetry**
+    > Disable auto retry for 409; log event for telemetry.
+  > - [ ] **2.4.4. Unit tests**
+    > Write unit test verifying banner appears and diff persists after refresh action.
   >
   > **Related Requirements:** R1
 
