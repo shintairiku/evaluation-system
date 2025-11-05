@@ -213,6 +213,7 @@ export function useAdminUsersGoalsData(
           page: 1,
           limit: 100,
           includeReviews: true, // Batch optimization
+          includeRejectionHistory: true, // Include full rejection history chain
         });
 
         if (!firstPageResult.success || !firstPageResult.data?.items) {
@@ -232,6 +233,7 @@ export function useAdminUsersGoalsData(
               page: i + 2, // Start from page 2
               limit: 100,
               includeReviews: true,
+              includeRejectionHistory: true, // Include full rejection history chain
             })
           );
 
