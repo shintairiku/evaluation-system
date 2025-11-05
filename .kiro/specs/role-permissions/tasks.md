@@ -10,30 +10,51 @@
 ## Implementation Details:
 ### 1. Backend: permissions catalog, role-permissions CRUD, clone
 
+- [x] **1.1. Create DB objects for permissions and role_permissions**
   > - Migration executed: `production/010_create_permissions_tables.sql` applied on 2025-11-05; created `permissions` and `role_permissions`, seeded defaults, and updated triggers/indexes successfully.
   > Tables: `permissions` (code, description), `role_permissions` (org_id, role_id, permission_id, created_at). Seed from `backend/app/security/permissions.py` + `ROLE_PERMISSIONS`.
+  > - Create Alembic migration to add both tables with `organization_id`, FK to `roles.id`, unique `(organization_id, role_id, permission_id)`, timestamps, and seed hooks.
+  > - Introduce SQLAlchemy models/modules (`backend/app/database/models/permission.py`, `role_permission.py`) plus repository helpers for batch reads/writes.
+  > - Implement seed helpers loading the `Permission` enum and `ROLE_PERMISSIONS`; ensure per-org inserts respect existing static defaults.
+  > - Add migration/unit test verifying DB catalog matches enum definitions and seeded sets mirror static mapping.
   >
   > **Related Requirements:** R1, R3, R5
 
-- [ ] **1.2. Implement endpoints**
+- [x] **1.2. Implement endpoints**
   > `GET /api/permissions`, `GET /api/roles/{id}/permissions`, `PUT /api/roles/{id}/permissions`, `PATCH /api/roles/{id}/permissions` (Admin only). Include optimistic concurrency (If-Match ETag or `version` field).
+  > - Define request/response schemas in `backend/app/api/schemas/permissions.py`, including `version` metadata for optimistic locking.
+  > - Add FastAPI router (`backend/app/api/routes/permissions.py`) wiring CRUD endpoints, enforcing `require_role(["admin"])`.
+  > - Create service layer (`backend/app/services/role_permissions.py`) handling diff computation, validation, concurrency checks, and DB writes.
+  > - Return structured 409 errors with latest `version`, and map repository exceptions to 400/404/500 responses.
+  > - Cover endpoints with API tests using async test client for admin and non-admin scenarios.
   >
   > **Related Requirements:** R1, R5
 
-- [ ] **1.3. Implement clone endpoint**
+- [x] **1.3. Implement clone endpoint**
   > `POST /api/roles/{id}/permissions:clone?from_role_id=...` to replace target role’s set with source role’s set; returns applied delta and audit id.
   >
   > **Related Requirements:** R3
 
-- [ ] **1.4. Add audit logging**
+- [x] **1.4. Add audit logging**
   > Log actor, org_id, role, added/removed permissions, timestamp, request id. Persist to audit table or existing log strategy.
+  > - Extend audit service to accept `RolePermissionChange` event with before/after diff and request correlation.
+  > - Emit audit entry inside the service transaction for PUT/PATCH/clone; rollback on audit failures.
+  > - Ensure logs include org_id, role_id, actor_id, added[], removed[], previous_version, new_version.
+  > - Add unit tests asserting audit events fire and payloads contain expected fields.
   >
   > **Related Requirements:** R1, R5
 
-- [ ] **1.5. Caching + invalidation**
+- [x] **1.5. Caching + invalidation**
   > Per-org `(org_id, role_name)` → `Set[Permission]` in-memory cache, TTL ≤ 5s; invalidate on writes.
+  > - Add cache wrapper in `backend/app/security/permission_manager.py` keyed by `(org_id, role_name)` with 5s TTL and optional warm start.
+  > - Invalidate cache entries after successful writes/clone via service hook; emit structured log for observability.
+  > - Respect feature flag OFF path by short-circuiting to static map; ON path consults cache/DB.
+  > - Instrument metrics (cache hit ratio, load latency) via existing telemetry helpers and cover with tests.
   >
   > **Related Requirements:** R1, R5
+
+  - [x] **1.5.a. RBAC integration: inject DB-backed permissions at auth time**
+    > Implemented in `backend/app/security/dependencies.py`: populates `role_permission_overrides` using `get_cached_role_permissions` (5s TTL) and `AuthContext` computes effective permissions.
 
 ### 2. Frontend: Permissions (権限) tab UI
 
