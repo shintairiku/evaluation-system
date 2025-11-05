@@ -292,10 +292,19 @@ export function useAdminUsersGoalsData(
     return users.map(user => {
       const userGoals = goalsByUserId[user.id] || [];
 
-      // Calculate counts by category
-      const performanceGoals = userGoals.filter(g => g.goalCategory === '業績目標');
+      // Filter to get only latest versions of goals (not superseded by resubmissions)
+      // A goal is superseded if another goal has it as previousGoalId
+      const supersededGoalIds = new Set(
+        userGoals
+          .map(g => g.previousGoalId)
+          .filter(id => id !== null && id !== undefined)
+      );
+      const latestGoals = userGoals.filter(goal => !supersededGoalIds.has(goal.id));
+
+      // Calculate counts by category (using only latest versions)
+      const performanceGoals = latestGoals.filter(g => g.goalCategory === '業績目標');
       const counts = {
-        total: userGoals.length,
+        total: latestGoals.length,
         performance: performanceGoals.length,
         performanceQuantitative: performanceGoals.filter(g =>
           'performanceGoalType' in g && g.performanceGoalType === 'quantitative'
@@ -303,18 +312,18 @@ export function useAdminUsersGoalsData(
         performanceQualitative: performanceGoals.filter(g =>
           'performanceGoalType' in g && g.performanceGoalType === 'qualitative'
         ).length,
-        competency: userGoals.filter(g => g.goalCategory === 'コンピテンシー').length,
+        competency: latestGoals.filter(g => g.goalCategory === 'コンピテンシー').length,
       };
 
-      // Calculate status counts
+      // Calculate status counts (using only latest versions)
       const statusCounts = {
-        draft: userGoals.filter(g => g.status === 'draft').length,
-        submitted: userGoals.filter(g => g.status === 'submitted').length,
-        approved: userGoals.filter(g => g.status === 'approved').length,
-        rejected: userGoals.filter(g => g.status === 'rejected').length,
+        draft: latestGoals.filter(g => g.status === 'draft').length,
+        submitted: latestGoals.filter(g => g.status === 'submitted').length,
+        approved: latestGoals.filter(g => g.status === 'approved').length,
+        rejected: latestGoals.filter(g => g.status === 'rejected').length,
       };
 
-      // Calculate last activity (most recent goal update)
+      // Calculate last activity (most recent goal update - using all versions to get latest update)
       const lastActivity =
         userGoals.length > 0
           ? new Date(Math.max(...userGoals.map(g => new Date(g.updatedAt).getTime())))
