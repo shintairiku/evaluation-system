@@ -1,7 +1,7 @@
 import AdminUsersGoalsPage from '@/feature/evaluation/admin/admin-users-goals/display/AdminUsersGoalsPage';
 
 export const metadata = {
-  title: 'ユーザー別目標一覧 | 管理者',
+  title: '全目標一覧 | 管理者',
   description: '全ユーザーの目標設定状況を確認',
 };
 

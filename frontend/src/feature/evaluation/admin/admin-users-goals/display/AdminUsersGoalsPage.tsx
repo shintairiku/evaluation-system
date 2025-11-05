@@ -94,7 +94,7 @@ export default function AdminUsersGoalsPage({ selectedPeriodId }: AdminUsersGoal
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">ユーザー別目標一覧</h1>
+          <h1 className="text-2xl font-bold">全目標一覧</h1>
           <p className="text-sm text-muted-foreground mt-1">
             全ユーザーの目標設定状況 ({filteredUserSummaries.length}名)
           </p>
