@@ -59,6 +59,7 @@ export default function AdminUsersGoalsPage({ selectedPeriodId }: AdminUsersGoal
     resolvedPeriodId,
     departments,
     stages,
+    users,
     currentPage,
     totalPages,
     itemsPerPage,
@@ -144,6 +145,7 @@ export default function AdminUsersGoalsPage({ selectedPeriodId }: AdminUsersGoal
           <AdminUsersGoalsTable
             userSummaries={paginatedUserSummaries}
             isLoading={isLoading}
+            users={users}
           />
         </div>
       )}

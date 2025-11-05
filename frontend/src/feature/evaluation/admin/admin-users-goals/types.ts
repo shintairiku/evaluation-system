@@ -1,4 +1,4 @@
-import type { GoalResponse, Department, Stage, UserBasicInfo } from '@/api/types';
+import type { GoalResponse, Department, Stage, User } from '@/api/types';
 
 /**
  * User goal summary for user-centric view
@@ -8,9 +8,9 @@ export interface UserGoalSummary {
   userId: string;
   userName: string;
   userEmail: string;
-  department: Department | null;
-  stage: Stage | null;
-  supervisor: UserBasicInfo | null;
+  department: Department | null | undefined;
+  stage: Stage | null | undefined;
+  supervisor: User | null | undefined;
   counts: {
     total: number;
     competency: number;
@@ -20,7 +20,6 @@ export interface UserGoalSummary {
   statusCounts: {
     draft: number;
     submitted: number;
-    inReview: number;
     approved: number;
     rejected: number;
   };

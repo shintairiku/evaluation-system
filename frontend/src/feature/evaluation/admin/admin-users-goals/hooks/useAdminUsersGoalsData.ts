@@ -302,7 +302,6 @@ export function useAdminUsersGoalsData(
       const statusCounts = {
         draft: userGoals.filter(g => g.status === 'draft').length,
         submitted: userGoals.filter(g => g.status === 'submitted').length,
-        inReview: userGoals.filter(g => g.status === 'in_review').length,
         approved: userGoals.filter(g => g.status === 'approved').length,
         rejected: userGoals.filter(g => g.status === 'rejected').length,
       };
