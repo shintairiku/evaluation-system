@@ -40,6 +40,9 @@ export * from './supervisor-dashboard';
 // Employee Dashboard types
 export * from './employee-dashboard';
 
+// Permission types
+export * from './permission';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;
