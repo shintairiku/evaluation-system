@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { UserGoalSummary } from '../types';
 import {
   Table,
@@ -37,6 +37,34 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
   const [selectedSummary, setSelectedSummary] = useState<UserGoalSummary | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  const handleUserClick = (summary: UserGoalSummary) => {
+    setSelectedSummary(summary);
+    setIsDialogOpen(true);
+  };
+
+  // Get selected user details
+  const selectedUser = useMemo(() => {
+    return selectedSummary
+      ? users.find(u => u.id === selectedSummary.userId) || null
+      : null;
+  }, [selectedSummary, users]);
+
+  // Filter to show only latest versions of goals (not superseded by resubmissions)
+  // A goal is superseded if another goal has it as previousGoalId
+  const latestGoals = useMemo(() => {
+    if (!selectedSummary) return [];
+
+    const supersededGoalIds = new Set(
+      selectedSummary.goals
+        .map(g => g.previousGoalId)
+        .filter(id => id !== null && id !== undefined)
+    );
+
+    return selectedSummary.goals.filter(
+      goal => !supersededGoalIds.has(goal.id)
+    );
+  }, [selectedSummary]);
+
   if (isLoading) {
     return <TableSkeleton />;
   }
@@ -44,16 +72,6 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
   if (userSummaries.length === 0) {
     return <EmptyState />;
   }
-
-  const handleUserClick = (summary: UserGoalSummary) => {
-    setSelectedSummary(summary);
-    setIsDialogOpen(true);
-  };
-
-  // Get selected user details
-  const selectedUser = selectedSummary
-    ? users.find(u => u.id === selectedSummary.userId) || null
-    : null;
 
   return (
     <>
@@ -216,12 +234,12 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold">目標一覧</h3>
                   <span className="text-sm text-muted-foreground">
-                    {selectedSummary.goals.length}件
+                    {latestGoals.length}件
                   </span>
                 </div>
                 <div className="space-y-4">
-                  {selectedSummary.goals.length > 0 ? (
-                    selectedSummary.goals.map(goal => (
+                  {latestGoals.length > 0 ? (
+                    latestGoals.map(goal => (
                       <GoalCard
                         key={goal.id}
                         goal={goal}
