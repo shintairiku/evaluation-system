@@ -291,11 +291,17 @@ export function useAdminUsersGoalsData(
       const userGoals = goalsByUserId[user.id] || [];
 
       // Calculate counts by category
+      const performanceGoals = userGoals.filter(g => g.goalCategory === '業績目標');
       const counts = {
         total: userGoals.length,
-        competency: userGoals.filter(g => g.goalCategory === 'competency').length,
-        team: userGoals.filter(g => g.goalCategory === 'team').length,
-        individual: userGoals.filter(g => g.goalCategory === 'individual').length,
+        performance: performanceGoals.length,
+        performanceQuantitative: performanceGoals.filter(g =>
+          'performanceGoalType' in g && g.performanceGoalType === 'quantitative'
+        ).length,
+        performanceQualitative: performanceGoals.filter(g =>
+          'performanceGoalType' in g && g.performanceGoalType === 'qualitative'
+        ).length,
+        competency: userGoals.filter(g => g.goalCategory === 'コンピテンシー').length,
       };
 
       // Calculate status counts

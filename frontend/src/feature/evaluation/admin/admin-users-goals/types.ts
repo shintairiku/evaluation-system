@@ -13,9 +13,10 @@ export interface UserGoalSummary {
   supervisor: User | null | undefined;
   counts: {
     total: number;
-    competency: number;
-    team: number;
-    individual: number;
+    performance: number; // 業績目標 (total)
+    performanceQuantitative: number; // 定量的
+    performanceQualitative: number; // 定性的
+    competency: number; // コンピテンシー
   };
   statusCounts: {
     draft: number;

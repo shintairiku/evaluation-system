@@ -17,8 +17,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Eye, Users } from 'lucide-react';
-import { AdminGoalListTable } from '../../admin-goal-list/components/AdminGoalListTable';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Eye, Users, AlertCircle } from 'lucide-react';
+import { GoalCard } from '../../../employee/goal-list/components/GoalCard';
 import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
 import type { UserDetailResponse } from '@/api/types';
 
@@ -53,20 +54,6 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
   const selectedUser = selectedSummary
     ? users.find(u => u.id === selectedSummary.userId) || null
     : null;
-
-  // Create user map for AdminGoalListTable
-  const userMap = selectedUser
-    ? new Map([
-        [
-          selectedUser.id,
-          {
-            name: selectedUser.name,
-            departmentName: selectedUser.department?.name,
-            supervisorName: selectedUser.supervisor?.name,
-          },
-        ],
-      ])
-    : new Map();
 
   return (
     <>
@@ -107,8 +94,7 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
                 <div className="flex flex-col gap-1">
                   <span className="font-semibold">合計: {summary.counts.total}</span>
                   <span className="text-xs text-muted-foreground">
-                    コンピテンシー: {summary.counts.competency} / チーム: {summary.counts.team} /
-                    個人: {summary.counts.individual}
+                    業績: {summary.counts.performance} (定量: {summary.counts.performanceQuantitative}, 定性: {summary.counts.performanceQualitative}) / コンピテンシー: {summary.counts.competency}
                   </span>
                 </div>
               </TableCell>
@@ -154,22 +140,100 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
               {/* Employee Info Card */}
               <EmployeeInfoCard employee={selectedUser} />
 
-              {/* Goals Table */}
-              <div className="bg-card border rounded-lg">
-                <div className="p-4 border-b">
-                  <h3 className="text-lg font-semibold">目標詳細</h3>
-                  <div className="flex gap-4 text-sm text-muted-foreground mt-2">
-                    <span>合計: {selectedSummary.counts.total}</span>
-                    <span>コンピテンシー: {selectedSummary.counts.competency}</span>
-                    <span>チーム: {selectedSummary.counts.team}</span>
-                    <span>個人: {selectedSummary.counts.individual}</span>
+              {/* Goal Summary Dashboard */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-semibold text-gray-800">目標設定サマリー</h3>
+                  <span className="text-xs text-muted-foreground">
+                    最終更新: {selectedSummary.lastActivity
+                      ? formatDate(selectedSummary.lastActivity)
+                      : '-'}
+                  </span>
+                </div>
+
+                {/* Goal Counts */}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-gray-600 mb-1">📊 目標数</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="bg-white">
+                      合計: {selectedSummary.counts.total}
+                    </Badge>
+                    <Badge variant="outline" className="bg-white">
+                      業績目標: {selectedSummary.counts.performance}
+                    </Badge>
+                    <Badge variant="outline" className="bg-white text-xs">
+                      └ 定量的: {selectedSummary.counts.performanceQuantitative}
+                    </Badge>
+                    <Badge variant="outline" className="bg-white text-xs">
+                      └ 定性的: {selectedSummary.counts.performanceQualitative}
+                    </Badge>
+                    <Badge variant="outline" className="bg-white">
+                      コンピテンシー: {selectedSummary.counts.competency}
+                    </Badge>
                   </div>
                 </div>
-                <AdminGoalListTable
-                  goals={selectedSummary.goals}
-                  userMap={userMap}
-                  isLoading={false}
-                />
+
+                {/* Status Counts */}
+                <div className="space-y-2 mt-3">
+                  <div className="text-xs font-medium text-gray-600 mb-1">📈 ステータス</div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedSummary.statusCounts.approved > 0 && (
+                      <Badge className="bg-green-500 hover:bg-green-600">
+                        ✅ 承認済み: {selectedSummary.statusCounts.approved}
+                      </Badge>
+                    )}
+                    {selectedSummary.statusCounts.submitted > 0 && (
+                      <Badge variant="default">
+                        📋 提出済み: {selectedSummary.statusCounts.submitted}
+                      </Badge>
+                    )}
+                    {selectedSummary.statusCounts.draft > 0 && (
+                      <Badge variant="outline" className="border-yellow-500 text-yellow-700 bg-yellow-50">
+                        ✏️ 下書き: {selectedSummary.statusCounts.draft}
+                      </Badge>
+                    )}
+                    {selectedSummary.statusCounts.rejected > 0 && (
+                      <Badge variant="destructive">
+                        ❌ 差し戻し: {selectedSummary.statusCounts.rejected}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Alert if there are rejected goals */}
+                {selectedSummary.statusCounts.rejected > 0 && (
+                  <Alert variant="default" className="mt-3 border-amber-300 bg-amber-50">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-sm text-amber-800">
+                      {selectedSummary.statusCounts.rejected}件の目標が差し戻されています - 要対応
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+
+              {/* Goals List with Cards */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold">目標一覧</h3>
+                  <span className="text-sm text-muted-foreground">
+                    {selectedSummary.goals.length}件
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  {selectedSummary.goals.length > 0 ? (
+                    selectedSummary.goals.map(goal => (
+                      <GoalCard
+                        key={goal.id}
+                        goal={goal}
+                        currentUserId={undefined}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      目標がありません
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
