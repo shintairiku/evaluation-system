@@ -58,23 +58,44 @@
 
 ### 2. Frontend: Permissions (権限) tab UI
 
-- [ ] **2.1. Add new tab under /org-management**
+- [x] **2.1. Add new tab under /org-management**
   > Route and navigation; gate write controls to Admin; non-Admin read-only view.
   >
   > **Related Requirements:** R1
 
-- [ ] **2.2. Role × Permission matrix**
+- [x] **2.2. Role × Permission matrix**
   > Search/filter, toggle checkboxes, pending state, error handling, Save/Cancel.
+  > - Build `RolePermissionMatrix` component under `frontend/src/app/org-management/permissions/`.
+  > - Fetch catalog + per-role assignments via typed hooks; maintain local dirty state and optimistic toggle UX.
+  > - Provide filter box (permission code/description) and role selector; virtualize long lists to keep UI performant.
+  > - Implement Save/Cancel controls with loading indicators, inline error banner, and success toast.
+  > - Ensure read-only mode for non-admins by disabling toggles and hiding destructive actions.
+  > - Add unit tests covering toggle behavior, save flow, and permission gating.
   >
   > **Related Requirements:** R1
 
-- [ ] **2.3. Clone from role**
+  - [x] **2.2.a. Frontend endpoints wrapper for permissions**
+    > Implemented `frontend/src/api/endpoints/permissions.ts` with catalog + role get/put/patch/clone.
+
+  - [x] **2.2.b. Frontend server actions for permissions**
+    > Implemented `frontend/src/api/server-actions/permissions.ts` with cached reads and revalidate-on-mutate (`CACHE_TAGS.ROLES`).
+
+- [x] **2.3. Clone from role**
   > UI to select source role (e.g., Manager/Viewer), confirm, call clone API, refresh.
+  > - Add `ClonePermissionsDialog` with searchable role dropdown seeded from `/api/roles`.
+  > - Display summary of permissions delta from draft diff before confirmation; require admin confirmation.
+  > - Call clone endpoint, refresh assignments, and show toast with audit id reference.
+  > - Handle API errors (409/403/500) with inline alerts and maintain modal state for retry.
+  > - Extend Cypress flow to verify clone path updates matrix and audit event surfaces.
   >
   > **Related Requirements:** R3
 
-- [ ] **2.4. Concurrency errors**
+- [x] **2.4. Concurrency errors**
   > Surface 409 with refresh prompt; preserve unsaved changes where possible.
+  > - When backend returns 409 + latest `version`, show sticky warning banner prompting manual refresh.
+  > - Keep local diff so admin can reapply after fetching latest data; provide "Retry with latest" CTA.
+  > - Disable auto retry for 409; log event for telemetry.
+  > - Write unit test verifying banner appears and diff persists after refresh action.
   >
   > **Related Requirements:** R1
 
@@ -173,4 +194,3 @@ permissions.py の定義をソースオブトゥルースとして初期シー�
 > - Align naming and i18n: “Permissions (権限)” in UI; keep API/resource names in English.
 > - Coordinate with DevOps for migration rollout and feature-flag enablement.
 > - Ensure multitenancy scoping on every read/write (org_id) and validate in tests.
-
