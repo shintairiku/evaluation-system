@@ -63,21 +63,21 @@
   >
   > **Related Requirements:** R1
 
-- [ ] **2.2. Role × Permission matrix**
+- [x] **2.2. Role × Permission matrix**
   > Search/filter, toggle checkboxes, pending state, error handling, Save/Cancel.
-  > - [ ] **2.2.1. Build RolePermissionMatrix component**
+  > - [x] **2.2.1. Build RolePermissionMatrix component**
     > Create `frontend/src/app/org-management/permissions/RolePermissionMatrix.tsx` with grid layout showing roles vs permissions matrix.
-  > - [ ] **2.2.2. Fetch and display data**
+  > - [x] **2.2.2. Fetch and display data**
     > Fetch permissions catalog and role assignments using existing server actions; implement typed hooks for data management.
-  > - [ ] **2.2.3. Interactive toggles and dirty state**
+  > - [x] **2.2.3. Interactive toggles and dirty state**
     > Add checkbox toggles with optimistic UI updates; maintain local dirty state tracking changes.
-  > - [ ] **2.2.4. Search and filter functionality**
-    > Add filter box for permission code/description search; role selector dropdown; virtualize long lists.
-  > - [ ] **2.2.5. Save/Cancel controls**
+  > - [x] **2.2.4. Search and filter functionality**
+    > Add filter box for permission code/description search; role selector dropdown; virtualize long lists (handled via grouped accordion UX).
+  > - [x] **2.2.5. Save/Cancel controls**
     > Implement Save/Cancel buttons with loading states, inline error banners, and success toasts.
-  > - [ ] **2.2.6. Admin vs non-admin UX**
+  > - [x] **2.2.6. Admin vs non-admin UX**
     > Gate write controls to admin role; show read-only mode for non-admins (disable toggles, hide destructive actions).
-  > - [ ] **2.2.7. Error handling and pending states**
+  > - [x] **2.2.7. Error handling and pending states**
     > Handle network errors, validation errors, and loading states throughout the component.
   > - [ ] **2.2.8. Unit tests**
     > Add unit tests covering toggle behavior, save flow, permission gating, and error states.
@@ -118,48 +118,48 @@
   >
   > **Related Requirements:** R1
 
-- [ ] **2.5. Permission grouping with Japanese descriptions**
+- [x] **2.5. Permission grouping with Japanese descriptions**
   > Improve permission matrix scalability and usability with grouped permissions and Japanese descriptions.
-  > - [ ] **2.5.1. Backend: Database migration for permission groups**
+  > - [x] **2.5.1. Backend: Database migration for permission groups**
     > Create migration `050_add_permission_group.sql` to add `permission_group` column to `permissions` table.
     > - Update existing permissions with Japanese group names: `user`, `hierarchy` → `ユーザー`; `department` → `部門`; `role` → `ロール`; `goal` → `目標`; `evaluation` → `評価`; `competency` → `コンピテンシー`; `assessment` → `自己評価`; `report` → `レポート`; `stage` → `ステージ`.
     > - Update all permission descriptions to Japanese.
     > - Update `Permission` model in `backend/app/database/models/permission.py` to include `permission_group` field.
     >
     > **Related Requirements:** R1, R3
-  > - [ ] **2.5.2. Backend: Repository and service updates**
+  > - [x] **2.5.2. Backend: Repository and service updates**
     > - Add `list_permissions_grouped()` method to `PermissionRepository` returning permissions grouped by `permission_group`.
     > - Update `ensure_permission_codes()` to accept and store group parameter.
     > - Add `list_catalog_grouped()` method to `PermissionService`.
     > - Update `_ensure_catalog_seeded()` to include Japanese descriptions and groups.
     >
     > **Related Requirements:** R1, R3
-  > - [ ] **2.5.3. Backend: Schema and API updates**
+  > - [x] **2.5.3. Backend: Schema and API updates**
     > - Add `permission_group` field to `PermissionCatalogItem` schema.
     > - Create `PermissionGroupResponse` schema with group name and permissions list.
     > - Create `PermissionCatalogGroupedResponse` for grouped catalog.
     > - Add endpoint `GET /roles/permissions:catalog-grouped` in `backend/app/api/v1/roles.py`.
     >
     > **Related Requirements:** R1
-  > - [ ] **2.5.4. Frontend: Cache configuration**
+  > - [x] **2.5.4. Frontend: Cache configuration**
     > - Add `PERMISSIONS: 'permissions'` to `CACHE_TAGS` in `frontend/src/api/utils/cache.ts`.
     > - Add static cache strategy for permissions (1 hour duration).
     > - Update all permission mutation actions to revalidate both `CACHE_TAGS.ROLES` and `CACHE_TAGS.PERMISSIONS`.
     >
     > **Related Requirements:** R1, R5
-  > - [ ] **2.5.5. Frontend: Type definitions**
+  > - [x] **2.5.5. Frontend: Type definitions**
     > - Add `permission_group` field to `PermissionCatalogItem` in `frontend/src/api/types/permission.ts`.
     > - Create `PermissionGroup` interface.
     > - Create `PermissionCatalogGroupedResponse` type.
     >
     > **Related Requirements:** R1
-  > - [ ] **2.5.6. Frontend: API and server actions**
+  > - [x] **2.5.6. Frontend: API and server actions**
     > - Add `getGroupedCatalog()` method to `frontend/src/api/endpoints/permissions.ts`.
     > - Add `getPermissionCatalogGroupedAction()` with React cache in `frontend/src/api/server-actions/permissions.ts`.
     > - Update all mutation actions (`replaceRolePermissionsAction`, `patchRolePermissionsAction`, `cloneRolePermissionsAction`) to revalidate both cache tags.
     >
     > **Related Requirements:** R1, R5
-  > - [ ] **2.5.7. Frontend: Accordion-based permission matrix UI**
+  > - [x] **2.5.7. Frontend: Accordion-based permission matrix UI**
     > - Redesign `RolePermissionMatrix` component with Accordion layout.
     > - Each accordion item represents one permission group (e.g., "目標").
     > - Expand accordion to show individual permissions within that group.
