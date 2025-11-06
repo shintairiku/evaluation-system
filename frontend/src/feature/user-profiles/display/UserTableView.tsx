@@ -29,10 +29,11 @@ import { MESSAGES } from '@/components/constants/messages';
 
 interface UserTableViewProps {
   users: UserDetailResponse[];
+  allUsers: UserDetailResponse[];
   onUserUpdate?: (updatedUser: UserDetailResponse) => void;
 }
 
-export default function UserTableView({ users, onUserUpdate }: UserTableViewProps) {
+export default function UserTableView({ users, allUsers, onUserUpdate }: UserTableViewProps) {
   const [selectedUser, setSelectedUser] = useState<UserDetailResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -154,7 +155,7 @@ export default function UserTableView({ users, onUserUpdate }: UserTableViewProp
       {/* ユーザー編集モーダル */}
       <UserEditViewModal
         user={selectedUser}
-        allUsers={users}
+        allUsers={allUsers}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onUserUpdate={onUserUpdate}
