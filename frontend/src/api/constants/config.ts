@@ -228,8 +228,10 @@ export const API_ENDPOINTS = {
   // Permission management endpoints
   PERMISSIONS: {
     CATALOG: '/permissions/',
+    CATALOG_GROUPED: '/roles/permissions:catalog-grouped',
     ROLE: (roleId: string) => `/roles/${roleId}/permissions`,
     ROLE_CLONE: (roleId: string) => `/roles/${roleId}/permissions:clone`,
+    ROLE_BULK: '/roles/permissions:bulk',
   },
 } as const;
 
