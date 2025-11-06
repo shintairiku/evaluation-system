@@ -3,6 +3,11 @@ import { getDepartmentsAction } from '@/api/server-actions/departments';
 import { getRolesAction } from '@/api/server-actions/roles';
 import { getStagesAction } from '@/api/server-actions/stages';
 import { OrgManagementContainer } from '@/feature/org-management';
+import {
+  getAllRolePermissionsAction,
+  getPermissionCatalogGroupedAction,
+  getPermissionCatalogAction,
+} from '@/api/server-actions/permissions';
 
 export const metadata = {
   title: '組織管理 | 人事評価システム',
@@ -34,18 +39,38 @@ export default async function OrgManagementPage() {
     );
   }
 
-  const [departmentsResult, rolesResult, stagesResult] = await Promise.all([
+  const [
+    departmentsResult,
+    rolesResult,
+    stagesResult,
+    permissionCatalogResult,
+    permissionCatalogGroupedResult,
+    rolePermissionsResult,
+  ] = await Promise.all([
     getDepartmentsAction(),
     getRolesAction(),
     getStagesAction(),
+    getPermissionCatalogAction(),
+    getPermissionCatalogGroupedAction(),
+    getAllRolePermissionsAction(),
   ]);
 
-  if (!departmentsResult.success || !rolesResult.success || !stagesResult.success) {
+  if (
+    !departmentsResult.success ||
+    !rolesResult.success ||
+    !stagesResult.success ||
+    !permissionCatalogResult.success ||
+    !permissionCatalogGroupedResult.success ||
+    !rolePermissionsResult.success
+  ) {
     throw new Error(
       [
         !departmentsResult.success ? departmentsResult.error || 'Failed to load departments' : null,
         !rolesResult.success ? rolesResult.error || 'Failed to load roles' : null,
         !stagesResult.success ? stagesResult.error || 'Failed to load stages' : null,
+        !permissionCatalogResult.success ? permissionCatalogResult.error || 'Failed to load permission catalog' : null,
+        !permissionCatalogGroupedResult.success ? permissionCatalogGroupedResult.error || 'Failed to load grouped permission catalog' : null,
+        !rolePermissionsResult.success ? rolePermissionsResult.error || 'Failed to load role permissions' : null,
       ]
         .filter(Boolean)
         .join(' | ') || 'Failed to load organization management resources',
@@ -60,6 +85,9 @@ export default async function OrgManagementPage() {
         initialDepartments={departmentsResult.data ?? []}
         initialRoles={rolesResult.data ?? []}
         initialStages={stagesResult.data ?? []}
+        initialRolePermissions={rolePermissionsResult.data ?? []}
+        permissionCatalog={permissionCatalogResult.data ?? []}
+        permissionCatalogGrouped={permissionCatalogGroupedResult.data?.groups ?? []}
       />
     </div>
   );
