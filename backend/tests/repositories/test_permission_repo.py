@@ -175,3 +175,28 @@ async def test_get_by_codes_preserves_request_order(memory_session):
     requested_order = ["evaluation:read", "goal:manage", "user:manage"]
     permissions = await repo.get_by_codes(requested_order)
     assert [perm.code for perm in permissions] == requested_order
+
+
+@pytest.mark.asyncio
+async def test_ensure_permission_codes_updates_existing_metadata(memory_session):
+    repo = PermissionRepository(memory_session)
+
+    existing = PermissionModel(
+        code="user:manage",
+        description="Manage users",
+        permission_group="User",
+    )
+    memory_session.add(existing)
+    await memory_session.commit()
+
+    updated_catalog = [
+        ("user:manage", "ユーザーを管理", "ユーザー"),
+    ]
+
+    await repo.ensure_permission_codes(updated_catalog)
+    await memory_session.commit()
+
+    refreshed = await repo.get_by_code("user:manage")
+    assert refreshed is not None
+    assert refreshed.description == "ユーザーを管理"
+    assert refreshed.permission_group == "ユーザー"
