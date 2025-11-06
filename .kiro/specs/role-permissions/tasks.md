@@ -118,6 +118,96 @@
   >
   > **Related Requirements:** R1
 
+- [ ] **2.5. Permission grouping with Japanese descriptions**
+  > Improve permission matrix scalability and usability with grouped permissions and Japanese descriptions.
+  > - [ ] **2.5.1. Backend: Database migration for permission groups**
+    > Create migration `050_add_permission_group.sql` to add `permission_group` column to `permissions` table.
+    > - Update existing permissions with Japanese group names: `user`, `hierarchy` → `ユーザー`; `department` → `部門`; `role` → `ロール`; `goal` → `目標`; `evaluation` → `評価`; `competency` → `コンピテンシー`; `assessment` → `自己評価`; `report` → `レポート`; `stage` → `ステージ`.
+    > - Update all permission descriptions to Japanese.
+    > - Update `Permission` model in `backend/app/database/models/permission.py` to include `permission_group` field.
+    >
+    > **Related Requirements:** R1, R3
+  > - [ ] **2.5.2. Backend: Repository and service updates**
+    > - Add `list_permissions_grouped()` method to `PermissionRepository` returning permissions grouped by `permission_group`.
+    > - Update `ensure_permission_codes()` to accept and store group parameter.
+    > - Add `list_catalog_grouped()` method to `PermissionService`.
+    > - Update `_ensure_catalog_seeded()` to include Japanese descriptions and groups.
+    >
+    > **Related Requirements:** R1, R3
+  > - [ ] **2.5.3. Backend: Schema and API updates**
+    > - Add `permission_group` field to `PermissionCatalogItem` schema.
+    > - Create `PermissionGroupResponse` schema with group name and permissions list.
+    > - Create `PermissionCatalogGroupedResponse` for grouped catalog.
+    > - Add endpoint `GET /roles/permissions:catalog-grouped` in `backend/app/api/v1/roles.py`.
+    >
+    > **Related Requirements:** R1
+  > - [ ] **2.5.4. Frontend: Cache configuration**
+    > - Add `PERMISSIONS: 'permissions'` to `CACHE_TAGS` in `frontend/src/api/utils/cache.ts`.
+    > - Add static cache strategy for permissions (1 hour duration).
+    > - Update all permission mutation actions to revalidate both `CACHE_TAGS.ROLES` and `CACHE_TAGS.PERMISSIONS`.
+    >
+    > **Related Requirements:** R1, R5
+  > - [ ] **2.5.5. Frontend: Type definitions**
+    > - Add `permission_group` field to `PermissionCatalogItem` in `frontend/src/api/types/permission.ts`.
+    > - Create `PermissionGroup` interface.
+    > - Create `PermissionCatalogGroupedResponse` type.
+    >
+    > **Related Requirements:** R1
+  > - [ ] **2.5.6. Frontend: API and server actions**
+    > - Add `getGroupedCatalog()` method to `frontend/src/api/endpoints/permissions.ts`.
+    > - Add `getPermissionCatalogGroupedAction()` with React cache in `frontend/src/api/server-actions/permissions.ts`.
+    > - Update all mutation actions (`replaceRolePermissionsAction`, `patchRolePermissionsAction`, `cloneRolePermissionsAction`) to revalidate both cache tags.
+    >
+    > **Related Requirements:** R1, R5
+  > - [ ] **2.5.7. Frontend: Accordion-based permission matrix UI**
+    > - Redesign `RolePermissionMatrix` component with Accordion layout.
+    > - Each accordion item represents one permission group (e.g., "目標").
+    > - Expand accordion to show individual permissions within that group.
+    > - Keep role columns horizontal with checkboxes for each permission.
+    > - Maintain existing save/cancel/reload functionality.
+    > - Default to collapsed state; show permission count badge per group.
+    > - Update to use grouped catalog API endpoint.
+    >
+    > **Related Requirements:** R1
+
+- [ ] **2.6. Role CRUD operations in Roles tab**
+  > Add full create, update, and delete functionality for roles in the Roles tab.
+  > - [ ] **2.6.1. Create role functionality**
+    > - Add "新しいロールを作成" button in `RolesTab` component.
+    > - Create dialog form with name and description fields.
+    > - Integrate with `createRoleAction` server action.
+    > - Refresh roles list and update permissions matrix after creation.
+    >
+    > **Related Requirements:** R1
+  > - [ ] **2.6.2. Update role functionality**
+    > - Add edit icon/button per role row.
+    > - Create edit dialog with pre-filled name and description.
+    > - Integrate with `updateRoleAction` server action.
+    > - Update local state and refresh permissions matrix after update.
+    >
+    > **Related Requirements:** R1
+  > - [ ] **2.6.3. Delete role functionality**
+    > - Add delete icon/button per role row.
+    > - Show confirmation dialog before deletion.
+    > - Check if role has users assigned (display user count from `roleUserMap`).
+    > - Prevent deletion if users are still assigned (show error message).
+    > - Integrate with `deleteRoleAction` server action.
+    > - Update local state and refresh permissions matrix after deletion.
+    > - Backend should validate no users have the role before allowing deletion.
+    >
+    > **Related Requirements:** R1
+  > - [ ] **2.6.4. Update OrgManagementContainer**
+    > - Add state management callbacks for role creation, update, and deletion.
+    > - Pass callbacks to `RolesTab` component.
+    > - Ensure permissions matrix refreshes when roles change.
+    >
+    > **Related Requirements:** R1
+  > - [ ] **2.6.5. Update role server actions cache**
+    > - Update `createRoleAction`, `updateRoleAction`, `deleteRoleAction` in `frontend/src/api/server-actions/roles.ts`.
+    > - Ensure all mutations revalidate both `CACHE_TAGS.ROLES` and `CACHE_TAGS.PERMISSIONS`.
+    >
+    > **Related Requirements:** R1, R5
+
 ```
 
 ## 機能B: Viewer Visibility Grants (resource-scoped, strict FKs; Option A)
