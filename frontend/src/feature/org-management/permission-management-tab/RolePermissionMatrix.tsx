@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  Copy,
   Loader2,
   RefreshCcw,
   Search,
@@ -42,9 +43,18 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   getAllRolePermissionsAction,
+  cloneRolePermissionsAction,
   getPermissionCatalogGroupedAction,
   getRolePermissionsAction,
   replaceRolePermissionsAction,
@@ -72,6 +82,14 @@ type SaveResultSummary = {
   successCount: number;
   failureCount: number;
 };
+
+const CONFLICT_KEYWORDS = ['409', 'conflict', '競合', 'refresh'];
+
+function isConflictError(message: string | undefined): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return CONFLICT_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
 
 // Permission group labeling
 const PERMISSION_GROUP_FALLBACK = 'その他';
@@ -298,11 +316,49 @@ export function RolePermissionMatrix({
   const [savingRoleIds, setSavingRoleIds] = useState<Set<string>>(new Set());
   const [refreshingRoleIds, setRefreshingRoleIds] = useState<Set<string>>(new Set());
   const [conflictState, setConflictState] = useState<ConflictState | null>(null);
+  const [cloneTargetRoleId, setCloneTargetRoleId] = useState<string | null>(null);
+  const [cloneSourceRoleId, setCloneSourceRoleId] = useState<string | null>(null);
+  const [isClonePending, setIsClonePending] = useState(false);
 
   const groupedCatalog = useMemo(
     () => groupCatalogByPermissionGroup(catalog, groupOrder),
     [catalog, groupOrder],
   );
+
+  useEffect(() => {
+    setRoleStates((prev) => {
+      const next: Record<string, RolePermissionDraft> = { ...prev };
+      let changed = false;
+      const incomingIds = new Set(roles.map((role) => role.id));
+
+      roles.forEach((role) => {
+        const existing = next[role.id];
+        if (!existing) {
+          next[role.id] = {
+            role,
+            base: new Set<string>(),
+            draft: new Set<string>(),
+            version: '0',
+          };
+          changed = true;
+        } else if (existing.role !== role) {
+          next[role.id] = {
+            ...existing,
+            role,
+          };
+        }
+      });
+
+      Object.keys(next).forEach((roleId) => {
+        if (!incomingIds.has(roleId)) {
+          delete next[roleId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [roles]);
 
   useEffect(() => {
     roleStatesRef.current = roleStates;
@@ -313,6 +369,12 @@ export function RolePermissionMatrix({
       toast.info('権限マトリクスは閲覧モードです。編集するには管理者ロールが必要です。');
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (roleFilter !== 'all' && !roles.some((role) => role.id === roleFilter)) {
+      setRoleFilter('all');
+    }
+  }, [roleFilter, roles]);
 
   const upsertCatalog = useCallback((items: PermissionCatalogItem[]) => {
     if (!items.length) return;
@@ -416,6 +478,38 @@ export function RolePermissionMatrix({
   const isRoleSaving = useCallback((roleId: string) => savingRoleIds.has(roleId), [savingRoleIds]);
   const isRoleRefreshing = useCallback((roleId: string) => refreshingRoleIds.has(roleId), [refreshingRoleIds]);
   const hasDirtyChanges = dirtyStates.length > 0;
+  const cloneTargetState = cloneTargetRoleId ? roleStates[cloneTargetRoleId] : undefined;
+  const cloneSourceState = cloneSourceRoleId ? roleStates[cloneSourceRoleId] : undefined;
+
+  const cloneDiff = useMemo(() => {
+    if (!cloneTargetState || !cloneSourceState) {
+      return { additions: [] as string[], removals: [] as string[] };
+    }
+    const additions = Array.from(cloneSourceState.base).filter((code) => !cloneTargetState.base.has(code));
+    const removals = Array.from(cloneTargetState.base).filter((code) => !cloneSourceState.base.has(code));
+    return { additions, removals };
+  }, [cloneTargetState, cloneSourceState]);
+
+  const openCloneDialog = useCallback(
+    (roleId: string) => {
+      if (!isAdmin) return;
+      setCloneTargetRoleId(roleId);
+      setCloneSourceRoleId((current) => {
+        if (current && current !== roleId && roles.some((role) => role.id === current)) {
+          return current;
+        }
+        const fallback = roles.find((role) => role.id !== roleId)?.id ?? null;
+        return fallback;
+      });
+    },
+    [isAdmin, roles],
+  );
+
+  const closeCloneDialog = useCallback(() => {
+    setCloneTargetRoleId(null);
+    setCloneSourceRoleId(null);
+    setIsClonePending(false);
+  }, []);
 
   const refreshRole = useCallback(async (roleId: string, preserveDraft = false) => {
     const baseState = roleStatesRef.current[roleId];
@@ -567,7 +661,7 @@ export function RolePermissionMatrix({
         summary.failureCount += 1;
         const message = result.error || '権限の保存に失敗しました。';
         toast.error(`${state.role.name}: ${message}`);
-        if (message.includes('競合') || message.includes('refresh') || message.includes('更新')) {
+        if (isConflictError(message)) {
           setConflictState({
             roleId,
             message,
@@ -597,6 +691,37 @@ export function RolePermissionMatrix({
     setConflictState(null);
   }, [conflictState, refreshRole]);
 
+  const handleClonePermissions = useCallback(async () => {
+    if (!cloneTargetRoleId || !cloneSourceRoleId) return;
+    setIsClonePending(true);
+    setConflictState(null);
+
+    try {
+      const result = await cloneRolePermissionsAction(cloneTargetRoleId, { fromRoleId: cloneSourceRoleId });
+      if (!result.success || !result.data) {
+        const message = result.error || '権限の複製に失敗しました。';
+        toast.error(message);
+        if (isConflictError(message)) {
+          setConflictState({
+            roleId: cloneTargetRoleId,
+            message,
+          });
+          await refreshRole(cloneTargetRoleId, true);
+        }
+        return;
+      }
+
+      applySaveResult(cloneTargetRoleId, result.data);
+      toast.success('権限を複製しました。');
+      closeCloneDialog();
+    } catch (error) {
+      console.error('cloneRolePermissions error', error);
+      toast.error('権限の複製中に予期せぬエラーが発生しました。');
+    } finally {
+      setIsClonePending(false);
+    }
+  }, [cloneTargetRoleId, cloneSourceRoleId, applySaveResult, closeCloneDialog, refreshRole]);
+
   if (!roles.length) {
     return (
       <Card>
@@ -614,7 +739,8 @@ export function RolePermissionMatrix({
   }
 
   return (
-    <Card className="border-t-[3px] border-primary/40 shadow-sm">
+    <>
+      <Card className="border-t-[3px] border-primary/40 shadow-sm">
       <CardHeader className="space-y-2">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -810,6 +936,17 @@ export function RolePermissionMatrix({
                                         {(saving || refreshing) && (
                                           <Loader2 className="size-4 animate-spin text-muted-foreground" />
                                         )}
+                                        {isAdmin && roles.length > 1 && (
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-auto px-2 py-1 text-[11px]"
+                                            onClick={() => openCloneDialog(role.id)}
+                                          >
+                                            <Copy className="mr-1 size-3" /> 複製
+                                          </Button>
+                                        )}
                                       </div>
                                     </TableHead>
                                   );
@@ -868,6 +1005,97 @@ export function RolePermissionMatrix({
           </ScrollArea>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+      {cloneTargetRoleId && (
+        <Dialog open onOpenChange={(open) => { if (!open) closeCloneDialog(); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>権限を複製</DialogTitle>
+              <DialogDescription>
+                選択したロールへ別のロールの権限セットをコピーします。保存済みの権限だけが複製対象です。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  対象ロール:{' '}
+                  <span className="font-medium text-foreground">
+                    {roles.find((role) => role.id === cloneTargetRoleId)?.name ?? ''}
+                  </span>
+                </p>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="clone-source-role">
+                    コピー元ロール
+                  </label>
+                  <Select
+                    value={cloneSourceRoleId ?? undefined}
+                    onValueChange={(value) => setCloneSourceRoleId(value)}
+                    disabled={isClonePending}
+                  >
+                    <SelectTrigger id="clone-source-role">
+                      <SelectValue placeholder="コピー元ロールを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles
+                        .filter((role) => role.id !== cloneTargetRoleId)
+                        .map((role) => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="rounded-md border bg-muted/30 p-4 text-sm">
+                <p className="font-medium">変更予定の概要</p>
+                <div className="mt-2 grid gap-1">
+                  <span>追加される権限: {cloneDiff.additions.length} 件</span>
+                  <span>削除される権限: {cloneDiff.removals.length} 件</span>
+                  {(cloneDiff.additions.length > 0 || cloneDiff.removals.length > 0) && (
+                    <div className="mt-2 grid gap-2 text-xs text-muted-foreground">
+                      {cloneDiff.additions.length > 0 && (
+                        <div>
+                          <p className="font-medium text-foreground">追加される権限</p>
+                          <ul className="list-disc space-y-1 pl-4">
+                            {cloneDiff.additions.slice(0, 5).map((code) => (
+                              <li key={`add-${code}`}>{code}</li>
+                            ))}
+                            {cloneDiff.additions.length > 5 && <li>他 {cloneDiff.additions.length - 5} 件…</li>}
+                          </ul>
+                        </div>
+                      )}
+                      {cloneDiff.removals.length > 0 && (
+                        <div>
+                          <p className="font-medium text-foreground">削除される権限</p>
+                          <ul className="list-disc space-y-1 pl-4">
+                            {cloneDiff.removals.slice(0, 5).map((code) => (
+                              <li key={`remove-${code}`}>{code}</li>
+                            ))}
+                            {cloneDiff.removals.length > 5 && <li>他 {cloneDiff.removals.length - 5} 件…</li>}
+                          </ul>
+                        </div>
+                      )}
+                      {cloneDiff.additions.length === 0 && cloneDiff.removals.length === 0 && (
+                        <p>差分はありません。保存済みの権限は同一です。</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={closeCloneDialog} disabled={isClonePending}>
+                キャンセル
+              </Button>
+              <Button type="button" onClick={handleClonePermissions} disabled={isClonePending || !cloneSourceRoleId}>
+                {isClonePending && <Loader2 className="mr-2 size-4 animate-spin" />}複製する
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }

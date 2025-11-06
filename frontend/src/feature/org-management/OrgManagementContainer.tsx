@@ -41,7 +41,7 @@ export function OrgManagementContainer({
   const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'roles' | 'permissions'>('users');
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [departments, setDepartments] = useState<Department[]>(initialDepartments);
-  const [roles] = useState<RoleDetail[]>(initialRoles);
+  const [roles, setRoles] = useState<RoleDetail[]>(initialRoles);
   const [stages] = useState<Stage[]>(initialStages);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [bulkResult, setBulkResult] = useState<BulkUserStatusUpdateResponse | null>(null);
@@ -128,11 +128,36 @@ export function OrgManagementContainer({
     />
   );
 
+  const handleRoleCreated = useCallback((role: RoleDetail) => {
+    setRoles((prev) => {
+      const exists = prev.some((item) => item.id === role.id);
+      if (exists) {
+        return prev;
+      }
+      return [...prev, role].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    });
+  }, []);
+
+  const handleRoleUpdated = useCallback((role: RoleDetail) => {
+    setRoles((prev) =>
+      prev
+        .map((item) => (item.id === role.id ? role : item))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja')),
+    );
+  }, []);
+
+  const handleRoleDeleted = useCallback((roleId: string) => {
+    setRoles((prev) => prev.filter((role) => role.id !== roleId));
+  }, []);
+
   const rolesTab = (
     <RolesTab
       roles={roles}
       users={users}
       onUsersStateSync={handleUsersStateSync}
+      onRoleCreated={handleRoleCreated}
+      onRoleUpdated={handleRoleUpdated}
+      onRoleDeleted={handleRoleDeleted}
     />
   );
 
