@@ -21,6 +21,7 @@ class Permission(Base):
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     code = Column(String(150), unique=True, nullable=False)
     description = Column(Text, nullable=False, default="")
+    permission_group = Column(String(80), nullable=False, default="その他", index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
