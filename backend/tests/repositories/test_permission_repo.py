@@ -115,15 +115,15 @@ ORG_ID = "org_repo_test"
 async def test_ensure_permission_codes_idempotent(memory_session):
     repo = PermissionRepository(memory_session)
     catalog = [
-        ("user:read:all", "Read all users"),
-        ("goal:read:self", "Read own goals"),
+        ("user:read:all", "すべてのユーザーを閲覧", "ユーザー"),
+        ("goal:read:self", "自分の目標を閲覧", "目標"),
     ]
 
     permissions, created = await repo.ensure_permission_codes(catalog)
     await memory_session.commit()
 
     assert created is True
-    assert {perm.code for perm in permissions} >= {code for code, _ in catalog}
+    assert {perm.code for perm in permissions} >= {code for code, _, _ in catalog}
 
     # Second call should be idempotent
     _, created_second = await repo.ensure_permission_codes(catalog)
@@ -147,8 +147,8 @@ async def test_replace_role_permissions_persists_assignments(memory_session):
     memory_session.add(role)
 
     catalog = [
-        ("user:read:all", "Read all users"),
-        ("goal:read:self", "Read own goals"),
+        ("user:read:all", "すべてのユーザーを閲覧", "ユーザー"),
+        ("goal:read:self", "自分の目標を閲覧", "目標"),
     ]
     permissions, _ = await permission_repo.ensure_permission_codes(catalog)
     await memory_session.flush()
@@ -164,9 +164,9 @@ async def test_replace_role_permissions_persists_assignments(memory_session):
 async def test_get_by_codes_preserves_request_order(memory_session):
     repo = PermissionRepository(memory_session)
     catalog = [
-        ("goal:manage", "Manage all goals"),
-        ("user:manage", "Manage users"),
-        ("evaluation:read", "Read evaluations"),
+        ("goal:manage", "目標を管理", "目標"),
+        ("user:manage", "ユーザーを管理", "ユーザー"),
+        ("evaluation:read", "評価を閲覧", "評価"),
     ]
 
     await repo.ensure_permission_codes(catalog)
