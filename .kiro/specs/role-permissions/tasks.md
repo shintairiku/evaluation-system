@@ -90,26 +90,26 @@
   - [x] **2.2.b. Frontend server actions for permissions**
     > Implemented `frontend/src/api/server-actions/permissions.ts` with cached reads and revalidate-on-mutate (`CACHE_TAGS.ROLES`).
 
-- [ ] **2.3. Clone from role**
+- [x] **2.3. Clone from role**
   > UI to select source role (e.g., Manager/Viewer), confirm, call clone API, refresh.
-  > - [ ] **2.3.1. ClonePermissionsDialog component**
+  > - [x] **2.3.1. ClonePermissionsDialog component**
     > Create dialog component with searchable role dropdown seeded from `/api/roles`.
-  > - [ ] **2.3.2. Permissions delta preview**
+  > - [x] **2.3.2. Permissions delta preview**
     > Display summary of permissions delta from draft diff before confirmation; require admin confirmation.
-  > - [ ] **2.3.3. Clone API integration**
+  > - [x] **2.3.3. Clone API integration**
     > Call clone endpoint, refresh assignments, and show toast with audit id reference.
-  > - [ ] **2.3.4. Error handling**
+  > - [x] **2.3.4. Error handling**
     > Handle API errors (409/403/500) with inline alerts and maintain modal state for retry.
   > - [ ] **2.3.5. Integration tests**
     > Extend Cypress flow to verify clone path updates matrix and audit event surfaces.
   >
   > **Related Requirements:** R3
 
-- [ ] **2.4. Concurrency errors**
+- [x] **2.4. Concurrency errors**
   > Surface 409 with refresh prompt; preserve unsaved changes where possible.
-  > - [ ] **2.4.1. 409 error handling**
+  > - [x] **2.4.1. 409 error handling**
     > When backend returns 409 + latest `version`, show sticky warning banner prompting manual refresh.
-  > - [ ] **2.4.2. Preserve unsaved changes**
+  > - [x] **2.4.2. Preserve unsaved changes**
     > Keep local diff so admin can reapply after fetching latest data; provide "Retry with latest" CTA.
   > - [ ] **2.4.3. Error telemetry**
     > Disable auto retry for 409; log event for telemetry.
@@ -170,23 +170,23 @@
     >
     > **Related Requirements:** R1
 
-- [ ] **2.6. Role CRUD operations in Roles tab**
+- [x] **2.6. Role CRUD operations in Roles tab**
   > Add full create, update, and delete functionality for roles in the Roles tab.
-  > - [ ] **2.6.1. Create role functionality**
+  > - [x] **2.6.1. Create role functionality**
     > - Add "新しいロールを作成" button in `RolesTab` component.
     > - Create dialog form with name and description fields.
     > - Integrate with `createRoleAction` server action.
     > - Refresh roles list and update permissions matrix after creation.
     >
     > **Related Requirements:** R1
-  > - [ ] **2.6.2. Update role functionality**
+  > - [x] **2.6.2. Update role functionality**
     > - Add edit icon/button per role row.
     > - Create edit dialog with pre-filled name and description.
     > - Integrate with `updateRoleAction` server action.
     > - Update local state and refresh permissions matrix after update.
     >
     > **Related Requirements:** R1
-  > - [ ] **2.6.3. Delete role functionality**
+  > - [x] **2.6.3. Delete role functionality**
     > - Add delete icon/button per role row.
     > - Show confirmation dialog before deletion.
     > - Check if role has users assigned (display user count from `roleUserMap`).
@@ -196,13 +196,13 @@
     > - Backend should validate no users have the role before allowing deletion.
     >
     > **Related Requirements:** R1
-  > - [ ] **2.6.4. Update OrgManagementContainer**
+  > - [x] **2.6.4. Update OrgManagementContainer**
     > - Add state management callbacks for role creation, update, and deletion.
     > - Pass callbacks to `RolesTab` component.
     > - Ensure permissions matrix refreshes when roles change.
     >
     > **Related Requirements:** R1
-  > - [ ] **2.6.5. Update role server actions cache**
+  > - [x] **2.6.5. Update role server actions cache**
     > - Update `createRoleAction`, `updateRoleAction`, `deleteRoleAction` in `frontend/src/api/server-actions/roles.ts`.
     > - Ensure all mutations revalidate both `CACHE_TAGS.ROLES` and `CACHE_TAGS.PERMISSIONS`.
     >
