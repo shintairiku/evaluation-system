@@ -17,8 +17,9 @@ export const metadata = {
 export default async function OrgManagementPage() {
   // Fetch users first to leverage admin-only API guard (403 handled by middleware fallback)
   const usersResult = await getUsersAction({
-    limit: 100,
+    limit: 50,
     page: 1,
+    withCount: false,
   });
 
   if (!usersResult.success) {
@@ -60,7 +61,6 @@ export default async function OrgManagementPage() {
     !rolesResult.success ||
     !stagesResult.success ||
     !permissionCatalogResult.success ||
-    !permissionCatalogGroupedResult.success ||
     !rolePermissionsResult.success
   ) {
     throw new Error(
@@ -69,13 +69,19 @@ export default async function OrgManagementPage() {
         !rolesResult.success ? rolesResult.error || 'Failed to load roles' : null,
         !stagesResult.success ? stagesResult.error || 'Failed to load stages' : null,
         !permissionCatalogResult.success ? permissionCatalogResult.error || 'Failed to load permission catalog' : null,
-        !permissionCatalogGroupedResult.success ? permissionCatalogGroupedResult.error || 'Failed to load grouped permission catalog' : null,
         !rolePermissionsResult.success ? rolePermissionsResult.error || 'Failed to load role permissions' : null,
       ]
         .filter(Boolean)
         .join(' | ') || 'Failed to load organization management resources',
     );
   }
+
+  const permissionCatalogGrouped = permissionCatalogGroupedResult.success
+    ? permissionCatalogGroupedResult.data?.groups ?? []
+    : [];
+  const permissionCatalogGroupedWarning = permissionCatalogGroupedResult.success
+    ? null
+    : (permissionCatalogGroupedResult.error ?? '権限グループの読み込みに失敗しました。');
 
   return (
     <div className="container mx-auto px-6 py-10">
@@ -87,7 +93,8 @@ export default async function OrgManagementPage() {
         initialStages={stagesResult.data ?? []}
         initialRolePermissions={rolePermissionsResult.data ?? []}
         permissionCatalog={permissionCatalogResult.data ?? []}
-        permissionCatalogGrouped={permissionCatalogGroupedResult.data?.groups ?? []}
+        permissionCatalogGrouped={permissionCatalogGrouped}
+        permissionCatalogGroupedWarning={permissionCatalogGroupedWarning}
       />
     </div>
   );
