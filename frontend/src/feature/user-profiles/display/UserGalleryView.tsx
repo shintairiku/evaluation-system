@@ -18,10 +18,11 @@ import { MESSAGES } from '@/components/constants/messages';
 
 interface UserGalleryViewProps {
   users: UserDetailResponse[];
+  allUsers: UserDetailResponse[];
   onUserUpdate?: (updatedUser: UserDetailResponse) => void;
 }
 
-export default function UserGalleryView({ users, onUserUpdate }: UserGalleryViewProps) {
+export default function UserGalleryView({ users, allUsers, onUserUpdate }: UserGalleryViewProps) {
   const [selectedUser, setSelectedUser] = useState<UserDetailResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const getStatusBadge = (status: string) => {
@@ -149,7 +150,7 @@ export default function UserGalleryView({ users, onUserUpdate }: UserGalleryView
       {/* ユーザー編集モーダル */}
       <UserEditViewModal
         user={selectedUser}
-        allUsers={users}
+        allUsers={allUsers}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onUserUpdate={onUserUpdate}
