@@ -15,12 +15,20 @@ interface PermissionsTabProps {
   roles: RoleDetail[];
   rolePermissions: RolePermissionResponse[];
   permissionCatalog: PermissionCatalogItem[];
-  permissionGroups: PermissionGroup[];
+  permissionGroups?: PermissionGroup[];
+  groupedCatalogWarning?: string;
 }
 
-export function PermissionsTab({ roles, rolePermissions, permissionCatalog, permissionGroups }: PermissionsTabProps) {
+export function PermissionsTab({
+  roles,
+  rolePermissions,
+  permissionCatalog,
+  permissionGroups,
+  groupedCatalogWarning,
+}: PermissionsTabProps) {
   const { hasRole, isLoading, error } = useUserRoles();
   const isAdmin = !isLoading && hasRole('admin');
+  const safePermissionGroups = permissionGroups ?? [];
 
   if (isLoading) {
     return (
@@ -33,6 +41,14 @@ export function PermissionsTab({ roles, rolePermissions, permissionCatalog, perm
 
   return (
     <div className="space-y-6">
+      {groupedCatalogWarning && (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-700">
+          <AlertTitle>権限グループを読み込めませんでした</AlertTitle>
+          <AlertDescription>
+            {groupedCatalogWarning} 権限一覧はフラット表示で利用できます。
+          </AlertDescription>
+        </Alert>
+      )}
       {error && (
         <Alert variant="destructive">
           <AlertTitle>権限情報の取得中に問題が発生しました</AlertTitle>
@@ -44,7 +60,7 @@ export function PermissionsTab({ roles, rolePermissions, permissionCatalog, perm
         isAdmin={isAdmin}
         initialAssignments={rolePermissions}
         initialCatalog={permissionCatalog}
-        initialGroupedCatalog={permissionGroups}
+        initialGroupedCatalog={safePermissionGroups}
       />
     </div>
   );
