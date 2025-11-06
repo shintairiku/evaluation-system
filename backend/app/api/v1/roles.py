@@ -158,6 +158,23 @@ async def reorder_roles(
         )
 
 
+@router.get("/permissions:catalog-grouped", response_model=PermissionCatalogGroupedResponse)
+async def get_permission_catalog_grouped(
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = PermissionService(session)
+        return await service.list_catalog_grouped(context)
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load grouped permission catalog",
+        ) from exc
+
+
 @router.get("/{role_id}", response_model=RoleDetail)
 async def get_role(
     role_id: UUID,
@@ -266,23 +283,6 @@ async def delete_role(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
-
-@router.get("/permissions:catalog-grouped", response_model=PermissionCatalogGroupedResponse)
-async def get_permission_catalog_grouped(
-    context: AuthContext = Depends(get_auth_context),
-    session: AsyncSession = Depends(get_db_session),
-):
-    try:
-        service = PermissionService(session)
-        return await service.list_catalog_grouped(context)
-    except PermissionDeniedError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
-    except Exception as exc:  # pragma: no cover
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to load grouped permission catalog",
-        ) from exc
-
 
 @router.get("/{role_id}/permissions", response_model=RolePermissionResponse)
 async def get_role_permissions(
