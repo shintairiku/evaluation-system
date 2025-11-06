@@ -2,6 +2,7 @@ import { getHttpClient } from '../client/http-client';
 import { API_ENDPOINTS } from '../constants/config';
 import type {
   ApiResponse,
+  PermissionCatalogGroupedResponse,
   PermissionCatalogItem,
   RolePermissionCloneRequest,
   RolePermissionPatchRequest,
@@ -15,6 +16,10 @@ const httpClient = getHttpClient();
 export const permissionsApi = {
   getCatalog: async (): Promise<ApiResponse<PermissionCatalogItem[]>> => {
     return httpClient.get<PermissionCatalogItem[]>(API_ENDPOINTS.PERMISSIONS.CATALOG);
+  },
+
+  getGroupedCatalog: async (): Promise<ApiResponse<PermissionCatalogGroupedResponse>> => {
+    return httpClient.get<PermissionCatalogGroupedResponse>(API_ENDPOINTS.PERMISSIONS.CATALOG_GROUPED);
   },
 
   getRolePermissions: async (roleId: UUID): Promise<ApiResponse<RolePermissionResponse>> => {
@@ -49,5 +54,9 @@ export const permissionsApi = {
       API_ENDPOINTS.PERMISSIONS.ROLE_CLONE(roleId),
       payload,
     );
+  },
+
+  getAllRolePermissions: async (): Promise<ApiResponse<RolePermissionResponse[]>> => {
+    return httpClient.get<RolePermissionResponse[]>(API_ENDPOINTS.PERMISSIONS.ROLE_BULK);
   },
 };
