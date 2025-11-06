@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,8 @@ from ..database.repositories.permission_repo import (
 from ..database.repositories.role_repo import RoleRepository
 from ..schemas.permission import (
     PermissionCatalogItem,
+    PermissionCatalogGroupedResponse,
+    PermissionGroupResponse,
     RolePermissionPatchRequest,
     RolePermissionResponse,
     RolePermissionUpdateRequest,
@@ -24,6 +26,53 @@ from ..core.exceptions import ConflictError, NotFoundError, PermissionDeniedErro
 
 logger = logging.getLogger(__name__)
 
+PERMISSION_GROUP_OTHER = "その他"
+PERMISSION_GROUP_ORDER = [
+    "ユーザー",
+    "部門",
+    "ロール",
+    "目標",
+    "評価",
+    "コンピテンシー",
+    "自己評価",
+    "レポート",
+    "ステージ",
+]
+
+PERMISSION_CATALOG_METADATA: Dict[str, tuple[str, str]] = {
+    PermissionEnum.USER_READ_ALL.value: ("ユーザー", "すべてのユーザーを閲覧"),
+    PermissionEnum.USER_READ_SUBORDINATES.value: ("ユーザー", "部下ユーザーを閲覧"),
+    PermissionEnum.USER_READ_SELF.value: ("ユーザー", "自分のユーザー情報を閲覧"),
+    PermissionEnum.USER_MANAGE.value: ("ユーザー", "ユーザーを管理"),
+    PermissionEnum.USER_MANAGE_BASIC.value: ("ユーザー", "基本ユーザー情報を編集"),
+    PermissionEnum.USER_MANAGE_PLUS.value: ("ユーザー", "基本情報と部下構成を編集"),
+    PermissionEnum.HIERARCHY_MANAGE.value: ("ユーザー", "階層を管理"),
+    PermissionEnum.DEPARTMENT_READ.value: ("部門", "部門を閲覧"),
+    PermissionEnum.DEPARTMENT_MANAGE.value: ("部門", "部門を管理"),
+    PermissionEnum.ROLE_READ_ALL.value: ("ロール", "ロールを閲覧"),
+    PermissionEnum.ROLE_MANAGE.value: ("ロール", "ロールを管理"),
+    PermissionEnum.GOAL_READ_SELF.value: ("目標", "自分の目標を閲覧"),
+    PermissionEnum.GOAL_READ_ALL.value: ("目標", "すべての目標を閲覧"),
+    PermissionEnum.GOAL_READ_SUBORDINATES.value: ("目標", "部下の目標を閲覧"),
+    PermissionEnum.GOAL_MANAGE.value: ("目標", "目標を管理"),
+    PermissionEnum.GOAL_MANAGE_SELF.value: ("目標", "自分の目標を管理"),
+    PermissionEnum.GOAL_APPROVE.value: ("目標", "目標を承認"),
+    PermissionEnum.EVALUATION_READ.value: ("評価", "評価を閲覧"),
+    PermissionEnum.EVALUATION_MANAGE.value: ("評価", "評価を管理"),
+    PermissionEnum.EVALUATION_REVIEW.value: ("評価", "評価をレビュー"),
+    PermissionEnum.COMPETENCY_READ.value: ("コンピテンシー", "コンピテンシーを閲覧"),
+    PermissionEnum.COMPETENCY_READ_SELF.value: ("コンピテンシー", "自分のコンピテンシーを閲覧"),
+    PermissionEnum.COMPETENCY_MANAGE.value: ("コンピテンシー", "コンピテンシーを管理"),
+    PermissionEnum.ASSESSMENT_READ_SELF.value: ("自己評価", "自分の自己評価を閲覧"),
+    PermissionEnum.ASSESSMENT_READ_ALL.value: ("自己評価", "すべての自己評価を閲覧"),
+    PermissionEnum.ASSESSMENT_READ_SUBORDINATES.value: ("自己評価", "部下の自己評価を閲覧"),
+    PermissionEnum.ASSESSMENT_MANAGE_SELF.value: ("自己評価", "自分の自己評価を管理"),
+    PermissionEnum.REPORT_ACCESS.value: ("レポート", "レポートにアクセス"),
+    PermissionEnum.STAGE_READ_ALL.value: ("ステージ", "すべてのステージを閲覧"),
+    PermissionEnum.STAGE_READ_SELF.value: ("ステージ", "自分のステージを閲覧"),
+    PermissionEnum.STAGE_MANAGE.value: ("ステージ", "ステージを管理"),
+}
+
 
 class PermissionService:
     def __init__(self, session: AsyncSession):
@@ -33,9 +82,21 @@ class PermissionService:
         self.role_repo = RoleRepository(session)
 
     async def _ensure_catalog_seeded(self) -> None:
-        permission_catalog = [
-            (permission.value, permission.name.replace("_", " "))
+        missing_codes = [
+            permission.value
             for permission in PermissionEnum
+            if permission.value not in PERMISSION_CATALOG_METADATA
+        ]
+        if missing_codes:
+            raise ValueError(f"Missing permission metadata definitions for: {missing_codes}")
+
+        permission_catalog = [
+            (
+                code,
+                description,
+                group,
+            )
+            for code, (group, description) in PERMISSION_CATALOG_METADATA.items()
         ]
         _, created = await self.permission_repo.ensure_permission_codes(permission_catalog)
         if created:
@@ -46,9 +107,47 @@ class PermissionService:
         await self._ensure_catalog_seeded()
         permissions = await self.permission_repo.list_permissions()
         return [
-            PermissionCatalogItem(code=permission.code, description=permission.description)
+            PermissionCatalogItem(
+                code=permission.code,
+                description=permission.description,
+                permission_group=permission.permission_group,
+            )
             for permission in permissions
         ]
+
+    @require_permission(PermissionEnum.ROLE_READ_ALL)
+    async def list_catalog_grouped(self, context: AuthContext) -> PermissionCatalogGroupedResponse:
+        await self._ensure_catalog_seeded()
+        grouped_permissions = await self.permission_repo.list_permissions_grouped()
+
+        ordered_group_names = [
+            group for group in PERMISSION_GROUP_ORDER if group in grouped_permissions
+        ]
+        remaining_group_names = sorted(
+            {group for group in grouped_permissions if group not in PERMISSION_GROUP_ORDER}
+        )
+        group_names = ordered_group_names + remaining_group_names
+
+        groups: List[PermissionGroupResponse] = []
+        total = 0
+        for group_name in group_names:
+            permissions = grouped_permissions.get(group_name, [])
+            total += len(permissions)
+            groups.append(
+                PermissionGroupResponse(
+                    permission_group=group_name,
+                    permissions=[
+                        PermissionCatalogItem(
+                            code=permission.code,
+                            description=permission.description,
+                            permission_group=permission.permission_group,
+                        )
+                        for permission in permissions
+                    ],
+                )
+            )
+
+        return PermissionCatalogGroupedResponse(groups=groups, total_permissions=total)
 
     @require_permission(PermissionEnum.ROLE_READ_ALL)
     async def get_role_permissions(self, role_id: UUID, context: AuthContext) -> RolePermissionResponse:
@@ -65,7 +164,11 @@ class PermissionService:
         version_token = version or "0"
 
         items = [
-            PermissionCatalogItem(code=permission.code, description=permission.description)
+            PermissionCatalogItem(
+                code=permission.code,
+                description=permission.description,
+                permission_group=permission.permission_group,
+            )
             for permission in permissions
         ]
         return RolePermissionResponse(role_id=role.id, permissions=items, version=version_token)
@@ -255,3 +358,32 @@ class PermissionService:
             new_version=response.version,
         )
         return response
+
+    @require_permission(PermissionEnum.ROLE_READ_ALL)
+    async def list_all_role_permissions(self, context: AuthContext) -> List[RolePermissionResponse]:
+        await self._ensure_catalog_seeded()
+        roles = await self.role_repo.get_all(context.organization_id)
+        role_ids = [role.id for role in roles]
+        assignments = await self.role_permission_repo.fetch_permissions_for_roles(
+            role_ids,
+            context.organization_id,
+        )
+
+        responses: List[RolePermissionResponse] = []
+        for role in roles:
+            permissions, version = assignments.get(str(role.id), ([], None))
+            responses.append(
+                RolePermissionResponse(
+                    role_id=role.id,
+                    permissions=[
+                        PermissionCatalogItem(
+                            code=permission.code,
+                            description=permission.description or permission.code,
+                            permission_group=permission.permission_group or PERMISSION_GROUP_OTHER,
+                        )
+                        for permission in permissions
+                    ],
+                    version=version or "0",
+                ),
+            )
+        return responses
