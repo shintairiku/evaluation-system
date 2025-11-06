@@ -6,14 +6,18 @@ from fastapi import HTTPException
 
 from app.api.v1.permissions import list_permissions
 from app.api.v1.roles import (
+    get_all_role_permissions,
     clone_role_permissions,
     get_role_permissions,
+    get_permission_catalog_grouped,
     patch_role_permissions,
     replace_role_permissions,
 )
 from app.core.exceptions import NotFoundError, PermissionDeniedError
 from app.schemas.permission import (
     PermissionCatalogItem,
+    PermissionCatalogGroupedResponse,
+    RolePermissionResponse,
     RolePermissionCloneRequest,
     RolePermissionPatchRequest,
     RolePermissionUpdateRequest,
@@ -33,13 +37,28 @@ def make_admin_context() -> AuthContext:
 async def test_list_permissions_returns_catalog(monkeypatch):
     mock_service = AsyncMock()
     mock_service.list_catalog.return_value = [
-        PermissionCatalogItem(code="user:read:all", description="Read all users"),
+        PermissionCatalogItem(code="user:read:all", description="すべてのユーザーを閲覧", permission_group="ユーザー"),
     ]
     monkeypatch.setattr("app.api.v1.permissions.PermissionService", lambda session: mock_service)
 
     result = await list_permissions(context=make_admin_context(), session=AsyncMock())
     assert result == mock_service.list_catalog.return_value
     mock_service.list_catalog.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_permission_catalog_grouped_returns_catalog(monkeypatch):
+    mock_service = AsyncMock()
+    grouped = PermissionCatalogGroupedResponse(
+        groups=[],
+        total_permissions=0,
+    )
+    mock_service.list_catalog_grouped.return_value = grouped
+    monkeypatch.setattr("app.api.v1.roles.PermissionService", lambda session: mock_service)
+
+    result = await get_permission_catalog_grouped(context=make_admin_context(), session=AsyncMock())
+    assert result is grouped
+    mock_service.list_catalog_grouped.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -110,3 +129,31 @@ async def test_clone_role_permissions_success(monkeypatch):
 
     assert result is response
     mock_service.clone_role_permissions.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_all_role_permissions_success(monkeypatch):
+    mock_service = AsyncMock()
+    expected = [
+        RolePermissionResponse(
+            role_id=uuid4(),
+            permissions=[
+                PermissionCatalogItem(
+                    code="user:read:all",
+                    description="すべてのユーザーを閲覧",
+                    permission_group="ユーザー",
+                )
+            ],
+            version="1",
+        )
+    ]
+    mock_service.list_all_role_permissions.return_value = expected
+    monkeypatch.setattr("app.api.v1.roles.PermissionService", lambda session: mock_service)
+
+    result = await get_all_role_permissions(
+        context=make_admin_context(),
+        session=AsyncMock(),
+    )
+
+    assert result is expected
+    mock_service.list_all_role_permissions.assert_awaited_once()
