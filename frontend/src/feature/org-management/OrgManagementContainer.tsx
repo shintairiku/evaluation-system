@@ -7,6 +7,9 @@ import type {
   RoleDetail,
   Stage,
   BulkUserStatusUpdateResponse,
+  RolePermissionResponse,
+  PermissionCatalogItem,
+  PermissionGroup,
 } from '@/api/types';
 import { OrgManagementView } from './OrgManagementView';
 import { UsersTab } from './user-management-tab/UsersTab';
@@ -20,6 +23,9 @@ interface OrgManagementContainerProps {
   initialDepartments: Department[];
   initialRoles: RoleDetail[];
   initialStages: Stage[];
+  initialRolePermissions: RolePermissionResponse[];
+  permissionCatalog: PermissionCatalogItem[];
+  permissionCatalogGrouped: PermissionGroup[];
 }
 
 export function OrgManagementContainer({
@@ -28,6 +34,9 @@ export function OrgManagementContainer({
   initialDepartments,
   initialRoles,
   initialStages,
+  initialRolePermissions,
+  permissionCatalog,
+  permissionCatalogGrouped,
 }: OrgManagementContainerProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'roles' | 'permissions'>('users');
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
@@ -130,6 +139,9 @@ export function OrgManagementContainer({
   const permissionsTab = (
     <PermissionsTab
       roles={roles}
+      rolePermissions={initialRolePermissions}
+      permissionCatalog={permissionCatalog}
+      permissionGroups={permissionCatalogGrouped}
     />
   );
 
