@@ -276,7 +276,7 @@ export interface RolePermissionMatrixProps {
   isAdmin: boolean;
   initialAssignments: RolePermissionResponse[];
   initialCatalog: PermissionCatalogItem[];
-  initialGroupedCatalog: PermissionGroup[];
+  initialGroupedCatalog?: PermissionGroup[];
 }
 
 export function RolePermissionMatrix({
@@ -286,22 +286,23 @@ export function RolePermissionMatrix({
   initialCatalog,
   initialGroupedCatalog,
 }: RolePermissionMatrixProps) {
+  const safeInitialGroupedCatalog = initialGroupedCatalog ?? [];
   const [catalog, setCatalog] = useState<PermissionCatalogItem[]>(() => {
-    const groupedSeeds = flattenPermissionGroups(initialGroupedCatalog);
+    const groupedSeeds = flattenPermissionGroups(safeInitialGroupedCatalog);
     const baseCatalog = dedupeCatalog([...initialCatalog, ...groupedSeeds]);
     return combineCatalog(baseCatalog, initialAssignments);
   });
   const [groupOrder, setGroupOrder] = useState<string[]>(() => {
-    if (initialGroupedCatalog.length) {
-      return initialGroupedCatalog.map((group) => group.permission_group);
+    if (safeInitialGroupedCatalog.length) {
+      return safeInitialGroupedCatalog.map((group) => group.permission_group);
     }
-    const groupedSeeds = flattenPermissionGroups(initialGroupedCatalog);
+    const groupedSeeds = flattenPermissionGroups(safeInitialGroupedCatalog);
     const baseCatalog = dedupeCatalog([...initialCatalog, ...groupedSeeds]);
     return Array.from(new Set(baseCatalog.map((item) => item.permission_group)));
   });
   const [expandedGroups, setExpandedGroups] = useState<string[]>(() => {
-    if (initialGroupedCatalog.length) {
-      return initialGroupedCatalog.map((group) => group.permission_group);
+    if (safeInitialGroupedCatalog.length) {
+      return safeInitialGroupedCatalog.map((group) => group.permission_group);
     }
     return [];
   });
