@@ -5,6 +5,7 @@ import { revalidateTag } from 'next/cache';
 import { permissionsApi } from '../endpoints/permissions';
 import { CACHE_TAGS } from '../utils/cache';
 import type {
+  PermissionCatalogGroupedResponse,
   PermissionCatalogItem,
   RolePermissionCloneRequest,
   RolePermissionPatchRequest,
@@ -19,7 +20,7 @@ type ActionResult<T> = {
   error?: string;
 };
 
-async function _getPermissionCatalog(): Promise<ActionResult<PermissionCatalogItem[]>> {
+export async function getPermissionCatalogAction(): Promise<ActionResult<PermissionCatalogItem[]>> {
   try {
     const response = await permissionsApi.getCatalog();
     if (!response.success || !response.data) {
@@ -32,9 +33,26 @@ async function _getPermissionCatalog(): Promise<ActionResult<PermissionCatalogIt
   }
 }
 
-export const getPermissionCatalogAction = cache(_getPermissionCatalog);
+const getPermissionCatalogGroupedCached = cache(async () => {
+  const response = await permissionsApi.getGroupedCatalog();
+  if (!response.success || !response.data) {
+    throw new Error(response.errorMessage || 'Failed to load grouped permission catalog');
+  }
+  return response.data;
+});
 
-async function _getRolePermissions(roleId: UUID): Promise<ActionResult<RolePermissionResponse>> {
+export async function getPermissionCatalogGroupedAction(): Promise<ActionResult<PermissionCatalogGroupedResponse>> {
+  try {
+    const data = await getPermissionCatalogGroupedCached();
+    return { success: true, data };
+  } catch (error) {
+    console.error('getPermissionCatalogGroupedAction error', error);
+    const message = error instanceof Error ? error.message : 'Unexpected error while loading grouped permission catalog';
+    return { success: false, error: message };
+  }
+}
+
+export async function getRolePermissionsAction(roleId: UUID): Promise<ActionResult<RolePermissionResponse>> {
   try {
     const response = await permissionsApi.getRolePermissions(roleId);
     if (!response.success || !response.data) {
@@ -47,7 +65,18 @@ async function _getRolePermissions(roleId: UUID): Promise<ActionResult<RolePermi
   }
 }
 
-export const getRolePermissionsAction = cache(_getRolePermissions);
+export async function getAllRolePermissionsAction(): Promise<ActionResult<RolePermissionResponse[]>> {
+  try {
+    const response = await permissionsApi.getAllRolePermissions();
+    if (!response.success || !response.data) {
+      return { success: false, error: response.errorMessage || 'Failed to load role permissions' };
+    }
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('getAllRolePermissions error', error);
+    return { success: false, error: 'Unexpected error while loading role permissions' };
+  }
+}
 
 async function mutateRolePermissions<T extends RolePermissionUpdateRequest | RolePermissionPatchRequest | RolePermissionCloneRequest>(
   mutate: () => Promise<ActionResult<RolePermissionResponse>>,
@@ -55,6 +84,7 @@ async function mutateRolePermissions<T extends RolePermissionUpdateRequest | Rol
   const result = await mutate();
   if (result.success) {
     revalidateTag(CACHE_TAGS.ROLES);
+    revalidateTag(CACHE_TAGS.PERMISSIONS);
   }
   return result;
 }
