@@ -25,7 +25,8 @@ interface OrgManagementContainerProps {
   initialStages: Stage[];
   initialRolePermissions: RolePermissionResponse[];
   permissionCatalog: PermissionCatalogItem[];
-  permissionCatalogGrouped: PermissionGroup[];
+  permissionCatalogGrouped?: PermissionGroup[];
+  permissionCatalogGroupedWarning?: string | null;
 }
 
 export function OrgManagementContainer({
@@ -37,6 +38,7 @@ export function OrgManagementContainer({
   initialRolePermissions,
   permissionCatalog,
   permissionCatalogGrouped,
+  permissionCatalogGroupedWarning,
 }: OrgManagementContainerProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'roles' | 'permissions'>('users');
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
@@ -45,6 +47,7 @@ export function OrgManagementContainer({
   const [stages] = useState<Stage[]>(initialStages);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [bulkResult, setBulkResult] = useState<BulkUserStatusUpdateResponse | null>(null);
+  const safePermissionGroups = permissionCatalogGrouped ?? [];
 
   const displayUserTotal = useMemo(() => Math.max(totalUsers, users.length), [totalUsers, users.length]);
   const totalDepartments = useMemo(() => departments.length, [departments]);
@@ -166,7 +169,8 @@ export function OrgManagementContainer({
       roles={roles}
       rolePermissions={initialRolePermissions}
       permissionCatalog={permissionCatalog}
-      permissionGroups={permissionCatalogGrouped}
+      permissionGroups={safePermissionGroups}
+      groupedCatalogWarning={permissionCatalogGroupedWarning ?? undefined}
     />
   );
 
