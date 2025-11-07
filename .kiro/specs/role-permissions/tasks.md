@@ -210,6 +210,16 @@
 
 ```
 
+## Hotfix & Perf – 2025-11-06
+
+- [x] Backend: Reorder roles router so `/permissions:catalog-grouped` precedes `/{role_id}`
+- [x] Backend: Migration adding indexes (users org/status/department/stage/created_at; user_roles user_id/role_id)
+- [x] Frontend: Users initial load with `withCount=false`, `limit=50`
+- [x] Frontend: Make grouped catalog non-fatal with flat catalog fallback
+- [x] Frontend: Ensure `RolePermissionMatrix` degrades gracefully without grouped data
+- [x] Tests: API route 200 for grouped catalog, and page render without grouped data
+- [x] Perf check: capture p95 before/after and DB timing headers
+
 ## 機能B: Viewer Visibility Grants (resource-scoped, strict FKs; Option A)
 ```markdown
 ## Issue Title: Viewer visibility grants by user/department/supervisor_team with resource scope
