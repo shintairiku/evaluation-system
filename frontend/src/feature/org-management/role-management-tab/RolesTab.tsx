@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, useCallback, useTransition } from 'react';
+import { useState, useMemo, useCallback, useTransition, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
+  Copy,
   Loader2,
   Pencil,
   Plus,
@@ -32,7 +33,15 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { createRoleAction, updateRoleAction, deleteRoleAction } from '@/api/server-actions/roles';
+import { cloneRolePermissionsAction } from '@/api/server-actions/permissions';
 import { updateUserAction } from '@/api/server-actions/users';
 import type { RoleDetail, UserDetailResponse } from '@/api/types';
 
@@ -72,6 +81,9 @@ export function RolesTab({
 
   const [deleteTargetRole, setDeleteTargetRole] = useState<RoleDetail | null>(null);
   const [isDeletePending, startDeleteTransition] = useTransition();
+  const [cloneTargetRole, setCloneTargetRole] = useState<RoleDetail | null>(null);
+  const [cloneSourceRoleId, setCloneSourceRoleId] = useState<string | null>(null);
+  const [isClonePending, startCloneTransition] = useTransition();
 
   const roleUserMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -85,6 +97,24 @@ export function RolesTab({
 
     return map;
   }, [roles, users]);
+
+  useEffect(() => {
+    if (!cloneTargetRole) {
+      if (cloneSourceRoleId !== null) {
+        setCloneSourceRoleId(null);
+      }
+      return;
+    }
+    if (
+      cloneSourceRoleId &&
+      cloneSourceRoleId !== cloneTargetRole.id &&
+      roles.some((role) => role.id === cloneSourceRoleId)
+    ) {
+      return;
+    }
+    const fallback = roles.find((role) => role.id !== cloneTargetRole.id)?.id ?? null;
+    setCloneSourceRoleId(fallback);
+  }, [cloneTargetRole, cloneSourceRoleId, roles]);
 
   const openAssignmentDialog = (role: RoleDetail) => {
     setAssignmentRole(role);
@@ -253,6 +283,39 @@ export function RolesTab({
     });
   };
 
+  const openCloneDialog = (role: RoleDetail) => {
+    if (roles.length < 2) {
+      toast.error('複製できるロールが不足しています');
+      return;
+    }
+    setCloneTargetRole(role);
+    const fallback = roles.find((item) => item.id !== role.id)?.id ?? null;
+    setCloneSourceRoleId(fallback);
+  };
+
+  const closeCloneDialog = () => {
+    setCloneTargetRole(null);
+    setCloneSourceRoleId(null);
+  };
+
+  const handleClonePermissions = () => {
+    if (!cloneTargetRole || !cloneSourceRoleId) {
+      toast.error('コピー元ロールを選択してください');
+      return;
+    }
+
+    startCloneTransition(async () => {
+      const result = await cloneRolePermissionsAction(cloneTargetRole.id, { fromRoleId: cloneSourceRoleId });
+      if (!result.success) {
+        toast.error(result.error || '権限の複製に失敗しました');
+        return;
+      }
+
+      toast.success(`「${cloneTargetRole.name}」に権限を複製しました`);
+      closeCloneDialog();
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -299,6 +362,15 @@ export function RolesTab({
                         onClick={() => openAssignmentDialog(role)}
                       >
                         <UsersIcon className="size-4" /> 割り当て
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openCloneDialog(role)}
+                        aria-label={`${role.name} の権限を複製`}
+                      >
+                        <Copy className="size-4" />
                       </Button>
                       <Button
                         type="button"
@@ -432,6 +504,65 @@ export function RolesTab({
             </Button>
             <Button type="button" onClick={handleEditRoleSave} disabled={isEditPending}>
               {isEditPending && <Loader2 className="mr-2 size-4 animate-spin" />}保存する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!cloneTargetRole} onOpenChange={(open) => {
+        if (!open) {
+          closeCloneDialog();
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>権限を複製</DialogTitle>
+            <DialogDescription>
+              {cloneTargetRole
+                ? `ロール「${cloneTargetRole.name}」に別のロールの権限セットをコピーします。`
+                : 'ロールの権限を複製します。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/40 p-4 text-sm">
+              <p className="text-xs text-muted-foreground">対象ロール</p>
+              <p className="text-base font-semibold">{cloneTargetRole?.name ?? '未選択'}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="clone-source-role">コピー元ロール</Label>
+              <Select
+                value={cloneSourceRoleId ?? undefined}
+                onValueChange={(value) => setCloneSourceRoleId(value)}
+                disabled={isClonePending}
+              >
+                <SelectTrigger id="clone-source-role">
+                  <SelectValue placeholder="コピー元ロールを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles
+                    .filter((role) => role.id !== cloneTargetRole?.id)
+                    .map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              実行すると対象ロールの権限はコピー元ロールの権限セットで上書きされます。必要であれば保存前に再確認してください。
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={closeCloneDialog} disabled={isClonePending}>
+              キャンセル
+            </Button>
+            <Button
+              type="button"
+              onClick={handleClonePermissions}
+              disabled={isClonePending || !cloneSourceRoleId}
+            >
+              {isClonePending && <Loader2 className="mr-2 size-4 animate-spin" />}複製する
             </Button>
           </DialogFooter>
         </DialogContent>
