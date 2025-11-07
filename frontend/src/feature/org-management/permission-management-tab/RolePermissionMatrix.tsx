@@ -36,7 +36,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Accordion,
   AccordionContent,
@@ -300,12 +299,7 @@ export function RolePermissionMatrix({
     const baseCatalog = dedupeCatalog([...initialCatalog, ...groupedSeeds]);
     return Array.from(new Set(baseCatalog.map((item) => item.permission_group)));
   });
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(() => {
-    if (safeInitialGroupedCatalog.length) {
-      return safeInitialGroupedCatalog.map((group) => group.permission_group);
-    }
-    return [];
-  });
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [roleStates, setRoleStates] = useState<Record<string, RolePermissionDraft>>(() =>
     buildRoleStateMap(roles, initialAssignments),
   );
@@ -453,26 +447,21 @@ export function RolePermissionMatrix({
   useEffect(() => {
     const available = groupedCatalog.map((group) => group.permission_group);
     setExpandedGroups((prev) => {
-      let next = prev.filter((group) => available.includes(group));
+      const filteredPrev = prev.filter((group) => available.includes(group));
+      const sameAsPrev =
+        filteredPrev.length === prev.length &&
+        filteredPrev.every((value, index) => value === prev[index]);
+      const baseResult = sameAsPrev ? prev : filteredPrev;
+
       if (!filterQuery.trim()) {
-        if (!next.length) {
-          next = available;
-        } else {
-          const sameLength = next.length === available.length;
-          const sameOrder = sameLength && next.every((value, index) => value === available[index]);
-          if (!sameOrder) {
-            next = available;
-          }
-        }
-        return next;
+        return baseResult;
       }
+
       const matches = filteredGroups.map((group) => group.permission_group);
-      const sameLength = next.length === matches.length;
-      const sameOrder = sameLength && next.every((value, index) => value === matches[index]);
-      if (sameOrder) {
-        return next;
-      }
-      return matches;
+      const sameAsMatches =
+        baseResult.length === matches.length &&
+        baseResult.every((value, index) => value === matches[index]);
+      return sameAsMatches ? baseResult : matches;
     });
   }, [groupedCatalog, filteredGroups, filterQuery]);
 
@@ -582,7 +571,7 @@ export function RolePermissionMatrix({
       setGroupOrder(nextGroupOrder);
       setCatalog(combineCatalog(flattened, permissionsResult.data));
       setRoleStates(buildRoleStateMap(roles, permissionsResult.data));
-      setExpandedGroups(nextGroupOrder);
+      setExpandedGroups([]);
       toast.success('最新の権限情報を読み込みました。');
     } catch (reloadError) {
       const message = reloadError instanceof Error ? reloadError.message : '権限情報の再読み込みに失敗しました。';
@@ -741,7 +730,7 @@ export function RolePermissionMatrix({
 
   return (
     <>
-      <Card className="border-t-[3px] border-primary/40 shadow-sm">
+      <Card className="overflow-hidden border-t-[3px] border-primary/40 shadow-sm">
       <CardHeader className="space-y-2">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -866,9 +855,8 @@ export function RolePermissionMatrix({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="rounded-lg border">
-          <ScrollArea className="max-h-[520px]">
-            {filteredGroups.length > 0 ? (
+        <div className="rounded-lg border bg-card">
+          {filteredGroups.length > 0 ? (
               <Accordion
                 type="multiple"
                 value={expandedGroups}
@@ -890,7 +878,7 @@ export function RolePermissionMatrix({
 
                   return (
                     <AccordionItem key={group.permission_group} value={group.permission_group}>
-                      <AccordionTrigger className="px-4">
+                      <AccordionTrigger className="px-6">
                         <div className="flex flex-1 flex-col gap-1 text-left">
                           <span className="text-sm font-semibold">{group.permission_group}</span>
                           <span className="text-xs text-muted-foreground">
@@ -905,13 +893,13 @@ export function RolePermissionMatrix({
                           )}
                         </div>
                       </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="overflow-x-auto px-4 pb-2">
-                          <Table>
+                      <AccordionContent className="px-6">
+                        <div className="overflow-x-auto pb-6">
+                          <Table className="w-full min-w-full lg:min-w-[960px]">
                             <TableHeader>
                               <TableRow>
-                                <TableHead className="w-[240px]">権限コード</TableHead>
-                                <TableHead className="w-[300px]">説明</TableHead>
+                                <TableHead className="w-[220px] whitespace-nowrap text-left">権限コード</TableHead>
+                                <TableHead className="w-[320px] whitespace-nowrap text-left">説明</TableHead>
                                 {visibleRoles.map((role) => {
                                   const state = roleStates[role.id];
                                   const diff = computeDraftDiff(state);
@@ -925,9 +913,9 @@ export function RolePermissionMatrix({
                                   const saving = isRoleSaving(role.id);
                                   const refreshing = isRoleRefreshing(role.id);
                                   return (
-                                    <TableHead key={role.id} className="min-w-[140px] text-center">
-                                      <div className="flex flex-col items-center gap-1 text-xs font-medium uppercase tracking-wide">
-                                        <span className="text-sm font-semibold">{role.name}</span>
+                                    <TableHead key={role.id} className="min-w-[140px] whitespace-nowrap text-center">
+                                      <div className="flex min-w-[120px] flex-col items-center gap-1 text-xs font-medium uppercase tracking-wide">
+                                        <span className="text-sm font-semibold leading-tight">{role.name}</span>
                                         <span className="text-muted-foreground">{assignedCount} 件</span>
                                         {changeCount > 0 && (
                                           <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-700">
@@ -956,24 +944,24 @@ export function RolePermissionMatrix({
                             </TableHeader>
                             <TableBody>
                               {group.permissions.map((permission) => (
-                                <TableRow key={permission.code} className="hover:bg-muted/30">
-                                  <TableCell>
+                                <TableRow key={permission.code} className="align-top hover:bg-muted/30">
+                                  <TableCell className="align-top">
                                     <div className="flex flex-col gap-1">
-                                      <span className="font-medium text-sm">{permission.code}</span>
+                                      <span className="font-medium text-sm leading-5">{permission.code}</span>
                                       <Badge variant="outline" className="w-fit text-[10px] tracking-wider">
                                         {permission.permission_group}
                                       </Badge>
                                     </div>
                                   </TableCell>
-                                  <TableCell className="text-sm text-muted-foreground">
+                                  <TableCell className="align-top text-sm leading-5 text-muted-foreground">
                                     {permission.description || '説明が登録されていません'}
                                   </TableCell>
                                   {visibleRoles.map((role) => {
                                     const state = roleStates[role.id];
                                     const checked = state ? state.draft.has(permission.code) : false;
                                     return (
-                                      <TableCell key={role.id} className="text-center">
-                                        <div className="flex items-center justify-center">
+                                      <TableCell key={role.id} className="align-top text-center">
+                                        <div className="flex min-h-[42px] items-center justify-center">
                                           <Checkbox
                                             checked={checked}
                                             disabled={!isAdmin || isRoleSaving(role.id) || isRoleRefreshing(role.id)}
@@ -1003,7 +991,6 @@ export function RolePermissionMatrix({
                 該当する権限が見つかりませんでした。検索条件を変更してください。
               </div>
             )}
-          </ScrollArea>
         </div>
       </CardContent>
       </Card>
