@@ -31,7 +31,7 @@ export default function StageManagementHeader({
         <h1 className="text-3xl font-bold">ステージ管理</h1>
       </div>
       
-      <div className="flex flex-col gap-3 mb-2">
+      <div className="flex flex-col gap-6 mb-6">
         <p className="text-muted-foreground">
           ステージごとのユーザー配置と評価ウェイトを管理します。
         </p>
