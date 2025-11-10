@@ -280,6 +280,8 @@ export interface RolePermissionMatrixProps {
   initialAssignments: RolePermissionResponse[];
   initialCatalog: PermissionCatalogItem[];
   initialGroupedCatalog?: PermissionGroup[];
+  groupedCatalogWarning?: string;
+  roleGuardError?: string;
 }
 
 export function RolePermissionMatrix({
@@ -288,6 +290,8 @@ export function RolePermissionMatrix({
   initialAssignments,
   initialCatalog,
   initialGroupedCatalog,
+  groupedCatalogWarning,
+  roleGuardError,
 }: RolePermissionMatrixProps) {
   const safeInitialGroupedCatalog = initialGroupedCatalog ?? [];
   const [catalog, setCatalog] = useState<PermissionCatalogItem[]>(() => {
@@ -746,15 +750,15 @@ export function RolePermissionMatrix({
 
   return (
     <>
-      <Card className="overflow-hidden border-t-[3px] border-primary/40 shadow-sm">
-        <CardHeader className="space-y-4">
+      <Card
+        data-testid="role-permission-matrix-card"
+        className="overflow-hidden border-t-[3px] border-primary/40 shadow-sm"
+      >
+        <CardHeader className="space-y-4 border-b border-border/60 pb-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-1">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 権限マトリクス
-                <Badge variant="outline" className="uppercase tracking-wide">
-                  Beta
-                </Badge>
               </CardTitle>
               <CardDescription>
                 直感的なグリッドでロールごとの権限を比較し、差分をハイライトしながら安全に更新できます。
@@ -836,7 +840,23 @@ export function RolePermissionMatrix({
               <AlertDescription>権限の変更は管理者のみ可能です。現在は権限マトリクスを確認できます。</AlertDescription>
             </Alert>
           )}
-          <div className="grid gap-3 sm:grid-cols-3">
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
+          {groupedCatalogWarning && (
+            <Alert className="border-amber-200 bg-amber-50 text-amber-700">
+              <AlertTitle>権限グループを読み込めませんでした</AlertTitle>
+              <AlertDescription>
+                {groupedCatalogWarning} 権限一覧はフラット表示で利用できます。
+              </AlertDescription>
+            </Alert>
+          )}
+          {roleGuardError && (
+            <Alert variant="destructive">
+              <AlertTitle>権限情報の取得中に問題が発生しました</AlertTitle>
+              <AlertDescription>{roleGuardError}</AlertDescription>
+            </Alert>
+          )}
+          <section className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border bg-muted/40 px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">対象ロール</p>
               <p className="text-2xl font-semibold">
@@ -859,8 +879,8 @@ export function RolePermissionMatrix({
                 {totalChangedCount ? '保存して反映します' : 'すべて最新です'}
               </p>
             </div>
-          </div>
-          <div className="space-y-4">
+          </section>
+          <section className="space-y-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="relative w-full md:w-[320px]">
@@ -984,15 +1004,13 @@ export function RolePermissionMatrix({
                 )}
               </div>
             </div>
-          </div>
-        </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-lg border bg-card">
-          {filteredGroups.length > 0 ? (
-              <Accordion
-                type="multiple"
-                value={expandedGroups}
-                onValueChange={(value) => {
+          </section>
+          <section data-testid="role-permission-matrix-grid" className="rounded-lg border bg-card">
+            {filteredGroups.length > 0 ? (
+                <Accordion
+                  type="multiple"
+                  value={expandedGroups}
+                  onValueChange={(value) => {
                   const nextValue = Array.isArray(value) ? value : [value];
                   setExpandedGroups(nextValue);
                 }}
@@ -1171,8 +1189,8 @@ export function RolePermissionMatrix({
                 該当する権限が見つかりませんでした。検索条件を変更してください。
               </div>
             )}
-        </div>
-      </CardContent>
+          </section>
+        </CardContent>
       </Card>
     </>
   );
