@@ -97,7 +97,7 @@ export default function StageWeightConfig({
                   <TableHead className="text-right">定量</TableHead>
                   <TableHead className="text-right">定性</TableHead>
                   <TableHead className="text-center pr-8">コンピテンシー</TableHead>
-                  <TableHead className="w-44 text-center">アクション</TableHead>
+                  <TableHead className="w-44 text-center">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
