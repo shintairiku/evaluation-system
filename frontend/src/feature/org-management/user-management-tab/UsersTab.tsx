@@ -23,6 +23,8 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, Users2, ChevronDown, Pencil } from 'lucide-react';
 import { UserBulkStatusBar } from './UserBulkStatusBar';
 import { StatusBadge } from './StatusBadge';
@@ -72,6 +74,8 @@ export function UsersTab({
 }: UsersTabProps) {
   const { hasRole } = useUserRoles();
   const isAdmin = hasRole('admin');
+  const canEditRoles = isAdmin;
+  const roleEditDisabledMessage = 'ロールの編集は管理者のみ可能です。';
   const [pendingFieldKey, setPendingFieldKey] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkUserStatusUpdateResponse | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
@@ -182,6 +186,10 @@ export function UsersTab({
   };
 
   const handleRolesToggle = async (user: UserDetailResponse, roleId: string, checked: boolean) => {
+    if (!canEditRoles) {
+      toast.error(roleEditDisabledMessage);
+      return;
+    }
     const currentIds = user.roles.map((role) => role.id);
     const nextIds = checked
       ? Array.from(new Set([...currentIds, roleId]))
@@ -425,43 +433,80 @@ export function UsersTab({
                     </Select>
                   </TableCell>
                   <TableCell className="align-top">
-                    <div className="max-w-[260px] group relative">
-                      {isAdmin && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className={`h-8 w-8 p-0 absolute -top-2 -right-2 transition-opacity ${
-                                isFieldPending(user.id, 'roles') ? '' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
-                              }`}
-                              aria-label="ロールを編集"
-                              disabled={isFieldPending(user.id, 'roles')}
-                            >
-                              {isFieldPending(user.id, 'roles') ? (
-                                <Loader2 className="size-4 animate-spin" />
-                              ) : (
-                                <Pencil className="size-4" />
-                              )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent className="w-64">
-                            <DropdownMenuLabel>ロールを選択</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {roles.map((role) => (
-                              <DropdownMenuCheckboxItem
-                                key={role.id}
-                                checked={currentRoleIds.has(role.id)}
-                                onCheckedChange={(checked) => handleRolesToggle(user, role.id, Boolean(checked))}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-muted-foreground">割り当てロール</span>
+                        {canEditRoles ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                aria-label="ロールを編集"
+                                disabled={isFieldPending(user.id, 'roles')}
                               >
-                                {role.description || role.name}
-                              </DropdownMenuCheckboxItem>
+                                {isFieldPending(user.id, 'roles') ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <Pencil className="size-4" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-64">
+                              <DropdownMenuLabel>ロールを選択</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {roles.map((role) => (
+                                <DropdownMenuCheckboxItem
+                                  key={role.id}
+                                  checked={currentRoleIds.has(role.id)}
+                                  onCheckedChange={(checked) => handleRolesToggle(user, role.id, Boolean(checked))}
+                                  disabled={isFieldPending(user.id, 'roles')}
+                                >
+                                  {role.description || role.name}
+                                </DropdownMenuCheckboxItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    aria-label="ロールを閲覧"
+                                    disabled
+                                  >
+                                    <Pencil className="size-4" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                {roleEditDisabledMessage}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                      <div
+                        className={`max-w-[260px] max-h-24 overflow-y-auto pr-1 ${
+                          isFieldPending(user.id, 'roles') ? 'opacity-60' : ''
+                        }`}
+                        aria-busy={isFieldPending(user.id, 'roles')}
+                        aria-live="polite"
+                      >
+                        {isFieldPending(user.id, 'roles') ? (
+                          <div className="flex flex-wrap gap-2">
+                            {[0, 1, 2].map((idx) => (
+                              <Skeleton key={idx} className="h-5 w-16" />
                             ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                      <div className="mt-2 max-h-20 overflow-y-auto pr-1">
-                        {renderRoles(user)}
+                          </div>
+                        ) : (
+                          renderRoles(user)
+                        )}
                       </div>
                     </div>
                   </TableCell>
