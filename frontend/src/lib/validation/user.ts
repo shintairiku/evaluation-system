@@ -44,6 +44,9 @@ export const stageSchema = z.object({
   id: uuidSchema,
   name: nonEmptyStringSchema,
   description: optionalStringSchema,
+  quantitative_weight: z.number(),
+  qualitative_weight: z.number(),
+  competency_weight: z.number(),
 });
 
 export const stageCreateSchema = z.object({

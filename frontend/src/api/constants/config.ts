@@ -141,6 +141,8 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/stages/${id}`,
     DELETE: (id: string) => `/stages/${id}`,
     ADMIN: '/stages/admin',
+    WEIGHTS: (id: string) => `/stages/${id}/weights`,
+    WEIGHT_HISTORY: (id: string) => `/stages/${id}/weight-history`,
   },
 
   // Evaluation Period endpoints
