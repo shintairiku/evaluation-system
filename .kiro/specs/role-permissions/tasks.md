@@ -65,12 +65,22 @@
 
 - [x] **2.2. Role × Permission matrix**
   > Search/filter, toggle checkboxes, pending state, error handling, Save/Cancel.
-  > - Build `RolePermissionMatrix` component under `frontend/src/app/org-management/permissions/`.
-  > - Fetch catalog + per-role assignments via typed hooks; maintain local dirty state and optimistic toggle UX.
-  > - Provide filter box (permission code/description) and role selector; virtualize long lists to keep UI performant.
-  > - Implement Save/Cancel controls with loading indicators, inline error banner, and success toast.
-  > - Ensure read-only mode for non-admins by disabling toggles and hiding destructive actions.
-  > - Add unit tests covering toggle behavior, save flow, and permission gating.
+  > - [x] **2.2.1. Build RolePermissionMatrix component**
+    > Create `frontend/src/app/org-management/permissions/RolePermissionMatrix.tsx` with grid layout showing roles vs permissions matrix.
+  > - [x] **2.2.2. Fetch and display data**
+    > Fetch permissions catalog and role assignments using existing server actions; implement typed hooks for data management.
+  > - [x] **2.2.3. Interactive toggles and dirty state**
+    > Add checkbox toggles with optimistic UI updates; maintain local dirty state tracking changes.
+  > - [x] **2.2.4. Search and filter functionality**
+    > Add filter box for permission code/description search; role selector dropdown; virtualize long lists (handled via grouped accordion UX).
+  > - [x] **2.2.5. Save/Cancel controls**
+    > Implement Save/Cancel buttons with loading states, inline error banners, and success toasts.
+  > - [x] **2.2.6. Admin vs non-admin UX**
+    > Gate write controls to admin role; show read-only mode for non-admins (disable toggles, hide destructive actions).
+  > - [x] **2.2.7. Error handling and pending states**
+    > Handle network errors, validation errors, and loading states throughout the component.
+  > - [ ] **2.2.8. Unit tests**
+    > Add unit tests covering toggle behavior, save flow, permission gating, and error states.
   >
   > **Related Requirements:** R1
 
@@ -82,24 +92,191 @@
 
 - [x] **2.3. Clone from role**
   > UI to select source role (e.g., Manager/Viewer), confirm, call clone API, refresh.
-  > - Add `ClonePermissionsDialog` with searchable role dropdown seeded from `/api/roles`.
-  > - Display summary of permissions delta from draft diff before confirmation; require admin confirmation.
-  > - Call clone endpoint, refresh assignments, and show toast with audit id reference.
-  > - Handle API errors (409/403/500) with inline alerts and maintain modal state for retry.
-  > - Extend Cypress flow to verify clone path updates matrix and audit event surfaces.
+  > - [x] **2.3.1. ClonePermissionsDialog component**
+    > Create dialog component with searchable role dropdown seeded from `/api/roles`.
+  > - [x] **2.3.2. Permissions delta preview**
+    > Display summary of permissions delta from draft diff before confirmation; require admin confirmation.
+  > - [x] **2.3.3. Clone API integration**
+    > Call clone endpoint, refresh assignments, and show toast with audit id reference.
+  > - [x] **2.3.4. Error handling**
+    > Handle API errors (409/403/500) with inline alerts and maintain modal state for retry.
+  > - [ ] **2.3.5. Integration tests**
+    > Extend Cypress flow to verify clone path updates matrix and audit event surfaces.
   >
   > **Related Requirements:** R3
 
 - [x] **2.4. Concurrency errors**
   > Surface 409 with refresh prompt; preserve unsaved changes where possible.
-  > - When backend returns 409 + latest `version`, show sticky warning banner prompting manual refresh.
-  > - Keep local diff so admin can reapply after fetching latest data; provide "Retry with latest" CTA.
-  > - Disable auto retry for 409; log event for telemetry.
-  > - Write unit test verifying banner appears and diff persists after refresh action.
+  > - [x] **2.4.1. 409 error handling**
+    > When backend returns 409 + latest `version`, show sticky warning banner prompting manual refresh.
+  > - [x] **2.4.2. Preserve unsaved changes**
+    > Keep local diff so admin can reapply after fetching latest data; provide "Retry with latest" CTA.
+  > - [ ] **2.4.3. Error telemetry**
+    > Disable auto retry for 409; log event for telemetry.
+  > - [ ] **2.4.4. Unit tests**
+    > Write unit test verifying banner appears and diff persists after refresh action.
   >
   > **Related Requirements:** R1
 
+- [x] **2.5. Permission grouping with Japanese descriptions**
+  > Improve permission matrix scalability and usability with grouped permissions and Japanese descriptions.
+  > - [x] **2.5.1. Backend: Database migration for permission groups**
+    > Create migration `050_add_permission_group.sql` to add `permission_group` column to `permissions` table.
+    > - Update existing permissions with Japanese group names: `user`, `hierarchy` → `ユーザー`; `department` → `部門`; `role` → `ロール`; `goal` → `目標`; `evaluation` → `評価`; `competency` → `コンピテンシー`; `assessment` → `自己評価`; `report` → `レポート`; `stage` → `ステージ`.
+    > - Update all permission descriptions to Japanese.
+    > - Update `Permission` model in `backend/app/database/models/permission.py` to include `permission_group` field.
+    >
+    > **Related Requirements:** R1, R3
+  > - [x] **2.5.2. Backend: Repository and service updates**
+    > - Add `list_permissions_grouped()` method to `PermissionRepository` returning permissions grouped by `permission_group`.
+    > - Update `ensure_permission_codes()` to accept and store group parameter.
+    > - Add `list_catalog_grouped()` method to `PermissionService`.
+    > - Update `_ensure_catalog_seeded()` to include Japanese descriptions and groups.
+    >
+    > **Related Requirements:** R1, R3
+  > - [x] **2.5.3. Backend: Schema and API updates**
+    > - Add `permission_group` field to `PermissionCatalogItem` schema.
+    > - Create `PermissionGroupResponse` schema with group name and permissions list.
+    > - Create `PermissionCatalogGroupedResponse` for grouped catalog.
+    > - Add endpoint `GET /roles/permissions:catalog-grouped` in `backend/app/api/v1/roles.py`.
+    >
+    > **Related Requirements:** R1
+  > - [x] **2.5.4. Frontend: Cache configuration**
+    > - Add `PERMISSIONS: 'permissions'` to `CACHE_TAGS` in `frontend/src/api/utils/cache.ts`.
+    > - Add static cache strategy for permissions (1 hour duration).
+    > - Update all permission mutation actions to revalidate both `CACHE_TAGS.ROLES` and `CACHE_TAGS.PERMISSIONS`.
+    >
+    > **Related Requirements:** R1, R5
+  > - [x] **2.5.5. Frontend: Type definitions**
+    > - Add `permission_group` field to `PermissionCatalogItem` in `frontend/src/api/types/permission.ts`.
+    > - Create `PermissionGroup` interface.
+    > - Create `PermissionCatalogGroupedResponse` type.
+    >
+    > **Related Requirements:** R1
+  > - [x] **2.5.6. Frontend: API and server actions**
+    > - Add `getGroupedCatalog()` method to `frontend/src/api/endpoints/permissions.ts`.
+    > - Add `getPermissionCatalogGroupedAction()` with React cache in `frontend/src/api/server-actions/permissions.ts`.
+    > - Update all mutation actions (`replaceRolePermissionsAction`, `patchRolePermissionsAction`, `cloneRolePermissionsAction`) to revalidate both cache tags.
+    >
+    > **Related Requirements:** R1, R5
+  > - [x] **2.5.7. Frontend: Accordion-based permission matrix UI**
+    > - Redesign `RolePermissionMatrix` component with Accordion layout.
+    > - Each accordion item represents one permission group (e.g., "目標").
+    > - Expand accordion to show individual permissions within that group.
+    > - Keep role columns horizontal with checkboxes for each permission.
+    > - Maintain existing save/cancel/reload functionality.
+    > - Default to collapsed state; show permission count badge per group.
+    > - Update to use grouped catalog API endpoint.
+    >
+    > **Related Requirements:** R1
+
+- [x] **2.6. Role CRUD operations in Roles tab**
+  > Add full create, update, and delete functionality for roles in the Roles tab.
+  > - [x] **2.6.1. Create role functionality**
+    > - Add "新しいロールを作成" button in `RolesTab` component.
+    > - Create dialog form with name and description fields.
+    > - Integrate with `createRoleAction` server action.
+    > - Refresh roles list and update permissions matrix after creation.
+    >
+    > **Related Requirements:** R1
+  > - [x] **2.6.2. Update role functionality**
+    > - Add edit icon/button per role row.
+    > - Create edit dialog with pre-filled name and description.
+    > - Integrate with `updateRoleAction` server action.
+    > - Update local state and refresh permissions matrix after update.
+    >
+    > **Related Requirements:** R1
+  > - [x] **2.6.3. Delete role functionality**
+    > - Add delete icon/button per role row.
+    > - Show confirmation dialog before deletion.
+    > - Check if role has users assigned (display user count from `roleUserMap`).
+    > - Prevent deletion if users are still assigned (show error message).
+    > - Integrate with `deleteRoleAction` server action.
+    > - Update local state and refresh permissions matrix after deletion.
+    > - Backend should validate no users have the role before allowing deletion.
+    >
+    > **Related Requirements:** R1
+  > - [x] **2.6.4. Update OrgManagementContainer**
+    > - Add state management callbacks for role creation, update, and deletion.
+    > - Pass callbacks to `RolesTab` component.
+    > - Ensure permissions matrix refreshes when roles change.
+    >
+    > **Related Requirements:** R1
+  > - [x] **2.6.5. Update role server actions cache**
+    > - Update `createRoleAction`, `updateRoleAction`, `deleteRoleAction` in `frontend/src/api/server-actions/roles.ts`.
+    > - Ensure all mutations revalidate both `CACHE_TAGS.ROLES` and `CACHE_TAGS.PERMISSIONS`.
+    >
+    > **Related Requirements:** R1, R5
+
+- [ ] **2.7. User role editing in Users tab**
+  > Enable admin users to change each user's role directly from the Users tab in /org-management page.
+  > - [ ] **2.7.1. Verify and enhance role editing UI**
+    > - Ensure role dropdown/edit functionality is properly implemented in `UsersTab` component.
+    > - Verify admin-only access control for role editing.
+    > - Add loading states and error handling for role updates.
+    > - Ensure role changes are reflected immediately in the UI.
+    >
+    > **Related Requirements:** R1
+  > - [ ] **2.7.2. Backend validation and audit**
+    > - Ensure backend validates role assignments (e.g., prevent invalid role combinations if applicable).
+    > - Add audit logging for role changes made from Users tab.
+    > - Verify cache invalidation for user role changes.
+    >
+    > **Related Requirements:** R1, R5
+  > - [ ] **2.7.3. Integration testing**
+    > - Test role editing flow end-to-end.
+    > - Verify permissions matrix updates reflect user role changes.
+    > - Test concurrent role updates and conflict handling.
+    >
+    > **Related Requirements:** R1
+
+- [ ] **2.8. Optimize permission tab data fetching**
+  > Improve performance of permission tab by implementing granular/lazy data fetching similar to role tab approach.
+  > - [ ] **2.8.1. Analyze current performance bottlenecks**
+    > - Profile current data fetching: `getPermissionCatalogAction()`, `getPermissionCatalogGroupedAction()`, `getAllRolePermissionsAction()`.
+    > - Identify slow queries and data transfer sizes.
+    > - Measure initial load time and identify optimization opportunities.
+    >
+    > **Related Requirements:** R1, R5
+  > - [ ] **2.8.2. Implement granular fetching strategy**
+    > - Option A: Load permission groups first, then fetch individual permissions and role assignments on-demand when accordion expands.
+    > - Option B: Implement pagination/virtualization for large permission lists.
+    > - Option C: Defer non-critical data (e.g., role assignments) until user interaction.
+    > - Choose approach that provides fastest initial render while maintaining UX.
+    >
+    > **Related Requirements:** R1, R5
+  > - [ ] **2.8.3. Backend optimizations**
+    > - Add database indexes if needed for permission queries.
+    > - Implement efficient bulk endpoints if granular fetching requires multiple requests.
+    > - Add response caching headers or optimize query performance.
+    > - Consider adding endpoint for fetching single role permissions on-demand.
+    >
+    > **Related Requirements:** R1, R5
+  > - [ ] **2.8.4. Frontend lazy loading implementation**
+    > - Refactor `RolePermissionMatrix` to support progressive data loading.
+    > - Implement skeleton/loading states for accordion items.
+    > - Update server actions to support granular fetching (e.g., `getRolePermissionsForGroupAction`, `getRolePermissionsForRoleAction`).
+    > - Ensure cache invalidation works correctly with lazy-loaded data.
+    >
+    > **Related Requirements:** R1, R5
+  > - [ ] **2.8.5. Performance validation**
+    > - Measure and document before/after performance metrics (initial load time, time to interactive, etc.).
+    > - Ensure lazy loading doesn't degrade UX (e.g., loading states are clear, no flickering).
+    > - Test with large datasets (many roles, many permissions).
+    >
+    > **Related Requirements:** R1, R5
+
 ```
+
+## Hotfix & Perf – 2025-11-06
+
+- [x] Backend: Reorder roles router so `/permissions:catalog-grouped` precedes `/{role_id}`
+- [x] Backend: Migration adding indexes (users org/status/department/stage/created_at; user_roles user_id/role_id)
+- [x] Frontend: Users initial load with `withCount=false`, `limit=50`
+- [x] Frontend: Make grouped catalog non-fatal with flat catalog fallback
+- [x] Frontend: Ensure `RolePermissionMatrix` degrades gracefully without grouped data
+- [x] Tests: API route 200 for grouped catalog, and page render without grouped data
+- [x] Perf check: capture p95 before/after and DB timing headers
 
 ## 機能B: Viewer Visibility Grants (resource-scoped, strict FKs; Option A)
 ```markdown

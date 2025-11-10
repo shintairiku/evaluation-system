@@ -7,6 +7,17 @@ from pydantic import BaseModel, Field
 class PermissionCatalogItem(BaseModel):
     code: str = Field(..., description="Permission code (e.g., user:read:all)")
     description: str = Field("", description="Human readable description")
+    permission_group: str = Field(..., description="Localized grouping label")
+
+
+class PermissionGroupResponse(BaseModel):
+    permission_group: str = Field(..., description="Localized grouping label")
+    permissions: List[PermissionCatalogItem]
+
+
+class PermissionCatalogGroupedResponse(BaseModel):
+    groups: List[PermissionGroupResponse] = Field(default_factory=list)
+    total_permissions: int = Field(..., description="Total number of permissions in catalog")
 
 
 class RolePermissionResponse(BaseModel):

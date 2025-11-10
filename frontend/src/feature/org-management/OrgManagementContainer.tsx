@@ -7,6 +7,9 @@ import type {
   RoleDetail,
   Stage,
   BulkUserStatusUpdateResponse,
+  RolePermissionResponse,
+  PermissionCatalogItem,
+  PermissionGroup,
 } from '@/api/types';
 import { OrgManagementView } from './OrgManagementView';
 import { UsersTab } from './user-management-tab/UsersTab';
@@ -20,6 +23,10 @@ interface OrgManagementContainerProps {
   initialDepartments: Department[];
   initialRoles: RoleDetail[];
   initialStages: Stage[];
+  initialRolePermissions: RolePermissionResponse[];
+  permissionCatalog: PermissionCatalogItem[];
+  permissionCatalogGrouped?: PermissionGroup[];
+  permissionCatalogGroupedWarning?: string | null;
 }
 
 export function OrgManagementContainer({
@@ -28,14 +35,19 @@ export function OrgManagementContainer({
   initialDepartments,
   initialRoles,
   initialStages,
+  initialRolePermissions,
+  permissionCatalog,
+  permissionCatalogGrouped,
+  permissionCatalogGroupedWarning,
 }: OrgManagementContainerProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'roles' | 'permissions'>('users');
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [departments, setDepartments] = useState<Department[]>(initialDepartments);
-  const [roles] = useState<RoleDetail[]>(initialRoles);
+  const [roles, setRoles] = useState<RoleDetail[]>(initialRoles);
   const [stages] = useState<Stage[]>(initialStages);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [bulkResult, setBulkResult] = useState<BulkUserStatusUpdateResponse | null>(null);
+  const safePermissionGroups = permissionCatalogGrouped ?? [];
 
   const displayUserTotal = useMemo(() => Math.max(totalUsers, users.length), [totalUsers, users.length]);
   const totalDepartments = useMemo(() => departments.length, [departments]);
@@ -119,17 +131,46 @@ export function OrgManagementContainer({
     />
   );
 
+  const handleRoleCreated = useCallback((role: RoleDetail) => {
+    setRoles((prev) => {
+      const exists = prev.some((item) => item.id === role.id);
+      if (exists) {
+        return prev;
+      }
+      return [...prev, role].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    });
+  }, []);
+
+  const handleRoleUpdated = useCallback((role: RoleDetail) => {
+    setRoles((prev) =>
+      prev
+        .map((item) => (item.id === role.id ? role : item))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja')),
+    );
+  }, []);
+
+  const handleRoleDeleted = useCallback((roleId: string) => {
+    setRoles((prev) => prev.filter((role) => role.id !== roleId));
+  }, []);
+
   const rolesTab = (
     <RolesTab
       roles={roles}
       users={users}
       onUsersStateSync={handleUsersStateSync}
+      onRoleCreated={handleRoleCreated}
+      onRoleUpdated={handleRoleUpdated}
+      onRoleDeleted={handleRoleDeleted}
     />
   );
 
   const permissionsTab = (
     <PermissionsTab
       roles={roles}
+      rolePermissions={initialRolePermissions}
+      permissionCatalog={permissionCatalog}
+      permissionGroups={safePermissionGroups}
+      groupedCatalogWarning={permissionCatalogGroupedWarning ?? undefined}
     />
   );
 

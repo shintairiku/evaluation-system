@@ -1,50 +1,67 @@
-import type { RoleDetail } from '@/api/types';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+'use client';
+
+import type {
+  PermissionCatalogItem,
+  PermissionGroup,
+  RoleDetail,
+  RolePermissionResponse,
+} from '@/api/types';
+import { useUserRoles } from '@/hooks/useUserRoles';
+import { RolePermissionMatrix } from './RolePermissionMatrix';
+import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface PermissionsTabProps {
   roles: RoleDetail[];
+  rolePermissions: RolePermissionResponse[];
+  permissionCatalog: PermissionCatalogItem[];
+  permissionGroups?: PermissionGroup[];
+  groupedCatalogWarning?: string;
 }
 
-export function PermissionsTab({ roles }: PermissionsTabProps) {
+export function PermissionsTab({
+  roles,
+  rolePermissions,
+  permissionCatalog,
+  permissionGroups,
+  groupedCatalogWarning,
+}: PermissionsTabProps) {
+  const { hasRole, isLoading, error } = useUserRoles();
+  const isAdmin = !isLoading && hasRole('admin');
+  const safePermissionGroups = permissionGroups ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+        <Loader2 className="mr-2 size-5 animate-spin" />
+        管理者権限を確認しています...
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-base font-semibold">権限テンプレート（プレビュー）</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            権限タブから各ロールの権限を確認できます。編集機能はこのあと追加されます。
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {roles.map((role) => (
-              <div key={role.id} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{role.name}</p>
-                    <p className="text-xs text-muted-foreground">{role.description}</p>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {role.permissions?.length ?? 0} permissions
-                  </Badge>
-                </div>
-                {role.permissions && role.permissions.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {role.permissions.map((permission) => (
-                      <Badge key={permission.name} variant="outline" className="text-xs uppercase tracking-wide">
-                        {permission.name}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">権限データが設定されていません。</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {groupedCatalogWarning && (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-700">
+          <AlertTitle>権限グループを読み込めませんでした</AlertTitle>
+          <AlertDescription>
+            {groupedCatalogWarning} 権限一覧はフラット表示で利用できます。
+          </AlertDescription>
+        </Alert>
+      )}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>権限情報の取得中に問題が発生しました</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <RolePermissionMatrix
+        roles={roles}
+        isAdmin={isAdmin}
+        initialAssignments={rolePermissions}
+        initialCatalog={permissionCatalog}
+        initialGroupedCatalog={safePermissionGroups}
+      />
     </div>
   );
 }
