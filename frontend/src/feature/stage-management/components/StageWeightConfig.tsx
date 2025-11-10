@@ -96,8 +96,8 @@ export default function StageWeightConfig({
                   <TableHead className="min-w-[200px]">ステージ</TableHead>
                   <TableHead className="text-right">定量</TableHead>
                   <TableHead className="text-right">定性</TableHead>
-                  <TableHead className="text-right">コンピテンシー</TableHead>
-                  <TableHead className="w-40 text-right">アクション</TableHead>
+                  <TableHead className="text-center pr-8">コンピテンシー</TableHead>
+                  <TableHead className="w-44 text-center">アクション</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -105,19 +105,14 @@ export default function StageWeightConfig({
                   <TableRow key={stage.id}>
                     <TableCell>
                       <div className="font-medium">{stage.name}</div>
-                      {stage.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {stage.description}
-                        </p>
-                      )}
                     </TableCell>
                     <TableCell className="text-right">{formatWeight(stage.quantitativeWeight)}</TableCell>
                     <TableCell className="text-right">{formatWeight(stage.qualitativeWeight)}</TableCell>
-                    <TableCell className="text-right">{formatWeight(stage.competencyWeight)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                    <TableCell className="text-center pr-8">{formatWeight(stage.competencyWeight)}</TableCell>
+                    <TableCell className="text-center w-44">
+                      <div className="inline-flex justify-center gap-2">
                         <Button
-                          variant="secondary"
+                          variant="outline"
                           size="sm"
                           onClick={() => handleOpenEdit(stage)}
                         >
