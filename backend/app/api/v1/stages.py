@@ -5,7 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
 from ...schemas.stage_competency import (
-    Stage, StageDetail, StageCreate, StageUpdate, StageWithUserCount
+    Stage,
+    StageDetail,
+    StageCreate,
+    StageUpdate,
+    StageWithUserCount,
+    StageWeightUpdate,
+    StageWeightHistoryEntry,
 )
 from ...services.stage_service import StageService
 from ...security.dependencies import require_admin, get_auth_context
@@ -136,6 +142,55 @@ async def update_stage(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update stage: {str(e)}"
+        )
+
+
+@router.patch("/{stage_id}/weights", response_model=StageDetail)
+async def update_stage_weights(
+    stage_id: UUID,
+    stage_weight_update: StageWeightUpdate,
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Update stage weight configuration (admin only)."""
+    try:
+        stage_service = StageService(session)
+        result = await stage_service.update_stage_weights(context, stage_id, stage_weight_update)
+        return result
+
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except BadRequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update stage weights: {str(e)}"
+        )
+
+
+@router.get("/{stage_id}/weight-history", response_model=List[StageWeightHistoryEntry])
+async def get_stage_weight_history(
+    stage_id: UUID,
+    limit: int = 20,
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get recent weight history entries for a stage (admin only)."""
+    try:
+        stage_service = StageService(session)
+        history = await stage_service.get_stage_weight_history(context, stage_id, limit)
+        return history
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve stage weight history: {str(e)}"
         )
 
 
