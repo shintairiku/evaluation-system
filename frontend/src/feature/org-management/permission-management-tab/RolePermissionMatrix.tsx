@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, RefreshCcw, Search, ShieldAlert, ShieldCheck } from 'lucide-react';
+import {
+  LayoutGrid,
+  List,
+  ListFilter,
+  Loader2,
+  RefreshCcw,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+} from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -42,6 +51,7 @@ import {
   getRolePermissionsAction,
   replaceRolePermissionsAction,
 } from '@/api/server-actions/permissions';
+import { cn } from '@/lib/utils';
 import type {
   PermissionGroup,
   PermissionCatalogItem,
@@ -66,6 +76,13 @@ type SaveResultSummary = {
   failureCount: number;
 };
 
+type RoleSummary = {
+  role: RoleDetail;
+  assignedCount: number;
+  changedCount: number;
+  coverage: number;
+};
+
 const CONFLICT_KEYWORDS = ['409', 'conflict', '競合', 'refresh'];
 
 function isConflictError(message: string | undefined): boolean {
@@ -83,6 +100,9 @@ const PERMISSION_GROUP_LABELS: Record<string, string> = {
   goal: '目標',
   evaluation: '評価',
 };
+
+const PERMISSION_CODE_COLUMN_WIDTH = 220;
+const PERMISSION_DESCRIPTION_COLUMN_OFFSET = PERMISSION_CODE_COLUMN_WIDTH;
 
 function inferPermissionGroup(code: string | undefined, provided?: string): string {
   if (provided && provided.trim().length > 0) {
@@ -295,11 +315,33 @@ export function RolePermissionMatrix({
   const [savingRoleIds, setSavingRoleIds] = useState<Set<string>>(new Set());
   const [refreshingRoleIds, setRefreshingRoleIds] = useState<Set<string>>(new Set());
   const [conflictState, setConflictState] = useState<ConflictState | null>(null);
+  const [showChangedOnly, setShowChangedOnly] = useState(false);
+  const [matrixDensity, setMatrixDensity] = useState<'comfortable' | 'compact'>('comfortable');
+  const [didPrimeGroups, setDidPrimeGroups] = useState(false);
 
   const groupedCatalog = useMemo(
     () => groupCatalogByPermissionGroup(catalog, groupOrder),
     [catalog, groupOrder],
   );
+  const totalPermissionCount = catalog.length;
+  const changedPermissionCodes = useMemo(() => {
+    const changed = new Set<string>();
+    Object.values(roleStates).forEach((state) => {
+      if (!state) return;
+      state.base.forEach((code) => {
+        if (!state.draft.has(code)) {
+          changed.add(code);
+        }
+      });
+      state.draft.forEach((code) => {
+        if (!state.base.has(code)) {
+          changed.add(code);
+        }
+      });
+    });
+    return changed;
+  }, [roleStates]);
+  const totalChangedCount = changedPermissionCodes.size;
 
   useEffect(() => {
     setRoleStates((prev) => {
@@ -391,6 +433,9 @@ export function RolePermissionMatrix({
       };
     });
   }, []);
+  const toggleRoleFilter = useCallback((roleId: string) => {
+    setRoleFilter((prev) => (prev === roleId ? 'all' : roleId));
+  }, []);
 
   const dirtyStates = useMemo(() => {
     return Object.values(roleStates).filter((state) => {
@@ -408,22 +453,61 @@ export function RolePermissionMatrix({
     }
     return roles.filter((role) => role.id === roleFilter && roleStates[role.id]);
   }, [roleFilter, roleStates, roles]);
+  const roleSummaries = useMemo<RoleSummary[]>(() => {
+    const denominator = Math.max(totalPermissionCount, 1);
+    return visibleRoles.map((role) => {
+      const state = roleStates[role.id];
+      const diff = computeDraftDiff(state);
+      const assignedCount = state ? state.draft.size : 0;
+      const changedCount = diff.added.length + diff.removed.length;
+      const coverage = Math.round((assignedCount / denominator) * 100);
+      return {
+        role,
+        assignedCount,
+        changedCount,
+        coverage,
+      };
+    });
+  }, [roleStates, visibleRoles, totalPermissionCount]);
+  const roleSummaryMap = useMemo(() => {
+    const map = new Map<string, RoleSummary>();
+    roleSummaries.forEach((summary) => {
+      map.set(summary.role.id, summary);
+    });
+    return map;
+  }, [roleSummaries]);
+  const matrixDensityConfig = useMemo(
+    () => ({
+      cellPadding: matrixDensity === 'compact' ? 'py-2' : 'py-4',
+      checkboxMinHeight: matrixDensity === 'compact' ? 'min-h-[32px]' : 'min-h-[44px]',
+      descriptionText: matrixDensity === 'compact' ? 'text-xs' : 'text-sm',
+      codeText: matrixDensity === 'compact' ? 'text-sm' : 'text-base',
+    }),
+    [matrixDensity],
+  );
 
   const filteredGroups = useMemo(() => {
-    if (!filterQuery.trim()) {
+    const trimmed = filterQuery.trim().toLowerCase();
+    if (!trimmed && !showChangedOnly) {
       return groupedCatalog;
     }
-    const needle = filterQuery.trim().toLowerCase();
     return groupedCatalog
       .map((group) => ({
         permission_group: group.permission_group,
         permissions: group.permissions.filter((item) => {
-          const haystack = `${item.code} ${item.description ?? ''}`.toLowerCase();
-          return haystack.includes(needle);
+          const matchesQuery =
+            !trimmed || `${item.code} ${item.description ?? ''}`.toLowerCase().includes(trimmed);
+          if (!matchesQuery) {
+            return false;
+          }
+          if (showChangedOnly) {
+            return changedPermissionCodes.has(item.code);
+          }
+          return true;
         }),
       }))
       .filter((group) => group.permissions.length > 0);
-  }, [groupedCatalog, filterQuery]);
+  }, [changedPermissionCodes, groupedCatalog, filterQuery, showChangedOnly]);
 
   useEffect(() => {
     const available = groupedCatalog.map((group) => group.permission_group);
@@ -445,6 +529,13 @@ export function RolePermissionMatrix({
       return sameAsMatches ? baseResult : matches;
     });
   }, [groupedCatalog, filteredGroups, filterQuery]);
+  useEffect(() => {
+    if (didPrimeGroups) return;
+    if (!groupedCatalog.length) return;
+    if (filterQuery.trim()) return;
+    setExpandedGroups(groupedCatalog.slice(0, Math.min(2, groupedCatalog.length)).map((group) => group.permission_group));
+    setDidPrimeGroups(true);
+  }, [didPrimeGroups, groupedCatalog, filterQuery]);
 
   const isRoleSaving = useCallback((roleId: string) => savingRoleIds.has(roleId), [savingRoleIds]);
   const isRoleRefreshing = useCallback((roleId: string) => refreshingRoleIds.has(roleId), [refreshingRoleIds]);
@@ -628,6 +719,7 @@ export function RolePermissionMatrix({
     await refreshRole(conflictState.roleId, true);
     setConflictState(null);
   }, [conflictState, refreshRole]);
+  const { cellPadding, checkboxMinHeight, descriptionText, codeText } = matrixDensityConfig;
 
   if (!roles.length) {
     return (
@@ -648,129 +740,245 @@ export function RolePermissionMatrix({
   return (
     <>
       <Card className="overflow-hidden border-t-[3px] border-primary/40 shadow-sm">
-        <CardHeader className="space-y-2">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              権限マトリクス
-              <Badge variant="outline" className="uppercase tracking-wide">
-                Beta
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              ロールごとの権限を一覧表示し、管理者はチェックを切り替えて保存できます。
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void handleReloadAll();
-              }}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : (
-                <RefreshCcw className="mr-2 size-4" />
-              )}
-              再読み込み
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleCancel}
-              disabled={!hasDirtyChanges || !isAdmin}
-            >
-              変更を破棄
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                void handleSave();
-              }}
-              disabled={!hasDirtyChanges || !isAdmin}
-            >
-              {hasDirtyChanges ? '変更を保存' : '保存'}
-            </Button>
-          </div>
-        </div>
-        {error && (
-          <Alert variant="destructive">
-            <ShieldAlert className="size-4" />
-            <AlertTitle>権限データの読み込みに失敗しました</AlertTitle>
-            <AlertDescription>
-              {error}
-            </AlertDescription>
-          </Alert>
-        )}
-        {conflictState && (
-          <Alert variant="destructive" className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <AlertTitle>他の管理者による更新が検出されました</AlertTitle>
-              <AlertDescription>
-                {conflictState.message} 「最新を取得」ボタンで現在の権限を再読み込みできます。
-              </AlertDescription>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                権限マトリクス
+                <Badge variant="outline" className="uppercase tracking-wide">
+                  Beta
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                直感的なグリッドでロールごとの権限を比較し、差分をハイライトしながら安全に更新できます。
+              </CardDescription>
             </div>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                void handleApplyLatest();
-              }}
-              disabled={isRoleRefreshing(conflictState.roleId)}
-            >
-              {isRoleRefreshing(conflictState.roleId) && <Loader2 className="mr-2 size-4 animate-spin" />}
-              最新を取得
-            </Button>
-          </Alert>
-        )}
-        {!isAdmin && (
-          <Alert className="border-amber-200 bg-amber-50 text-amber-700">
-            <ShieldCheck className="size-4" />
-            <AlertTitle>閲覧モード</AlertTitle>
-            <AlertDescription>
-              権限の変更は管理者のみ可能です。現在は権限マトリクスを確認することができます。
-            </AlertDescription>
-          </Alert>
-        )}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative w-full lg:max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={filterQuery}
-              onChange={(event) => setFilterQuery(event.target.value)}
-              placeholder="権限コード・説明で検索"
-              className="pl-9"
-            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void handleReloadAll();
+                }}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <RefreshCcw className="mr-2 size-4" />
+                )}
+                再読み込み
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCancel}
+                disabled={!hasDirtyChanges || !isAdmin}
+              >
+                変更を破棄
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  void handleSave();
+                }}
+                disabled={!hasDirtyChanges || !isAdmin}
+              >
+                {hasDirtyChanges ? '変更を保存' : '保存'}
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as 'all' | string)}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="ロールを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">すべてのロール</SelectItem>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
-                    {role.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {hasDirtyChanges && (
-              <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200">
-                未保存 {dirtyStates.length} 件
-              </Badge>
-            )}
+          {error && (
+            <Alert variant="destructive">
+              <ShieldAlert className="size-4" />
+              <AlertTitle>権限データの読み込みに失敗しました</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {conflictState && (
+            <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <AlertTitle>他の管理者による更新が検出されました</AlertTitle>
+                  <AlertDescription>
+                    {conflictState.message} 「最新を取得」ボタンで現在の権限を再読み込みしてください。
+                  </AlertDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    void handleApplyLatest();
+                  }}
+                  disabled={isRoleRefreshing(conflictState.roleId)}
+                >
+                  {isRoleRefreshing(conflictState.roleId) && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  最新を取得
+                </Button>
+              </div>
+            </Alert>
+          )}
+          {!isAdmin && (
+            <Alert className="border-amber-200 bg-amber-50 text-amber-800">
+              <ShieldCheck className="size-4" />
+              <AlertTitle>閲覧モード</AlertTitle>
+              <AlertDescription>権限の変更は管理者のみ可能です。現在は権限マトリクスを確認できます。</AlertDescription>
+            </Alert>
+          )}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border bg-muted/40 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">対象ロール</p>
+              <p className="text-2xl font-semibold">
+                {visibleRoles.length}
+                <span className="text-sm text-muted-foreground"> / {roles.length}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">表示中</p>
+            </div>
+            <div className="rounded-xl border bg-muted/40 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">権限項目</p>
+              <p className="text-2xl font-semibold">{totalPermissionCount}</p>
+              <p className="text-xs text-muted-foreground">カタログに含まれる総数</p>
+            </div>
+            <div className="rounded-xl border bg-muted/40 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">未保存の権限</p>
+              <p className={cn('text-2xl font-semibold', totalChangedCount ? 'text-blue-600' : 'text-foreground')}>
+                {totalChangedCount}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {totalChangedCount ? '保存して反映します' : 'すべて最新です'}
+              </p>
+            </div>
           </div>
-        </div>
-      </CardHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div className="relative w-full md:w-[320px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={filterQuery}
+                    onChange={(event) => setFilterQuery(event.target.value)}
+                    placeholder="権限コードや説明で検索"
+                    className="pl-9"
+                  />
+                </div>
+                <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as 'all' | string)}>
+                  <SelectTrigger className="w-full md:w-[220px]">
+                    <SelectValue placeholder="ロールを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">すべてのロール</SelectItem>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <div className="flex items-center gap-1 rounded-full border px-3 py-2 text-xs text-muted-foreground">
+                  <span className="font-medium tracking-wide">表示密度</span>
+                  <Button
+                    type="button"
+                    variant={matrixDensity === 'comfortable' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7 gap-1"
+                    onClick={() => setMatrixDensity('comfortable')}
+                    aria-pressed={matrixDensity === 'comfortable'}
+                  >
+                    <LayoutGrid className="size-3.5" />
+                    標準
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={matrixDensity === 'compact' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7 gap-1"
+                    onClick={() => setMatrixDensity('compact')}
+                    aria-pressed={matrixDensity === 'compact'}
+                  >
+                    <List className="size-3.5" />
+                    コンパクト
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 rounded-full border px-3 py-2">
+                  <ListFilter className="size-3.5 text-muted-foreground" />
+                  <Checkbox
+                    id="show-changed-only"
+                    checked={showChangedOnly}
+                    onCheckedChange={(value) => setShowChangedOnly(value === true)}
+                    disabled={!totalChangedCount}
+                  />
+                  <label
+                    htmlFor="show-changed-only"
+                    className={cn(
+                      'select-none text-sm',
+                      totalChangedCount ? 'cursor-pointer text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    未保存のみ表示
+                  </label>
+                </div>
+                {hasDirtyChanges && (
+                  <Badge variant="secondary" className="border-blue-200 bg-blue-100 text-blue-800">
+                    変更中 {dirtyStates.length} ロール
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
+                <span>ロールサマリー</span>
+                <span>{hasDirtyChanges ? '未保存の差分があります' : 'すべて保存済み'}</span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {roleSummaries.length ? (
+                  roleSummaries.map((summary) => {
+                    const isActive = roleFilter === summary.role.id;
+                    return (
+                      <Button
+                        key={summary.role.id}
+                        type="button"
+                        variant={isActive ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn(
+                          'h-auto min-w-[180px] flex-1 flex-col items-start justify-start gap-1 rounded-xl border text-left',
+                          isActive ? 'bg-primary/10 border-primary/60 shadow-sm' : 'bg-background',
+                        )}
+                        onClick={() => toggleRoleFilter(summary.role.id)}
+                        aria-pressed={isActive}
+                      >
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {summary.role.name}
+                        </span>
+                        <span className="text-lg font-semibold leading-tight">
+                          {summary.assignedCount}
+                          <span className="text-xs text-muted-foreground"> / {totalPermissionCount}</span>
+                        </span>
+                        <div className="flex w-full items-center justify-between text-[11px] text-muted-foreground">
+                          <span>カバレッジ {summary.coverage}%</span>
+                          {summary.changedCount > 0 ? (
+                            <Badge variant="secondary" className="border-blue-200 bg-blue-100 text-blue-800">
+                              未保存 {summary.changedCount}
+                            </Badge>
+                          ) : (
+                            <span className="text-emerald-600">最新</span>
+                          )}
+                        </div>
+                      </Button>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground">表示するロールがありません。</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-lg border bg-card">
           {filteredGroups.length > 0 ? (
@@ -804,19 +1012,26 @@ export function RolePermissionMatrix({
                         </div>
                         <div className="flex items-center gap-2">
                           {groupChangeCount > 0 && (
-                            <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-700">
+                            <Badge variant="outline" className="border-blue-300 bg-blue-100 text-blue-700">
                               未保存 {groupChangeCount}
                             </Badge>
                           )}
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-6">
-                        <div className="overflow-x-auto pb-6">
-                          <Table className="w-full min-w-full lg:min-w-[960px]">
+                        <div className="relative isolate overflow-x-auto pb-6">
+                          <Table className="w-full min-w-full lg:min-w-[960px]" aria-label={`${group.permission_group} の権限テーブル`}>
                             <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-[220px] whitespace-nowrap text-left">権限コード</TableHead>
-                                <TableHead className="w-[320px] whitespace-nowrap text-left">説明</TableHead>
+                              <TableRow className="bg-background">
+                                <TableHead className="sticky left-0 z-20 w-[220px] whitespace-nowrap border-r-2 border-border bg-background text-left shadow-[4px_0_6px_rgba(0,0,0,0.12)]">
+                                  権限コード
+                                </TableHead>
+                                <TableHead
+                                  className="sticky z-20 w-[320px] whitespace-nowrap border-r-2 border-border bg-background text-left shadow-[4px_0_6px_rgba(0,0,0,0.12)]"
+                                  style={{ left: PERMISSION_DESCRIPTION_COLUMN_OFFSET }}
+                                >
+                                  説明
+                                </TableHead>
                                 {visibleRoles.map((role) => {
                                   const state = roleStates[role.id];
                                   const diff = computeDraftDiff(state);
@@ -829,13 +1044,26 @@ export function RolePermissionMatrix({
                                     : 0;
                                   const saving = isRoleSaving(role.id);
                                   const refreshing = isRoleRefreshing(role.id);
+                                  const summary = roleSummaryMap.get(role.id);
+                                  const isFocused = roleFilter !== 'all' && roleFilter === role.id;
                                   return (
-                                    <TableHead key={role.id} className="min-w-[140px] whitespace-nowrap text-center">
-                                      <div className="flex min-w-[120px] flex-col items-center gap-1 text-xs font-medium uppercase tracking-wide">
+                                    <TableHead
+                                      key={role.id}
+                                      className={cn(
+                                        'min-w-[160px] whitespace-nowrap border-l border-border text-center align-middle transition-colors',
+                                        isFocused ? 'bg-primary/5' : 'bg-background',
+                                      )}
+                                    >
+                                      <div className="flex min-w-[140px] flex-col items-center gap-1 rounded-lg border border-dashed border-border/60 px-2 py-2 text-xs font-medium uppercase tracking-wide">
                                         <span className="text-sm font-semibold leading-tight">{role.name}</span>
-                                        <span className="text-muted-foreground">{assignedCount} 件</span>
+                                        <span className="text-[11px] text-muted-foreground">このグループ {assignedCount} 件</span>
+                                        <span className="text-[11px] text-muted-foreground">
+                                          全体 {summary?.assignedCount ?? 0} / {totalPermissionCount}（
+                                          {summary?.coverage ?? 0}
+                                          %）
+                                        </span>
                                         {changeCount > 0 && (
-                                          <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-700">
+                                          <Badge variant="outline" className="border-blue-300 bg-blue-100 text-blue-700">
                                             未保存 {changeCount}
                                           </Badge>
                                         )}
@@ -849,41 +1077,80 @@ export function RolePermissionMatrix({
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {group.permissions.map((permission) => (
-                                <TableRow key={permission.code} className="align-top hover:bg-muted/30">
-                                  <TableCell className="align-top">
-                                    <div className="flex flex-col gap-1">
-                                      <span className="font-medium text-sm leading-5">{permission.code}</span>
-                                      <Badge variant="outline" className="w-fit text-[10px] tracking-wider">
-                                        {permission.permission_group}
-                                      </Badge>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="align-top text-sm leading-5 text-muted-foreground">
-                                    {permission.description || '説明が登録されていません'}
-                                  </TableCell>
-                                  {visibleRoles.map((role) => {
-                                    const state = roleStates[role.id];
-                                    const checked = state ? state.draft.has(permission.code) : false;
-                                    return (
-                                      <TableCell key={role.id} className="align-top text-center">
-                                        <div className="flex min-h-[42px] items-center justify-center">
-                                          <Checkbox
-                                            checked={checked}
-                                            disabled={!isAdmin || isRoleSaving(role.id) || isRoleRefreshing(role.id)}
-                                            onCheckedChange={(value) => {
-                                              if (!state) return;
-                                              const nextValue = value === 'indeterminate' ? !checked : value === true;
-                                              handlePermissionChange(role.id, permission.code, nextValue);
-                                            }}
-                                            aria-label={`${role.name} に ${permission.code} を割り当て`}
-                                          />
+                              {group.permissions.map((permission) => {
+                                const rowIsDirty = changedPermissionCodes.has(permission.code);
+                                return (
+                                  <TableRow
+                                    key={permission.code}
+                                    className={cn(
+                                      'group/permission-row align-top transition-colors',
+                                      rowIsDirty ? 'bg-blue-50/30 hover:bg-blue-50/50' : 'bg-white hover:bg-gray-50',
+                                    )}
+                                  >
+                                    <TableCell
+                                      className={cn(
+                                        'sticky left-0 z-10 border-r-2 border-border align-top shadow-[4px_0_6px_rgba(0,0,0,0.12)] transition-all',
+                                        rowIsDirty ? 'bg-blue-50 group-hover/permission-row:bg-blue-100' : 'bg-white group-hover/permission-row:bg-gray-50',
+                                        cellPadding,
+                                      )}
+                                    >
+                                      <div className="flex flex-col gap-1">
+                                        <span className={cn('font-medium leading-5', codeText)}>{permission.code}</span>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <Badge variant="outline" className="w-fit text-[10px] tracking-wider">
+                                            {permission.permission_group}
+                                          </Badge>
+                                          {rowIsDirty && (
+                                            <Badge variant="secondary" className="border-blue-300 bg-blue-100 text-blue-700">
+                                              未保存
+                                            </Badge>
+                                          )}
                                         </div>
-                                      </TableCell>
-                                    );
-                                  })}
-                                </TableRow>
-                              ))}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell
+                                      className={cn(
+                                        'sticky z-10 border-r-2 border-border align-top text-muted-foreground shadow-[4px_0_6px_rgba(0,0,0,0.12)] transition-all',
+                                        rowIsDirty ? 'bg-blue-50 group-hover/permission-row:bg-blue-100' : 'bg-white group-hover/permission-row:bg-gray-50',
+                                        cellPadding,
+                                        descriptionText,
+                                      )}
+                                      style={{ left: PERMISSION_DESCRIPTION_COLUMN_OFFSET }}
+                                    >
+                                      <p className="leading-relaxed">
+                                        {permission.description || '説明が登録されていません'}
+                                      </p>
+                                    </TableCell>
+                                    {visibleRoles.map((role) => {
+                                      const state = roleStates[role.id];
+                                      const checked = state ? state.draft.has(permission.code) : false;
+                                      return (
+                                        <TableCell
+                                          key={role.id}
+                                          className={cn(
+                                            'align-top text-center transition-colors',
+                                            rowIsDirty ? 'bg-blue-50/30 group-hover/permission-row:bg-blue-50/50' : 'bg-white group-hover/permission-row:bg-gray-50',
+                                            cellPadding,
+                                          )}
+                                        >
+                                          <div className={cn('flex items-center justify-center', checkboxMinHeight)}>
+                                            <Checkbox
+                                              checked={checked}
+                                              disabled={!isAdmin || isRoleSaving(role.id) || isRoleRefreshing(role.id)}
+                                              onCheckedChange={(value) => {
+                                                if (!state) return;
+                                                const nextValue = value === 'indeterminate' ? !checked : value === true;
+                                                handlePermissionChange(role.id, permission.code, nextValue);
+                                              }}
+                                              aria-label={`${role.name} に ${permission.code} を割り当て`}
+                                            />
+                                          </div>
+                                        </TableCell>
+                                      );
+                                    })}
+                                  </TableRow>
+                                );
+                              })}
                             </TableBody>
                           </Table>
                         </div>
