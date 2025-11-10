@@ -30,18 +30,18 @@
   > Include `stage.weightConfig` so client goal forms can read the policy without an extra request.  
   > **Related requirements:** Req 3, Req 4, Req 9
 
-## 3. Goal Auto-Weight Logic
+## 3. Goal Weight Budget Logic
 
-- [ ] **3.1 Introduce `_resolve_auto_weight` helper in `GoalService`**
-  > Fetch the user’s stage (via `UserRepository.get_user_with_stage`) and assign the proper weight before validation. Handle competency/core-value mapping and the Stage 6–9 qualitative=0 edge case.  
+- [ ] **3.1 Introduce `_validate_stage_weight_budget` helper in `GoalService`**
+  > Fetch the user’s stage (via `UserRepository.get_user_with_stage`), sum weights per category, and compare totals with the configured budget. Handle competency/core-value mapping and the Stage 6–9 qualitative=0 edge case.  
   > **Related requirements:** Req 3, Req 5, Req 8, Edge Cases 1–4
 
 - [ ] **3.2 Adjust validation & legacy compatibility**
-  > Skip manual weight totals when the system sets the values, but keep `_validate_weight_limits` for legacy submissions. Preserve original weights for existing goals unless category/type changes.  
+  > Enforce the new budget validator on create/update while still allowing legacy goals to remain unchanged unless their weights are edited. Keep `_validate_weight_limits` for backward compatibility with submitted drafts.  
   > **Related requirements:** Req 5, Req 8, Edge Case 4
 
-- [ ] **3.3 Update Goal schemas**
-  > Make `weight` optional on `GoalCreate`/`GoalUpdate` (server-side fill) and add response documentation clarifying “autoAssigned: true/false”.  
+- [ ] **3.3 Update Goal schemas & docs**
+  > Document that `weight` stays in the payload but is validated server-side; add metadata indicating how much budget remains per category for client helpers.  
   > **Related requirements:** Req 3, Req 4
 
 ## 4. Admin Stage Weight UI
@@ -60,16 +60,16 @@
 
 ## 5. Employee Goal Experience
 
-- [ ] **5.1 Remove manual weight inputs from performance goal form**
-  > Update `PerformanceGoalsStep.tsx` to replace the editable number field with a badge showing the automatic weight and explanatory text (`ℹ️ ステージ3に基づき自動設定`).  
+- [ ] **5.1 Guided weight distribution UI**
+  > Update `PerformanceGoalsStep.tsx` to keep weight inputs, auto-split the remaining budget when a goal is added, and show running totals with success/error states.  
   > **Related requirements:** Req 3, Req 4, Req 9
 
 - [ ] **5.2 Update competency/core-value goal components**
-  > Show fixed 10% badge (or 0% for Stage 6+ qualitative) and ensure submissions omit weight.  
+  > Mirror the same budget tracking for competency/core value goals (10% total or 0% where applicable) and block submission when totals mismatch.  
   > **Related requirements:** Req 3, Req 4, Edge Case 3
 
-- [ ] **5.3 Ensure goal detail/review views highlight auto weights**
-  > Supervisors and employees should see “Auto weight” tags in `GoalListItem`, approval modals, etc., so review UX stays consistent.  
+- [ ] **5.3 Ensure goal detail/review views highlight compliance**
+  > Supervisors and employees should see total-by-category badges (e.g., “Quantitative: 70/70% complete”) instead of “auto weight” tags, reinforcing the policy.  
   > **Related requirements:** Req 9
 
 ## 6. Testing & Rollout
@@ -83,9 +83,9 @@
   > **Related requirements:** Req 4, Req 6, Req 9
 
 - [ ] **6.3 E2E/Playwright scenarios**
-  > Admin updates Stage 4 weights → employee at Stage 4 creates a goal with new weight; ensure non-admin sees 403 when visiting the config page.  
+  > Admin updates Stage 4 weights → employee at Stage 4 must rebalance goals to the new 85/15 totals before submission; ensure non-admin sees 403 when visiting the config page.  
   > **Related requirements:** Req 1, Req 3, Req 7
 
 - [ ] **6.4 Deployment checklist**
-  > Run migrations, back up existing goals table, deploy backend (still accepting manual weight) → deploy frontend removing weight inputs → enable feature flag. Document rollback (restore previous stage weights + re-enable manual input).  
+  > Run migrations, back up existing goals table, deploy backend with budget validation in “warn only” mode → deploy frontend with guided distribution UI → flip the feature flag to enforce hard failures. Document rollback (restore previous stage weights + disable strict validation).  
   > **Related requirements:** Req 8, Success Metrics, Rollout Plan

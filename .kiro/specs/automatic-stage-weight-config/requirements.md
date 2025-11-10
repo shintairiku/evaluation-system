@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document specifies the functional and non-functional requirements for automatic stage-based weight configuration in the HR evaluation system. The feature eliminates manual weight input errors by automatically assigning goal weights based on employee stage.
+This document specifies the functional and non-functional requirements for automatic stage-based weight configuration in the HR evaluation system. The feature eliminates manual weight input errors by guiding employees to distribute weights so that each category total matches the policy for their stage.
 
 **GitHub Issue**: [#305](https://github.com/shintairiku/evaluation-system/issues/305)
 
@@ -57,64 +57,55 @@ This document specifies the functional and non-functional requirements for autom
 
 ---
 
-### Requirement 3: Automatic Weight Application on Goal Creation
+### Requirement 3: Stage Weight Budget Enforcement on Goal Creation
 
-**User Story:** As an employee, I want goal weights to be assigned automatically based on my stage so that I don't have to manually calculate and enter weights.
+**User Story:** As an employee, I want the system to guide me so that the total weight of my goals matches the policy for my stage without doing manual math.
 
 #### Acceptance Criteria
 
-1. WHEN an employee creates a goal THEN the system SHALL retrieve the employee's current stage SHALL
-2. WHEN the employee's stage has weight configuration THEN the system SHALL automatically assign the appropriate weight based on goal category and type SHALL
-3. WHEN the goal category is "業績目標" (Performance) AND the performance goal type is "quantitative" THEN the system SHALL apply the quantitative weight SHALL
-4. WHEN the goal category is "業績目標" (Performance) AND the performance goal type is "qualitative" THEN the system SHALL apply the qualitative weight SHALL
-5. WHEN the goal category is "コンピテンシー" (Competency) THEN the system SHALL apply the competency weight SHALL
-6. WHEN the goal category is "コアバリュー" (Core Value) THEN the system SHALL apply the competency weight (same as competency goals) SHALL
-7. WHEN automatic weight assignment occurs THEN the system SHALL NOT allow the employee to override the weight SHALL
-8. WHEN a goal is created with an automatic weight THEN the system SHALL store the weight in the database alongside other goal data SHALL
+1. WHEN an employee opens the goal wizard THEN the system SHALL load the employee's stage weight configuration (quantitative, qualitative, competency) SHALL
+2. WHEN the employee adds or edits a goal weight THEN the system SHALL update the running total for that category SHALL
+3. WHEN the sum of quantitative goals exceeds the stage budget THEN the system SHALL show an error and prevent submission SHALL
+4. WHEN the sum of quantitative goals is below the stage budget THEN the system SHALL show the remaining percentage required SHALL
+5. WHEN the sum of qualitative goals exceeds or falls short of the stage budget THEN the system SHALL show analogous warnings SHALL
+6. WHEN competency/core value goals are present THEN their combined weight SHALL equal the competency budget for the stage SHALL
+7. WHEN the employee submits their goals THEN the backend SHALL verify that each category total matches the configured stage budget and return 422 if not SHALL
+8. WHEN validation succeeds THEN the system SHALL save the user-defined weights exactly as entered SHALL
 
-#### Weight Application Logic
+#### Weight Validation Logic
 
 ```python
-# Pseudocode for weight application
-if goal.goal_category == "業績目標":
-    if goal.performance_goal_type == "quantitative":
-        goal.weight = stage.quantitative_weight
-    elif goal.performance_goal_type == "qualitative":
-        goal.weight = stage.qualitative_weight
-elif goal.goal_category == "コンピテンシー":
-    goal.weight = stage.competency_weight
-elif goal.goal_category == "コアバリュー":
-    goal.weight = stage.competency_weight  # Same as competency
+totals = get_totals_by_category(goals)
+assert totals["quantitative"] == stage.quantitative_weight
+assert totals["qualitative"] == stage.qualitative_weight
+assert totals["competency"] == stage.competency_weight
 ```
 
 ---
 
 ### Requirement 4: Goal Creation UI Updates (Employee)
 
-**User Story:** As an employee, I want to see which weight will be applied to my goal without having to input it manually so that I can understand how my evaluation will be weighted.
+**User Story:** As an employee, I want clear feedback on how much budget resta em cada categoria enquanto distribuo os pesos, para garantir que o total feche corretamente.
 
 #### Acceptance Criteria
 
-1. WHEN an employee opens the goal creation form THEN the system SHALL NOT display a manual weight input field SHALL
-2. WHEN an employee selects a goal category and type THEN the system SHALL display the auto-calculated weight as a read-only badge or label SHALL
-3. WHEN the weight is displayed THEN the system SHALL include explanatory text such as "Weight automatically assigned based on your stage" SHALL
-4. WHEN an employee changes the goal category or type THEN the system SHALL update the displayed weight immediately SHALL
-5. WHEN an employee submits the goal form THEN the system SHALL NOT include a weight field in the request payload (weight is calculated server-side) SHALL
-6. WHEN the goal creation is successful THEN the system SHALL display the final assigned weight in the success message SHALL
+1. WHEN an employee opens the goal form THEN the system SHALL display editable weight fields for each goal with pre-filled values that evenly divide the remaining budget SHALL
+2. WHEN an employee changes a weight THEN the system SHALL recalculate the remaining budget for that category in real time SHALL
+3. WHEN the total weight for a category reaches the configured budget THEN the system SHALL show a success indicator (e.g., “Quantitative goals: 70/70%”) SHALL
+4. WHEN the total weight is below the budget THEN the system SHALL show the missing amount and disable submission SHALL
+5. WHEN the total weight exceeds the budget THEN the system SHALL highlight the overflow in red and disable submission SHALL
+6. WHEN all categories meet their budgets THEN the primary action button SHALL become enabled SHALL
 
 #### UI Mockup (Conceptual)
 
 ```
-Goal Creation Form
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Category: [業績目標 ▼]
-Type: [定量目標 ▼]
+Quantitative goals — 40% allocated / 70% required
+[ goal card … weight input ]
+[ goal card … weight input ]
+[＋ Add goal]  (auto-fills remaining 30%)
 
-[ℹ️ Weight: 70% (automatically assigned based on your Stage 3)]
-
-Title: [________________]
+Qualitative goals — 20% allocated / 30% required
 ...
-[Save Goal]
 ```
 
 ---
@@ -125,10 +116,11 @@ Title: [________________]
 
 #### Acceptance Criteria
 
-1. WHEN an employee edits an existing goal THEN the system SHALL preserve the goal's original weight SHALL
-2. WHEN an employee changes the goal category or type during editing THEN the system SHALL recalculate and update the weight based on current stage configuration SHALL
-3. WHEN an employee edits a goal created before the automatic weight feature THEN the system SHALL continue to use the manually-entered weight unless the employee changes category/type SHALL
-4. WHEN a goal's weight is updated during editing THEN the system SHALL log the change in the audit trail SHALL
+1. WHEN an employee opens an existing goal THEN the system SHALL pre-fill the stored weight so it can be adjusted SHALL
+2. WHEN an employee changes the weight or category THEN the system SHALL re-run the budget validation for the affected category SHALL
+3. WHEN the edited weight would cause the category total to exceed the budget THEN the system SHALL block saving until the employee rebalances SHALL
+4. WHEN editing a pre-feature goal THEN the form SHALL require the employee to rebalance to the current stage budget before saving (unless no weight fields were touched) SHALL
+5. WHEN a goal's weight is changed THEN the system SHALL log the change in the audit trail SHALL
 
 ---
 
@@ -159,7 +151,7 @@ Title: [________________]
 
 ### Requirement 7: API Endpoints for Weight Management
 
-**User Story:** As a frontend developer, I want clear API endpoints for managing stage weights so that I can build the admin UI and auto-weight functionality.
+**User Story:** As a frontend developer, I want clear API endpoints for managing stage weights so that I can build the admin UI and the guided weight-budget functionality.
 
 #### Acceptance Criteria
 
@@ -235,11 +227,11 @@ Response 422 Unprocessable Entity (invalid weights):
 
 #### Acceptance Criteria
 
-1. WHEN the automatic weight feature is deployed THEN the system SHALL NOT modify weights of existing goals SHALL
+1. WHEN the stage weight budgeting feature is deployed THEN the system SHALL NOT modify weights of existing goals SHALL
 2. WHEN querying existing goals THEN the system SHALL return their original manually-entered weights SHALL
-3. WHEN a stage is migrated to use automatic weights THEN goals created before migration SHALL keep their original weights SHALL
-4. WHEN a stage is migrated to use automatic weights THEN goals created after migration SHALL use the new automatic weights SHALL
-5. WHEN reporting on goals across evaluation periods THEN the system SHALL correctly handle both manual and automatic weights SHALL
+3. WHEN a stage is migrated to the new budgeting rules THEN goals created before migration SHALL keep their original weights SHALL
+4. WHEN a stage is migrated to the new budgeting rules THEN goals created after migration SHALL respect the configured totals SHALL
+5. WHEN reporting on goals across evaluation periods THEN the system SHALL correctly handle both legacy and budget-enforced weights SHALL
 
 ---
 
@@ -252,8 +244,8 @@ Response 422 Unprocessable Entity (invalid weights):
 1. WHEN comparing goal creation time before and after the feature THEN the system SHALL reduce time by at least 15 seconds per goal SHALL
 2. WHEN employees create goals THEN the weight error rate SHALL be 0% (compared to current ~5% manual error rate) SHALL
 3. WHEN employees create goals THEN the system SHALL provide clear visual feedback about which weight is being applied SHALL
-4. WHEN supervisors review goals THEN the system SHALL display the auto-assigned weight clearly in the review interface SHALL
-5. WHEN employees view their goal list THEN the system SHALL display weights consistently formatted (e.g., "70.0%") SHALL
+4. WHEN supervisors review goals THEN the system SHALL display each goal's weight along with a summary badge showing category totals vs budgets SHALL
+5. WHEN employees view their goal list THEN the system SHALL display weights consistently formatted (e.g., "35.0%") and show whether the category is fully allocated SHALL
 
 ---
 
@@ -274,7 +266,7 @@ Response 422 Unprocessable Entity (invalid weights):
 ### NFR-1: Performance
 
 1. WHEN retrieving stage weight configuration THEN the system SHALL respond within 100ms (p95) SHALL
-2. WHEN applying automatic weight to goal creation THEN the system SHALL add no more than 50ms latency SHALL
+2. WHEN validating goal weights against stage budgets THEN the system SHALL add no more than 50ms latency SHALL
 3. WHEN updating stage weights THEN the system SHALL complete within 200ms SHALL
 4. WHEN querying all stages with weights THEN the system SHALL return within 300ms for up to 20 stages SHALL
 
@@ -350,23 +342,28 @@ Response 422 Unprocessable Entity (invalid weights):
 
 ## Acceptance Testing Scenarios
 
-### Test Scenario 1: End-to-End Goal Creation with Auto-Weights
+### Test Scenario 1: End-to-End Goal Creation with Budget Validation
 
 ```gherkin
-Feature: Automatic Weight Assignment
+Feature: Stage Weight Budget Enforcement
 
-Scenario: Employee creates quantitative goal at Stage 3
+Scenario: Employee allocates quantitative and qualitative goals
   Given I am logged in as employee "田中太郎"
-  And my stage is "Stage 3"
-  And Stage 3 has quantitative weight 70.0%
-  When I navigate to goal creation page
-  And I select category "業績目標"
-  And I select type "定量目標"
-  Then I see "Weight: 70% (automatically assigned based on your Stage 3)"
-  When I fill in goal title "Increase sales by 20%"
-  And I submit the form
-  Then the goal is created with weight 70.0
-  And I see success message "Goal created with weight 70%"
+  And my stage is "Stage 3" (quantitative 70%, qualitative 30%)
+  When I create three quantitative goals with weights 20, 20, and 30
+  And I create three qualitative goals with weights 10, 10, and 10
+  Then I see success banners "Quantitative 70/70%" and "Qualitative 30/30%"
+  And the Save button is enabled
+  When I submit the form
+  Then the backend accepts the goals
+
+Scenario: Employee exceeds the budget
+  Given I already allocated quantitative 70/70%
+  When I change one quantitative goal to 40%
+  Then the UI shows "Quantitative exceeds budget by 10%"
+  And submission remains disabled
+  When I fix the weights back to 70%
+  Then submission becomes available again
 ```
 
 ### Test Scenario 2: Admin Configures Stage Weights
@@ -382,8 +379,8 @@ Scenario: Admin updates weight configuration for Stage 4
   And I click "Save"
   Then stage weights are updated
   And I see confirmation "Stage 4 weights updated successfully"
-  When an employee at Stage 4 creates a quantitative goal
-  Then the goal receives weight 85.0%
+  When an employee at Stage 4 edits their quantitative goals
+  Then the UI reflects the new 85/15 budget and enforces the totals before submission
 ```
 
 ### Test Scenario 3: Non-Admin Cannot Configure Weights
