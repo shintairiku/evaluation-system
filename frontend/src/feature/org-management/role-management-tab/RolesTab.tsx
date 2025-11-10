@@ -305,7 +305,7 @@ export function RolesTab({
     }
 
     startCloneTransition(async () => {
-      const result = await cloneRolePermissionsAction(cloneTargetRole.id, { fromRoleId: cloneSourceRoleId });
+      const result = await cloneRolePermissionsAction(cloneTargetRole.id, { from_role_id: cloneSourceRoleId });
       if (!result.success) {
         toast.error(result.error || '権限の複製に失敗しました');
         return;
