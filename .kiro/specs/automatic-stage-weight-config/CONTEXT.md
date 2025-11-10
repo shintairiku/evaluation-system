@@ -175,7 +175,7 @@ Based on the organizational evaluation framework, the desired weight distributio
   - Strategic thinking
   - Organizational leadership
 
-**Note**: These percentages represent the weight distribution across goal types, not individual goal weights.
+**Note**: These percentages represent the total weight budget per goal type for a given stage. Employees may create multiple goals within a category as long as the combined weight matches the stage total (e.g., Stage 3 quantitative goals must sum to 70% in total).
 
 ---
 
@@ -195,28 +195,32 @@ function createGoal(formData) {
 }
 ```
 
-### Proposed System (Automatic)
+### Proposed System (Guided Distribution)
 
 ```python
-# backend: Auto-assign weight based on user's stage
-def create_goal(goal_data: GoalCreate, user_id: UUID):
+# backend: Enforce stage-level weight budgets per category
+def validate_goal_submission(goals: list[GoalCreate], user_id: UUID):
     user = get_user(user_id)
-    stage_config = get_stage_weight_config(user.stage_id)
+    stage_config = get_stage_weight_config(user.stage_id)  # e.g., 70/30/10
 
-    # Auto-calculate weight based on goal category and type
-    if goal_data.goal_category == "業績目標":
-        if goal_data.performance_goal_type == "quantitative":
-            auto_weight = stage_config.quantitative_weight  # e.g., 70.0
-        elif goal_data.performance_goal_type == "qualitative":
-            auto_weight = stage_config.qualitative_weight   # e.g., 30.0
-    elif goal_data.goal_category == "コンピテンシー":
-        auto_weight = stage_config.competency_weight        # e.g., 10.0
+    totals = {
+        "quantitative": 0,
+        "qualitative": 0,
+        "competency": 0,
+    }
 
-    # Override user-provided weight with automatic value
-    goal_data.weight = auto_weight
+    for goal in goals:
+        if goal.goal_category == "業績目標":
+            totals[goal.performance_goal_type] += goal.weight
+        elif goal.goal_category in {"コンピテンシー", "コアバリュー"}:
+            totals["competency"] += goal.weight
 
-    return save_goal(goal_data)
+    assert totals["quantitative"] == stage_config.quantitative_weight
+    assert totals["qualitative"] == stage_config.qualitative_weight
+    assert totals["competency"] == stage_config.competency_weight
 ```
+
+The frontend assists by auto-splitting the remaining budget each time the employee adds a new goal (e.g., first quantitative goal starts at 70%, the second divides whatever is left), but users can fine‑tune the numbers as long as the totals equal the stage policy.
 
 ---
 
@@ -251,10 +255,10 @@ def create_goal(goal_data: GoalCreate, user_id: UUID):
    ```python
    class GoalService:
        async def create_goal(self, goal_data, user_id):
-           # ADD auto-weight logic
            user = await self.user_repo.get_user(user_id)
            stage_weights = await self.stage_repo.get_weights(user.stage_id)
-           goal_data.weight = self._calculate_weight(goal_data, stage_weights)
+           self._validate_stage_budget(goal_data, stage_weights)
+           return await self.goal_repo.create_goal(goal_data, user_id)
    ```
 
 4. **API Endpoints** (New):
@@ -285,9 +289,9 @@ def create_goal(goal_data: GoalCreate, user_id: UUID):
    ```
 
 2. **Goal Creation Form** (to be located):
-   - Remove manual weight input field
-   - Add read-only weight display
-   - Fetch and show auto-calculated weight
+   - Keep weight inputs but initialize them with an even split of the remaining budget
+   - Display running totals per category (e.g., “Quantitative 40/70%”)
+   - Prevent submission until each category total matches the stage policy
 
 3. **Admin Stage Management** (New page):
    - Display stage list with weight configuration
@@ -333,19 +337,20 @@ sequenceDiagram
     B->>F: User (stageId: stage-3)
     F->>B: GET /stages/stage-3/weights
     B->>F: {quantitative: 70, qualitative: 30, ...}
-    F->>E: Show auto-calculated weight (read-only)
-    Note over E: Weight = 70% (automatic)
-    E->>F: Submit goal
-    F->>B: POST /goals (no weight field)
-    B->>B: Auto-assign weight based on stage
-    B->>F: Goal created with weight=70
+    F->>E: Show remaining budget + default split
+    E->>F: Adjust weights (e.g., 20/20/30)
+    F->>E: Display totals + validation state
+    E->>F: Submit goal set
+    F->>B: POST /goals (weights included)
+    B->>B: Validate totals vs stage budget
+    B->>F: Goal created with user-defined weights
     F->>E: Success
 ```
 
 **Benefits:**
-- Zero manual input
-- Automatic stage-based weight
-- Consistent across all employees
+- Guided manual input with instant validation
+- Stage-based consistency without extra math
+- Clear indicator of remaining budget per category
 
 ---
 
@@ -359,7 +364,7 @@ sequenceDiagram
 
 1. **Leave as-is** (Recommended):
    - Existing goals keep their manually-entered weights
-   - Only new goals use automatic weights
+   - Only new or edited goals must satisfy the stage budget validation
    - Pros: No data migration risk, historical consistency
    - Cons: Inconsistency between old and new goals
 
@@ -397,7 +402,7 @@ Goals are created within evaluation periods:
 
 Supervisors approve employee goals:
 - Currently check weights manually during approval
-- With automatic weights, approval faster (one less thing to verify)
+- With guided budgets, approval is faster because totals are enforced ahead of time
 - Rejection comments no longer need to mention weight errors
 
 ---
@@ -417,16 +422,16 @@ Supervisor rejects → Employee fixes → Resubmits
 Time wasted: 10+ minutes
 ```
 
-### After (Automatic Weights)
+### After (Guided Budgets)
 
 ```
 Employee creates 6 goals:
-- 3 quantitative: Weight = 70% (automatic)
-- 2 qualitative: Weight = 30% (automatic)
-- 1 competency: Weight = 10% (automatic)
+- 3 quantitative: 20% + 20% + 30% (UI shows 70/70% complete)
+- 2 qualitative: 15% + 15% (UI shows 30/30% complete)
+- 1 competency: 10%
 
-Total: Configured per stage ✅
-Supervisor approves immediately
+Totals always match stage policy ✅
+Supervisor approves immediately because validation already passed
 Time saved: 10 minutes
 ```
 
@@ -439,7 +444,7 @@ Time saved: 10 minutes
 1. **Stage-based policy**: Weight distribution is determined by employee stage, not department or role
 2. **Consistent within stage**: All employees at same stage have same weight distribution
 3. **Admin configurability**: Admins can adjust default weights per stage as policy evolves
-4. **No per-goal splitting**: If employee creates multiple quantitative goals, each gets full quantitative weight (not split)
+4. **Per-goal flexibility**: Employees can split the stage budget across any number of goals as long as category totals match
 
 ### Constraints
 

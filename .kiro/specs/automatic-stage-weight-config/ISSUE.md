@@ -60,12 +60,7 @@ Based on organizational policy, weights should be automatically assigned based o
 | **Stage 4-5** (Senior/Manager) | 80% | 20% | 10% |
 | **Stage 6-9** (Executive/Director) | 100% | - (not applicable) | 10% |
 
-**Note**: The weight calculation logic:
-- **Performance Goals (業績目標)**: Split between quantitative/qualitative based on stage
-  - Quantitative goal: Gets the quantitative percentage
-  - Qualitative goal: Gets the qualitative percentage
-- **Competency Goals (コンピテンシー)**: Always 10% regardless of stage
-- **Core Value Goals (コアバリュー)**: TBD (not shown in table)
+**Note**: These percentages are stage-level weight budgets. Employees can spread the 70% (quantitative) or 30% (qualitative) across multiple goals, but the sum per category must match the table above. Competency/Core Value goals share the 10% budget.
 
 ### Solution Components
 
@@ -89,22 +84,24 @@ Body: {
 }
 ```
 
-**Auto-Apply Logic:**
+**Budget Validation Logic:**
 ```python
-# When creating a goal, automatically apply weights based on user's stage
-def create_goal(goal_data, user_id):
+# When saving goals, enforce stage weight budgets per category
+def validate_stage_weights(goals, user_id):
     user = get_user(user_id)
-    stage_weights = get_stage_weights(user.stage_id)
+    weights = get_stage_weights(user.stage_id)
 
-    if goal_data.goal_category == "業績目標":
-        if goal_data.performance_goal_type == "quantitative":
-            goal_data.weight = stage_weights.quantitative_weight
-        else:  # qualitative
-            goal_data.weight = stage_weights.qualitative_weight
-    elif goal_data.goal_category == "コンピテンシー":
-        goal_data.weight = stage_weights.competency_weight
+    totals = defaultdict(Decimal)
+    for goal in goals:
+        key = _category_key(goal)
+        totals[key] += Decimal(str(goal.weight or 0))
 
-    return save_goal(goal_data)
+    if totals["quantitative"] != weights.quantitative_weight:
+        raise ValidationError("Quantitative goals must total 70% for Stage 3")
+    if totals["qualitative"] != weights.qualitative_weight:
+        raise ValidationError("Qualitative goals must total 30% for Stage 3")
+    if totals["competency"] != weights.competency_weight:
+        raise ValidationError("Competency goals must total 10%")
 ```
 
 #### B. Frontend: Admin Configuration UI
@@ -116,16 +113,16 @@ def create_goal(goal_data, user_id):
 - Save button applies changes
 
 **Goal Creation Form (Employee):**
-- Remove manual weight input field
-- Display auto-applied weight as read-only badge
-- Show explanation: "Weight automatically set based on your stage"
+- Keep weight inputs but pre-fill them evenly so totals equal the stage budget
+- Show running total indicators per category (e.g., “Quantitative 40/70% allocated”)
+- Block submission until each category total matches the stage configuration
 
 **Benefits:**
-- ✅ **Zero manual errors**: No user input required
-- ✅ **100% consistency**: Same weights for all employees at same stage
+- ✅ **Guided accuracy**: UI auto-distributes the remaining weight and warns when totals don't match the policy
+- ✅ **Consistent evaluation**: Every employee must hit the 70/30/10 totals, preventing over/under-weighting
 - ✅ **Easy updates**: Admin can adjust weights organization-wide
-- ✅ **Faster goal creation**: 15-20 seconds saved per goal
-- ✅ **Clear expectations**: Employees know their evaluation criteria upfront
+- ✅ **Clear expectations**: Employees see exactly how much budget is left per category while editing
+- ✅ **Flexibility**: Teams can decide whether to split 70% as 35/35, 20/20/30, etc., without breaking compliance
 
 ---
 
@@ -143,16 +140,19 @@ AND I can save changes
 THEN all future goals for that stage use new weights
 ```
 
-### AC-2: Automatic Weight Application (Employee)
+### AC-2: Stage Budget Enforcement (Employee)
 ```gherkin
-GIVEN I am an employee at Stage 3
-AND my stage is configured with: quantitative=70%, qualitative=30%, competency=10%
-WHEN I create a quantitative performance goal
-THEN the weight is automatically set to 70%
-AND I cannot edit the weight field (read-only)
+Scenario: Employee creates multiple quantitative goals
+  Given I am Stage 3 (quantitative=70%, qualitative=30%, competency=10%)
+  When I add three quantitative goals with weights 20, 20, and 30
+  Then the UI shows "Quantitative: 70 / 70% allocated" in green
+  And the Save button becomes enabled
 
-WHEN I create a competency goal
-THEN the weight is automatically set to 10%
+Scenario: Employee exceeds the budget
+  Given I already allocated 70% to quantitative goals
+  When I try to set one goal to 40%
+  Then the UI shows "Quantitative exceeds budget by 10%"
+  And submission is blocked until I rebalance
 ```
 
 ### AC-3: Weight Validation
@@ -264,10 +264,10 @@ AND admins can optionally run a migration to update old goals
    We will persist weight columns per stage so admins can configure each stage independently through the new UI; there is no organization-wide override beyond those records.
 
 4. **Existing Goals**  
-   Legacy/manual weights remain untouched; only new goals (or edits that change category/type) receive automatic values. A future migration tool can be considered separately.
+   Legacy/manual weights remain untouched; only when a goal is edited and its weights change do we require rebalancing to the current stage budget. A future migration tool can be considered separately.
 
 5. **Multiple Goals in One Category**  
-   Each goal instance receives the stage’s full weight for its category (e.g., both Stage 3 quantitative goals display 70%). This matches how supervisors score each goal independently today.
+   Employees can split the stage budget however they like (20/20/30, 35/35, etc.) as long as the sum hits the configured total. The UI and backend validations ensure the total matches policy.
 
 ---
 
