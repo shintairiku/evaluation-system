@@ -252,30 +252,22 @@ AND admins can optionally run a migration to update old goals
 
 ---
 
-## 📝 Open Questions
+## 📝 Clarifications (resolved questions)
 
-**To be clarified during implementation:**
+1. **Weight Sum Logic**  
+   Competency scoring is a parallel axis (業績目標 vs コンピテンシー) per the policy image. We therefore expect quantitative + qualitative to reach 100%, and competency adds an extra 10% that is not normalized away. UI copy will explain why totals can exceed 100%.
 
-1. **Weight Sum Logic**:
-   - Q: Table shows Stage 1-3 with 70+30+10=110%. Is competency weight separate from the 100% total?
-   - A: TBD - Need product owner clarification
-   - Assumption for spec: Competency is separate (not part of 100% total)
+2. **Core Value Goals**  
+   Core value goals reuse the competency weight for their stage (10% by default) until HR provides a dedicated ratio.
 
-2. **Core Value Goals**:
-   - Q: What weight should core value goals have? Not shown in table.
-   - A: TBD - Assume same as competency (10%) for now
+3. **Weight Customization**  
+   We will persist weight columns per stage so admins can configure each stage independently through the new UI; there is no organization-wide override beyond those records.
 
-3. **Weight Customization**:
-   - Q: Can admins customize weights per stage, or are they globally fixed?
-   - A: Spec assumes customizable per stage
+4. **Existing Goals**  
+   Legacy/manual weights remain untouched; only new goals (or edits that change category/type) receive automatic values. A future migration tool can be considered separately.
 
-4. **Existing Goals**:
-   - Q: Should we force-update existing goals or leave them as-is?
-   - A: Spec assumes leave as-is, with optional admin migration tool
-
-5. **Multiple Goals**:
-   - Q: If a user has 3 quantitative goals, does each get 70% weight, or do they split the 70%?
-   - A: Spec assumes each goal category has independent weights (not split)
+5. **Multiple Goals in One Category**  
+   Each goal instance receives the stage’s full weight for its category (e.g., both Stage 3 quantitative goals display 70%). This matches how supervisors score each goal independently today.
 
 ---
 
