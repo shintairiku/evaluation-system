@@ -1,6 +1,5 @@
 'use server';
 
-import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { permissionsApi } from '../endpoints/permissions';
 import { CACHE_TAGS } from '../utils/cache';
@@ -33,22 +32,16 @@ export async function getPermissionCatalogAction(): Promise<ActionResult<Permiss
   }
 }
 
-const getPermissionCatalogGroupedCached = cache(async () => {
-  const response = await permissionsApi.getGroupedCatalog();
-  if (!response.success || !response.data) {
-    throw new Error(response.errorMessage || 'Failed to load grouped permission catalog');
-  }
-  return response.data;
-});
-
 export async function getPermissionCatalogGroupedAction(): Promise<ActionResult<PermissionCatalogGroupedResponse>> {
   try {
-    const data = await getPermissionCatalogGroupedCached();
-    return { success: true, data };
+    const response = await permissionsApi.getGroupedCatalog();
+    if (!response.success || !response.data) {
+      return { success: false, error: response.errorMessage || 'Failed to load grouped permission catalog' };
+    }
+    return { success: true, data: response.data };
   } catch (error) {
     console.error('getPermissionCatalogGroupedAction error', error);
-    const message = error instanceof Error ? error.message : 'Unexpected error while loading grouped permission catalog';
-    return { success: false, error: message };
+    return { success: false, error: 'Unexpected error while loading grouped permission catalog' };
   }
 }
 
