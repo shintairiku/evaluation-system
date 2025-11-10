@@ -230,41 +230,6 @@
     >
     > **Related Requirements:** R1
 
-- [ ] **2.8. Optimize permission tab data fetching**
-  > Improve performance of permission tab by implementing granular/lazy data fetching similar to role tab approach.
-  > - [ ] **2.8.1. Analyze current performance bottlenecks**
-    > - Profile current data fetching: `getPermissionCatalogAction()`, `getPermissionCatalogGroupedAction()`, `getAllRolePermissionsAction()`.
-    > - Identify slow queries and data transfer sizes.
-    > - Measure initial load time and identify optimization opportunities.
-    >
-    > **Related Requirements:** R1, R5
-  > - [ ] **2.8.2. Implement granular fetching strategy**
-    > - Option A: Load permission groups first, then fetch individual permissions and role assignments on-demand when accordion expands.
-    > - Option B: Implement pagination/virtualization for large permission lists.
-    > - Option C: Defer non-critical data (e.g., role assignments) until user interaction.
-    > - Choose approach that provides fastest initial render while maintaining UX.
-    >
-    > **Related Requirements:** R1, R5
-  > - [ ] **2.8.3. Backend optimizations**
-    > - Add database indexes if needed for permission queries.
-    > - Implement efficient bulk endpoints if granular fetching requires multiple requests.
-    > - Add response caching headers or optimize query performance.
-    > - Consider adding endpoint for fetching single role permissions on-demand.
-    >
-    > **Related Requirements:** R1, R5
-  > - [ ] **2.8.4. Frontend lazy loading implementation**
-    > - Refactor `RolePermissionMatrix` to support progressive data loading.
-    > - Implement skeleton/loading states for accordion items.
-    > - Update server actions to support granular fetching (e.g., `getRolePermissionsForGroupAction`, `getRolePermissionsForRoleAction`).
-    > - Ensure cache invalidation works correctly with lazy-loaded data.
-    >
-    > **Related Requirements:** R1, R5
-  > - [ ] **2.8.5. Performance validation**
-    > - Measure and document before/after performance metrics (initial load time, time to interactive, etc.).
-    > - Ensure lazy loading doesn't degrade UX (e.g., loading states are clear, no flickering).
-    > - Test with large datasets (many roles, many permissions).
-    >
-    > **Related Requirements:** R1, R5
 
 ```
 
