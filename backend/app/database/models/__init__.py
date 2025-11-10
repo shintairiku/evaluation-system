@@ -8,13 +8,18 @@ from .goal import Goal
 from .self_assessment import SelfAssessment
 from .supervisor_review import SupervisorReview
 from .supervisor_feedback import SupervisorFeedback
+from .viewer_visibility import (
+    ViewerVisibilityDepartment,
+    ViewerVisibilitySupervisorTeam,
+    ViewerVisibilityUser,
+)
 
 __all__ = [
     "Base",
     "User", 
     "Department", 
-    "Role", 
-    "UserSupervisor", 
+    "Role",
+    "UserSupervisor",
     "user_roles",
     "Organization",
     "DomainSettings",
@@ -29,4 +34,7 @@ __all__ = [
     "SupervisorFeedback",
     "PermissionModel",
     "RolePermissionModel",
+    "ViewerVisibilityUser",
+    "ViewerVisibilityDepartment",
+    "ViewerVisibilitySupervisorTeam",
 ]
