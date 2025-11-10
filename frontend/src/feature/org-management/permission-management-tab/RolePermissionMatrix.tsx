@@ -344,6 +344,12 @@ export function RolePermissionMatrix({
   const totalChangedCount = changedPermissionCodes.size;
 
   useEffect(() => {
+    if (showChangedOnly && totalChangedCount === 0) {
+      setShowChangedOnly(false);
+    }
+  }, [showChangedOnly, totalChangedCount]);
+
+  useEffect(() => {
     setRoleStates((prev) => {
       const next: Record<string, RolePermissionDraft> = { ...prev };
       let changed = false;
@@ -364,6 +370,7 @@ export function RolePermissionMatrix({
             ...existing,
             role,
           };
+          changed = true;
         }
       });
 
