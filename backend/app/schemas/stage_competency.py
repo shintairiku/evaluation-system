@@ -90,6 +90,11 @@ class Stage(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
+    quantitative_weight: float = Field(..., alias="quantitativeWeight")
+    qualitative_weight: float = Field(..., alias="qualitativeWeight")
+    competency_weight: float = Field(..., alias="competencyWeight")
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class StageDetail(BaseModel):
@@ -97,11 +102,16 @@ class StageDetail(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
+    quantitative_weight: float = Field(..., alias="quantitativeWeight")
+    qualitative_weight: float = Field(..., alias="qualitativeWeight")
+    competency_weight: float = Field(..., alias="competencyWeight")
     created_at: datetime
     updated_at: datetime
     user_count: Optional[int] = None
     users: Optional[List["User"]] = None
     competencies: List[Competency] = []
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class StageCreate(BaseModel):
@@ -137,8 +147,13 @@ class StageInDB(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
+    quantitative_weight: float = Field(..., alias="quantitativeWeight")
+    qualitative_weight: float = Field(..., alias="qualitativeWeight")
+    competency_weight: float = Field(..., alias="competencyWeight")
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class StageWithUserCount(BaseModel):
@@ -147,8 +162,39 @@ class StageWithUserCount(BaseModel):
     name: str
     description: Optional[str] = None
     user_count: int = 0
+    quantitative_weight: float = Field(..., alias="quantitativeWeight")
+    qualitative_weight: float = Field(..., alias="qualitativeWeight")
+    competency_weight: float = Field(..., alias="competencyWeight")
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
+
+
+class StageWeightUpdate(BaseModel):
+    """Schema for updating weights only"""
+    quantitative_weight: float = Field(..., ge=0, le=100, alias="quantitativeWeight")
+    qualitative_weight: float = Field(..., ge=0, le=100, alias="qualitativeWeight")
+    competency_weight: float = Field(..., ge=0, le=100, alias="competencyWeight")
+
+    model_config = {"populate_by_name": True}
+
+
+class StageWeightHistoryEntry(BaseModel):
+    """Audit entry for weight changes"""
+    id: UUID
+    stage_id: UUID = Field(..., alias="stageId")
+    organization_id: str = Field(..., alias="organizationId")
+    actor_user_id: UUID = Field(..., alias="actorUserId")
+    quantitative_weight_before: Optional[float] = Field(None, alias="quantitativeWeightBefore")
+    quantitative_weight_after: Optional[float] = Field(None, alias="quantitativeWeightAfter")
+    qualitative_weight_before: Optional[float] = Field(None, alias="qualitativeWeightBefore")
+    qualitative_weight_after: Optional[float] = Field(None, alias="qualitativeWeightAfter")
+    competency_weight_before: Optional[float] = Field(None, alias="competencyWeightBefore")
+    competency_weight_after: Optional[float] = Field(None, alias="competencyWeightAfter")
+    changed_at: datetime = Field(..., alias="changedAt")
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 # Note: No separate response schemas needed. 
