@@ -35,5 +35,5 @@ export interface RolePermissionPatchRequest {
 }
 
 export interface RolePermissionCloneRequest {
-  fromRoleId: UUID;
+  from_role_id: UUID;
 }
