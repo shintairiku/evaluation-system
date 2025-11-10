@@ -9,7 +9,7 @@ import type {
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { RolePermissionMatrix } from './RolePermissionMatrix';
 import { Loader2 } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface PermissionsTabProps {
   roles: RoleDetail[];
@@ -28,40 +28,31 @@ export function PermissionsTab({
 }: PermissionsTabProps) {
   const { hasRole, isLoading, error } = useUserRoles();
   const isAdmin = !isLoading && hasRole('admin');
-  const safePermissionGroups = permissionGroups ?? [];
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-        <Loader2 className="mr-2 size-5 animate-spin" />
-        管理者権限を確認しています...
-      </div>
+      <Card className="overflow-hidden border-t-[3px] border-primary/40 shadow-sm">
+        <CardHeader className="space-y-2 border-b border-border/60 pb-6">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">権限マトリクス</CardTitle>
+          <CardDescription>管理者権限の検証が完了すると権限マトリクスが表示されます。</CardDescription>
+        </CardHeader>
+        <CardContent className="flex min-h-[280px] items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          管理者権限を確認しています...
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {groupedCatalogWarning && (
-        <Alert className="border-amber-200 bg-amber-50 text-amber-700">
-          <AlertTitle>権限グループを読み込めませんでした</AlertTitle>
-          <AlertDescription>
-            {groupedCatalogWarning} 権限一覧はフラット表示で利用できます。
-          </AlertDescription>
-        </Alert>
-      )}
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>権限情報の取得中に問題が発生しました</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      <RolePermissionMatrix
-        roles={roles}
-        isAdmin={isAdmin}
-        initialAssignments={rolePermissions}
-        initialCatalog={permissionCatalog}
-        initialGroupedCatalog={safePermissionGroups}
-      />
-    </div>
+    <RolePermissionMatrix
+      roles={roles}
+      isAdmin={isAdmin}
+      initialAssignments={rolePermissions}
+      initialCatalog={permissionCatalog}
+      initialGroupedCatalog={permissionGroups}
+      groupedCatalogWarning={groupedCatalogWarning ?? undefined}
+      roleGuardError={error ?? undefined}
+    />
   );
 }
