@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import type { Stage, UserDetailResponse } from '@/api/types';
 import StageManagementHeader from './components/StageManagementHeader';
 import StageManagementView from './StageManagementView';
+import StageWeightConfig from './components/StageWeightConfig';
 
 interface StageManagementContainerProps {
   initialStages: Stage[];
@@ -20,10 +21,20 @@ export default function StageManagementContainer({
   initialUsers,
   total
 }: StageManagementContainerProps) {
+  const [viewMode, setViewMode] = useState<'users' | 'weights'>('users');
+  const [stages, setStages] = useState<Stage[]>(initialStages);
   const [filteredUsers, setFilteredUsers] = useState<UserDetailResponse[]>(initialUsers);
 
   const handleFilteredUsers = useCallback((users: UserDetailResponse[]) => {
     setFilteredUsers(users);
+  }, []);
+
+  const handleStageUpdated = useCallback((updatedStage: Stage) => {
+    setStages((prev) =>
+      prev.map((stage) =>
+        stage.id === updatedStage.id ? { ...stage, ...updatedStage } : stage
+      )
+    );
   }, []);
 
   return (
@@ -33,13 +44,21 @@ export default function StageManagementContainer({
         users={initialUsers}
         total={total}
         onFilteredUsers={handleFilteredUsers}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
-      {/* Stage Management Interface */}
-      <StageManagementView
-        initialStages={initialStages}
-        initialUsers={filteredUsers}
-      />
+      {viewMode === 'users' ? (
+        <StageManagementView
+          stages={stages}
+          users={filteredUsers}
+        />
+      ) : (
+        <StageWeightConfig
+          stages={stages}
+          onStageUpdated={handleStageUpdated}
+        />
+      )}
     </div>
   );
 }
