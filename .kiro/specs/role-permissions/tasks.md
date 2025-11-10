@@ -230,6 +230,14 @@
     >
     > **Related Requirements:** R1
 
+- [x] **2.8. Fixing UI component placement**
+  > The `/org-management` 権限タブ currently renders the role-permission table controls outside of the 権限マトリクス card; align all subcomponents with the card layout shown in the reference screenshot.
+  > - Wrap the summary tiles, filters, density toggles, and `RolePermissionMatrix` grid within the shared card container so the elevated surface matches design.
+  > - Update spacing/borders in `OrgManagementContainer` and related components to ensure the card header, body, and footer flow is preserved across breakpoints.
+  > - Add a regression test (Playwright, Storybook visual diff, or RTL) that asserts the card container exists and contains the matrix controls to prevent future regressions.
+  >
+  > **Related Requirements:** R1
+
 
 ```
 
