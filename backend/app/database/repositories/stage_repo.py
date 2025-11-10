@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 
-from ..models.stage_competency import Stage
+from ..models.stage_competency import Stage, StageWeightHistory
 from ...schemas.stage_competency import StageCreate, StageUpdate
 from .base import BaseRepository
 
@@ -22,10 +22,17 @@ class StageRepository(BaseRepository[Stage]):
         if existing:
             raise ValueError(f"Stage with name '{stage_data.name}' already exists in organization")
         
+        default_quant_weight = 70.0
+        default_qual_weight = 30.0
+        default_comp_weight = 10.0
+
         stage = Stage(
             organization_id=org_id,
             name=stage_data.name,
-            description=stage_data.description
+            description=stage_data.description,
+            quantitative_weight=default_quant_weight,
+            qualitative_weight=default_qual_weight,
+            competency_weight=default_comp_weight
         )
         self.session.add(stage)
         return stage
@@ -64,6 +71,58 @@ class StageRepository(BaseRepository[Stage]):
         
         self.session.add(existing_stage)
         return existing_stage
+
+    async def update_weights(self, stage_id: UUID, weight_data, org_id: str) -> Optional[Stage]:
+        """Update weight configuration for a stage and return the updated model."""
+        stage = await self.get_by_id(stage_id, org_id)
+        if not stage:
+            return None
+
+        stage.quantitative_weight = weight_data.quantitative_weight
+        stage.qualitative_weight = weight_data.qualitative_weight
+        stage.competency_weight = weight_data.competency_weight
+
+        self.session.add(stage)
+        return stage
+
+    async def add_weight_history_entry(
+        self,
+        stage: Stage,
+        org_id: str,
+        actor_user_id: UUID,
+        previous_weights: dict
+    ) -> StageWeightHistory:
+        """Persist a weight history entry for auditing purposes."""
+        history_entry = StageWeightHistory(
+            stage_id=stage.id,
+            organization_id=org_id,
+            actor_user_id=actor_user_id,
+            quantitative_weight_before=previous_weights.get("quantitative_weight"),
+            quantitative_weight_after=stage.quantitative_weight,
+            qualitative_weight_before=previous_weights.get("qualitative_weight"),
+            qualitative_weight_after=stage.qualitative_weight,
+            competency_weight_before=previous_weights.get("competency_weight"),
+            competency_weight_after=stage.competency_weight,
+        )
+        self.session.add(history_entry)
+        return history_entry
+
+    async def get_weight_history(
+        self,
+        stage_id: UUID,
+        org_id: str,
+        limit: int = 20
+    ) -> List[StageWeightHistory]:
+        """Retrieve recent weight history entries for a stage within organization scope."""
+        query = (
+            select(StageWeightHistory)
+            .where(StageWeightHistory.stage_id == stage_id)
+            .order_by(StageWeightHistory.changed_at.desc())
+            .limit(limit)
+        )
+        query = self.apply_org_scope_direct(query, StageWeightHistory.organization_id, org_id)
+        result = await self.session.execute(query)
+        return result.scalars().all()
     
     async def delete(self, stage_id: UUID, org_id: str) -> bool:
         """Delete a stage within organization scope."""

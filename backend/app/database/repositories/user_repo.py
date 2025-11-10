@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.user import User, UserSupervisor, Role, user_roles
+from ..models.stage_competency import Stage
 from ...schemas.user import UserStatus, UserCreate, UserUpdate, UserClerkIdUpdate
 from ...schemas.common import PaginationParams
 from .base import BaseRepository
@@ -202,6 +203,38 @@ class UserRepository(BaseRepository[User]):
             return result.scalars().first()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching user by email {email} in org {org_id}: {e}")
+            raise
+
+    async def get_user_stage_with_weights(self, user_id: UUID, org_id: str) -> Optional[dict]:
+        """Fetch user's stage information along with configured weights."""
+        try:
+            stmt = (
+                select(
+                    User.id,
+                    User.stage_id,
+                    Stage.quantitative_weight,
+                    Stage.qualitative_weight,
+                    Stage.competency_weight
+                )
+                .join(Stage, Stage.id == User.stage_id, isouter=True)
+                .where(User.id == user_id)
+            )
+            stmt = self.apply_org_scope_direct(stmt, User.clerk_organization_id, org_id)
+
+            result = await self.session.execute(stmt)
+            row = result.first()
+            if not row:
+                return None
+
+            return {
+                "user_id": row.id,
+                "stage_id": row.stage_id,
+                "quantitative_weight": float(row.quantitative_weight) if row.quantitative_weight is not None else None,
+                "qualitative_weight": float(row.qualitative_weight) if row.qualitative_weight is not None else None,
+                "competency_weight": float(row.competency_weight) if row.competency_weight is not None else None,
+            }
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching stage weights for user {user_id} in org {org_id}: {e}")
             raise
 
     async def get_user_by_employee_code(self, employee_code: str, org_id: str) -> Optional[User]:
