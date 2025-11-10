@@ -208,22 +208,22 @@
     >
     > **Related Requirements:** R1, R5
 
-- [ ] **2.7. User role editing in Users tab**
+- [x] **2.7. User role editing in Users tab**
   > Enable admin users to change each user's role directly from the Users tab in /org-management page.
-  > - [ ] **2.7.1. Verify and enhance role editing UI**
+  > - [x] **2.7.1. Verify and enhance role editing UI**
     > - Ensure role dropdown/edit functionality is properly implemented in `UsersTab` component.
     > - Verify admin-only access control for role editing.
     > - Add loading states and error handling for role updates.
     > - Ensure role changes are reflected immediately in the UI.
     >
     > **Related Requirements:** R1
-  > - [ ] **2.7.2. Backend validation and audit**
+  > - [x] **2.7.2. Backend validation and audit**
     > - Ensure backend validates role assignments (e.g., prevent invalid role combinations if applicable).
     > - Add audit logging for role changes made from Users tab.
     > - Verify cache invalidation for user role changes.
     >
     > **Related Requirements:** R1, R5
-  > - [ ] **2.7.3. Integration testing**
+  > - [x] **2.7.3. Integration testing**
     > - Test role editing flow end-to-end.
     > - Verify permissions matrix updates reflect user role changes.
     > - Test concurrent role updates and conflict handling.
