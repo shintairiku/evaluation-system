@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This design translates the requirements in `requirements.md` into concrete backend and frontend changes that deliver automatic goal weights per employee stage. The goal is to eliminate manual weight entry, enforce the policy depicted in the provided weight table (定量/定性/コンピテンシー), and give admins a safe interface to maintain future policy tweaks.
+This design translates the requirements in `requirements.md` into concrete backend and frontend changes that deliver guided stage weight budgets. The goal is to eliminate guesswork, ensure every employee’s quantitative/qualitative totals match the policy table (定量/定性/コンピテンシー), and give admins a safe interface to maintain future policy tweaks.
 
 ## 2. Architecture
 
@@ -18,13 +18,13 @@ flowchart TD
     GoalAPI --> GoalService[GoalService.create_goal]
     GoalService --> StageRepo[StageRepository.get_by_id]
     StageRepo --> StageTable
-    GoalService -->|auto weight + validate| GoalRepo[(goals)]
+    GoalService -->|validate stage budgets| GoalRepo[(goals)]
 ```
 
 ### 2.2 Data Flow Summary
 
 1. **Admin Config Path** – Admins adjust weights via a modal. The UI talks to a dedicated `PATCH /stages/{stage_id}/weights` endpoint that updates the `stages` table and records the change in `stage_weight_history`.
-2. **Employee Goal Creation** – Goal forms omit the weight input. Once a draft or submitted goal is posted, `GoalService` fetches the creator’s stage (with weight columns) and injects the correct weight before persisting.
+2. **Employee Goal Creation** – Goal forms keep editable weights but auto-split the remaining budget per category. On submit, `GoalService` verifies that the totals per category equal the stage configuration before saving the user-defined values.
 3. **Read Models** – `GET /stages`, `GET /stages/{id}`, and `GET /users/me` now hydrate `quantitativeWeight`, `qualitativeWeight`, and `competencyWeight` so both admin and employee UIs have a single source of truth.
 4. **Validation** – Shared validation utilities ensure decimals stay within 0–100, at least one weight is positive, and optimistic locking prevents clobbered edits.
 
@@ -95,10 +95,10 @@ Alembic scripts live under `backend/app/database/migrations`. Production copies 
   - Emit structured logs (stage id, before/after values, actor).
 
 - `GoalService`
-  - Introduce `_resolve_auto_weight(goal_data, target_user_id, org_id)` which loads the user + stage weights using `UserRepository`.
-  - Call `_resolve_auto_weight` inside `create_goal` and `update_goal` **before** validation so `GoalCreate.weight` can be optional in API contracts.
-  - Skip manual weight validation when the system assigned the value; instead, verify that stage weights per category stay within `<= 100`.
-  - When editing legacy goals, only reapply auto-weight if the user changes goal category or type (Requirement 5).
+  - Introduce `_validate_stage_weight_budget(goals, user_stage)` that sums weights per category and compares with the stage configuration.
+  - Call the validator inside `create_goal` and `update_goal` so drafts/submissions cannot exceed or undershoot the configured totals.
+  - Provide helper `_prefill_default_weights(goals, stage_config)` that the frontend can invoke via API to suggest even splits when adding new cards.
+  - When editing legacy goals, bypass rebalancing unless the user touches weight fields; as soon as they do, enforce the current stage budget (Requirement 5).
 
 - `UserRepository`
   - Provide `get_user_with_stage(user_id, org_id)` that joins `stages` to avoid double queries.
@@ -108,6 +108,7 @@ Alembic scripts live under `backend/app/database/migrations`. Production copies 
 - Shared `StageWeightValidator` module (e.g., `backend/app/services/validators/stage_weights.py`) centralizes:
   - Bound checks (`0 <= weight <= 100`).
   - “At least one weight > 0”.
+  - Aggregating goal weights per category and comparing totals to the stage configuration with descriptive errors.
   - Converting `None` to defaults when a stage has not been configured.
 
 - Edge cases:
@@ -128,7 +129,7 @@ Alembic scripts live under `backend/app/database/migrations`. Production copies 
 | `PATCH` | `/api/v1/stages/{stage_id}/weights` | Update weights (body: `{ quantitativeWeight, qualitativeWeight, competencyWeight }`) | Admin only |
 | `GET` | `/api/v1/stages/{stage_id}/weight-history` | Paginated audit log (optional) | Admin only |
 | `GET` | `/api/v1/users/me` | Include `stage.weightConfig` block | Authenticated |
-| `POST/PUT` | `/api/v1/goals` | Accept omitting `weight`; backend injects | Existing RBAC |
+| `POST/PUT` | `/api/v1/goals` | Accepts user-entered weights; backend validates sums against stage budgets | Existing RBAC |
 
 Error payloads reuse the FastAPI validation format for consistency.
 
@@ -158,21 +159,21 @@ Error payloads reuse the FastAPI validation format for consistency.
 ### 6.3 Goal Creation & Editing UI
 
 - **Performance Goals (`PerformanceGoalsStep.tsx`):**
-  - Remove the editable weight input and replace it with a badge showing `quantitativeWeight` or `qualitativeWeight` from the user’s stage.
-  - When switching between tabs (定量/定性), update the displayed badge instantly using cached stage data from `getUsersMeAction`.
-  - Keep track of whether a goal predates auto-weighting; display “Legacy weight (editable)” for those records but disable editing for new ones.
+  - Keep the numeric weight input but initialize it with an even split of the remaining budget (e.g., first quantitative goal = 70, add second goal → both become 35).
+  - Show a progress badge per category (`Quantitative: 40 / 70% allocated`). When totals reach the budget, highlight in green; when under/over, show warnings and disable submit.
+  - Provide a quick action “Fill remaining” that sets the selected goal’s weight to whatever is left to hit the budget.
 
-- **Competency Goals / Core Values Components:**
-  - Display a static “10% / Stage policy” badge.
-  - For stages with `qualitativeWeight = 0`, show a tooltip “Stage 6以上では定性目標の比重は設定されていません (0%)”.
+- **Competency/Core Value Goals:**
+  - Default to 10% total; if multiple competency goals are allowed, auto-split the 10% but keep inputs editable with the same validation rules.
+  - For Stage 6+ qualitative budgets (0%), show tooltip “定性目標はこのステージでは評価対象外 (0%)” and prevent non-zero totals.
 
 - **Forms Submission:**
-  - Remove `weight` from client payloads; allow backend-injected weight to round-trip by reading from API responses when showing confirmation to the user.
+  - Still send `weight` in the payload; backend re-validates totals to prevent tampering or race conditions.
 
 ### 6.4 User Education
 
 - Reuse the policy table as a small inline `Popover` under the goal form so employees can confirm the breakdown.
-- Provide toast copy “Weight automatically assigned based on your Stage X” after creation to reinforce the change (Requirement 9).
+- Provide helper text such as “残り30%を定量目標に割り当ててください” and toast confirmation “Stage 3 の70%/30%配分が完了しました” once totals are satisfied.
 
 ## 7. Security, Audit, and Observability
 
@@ -183,15 +184,15 @@ Error payloads reuse the FastAPI validation format for consistency.
 
 ## 8. Rollout & Testing
 
-1. **Feature Flag (optional):** Wrap auto-weight enforcement in a server-side flag so we can enable per organization.
+1. **Feature Flag (optional):** Wrap budget enforcement in a server-side flag so we can enable per organization.
 2. **Testing Layers:**
-   - Unit tests for `StageWeightValidator`, `StageService.update_stage_weights`, and `GoalService._resolve_auto_weight`.
+   - Unit tests for `StageWeightValidator`, `StageService.update_stage_weights`, and `GoalService._validate_stage_weight_budget`.
    - API tests covering 403/422 paths and history retrieval.
    - Frontend component tests for the admin modal and goal form badge swapping.
-   - Cypress/Playwright scenario: admin edits Stage 4 weights, employee at Stage 4 sees new auto weight.
+   - Cypress/Playwright scenario: admin edits Stage 4 weights, employee at Stage 4 sees updated budget totals (e.g., 85/15) and must rebalance before submission.
 3. **Deployment Order:**
-   1. Ship migrations + backend (while frontend still sends weights) – backend still accepts manual weight until FE rolls out.
-   2. Deploy frontend removing manual weights.
-   3. Backfill flag to enforce auto assignment after confirming everything works.
+   1. Ship migrations + backend (which validates totals but still accepts existing payloads).
+   2. Deploy frontend with guided distribution UI.
+   3. Backfill flag to enforce strict validation after confirming everything works.
 
 With these steps the system remains maintainable, aligns with the engineering philosophy (“simplicity first”), and mirrors the policy table provided in the reference image.
