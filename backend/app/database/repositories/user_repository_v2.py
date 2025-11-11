@@ -455,6 +455,21 @@ class UserRepositoryV2(BaseRepository[User]):
         users = {user.id: user for user in result.scalars().all()}
         return users
 
+    async def get_users_by_department(self, department_id: UUID, org_id: str) -> List[User]:
+        """
+        Compatibility helper for RBACHelper that returns active users for a department.
+        """
+        stmt = (
+            select(User)
+            .where(User.department_id == department_id)
+            .where(User.status == UserStatus.ACTIVE.value)
+            .order_by(User.name)
+        )
+        stmt = self.apply_org_scope_direct(stmt, User.clerk_organization_id, org_id)
+
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def count_users(
         self,
         org_id: str,
