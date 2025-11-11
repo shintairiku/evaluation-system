@@ -261,39 +261,39 @@ Viewer ロールに対して、ユーザー/部署/チーム単位で「どの�
 ## Implementation Details:
 ### 3. Backend: DB schema + endpoints + RBAC integration
 
-- [ ] **3.1. Create junction tables with strict FKs**
+- [x] **3.1. Create junction tables with strict FKs**
   > `viewer_visibility_user`, `viewer_visibility_department`, `viewer_visibility_supervisor_team` + read-only view `viewer_visibility_grants`. Add composite unique and indexes on `(org_id, viewer_user_id, target, resource_type)`.
   >
   > **Related Requirements:** R2, R5
 
-- [ ] **3.2. Implement endpoints**
+- [x] **3.2. Implement endpoints**
   > `GET /api/viewers/{viewer_id}/visibility`, `PUT /api/viewers/{viewer_id}/visibility`, `PATCH /api/viewers/{viewer_id}/visibility` (Admin only). Payload supports subject_type = user/department/supervisor_team and resource_type.
   >
   > **Related Requirements:** R2, R5
 
-- [ ] **3.3. RBACHelper integration**
+- [x] **3.3. RBACHelper integration**
   > For Viewer role only: compute effective targets per `resource_type` as `self ∪ overrides`; no implicit grant to unrelated resources.
   >
   > **Related Requirements:** R2, R5
 
-- [ ] **3.4. Audit + cache invalidation**
+- [x] **3.4. Audit + cache invalidation**
   > Audit actor, viewer_id, targets, resource_type, added/removed; invalidate relevant caches ≤ 5s.
   >
   > **Related Requirements:** R2, R5
 
 ### 4. Frontend: Viewer Visibility panel (Permissions tab)
 
-- [ ] **4.1. Target picker**
+- [x] **4.1. Target picker**
   > Select user/department/supervisor_team; searchable multi-select; shows current grants; bulk add/remove.
   >
   > **Related Requirements:** R2
 
-- [ ] **4.2. Resource type selector**
+- [x] **4.2. Resource type selector**
   > Choose data type (Goal/Evaluation/Assessment/…); default Goal; per-type list of grants.
   >
   > **Related Requirements:** R2
 
-- [ ] **4.3. Error and empty states**
+- [x] **4.3. Error and empty states**
   > Clear UX for 403, 409, network errors; empty list guidance.
   >
   > **Related Requirements:** R2
