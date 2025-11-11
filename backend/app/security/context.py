@@ -49,8 +49,8 @@ class AuthContext:
             name.lower(): perms for name, perms in (role_permission_overrides or {}).items()
         }
         
-        # Compute permissions once at initialization
-        self._permissions = self._compute_permissions()
+        # Compute permissions once at initialization and freeze to prevent mutation
+        self._permissions = frozenset(self._compute_permissions())
     
     def _compute_permissions(self) -> Set[Permission]:
         """Compute all permissions from user's roles."""

@@ -239,54 +239,21 @@ def require_resource_ownership(resource_type: ResourceType):
    - Examples: `USER_READ_ALL`, `GOAL_MANAGE`, `EVALUATION_REVIEW`
    - Use descriptive names that clearly indicate what the permission allows
 
-### Adding Permissions to Roles
+### Assigning Permissions to Roles
 
-1. **Locate the role in ROLE_PERMISSIONS mapping**
-2. **Add permissions to the role's permissions set**
-
-```python
-Role.ADMIN: RolePermissions(
-    role=Role.ADMIN,
-    description="管理者 - 全システム機能へのアクセス",
-    permissions={
-        # Existing permissions...
-        Permission.DOCUMENT_CREATE,      # Add new permission
-        Permission.DOCUMENT_READ_ALL,    # Add new permission
-        Permission.DOCUMENT_DELETE,      # Add new permission
-    }
-)
-```
+Role-permission assignments are stored in the database (`permissions`, `role_permissions`).
+Use the Admin UI under Org Management → Permissions, or the PermissionService endpoints
+(`GET/PUT/PATCH /api/roles/{id}/permissions`, `POST /api/roles/{id}/permissions:clone`).
 
 ### Removing Permissions from Roles
 
-1. **Find the role in ROLE_PERMISSIONS mapping**
-2. **Remove the permission from the permissions set**
-3. **⚠️ Ensure removal doesn't break existing functionality**
+Update the role’s assignments via the Admin UI or API. The change invalidates caches
+and takes effect immediately for new requests.
 
 ### Adding New Roles
 
-1. **Add to Role Enum**
-   ```python
-   class Role(Enum):
-       # Existing roles...
-       CONTRACTOR = "contractor"
-   ```
-
-2. **Create RolePermissions entry**
-   ```python
-   ROLE_PERMISSIONS = {
-       # Existing roles...
-       Role.CONTRACTOR: RolePermissions(
-           role=Role.CONTRACTOR,
-           description="契約者 - 限定的なアクセス",
-           permissions={
-               Permission.USER_READ_SELF,
-               Permission.GOAL_READ,
-               # Add appropriate permissions...
-           }
-       )
-   }
-   ```
+1. Add the role row(s) to `roles` (seed/migration or via UI when available).
+2. Assign permissions using the Admin UI or the PermissionService API.
 
 ## 🔍 Ultra-Simple Permission Checking
 
@@ -369,10 +336,12 @@ async def update_user(self, user_id: UUID, user_data: UserUpdate, auth_context: 
 ### Role Hierarchy Checks
 ```python
 # Check role hierarchy
-if PermissionManager.is_admin_or_manager(user_role):
+# Example role checks (prefer explicit permissions in real code)
+# Use AuthContext role helpers when truly necessary
+if auth_context.is_manager_or_above():
     # Admin or manager access
 
-if PermissionManager.is_supervisor_or_above(user_role):
+if auth_context.is_supervisor_or_above():
     # Supervisor, manager, or admin access
 ```
 
@@ -443,7 +412,7 @@ After modifying permissions, always:
 
 ```python
 # Recommended: Import from security module
-from app.security import AuthContext, Permission, PermissionManager
+from app.security import AuthContext, Permission
 
 # RBAC Framework imports
 from app.security.rbac_helper import RBACHelper
@@ -451,7 +420,7 @@ from app.security.rbac_types import ResourceType
 from app.security.decorators import require_permission, require_any_permission
 
 # Direct import (if needed)
-from app.security.permissions import Permission, PermissionManager
+from app.security.permissions import Permission
 from app.security.context import AuthContext
 from app.security.dependencies import get_auth_context, require_role
 ```
@@ -500,7 +469,7 @@ async def endpoint():
 ```
 
 ### Issue: User has role but not expected permissions
-**Solution**: Check the ROLE_PERMISSIONS mapping - the role might not have the expected permission assigned.
+**Solution**: Check the role’s assignments in the database (role_permissions) or via the Admin UI.
 
 ### Issue: Tests failing after permission changes
 **Solution**: Update test expectations to match the new permission structure.
