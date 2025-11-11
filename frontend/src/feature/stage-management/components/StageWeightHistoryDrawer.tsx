@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { Loader2, History as HistoryIcon } from 'lucide-react';
 
 interface StageWeightHistoryDrawerProps {
@@ -67,14 +66,19 @@ export default function StageWeightHistoryDrawer({
                 entries.map((entry) => (
                   <div key={entry.id} className="space-y-3">
                     <div>
-                      <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                      <div className="text-sm font-medium mb-1">
                         <span>{new Date(entry.changedAt).toLocaleString()}</span>
-                        <Badge variant="outline" className="font-mono">
-                          {shortenId(entry.actorUserId)}
-                        </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Actor User ID
+                        <span className="font-medium">変更者:</span>{' '}
+                        {entry.actorName ? (
+                          <>
+                            {entry.actorName}
+                            {entry.actorEmployeeCode && ` (${entry.actorEmployeeCode})`}
+                          </>
+                        ) : (
+                          <span className="font-mono">{shortenId(entry.actorUserId)}</span>
+                        )}
                       </p>
                     </div>
 

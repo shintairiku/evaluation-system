@@ -49,6 +49,8 @@ export interface StageWeightHistoryEntry {
   stageId: UUID;
   organizationId: string;
   actorUserId: UUID;
+  actorName?: string | null;
+  actorEmployeeCode?: string | null;
   quantitativeWeightBefore?: number | null;
   quantitativeWeightAfter?: number | null;
   qualitativeWeightBefore?: number | null;
