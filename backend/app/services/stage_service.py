@@ -297,6 +297,8 @@ class StageService:
                 stage_id=entry.stage_id,
                 organization_id=entry.organization_id,
                 actor_user_id=entry.actor_user_id,
+                actor_name=actor_name,
+                actor_employee_code=actor_employee_code,
                 quantitative_weight_before=float(entry.quantitative_weight_before) if entry.quantitative_weight_before is not None else None,
                 quantitative_weight_after=float(entry.quantitative_weight_after) if entry.quantitative_weight_after is not None else None,
                 qualitative_weight_before=float(entry.qualitative_weight_before) if entry.qualitative_weight_before is not None else None,
@@ -305,7 +307,7 @@ class StageService:
                 competency_weight_after=float(entry.competency_weight_after) if entry.competency_weight_after is not None else None,
                 changed_at=entry.changed_at
             )
-            for entry in entries
+            for entry, actor_name, actor_employee_code in entries
         ]
     
     async def _get_competencies_for_stage(self, stage_id: UUID) -> List[Competency]:
