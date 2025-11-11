@@ -105,9 +105,10 @@ export async function createGoalAction(data: GoalCreateRequest): Promise<{
     const response = await goalsApi.createGoal(data);
     
     if (!response.success || !response.data) {
+      const errorMessage = response.error || response.errorMessage || 'Failed to create goal';
       return {
         success: false,
-        error: response.error || 'Failed to create goal',
+        error: errorMessage,
       };
     }
     
@@ -141,9 +142,10 @@ export async function updateGoalAction(id: UUID, data: GoalUpdateRequest): Promi
     const response = await goalsApi.updateGoal(id, data);
     
     if (!response.success || !response.data) {
+      const errorMessage = response.error || response.errorMessage || 'Failed to update goal';
       return {
         success: false,
-        error: response.error || 'Failed to update goal',
+        error: errorMessage,
       };
     }
     
