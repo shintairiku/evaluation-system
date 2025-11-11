@@ -74,10 +74,7 @@ export default function StageWeightConfig({
     <>
       <Card>
         <CardHeader className="space-y-3">
-          <div className="flex items-center gap-2">
-            <CardTitle>ステージ別ウェイト設定</CardTitle>
-            <Badge variant="outline">β</Badge>
-          </div>
+          <CardTitle>ステージ別ウェイト設定</CardTitle>
           <CardDescription className="space-y-2">
             <p>
               各ステージの評価比率（定量・定性・コンピテンシー）を設定できます。変更すると新しいゴール作成時に自動で適用されます。
