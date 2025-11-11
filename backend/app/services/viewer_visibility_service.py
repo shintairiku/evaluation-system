@@ -22,6 +22,7 @@ from ..schemas.viewer_visibility import (
 from ..core.exceptions import ConflictError, NotFoundError
 from ..security.decorators import require_permission
 from ..security.permissions import Permission as PermissionEnum
+from ..security.rbac_helper import RBACHelper
 from ..security.viewer_visibility import ViewerSubjectType
 from ..security.viewer_visibility_cache import invalidate_viewer_visibility_cache
 
@@ -225,6 +226,7 @@ class ViewerVisibilityService:
 
     def _post_write_cleanup(self, org_id: str, viewer_user_id: UUID) -> None:
         invalidate_viewer_visibility_cache(org_id, viewer_user_id)
+        RBACHelper.clear_cache(viewer_user_id)
 
     def _log_change_event(
         self,
