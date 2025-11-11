@@ -17,6 +17,7 @@ from ..database.repositories.user_repo import UserRepository
 from ..services.auth_service import AuthService
 from .permissions import Permission
 from .role_permission_cache import get_cached_role_permissions
+from .viewer_visibility_cache import get_cached_viewer_visibility_overrides
 from .context import AuthContext, RoleInfo
 
 security = HTTPBearer(
@@ -108,6 +109,7 @@ async def get_auth_context(
                     roles=dev_user["roles"],
                     organization_id="dev-org-1",  # Development organization ID
                     organization_slug="dev-organization",
+                    viewer_visibility_overrides=None,
                 )
         
         # Verify with Clerk and get user info
@@ -155,6 +157,7 @@ async def get_auth_context(
                 roles=derived_roles,
                 organization_id=auth_user.organization_id,
                 organization_slug=auth_user.organization_slug,
+                viewer_visibility_overrides=None,
             )
 
         user_id = user_data["id"]
@@ -220,6 +223,26 @@ async def get_auth_context(
                 if cached_perms is not None:
                     dynamic_overrides[role_info.name.lower()] = cached_perms
 
+        viewer_overrides = None
+        if (
+            user_id
+            and role_infos
+            and auth_user.organization_id
+            and any(role.name.lower() == "viewer" for role in role_infos)
+        ):
+            try:
+                viewer_overrides = await get_cached_viewer_visibility_overrides(
+                    session=session,
+                    organization_id=auth_user.organization_id,
+                    viewer_user_id=user_id,
+                )
+            except Exception:  # pragma: no cover - cache failures should not block auth
+                logger = logging.getLogger(__name__)
+                logger.exception(
+                    "Failed to load viewer visibility overrides for user %s",
+                    user_id,
+                )
+
         return AuthContext(
             user_id=user_id,
             clerk_user_id=auth_user.clerk_id,
@@ -227,6 +250,7 @@ async def get_auth_context(
             organization_id=auth_user.organization_id,
             organization_slug=auth_user.organization_slug,
             role_permission_overrides=dynamic_overrides or None,
+            viewer_visibility_overrides=viewer_overrides,
         )
         
     except HTTPException:
