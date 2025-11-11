@@ -31,7 +31,7 @@ export function PermissionsTab({
 
   if (isLoading) {
     return (
-      <Card className="overflow-hidden border-t-[3px] border-primary/40 shadow-sm">
+      <Card className="overflow-hidden shadow-sm">
         <CardHeader className="space-y-2 border-b border-border/60 pb-6">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">権限マトリクス</CardTitle>
           <CardDescription>管理者権限の検証が完了すると権限マトリクスが表示されます。</CardDescription>
