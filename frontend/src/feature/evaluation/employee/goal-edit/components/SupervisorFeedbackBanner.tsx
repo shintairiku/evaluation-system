@@ -64,7 +64,7 @@ export const SupervisorFeedbackBanner = React.memo<SupervisorFeedbackBannerProps
       });
     };
 
-    const comment = supervisorReview?.comment || 'コメントなし';
+    const comment = supervisorReview?.comment || '上司からのコメントはありません';
     const reviewedAt = supervisorReview?.reviewedAt;
 
     // Render rejection feedback

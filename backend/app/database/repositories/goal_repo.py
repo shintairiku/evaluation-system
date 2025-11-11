@@ -254,10 +254,8 @@ class GoalRepository(BaseRepository[Goal]):
         try:
             from ..models.user import User
 
-            query = select(Goal).options(
-                joinedload(Goal.user),
-                joinedload(Goal.period)
-            )
+            # Keep the base entity lean; relationships are loaded on demand by callers
+            query = select(Goal)
 
             # Apply organization filter first (required)
             query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)

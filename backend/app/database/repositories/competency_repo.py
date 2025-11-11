@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 from uuid import UUID
+from typing import List, Dict
 
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import joinedload
@@ -94,6 +95,23 @@ class CompetencyRepository(BaseRepository[Competency]):
             return result.scalars().first()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching competency by name {name} in org {org_id}: {e}")
+            raise
+
+    async def get_by_ids_batch(self, competency_ids: List[UUID], org_id: str) -> Dict[UUID, Competency]:
+        """Batch fetch competencies by IDs within organization scope.
+
+        Returns a map of competency_id -> Competency.
+        """
+        if not competency_ids:
+            return {}
+        try:
+            query = select(Competency).filter(Competency.id.in_(competency_ids))
+            query = self.apply_org_scope_direct(query, Competency.organization_id, org_id)
+            result = await self.session.execute(query)
+            competencies = result.scalars().all()
+            return {c.id: c for c in competencies}
+        except SQLAlchemyError as e:
+            logger.error(f"Error batch fetching competencies in org {org_id}: {e}")
             raise
 
     async def get_by_stage_id(self, stage_id: UUID, org_id: str) -> list[Competency]:
