@@ -1,9 +1,10 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 
 from ..models.stage_competency import Stage, StageWeightHistory
+from ..models.user import User
 from ...schemas.stage_competency import StageCreate, StageUpdate
 from .base import BaseRepository
 
@@ -112,17 +113,28 @@ class StageRepository(BaseRepository[Stage]):
         stage_id: UUID,
         org_id: str,
         limit: int = 20
-    ) -> List[StageWeightHistory]:
-        """Retrieve recent weight history entries for a stage within organization scope."""
+    ) -> List[Tuple[StageWeightHistory, Optional[str], Optional[str]]]:
+        """Retrieve recent weight history entries for a stage within organization scope.
+        
+        Returns a list of tuples containing:
+        - StageWeightHistory entry
+        - Actor user name (or None)
+        - Actor employee code (or None)
+        """
         query = (
-            select(StageWeightHistory)
+            select(
+                StageWeightHistory,
+                User.name,
+                User.employee_code
+            )
+            .outerjoin(User, StageWeightHistory.actor_user_id == User.id)
             .where(StageWeightHistory.stage_id == stage_id)
             .order_by(StageWeightHistory.changed_at.desc())
             .limit(limit)
         )
         query = self.apply_org_scope_direct(query, StageWeightHistory.organization_id, org_id)
         result = await self.session.execute(query)
-        return result.scalars().all()
+        return result.all()
     
     async def delete(self, stage_id: UUID, org_id: str) -> bool:
         """Delete a stage within organization scope."""

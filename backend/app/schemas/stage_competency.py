@@ -186,6 +186,8 @@ class StageWeightHistoryEntry(BaseModel):
     stage_id: UUID = Field(..., alias="stageId")
     organization_id: str = Field(..., alias="organizationId")
     actor_user_id: UUID = Field(..., alias="actorUserId")
+    actor_name: Optional[str] = Field(None, alias="actorName")
+    actor_employee_code: Optional[str] = Field(None, alias="actorEmployeeCode")
     quantitative_weight_before: Optional[float] = Field(None, alias="quantitativeWeightBefore")
     quantitative_weight_after: Optional[float] = Field(None, alias="quantitativeWeightAfter")
     qualitative_weight_before: Optional[float] = Field(None, alias="qualitativeWeightBefore")
