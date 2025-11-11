@@ -17,6 +17,9 @@ import { EvaluationPeriodSelector } from '@/components/display/EvaluationPeriodS
 import { useGoalData } from '@/hooks/useGoalData';
 import { usePeriodSelection } from '@/hooks/usePeriodSelection';
 import { useGoalAutoSave } from '@/hooks/useGoalAutoSave';
+import { useUserRoles } from '@/hooks/useUserRoles';
+import type { StageWeightBudget } from '../types';
+import { DEFAULT_STAGE_WEIGHT_BUDGET } from '../types';
 // useLoading removed - using simpler approach
 import type { EvaluationPeriod } from '@/api/types';
 
@@ -57,6 +60,17 @@ export default function GoalInputPage() {
     activateAutoSave,
     clearPeriodSelection,
   } = usePeriodSelection();
+
+  const { currentUser, isLoading: isUserLoading, error: userError } = useUserRoles();
+
+  const stageBudgets: StageWeightBudget = currentUser?.stage
+    ? {
+        quantitative: Number(currentUser.stage.quantitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.quantitative),
+        qualitative: Number(currentUser.stage.qualitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.qualitative),
+        competency: Number(currentUser.stage.competencyWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.competency),
+        stageName: currentUser.stage.name,
+      }
+    : DEFAULT_STAGE_WEIGHT_BUDGET;
   
   // Load existing goals into form when they're fetched - ensure it runs only once per period/goals set
   useEffect(() => {
@@ -132,6 +146,7 @@ export default function GoalInputPage() {
     isAutoSaveReady,
     goalTracking,
     onGoalReplaceWithServerData: replaceGoalWithServerData,
+    stageBudgets,
   });
 
   // Wrapper for period selection that includes data loading
@@ -161,6 +176,7 @@ export default function GoalInputPage() {
             goalTracking={goalTracking}
             periodId={selectedPeriod?.id}
             onNext={handleNext}
+            stageBudgets={stageBudgets}
           />
         );
       case 2:
@@ -172,6 +188,7 @@ export default function GoalInputPage() {
             periodId={selectedPeriod?.id}
             onNext={handleNext}
             onPrevious={handlePrevious}
+            stageBudgets={stageBudgets}
           />
         );
       case 3:
@@ -181,6 +198,7 @@ export default function GoalInputPage() {
             competencyGoals={goalData.competencyGoals}
             periodId={selectedPeriod?.id}
             onPrevious={handlePrevious}
+            stageBudgets={stageBudgets}
           />
         );
       default:
@@ -189,6 +207,26 @@ export default function GoalInputPage() {
   };
 
   // Show period selector first
+  if (isUserLoading) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">ユーザー情報を読み込み中...</div>
+    );
+  }
+
+  if (!currentUser?.stage) {
+    return (
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>ステージ未設定</AlertTitle>
+          <AlertDescription>
+            ゴールを作成する前にステージを設定してください。管理者にお問い合わせください。
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   if (!selectedPeriod) {
     return (
       <div className="p-6">

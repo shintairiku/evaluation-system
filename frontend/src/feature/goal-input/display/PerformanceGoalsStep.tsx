@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, AlertCircle, TrendingUp, BarChart3, Zap } from 'lucide-react';
+import type { StageWeightBudget } from '../types';
 
 interface PerformanceGoal {
   id: string;
@@ -29,22 +30,66 @@ interface PerformanceGoalsStepProps {
   };
   onNext: () => void;
   periodId?: string;
+  stageBudgets: StageWeightBudget;
 }
 
-export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext }: PerformanceGoalsStepProps) {
+type GoalType = 'quantitative' | 'qualitative';
+
+const goalTypeMeta: Record<GoalType, { label: string; icon: JSX.Element; helper: string }> = {
+  quantitative: {
+    label: '定量',
+    icon: <BarChart3 className="h-4 w-4" />,
+    helper: '数値目標の合計',
+  },
+  qualitative: {
+    label: '定性',
+    icon: <Zap className="h-4 w-4" />,
+    helper: '定性目標の合計',
+  },
+};
+
+const formatPercent = (value: number) => {
+  if (!Number.isFinite(value)) return '0';
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
+};
+
+export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, stageBudgets }: PerformanceGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoals = goals;
 
+  const goalTypes: GoalType[] = ['quantitative', 'qualitative'];
+
+  const getBudgetForType = (type: GoalType) => {
+    return type === 'quantitative' ? stageBudgets.quantitative : stageBudgets.qualitative;
+  };
+
+  const getTotalByType = (type: GoalType, excludeGoalId?: string) => {
+    return currentGoals
+      .filter(goal => goal.type === type && goal.id !== excludeGoalId)
+      .reduce((sum, goal) => sum + goal.weight, 0);
+  };
+
+  const getMaxAllocatableWeight = (type: GoalType, excludeGoalId?: string) => {
+    const budget = getBudgetForType(type);
+    const allocated = getTotalByType(type, excludeGoalId);
+    const remaining = budget - allocated;
+    return remaining > 0 ? remaining : 0;
+  };
+
   const addGoal = () => {
-    const remainingWeight = 100 - getTotalWeight();
+    const preferredType: GoalType = getMaxAllocatableWeight('quantitative') > 0
+      ? 'quantitative'
+      : 'qualitative';
+    const initialWeight = getMaxAllocatableWeight(preferredType);
     const newGoal: PerformanceGoal = {
       id: Date.now().toString(), // Temporary ID for new goals
-      type: 'quantitative',
+      type: preferredType,
       title: '',
       specificGoal: '',
       achievementCriteria: '',
       method: '',
-      weight: Math.min(remainingWeight, 30)
+      weight: initialWeight > 0 ? initialWeight : 0
     };
     const updatedGoals = [...currentGoals, newGoal];
     onGoalsChange(updatedGoals);
@@ -76,10 +121,40 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
     });
   };
 
+  const clampWeightForGoal = (goalId: string, type: GoalType, rawValue: number) => {
+    const cleaned = Number.isFinite(rawValue) ? rawValue : 0;
+    const max = getMaxAllocatableWeight(type, goalId);
+    if (max === 0) {
+      return 0;
+    }
+    return Math.min(Math.max(cleaned, 0), max);
+  };
+
   const updateGoal = (id: string, field: keyof PerformanceGoal, value: string | number) => {
-    const updatedGoals = currentGoals.map(goal =>
-      goal.id === id ? { ...goal, [field]: value } : goal
-    );
+    let didChangeWeights = false;
+    const updatedGoals = currentGoals.map(goal => {
+      if (goal.id !== id) return goal;
+      let updatedGoal = { ...goal };
+
+      if (field === 'weight') {
+        const numericValue = typeof value === 'number' ? value : Number(value);
+        const clamped = clampWeightForGoal(id, goal.type, Number.isNaN(numericValue) ? 0 : numericValue);
+        updatedGoal.weight = clamped;
+        didChangeWeights = true;
+      } else if (field === 'type') {
+        const newType = value as GoalType;
+        const clamped = clampWeightForGoal(id, newType, goal.weight);
+        updatedGoal = {
+          ...goal,
+          type: newType,
+          weight: clamped,
+        };
+        didChangeWeights = true;
+      } else {
+        updatedGoal = { ...goal, [field]: value };
+      }
+      return updatedGoal;
+    });
     onGoalsChange(updatedGoals);
     
     // Track the specific goal that was changed for auto-save
@@ -88,34 +163,67 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
       goalTracking.trackGoalChange(id, 'performance', updatedGoal);
     }
     
-    // Show subtle feedback for important field updates
-    if (field === 'weight') {
-      const newTotal = updatedGoals.reduce((sum, goal) => sum + goal.weight, 0);
-      if (newTotal === 100) {
-        toast.success('重み配分が完了しました！', {
-          duration: 2000
-        });
+    if (didChangeWeights) {
+      const statuses = goalTypes.map(type => buildTypeStatus(type));
+      if (statuses.every(status => status.state === 'success')) {
+        toast.success('重み配分が完了しました！', { duration: 2000 });
       }
     }
   };
 
-  const getTotalWeight = () => {
-    return currentGoals.reduce((sum, goal) => sum + goal.weight, 0);
+  const buildTypeStatus = (type: GoalType) => {
+    const budget = getBudgetForType(type);
+    const allocated = getTotalByType(type);
+    const remaining = budget - allocated;
+
+    if (budget === 0) {
+      return {
+        type,
+        budget,
+        allocated,
+        remaining,
+        state: allocated === 0 ? 'success' : 'error',
+        message: allocated === 0 ? 'このステージでは設定不要です' : 'このステージでは0%のため設定できません',
+      } as const;
+    }
+
+    if (remaining === 0) {
+      return { type, budget, allocated, remaining, state: 'success', message: '配分完了' } as const;
+    }
+
+    if (remaining > 0) {
+      return {
+        type,
+        budget,
+        allocated,
+        remaining,
+        state: 'warning',
+        message: `あと${formatPercent(remaining)}%必要です`,
+      } as const;
+    }
+
+    return {
+      type,
+      budget,
+      allocated,
+      remaining,
+      state: 'error',
+      message: `${formatPercent(Math.abs(remaining))}%オーバーしています`,
+    } as const;
   };
 
-  const getWeightStatus = () => {
-    const total = getTotalWeight();
-    if (total === 100) return { status: 'success', message: '重み配分が完了しました' };
-    if (total > 100) return { status: 'error', message: `${total - 100}%オーバーしています` };
-    return { status: 'warning', message: `あと${100 - total}%必要です` };
-  };
+  const typeStatuses = goalTypes.map(type => buildTypeStatus(type));
 
   const canProceed = () => {
-    return getTotalWeight() === 100 && currentGoals.length > 0 && 
-           currentGoals.every(goal => goal.title && goal.specificGoal && goal.achievementCriteria);
+    const budgetsSatisfied = typeStatuses.every(status => status.state === 'success');
+    const hasGoals = currentGoals.length > 0;
+    const requiredFieldsSatisfied = currentGoals.every(goal => goal.title && goal.specificGoal && goal.achievementCriteria);
+    return budgetsSatisfied && hasGoals && requiredFieldsSatisfied;
   };
 
-  const weightStatus = getWeightStatus();
+  const hasRemainingBudget = goalTypes.some(type => getMaxAllocatableWeight(type) > 0);
+
+  const shouldShowError = typeStatuses.some(status => status.state === 'error');
 
   return (
     <div className="space-y-6">
@@ -123,23 +231,46 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
       {/* ヘッダーカード */}
       <Card>
         <CardContent>
-          {/* 重み配分の視覚化と保存状態 */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">重み配分の進捗</span>
-              <div className="flex items-center gap-3">
-                <Badge variant={weightStatus.status === 'success' ? "default" : 
-                               weightStatus.status === 'error' ? "destructive" : "secondary"}>
-                  {getTotalWeight()}% / 100%
-                </Badge>
-              </div>
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              ステージ配分: 定量 {formatPercent(stageBudgets.quantitative)}% / 定性 {formatPercent(stageBudgets.qualitative)}%
             </div>
-            <Progress value={getTotalWeight()} />
-            {weightStatus.status !== 'success' && (
-              <p className="text-xs text-muted-foreground text-center">
-                {weightStatus.message}
-              </p>
-            )}
+            <div className="grid gap-4 md:grid-cols-2">
+              {typeStatuses.map(status => (
+                <div
+                  key={status.type}
+                  className="border rounded-lg p-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {goalTypeMeta[status.type].icon}
+                      <span className="font-medium">{goalTypeMeta[status.type].label}</span>
+                    </div>
+                    <Badge
+                      variant={
+                        status.state === 'success'
+                          ? 'default'
+                          : status.state === 'error'
+                            ? 'destructive'
+                            : 'secondary'
+                      }
+                    >
+                      {formatPercent(status.allocated)}% / {formatPercent(status.budget)}%
+                    </Badge>
+                  </div>
+                  <Progress value={status.budget === 0 ? (status.allocated === 0 ? 100 : 100) : Math.min(100, (status.allocated / status.budget) * 100)} />
+                  <p className={`text-xs ${
+                    status.state === 'error'
+                      ? 'text-destructive'
+                      : status.state === 'success'
+                        ? 'text-green-600'
+                        : 'text-muted-foreground'
+                  }`}>
+                    {status.message}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -160,7 +291,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
                   {/* 目標タイプ選択 */}
                   <Tabs 
                     value={goal.type} 
-                    onValueChange={(value) => updateGoal(goal.id, 'type', value as 'quantitative' | 'qualitative')}
+                    onValueChange={(value) => updateGoal(goal.id, 'type', value as GoalType)}
                   >
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="quantitative" className="flex items-center gap-1">
@@ -180,9 +311,8 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
                     <Input
                       type="number"
                       min="0"
-                      max="100"
                       value={goal.weight}
-                      onChange={(e) => updateGoal(goal.id, 'weight', parseInt(e.target.value) || 0)}
+                      onChange={(e) => updateGoal(goal.id, 'weight', Number(e.target.value))}
                       className="w-16 text-center border-0 p-0 text-sm font-semibold"
                     />
                     <span className="text-sm text-muted-foreground">%</span>
@@ -254,11 +384,11 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
       </div>
 
       {/* エラー表示 */}
-      {weightStatus.status === 'error' && (
+      {shouldShowError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            重みの合計が100%を超えています。各目標の重みを調整してください。
+            重みの配分が正しくありません。各目標の重みを調整してください。
           </AlertDescription>
         </Alert>
       )}
@@ -268,7 +398,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
         <Button 
           className="col-span-2"
           onClick={addGoal}
-          disabled={getTotalWeight() >= 100}
+          disabled={!hasRemainingBudget}
         >
           <Plus className="h-4 w-4 mr-2" />
           目標を追加

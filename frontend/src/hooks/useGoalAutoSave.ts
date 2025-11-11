@@ -7,6 +7,7 @@ import { createGoalAction, updateGoalAction } from '@/api/server-actions/goals';
 import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
 import type { EvaluationPeriod } from '@/api/types';
 import type { GoalData } from './useGoalData';
+import type { StageWeightBudget } from '@/feature/goal-input/types';
 import type { UseGoalTrackingReturn, GoalChangeInfo } from './useGoalTracking';
 
 interface UseGoalAutoSaveOptions {
@@ -17,6 +18,7 @@ interface UseGoalAutoSaveOptions {
   goalTracking: UseGoalTrackingReturn;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onGoalReplaceWithServerData: (tempId: string, serverGoal: any, goalType: 'performance' | 'competency') => void;
+  stageBudgets: StageWeightBudget;
 }
 
 export function useGoalAutoSave({
@@ -26,6 +28,7 @@ export function useGoalAutoSave({
   isAutoSaveReady,
   goalTracking,
   onGoalReplaceWithServerData,
+  stageBudgets,
 }: UseGoalAutoSaveOptions) {
   const isSavingRef = useRef(false);
   const {
