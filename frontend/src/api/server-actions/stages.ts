@@ -10,6 +10,8 @@ import type {
   StageCreate, 
   StageUpdate,
   StageWithUserCount,
+  StageWeightUpdate,
+  StageWeightHistoryEntry,
   UUID,
 } from '../types';
 
@@ -208,6 +210,65 @@ export async function getStagesAdminAction(): Promise<{
     return {
       success: false,
       error: 'An unexpected error occurred while fetching admin stages',
+    };
+  }
+}
+
+export async function updateStageWeightsAction(stageId: UUID, updateData: StageWeightUpdate): Promise<{
+  success: boolean;
+  data?: StageDetail;
+  error?: string;
+}> {
+  try {
+    const response = await stagesApi.updateStageWeights(stageId, updateData);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to update stage weights',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.STAGES);
+    revalidateTag(`${CACHE_TAGS.STAGES}:${stageId}`);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Update stage weights action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating stage weights',
+    };
+  }
+}
+
+export async function getStageWeightHistoryAction(stageId: UUID, limit = 20): Promise<{
+  success: boolean;
+  data?: StageWeightHistoryEntry[];
+  error?: string;
+}> {
+  try {
+    const response = await stagesApi.getStageWeightHistory(stageId, limit);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch stage weight history',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get stage weight history action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching stage weight history',
     };
   }
 }

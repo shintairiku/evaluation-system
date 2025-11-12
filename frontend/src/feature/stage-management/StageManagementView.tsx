@@ -8,8 +8,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
 interface StageManagementViewProps {
-  initialStages: Stage[];
-  initialUsers: UserDetailResponse[];
+  stages: Stage[];
+  users: UserDetailResponse[];
 }
 
 /**
@@ -20,16 +20,16 @@ interface StageManagementViewProps {
  * StageManagementPage > StageManagementView > StageGrid > StageColumn > UserCard
  */
 export default function StageManagementView({ 
-  initialStages, 
-  initialUsers 
+  stages, 
+  users
 }: StageManagementViewProps) {
   const [error, setError] = useState<string | null>(null);
 
   // Transform initial data into StageData format with users per stage
   const stagesWithUsers: StageData[] = useMemo(() => {
-    return initialStages.map(stage => ({
+    return stages.map(stage => ({
       ...stage,
-      users: initialUsers
+      users: users
         .filter(user => user.stage?.id === stage.id)
         .map((user): UserCardData => ({
           id: user.id,
@@ -40,7 +40,7 @@ export default function StageManagementView({
           current_stage_id: user.stage?.id || stage.id,
         }))
     }));
-  }, [initialStages, initialUsers]);
+  }, [stages, users]);
 
   // Handle errors from child components
   const handleError = (errorMessage: string) => {

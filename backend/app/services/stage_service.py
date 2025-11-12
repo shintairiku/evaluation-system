@@ -1,12 +1,19 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.competency_repo import CompetencyRepository
 from ..schemas.stage_competency import (
-    Stage, StageDetail, StageCreate, StageUpdate, StageWithUserCount, Competency
+    Stage,
+    StageDetail,
+    StageCreate,
+    StageUpdate,
+    StageWithUserCount,
+    Competency,
+    StageWeightUpdate,
+    StageWeightHistoryEntry,
 )
 from ..security.context import AuthContext
 from ..security.permissions import Permission
@@ -56,16 +63,7 @@ class StageService:
             # Get competencies for the stage (will be empty for new stage)
             competencies = await self._get_competencies_for_stage(stage_model.id)
             
-            return StageDetail(
-                id=stage_model.id,
-                name=stage_model.name,
-                description=stage_model.description,
-                created_at=stage_model.created_at,
-                updated_at=stage_model.updated_at,
-                user_count=0,
-                users=None,
-                competencies=competencies
-            )
+            return self._map_stage_to_detail(stage_model, user_count=0, competencies=competencies)
             
         except ConflictError:
             await self.session.rollback()
@@ -101,16 +99,7 @@ class StageService:
         # Get competencies for the stage
         competencies = await self._get_competencies_for_stage(stage_id)
         
-        return StageDetail(
-            id=stage_model.id,
-            name=stage_model.name,
-            description=stage_model.description,
-            created_at=stage_model.created_at,
-            updated_at=stage_model.updated_at,
-            user_count=user_count,
-            users=None,
-            competencies=competencies
-        )
+        return self._map_stage_to_detail(stage_model, user_count=user_count, competencies=competencies)
     
     @require_permission(Permission.STAGE_READ_ALL)
     async def get_all_stages(self, current_user_context: AuthContext) -> List[Stage]:
@@ -124,14 +113,7 @@ class StageService:
 
         stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
 
-        return [
-            Stage(
-                id=stage.id,
-                name=stage.name,
-                description=stage.description
-            )
-            for stage in stage_models
-        ]
+        return [self._map_stage_to_basic(stage) for stage in stage_models]
     
     @require_permission(Permission.STAGE_MANAGE)
     async def get_stages_with_user_count(self, current_user_context: AuthContext) -> List[StageWithUserCount]:
@@ -148,16 +130,7 @@ class StageService:
 
         for stage in stage_models:
             user_count = await self.stage_repo.count_users_by_stage(stage.id, current_user_context.organization_id)
-            stages_with_count.append(
-                StageWithUserCount(
-                    id=stage.id,
-                    name=stage.name,
-                    description=stage.description,
-                    user_count=user_count,
-                    created_at=stage.created_at,
-                    updated_at=stage.updated_at
-                )
-            )
+            stages_with_count.append(self._map_stage_to_with_count(stage, user_count))
 
         return stages_with_count
     
@@ -207,16 +180,7 @@ class StageService:
             # Get competencies for the stage
             competencies = await self._get_competencies_for_stage(stage_id)
             
-            return StageDetail(
-                id=updated_stage.id,
-                name=updated_stage.name,
-                description=updated_stage.description,
-                created_at=updated_stage.created_at,
-                updated_at=updated_stage.updated_at,
-                user_count=user_count,
-                users=None,
-                competencies=competencies
-            )
+            return self._map_stage_to_detail(updated_stage, user_count=user_count, competencies=competencies)
             
         except (NotFoundError, ConflictError):
             await self.session.rollback()
@@ -271,6 +235,80 @@ class StageService:
             await self.session.rollback()
             logger.error(f"Error deleting stage {stage_id}: {e}")
             raise BadRequestError("Failed to delete stage")
+
+    @require_permission(Permission.STAGE_MANAGE)
+    async def update_stage_weights(
+        self,
+        current_user_context: AuthContext,
+        stage_id: UUID,
+        weight_update: StageWeightUpdate
+    ) -> StageDetail:
+        """Update stage weight configuration and log history."""
+        try:
+            stage = await self.stage_repo.get_by_id(stage_id, current_user_context.organization_id)
+            if not stage:
+                raise NotFoundError(f"Stage with ID {stage_id} not found")
+
+            previous_weights = {
+                "quantitative_weight": float(stage.quantitative_weight or 0),
+                "qualitative_weight": float(stage.qualitative_weight or 0),
+                "competency_weight": float(stage.competency_weight or 0),
+            }
+
+            updated_stage = await self.stage_repo.update_weights(stage_id, weight_update, current_user_context.organization_id)
+            if not updated_stage:
+                raise NotFoundError(f"Stage with ID {stage_id} not found")
+
+            await self.stage_repo.add_weight_history_entry(
+                updated_stage,
+                current_user_context.organization_id,
+                current_user_context.user_id,
+                previous_weights
+            )
+
+            await self.session.commit()
+            await self.session.refresh(updated_stage)
+
+            user_count = await self.stage_repo.count_users_by_stage(stage_id, current_user_context.organization_id)
+            competencies = await self._get_competencies_for_stage(stage_id)
+
+            logger.info(f"Stage weights updated for stage {stage_id} by user {current_user_context.user_id}")
+            return self._map_stage_to_detail(updated_stage, user_count=user_count, competencies=competencies)
+        except (NotFoundError, ConflictError, BadRequestError):
+            await self.session.rollback()
+            raise
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error updating weights for stage {stage_id}: {e}")
+            raise BadRequestError("Failed to update stage weights")
+
+    @require_permission(Permission.STAGE_MANAGE)
+    async def get_stage_weight_history(
+        self,
+        current_user_context: AuthContext,
+        stage_id: UUID,
+        limit: int = 20
+    ) -> List[StageWeightHistoryEntry]:
+        """Return recent weight history entries for a stage."""
+        entries = await self.stage_repo.get_weight_history(stage_id, current_user_context.organization_id, limit)
+        return [
+            StageWeightHistoryEntry(
+                id=entry.id,
+                stage_id=entry.stage_id,
+                organization_id=entry.organization_id,
+                actor_user_id=entry.actor_user_id,
+                actor_name=actor_name,
+                actor_employee_code=actor_employee_code,
+                quantitative_weight_before=float(entry.quantitative_weight_before) if entry.quantitative_weight_before is not None else None,
+                quantitative_weight_after=float(entry.quantitative_weight_after) if entry.quantitative_weight_after is not None else None,
+                qualitative_weight_before=float(entry.qualitative_weight_before) if entry.qualitative_weight_before is not None else None,
+                qualitative_weight_after=float(entry.qualitative_weight_after) if entry.qualitative_weight_after is not None else None,
+                competency_weight_before=float(entry.competency_weight_before) if entry.competency_weight_before is not None else None,
+                competency_weight_after=float(entry.competency_weight_after) if entry.competency_weight_after is not None else None,
+                changed_at=entry.changed_at
+            )
+            for entry, actor_name, actor_employee_code in entries
+        ]
     
     async def _get_competencies_for_stage(self, stage_id: UUID) -> List[Competency]:
         """
@@ -302,3 +340,46 @@ class StageService:
         except Exception as e:
             logger.error(f"Error getting competencies for stage {stage_id}: {e}")
             return []
+
+    def _map_stage_to_detail(
+        self,
+        stage_model,
+        user_count: Optional[int],
+        competencies: List[Competency]
+    ) -> StageDetail:
+        return StageDetail(
+            id=stage_model.id,
+            name=stage_model.name,
+            description=stage_model.description,
+            quantitative_weight=float(stage_model.quantitative_weight or 0),
+            qualitative_weight=float(stage_model.qualitative_weight or 0),
+            competency_weight=float(stage_model.competency_weight or 0),
+            created_at=stage_model.created_at,
+            updated_at=stage_model.updated_at,
+            user_count=user_count,
+            users=None,
+            competencies=competencies
+        )
+
+    def _map_stage_to_basic(self, stage_model) -> Stage:
+        return Stage(
+            id=stage_model.id,
+            name=stage_model.name,
+            description=stage_model.description,
+            quantitative_weight=float(stage_model.quantitative_weight or 0),
+            qualitative_weight=float(stage_model.qualitative_weight or 0),
+            competency_weight=float(stage_model.competency_weight or 0),
+        )
+
+    def _map_stage_to_with_count(self, stage_model, user_count: int) -> StageWithUserCount:
+        return StageWithUserCount(
+            id=stage_model.id,
+            name=stage_model.name,
+            description=stage_model.description,
+            user_count=user_count,
+            quantitative_weight=float(stage_model.quantitative_weight or 0),
+            qualitative_weight=float(stage_model.qualitative_weight or 0),
+            competency_weight=float(stage_model.competency_weight or 0),
+            created_at=stage_model.created_at,
+            updated_at=stage_model.updated_at
+        )
