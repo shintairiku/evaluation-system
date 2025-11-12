@@ -226,6 +226,15 @@ export const API_ENDPOINTS = {
     SUBMIT: (id: string) => `/supervisor-feedbacks/${id}/submit`,
     DRAFT: (id: string) => `/supervisor-feedbacks/${id}/draft`,
   },
+
+  // Permission management endpoints
+  PERMISSIONS: {
+    CATALOG: '/permissions/',
+    CATALOG_GROUPED: '/roles/permissions:catalog-grouped',
+    ROLE: (roleId: string) => `/roles/${roleId}/permissions`,
+    ROLE_CLONE: (roleId: string) => `/roles/${roleId}/permissions:clone`,
+    ROLE_BULK: '/roles/permissions:bulk',
+  },
 } as const;
 
 export const HTTP_STATUS = {

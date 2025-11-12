@@ -108,8 +108,9 @@ export async function createRoleAction(roleData: RoleCreate): Promise<{
       };
     }
     
-    // Revalidate roles cache after successful creation
+    // Revalidate caches after successful creation
     revalidateTag(CACHE_TAGS.ROLES);
+    revalidateTag(CACHE_TAGS.PERMISSIONS);
     
     return {
       success: true,
@@ -142,8 +143,9 @@ export async function updateRoleAction(roleId: UUID, updateData: RoleUpdate): Pr
       };
     }
     
-    // Revalidate roles cache after successful update
+    // Revalidate caches after successful update
     revalidateTag(CACHE_TAGS.ROLES);
+    revalidateTag(CACHE_TAGS.PERMISSIONS);
     
     return {
       success: true,
@@ -175,8 +177,9 @@ export async function deleteRoleAction(roleId: UUID): Promise<{
       };
     }
     
-    // Revalidate roles cache after successful deletion
+    // Revalidate caches after successful deletion
     revalidateTag(CACHE_TAGS.ROLES);
+    revalidateTag(CACHE_TAGS.PERMISSIONS);
     
     return {
       success: true,
@@ -207,8 +210,9 @@ export async function reorderRolesAction(reorderData: RoleReorderRequest): Promi
       };
     }
     
-    // Revalidate roles cache after successful reorder
+    // Revalidate caches after successful reorder
     revalidateTag(CACHE_TAGS.ROLES);
+    revalidateTag(CACHE_TAGS.PERMISSIONS);
     
     return {
       success: true,

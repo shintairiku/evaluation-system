@@ -4,11 +4,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.role_repo import RoleRepository
+from ..database.repositories.permission_repo import PermissionRepository
 from ..database.repositories.user_repo import UserRepository
 from ..database.models.user import Role as RoleModel
 from ..schemas.user import (
     RoleCreate, RoleUpdate, Role, RoleDetail, RoleReorderItem
 )
+from ..schemas.common import Permission as PermissionSchema
 from ..core.exceptions import (
     NotFoundError, ConflictError, ValidationError, BadRequestError
 )
@@ -26,6 +28,7 @@ class RoleService:
         self.session = session
         self.role_repo = RoleRepository(session)
         self.user_repo = UserRepository(session)
+        self.permission_repo = PermissionRepository(session)
     
     @require_permission(Permission.ROLE_MANAGE)
     async def create_role(
@@ -230,7 +233,7 @@ class RoleService:
             await self._validate_role_deletion(existing_role, current_user_context.organization_id)
             
             # Delete role through repository (handles hierarchy_order adjustment)
-            success = await self.role_repo.delete_role(role_id)
+            success = await self.role_repo.delete_role(role_id, current_user_context.organization_id)
             
             if success:
                 await self.session.commit()
@@ -339,5 +342,15 @@ class RoleService:
             updated_at=role.updated_at.isoformat() if role.updated_at else "",
             user_count=user_count
         )
-        
+
+        role_permissions = await self.permission_repo.list_for_role(role.id, role.organization_id)
+
+        if role_permissions:
+            role_detail.permissions = [
+                PermissionSchema(name=permission.code, description=permission.description or permission.code)
+                for permission in role_permissions
+            ]
+        else:
+            role_detail.permissions = []
+
         return role_detail

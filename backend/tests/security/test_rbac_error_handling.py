@@ -17,7 +17,7 @@ from unittest.mock import Mock, AsyncMock, patch
 from app.security.rbac_helper import RBACHelper, subordinate_cache, resource_access_cache
 from app.security.rbac_types import ResourceType
 from app.security.context import AuthContext, RoleInfo
-from app.security.permissions import Permission, PermissionManager
+from app.security.permissions import Permission
 from app.security.decorators import (
     require_permission, 
     require_any_permission, 
@@ -52,7 +52,23 @@ class TestPermissionDeniedErrorHandling:
         return AuthContext(
             user_id=uuid4(),
             clerk_user_id="emp_123",
-            roles=roles
+            roles=roles,
+            role_permission_overrides={
+                "employee": {
+                    Permission.USER_READ_SELF,
+                    Permission.USER_MANAGE_BASIC,
+                    Permission.DEPARTMENT_READ,
+                    Permission.ROLE_READ_ALL,
+                    Permission.GOAL_READ_SELF,
+                    Permission.GOAL_MANAGE_SELF,
+                    Permission.EVALUATION_READ,
+                    Permission.EVALUATION_MANAGE,
+                    Permission.COMPETENCY_READ_SELF,
+                    Permission.ASSESSMENT_READ_SELF,
+                    Permission.ASSESSMENT_MANAGE_SELF,
+                    Permission.STAGE_READ_ALL,
+                }
+            },
         )
     
     @pytest.mark.asyncio
@@ -160,7 +176,10 @@ class TestInvalidInputHandling:
         auth_context = AuthContext(
             user_id=None,  # None user_id
             clerk_user_id="emp_123",
-            roles=roles
+            roles=roles,
+            role_permission_overrides={
+                "employee": {Permission.USER_READ_SELF}
+            },
         )
         
         # Should still work but with None user_id
@@ -195,7 +214,13 @@ class TestInvalidInputHandling:
     async def test_rbac_helper_with_invalid_resource_type(self):
         """Test RBACHelper with invalid resource type enum value"""
         employee_roles = [RoleInfo(id=4, name="employee", description="Employee")]
-        employee_context = AuthContext(user_id=uuid4(), roles=employee_roles)
+        employee_context = AuthContext(
+            user_id=uuid4(),
+            roles=employee_roles,
+            role_permission_overrides={
+                "employee": {Permission.USER_READ_SELF}
+            },
+        )
         
         # Test with invalid resource type (this would be a programming error)
         # We can't easily create invalid ResourceType enum, so we test that our system
@@ -212,7 +237,13 @@ class TestInvalidInputHandling:
     async def test_rbac_helper_with_none_target_user_id(self):
         """Test RBACHelper methods with None target_user_id"""
         employee_roles = [RoleInfo(id=4, name="employee", description="Employee")]
-        employee_context = AuthContext(user_id=uuid4(), roles=employee_roles)
+        employee_context = AuthContext(
+            user_id=uuid4(),
+            roles=employee_roles,
+            role_permission_overrides={
+                "employee": {Permission.USER_READ_SELF}
+            },
+        )
         
         # Should handle None target_user_id gracefully
         result = await RBACHelper.get_accessible_user_ids(employee_context, target_user_id=None)
@@ -385,20 +416,14 @@ class TestSecurityBoundaryTesting:
         # Attempt to create context with conflicting role information
         fake_admin_roles = [RoleInfo(id=1, name="admin", description="Fake Admin")]
         
-        # But the PermissionManager should determine actual permissions
         auth_context = AuthContext(
             user_id=uuid4(),
             clerk_user_id="fake_admin",
             roles=fake_admin_roles
         )
         
-        # The context should only have permissions that PermissionManager grants
-        # If "admin" role doesn't exist in PermissionManager, should have no permissions
-        actual_permissions = auth_context._permissions
-        expected_permissions = set()  # No permissions for invalid role
-        
-        # This test depends on PermissionManager implementation
-        # In a real system, invalid roles should grant no permissions
+        # No overrides provided -> no permissions granted
+        assert len(auth_context._permissions) == 0
     
     def test_role_spoofing_prevention(self):
         """Test that role names are properly validated"""
@@ -443,21 +468,14 @@ class TestSecurityBoundaryTesting:
         employee_roles = [RoleInfo(id=4, name="employee", description="Employee")]
         employee_context = AuthContext(user_id=uuid4(), roles=employee_roles)
         
-        original_permissions = employee_context._permissions.copy()
+        original_permissions = set(employee_context._permissions)
         
-        # Attempt to modify permissions directly (should not affect security)
-        try:
-            employee_context._permissions.add(Permission.USER_MANAGE)
-        except:
-            pass  # Some implementations might make this immutable
+        # Attempt to modify permissions directly should fail (permissions are immutable)
+        with pytest.raises((AttributeError, TypeError)):
+            employee_context._permissions.add(Permission.USER_MANAGE)  # type: ignore
         
-        # Even if modification succeeds, permission checks should still work correctly
-        # The real security relies on PermissionManager, not the cached _permissions
-        actual_has_permission = employee_context.has_permission(Permission.USER_MANAGE)
-        expected_has_permission = PermissionManager.has_permission("employee", Permission.USER_MANAGE)
-        
-        assert actual_has_permission == expected_has_permission, \
-            "Permission checking should rely on authoritative source, not cached permissions"
+        # And permission check remains false
+        assert employee_context.has_permission(Permission.USER_MANAGE) is False
 
 
 class TestErrorLoggingAndAuditing:

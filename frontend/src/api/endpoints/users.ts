@@ -24,6 +24,9 @@ export const usersApi = {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.withCount !== undefined) {
+      queryParams.append('withCount', params.withCount ? 'true' : 'false');
+    }
     
     const endpoint = queryParams.toString() 
       ? `${API_ENDPOINTS.USERS.LIST}?${queryParams.toString()}`
