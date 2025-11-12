@@ -233,7 +233,7 @@ class RoleService:
             await self._validate_role_deletion(existing_role, current_user_context.organization_id)
             
             # Delete role through repository (handles hierarchy_order adjustment)
-            success = await self.role_repo.delete_role(role_id)
+            success = await self.role_repo.delete_role(role_id, current_user_context.organization_id)
             
             if success:
                 await self.session.commit()
