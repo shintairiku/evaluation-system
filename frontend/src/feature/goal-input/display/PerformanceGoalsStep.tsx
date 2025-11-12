@@ -1,4 +1,5 @@
 'use client';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +12,8 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, AlertCircle, TrendingUp, BarChart3, Zap } from 'lucide-react';
 import type { StageWeightBudget } from '../types';
+import { deleteGoalAction } from '@/api/server-actions/goals';
+import type { UseGoalTrackingReturn } from '@/hooks/useGoalTracking';
 
 interface PerformanceGoal {
   id: string;
@@ -25,9 +28,7 @@ interface PerformanceGoal {
 interface PerformanceGoalsStepProps {
   goals: PerformanceGoal[];
   onGoalsChange: (goals: PerformanceGoal[]) => void;
-  goalTracking?: {
-    trackGoalChange: (goalId: string, goalType: 'performance' | 'competency', data: unknown) => void;
-  };
+  goalTracking?: UseGoalTrackingReturn;
   onNext: () => void;
   periodId?: string;
   stageBudgets: StageWeightBudget;
@@ -57,8 +58,11 @@ const formatPercent = (value: number) => {
 export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, stageBudgets }: PerformanceGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoals = goals;
+  const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
 
   const goalTypes: GoalType[] = ['quantitative', 'qualitative'];
+
+  const isTemporaryGoalId = (goalId: string) => /^\d+$/.test(goalId);
 
   const getBudgetForType = (type: GoalType) => {
     return type === 'quantitative' ? stageBudgets.quantitative : stageBudgets.qualitative;
@@ -76,6 +80,16 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
     const remaining = budget - allocated;
     return remaining > 0 ? remaining : 0;
   };
+
+  const zeroBudgetTypes = useMemo(
+    () => goalTypes.filter(type => getBudgetForType(type) === 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stageBudgets.quantitative, stageBudgets.qualitative],
+  );
+
+  const zeroBudgetMessage = zeroBudgetTypes.length
+    ? `${zeroBudgetTypes.map(type => goalTypeMeta[type].label).join('／')} はこのステージで0%に設定されているため追加できません`
+    : null;
 
   const addGoal = () => {
     const preferredType: GoalType = getMaxAllocatableWeight('quantitative') > 0
@@ -100,25 +114,47 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
     });
   };
 
-  const removeGoal = (id: string) => {
-    if (currentGoals.length === 1) return; // 最低1つは残す
-    
+  const removeGoal = async (id: string) => {
+    if (currentGoals.length === 1) {
+      toast.error('目標は少なくとも1件必要です');
+      return;
+    }
+
     const goalToRemove = currentGoals.find(goal => goal.id === id);
-    const updatedGoals = currentGoals.filter(goal => goal.id !== id);
-    onGoalsChange(updatedGoals);
-    
-    // Show immediate feedback with undo option
-    const goalTitle = goalToRemove?.title || '目標';
-    toast.success(`「${goalTitle}」を削除しました`, {
-      duration: 3000,
-      action: {
-        label: '元に戻す',
-        onClick: () => {
-          onGoalsChange(currentGoals);
-          toast.success('削除を取り消しました', { duration: 1500 });
-        },
-      },
-    });
+    if (!goalToRemove) return;
+
+    const applyRemoval = () => {
+      const updatedGoals = currentGoals.filter(goal => goal.id !== id);
+      onGoalsChange(updatedGoals);
+      goalTracking?.clearChanges(id);
+    };
+
+    if (isTemporaryGoalId(id)) {
+      applyRemoval();
+      const goalTitle = goalToRemove.title || '目標';
+      toast.success(`「${goalTitle}」を削除しました`, { duration: 2000 });
+      return;
+    }
+
+    setDeletingGoalId(id);
+    const loadingToast = toast.loading('目標を削除しています...');
+    try {
+      const result = await deleteGoalAction(id);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete goal');
+      }
+      applyRemoval();
+      toast.success('目標を削除しました', { id: loadingToast, duration: 2500 });
+    } catch (error) {
+      console.error('Failed to delete performance goal', { goalId: id, error });
+      toast.error('目標の削除に失敗しました', {
+        id: loadingToast,
+        description: error instanceof Error ? error.message : undefined,
+        duration: 4000,
+      });
+    } finally {
+      setDeletingGoalId(null);
+    }
   };
 
   const clampWeightForGoal = (goalId: string, type: GoalType, rawValue: number) => {
@@ -234,6 +270,9 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground">
               ステージ配分: 定量 {formatPercent(stageBudgets.quantitative)}% / 定性 {formatPercent(stageBudgets.qualitative)}%
+              {zeroBudgetMessage && (
+                <p className="mt-1 text-xs text-muted-foreground">{zeroBudgetMessage}</p>
+              )}
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {typeStatuses.map(status => (
@@ -294,11 +333,19 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
                     onValueChange={(value) => updateGoal(goal.id, 'type', value as GoalType)}
                   >
                     <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="quantitative" className="flex items-center gap-1">
+                      <TabsTrigger
+                        value="quantitative"
+                        className="flex items-center gap-1"
+                        disabled={getBudgetForType('quantitative') === 0}
+                      >
                         <BarChart3 className="h-3 w-3" />
                         定量的
                       </TabsTrigger>
-                      <TabsTrigger value="qualitative" className="flex items-center gap-1">
+                      <TabsTrigger
+                        value="qualitative"
+                        className="flex items-center gap-1"
+                        disabled={getBudgetForType('qualitative') === 0}
+                      >
                         <Zap className="h-3 w-3" />
                         定性的
                       </TabsTrigger>
@@ -322,7 +369,8 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => removeGoal(goal.id)}
+                      onClick={() => void removeGoal(goal.id)}
+                      disabled={deletingGoalId === goal.id}
                       className="text-gray-400 hover:text-destructive hover:bg-destructive/10 opacity-50 hover:opacity-100"
                       title="この目標を削除"
                     >
@@ -394,7 +442,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
       )}
 
       {/* 目標追加ボタン */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4 items-start">
         <Button 
           className="col-span-2"
           onClick={addGoal}
@@ -410,6 +458,11 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
         >
           次へ進む
         </Button>
+        {!hasRemainingBudget && (
+          <p className="col-span-3 text-right text-sm text-muted-foreground">
+            {zeroBudgetMessage ?? 'ステージ配分の上限に達しています。既存の重みを調整してください。'}
+          </p>
+        )}
       </div>
 
     </div>
