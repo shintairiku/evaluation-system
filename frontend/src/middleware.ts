@@ -4,7 +4,10 @@ import { NextResponse } from "next/server";
 const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/org(.*)',
+  // Only the org landing and its subpaths should be public.
+  // Avoid matching "/org-management" as public.
+  '/org',
+  '/org/(.*)',
   '/api/webhooks(.*)',
   '/access-denied'
 ]);

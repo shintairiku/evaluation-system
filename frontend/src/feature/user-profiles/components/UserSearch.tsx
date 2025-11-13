@@ -22,6 +22,7 @@ interface SearchState {
   total: number;
   loading: boolean;
   error: string | null;
+  requestId: number | null;
 }
 
 const initialState: SearchState = {
@@ -29,6 +30,7 @@ const initialState: SearchState = {
   total: 0,
   loading: false,
   error: null,
+  requestId: null,
 };
 
 // Improved debounce utility function with minimum length validation
@@ -91,6 +93,8 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
   const debouncedQuery = useDebounce<string>(searchParams.query || '', 800);
   // Track if the last emitted results are considered filtered
   const [wasFiltered, setWasFiltered] = React.useState(false);
+  const requestSeqRef = useRef(0);
+  const latestActiveRequestIdRef = useRef<number | null>(null);
 
   // Server action wrapper for useActionState
   const searchActionWrapper = async (
@@ -98,6 +102,8 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
     formData: FormData
   ): Promise<SearchState> => {
     const params: SearchUsersParams = buildParamsFromForm(formData);
+    const requestIdValue = formData.get('__requestId');
+    const requestId = requestIdValue ? Number(requestIdValue) : null;
 
     try {
       if (useOrgChartDataset) {
@@ -107,10 +113,10 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
           const currentUser = (initialUsers && initialUsers.length > 0) ? initialUsers[0] : undefined;
           const currentStageId = currentUser?.stage?.id;
           if (!currentStageId || currentStageId !== params.stage_id) {
-            return { users: [], total: 0, loading: false, error: null };
+            return { users: [], total: 0, loading: false, error: null, requestId };
           }
           // If matches, show only self
-          return { users: [currentUser as UserDetailResponse], total: 1, loading: false, error: null };
+          return { users: [currentUser as UserDetailResponse], total: 1, loading: false, error: null, requestId };
         }
 
         const orgResult = await searchOrgChartUsersAction({
@@ -125,10 +131,10 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
         });
 
         if (!orgResult.success || !orgResult.data) {
-          return { users: [], total: 0, loading: false, error: orgResult.error || 'Search failed' };
+          return { users: [], total: 0, loading: false, error: orgResult.error || 'Search failed', requestId };
         }
 
-        return { users: orgResult.data as unknown as UserDetailResponse[], total: orgResult.total || orgResult.data.length, loading: false, error: null };
+        return { users: orgResult.data as unknown as UserDetailResponse[], total: orgResult.total || orgResult.data.length, loading: false, error: null, requestId };
       }
 
       const result = await searchUsersAction(params);
@@ -139,6 +145,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
           total: result.data.total,
           loading: false,
           error: null,
+          requestId,
         };
         return searchResult;
       } else {
@@ -147,6 +154,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
           total: 0,
           loading: false,
           error: result.error || 'Search failed',
+          requestId,
         };
         return errorResult;
       }
@@ -156,6 +164,7 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
         total: 0,
         loading: false,
         error: 'An unexpected error occurred during search',
+        requestId,
       };
     }
   };
@@ -190,6 +199,9 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
 
     if (hasMinimumSearchQuery || hasFilters) {
       setWasFiltered(true);
+      const nextRequestId = requestSeqRef.current + 1;
+      requestSeqRef.current = nextRequestId;
+      latestActiveRequestIdRef.current = nextRequestId;
       startTransition(() => {
         const formData = new FormData();
         formData.append('query', debouncedQuery || '');
@@ -199,12 +211,14 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
         formData.append('status', searchParams.status || 'all');
         formData.append('page', searchParams.page?.toString() || '1');
         formData.append('limit', searchParams.limit?.toString() || '50');
+        formData.append('__requestId', String(nextRequestId));
 
         searchAction(formData);
       });
     } else if ((debouncedQuery || '').trim().length === 0 && !hasFilters) {
       // Clear search - show initial users
       setWasFiltered(false);
+      latestActiveRequestIdRef.current = null;
       onSearchResultsRef.current(initialUsers, initialUsers.length, false);
     }
     // If query is 1 character, do nothing (wait for more characters)
@@ -214,9 +228,18 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
   // Update parent with search results when search state changes
   useEffect(() => {
     if (searchState.users.length > 0 || (searchState.users.length === 0 && searchState.total === 0 && !searchState.loading)) {
+      if (searchState.requestId !== null) {
+        if (latestActiveRequestIdRef.current === null) {
+          return;
+        }
+        if (searchState.requestId !== latestActiveRequestIdRef.current) {
+          return;
+        }
+        latestActiveRequestIdRef.current = null;
+      }
       onSearchResultsRef.current(searchState.users, searchState.total, wasFiltered);
     }
-  }, [searchState.users, searchState.total, searchState.loading, wasFiltered]);
+  }, [searchState.users, searchState.total, searchState.loading, searchState.requestId, wasFiltered]);
 
   // Handle search errors with toast notifications
   useEffect(() => {
@@ -247,9 +270,11 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
       limit: 50
     };
     setSearchParams(clearedParams);
+    setWasFiltered(false);
+    latestActiveRequestIdRef.current = null;
     
     // Return to initial users immediately
-    onSearchResultsRef.current(initialUsers, initialUsers.length);
+    onSearchResultsRef.current(initialUsers, initialUsers.length, false);
   }, [initialUsers]);
 
   const isLoading = isPending || isPendingAction || searchState.loading;

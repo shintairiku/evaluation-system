@@ -4,7 +4,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, update, func, delete, and_
+from sqlalchemy import select, update, func, delete, and_, case, literal
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -254,10 +254,8 @@ class GoalRepository(BaseRepository[Goal]):
         try:
             from ..models.user import User
 
-            query = select(Goal).options(
-                joinedload(Goal.user),
-                joinedload(Goal.period)
-            )
+            # Keep the base entity lean; relationships are loaded on demand by callers
+            query = select(Goal)
 
             # Apply organization filter first (required)
             query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
@@ -374,6 +372,52 @@ class GoalRepository(BaseRepository[Goal]):
             return {row.goal_category: row.total_weight or Decimal('0') for row in result}
         except SQLAlchemyError as e:
             logger.error(f"Error calculating weight totals for user {user_id} in org {org_id}: {e}")
+            raise
+
+    async def get_weight_totals_by_budget_bucket(
+        self,
+        user_id: UUID,
+        period_id: UUID,
+        org_id: str,
+        exclude_goal_id: Optional[UUID] = None
+    ) -> Dict[str, Decimal]:
+        """Get total weight grouped by stage budget buckets (quantitative / qualitative / competency)."""
+        try:
+            performance_type = Goal.target_data['performance_goal_type'].astext
+            quantitative_case = and_(
+                Goal.goal_category == '業績目標',
+                performance_type.in_(['quantitative', '定量目標'])
+            )
+
+            bucket_case = case(
+                (quantitative_case, literal('quantitative')),
+                (Goal.goal_category == '業績目標', literal('qualitative')),
+                (Goal.goal_category.in_(('コンピテンシー', 'コアバリュー')), literal('competency')),
+                else_=literal('competency')
+            )
+
+            query = select(
+                bucket_case.label('bucket'),
+                func.sum(Goal.weight).label('total_weight')
+            ).filter(
+                and_(
+                    Goal.user_id == user_id,
+                    Goal.period_id == period_id,
+                    Goal.status != GoalStatus.REJECTED.value
+                )
+            )
+
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+
+            if exclude_goal_id:
+                query = query.filter(Goal.id != exclude_goal_id)
+
+            query = query.group_by(bucket_case)
+
+            result = await self.session.execute(query)
+            return {row.bucket: row.total_weight or Decimal('0') for row in result}
+        except SQLAlchemyError as e:
+            logger.error(f"Error calculating bucketed weight totals for user {user_id} in org {org_id}: {e}")
             raise
 
     async def get_pending_approvals_for_supervisor(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
@@ -195,6 +195,17 @@ class GoalService:
             if not org_id:
                 raise PermissionDeniedError("Organization context required")
             await self._validate_goal_creation(goal_data, target_user_id, org_id)
+
+            stage_budget = await self._get_stage_budget_for_user(target_user_id, org_id)
+            await self._validate_stage_weight_budget(
+                user_id=target_user_id,
+                period_id=goal_data.period_id,
+                org_id=org_id,
+                stage_budget=stage_budget,
+                goal_category=goal_data.goal_category,
+                goal_weight=goal_data.weight,
+                performance_goal_type=goal_data.performance_goal_type.value if goal_data.performance_goal_type else None,
+            )
             
             # Validate weight limits only for submitted goals, not drafts
             if goal_data.status == GoalStatus.SUBMITTED:
@@ -259,6 +270,26 @@ class GoalService:
             
             # Business validation
             await self._validate_goal_update(goal_data, existing_goal, org_id)
+
+            stage_budget = await self._get_stage_budget_for_user(existing_goal.user_id, org_id)
+            updated_weight = goal_data.weight if goal_data.weight is not None else float(existing_goal.weight or 0)
+            updated_performance_type = getattr(goal_data, "performance_goal_type", None)
+            if updated_performance_type is not None:
+                updated_performance_type_value = updated_performance_type.value
+            else:
+                target_data = existing_goal.target_data or {}
+                updated_performance_type_value = target_data.get("performance_goal_type")
+
+            await self._validate_stage_weight_budget(
+                user_id=existing_goal.user_id,
+                period_id=existing_goal.period_id,
+                org_id=org_id,
+                stage_budget=stage_budget,
+                goal_category=existing_goal.goal_category,
+                goal_weight=updated_weight,
+                performance_goal_type=updated_performance_type_value,
+                exclude_goal_id=goal_id
+            )
             
             # Validate weight limits if weight is being changed and goal is in submitted status
             if goal_data.weight is not None and existing_goal.status == GoalStatus.SUBMITTED.value:
@@ -321,7 +352,7 @@ class GoalService:
                 raise BadRequestError("Can only delete draft or rejected goals")
             
             # Delete goal
-            success = await self.goal_repo.delete_goal(goal_id)
+            success = await self.goal_repo.delete_goal(goal_id, org_id)
             
             if success:
                 await self.session.commit()
@@ -617,6 +648,33 @@ class GoalService:
                     org_id=org_id
                 )
 
+            # Batch fetch competency names for competency goals to avoid N+1 lookups
+            # Collect all competency IDs appearing in the current page of goals
+            competency_name_map: dict[str, str] = {}
+            try:
+                from uuid import UUID as _UUID
+                competency_ids: set[UUID] = set()
+                for g in goals:
+                    if (
+                        g.goal_category == "コンピテンシー"
+                        and g.target_data
+                        and isinstance(g.target_data, dict)
+                        and g.target_data.get("competency_ids")
+                    ):
+                        for cid in g.target_data.get("competency_ids", []) or []:
+                            # Ensure UUID type where possible; tolerate strings
+                            try:
+                                competency_ids.add(_UUID(str(cid)))
+                            except Exception:
+                                continue
+
+                if competency_ids:
+                    comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                    # Build string-keyed map for serialization in _enrich_goal_data
+                    competency_name_map = {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+            except Exception as e:
+                logger.warning(f"Failed to batch load competency names: {e}")
+
             # Convert to response format
             enriched_goals = []
             for goal_model in goals:
@@ -626,7 +684,8 @@ class GoalService:
                     include_rejection_history=include_rejection_history,
                     reviews_map=reviews_map,
                     rejection_histories_map=rejection_histories_map,
-                    org_id=org_id
+                    org_id=org_id,
+                    competency_name_map=competency_name_map
                 )
                 enriched_goals.append(enriched_goal)
 
@@ -754,6 +813,81 @@ class GoalService:
             raise ValidationError(
                 f"業績目標の合計ウェイトは100%である必要があります。現在の合計: {performance_total}%"
             )
+
+    async def _get_stage_budget_for_user(self, user_id: UUID, org_id: str) -> Dict[str, Decimal]:
+        """Fetch stage configuration for the user and convert to Decimal budgets."""
+        user_stage = await self.user_repo.get_user_stage_with_weights(user_id, org_id)
+        if not user_stage:
+            raise BadRequestError("ユーザー情報を取得できませんでした。")
+        if not user_stage.get("stage_id"):
+            raise BadRequestError("ステージ未設定のため重みを登録できません。管理者にお問い合わせください。")
+
+        def to_decimal(value: Optional[float]) -> Decimal:
+            return Decimal(str(value if value is not None else 0))
+
+        return {
+            "stage_id": user_stage["stage_id"],
+            "quantitative": to_decimal(user_stage.get("quantitative_weight")),
+            "qualitative": to_decimal(user_stage.get("qualitative_weight")),
+            "competency": to_decimal(user_stage.get("competency_weight")),
+        }
+
+    async def _validate_stage_weight_budget(
+        self,
+        user_id: UUID,
+        period_id: UUID,
+        org_id: str,
+        stage_budget: Dict[str, Decimal],
+        goal_category: str,
+        goal_weight: float,
+        performance_goal_type: Optional[str] = None,
+        exclude_goal_id: Optional[UUID] = None
+    ):
+        """Ensure new/updated goal keeps totals within stage budget."""
+        bucket = self._determine_weight_bucket(goal_category, performance_goal_type)
+        if not bucket:
+            return
+
+        goal_weight_decimal = Decimal(str(goal_weight or 0))
+        current_totals = await self.goal_repo.get_weight_totals_by_budget_bucket(
+            user_id=user_id,
+            period_id=period_id,
+            org_id=org_id,
+            exclude_goal_id=exclude_goal_id
+        )
+
+        new_total = current_totals.get(bucket, Decimal('0')) + goal_weight_decimal
+        budget_limit = stage_budget.get(bucket)
+        if budget_limit is None:
+            return
+
+        if new_total > budget_limit:
+            label = self._bucket_label(bucket)
+            raise ValidationError(
+                f"{label}の合計ウェイトは{float(budget_limit)}%以内で設定してください。現在: {float(new_total)}%"
+            )
+
+    def _determine_weight_bucket(
+        self,
+        goal_category: str,
+        performance_goal_type: Optional[str]
+    ) -> Optional[str]:
+        """Map goal category/type to stage budget bucket."""
+        if goal_category == "業績目標":
+            normalized_type = (performance_goal_type or "").lower()
+            if normalized_type in ("quantitative", "定量目標"):
+                return "quantitative"
+            return "qualitative"
+        if goal_category in ("コンピテンシー", "コアバリュー"):
+            return "competency"
+        return None
+
+    def _bucket_label(self, bucket: str) -> str:
+        return {
+            "quantitative": "定量目標",
+            "qualitative": "定性目標",
+            "competency": "コンピテンシー/コアバリュー",
+        }.get(bucket, bucket)
 
     async def _get_rejection_history(
         self,
@@ -911,7 +1045,9 @@ class GoalService:
         include_rejection_history: bool = False,
         reviews_map: dict = None,
         rejection_histories_map: dict = None,
-        org_id: str = None
+        org_id: str = None,
+        *,
+        competency_name_map: dict[str, str] | None = None
     ) -> Goal:
         """
         Convert GoalModel to Goal response schema with enriched data.
@@ -940,22 +1076,32 @@ class GoalService:
             goal_dict.update(goal_model.target_data)
 
         # Add competency name lookup for competency goals
-        if (goal_model.goal_category == "コンピテンシー" and
-            goal_model.target_data and
-            goal_model.target_data.get("competency_ids") and
-            org_id):
-
+        if (
+            goal_model.goal_category == "コンピテンシー"
+            and goal_model.target_data
+            and goal_model.target_data.get("competency_ids")
+        ):
             try:
-                competency_names = {}
-                for competency_id in goal_model.target_data["competency_ids"]:
-                    competency = await self.competency_repo.get_by_id(competency_id, org_id)
-                    if competency:
-                        competency_names[str(competency_id)] = competency.name
+                competency_names: dict[str, str] = {}
+                ids = goal_model.target_data.get("competency_ids", []) or []
+
+                if competency_name_map is not None:
+                    # Prefer batched map if provided for performance
+                    for cid in ids:
+                        name = competency_name_map.get(str(cid))
+                        if name:
+                            competency_names[str(cid)] = name
+                elif org_id:
+                    # Fallback: individual lookups (should be rare)
+                    for cid in ids:
+                        comp = await self.competency_repo.get_by_id(cid, org_id)
+                        if comp:
+                            competency_names[str(cid)] = comp.name
 
                 if competency_names:
                     goal_dict["competency_names"] = competency_names
             except Exception as e:
-                logger.warning(f"Failed to fetch competency names for goal {goal_model.id}: {str(e)}")
+                logger.warning(f"Failed to resolve competency names for goal {goal_model.id}: {str(e)}")
                 # Continue without competency names if lookup fails
 
         # Performance optimization: Embed supervisor review if requested

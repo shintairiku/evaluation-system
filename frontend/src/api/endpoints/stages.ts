@@ -6,6 +6,8 @@ import type {
   StageWithUserCount,
   StageCreate,
   StageUpdate,
+  StageWeightUpdate,
+  StageWeightHistoryEntry,
   ApiResponse,
   UUID,
 } from '../types';
@@ -50,6 +52,22 @@ export const stagesApi = {
    */
   updateStage: async (stageId: UUID, data: StageUpdate): Promise<ApiResponse<StageDetail>> => {
     return httpClient.put<StageDetail>(API_ENDPOINTS.STAGES.UPDATE(stageId), data);
+  },
+
+  /**
+   * Update only the weights for an existing stage (admin only)
+   */
+  updateStageWeights: async (stageId: UUID, data: StageWeightUpdate): Promise<ApiResponse<StageDetail>> => {
+    return httpClient.patch<StageDetail>(API_ENDPOINTS.STAGES.WEIGHTS(stageId), data);
+  },
+
+  /**
+   * Fetch weight history entries for a stage (admin only)
+   */
+  getStageWeightHistory: async (stageId: UUID, limit = 20): Promise<ApiResponse<StageWeightHistoryEntry[]>> => {
+    return httpClient.get<StageWeightHistoryEntry[]>(
+      `${API_ENDPOINTS.STAGES.WEIGHT_HISTORY(stageId)}?limit=${limit}`,
+    );
   },
 
   /**

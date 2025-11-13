@@ -141,6 +141,8 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/stages/${id}`,
     DELETE: (id: string) => `/stages/${id}`,
     ADMIN: '/stages/admin',
+    WEIGHTS: (id: string) => `/stages/${id}/weights`,
+    WEIGHT_HISTORY: (id: string) => `/stages/${id}/weight-history`,
   },
 
   // Evaluation Period endpoints
@@ -223,6 +225,15 @@ export const API_ENDPOINTS = {
     BY_ASSESSMENT: (assessmentId: string) => `/supervisor-feedbacks/assessment/${assessmentId}`,
     SUBMIT: (id: string) => `/supervisor-feedbacks/${id}/submit`,
     DRAFT: (id: string) => `/supervisor-feedbacks/${id}/draft`,
+  },
+
+  // Permission management endpoints
+  PERMISSIONS: {
+    CATALOG: '/permissions/',
+    CATALOG_GROUPED: '/roles/permissions:catalog-grouped',
+    ROLE: (roleId: string) => `/roles/${roleId}/permissions`,
+    ROLE_CLONE: (roleId: string) => `/roles/${roleId}/permissions:clone`,
+    ROLE_BULK: '/roles/permissions:bulk',
   },
 } as const;
 

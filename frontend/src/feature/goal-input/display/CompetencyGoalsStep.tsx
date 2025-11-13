@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { AlertCircle, ChevronLeft } from 'lucide-react';
 import { Competency } from '@/api/types/competency';
 import { CompetencyAccordion } from '@/components/competency/CompetencyAccordion';
 import { getCompetenciesAction } from '@/api/server-actions/competencies';
+import type { StageWeightBudget } from '../types';
+import type { UseGoalTrackingReturn } from '@/hooks/useGoalTracking';
 
 interface CompetencyGoal {
   id: string;
@@ -22,12 +24,11 @@ interface CompetencyGoal {
 interface CompetencyGoalsStepProps {
   goals: CompetencyGoal[];
   onGoalsChange: (goals: CompetencyGoal[]) => void;
-  goalTracking?: {
-    trackGoalChange: (goalId: string, goalType: 'performance' | 'competency', data: unknown) => void;
-  };
+  goalTracking?: UseGoalTrackingReturn;
   onNext: () => void;
   onPrevious: () => void;
   periodId?: string;
+  stageBudgets: StageWeightBudget;
 }
 
 export function CompetencyGoalsStep({
@@ -35,7 +36,8 @@ export function CompetencyGoalsStep({
   onGoalsChange,
   goalTracking,
   onNext,
-  onPrevious
+  onPrevious,
+  stageBudgets
 }: CompetencyGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoal = goals[0];
@@ -142,6 +144,29 @@ export function CompetencyGoalsStep({
     return actionPlan.trim() !== '';
   };
 
+  if ((stageBudgets?.competency ?? 0) === 0) {
+    return (
+      <div className="space-y-6">
+        <Alert>
+          <AlertTitle>コンピテンシー目標は不要です</AlertTitle>
+          <AlertDescription>
+            現在のステージ「{stageBudgets.stageName ?? '未設定'}」ではコンピテンシー配分が 0% に設定されているため、このステップでの入力は不要です。
+          </AlertDescription>
+        </Alert>
+        <Separator />
+        <div className="grid grid-cols-3 gap-4">
+          <Button onClick={onPrevious} variant="outline" className="col-span-1">
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            前に戻る
+          </Button>
+          <Button onClick={onNext} className="col-span-2">
+            次へ進む
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -153,6 +178,14 @@ export function CompetencyGoalsStep({
       </div>
 
       {/* Competency Selection */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-sm text-muted-foreground">
+            ステージ配分: コンピテンシー {stageBudgets.competency ?? 0}% 
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="space-y-3">
         <Label className="text-base font-medium">コンピテンシーの選択 (任意)</Label>
         

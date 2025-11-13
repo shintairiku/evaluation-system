@@ -13,6 +13,7 @@ export interface Permission {
 export interface PaginationParams {
   page?: number;
   limit?: number;
+  withCount?: boolean;
 }
 
 export interface PaginatedResponse<T> {

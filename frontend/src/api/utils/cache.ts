@@ -11,6 +11,7 @@ export const CACHE_TAGS = {
   STAGES: 'stages',
   EVALUATION_PERIODS: 'evaluation-periods',
   COMPETENCIES: 'competencies',
+  PERMISSIONS: 'permissions',
   
   // Dynamic data - shorter cache periods
   GOALS: 'goals',
@@ -50,6 +51,10 @@ export const CACHE_STRATEGIES = {
   [CACHE_TAGS.ROLES]: {
     duration: CACHE_DURATIONS.STATIC, 
     tags: [CACHE_TAGS.ROLES] as string[],
+  },
+  [CACHE_TAGS.PERMISSIONS]: {
+    duration: CACHE_DURATIONS.STATIC,
+    tags: [CACHE_TAGS.PERMISSIONS] as string[],
   },
   [CACHE_TAGS.STAGES]: {
     duration: CACHE_DURATIONS.STATIC,

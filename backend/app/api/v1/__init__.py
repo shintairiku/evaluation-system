@@ -4,6 +4,7 @@ from .users import router as user_router
 from .roles import router as role_router
 from .departments import router as department_router
 from .stages import router as stage_router
+from .permissions import router as permission_router
 from .admin import router as admin_router
 
 from .goals import router as goal_router
@@ -27,6 +28,7 @@ org_api_router.include_router(user_router)
 org_api_router.include_router(role_router)
 org_api_router.include_router(department_router)
 org_api_router.include_router(stage_router)
+org_api_router.include_router(permission_router)
 org_api_router.include_router(admin_router)
 org_api_router.include_router(goal_router)
 org_api_router.include_router(supervisor_review_router)
@@ -41,5 +43,4 @@ org_api_router.include_router(dashboard_router)
 # Webhooks should be registered without the /api/v1 prefix
 webhooks_router_root = APIRouter()
 # webhooks_router_root.include_router(webhooks_router)
-
 

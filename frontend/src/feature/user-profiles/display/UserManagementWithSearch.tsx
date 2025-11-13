@@ -20,6 +20,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [, setTotalUsers] = useState<number>(initialUsers.length);
   const [, setIsFiltered] = useState<boolean>(false);
+  const [allUsers, setAllUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [error, setError] = useState<string | null>(null);
   // Keep Organization Chart dataset isolated so filters there don't affect Table/Gallery
   const [orgUsers, setOrgUsers] = useState<UserDetailResponse[]>(initialUsers);
@@ -34,22 +35,23 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
     if (initialUsers.length > 0) {
       setUsers(initialUsers);
       setOrgUsers(initialUsers);
+      setAllUsers(initialUsers);
       setTotalUsers(initialUsers.length);
     }
   }, [initialUsers]);
 
   // Callback to update user data when edited
   const handleUserUpdate = (updatedUser: UserDetailResponse) => {
-    setUsers(prevUsers => 
-      prevUsers.map(user => 
-        user.id === updatedUser.id ? updatedUser : user
-      )
-    );
-    setOrgUsers(prevOrgUsers => 
-      prevOrgUsers.map(user => 
-        user.id === updatedUser.id ? updatedUser : user
-      )
-    );
+    const updateList = (list: UserDetailResponse[]) =>
+      list.map(user => (user.id === updatedUser.id ? updatedUser : user));
+
+    setUsers(prevUsers => updateList(prevUsers));
+    setOrgUsers(prevOrgUsers => updateList(prevOrgUsers));
+    setAllUsers(prevAllUsers => {
+      // If updated user isn't in the cached directory, append it so permissions stay accurate
+      const exists = prevAllUsers.some(user => user.id === updatedUser.id);
+      return exists ? updateList(prevAllUsers) : [...prevAllUsers, updatedUser];
+    });
   };
 
   // Callback to handle edit mode changes from OrganizationViewWithOrgChart
@@ -60,6 +62,12 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   // Callback to handle search results from UserSearch component
   const handleSearchResults = (searchUsers: UserDetailResponse[], total: number, isFilteredArg?: boolean) => {
     setError(null);
+    const isFiltered = Boolean(isFilteredArg);
+
+    // Cache the last unfiltered dataset so hierarchy editing keeps full context even after filters
+    if (!isFiltered) {
+      setAllUsers(searchUsers);
+    }
     if (viewMode === 'organization') {
       // Apply security restriction only in edit mode for non-admin users
       if (isOrganizationEditMode && initialUsers.length === 1) {
@@ -70,7 +78,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
       }
       // Apply search results normally (admin in edit mode OR any user in readonly mode)
       setOrgUsers(searchUsers);
-      setOrgIsFiltered(Boolean(isFilteredArg));
+      setOrgIsFiltered(isFiltered);
       // Do not touch table/gallery dataset
     } else {
       // For other views (e.g., admin/supervisor paths), keep default behavior
@@ -83,20 +91,20 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
       }
       setUsers(searchUsers);
       setTotalUsers(total);
-      setIsFiltered(Boolean(isFilteredArg));
+      setIsFiltered(isFiltered);
     }
   };
 
   const renderCurrentView = () => {
     switch (viewMode) {
       case 'table':
-        return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
+        return <UserTableView users={users} allUsers={allUsers} onUserUpdate={handleUserUpdate} />;
       case 'gallery':
-        return <UserGalleryView users={users} onUserUpdate={handleUserUpdate} />;
+        return <UserGalleryView users={users} allUsers={allUsers} onUserUpdate={handleUserUpdate} />;
       case 'organization':
         return <OrganizationViewWithOrgChart users={orgUsers} onUserUpdate={handleUserUpdate} isFiltered={orgIsFiltered} onEditModeChange={handleEditModeChange} />;
       default:
-        return <UserTableView users={users} onUserUpdate={handleUserUpdate} />;
+        return <UserTableView users={users} allUsers={allUsers} onUserUpdate={handleUserUpdate} />;
     }
   };
 

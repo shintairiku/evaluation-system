@@ -204,7 +204,7 @@ export const GoalCard = React.memo<GoalCardProps>(
           )}
 
           {/* Approval Banner - shown if this goal is approved */}
-          {goal.status === 'approved' && goal.supervisorReview && goal.supervisorReview.comment && (
+          {goal.status === 'approved' && goal.supervisorReview && (
             <Alert variant="default" className="border-green-200 bg-green-50">
               <CheckCircle className="h-4 w-4 text-green-600" />
               <AlertDescription className="ml-2">
@@ -222,7 +222,7 @@ export const GoalCard = React.memo<GoalCardProps>(
                       上司からのコメント:
                     </p>
                     <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                      {goal.supervisorReview.comment}
+                      {goal.supervisorReview.comment || '上司からのコメントはありません'}
                     </p>
                   </div>
                 </div>

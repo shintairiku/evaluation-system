@@ -133,9 +133,9 @@ class RoleRepository(BaseRepository[Role]):
     # DELETE OPERATIONS
     # ============================================================================
     
-    async def delete_role(self, role_id: UUID) -> bool:
-        """Delete a role and adjust hierarchy_order of remaining roles."""
-        role = await self.get_by_id(role_id)
+    async def delete_role(self, role_id: UUID, org_id: str) -> bool:
+        """Delete a role inside an organization and adjust remaining hierarchy."""
+        role = await self.get_by_id(role_id, org_id)
         if not role:
             return False
         
@@ -148,6 +148,7 @@ class RoleRepository(BaseRepository[Role]):
         # Adjust hierarchy_order for roles that were after the deleted role
         await self.session.execute(
             update(Role)
+            .where(Role.organization_id == org_id)
             .where(Role.hierarchy_order > deleted_order)
             .values(hierarchy_order=Role.hierarchy_order - 1)
         )

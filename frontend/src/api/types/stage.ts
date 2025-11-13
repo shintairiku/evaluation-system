@@ -9,6 +9,9 @@ export interface Stage {
   id: UUID;
   name: string;
   description?: string;
+  quantitativeWeight: number;
+  qualitativeWeight: number;
+  competencyWeight: number;
 }
 
 export interface StageDetail extends Stage {
@@ -34,3 +37,25 @@ export interface StageUpdate {
 }
 
 export type StageList = Stage[];
+
+export interface StageWeightUpdate {
+  quantitativeWeight: number;
+  qualitativeWeight: number;
+  competencyWeight: number;
+}
+
+export interface StageWeightHistoryEntry {
+  id: UUID;
+  stageId: UUID;
+  organizationId: string;
+  actorUserId: UUID;
+  actorName?: string | null;
+  actorEmployeeCode?: string | null;
+  quantitativeWeightBefore?: number | null;
+  quantitativeWeightAfter?: number | null;
+  qualitativeWeightBefore?: number | null;
+  qualitativeWeightAfter?: number | null;
+  competencyWeightBefore?: number | null;
+  competencyWeightAfter?: number | null;
+  changedAt: string;
+}

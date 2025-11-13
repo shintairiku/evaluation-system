@@ -7,6 +7,7 @@ import { createGoalAction, updateGoalAction } from '@/api/server-actions/goals';
 import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
 import type { EvaluationPeriod } from '@/api/types';
 import type { GoalData } from './useGoalData';
+import type { StageWeightBudget } from '@/feature/goal-input/types';
 import type { UseGoalTrackingReturn, GoalChangeInfo } from './useGoalTracking';
 
 interface UseGoalAutoSaveOptions {
@@ -17,6 +18,7 @@ interface UseGoalAutoSaveOptions {
   goalTracking: UseGoalTrackingReturn;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onGoalReplaceWithServerData: (tempId: string, serverGoal: any, goalType: 'performance' | 'competency') => void;
+  stageBudgets: StageWeightBudget;
 }
 
 export function useGoalAutoSave({
@@ -26,6 +28,7 @@ export function useGoalAutoSave({
   isAutoSaveReady,
   goalTracking,
   onGoalReplaceWithServerData,
+  stageBudgets,
 }: UseGoalAutoSaveOptions) {
   const isSavingRef = useRef(false);
   const {
@@ -79,6 +82,15 @@ export function useGoalAutoSave({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handlePerformanceGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
+    const getBucketContext = (goalType: string, weight: number) => {
+      const bucket: 'quantitative' | 'qualitative' = goalType === 'qualitative' ? 'qualitative' : 'quantitative';
+      const bucketBudget = stageBudgets?.[bucket] ?? 0;
+      const bucketTotal = goalData.performanceGoals
+        .filter(goal => goal.type === bucket)
+        .reduce((sum, goal) => sum + goal.weight, 0);
+      return { bucket, bucketBudget, bucketTotal, attemptedWeight: weight };
+    };
+
     // Check if this is a new performance goal (temporary ID starts with timestamp)
     const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
     
@@ -116,10 +128,12 @@ export function useGoalAutoSave({
         clearChanges(goalId); // Clear the temporary ID changes
         return true;
       } else {
+        const context = getBucketContext(currentData.type, currentData.weight);
         if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to create performance goal:`, {
           error: result?.error,
           sentData: createData,
-          goalId: goalId
+          goalId,
+          ...context,
         });
 
         // Show error toast for goal creation failure
@@ -157,7 +171,12 @@ export function useGoalAutoSave({
 
         return true;
       } else {
-        if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to update performance goal ${goalId}:`, result?.error);
+        const context = getBucketContext(currentData.type, currentData.weight);
+        if (process.env.NODE_ENV !== 'production') console.error(`❌ Auto-save: Failed to update performance goal ${goalId}:`, {
+          error: result?.error,
+          goalId,
+          ...context,
+        });
 
         // Show error toast for goal update failure
         toast.error('業績目標の更新に失敗しました', {
@@ -168,7 +187,7 @@ export function useGoalAutoSave({
         return false;
       }
     }
-  }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData]);
+  }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData, stageBudgets, goalData.performanceGoals]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleCompetencyGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
@@ -177,12 +196,13 @@ export function useGoalAutoSave({
     const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
     
     if (isNewGoal) {
+      const competencyWeight = Number.isFinite(stageBudgets?.competency) ? stageBudgets.competency : 0;
       // Create new competency goal with proper typing
       const createData: GoalCreateRequest = {
         periodId,
         goalCategory: 'コンピテンシー',
         status: 'draft',
-        weight: 100,
+        weight: competencyWeight,
         actionPlan: currentData.actionPlan,
         competencyIds: currentData.competencyIds && currentData.competencyIds.length > 0 ? currentData.competencyIds : null,
         selectedIdealActions: currentData.selectedIdealActions && Object.keys(currentData.selectedIdealActions).length > 0 ? currentData.selectedIdealActions : null,
@@ -257,7 +277,7 @@ export function useGoalAutoSave({
         return false;
       }
     }
-  }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData]);
+  }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData, stageBudgets]);
   
   const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
     if (process.env.NODE_ENV !== 'production') console.debug('🔄 Auto-save: handleAutoSave called with changed goals:', changedGoals);

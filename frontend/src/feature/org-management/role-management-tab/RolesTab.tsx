@@ -1,7 +1,15 @@
 'use client';
 
-import { useState, useMemo, useCallback, useTransition } from 'react';
+import { useState, useMemo, useCallback, useTransition, useEffect } from 'react';
 import { toast } from 'sonner';
+import {
+  Copy,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  Users as UsersIcon,
+} from 'lucide-react';
 import {
   Table,
   TableHeader,
@@ -22,7 +30,18 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Users } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { createRoleAction, updateRoleAction, deleteRoleAction } from '@/api/server-actions/roles';
+import { cloneRolePermissionsAction } from '@/api/server-actions/permissions';
 import { updateUserAction } from '@/api/server-actions/users';
 import type { RoleDetail, UserDetailResponse } from '@/api/types';
 
@@ -30,16 +49,41 @@ interface RolesTabProps {
   roles: RoleDetail[];
   users: UserDetailResponse[];
   onUsersStateSync: (nextUsers: UserDetailResponse[]) => void;
+  onRoleCreated: (role: RoleDetail) => void;
+  onRoleUpdated: (role: RoleDetail) => void;
+  onRoleDeleted: (roleId: string) => void;
 }
+
+type RoleFormState = {
+  name: string;
+  description: string;
+};
 
 export function RolesTab({
   roles,
   users,
   onUsersStateSync,
+  onRoleCreated,
+  onRoleUpdated,
+  onRoleDeleted,
 }: RolesTabProps) {
-  const [roleDialogRole, setRoleDialogRole] = useState<RoleDetail | null>(null);
+  const [assignmentRole, setAssignmentRole] = useState<RoleDetail | null>(null);
   const [selectedRoleUserIds, setSelectedRoleUserIds] = useState<string[]>([]);
-  const [isDialogPending, startDialogTransition] = useTransition();
+  const [isAssignmentPending, startAssignmentTransition] = useTransition();
+
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<RoleFormState>({ name: '', description: '' });
+  const [isCreatePending, startCreateTransition] = useTransition();
+
+  const [editTargetRole, setEditTargetRole] = useState<RoleDetail | null>(null);
+  const [editForm, setEditForm] = useState<RoleFormState>({ name: '', description: '' });
+  const [isEditPending, startEditTransition] = useTransition();
+
+  const [deleteTargetRole, setDeleteTargetRole] = useState<RoleDetail | null>(null);
+  const [isDeletePending, startDeleteTransition] = useTransition();
+  const [cloneTargetRole, setCloneTargetRole] = useState<RoleDetail | null>(null);
+  const [cloneSourceRoleId, setCloneSourceRoleId] = useState<string | null>(null);
+  const [isClonePending, startCloneTransition] = useTransition();
 
   const roleUserMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -54,16 +98,34 @@ export function RolesTab({
     return map;
   }, [roles, users]);
 
-  const openRoleDialog = (role: RoleDetail) => {
-    setRoleDialogRole(role);
+  useEffect(() => {
+    if (!cloneTargetRole) {
+      if (cloneSourceRoleId !== null) {
+        setCloneSourceRoleId(null);
+      }
+      return;
+    }
+    if (
+      cloneSourceRoleId &&
+      cloneSourceRoleId !== cloneTargetRole.id &&
+      roles.some((role) => role.id === cloneSourceRoleId)
+    ) {
+      return;
+    }
+    const fallback = roles.find((role) => role.id !== cloneTargetRole.id)?.id ?? null;
+    setCloneSourceRoleId(fallback);
+  }, [cloneTargetRole, cloneSourceRoleId, roles]);
+
+  const openAssignmentDialog = (role: RoleDetail) => {
+    setAssignmentRole(role);
     const currentMembers = users
       .filter((user) => user.roles.some((item) => item.id === role.id))
       .map((user) => user.id);
     setSelectedRoleUserIds(currentMembers);
   };
 
-  const closeRoleDialog = () => {
-    setRoleDialogRole(null);
+  const closeAssignmentDialog = () => {
+    setAssignmentRole(null);
     setSelectedRoleUserIds([]);
   };
 
@@ -77,9 +139,9 @@ export function RolesTab({
   };
 
   const handleRoleAssignmentsSave = useCallback(() => {
-    if (!roleDialogRole) return;
+    if (!assignmentRole) return;
 
-    const roleId = roleDialogRole.id;
+    const roleId = assignmentRole.id;
     const currentMembers = users
       .filter((user) => user.roles.some((role) => role.id === roleId))
       .map((user) => user.id);
@@ -92,11 +154,11 @@ export function RolesTab({
 
     if (!toAdd.length && !toRemove.length) {
       toast.info('変更はありません');
-      closeRoleDialog();
+      closeAssignmentDialog();
       return;
     }
 
-    startDialogTransition(async () => {
+    startAssignmentTransition(async () => {
       const updatedUsersMap = new Map<string, UserDetailResponse>();
       let failures = 0;
 
@@ -127,22 +189,145 @@ export function RolesTab({
           updatedUsersMap.has(user.id) ? updatedUsersMap.get(user.id)! : user,
         );
         onUsersStateSync(nextUsers);
-        toast.success(`ロール割り当てを更新しました（成功 ${updatedUsersMap.size} 件${failures ? ` / 失敗 ${failures} 件` : ''}）`);
+        const failureSuffix = failures ? ` / 失敗 ${failures} 件` : '';
+        toast.success(`ロール割り当てを更新しました（成功 ${updatedUsersMap.size} 件${failureSuffix}）`);
       } else {
         toast.error('ロール割り当ての更新に失敗しました');
       }
 
-      closeRoleDialog();
+      closeAssignmentDialog();
     });
-  }, [roleDialogRole, selectedRoleUserIds, users, onUsersStateSync]);
+  }, [assignmentRole, selectedRoleUserIds, users, onUsersStateSync]);
+
+  const resetCreateForm = () => {
+    setCreateForm({ name: '', description: '' });
+  };
+
+  const handleOpenCreateDialog = () => {
+    resetCreateForm();
+    setIsCreateDialogOpen(true);
+  };
+
+  const handleCreateRole = () => {
+    const name = createForm.name.trim();
+    const description = createForm.description.trim();
+    if (!name || !description) {
+      toast.error('ロール名と説明を入力してください');
+      return;
+    }
+
+    startCreateTransition(async () => {
+      const result = await createRoleAction({ name, description });
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'ロールの作成に失敗しました');
+        return;
+      }
+
+      onRoleCreated(result.data);
+      toast.success('ロールを作成しました');
+      setIsCreateDialogOpen(false);
+      resetCreateForm();
+    });
+  };
+
+  const openEditDialog = (role: RoleDetail) => {
+    setEditTargetRole(role);
+    setEditForm({ name: role.name, description: role.description || '' });
+  };
+
+  const handleEditRoleSave = () => {
+    if (!editTargetRole) return;
+    const name = editForm.name.trim();
+    const description = editForm.description.trim();
+
+    if (!name || !description) {
+      toast.error('ロール名と説明を入力してください');
+      return;
+    }
+
+    startEditTransition(async () => {
+      const result = await updateRoleAction(editTargetRole.id, { name, description });
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'ロールの更新に失敗しました');
+        return;
+      }
+
+      onRoleUpdated(result.data);
+      toast.success('ロールを更新しました');
+      setEditTargetRole(null);
+    });
+  };
+
+  const handleDeleteRequest = (role: RoleDetail) => {
+    const userCount = roleUserMap.get(role.id) ?? 0;
+    if (userCount > 0) {
+      toast.error(`ロール「${role.name}」は ${userCount} 名に割り当てられているため削除できません`);
+      return;
+    }
+    setDeleteTargetRole(role);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTargetRole) return;
+
+    startDeleteTransition(async () => {
+      const result = await deleteRoleAction(deleteTargetRole.id);
+      if (!result.success) {
+        toast.error(result.error || 'ロールの削除に失敗しました');
+        return;
+      }
+
+      onRoleDeleted(deleteTargetRole.id);
+      toast.success('ロールを削除しました');
+      setDeleteTargetRole(null);
+    });
+  };
+
+  const openCloneDialog = (role: RoleDetail) => {
+    if (roles.length < 2) {
+      toast.error('複製できるロールが不足しています');
+      return;
+    }
+    setCloneTargetRole(role);
+    const fallback = roles.find((item) => item.id !== role.id)?.id ?? null;
+    setCloneSourceRoleId(fallback);
+  };
+
+  const closeCloneDialog = () => {
+    setCloneTargetRole(null);
+    setCloneSourceRoleId(null);
+  };
+
+  const handleClonePermissions = () => {
+    if (!cloneTargetRole || !cloneSourceRoleId) {
+      toast.error('コピー元ロールを選択してください');
+      return;
+    }
+
+    startCloneTransition(async () => {
+      const result = await cloneRolePermissionsAction(cloneTargetRole.id, { from_role_id: cloneSourceRoleId });
+      if (!result.success) {
+        toast.error(result.error || '権限の複製に失敗しました');
+        return;
+      }
+
+      toast.success(`「${cloneTargetRole.name}」に権限を複製しました`);
+      closeCloneDialog();
+    });
+  };
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold">ロール管理</h3>
-        <p className="text-sm text-muted-foreground">
-          ロールごとのユーザー割り当てを管理します。ロール自体の作成・削除は別画面で行います。
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">ロール管理</h3>
+          <p className="text-sm text-muted-foreground">
+            ロールの作成・編集・削除と、ユーザー割り当てをまとめて管理します。
+          </p>
+        </div>
+        <Button type="button" size="sm" className="self-start" onClick={handleOpenCreateDialog}>
+          <Plus className="mr-2 size-4" /> 新しいロールを作成
+        </Button>
       </div>
 
       <div className="rounded-lg border bg-card">
@@ -152,33 +337,69 @@ export function RolesTab({
               <TableHead>ロール名</TableHead>
               <TableHead>説明</TableHead>
               <TableHead className="w-32 text-center">ユーザー数</TableHead>
+              <TableHead className="w-[240px] text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {roles.map((role) => (
-              <TableRow key={role.id}>
-                <TableCell className="font-medium">{role.name}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {role.description || '—'}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mx-auto flex items-center gap-2"
-                    onClick={() => openRoleDialog(role)}
-                  >
-                    <Badge variant="secondary">{roleUserMap.get(role.id) ?? 0}</Badge>
-                    <Users className="size-4 text-muted-foreground" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {roles.map((role) => {
+              const userCount = roleUserMap.get(role.id) ?? 0;
+              return (
+                <TableRow key={role.id}>
+                  <TableCell className="font-medium">{role.name}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {role.description || '—'}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="secondary">{userCount}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        onClick={() => openAssignmentDialog(role)}
+                      >
+                        <UsersIcon className="size-4" /> 割り当て
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openCloneDialog(role)}
+                        aria-label={`${role.name} の権限を複製`}
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditDialog(role)}
+                        aria-label={`${role.name} を編集`}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteRequest(role)}
+                        aria-label={`${role.name} を削除`}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {roles.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={4}>
                   <div className="py-16 text-center text-sm text-muted-foreground">
-                    表示できるロールがありません。
+                    表示できるロールがありません。まずはロールを作成してください。
                   </div>
                 </TableCell>
               </TableRow>
@@ -187,10 +408,202 @@ export function RolesTab({
         </Table>
       </div>
 
-      <Dialog open={!!roleDialogRole} onOpenChange={(open) => !open && closeRoleDialog()}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+        setIsCreateDialogOpen(open);
+        if (!open) {
+          resetCreateForm();
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新しいロールを作成</DialogTitle>
+            <DialogDescription>
+              ロール名と説明を入力してください。作成後に権限やユーザーを割り当てできます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="create-role-name">ロール名</Label>
+              <Input
+                id="create-role-name"
+                value={createForm.name}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="例: コンサルタント"
+                disabled={isCreatePending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-role-description">説明</Label>
+              <Textarea
+                id="create-role-description"
+                value={createForm.description}
+                onChange={(event) =>
+                  setCreateForm((prev) => ({ ...prev, description: event.target.value }))
+                }
+                placeholder="ロールの役割や権限の説明を入力してください"
+                disabled={isCreatePending}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsCreateDialogOpen(false)}
+              disabled={isCreatePending}
+            >
+              キャンセル
+            </Button>
+            <Button type="button" onClick={handleCreateRole} disabled={isCreatePending}>
+              {isCreatePending && <Loader2 className="mr-2 size-4 animate-spin" />}作成する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editTargetRole} onOpenChange={(open) => !open && setEditTargetRole(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ロールを編集</DialogTitle>
+            <DialogDescription>
+              ロール名や説明を更新できます。変更は保存後に反映されます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-role-name">ロール名</Label>
+              <Input
+                id="edit-role-name"
+                value={editForm.name}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, name: event.target.value }))}
+                disabled={isEditPending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-role-description">説明</Label>
+              <Textarea
+                id="edit-role-description"
+                value={editForm.description}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, description: event.target.value }))
+                }
+                disabled={isEditPending}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setEditTargetRole(null)}
+              disabled={isEditPending}
+            >
+              キャンセル
+            </Button>
+            <Button type="button" onClick={handleEditRoleSave} disabled={isEditPending}>
+              {isEditPending && <Loader2 className="mr-2 size-4 animate-spin" />}保存する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!cloneTargetRole} onOpenChange={(open) => {
+        if (!open) {
+          closeCloneDialog();
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>権限を複製</DialogTitle>
+            <DialogDescription>
+              {cloneTargetRole
+                ? `ロール「${cloneTargetRole.name}」に別のロールの権限セットをコピーします。`
+                : 'ロールの権限を複製します。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/40 p-4 text-sm">
+              <p className="text-xs text-muted-foreground">対象ロール</p>
+              <p className="text-base font-semibold">{cloneTargetRole?.name ?? '未選択'}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="clone-source-role">コピー元ロール</Label>
+              <Select
+                value={cloneSourceRoleId ?? undefined}
+                onValueChange={(value) => setCloneSourceRoleId(value)}
+                disabled={isClonePending}
+              >
+                <SelectTrigger id="clone-source-role">
+                  <SelectValue placeholder="コピー元ロールを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles
+                    .filter((role) => role.id !== cloneTargetRole?.id)
+                    .map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              実行すると対象ロールの権限はコピー元ロールの権限セットで上書きされます。必要であれば保存前に再確認してください。
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={closeCloneDialog} disabled={isClonePending}>
+              キャンセル
+            </Button>
+            <Button
+              type="button"
+              onClick={handleClonePermissions}
+              disabled={isClonePending || !cloneSourceRoleId}
+            >
+              {isClonePending && <Loader2 className="mr-2 size-4 animate-spin" />}複製する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteTargetRole} onOpenChange={(open) => !open && setDeleteTargetRole(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ロールを削除</DialogTitle>
+            <DialogDescription>
+              この操作は取り消せません。削除してよろしいですか？
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            ロール「{deleteTargetRole?.name ?? ''}」を削除します。割り当て済みユーザーがいないことを確認済みです。
+          </p>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeleteTargetRole(null)}
+              disabled={isDeletePending}
+            >
+              キャンセル
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeletePending}
+            >
+              {isDeletePending && <Loader2 className="mr-2 size-4 animate-spin" />}削除する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!assignmentRole} onOpenChange={(open) => !open && closeAssignmentDialog()}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{roleDialogRole?.description || roleDialogRole?.name} のユーザー割り当て</DialogTitle>
+            <DialogTitle>{assignmentRole?.description || assignmentRole?.name} のユーザー割り当て</DialogTitle>
             <DialogDescription>
               このロールに割り当てたいユーザーにチェックを入れてください。保存時に一括で反映されます。
             </DialogDescription>
@@ -203,7 +616,7 @@ export function RolesTab({
               </div>
               <div className="divide-y">
                 {users.map((user) => {
-                  const hasRole = user.roles.some((role) => role.id === roleDialogRole?.id);
+                  const hasRole = user.roles.some((role) => role.id === assignmentRole?.id);
                   return (
                     <label
                       key={user.id}
@@ -212,7 +625,7 @@ export function RolesTab({
                       <Checkbox
                         checked={selectedRoleUserIds.includes(user.id)}
                         onCheckedChange={(checked) => handleToggleRoleUser(user.id, Boolean(checked))}
-                        disabled={isDialogPending}
+                        disabled={isAssignmentPending}
                       />
                       <div>
                         <p className="font-medium">{user.name}</p>
@@ -239,11 +652,11 @@ export function RolesTab({
                 <h4 className="text-sm font-semibold">現在の割り当て</h4>
                 <ul className="space-y-2 text-xs text-muted-foreground">
                   {users
-                    .filter((user) => user.roles.some((role) => role.id === roleDialogRole?.id))
+                    .filter((user) => user.roles.some((role) => role.id === assignmentRole?.id))
                     .map((user) => (
                       <li key={user.id}>{user.name}</li>
                     ))}
-                  {users.filter((user) => user.roles.some((role) => role.id === roleDialogRole?.id)).length === 0 && (
+                  {users.filter((user) => user.roles.some((role) => role.id === assignmentRole?.id)).length === 0 && (
                     <li>割り当てられているユーザーはいません</li>
                   )}
                 </ul>
@@ -255,13 +668,13 @@ export function RolesTab({
             <Button
               type="button"
               variant="ghost"
-              onClick={closeRoleDialog}
-              disabled={isDialogPending}
+              onClick={closeAssignmentDialog}
+              disabled={isAssignmentPending}
             >
               キャンセル
             </Button>
-            <Button onClick={handleRoleAssignmentsSave} disabled={isDialogPending}>
-              {isDialogPending ? '更新中...' : '保存する'}
+            <Button onClick={handleRoleAssignmentsSave} disabled={isAssignmentPending}>
+              {isAssignmentPending ? '更新中...' : '保存する'}
             </Button>
           </DialogFooter>
         </DialogContent>

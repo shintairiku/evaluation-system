@@ -16,9 +16,9 @@ import { createAriaLabel, createAriaValidation, generateAccessibilityId, announc
 // Validation schema
 const approvalFormSchema = z.object({
   comment: z.string()
-    .min(1, 'コメントの入力が必要です')
     .max(500, '500文字以内で入力してください')
     .trim()
+    .optional()
 });
 
 type ApprovalFormData = z.infer<typeof approvalFormSchema>;
@@ -106,21 +106,16 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
   }, [comment, onCommentChange]);
 
   const handleApprove = async () => {
-    const isValid = await form.trigger();
-    if (!isValid) {
-      announceToScreenReader('フォームにエラーがあります。修正してください。', 'assertive');
-      return;
-    }
-
     const formData = form.getValues();
-    const approvalComment = formData.comment?.trim();
+    const approvalComment = formData.comment?.trim() || '';
 
-    if (!approvalComment) {
+    // Only validate max length if comment is provided
+    if (approvalComment && approvalComment.length > 500) {
       form.setError('comment', {
         type: 'manual',
-        message: '承認時はコメントの入力が必要です'
+        message: '500文字以内で入力してください'
       });
-      announceToScreenReader('承認時はコメントの入力が必要です', 'assertive');
+      announceToScreenReader('500文字以内で入力してください', 'assertive');
       return;
     }
 
@@ -188,8 +183,8 @@ export const ApprovalForm = forwardRef<ApprovalFormRef, ApprovalFormProps>(
                   <div className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" aria-hidden="true" />
                     コメント
-                    <span className="text-sm text-red-500 font-normal" aria-label="必須項目">
-                      (必須)
+                    <span className="text-sm text-muted-foreground font-normal" aria-label="差し戻し時は必須項目">
+                      (差し戻し時は必須)
                     </span>
                   </div>
                   
