@@ -352,7 +352,7 @@ class GoalService:
                 raise BadRequestError("Can only delete draft or rejected goals")
             
             # Delete goal
-            success = await self.goal_repo.delete_goal(goal_id)
+            success = await self.goal_repo.delete_goal(goal_id, org_id)
             
             if success:
                 await self.session.commit()
