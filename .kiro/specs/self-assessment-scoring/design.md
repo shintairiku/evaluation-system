@@ -1,11 +1,11 @@
-# 設計書: DB-Driven Self-Assessment Scoring & UI
+# Design Document: DB-Driven Self-Assessment Scoring & UI
 
-## 1. 概要
-This design translates the requirements from issue #355, the HR meeting, and the spreadsheet screenshots into concrete changes to our FastAPI + Next.js stack. It introduces rating master tables, a scoring service that consumes stage weights, policy-aware submission summaries, and a production-ready `/self-assessment` UI with autosave.
+## 1. Overview
+This design turns the requirements from issue #355, the HR workshop, and the spreadsheet screenshots into concrete changes for our FastAPI + Next.js stack. It introduces rating master tables, a scoring service that consumes stage weights, policy-aware submission summaries, and a production-ready `/self-assessment` UI with autosave.
 
-## 2. アーキテクチャ設計
+## 2. Architecture
 
-### 2.1. システム構成図
+### 2.1. System Diagram
 ```mermaid
 graph TD
     A[Employee Browser] -->|Clerk session| B[Next.js App Router]
@@ -13,138 +13,158 @@ graph TD
     C --> D[FastAPI Backend]
     D -->|SQLAlchemy| E[(PostgreSQL)]
 
-    E -->|stages weights| D
+    E -->|stage weights| D
     E -->|evaluation_score_mapping| D
     E -->|rating_thresholds| D
     E -->|self_assessments + goals| D
 
-    D -->|JSON summary| C -->|locked view| A
+    D -->|JSON summary| C -->|read-only view| A
 ```
 
-### 2.2. 技術スタック
-- **Frontend:** Next.js 15 App Router, React Server Components, shadcn/ui, TanStack Query (existing), Tailwind.
-- **Backend:** FastAPI 0.110, SQLAlchemy async session, Pydantic v2 schemas, cachetools (already present for TTL caches).
-- **DB:** Supabase PostgreSQL with pgcrypto; migrations managed in `backend/app/database/migrations`.
+### 2.2. Technology Stack
+- **Frontend:** Next.js 15 App Router, React Server Components, shadcn/ui, TanStack Query, Tailwind CSS.
+- **Backend:** FastAPI 0.110, SQLAlchemy (async), Pydantic v2 schemas, cachetools (already used for TTL caches).
+- **Database:** Supabase PostgreSQL with pgcrypto; migrations stored under `backend/app/database/migrations`.
 
-## 3. データベース設計
+## 3. Database Design
 
-### 3.1. 新テーブル: `evaluation_score_mapping`
+### 3.1. Table: `evaluation_score_mapping`
 | Column | Type | Description |
 | --- | --- | --- |
-| `id` | UUID PK default `gen_random_uuid()` | |
-| `rating_code` | TEXT UNIQUE | `SS`, `S`, `A+`, `A`, `A-`, `B`, `C`, `D` |
-| `rating_label` | TEXT | Localized label (JP/EN) |
-| `score_value` | DECIMAL(3,1) | Numeric score from spreadsheet (SS=7 … D=0) |
-| `is_active` | BOOLEAN default TRUE | Allows soft deactivation |
-| `updated_at` | TIMESTAMPTZ default now | |
+| `id` | UUID PK default `gen_random_uuid()` | Primary key |
+| `organization_id` | VARCHAR(50) FK → `organizations.id` | Tenant that owns this mapping |
+| `rating_code` | TEXT | `SS`, `S`, `A+`, `A`, `A-`, `B`, `C`, `D` |
+| `rating_label` | TEXT | Localized display label |
+| `score_value` | DECIMAL(3,1) | Numeric score (SS=7 … D=0) |
+| `is_active` | BOOLEAN default TRUE | Soft toggle |
+| `updated_at` | TIMESTAMPTZ default now | Audit |
 
-Seed script sets the 8 canonical rows. Repository: `ScoreMappingRepository.get_score(code)` & `.list_scores()`.
+Unique constraint: `(organization_id, rating_code)` so each organization can customize labels without colliding. Index on `organization_id` to support API scoping, mirroring how `stages` is already multi-tenant.
 
-### 3.2. 新テーブル: `rating_thresholds`
-| Column | Type | Description |
-| --- | --- | --- |
-| `id` | UUID PK |
-| `rating_code` | TEXT UNIQUE FK -> `evaluation_score_mapping.rating_code` |
-| `min_score` | DECIMAL(3,2) | Lower bound (SS ≥ 6.50 etc.) |
-| `note` | TEXT | e.g., "Spreadsheet 2025Q4" |
-| `updated_at` | TIMESTAMPTZ |
+Seed data inserts the eight canonical rows. Repository: `ScoreMappingRepository.get_score(code)` / `.list_scores()`.
 
-Data seeded from spreadsheet screenshot (SS 6.5 / S 5.5 / A+ 4.5 / A 3.7 / A- 2.7 / B 1.7 / C 1.0 / fallback D). Index on `min_score DESC` for efficient lookup.
-
-### 3.3. 新テーブル: `evaluation_policy_flags`
-| Column | Type | Description |
-| --- | --- | --- |
-| `key` | TEXT PK | e.g., `mbo_d_is_fail`
-| `value` | JSONB | `{ "enabled": true, "forced_rating": "D" }`
-| `updated_at` | TIMESTAMPTZ | |
-
-Helps us store toggles without redeploys. Additional policies (future) can be inserted as rows.
-
-### 3.4. 新テーブル: `level_adjustment_master`
-| Column | Type | Description |
-| --- | --- | --- |
-| `rating_code` | TEXT PK |
-| `level_delta` | INTEGER | e.g., `SS=+10`, `S=+8`, `D=-8` from spreadsheet column "レベル増減" |
-| `notes` | TEXT | |
-| `updated_at` | TIMESTAMPTZ | |
-
-### 3.5. 集計テーブル: `self_assessment_summaries`
-Stores the computed payload returned on submission.
-
+### 3.2. Table: `rating_thresholds`
 | Column | Type | Description |
 | --- | --- | --- |
 | `id` | UUID PK |
-| `user_id` | UUID | FK -> users |
-| `period_id` | UUID | FK -> evaluation_periods |
-| `stage_id` | UUID | FK -> stages (snapshot) |
+| `organization_id` | VARCHAR(50) FK → `organizations.id` | Matches the tenant of the mapping |
+| `rating_code` | TEXT FK → `evaluation_score_mapping.rating_code` |
+| `min_score` | DECIMAL(3,2) | Lower bound (SS ≥ 6.50, etc.) |
+| `note` | TEXT | e.g., "Sheet 2025Q4" |
+| `updated_at` | TIMESTAMPTZ | Audit |
+
+Unique constraint `(organization_id, rating_code)` keeps thresholds tenant-specific, and an index on `(organization_id, min_score DESC)` accelerates grade lookups.
+
+Data originates from the spreadsheet ladder (SS 6.5 / S 5.5 / … / C 1.0, default D). Index on `min_score DESC` for fast lookup.
+
+### 3.3. Table: `evaluation_policy_flags`
+| Column | Type | Description |
+| --- | --- | --- |
+| `organization_id` | VARCHAR(50) FK → `organizations.id` | Tenant scope |
+| `key` | TEXT | e.g., `mbo_d_is_fail` |
+| `value` | JSONB | `{ "enabled": true, "forced_rating": "D" }` |
+| `updated_at` | TIMESTAMPTZ | Audit |
+
+Composite primary key `(organization_id, key)` ensures independence per organization. Stores optional toggles so HR can change policy without redeploying.
+
+### 3.4. Table: `level_adjustment_master`
+| Column | Type | Description |
+| --- | --- | --- |
+| `organization_id` | VARCHAR(50) FK → `organizations.id` | Tenant scope |
+| `rating_code` | TEXT | e.g., `SS`, `S`, `A+`, etc. |
+| `level_delta` | INTEGER | e.g., `SS=+10`, `S=+8`, `D=-8` (from Level Delta column) |
+| `notes` | TEXT | Optional context |
+| `updated_at` | TIMESTAMPTZ | Audit |
+
+Composite primary key `(organization_id, rating_code)` mirrors the other masters.
+
+### 3.5. Table: `self_assessment_summaries`
+Stores the payload returned when an assessment is submitted.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `id` | UUID PK |
+| `organization_id` | VARCHAR(50) FK → `organizations.id` | Ensures summaries stay within tenant boundaries |
+| `user_id` | UUID FK → users |
+| `period_id` | UUID FK → evaluation_periods |
+| `stage_id` | UUID FK → stages (snapshot) |
 | `stage_weights` | JSONB | `{ "quantitative": 80, ... }` |
 | `per_bucket` | JSONB | `[ { "bucket": "quantitative", "weight": 80, "avg": 6.2, "contribution": 4.96 }, ... ]` |
-| `weighted_total` | DECIMAL(4,2) | Sum contributions |
-| `final_rating_code` | TEXT | e.g., `S` |
+| `weighted_total` | DECIMAL(4,2) | Sum of contributions |
+| `final_rating_code` | TEXT | `S`, `A-`, etc. |
 | `flags` | JSONB | `{ "fail": true, "notes": ["MBO rating D"] }` |
 | `level_adjustment_preview` | JSONB | `{ "rating": "S", "delta": 8 }` |
-| `submitted_at` | TIMESTAMPTZ | duplicates self_assessment timestamp |
-| `created_at / updated_at` | TIMESTAMPTZ | |
-| Unique index | `(user_id, period_id)` ensures one summary per employee per cycle |
+| `submitted_at` | TIMESTAMPTZ | Mirrors `self_assessments.submitted_at` |
+| `created_at` / `updated_at` | TIMESTAMPTZ | Audit |
+| Unique index | `(organization_id, user_id, period_id)` ensures one summary per employee per cycle and tenant |
 
-### 3.6. 最新承認ゴールビュー
-Create a SQL view `latest_approved_goals` to simplify queries:
+### 3.6. View: `latest_approved_goals`
+A SQL view isolates the newest approved goal per chain:
 ```sql
 CREATE OR REPLACE VIEW latest_approved_goals AS
 WITH RECURSIVE chain AS (
-  SELECT g.id, g.previous_goal_id, g.user_id, g.period_id, g.status, g.goal_category,
-         ROW_NUMBER() OVER (PARTITION BY g.user_id, g.goal_category, g.period_id ORDER BY g.created_at DESC) AS rn
+  SELECT g.id,
+         g.previous_goal_id,
+         g.user_id,
+         g.period_id,
+         g.status,
+         g.goal_category,
+         ROW_NUMBER() OVER (
+             PARTITION BY g.user_id, g.goal_category, g.period_id
+             ORDER BY g.created_at DESC
+         ) AS rn
   FROM goals g
   WHERE g.status = 'approved'
 )
 SELECT * FROM chain WHERE rn = 1;
 ```
-This view is scoped via `GoalRepository.apply_org_scope_via_user`.
+`GoalRepository` scopes it via `apply_org_scope_via_user`, so every query automatically filters by `organization_id` inherited from the linked user.
 
-## 4. バックエンド設計
+## 4. Backend Design
 
-### 4.1. ScoreMappingRepository & ScoringService
-- **`backend/app/database/repositories/score_mapping_repo.py`**: CRUD for `evaluation_score_mapping` & `rating_thresholds`.
-- **`backend/app/services/scoring_service.py`** (new):
-  1. `get_score_for_rating(code)` → Decimal.
-  2. `compute_bucket_average(items)` → convert each SS–D rating to numeric via repo, average.
-  3. `apply_stage_weights(buckets, stage_weights)` → multiply per spec; skip weight==0 buckets.
-  4. `map_numeric_to_grade(total)` → read thresholds ordered by `min_score DESC`, first match.
-  5. `evaluate_policy_flags(context)` → e.g., `mbo_d_is_fail` checks any quantitative item rating `D`, overrides `final_rating` and sets fail note.
-  6. `attach_level_preview(final_rating)` → read `level_adjustment_master`.
+### 4.1. Score Mapping & Scoring Service
+- **Repository:** `backend/app/database/repositories/score_mapping_repo.py` provides `get_score`, `list_scores`, `list_thresholds`.
+- **Service:** `backend/app/services/scoring_service.py` (new) exposes:
+  1. `get_score_for_rating(code)` → Decimal
+  2. `compute_bucket_average(items)` → convert SS–D to numeric averages
+  3. `apply_stage_weights(buckets, stage_weights)` → multiply by weight/100, skip zero-weight buckets
+  4. `map_numeric_to_grade(total)` → iterate thresholds ordered by `min_score DESC`
+  5. `evaluate_policy_flags(context)` → e.g., `mbo_d_is_fail` forces final grade to D and sets fail notes
+  6. `attach_level_preview(final_rating)` → fetch delta from `level_adjustment_master`
 
-### 4.2. SelfAssessmentService updates
-File: `backend/app/services/self_assessment_service.py`
-- Extend `SelfAssessmentService` with a dependency on `ScoringService` (lazy init to keep constructor backwards-compatible).
-- New method `build_self_assessment_payload(user_id, period_id)` returning `{ goals, draft, stage_weights }`:
-  - Goals = join `latest_approved_goals` + `GoalRepository` (fetch target data + competency IDs) filtered by organization & period.
-  - Draft = `SelfAssessmentRepository` storing JSON per goal (new column? reuse existing `self_rating/self_comment`). We'll store textual rating & comment per bucket in a new DTO, but DB remains per-goal because `self_assessments` already exists. Add `self_rating_text` column to `self_assessments` (nullable) so we can store SS–D while keeping numeric in summary.
+### 4.2. SelfAssessmentService Changes
+File: `backend/app/services/self_assessment_service.py`.
+- Inject `ScoringService` (lazy initialization to keep constructor compatibility).
+- New helper `get_self_assessment_context(user_id, period_id)` returning `{ goals, draft, stage_weights, thresholds }`.
+  - Goals sourced via `latest_approved_goals` view and hydrated through `GoalRepository`.
+  - Stage data loaded from `StageRepository` using the employee’s `stage_id` at request time.
+- Draft persistence: add `self_rating_text` column to `self_assessments` to store SS–D alongside `self_rating` (numeric) and comments.
 - Submission flow:
-  1. Validate every bucket with `stage_weight > 0` has ratings for all associated goals.
-  2. Persist `self_rating_text` & `self_comment` per goal (existing table) as part of draft upserts.
-  3. Call `ScoringService` with bucketized data to obtain summary.
-  4. Insert/Upsert row in `self_assessment_summaries` keyed by `(user_id, period_id)`.
-  5. Update `self_assessments.status = submitted`, set `submitted_at`, keep existing auto creation of `SupervisorFeedback`.
+  1. Validate that every bucket with `weight > 0` has ratings for all included goals.
+  2. Persist per-goal ratings/comments (draft or final).
+  3. Call `ScoringService` to compute per-bucket averages, totals, grade, flags, level preview.
+  4. Upsert into `self_assessment_summaries` keyed by `(user_id, period_id)`.
+  5. Mark each `self_assessment` as submitted (existing logic also auto-creates `SupervisorFeedback`).
 
-### 4.3. API エンドポイント
+### 4.3. API Endpoints
 Extend `backend/app/api/v1/self_assessments.py`:
-- `GET /self-assessments/current`: returns `{ goals, draft, stageWeights, thresholds, summary? }` for the authenticated user + active period.
-- `POST /self-assessments/draft`: body `{ goalEntries: [{ goalId, bucket, ratingCode, comment }] }` with idempotent upsert. Response includes `{ saved: true, updatedAt }`.
-- `POST /self-assessments/submit`: triggers scoring, returns summary payload from Table 3.5.
-- `GET /self-assessments/summary/{periodId}`: allow admins/supervisors to see employee summaries (RBAC via `Permission.ASSESSMENT_READ_ALL`).
+- `GET /self-assessments/current` → `{ goals, draft, stageWeights, thresholds, summary? }` for the authenticated user + active period.
+- `POST /self-assessments/draft` → idempotent upsert `{ goalEntries: [{ goalId, bucket, ratingCode, comment }] }`, returns `{ saved: true, updatedAt }`.
+- `POST /self-assessments/submit` → runs scoring pipeline and returns the summary payload stored in `self_assessment_summaries`.
+- `GET /self-assessments/summary/{periodId}` → admin/supervisor visibility with RBAC via `Permission.ASSESSMENT_READ_ALL` + subordinate checks.
 
-These routes reuse existing dependencies (`get_auth_context`, `get_db_session`) and Pydantic schemas under a new module `backend/app/schemas/self_assessment_summary.py`.
+New Pydantic schemas live in `backend/app/schemas/self_assessment_summary.py` to keep API responses typed.
 
-### 4.4. Validation & Error Handling
-- Missing stage weights ⇒ `BadRequestError("Stage weights not configured for stage Stage6")`.
-- Empty rating master ⇒ `BadRequestError("Score mapping missing")`.
-- Autosave conflict (same payload submitted twice) handled by checking `self_assessment_summaries.updated_at` and returning HTTP 409.
+### 4.4. Validation & Errors
+- Missing stage weights → `BadRequestError("Stage weights not configured for stage Stage6")`.
+- Empty rating master or thresholds → `BadRequestError("Score mapping missing")`.
+- Autosave conflicts → return HTTP 409 when incoming payload is identical to the latest saved state.
 
-## 5. フロントエンド設計
+## 5. Frontend Design
 
-### 5.1. ルーティング
+### 5.1. Routing
 - Add `frontend/src/app/(evaluation)/(employee)/self-assessment/page.tsx` that renders `<SelfAssessmentPage />` from `frontend/src/feature/evaluation/employee/self-assessment/display`.
-- Update `routes.ts` and sidebar groups to include `/self-assessment` under 人事評価システム.
+- Update `routes.ts` and the navigation sidebar to include `/self-assessment` (icon: clipboard-check).
 
 ### 5.2. Feature Module Structure
 ```
@@ -165,46 +185,40 @@ frontend/src/feature/evaluation/employee/self-assessment/
 ```
 
 ### 5.3. Data Flow
-1. Server Component fetches `getSelfAssessmentContextAction()` (new server action calling `GET /self-assessments/current`).
-2. Client component hydrates with `{ goals, draft, stageWeights, thresholds, summary }`.
-3. `useSelfAssessmentData` groups goals by bucket (quantitative, qualitative, competency) and handles 0% buckets by filtering.
-4. `useAutosaveDraft` debounce logic:
+1. The server component fetches `getSelfAssessmentContextAction()` (new server action hitting `GET /self-assessments/current`).
+2. The client component hydrates with `{ goals, draft, stageWeights, thresholds, summary }`.
+3. `useSelfAssessmentData` groups goals by bucket and filters out zero-weight buckets.
+4. `useAutosaveDraft` debounces payloads and drops stale responses:
 ```typescript
 const requestIdRef = useRef(0);
 const saveDraft = useDebouncedCallback(async (payload) => {
   const rid = ++requestIdRef.current;
   const result = await postDraft(payload, rid);
-  if (rid !== requestIdRef.current) return; // drop stale
+  if (rid !== requestIdRef.current) return; // drop stale response
   setLastSaved(result.updatedAt);
 }, 1200);
 ```
-5. On submit, call server action `submitSelfAssessmentAction`, display summary, lock UI.
+5. `submitSelfAssessmentAction` sends the final payload; on success the UI switches to read-only and renders the backend summary.
 
 ### 5.4. UI States
-- **Editing:** Radios (SS–D) per goal, optional comment textarea, stage weight badges, bucket subtotals.
-- **Draft Saved:** Autosave toast "下書きを保存しました" with timestamp.
-- **Read-only:** All inputs disabled, summary panel shows data from backend (no longer recomputed client-side).
-- **Fail flag:** Red badge referencing spreadsheet note (e.g., “MBO D評価フラグがオンのため降格基準に該当”).
+- **Editing:** SS–D radio groups per goal, optional comment textarea, stage weight badges, bucket subtotals.
+- **Draft saved:** Autosave toast “Draft saved at 12:34” with clock icon.
+- **Error:** Callout banner when autosave fails; retry button triggers the hook again.
+- **Read-only:** Inputs disabled, summary panel displays backend truth, fail badge visible when `flags.fail` is true.
 
 ### 5.5. Grade Ladder Component
-Consumes `rating_thresholds` to build a vertical ladder (SS→D). Current numeric total is plotted as a marker. When the spreadsheet changes, ladder automatically reflects updated thresholds because data flows from API.
+Consumes `rating_thresholds` to draw the ladder (SS→D). Highlights the current numeric total and shows each cutoff. Because data comes from the API, ladder updates automatically after HR edits thresholds.
 
 ### 5.6. i18n & Accessibility
-- Labels stored in `frontend/src/feature/evaluation/employee/self-assessment/constants.ts` with `ja`/`en` fields.
-- Radios leverage `aria-labelledby`, focus ring classes from shadcn.
-- Summary table uses `<dl>` for responsive mobile layout and `<table>` for desktop.
+- Copy file `copy.ts` stores strings for `ja` and `en`; components read from the existing locale context.
+- Radio groups use `aria-labelledby` and shadcn focus styles; summary tables use semantic `<table>` on desktop and `<dl>` fallback on mobile.
 
-## 6. テスト戦略
-- **Unit (backend):**
-  - `tests/services/test_scoring_service.py` covering forward mapping, reverse thresholds, 0% bucket, policy overrides.
-  - `tests/services/test_self_assessment_summary.py` verifying summary JSON persists and round-trips.
-- **Integration:**
-  - API tests under `backend/tests/api/test_self_assessment_summary.py` for draft → submit flow, RBAC checks, missing weights scenario.
-  - Fixture parity test loaded from spreadsheet sample rows (e.g., Employee 00001 S=6.0, Employee 00002 D=0.5 w/ MBO D flag).
-- **Frontend:**
-  - Component tests with React Testing Library for `GradeLadder` and `BucketSection` (ensures hidden buckets when weight=0).
-  - Cypress (or Playwright) smoke test for autosave race conditions using mocked server responses.
+## 6. Testing Strategy
+- **Backend unit tests:** `tests/services/test_scoring_service.py` covering mapping, thresholds, zero-weight buckets, policy overrides.
+- **Backend integration:** `backend/tests/api/test_self_assessment_summary.py` exercising draft → submit → summary, including fixture parity with the spreadsheet (Employee 00001 success, Employee 00002 fail due to MBO D).
+- **Frontend tests:** React Testing Library for `BucketSection` (hides zero-weight buckets) and `GradeLadder`; Playwright scenario for autosave race conditions and read-only lock.
 
-## 7. 運用・監視
-- Log `ScoringService` outputs at INFO level only when `flags.fail = true` or when totals differ >0.1 from previous summary (helps debug data regressions without spamming).
-- Add metrics counter `self_assessment_submission_total` (Prometheus) tagged by `stage_id` and `final_rating_code` for HR insights.
+## 7. Operations & Monitoring
+- Log `ScoringService` output at INFO only when `flags.fail = true` or totals differ by >0.1 from the previous summary.
+- Emit Prometheus counter `self_assessment_submission_total{stage_id="...", final_rating="S"}` for HR analytics.
+- Create `docs/operations/self-assessment.md` explaining how HR updates thresholds/policies and how to backfill summaries.

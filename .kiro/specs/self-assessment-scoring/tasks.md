@@ -7,6 +7,7 @@
 - [ ] **1.1 Create rating master migration**
   - File: `backend/app/database/migrations/0xx_create_evaluation_score_tables.sql`
   - Tables: `evaluation_score_mapping`, `rating_thresholds`, `evaluation_policy_flags`, `level_adjustment_master`, `self_assessment_summaries`.
+  - Each table (incl. summaries) must include `organization_id` FK → `organizations.id`, composite unique constraints (e.g., `(organization_id, rating_code)`), and indexes to keep queries tenant-scoped just like `stages`.
   - Seed data inline or via `COPY` using spreadsheet values.
 - [ ] **1.2 Add `self_rating_text` to `self_assessments`**
   - Nullable TEXT column storing SS–D value the employee selected.

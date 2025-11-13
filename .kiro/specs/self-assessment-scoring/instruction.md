@@ -14,9 +14,9 @@
 
 ## 3. Data Intake from Spreadsheet / Images
 - Numeric mappings: SS=7, S=6, A+=5, A=4, A-=3, B=2, C=1, D=0.
-- Grade ladder thresholds (総合評価・点数対応表): SS ≥ 6.5, S ≥ 5.5, A+ ≥ 4.5, A ≥ 3.7, A- ≥ 2.7, B ≥ 1.7, C ≥ 1.0, else D.
-- Promotion memo (昇格基準): Stage-up requires total A+ **and** competency sheet A+, plus leadership clearance (credit review, leader interview, presentation, board approval). Reflect as notes in `flags.notes` when backend marks `promotionCandidate=true` (future scope) – keep text handy for PMs.
-- Demotion memo (降格基準): If both semi-annual MBO rows hit D, or self-assessment reveals stage mismatch, HR can force stage-down; we model this today via `mbo_d_is_fail` flag that flips final grade to D and sets fail reason.
+- Grade ladder thresholds: SS ≥ 6.5, S ≥ 5.5, A+ ≥ 4.5, A ≥ 3.7, A- ≥ 2.7, B ≥ 1.7, C ≥ 1.0, else D (taken from the “Overall Rating vs. Score” section of the sheet).
+- Promotion memo: Stage-up requires an overall rating of A+ **and** competency sheet A+, plus leadership clearance (credit review, leader interview, presentation, board approval). Reflect this as notes in `flags.notes` when the backend marks `promotionCandidate=true` (future scope) and keep the language handy for PMs.
+- Demotion memo: If both semi-annual MBO rows land on D, or the self-assessment shows a stage mismatch, HR can force a stage-down. Today we model this via the `mbo_d_is_fail` flag that flips the final grade to D and sets the fail reason.
 
 ## 4. Definition of Done Checklist
 - [ ] Requirements, design, tasks updated & re-reviewed after any scope change.
