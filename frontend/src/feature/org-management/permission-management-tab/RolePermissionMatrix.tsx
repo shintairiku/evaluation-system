@@ -752,7 +752,7 @@ export function RolePermissionMatrix({
     <>
       <Card
         data-testid="role-permission-matrix-card"
-        className="overflow-hidden border-t-[3px] border-primary/40 shadow-sm"
+        className="overflow-hidden shadow-sm"
       >
         <CardHeader className="space-y-4 border-b border-border/60 pb-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -970,23 +970,43 @@ export function RolePermissionMatrix({
                       <Button
                         key={summary.role.id}
                         type="button"
-                        variant={isActive ? 'default' : 'outline'}
+                        variant="outline"
                         size="sm"
                         className={cn(
-                          'h-auto min-w-[180px] flex-1 flex-col items-start justify-start gap-1 rounded-xl border text-left',
-                          isActive ? 'bg-primary/10 border-primary/60 shadow-sm' : 'bg-background',
+                          'h-auto min-w-[180px] flex-1 flex-col items-start justify-start gap-1 rounded-xl border text-left transition-colors',
+                          isActive
+                            ? 'border-primary/60 bg-card text-foreground shadow-sm hover:bg-foreground/10'
+                            : 'border-border/70 bg-card text-muted-foreground hover:bg-foreground/10',
                         )}
                         onClick={() => toggleRoleFilter(summary.role.id)}
                         aria-pressed={isActive}
                       >
-                        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <span
+                          className={cn(
+                            'text-[11px] font-semibold uppercase tracking-wide',
+                            isActive ? 'text-foreground' : 'text-muted-foreground',
+                          )}
+                        >
                           {summary.role.name}
                         </span>
-                        <span className="text-lg font-semibold leading-tight">
+                        <span className="text-lg font-semibold leading-tight text-foreground">
                           {summary.assignedCount}
-                          <span className="text-xs text-muted-foreground"> / {totalPermissionCount}</span>
+                          <span
+                            className={cn(
+                              'text-xs',
+                              isActive ? 'text-foreground/70' : 'text-muted-foreground',
+                            )}
+                          >
+                            {' '}
+                            / {totalPermissionCount}
+                          </span>
                         </span>
-                        <div className="flex w-full items-center justify-between text-[11px] text-muted-foreground">
+                        <div
+                          className={cn(
+                            'flex w-full items-center justify-between text-[11px]',
+                            isActive ? 'text-foreground/80' : 'text-muted-foreground',
+                          )}
+                        >
                           <span>カバレッジ {summary.coverage}%</span>
                           {summary.changedCount > 0 ? (
                             <Badge variant="secondary" className="border-blue-200 bg-blue-100 text-blue-800">

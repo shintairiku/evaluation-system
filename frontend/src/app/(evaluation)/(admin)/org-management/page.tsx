@@ -1,3 +1,4 @@
+import { Metadata } from 'next';
 import { getUsersAction } from '@/api/server-actions/users';
 import { getDepartmentsAction } from '@/api/server-actions/departments';
 import { getRolesAction } from '@/api/server-actions/roles';
@@ -9,7 +10,7 @@ import {
   getPermissionCatalogAction,
 } from '@/api/server-actions/permissions';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: '組織管理 | 人事評価システム',
   description: 'ユーザー・部門・ロールを一元管理し、ステータスを一括更新します',
 };
@@ -65,6 +66,7 @@ export default async function OrgManagementPage() {
   ) {
     throw new Error(
       [
+        !usersResult.success ? usersResult.error || 'Failed to load users' : null,
         !departmentsResult.success ? departmentsResult.error || 'Failed to load departments' : null,
         !rolesResult.success ? rolesResult.error || 'Failed to load roles' : null,
         !stagesResult.success ? stagesResult.error || 'Failed to load stages' : null,

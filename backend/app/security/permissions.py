@@ -84,54 +84,53 @@ class Permission(Enum):
 
 """
 DEPRECATION NOTE:
-The static ROLE_PERMISSIONS map has been removed. Permissions are now provided
-at runtime by AuthContext using database-backed role-permission assignments.
+Static role-permission maps are not supported. All permissions are resolved at
+request time from the database via AuthContext (see security/dependencies.py).
 """
 
 
 class PermissionManager:
-    """
-    DEPRECATED: Static permission checks are no longer supported.
-    All authorization is enforced via AuthContext (dynamic, DB-backed).
-    These methods intentionally raise to surface any lingering static usage.
+    """Deprecated shim: static access has been removed in favor of DB-backed RBAC.
+
+    Any remaining usage should migrate to AuthContext and decorators in
+    app.security.dependencies / app.security.decorators.
     """
 
     @staticmethod
     def get_role_permissions(role: str) -> Set[Permission]:
-        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext.has_permission().")
+        raise NotImplementedError("PermissionManager removed. Use AuthContext with DB-backed overrides.")
 
     @staticmethod
     def has_permission(user_role: str, required_permission: Permission) -> bool:
-        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext.has_permission().")
+        raise NotImplementedError("PermissionManager removed. Use AuthContext.has_permission().")
 
     @staticmethod
     def has_any_permission(user_role: str, required_permissions: List[Permission]) -> bool:
-        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext.require_any_permission().")
+        raise NotImplementedError("PermissionManager removed. Use AuthContext.require_any_permission().")
 
     @staticmethod
     def has_all_permissions(user_role: str, required_permissions: List[Permission]) -> bool:
-        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext methods.")
+        raise NotImplementedError("PermissionManager removed. Use AuthContext methods.")
 
     @staticmethod
     def get_all_roles() -> List[Role]:
-        # Kept for compatibility where a list of role names is needed (enum only)
         return list(Role)
 
     @staticmethod
     def get_role_description(role: str) -> str:
-        raise NotImplementedError("PermissionManager is deprecated. Role descriptions are not static.")
+        raise NotImplementedError("PermissionManager removed. Role descriptions are not static.")
 
     @staticmethod
     def is_admin_or_manager(user_role: str) -> bool:
-        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext permissions.")
+        raise NotImplementedError("PermissionManager removed. Use AuthContext.")
 
     @staticmethod
     def is_supervisor_or_above(user_role: str) -> bool:
-        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext permissions.")
+        raise NotImplementedError("PermissionManager removed. Use AuthContext.")
 
     @staticmethod
     def can_manage_users(user_role: str) -> bool:
-        raise NotImplementedError("PermissionManager is deprecated. Use AuthContext permissions.")
+        raise NotImplementedError("PermissionManager removed. Use AuthContext.")
 
 
 # Convenience functions removed; use AuthContext in request scope for checks.

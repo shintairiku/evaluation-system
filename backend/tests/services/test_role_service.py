@@ -38,7 +38,7 @@ async def test_delete_role_raises_when_role_assigned():
             assert organization_id == org_id
             return role
 
-        async def delete_role(self, _role_id):
+        async def delete_role(self, _role_id, _org_id):
             pytest.fail("delete_role should not be called when validation fails")
 
     class StubUserRepo:
@@ -81,8 +81,9 @@ async def test_delete_role_success_when_unassigned(monkeypatch):
             assert organization_id == org_id
             return role
 
-        async def delete_role(self, target_role_id):
+        async def delete_role(self, target_role_id, organization_id):
             assert target_role_id == role_id
+            assert organization_id == org_id
             self.deleted = True
             return True
 
@@ -119,7 +120,7 @@ async def test_delete_role_missing_role():
         async def get_by_id(self, _role_id, _org_id):
             return None
 
-        async def delete_role(self, _role_id):
+        async def delete_role(self, _role_id, _org_id):
             pytest.fail("delete_role should not run when role is missing")
 
     service.role_repo = StubRoleRepo()  # type: ignore[assignment]

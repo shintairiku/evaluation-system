@@ -617,6 +617,33 @@ class GoalService:
                     org_id=org_id
                 )
 
+            # Batch fetch competency names for competency goals to avoid N+1 lookups
+            # Collect all competency IDs appearing in the current page of goals
+            competency_name_map: dict[str, str] = {}
+            try:
+                from uuid import UUID as _UUID
+                competency_ids: set[UUID] = set()
+                for g in goals:
+                    if (
+                        g.goal_category == "コンピテンシー"
+                        and g.target_data
+                        and isinstance(g.target_data, dict)
+                        and g.target_data.get("competency_ids")
+                    ):
+                        for cid in g.target_data.get("competency_ids", []) or []:
+                            # Ensure UUID type where possible; tolerate strings
+                            try:
+                                competency_ids.add(_UUID(str(cid)))
+                            except Exception:
+                                continue
+
+                if competency_ids:
+                    comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                    # Build string-keyed map for serialization in _enrich_goal_data
+                    competency_name_map = {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+            except Exception as e:
+                logger.warning(f"Failed to batch load competency names: {e}")
+
             # Convert to response format
             enriched_goals = []
             for goal_model in goals:
@@ -626,7 +653,8 @@ class GoalService:
                     include_rejection_history=include_rejection_history,
                     reviews_map=reviews_map,
                     rejection_histories_map=rejection_histories_map,
-                    org_id=org_id
+                    org_id=org_id,
+                    competency_name_map=competency_name_map
                 )
                 enriched_goals.append(enriched_goal)
 
@@ -911,7 +939,9 @@ class GoalService:
         include_rejection_history: bool = False,
         reviews_map: dict = None,
         rejection_histories_map: dict = None,
-        org_id: str = None
+        org_id: str = None,
+        *,
+        competency_name_map: dict[str, str] | None = None
     ) -> Goal:
         """
         Convert GoalModel to Goal response schema with enriched data.
@@ -940,22 +970,32 @@ class GoalService:
             goal_dict.update(goal_model.target_data)
 
         # Add competency name lookup for competency goals
-        if (goal_model.goal_category == "コンピテンシー" and
-            goal_model.target_data and
-            goal_model.target_data.get("competency_ids") and
-            org_id):
-
+        if (
+            goal_model.goal_category == "コンピテンシー"
+            and goal_model.target_data
+            and goal_model.target_data.get("competency_ids")
+        ):
             try:
-                competency_names = {}
-                for competency_id in goal_model.target_data["competency_ids"]:
-                    competency = await self.competency_repo.get_by_id(competency_id, org_id)
-                    if competency:
-                        competency_names[str(competency_id)] = competency.name
+                competency_names: dict[str, str] = {}
+                ids = goal_model.target_data.get("competency_ids", []) or []
+
+                if competency_name_map is not None:
+                    # Prefer batched map if provided for performance
+                    for cid in ids:
+                        name = competency_name_map.get(str(cid))
+                        if name:
+                            competency_names[str(cid)] = name
+                elif org_id:
+                    # Fallback: individual lookups (should be rare)
+                    for cid in ids:
+                        comp = await self.competency_repo.get_by_id(cid, org_id)
+                        if comp:
+                            competency_names[str(cid)] = comp.name
 
                 if competency_names:
                     goal_dict["competency_names"] = competency_names
             except Exception as e:
-                logger.warning(f"Failed to fetch competency names for goal {goal_model.id}: {str(e)}")
+                logger.warning(f"Failed to resolve competency names for goal {goal_model.id}: {str(e)}")
                 # Continue without competency names if lookup fails
 
         # Performance optimization: Embed supervisor review if requested

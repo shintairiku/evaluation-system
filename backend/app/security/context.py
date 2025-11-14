@@ -53,8 +53,8 @@ class AuthContext:
         }
         self.viewer_visibility_overrides = viewer_visibility_overrides or {}
         
-        # Compute permissions once at initialization
-        self._permissions = self._compute_permissions()
+        # Compute permissions once at initialization and freeze to prevent mutation
+        self._permissions = frozenset(self._compute_permissions())
     
     def _compute_permissions(self) -> Set[Permission]:
         """Compute all permissions from user's roles."""

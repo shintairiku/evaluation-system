@@ -71,7 +71,7 @@ export function ApprovalGuidelinesPanel() {
               </li>
               <li className="flex items-start gap-2">
                 <AlertCircle className="h-3 w-3 text-red-500 mt-1" />
-                <span>難易度が従業員のレベルに不適切</span>
+                <span>目標達成のための具体的な行動が示されていない</span>
               </li>
               <li className="flex items-start gap-2">
                 <AlertCircle className="h-3 w-3 text-red-500 mt-1" />

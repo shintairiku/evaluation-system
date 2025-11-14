@@ -15,6 +15,7 @@ from ..schemas.supervisor_review import (
     SupervisorReviewUpdate,
     SupervisorReview as SupervisorReviewSchema,
     SupervisorReviewDetail as SupervisorReviewDetailSchema,
+    SupervisorAction,
 )
 from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
 from ..schemas.goal import GoalStatus
@@ -256,6 +257,11 @@ class SupervisorReviewService:
                 goal = await self.goal_repo.get_goal_by_id(review.goal_id, org_id)
                 if goal:
                     await self._require_supervisor_of_goal_owner(goal, current_user_context)
+
+            # Validate comment requirement for REJECTED action
+            if review_update.action == SupervisorAction.REJECTED:
+                if not review_update.comment or not review_update.comment.strip():
+                    raise BadRequestError("Comment is required when rejecting a goal")
 
             reviewed_at = review.reviewed_at
             status_value = review_update.status.value if review_update.status is not None else None
