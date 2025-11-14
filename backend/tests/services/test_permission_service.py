@@ -13,7 +13,7 @@ from app.database.models.user import Role as RoleModel
 from app.database.models.organization import Organization
 from app.schemas.permission import RolePermissionUpdateRequest
 from app.security.context import AuthContext, RoleInfo
-from app.security.permissions import Permission as PermissionEnum, PermissionManager
+from app.security.permissions import Permission as PermissionEnum
 from app.services.permission_service import PermissionService
 
 
@@ -132,7 +132,7 @@ def build_role(name: str) -> RoleModel:
 
 
 @pytest.mark.asyncio
-async def test_get_role_permissions_defaults_when_empty(memory_session):
+async def test_get_role_permissions_empty_when_no_assignments(memory_session):
     role = build_role("admin")
     memory_session.add(role)
     await memory_session.flush()
@@ -142,10 +142,9 @@ async def test_get_role_permissions_defaults_when_empty(memory_session):
 
     response = await service.get_role_permissions(role.id, context)
 
-    default_codes = sorted(perm.value for perm in PermissionManager.get_role_permissions("admin"))
+    # With no role-permission assignments, service should return an empty list
     returned_codes = sorted(item.code for item in response.permissions)
-
-    assert returned_codes == default_codes
+    assert returned_codes == []
 
 
 @pytest.mark.asyncio
