@@ -309,18 +309,24 @@ permissions.py の定義をソースオブトゥルースとして初期シー�
 ## Implementation Details:
 ### 5. Seed, feature flag, and fallback
 
-- [ ] **5.1. Seeding scripts**
-  > Seed `permissions` and `role_permissions` from `Permission` enum and `ROLE_PERMISSIONS`; add migration test to assert 1:1 parity with static mapping.
+- [x] **5.1. Seeding scripts**
+  > Implemented via OrgBootstrapService: seeds `permissions` catalog and default `role_permissions` per organization; wired to Clerk `organization.created` webhook.
   >
   > **Related Requirements:** R3
 
-- [ ] **5.2. Feature flag wiring**
-  > OFF → static PermissionManager mapping; ON → DB-backed with fallback if empty.
+- [-] ~~**5.2. Feature flag wiring**~~
+  > Not applicable. We run DB-backed permissions only; static fallback removed by design. No runtime feature flag needed.
   >
-  > **Related Requirements:** R4
+  > **Related Requirements:** R4 (N/A by product decision)
 
-- [ ] **5.3. Observability**
-  > Structured logs for writes and invalidations (org_id, role/viewer, resource_type); metrics for cache hit ratio and p95 authorization latency.
+- [x] **5.3. Observability**
+  > Implemented lightweight observability:
+  > - Cache metrics/logs in `backend/app/security/role_permission_cache.py`:
+  >   `role_permissions.cache.hit`, `role_permissions.cache.miss`, `role_permissions.cache.load`,
+  >   plus in-process counters via `get_cache_metrics()`.
+  > - Authorization timing in `backend/app/security/dependencies.py`:
+  >   `auth.permissions.load.ms` and `auth.viewer_visibility.load.ms` structured logs.
+  > - Existing audit/invalidation logs remain in place.
   >
   > **Related Requirements:** R5
 
