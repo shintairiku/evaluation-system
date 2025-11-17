@@ -17,6 +17,8 @@ from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
 from .base import BaseRepository
+from ..models.evaluation_score import SelfAssessmentSummary
+from ..models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +122,48 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             return result.scalars().first()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching self-assessment for goal {goal_id} in org {org_id}: {e}")
+            raise
+
+    async def upsert_draft(
+        self,
+        goal_id: UUID,
+        org_id: str,
+        self_rating_text: Optional[str],
+        self_rating_numeric: Optional[Decimal],
+        self_comment: Optional[str]
+    ) -> SelfAssessment:
+        goal = await self._validate_goal_exists(goal_id, org_id)
+        existing = await self.get_by_goal(goal_id, org_id)
+        if existing:
+            existing.self_rating_text = self_rating_text
+            existing.self_rating = self_rating_numeric
+            if self_comment is not None:
+                existing.self_comment = self_comment
+            existing.status = SubmissionStatus.DRAFT.value
+            return existing
+        assessment = SelfAssessment(
+            goal_id=goal_id,
+            period_id=goal.period_id,
+            self_rating_text=self_rating_text,
+            self_rating=self_rating_numeric,
+            self_comment=self_comment,
+            status=SubmissionStatus.DRAFT.value,
+        )
+        self.session.add(assessment)
+        return assessment
+
+    async def submit_assessments_for_goals(self, goal_ids: List[UUID], org_id: str) -> None:
+        if not goal_ids:
+            return
+        now = datetime.now(timezone.utc)
+        try:
+            for goal_id in goal_ids:
+                assessment = await self.get_by_goal(goal_id, org_id)
+                if assessment:
+                    assessment.status = SubmissionStatus.SUBMITTED.value
+                    assessment.submitted_at = now
+        except SQLAlchemyError as e:
+            logger.error(f"Error submitting assessments for goals {goal_ids}: {e}")
             raise
 
     async def get_by_user_and_period(
