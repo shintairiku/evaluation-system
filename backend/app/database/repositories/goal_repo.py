@@ -240,6 +240,27 @@ class GoalRepository(BaseRepository[Goal]):
             logger.error(f"Error fetching goals for period {period_id} in org {org_id}: {e}")
             raise
 
+    async def get_latest_approved_goals_for_user_period(
+        self,
+        user_id: UUID,
+        org_id: str,
+        period_id: UUID
+    ) -> List[Goal]:
+        """Fetch latest approved goals per category using the SQL view latest_approved_goals."""
+        try:
+            from sqlalchemy import text
+            query = text(
+                "SELECT id FROM latest_approved_goals WHERE user_id = :user_id AND period_id = :period_id"
+            )
+            result = await self.session.execute(query, {"user_id": str(user_id), "period_id": str(period_id)})
+            goal_ids = [row.id for row in result.fetchall()]
+            if not goal_ids:
+                return []
+            return await self.get_goals_by_ids_batch(goal_ids, org_id)
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching latest approved goals for user {user_id}, period {period_id} in org {org_id}: {e}")
+            raise
+
     async def search_goals(
         self,
         org_id: str,
