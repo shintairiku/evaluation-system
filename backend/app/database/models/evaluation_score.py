@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, DECIMAL, JSON, UniqueConstraint, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, DECIMAL, JSON, UniqueConstraint, Integer, ForeignKeyConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -40,6 +40,12 @@ class RatingThreshold(Base):
 
     __table_args__ = (
         UniqueConstraint('organization_id', 'rating_code', name='uq_rating_thresholds_org_code'),
+        ForeignKeyConstraint(
+            ['organization_id', 'rating_code'],
+            ['evaluation_score_mapping.organization_id', 'evaluation_score_mapping.rating_code'],
+            ondelete="CASCADE",
+            name="fk_rating_thresholds_mapping",
+        ),
     )
 
     def __repr__(self):
@@ -68,6 +74,15 @@ class LevelAdjustmentMaster(Base):
     notes = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['organization_id', 'rating_code'],
+            ['evaluation_score_mapping.organization_id', 'evaluation_score_mapping.rating_code'],
+            ondelete="CASCADE",
+            name="fk_level_adjustment_mapping",
+        ),
+    )
 
     def __repr__(self):
         return f"<LevelAdjustmentMaster(org={self.organization_id}, code={self.rating_code}, delta={self.level_delta})>"
