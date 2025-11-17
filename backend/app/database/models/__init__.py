@@ -8,6 +8,13 @@ from .goal import Goal
 from .self_assessment import SelfAssessment
 from .supervisor_review import SupervisorReview
 from .supervisor_feedback import SupervisorFeedback
+from .evaluation_score import (
+    EvaluationScoreMapping,
+    RatingThreshold,
+    EvaluationPolicyFlag,
+    LevelAdjustmentMaster,
+    SelfAssessmentSummary,
+)
 
 __all__ = [
     "Base",
@@ -27,6 +34,11 @@ __all__ = [
     "SelfAssessment",
     "SupervisorReview",
     "SupervisorFeedback",
+    "EvaluationScoreMapping",
+    "RatingThreshold",
+    "EvaluationPolicyFlag",
+    "LevelAdjustmentMaster",
+    "SelfAssessmentSummary",
     "PermissionModel",
     "RolePermissionModel",
 ]
