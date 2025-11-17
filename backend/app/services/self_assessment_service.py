@@ -1,7 +1,8 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
+from datetime import datetime, timezone
 from cachetools import TTLCache
 
 from ..database.repositories.self_assessment_repo import SelfAssessmentRepository
@@ -9,6 +10,11 @@ from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.repositories.supervisor_feedback_repo import SupervisorFeedbackRepository
+from ..database.repositories.score_mapping_repo import ScoreMappingRepository
+from ..database.repositories.self_assessment_summary_repo import SelfAssessmentSummaryRepository
+from ..database.repositories.stage_repo import StageRepository
+from ..services.scoring_service import ScoringService
+from ..database.models.evaluation_score import SelfAssessmentSummary as SelfAssessmentSummaryModel
 from ..database.models.self_assessment import SelfAssessment as SelfAssessmentModel
 from ..schemas.self_assessment import (
     SelfAssessmentCreate, SelfAssessmentUpdate, SelfAssessment, SelfAssessmentDetail
@@ -41,6 +47,10 @@ class SelfAssessmentService:
         self.user_repo = UserRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.supervisor_feedback_repo = SupervisorFeedbackRepository(session)
+        self.summary_repo = SelfAssessmentSummaryRepository(session)
+        self.stage_repo = StageRepository(session)
+        self.score_repo = ScoreMappingRepository(session)
+        self.scoring_service = ScoringService(session)
         
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
@@ -111,6 +121,188 @@ class SelfAssessmentService:
         except Exception as e:
             logger.error(f"Error in get_assessments: {e}")
             raise
+
+    async def get_current_context(self, current_user_context: AuthContext):
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        user_id = current_user_context.user_id
+        active_period = await self.evaluation_period_repo.get_active_period(org_id)
+        if not active_period:
+            raise NotFoundError("No active evaluation period found")
+
+        goals = await self.goal_repo.get_goals_by_user_and_period(user_id, org_id, active_period.id)
+        stage_weights = await self._get_stage_weights(current_user_context)
+        thresholds = await self._get_thresholds(org_id)
+
+        draft_entries = []
+        for goal in goals:
+            assessment = await self.self_assessment_repo.get_by_goal(goal.id, org_id)
+            draft_entries.append({
+                "goalId": goal.id,
+                "bucket": goal.goal_category,
+                "ratingCode": assessment.self_rating_text if assessment else None,
+                "comment": assessment.self_comment if assessment else None,
+            })
+
+        summary = None
+        existing_summary = await self.summary_repo.get_summary(org_id, user_id, active_period.id)
+        if existing_summary:
+            summary = {
+                "stageWeights": stage_weights,
+                "perBucket": existing_summary.per_bucket,
+                "weightedTotal": float(existing_summary.weighted_total),
+                "finalRating": existing_summary.final_rating_code,
+                "flags": existing_summary.flags,
+                "levelAdjustmentPreview": existing_summary.level_adjustment_preview,
+                "submittedAt": existing_summary.submitted_at,
+            }
+
+        return {
+            "goals": [
+                {
+                    "id": g.id,
+                    "goalCategory": g.goal_category,
+                    "periodId": g.period_id,
+                    "status": g.status,
+                }
+                for g in goals
+            ],
+            "draft": draft_entries,
+            "stageWeights": stage_weights,
+            "thresholds": thresholds,
+            "summary": summary,
+        }
+
+    async def save_draft(self, current_user_context: AuthContext, draft_entries: List[dict]):
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        now = datetime.now(timezone.utc)
+
+        for entry in draft_entries:
+            goal_id = UUID(str(entry.get("goalId")))
+            rating_code = entry.get("ratingCode")
+            comment = entry.get("comment")
+            rating_numeric = None
+            if rating_code:
+                rating_numeric = await self.scoring_service.get_score_for_rating(org_id, rating_code)
+            await self.self_assessment_repo.upsert_draft(
+                goal_id=goal_id,
+                org_id=org_id,
+                self_rating_text=rating_code,
+                self_rating_numeric=rating_numeric,
+                self_comment=comment,
+            )
+        await self.session.commit()
+        return now
+
+    async def submit(self, current_user_context: AuthContext, draft_entries: List[dict]):
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        user_id = current_user_context.user_id
+        active_period = await self.evaluation_period_repo.get_active_period(org_id)
+        if not active_period:
+            raise NotFoundError("No active evaluation period found")
+
+        stage_weights = await self._get_stage_weights(current_user_context)
+
+        # Persist draft first
+        await self.save_draft(current_user_context, draft_entries)
+
+        bucket_ratings: Dict[str, List[str]] = {}
+        goal_ids = []
+        for entry in draft_entries:
+            bucket = entry.get("bucket")
+            rating_code = entry.get("ratingCode")
+            goal_id = UUID(str(entry.get("goalId")))
+            goal_ids.append(goal_id)
+            if bucket and rating_code:
+                bucket_ratings.setdefault(bucket, []).append(rating_code)
+
+        per_bucket, weighted_total = await self.scoring_service.apply_stage_weights(org_id, bucket_ratings, stage_weights)
+        final_rating = await self.scoring_service.map_numeric_to_grade(org_id, weighted_total)
+        flags = await self.scoring_service.evaluate_policy_flags(org_id, bucket_ratings)
+        level_preview = await self.scoring_service.attach_level_preview(org_id, final_rating)
+
+        summary_model = SelfAssessmentSummaryModel(
+            organization_id=org_id,
+            user_id=user_id,
+            period_id=active_period.id,
+            stage_id=current_user_context.stage_id,
+            stage_weights=stage_weights,
+            per_bucket=[
+                {
+                    "bucket": b["bucket"],
+                    "weight": b["weight"],
+                    "avg_score": float(b["avg_score"]),
+                    "contribution": float(b["contribution"]),
+                }
+                for b in per_bucket
+            ],
+            weighted_total=weighted_total,
+            final_rating_code=final_rating,
+            flags=flags,
+            level_adjustment_preview=level_preview,
+            submitted_at=datetime.now(timezone.utc),
+        )
+        await self.summary_repo.upsert_summary(summary_model)
+        await self.self_assessment_repo.submit_assessments_for_goals(goal_ids, org_id)
+        await self.session.commit()
+
+        return {
+            "stageWeights": stage_weights,
+            "perBucket": per_bucket,
+            "weightedTotal": float(weighted_total),
+            "finalRating": final_rating,
+            "flags": flags,
+            "levelAdjustmentPreview": level_preview,
+            "submittedAt": summary_model.submitted_at,
+        }
+
+    async def get_summary(self, current_user_context: AuthContext, period_id: UUID, user_id: Optional[UUID] = None):
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+        target_user = user_id or current_user_context.user_id
+        summary = await self.summary_repo.get_summary(org_id, target_user, period_id)
+        if not summary:
+            return None
+        return {
+            "stageWeights": summary.stage_weights,
+            "perBucket": summary.per_bucket,
+            "weightedTotal": float(summary.weighted_total),
+            "finalRating": summary.final_rating_code,
+            "flags": summary.flags,
+            "levelAdjustmentPreview": summary.level_adjustment_preview,
+            "submittedAt": summary.submitted_at,
+        }
+
+    async def _get_stage_weights(self, current_user_context: AuthContext) -> Dict[str, float]:
+        org_id = current_user_context.organization_id
+        user = await self.user_repo.get_user_by_id(current_user_context.user_id, org_id)
+        if not user or not user.stage_id:
+            return {"quantitative": 0.0, "qualitative": 0.0, "competency": 0.0}
+        stage = await self.stage_repo.get_by_id(user.stage_id, org_id)
+        if not stage:
+            return {"quantitative": 0.0, "qualitative": 0.0, "competency": 0.0}
+        return {
+            "quantitative": float(stage.quantitative_weight or 0),
+            "qualitative": float(stage.qualitative_weight or 0),
+            "competency": float(stage.competency_weight or 0),
+        }
+
+    async def _get_thresholds(self, org_id: str) -> List[Dict[str, Any]]:
+        rows = await self.score_repo.list_thresholds(org_id)
+        return [
+            {
+                "ratingCode": row.rating_code,
+                "minScore": float(row.min_score),
+                "note": row.note,
+            }
+            for row in rows
+        ]
 
     async def get_assessments_by_period(
         self,
