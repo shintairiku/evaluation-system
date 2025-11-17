@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 class SelfAssessmentBase(BaseModel):
     self_rating: Optional[float] = Field(None, ge=0, le=100, alias="selfRating", description="Self-rating from 0-100")
+    self_rating_text: Optional[str] = Field(None, alias="selfRatingText", description="Self-rating code (SS..D)")
     self_comment: Optional[str] = Field(None, alias="selfComment", description="Self-assessment comment")
 
 

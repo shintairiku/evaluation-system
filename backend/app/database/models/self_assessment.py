@@ -22,6 +22,7 @@ class SelfAssessment(Base):
     goal_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("goals.id", ondelete="CASCADE"), nullable=False)
     period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
     self_rating = Column(DECIMAL(5, 2), nullable=True)  # 0-100 rating or null
+    self_rating_text = Column(String, nullable=True)  # SS..D code
     self_comment = Column(String, nullable=True)
     status = Column(String(50), nullable=False, default="draft")
     
