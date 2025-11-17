@@ -15,6 +15,7 @@ from .competencies import router as competency_router
 from .self_assessments import router as self_assessment_router
 from .supervisor_feedbacks import router as supervisor_feedback_router
 from .dashboard import router as dashboard_router
+from .self_assessment_summary import router as self_assessment_summary_router
 
 # from .reports import router as reports_router  # Will be defined in the future
 # from .webhooks import router as webhooks_router
@@ -35,6 +36,7 @@ org_api_router.include_router(supervisor_review_router)
 org_api_router.include_router(evaluation_period_router)
 org_api_router.include_router(competency_router)
 org_api_router.include_router(self_assessment_router)
+org_api_router.include_router(self_assessment_summary_router)
 org_api_router.include_router(supervisor_feedback_router)
 org_api_router.include_router(dashboard_router)
 
@@ -43,4 +45,3 @@ org_api_router.include_router(dashboard_router)
 # Webhooks should be registered without the /api/v1 prefix
 webhooks_router_root = APIRouter()
 # webhooks_router_root.include_router(webhooks_router)
-
