@@ -199,18 +199,29 @@ class SelfAssessmentService:
             raise PermissionDeniedError("Organization context required")
         now = datetime.now(timezone.utc)
 
+        def _get(entry, *keys):
+            if isinstance(entry, dict):
+                for key in keys:
+                    if key in entry:
+                        return entry.get(key)
+                return None
+            for key in keys:
+                if hasattr(entry, key):
+                    return getattr(entry, key)
+            return None
+
         for entry in draft_entries:
-            goal_id = UUID(str(entry.get("goalId")))
-            rating_code = entry.get("ratingCode")
-            comment = entry.get("comment")
-            rating_numeric = None
-            if rating_code:
-                rating_numeric = await self.scoring_service.get_score_for_rating(org_id, rating_code)
+            goal_id_raw = _get(entry, "goalId", "goal_id")
+            rating_code = _get(entry, "ratingCode", "rating_code")
+            comment = _get(entry, "comment")
+            if not goal_id_raw:
+                raise ValidationError("goalId is required in draft entry")
+            goal_id = UUID(str(goal_id_raw))
             await self.self_assessment_repo.upsert_draft(
                 goal_id=goal_id,
                 org_id=org_id,
                 self_rating_text=rating_code,
-                self_rating_numeric=rating_numeric,
+                self_rating_numeric=None,  # keep numeric empty to avoid 1-5 constraint mismatches
                 self_comment=comment,
             )
         await self.session.commit()
@@ -246,12 +257,26 @@ class SelfAssessmentService:
         # Persist draft first
         await self.save_draft(current_user_context, draft_entries)
 
+        def _get(entry, *keys):
+            if isinstance(entry, dict):
+                for key in keys:
+                    if key in entry:
+                        return entry.get(key)
+                return None
+            for key in keys:
+                if hasattr(entry, key):
+                    return getattr(entry, key)
+            return None
+
         bucket_ratings: Dict[str, List[str]] = {}
         goal_ids = []
         for entry in draft_entries:
-            bucket = entry.get("bucket")
-            rating_code = entry.get("ratingCode")
-            goal_id = UUID(str(entry.get("goalId")))
+            bucket = _get(entry, "bucket")
+            rating_code = _get(entry, "ratingCode", "rating_code")
+            goal_id_raw = _get(entry, "goalId", "goal_id")
+            if not goal_id_raw:
+                raise ValidationError("goalId is required in draft entry")
+            goal_id = UUID(str(goal_id_raw))
             goal_ids.append(goal_id)
             if bucket and rating_code:
                 bucket_ratings.setdefault(bucket, []).append(rating_code)
