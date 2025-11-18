@@ -11,6 +11,8 @@ from uuid import UUID
 from dataclasses import dataclass
 
 from .permissions import Permission
+from .rbac_types import ResourceType
+from .viewer_visibility import ViewerSubjectType
 
 
 @dataclass
@@ -37,6 +39,7 @@ class AuthContext:
         organization_id: Optional[str] = None,
         organization_slug: Optional[str] = None,
         role_permission_overrides: Optional[Dict[str, Set[Permission]]] = None,
+        viewer_visibility_overrides: Optional[Dict[ResourceType, Dict[ViewerSubjectType, Set[UUID]]]] = None,
     ):
         self.user_id = user_id
         self.clerk_user_id = clerk_user_id
@@ -48,6 +51,7 @@ class AuthContext:
         self._role_permission_overrides = {
             name.lower(): perms for name, perms in (role_permission_overrides or {}).items()
         }
+        self.viewer_visibility_overrides = viewer_visibility_overrides or {}
         
         # Compute permissions once at initialization and freeze to prevent mutation
         self._permissions = frozenset(self._compute_permissions())

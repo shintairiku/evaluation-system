@@ -43,6 +43,9 @@ export * from './employee-dashboard';
 // Permission types
 export * from './permission';
 
+// Viewer visibility types
+export * from './viewer-visibility';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;

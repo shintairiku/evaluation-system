@@ -171,6 +171,11 @@ export const API_ENDPOINTS = {
     // BY_PERIOD: (periodId: string) => `/goals/period/${periodId}`,
   },
 
+  // Viewer visibility endpoints
+  VIEWERS: {
+    VISIBILITY: (viewerId: string) => `/viewers/${viewerId}/visibility`,
+  },
+
   // Goal Category endpoints
   GOAL_CATEGORIES: {
     LIST: '/goal-categories/',

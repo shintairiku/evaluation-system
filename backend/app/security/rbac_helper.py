@@ -7,13 +7,14 @@ with standardized, reusable patterns.
 """
 
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 from uuid import UUID
 from cachetools import TTLCache
 
 from .context import AuthContext
 from .permissions import Permission
 from .rbac_types import ResourceType, ResourcePermissionMap
+from .viewer_visibility import ViewerSubjectType
 from ..core.exceptions import PermissionDeniedError
 
 logger = logging.getLogger(__name__)
@@ -78,34 +79,40 @@ class RBACHelper:
             logger.debug(f"Cache hit for accessible user IDs: {auth_context.user_id}")
             return cached_result
         
-        result = None
+        base_result: Optional[List[UUID]] = None
         
         if auth_context.has_permission(Permission.USER_READ_ALL):
             # Admin: Can access all users
-            result = None
+            base_result = None
         elif auth_context.has_permission(Permission.USER_READ_SUBORDINATES):
             # Manager/Supervisor: Can access subordinates
             subordinate_ids = await RBACHelper._get_subordinate_user_ids(
                 auth_context.user_id, RBACHelper.get_user_repository(), auth_context.organization_id
             )
             # Include self in accessible users for managers/supervisors
-            result = subordinate_ids + [auth_context.user_id]
+            base_result = subordinate_ids + ([auth_context.user_id] if auth_context.user_id else [])
         elif auth_context.has_permission(Permission.USER_READ_SELF):
             # Employee: Can only access themselves
-            result = [auth_context.user_id]
+            base_result = [auth_context.user_id] if auth_context.user_id else []
         else:
             # No permission to read users
             raise PermissionDeniedError("No permission to read user data")
-        
+
+        final_result = await RBACHelper._apply_viewer_visibility_overrides(
+            auth_context,
+            ResourceType.USER,
+            base_result,
+        )
+
         # Cache the result
-        resource_access_cache[cache_key] = result
+        resource_access_cache[cache_key] = final_result
         
         logger.debug(
             f"Computed accessible user IDs for user {auth_context.user_id}: "
-            f"{'all' if result is None else len(result)} users"
+            f"{'all' if final_result is None else len(final_result)} users"
         )
         
-        return result
+        return final_result
     
     @staticmethod
     async def get_accessible_resource_ids(
@@ -262,21 +269,102 @@ class RBACHelper:
                     auth_context.user_id, RBACHelper.get_user_repository(), auth_context.organization_id
                 )
                 # For resource access, we typically need the user IDs who own the resources
-                return subordinate_ids + [auth_context.user_id]
+                base_ids = subordinate_ids + ([auth_context.user_id] if auth_context.user_id else [])
+                return await RBACHelper._apply_viewer_visibility_overrides(
+                    auth_context,
+                    resource_type,
+                    base_ids,
+                )
         
         # Check for "read_self" permission
         if "read_self" in resource_permissions:
             if auth_context.has_permission(resource_permissions["read_self"]):
-                return [auth_context.user_id]
+                base_ids = [auth_context.user_id] if auth_context.user_id else []
+                return await RBACHelper._apply_viewer_visibility_overrides(
+                    auth_context,
+                    resource_type,
+                    base_ids,
+                )
         
         # Check for general "read" permission (like evaluations)
         if "read" in resource_permissions:
             if auth_context.has_permission(resource_permissions["read"]):
                 # For general read permissions, apply same logic as user access
                 return await RBACHelper.get_accessible_user_ids(auth_context, target_user_id)
-        
+
         # No permissions found
         raise PermissionDeniedError(f"No permission to access {resource_type.value} resources")
+
+    @staticmethod
+    async def _apply_viewer_visibility_overrides(
+        auth_context: AuthContext,
+        resource_type: ResourceType,
+        base_result: Optional[List[UUID]],
+    ) -> Optional[List[UUID]]:
+        override_targets = await RBACHelper._get_viewer_visibility_targets(auth_context, resource_type)
+        if override_targets is None:
+            return base_result
+        if base_result is None:
+            return None
+        combined = set(base_result)
+        combined.update(override_targets)
+        return list(combined)
+
+    @staticmethod
+    async def _get_viewer_visibility_targets(
+        auth_context: AuthContext,
+        resource_type: ResourceType,
+    ) -> Optional[List[UUID]]:
+        if not auth_context.has_role("viewer"):
+            return None
+        overrides = getattr(auth_context, "viewer_visibility_overrides", None)
+        if not overrides:
+            return None
+        resource_map = overrides.get(resource_type)
+        if not resource_map:
+            return None
+
+        user_repo = RBACHelper.get_user_repository()
+        if not user_repo:
+            logger.warning(
+                "Viewer visibility overrides cannot be resolved because user repository is missing"
+            )
+            return None
+        department_fetcher = getattr(user_repo, "get_users_by_department", None)
+        if department_fetcher is None:
+            logger.warning(
+                "User repository %s does not implement get_users_by_department; "
+                "department-based viewer overrides will be ignored",
+                type(user_repo).__name__,
+            )
+
+        org_id = auth_context.organization_id
+        if not org_id or not auth_context.user_id:
+            return None
+
+        accessible: Set[UUID] = {auth_context.user_id}
+        for subject_type, target_ids in resource_map.items():
+            if subject_type == ViewerSubjectType.USER:
+                accessible.update(target_ids)
+            elif subject_type == ViewerSubjectType.DEPARTMENT:
+                for department_id in target_ids:
+                    if department_fetcher is None:
+                        continue
+                    department_users = await department_fetcher(department_id, org_id)
+                    accessible.update(user.id for user in department_users)
+            elif subject_type == ViewerSubjectType.SUPERVISOR_TEAM:
+                for supervisor_id in target_ids:
+                    subordinate_ids = await RBACHelper._get_subordinate_user_ids(
+                        supervisor_id,
+                        user_repo,
+                        org_id,
+                    )
+                    accessible.update(subordinate_ids)
+                    accessible.add(supervisor_id)
+            else:
+                logger.warning("Unknown viewer subject type %s encountered", subject_type)
+
+        return list(accessible)
     
     @staticmethod
     async def _check_resource_access(
