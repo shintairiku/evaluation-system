@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from typing import Optional
 from uuid import UUID
@@ -16,12 +16,13 @@ router = APIRouter(prefix="/self-assessments", tags=["self-assessments"])
 
 @router.get("/current", response_model=SelfAssessmentContext)
 async def get_current_context(
+    period_id: Optional[UUID] = Query(None, alias="periodId"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     try:
         service = SelfAssessmentService(session)
-        return await service.get_current_context(context)
+        return await service.get_self_assessment_context(context, period_id=period_id)
     except PermissionDeniedError as e:
         raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
     except NotFoundError as e:
