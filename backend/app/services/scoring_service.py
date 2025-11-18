@@ -40,23 +40,33 @@ class ScoringService:
     ) -> Tuple[List[Dict[str, Any]], Decimal]:
         per_bucket: List[Dict[str, Any]] = []
         total = Decimal("0")
+        # Normalize weights so they always sum to 1.0 even if the raw weights exceed 100.
+        total_weight = sum(float(w or 0) for w in stage_weights.values())
+        total_weight_decimal = Decimal(str(total_weight)) if total_weight else Decimal("0")
+
         for bucket, weight_value in stage_weights.items():
             ratings = bucket_ratings.get(bucket, [])
-            weight = Decimal(str(weight_value or 0))
-            if weight == 0:
+            raw_weight = Decimal(str(weight_value or 0))
+
+            # If there is no weight total, skip contribution.
+            if total_weight_decimal == 0 or raw_weight == 0:
                 per_bucket.append({
                     "bucket": bucket,
-                    "weight": float(weight),
+                    "weight": 0.0,
                     "avg_score": Decimal("0"),
                     "contribution": Decimal("0"),
                 })
                 continue
+
+            # Normalized weight fraction (e.g., 100 + 10 => 100/110, 10/110)
+            weight_fraction = (raw_weight / total_weight_decimal).quantize(Decimal("0.0001"))
             avg = await self.compute_bucket_average(organization_id, ratings)
-            contribution = (avg * weight / Decimal("100")).quantize(Decimal("0.01"))
+            contribution = (avg * weight_fraction).quantize(Decimal("0.01"))
             total += contribution
             per_bucket.append({
                 "bucket": bucket,
-                "weight": float(weight),
+                # Store normalized percent to reflect actual contribution basis
+                "weight": float((weight_fraction * Decimal("100")).quantize(Decimal("0.01"))),
                 "avg_score": avg,
                 "contribution": contribution,
             })
