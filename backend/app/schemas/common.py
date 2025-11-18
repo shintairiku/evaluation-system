@@ -63,3 +63,9 @@ class HealthCheckResponse(BaseModel):
     status: str = "healthy"
     timestamp: str
     version: str = "1.0.0"
+
+# Ensure Pydantic v2 rebuild for generics used in OpenAPI
+try:
+    PaginatedResponse.model_rebuild()
+except Exception:
+    pass

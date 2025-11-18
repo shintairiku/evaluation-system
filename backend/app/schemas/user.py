@@ -258,3 +258,10 @@ class ProfileOptionsResponse(BaseModel):
     stages: List[Stage]
     roles: List[Role]
     users: List[UserProfileOption]  # Simple user options without complex relationships
+
+# Rebuild forward references for Pydantic v2
+try:
+    DepartmentDetail.model_rebuild()
+    UserDetailResponse.model_rebuild()
+except Exception:
+    pass

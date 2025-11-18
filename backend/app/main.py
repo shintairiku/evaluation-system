@@ -75,6 +75,11 @@ def custom_openapi():
     try:
         from .schemas.stage_competency import rebuild_models
         rebuild_models()
+        # Ensure generic paginated responses are rebuilt for OpenAPI generation
+        from .schemas.common import PaginatedResponse
+        from .schemas.user import User
+        PaginatedResponse.model_rebuild()
+        PaginatedResponse[User].model_rebuild()
     except Exception as e:
         logger.warning(f"Could not rebuild schema models: {e}")
     
