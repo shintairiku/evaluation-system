@@ -40,8 +40,9 @@ class ScoringService:
     ) -> Tuple[List[Dict[str, Any]], Decimal]:
         per_bucket: List[Dict[str, Any]] = []
         total = Decimal("0")
-        for bucket, ratings in bucket_ratings.items():
-            weight = Decimal(str(stage_weights.get(bucket, 0) or 0))
+        for bucket, weight_value in stage_weights.items():
+            ratings = bucket_ratings.get(bucket, [])
+            weight = Decimal(str(weight_value or 0))
             if weight == 0:
                 per_bucket.append({
                     "bucket": bucket,
@@ -86,3 +87,23 @@ class ScoringService:
         if delta is None:
             return {}
         return {"rating": rating_code, "delta": delta}
+
+    async def compute_summary(
+        self,
+        organization_id: str,
+        bucket_ratings: Dict[str, List[str]],
+        stage_weights: Dict[str, float]
+    ) -> Dict[str, Any]:
+        per_bucket, weighted_total = await self.apply_stage_weights(organization_id, bucket_ratings, stage_weights)
+        flags = await self.evaluate_policy_flags(organization_id, bucket_ratings)
+        final_rating = await self.map_numeric_to_grade(organization_id, weighted_total)
+        if flags.get("fail"):
+            final_rating = "D"
+        level_preview = await self.attach_level_preview(organization_id, final_rating)
+        return {
+            "per_bucket": per_bucket,
+            "weighted_total": weighted_total,
+            "final_rating": final_rating,
+            "flags": flags,
+            "level_adjustment_preview": level_preview,
+        }
