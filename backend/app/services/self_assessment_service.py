@@ -227,6 +227,22 @@ class SelfAssessmentService:
 
         stage_weights = await self._get_stage_weights(current_user_context)
 
+        # Ensure all goals for the period are approved before allowing submission
+        all_period_goals = await self.goal_repo.get_goals_by_user_and_period(
+            user_id,
+            org_id,
+            active_period.id
+        )
+        not_approved = [
+            goal for goal in all_period_goals
+            if (goal.status or "").lower() != "approved"
+        ]
+        if not_approved:
+            raise ValidationError(
+                "All goals must be approved before submitting a self-assessment. "
+                f"Pending: {len(not_approved)} goal(s)."
+            )
+
         # Persist draft first
         await self.save_draft(current_user_context, draft_entries)
 
