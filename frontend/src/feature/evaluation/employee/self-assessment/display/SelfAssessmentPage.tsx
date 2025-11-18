@@ -139,7 +139,14 @@ export default function SelfAssessmentPage() {
   const hasContext = Boolean(context);
   const activePeriod = periods.find(p => p.id === selectedPeriodId) || null;
 
-  const getBucketWeight = (bucket: string) => {
+  const mapCategoryToBucket = (category: string) => {
+    if (category === '業績目標') return 'quantitative'; // default performance goals as quantitative
+    if (category === 'コンピテンシー' || category === 'コアバリュー') return 'competency';
+    return category;
+  };
+
+  const getBucketWeight = (category: string) => {
+    const bucket = mapCategoryToBucket(category);
     return stageWeights[bucket as keyof typeof stageWeights] ?? 0;
   };
 
@@ -233,57 +240,131 @@ export default function SelfAssessmentPage() {
             </CardContent>
           </Card>
         ) : (
-        <div className="grid gap-4">
-          {context.goals.map(goal => {
-            const entry = entries.find(e => e.goalId === goal.id);
-            const weight = getBucketWeight(goal.goalCategory);
-            return (
-              <Card key={goal.id}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>{goal.goalCategory}</span>
-                    <span className="text-sm text-muted-foreground">重み {weight}%</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-48">
-                      <Select
-                        value={entry?.ratingCode || ''}
-                        onValueChange={value => handleRatingChange(goal.id, goal.goalCategory, value)}
-                        disabled={bucketDisabled(goal.goalCategory)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="評価を選択" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ratingOptions.map(option => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex-1">
-                      <Textarea
-                        placeholder="コメント (任意、500文字まで)"
-                        value={entry?.comment || ''}
-                        onChange={e => handleCommentChange(goal.id, e.target.value)}
-                        disabled={readOnly}
-                        maxLength={500}
-                        className="min-h-[100px]"
-                      />
-                      <div className="text-right text-xs text-muted-foreground">
-                        {(entry?.comment?.length ?? 0)}/500
+          <>
+            {/* Performance goals bucket (定量＋定性) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>業績目標（定量＋定性）</span>
+                  <span className="text-sm text-muted-foreground">
+                    重み {stageWeights.quantitative + stageWeights.qualitative}%
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {context.goals.filter(g => g.goalCategory === '業績目標').map(goal => {
+                  const entry = entries.find(e => e.goalId === goal.id);
+                  const goalWeight = goal.weight ?? 0;
+                  return (
+                    <div key={goal.id} className="rounded-lg border px-4 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-medium text-primary-foreground/80">
+                          {goal.targetData && typeof goal.targetData === 'object' && 'title' in (goal.targetData as any)
+                            ? (goal.targetData as any).title
+                            : '業績目標'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">ウェイト {goalWeight}%</div>
+                      </div>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start">
+                        <div className="w-full md:w-48">
+                          <Select
+                            value={entry?.ratingCode || ''}
+                            onValueChange={value => handleRatingChange(goal.id, goal.goalCategory, value)}
+                            disabled={bucketDisabled(goal.goalCategory)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="評価を選択" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ratingOptions.map(option => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex-1">
+                          <Textarea
+                            placeholder="コメント (任意、500文字まで)"
+                            value={entry?.comment || ''}
+                            onChange={e => handleCommentChange(goal.id, e.target.value)}
+                            disabled={readOnly}
+                            maxLength={500}
+                            className="min-h-[100px]"
+                          />
+                          <div className="text-right text-xs text-muted-foreground">
+                            {(entry?.comment?.length ?? 0)}/500
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            {/* Competency bucket */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>コンピテンシー / コアバリュー</span>
+                  <span className="text-sm text-muted-foreground">重み {stageWeights.competency}%</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {context.goals.filter(g => g.goalCategory === 'コンピテンシー' || g.goalCategory === 'コアバリュー').map(goal => {
+                  const entry = entries.find(e => e.goalId === goal.id);
+                  const goalWeight = goal.weight ?? 0;
+                  return (
+                    <div key={goal.id} className="rounded-lg border px-4 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-medium text-primary-foreground/80">
+                          {goal.targetData && typeof goal.targetData === 'object' && 'title' in (goal.targetData as any)
+                            ? (goal.targetData as any).title
+                            : goal.goalCategory}
+                        </div>
+                        <div className="text-xs text-muted-foreground">ウェイト {goalWeight}%</div>
+                      </div>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start">
+                        <div className="w-full md:w-48">
+                          <Select
+                            value={entry?.ratingCode || ''}
+                            onValueChange={value => handleRatingChange(goal.id, goal.goalCategory, value)}
+                            disabled={bucketDisabled(goal.goalCategory)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="評価を選択" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ratingOptions.map(option => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex-1">
+                          <Textarea
+                            placeholder="コメント (任意、500文字まで)"
+                            value={entry?.comment || ''}
+                            onChange={e => handleCommentChange(goal.id, e.target.value)}
+                            disabled={readOnly}
+                            maxLength={500}
+                            className="min-h-[100px]"
+                          />
+                          <div className="text-right text-xs text-muted-foreground">
+                            {(entry?.comment?.length ?? 0)}/500
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </>
         )
       ) : (
         <Card>
