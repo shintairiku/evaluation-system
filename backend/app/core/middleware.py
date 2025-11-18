@@ -7,9 +7,11 @@ from fastapi import Request, Response, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.datastructures import Headers
+from types import SimpleNamespace
 
 from ..database.repositories.organization_repo import OrganizationRepository
 from ..services.auth_service import AuthService
+from ..core.config import settings, Environment
 
 
 logger = logging.getLogger(__name__)
@@ -84,20 +86,58 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
             session_gen = self.get_session()
             session = await session_gen.__anext__()
             try:
-                # Validate JWT and extract user info
-                auth_service = AuthService(session)
-                auth_user = await auth_service.get_user_from_token(token)
+                # Development-only dev keys shortcut (aligns with get_auth_context)
+                if settings.ENVIRONMENT == Environment.DEVELOPMENT:
+                    dev_keys = {
+                        "dev-admin-key": {
+                            "user_id": "00000000-0000-0000-0000-000000000001",
+                            "clerk_user_id": "dev-admin",
+                            "roles": ["admin"],
+                        },
+                        "dev-manager-key": {
+                            "user_id": "00000000-0000-0000-0000-000000000002",
+                            "clerk_user_id": "dev-manager",
+                            "roles": ["manager"],
+                        },
+                        "dev-supervisor-key": {
+                            "user_id": "00000000-0000-0000-0000-000000000003",
+                            "clerk_user_id": "dev-supervisor",
+                            "roles": ["supervisor"],
+                        },
+                        "dev-employee-key": {
+                            "user_id": "00000000-0000-0000-0000-000000000004",
+                            "clerk_user_id": "dev-employee",
+                            "roles": ["employee"],
+                        },
+                    }
+                else:
+                    dev_keys = {}
 
-                # Validate organization access
+                # Validate organization existence first (shared path)
                 org_repo = OrganizationRepository(session)
                 organization = await org_repo.get_by_slug(org_slug)
-
                 if not organization:
                     logger.warning(f"Organization not found for slug: {org_slug}")
                     raise HTTPException(
                         status_code=404,
                         detail=f"Organization '{org_slug}' not found"
                     )
+
+                if token in dev_keys:
+                    dev_user = dev_keys[token]
+                    request.state.org_slug = org_slug
+                    request.state.org_id = organization.id
+                    request.state.auth_user = SimpleNamespace(
+                        clerk_id=dev_user["clerk_user_id"],
+                        organization_id=organization.id,
+                        organization_slug=organization.slug,
+                        roles=dev_user["roles"],
+                    )
+                    return await call_next(request)
+
+                # Validate JWT and extract user info
+                auth_service = AuthService(session)
+                auth_user = await auth_service.get_user_from_token(token)
 
                 # Check if user belongs to this organization
                 # Both auth_user.organization_id and organization.id are Clerk org IDs (String type)
