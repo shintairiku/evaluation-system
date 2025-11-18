@@ -9,13 +9,13 @@ import type {
   UUID,
 } from '../types';
 
-export const getSelfAssessmentContextAction = cache(async (): Promise<{
+export const getSelfAssessmentContextAction = cache(async (periodId?: string): Promise<{
   success: boolean;
   data?: SelfAssessmentContext;
   error?: string;
 }> => {
   try {
-    const response = await selfAssessmentFormsApi.getContext();
+    const response = await selfAssessmentFormsApi.getContext(periodId);
     if (!response.success || !response.data) {
       return { success: false, error: response.errorMessage || 'Failed to load context' };
     }

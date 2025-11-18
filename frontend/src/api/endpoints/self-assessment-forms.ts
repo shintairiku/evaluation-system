@@ -11,8 +11,9 @@ import type {
 const httpClient = getHttpClient();
 
 export const selfAssessmentFormsApi = {
-  getContext: async (): Promise<ApiResponse<SelfAssessmentContext>> => {
-    return httpClient.get<SelfAssessmentContext>(API_ENDPOINTS.SELF_ASSESSMENT_FORMS.CURRENT);
+  getContext: async (periodId?: string): Promise<ApiResponse<SelfAssessmentContext>> => {
+    const query = periodId ? `?periodId=${encodeURIComponent(periodId)}` : '';
+    return httpClient.get<SelfAssessmentContext>(`${API_ENDPOINTS.SELF_ASSESSMENT_FORMS.CURRENT}${query}`);
   },
 
   saveDraft: async (draft: SelfAssessmentDraftEntry[]): Promise<ApiResponse<{ saved: boolean; updatedAt?: string }>> => {
