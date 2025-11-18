@@ -202,6 +202,14 @@ export const API_ENDPOINTS = {
     SUBMIT: (id: string) => `/self-assessments/${id}/submit`,
   },
 
+  // Self Assessment (context/draft/summary) endpoints
+  SELF_ASSESSMENT_FORMS: {
+    CURRENT: '/self-assessments/current',
+    DRAFT: '/self-assessments/draft',
+    SUBMIT: '/self-assessments/submit',
+    SUMMARY: (periodId: string) => `/self-assessments/summary/${periodId}`,
+  },
+
   // Supervisor Review endpoints
   SUPERVISOR_REVIEWS: {
     LIST: '/supervisor-reviews/',

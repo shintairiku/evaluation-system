@@ -25,6 +25,13 @@ export const groups = [
         permission: 'employee'
       },
       {
+        href: '/self-assessment',
+        label: '自己評価',
+        sublabel: 'Self Assessment',
+        icon: 'clipboard-check',
+        permission: 'employee'
+      },
+      {
         href: '/goal-list',
         label: '目標一覧',
         sublabel: 'Goal List',
