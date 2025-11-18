@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, Send } from 'lucide-react';
+import { Loader2, Save, Send, Weight } from 'lucide-react';
 import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -141,7 +141,7 @@ export default function SelfAssessmentPage() {
 
   const mapCategoryToBucket = (category: string) => {
     if (category === '業績目標') return 'quantitative'; // default performance goals as quantitative
-    if (category === 'コンピテンシー' || category === 'コアバリュー') return 'competency';
+    if (category === 'コンピテンシー') return 'competency';
     return category;
   };
 
@@ -246,8 +246,9 @@ export default function SelfAssessmentPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>業績目標（定量＋定性）</span>
-                  <span className="text-sm text-muted-foreground">
-                    重み {stageWeights.quantitative + stageWeights.qualitative}%
+                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <Weight className="h-4 w-4" />
+                    {stageWeights.quantitative + stageWeights.qualitative}%
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -255,15 +256,17 @@ export default function SelfAssessmentPage() {
                 {context.goals.filter(g => g.goalCategory === '業績目標').map(goal => {
                   const entry = entries.find(e => e.goalId === goal.id);
                   const goalWeight = goal.weight ?? 0;
+                  const goalTitle = (goal as any).targetData?.title || goal.goalCategory;
                   return (
                     <div key={goal.id} className="rounded-lg border px-4 py-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-sm font-medium text-primary-foreground/80">
-                          {goal.targetData && typeof goal.targetData === 'object' && 'title' in (goal.targetData as any)
-                            ? (goal.targetData as any).title
-                            : '業績目標'}
+                          {goalTitle}
                         </div>
-                        <div className="text-xs text-muted-foreground">ウェイト {goalWeight}%</div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Weight className="h-3 w-3" />
+                          {goalWeight}%
+                        </div>
                       </div>
                       <div className="flex flex-col gap-3 md:flex-row md:items-start">
                         <div className="w-full md:w-48">
@@ -308,23 +311,28 @@ export default function SelfAssessmentPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>コンピテンシー / コアバリュー</span>
-                  <span className="text-sm text-muted-foreground">重み {stageWeights.competency}%</span>
+                  <span>コンピテンシー</span>
+                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <Weight className="h-4 w-4" />
+                    {stageWeights.competency}%
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {context.goals.filter(g => g.goalCategory === 'コンピテンシー' || g.goalCategory === 'コアバリュー').map(goal => {
+                {context.goals.filter(g => g.goalCategory === 'コンピテンシー').map(goal => {
                   const entry = entries.find(e => e.goalId === goal.id);
                   const goalWeight = goal.weight ?? 0;
+                  const goalTitle = (goal as any).targetData?.title || goal.goalCategory;
                   return (
                     <div key={goal.id} className="rounded-lg border px-4 py-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-sm font-medium text-primary-foreground/80">
-                          {goal.targetData && typeof goal.targetData === 'object' && 'title' in (goal.targetData as any)
-                            ? (goal.targetData as any).title
-                            : goal.goalCategory}
+                          {goalTitle}
                         </div>
-                        <div className="text-xs text-muted-foreground">ウェイト {goalWeight}%</div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Weight className="h-3 w-3" />
+                          {goalWeight}%
+                        </div>
                       </div>
                       <div className="flex flex-col gap-3 md:flex-row md:items-start">
                         <div className="w-full md:w-48">
