@@ -22,6 +22,7 @@ import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeri
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
+import { Label } from '@/components/ui/label';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
 
@@ -423,7 +424,22 @@ export default function SelfAssessmentPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-col gap-3">
+                <div className="space-y-4">
+                  {context.goals
+                    .filter(g => g.goalCategory === '業績目標')
+                    .map(goal => (
+                      <GoalDetailsCard key={goal.id} goal={goal} />
+                    ))}
+                </div>
+
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-semibold">このカテゴリの自己評価</Label>
+                      <p className="text-xs text-muted-foreground">1つ選択してください。コメントは任意です。</p>
+                    </div>
+                    <span className="text-[11px] rounded bg-primary/10 px-2 py-1 text-primary">必須</span>
+                  </div>
                   <div className="w-full md:w-64">
                     <Select
                       value={bucketRatings['業績目標'] || ''}
@@ -442,25 +458,20 @@ export default function SelfAssessmentPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Textarea
-                    placeholder="コメント (任意、500文字まで)"
-                    value={bucketComments['業績目標'] || ''}
-                    onChange={e => applyBucketComment('業績目標', e.target.value)}
-                    disabled={readOnly}
-                    maxLength={500}
-                    className="min-h-[100px]"
-                  />
-                  <div className="text-right text-xs text-muted-foreground">
-                    {(bucketComments['業績目標']?.length ?? 0)}/500
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">コメント (任意、500文字まで)</Label>
+                    <Textarea
+                      placeholder="例）数値目標に対する自己評価の理由を記載"
+                      value={bucketComments['業績目標'] || ''}
+                      onChange={e => applyBucketComment('業績目標', e.target.value)}
+                      disabled={readOnly}
+                      maxLength={500}
+                      className="min-h-[100px]"
+                    />
+                    <div className="text-right text-[11px] text-muted-foreground">
+                      {(bucketComments['業績目標']?.length ?? 0)}/500
+                    </div>
                   </div>
-                </div>
-
-                <div className="space-y-4">
-                  {context.goals
-                    .filter(g => g.goalCategory === '業績目標')
-                    .map(goal => (
-                      <GoalDetailsCard key={goal.id} goal={goal} />
-                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -477,7 +488,22 @@ export default function SelfAssessmentPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-col gap-3">
+                <div className="space-y-4">
+                  {context.goals
+                    .filter(g => g.goalCategory === 'コンピテンシー')
+                    .map(goal => (
+                      <GoalDetailsCard key={goal.id} goal={goal} />
+                    ))}
+                </div>
+
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-semibold">このカテゴリの自己評価</Label>
+                      <p className="text-xs text-muted-foreground">1つ選択してください。コメントは任意です。</p>
+                    </div>
+                    <span className="text-[11px] rounded bg-primary/10 px-2 py-1 text-primary">必須</span>
+                  </div>
                   <div className="w-full md:w-64">
                     <Select
                       value={bucketRatings['コンピテンシー'] || ''}
@@ -496,25 +522,20 @@ export default function SelfAssessmentPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Textarea
-                    placeholder="コメント (任意、500文字まで)"
-                    value={bucketComments['コンピテンシー'] || ''}
-                    onChange={e => applyBucketComment('コンピテンシー', e.target.value)}
-                    disabled={readOnly}
-                    maxLength={500}
-                    className="min-h-[100px]"
-                  />
-                  <div className="text-right text-xs text-muted-foreground">
-                    {(bucketComments['コンピテンシー']?.length ?? 0)}/500
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">コメント (任意、500文字まで)</Label>
+                    <Textarea
+                      placeholder="例）行動事例や振り返りを記載"
+                      value={bucketComments['コンピテンシー'] || ''}
+                      onChange={e => applyBucketComment('コンピテンシー', e.target.value)}
+                      disabled={readOnly}
+                      maxLength={500}
+                      className="min-h-[100px]"
+                    />
+                    <div className="text-right text-[11px] text-muted-foreground">
+                      {(bucketComments['コンピテンシー']?.length ?? 0)}/500
+                    </div>
                   </div>
-                </div>
-
-                <div className="space-y-4">
-                  {context.goals
-                    .filter(g => g.goalCategory === 'コンピテンシー')
-                    .map(goal => (
-                      <GoalDetailsCard key={goal.id} goal={goal} />
-                    ))}
                 </div>
               </CardContent>
             </Card>
