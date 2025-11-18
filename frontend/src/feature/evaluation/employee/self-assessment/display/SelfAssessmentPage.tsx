@@ -11,12 +11,15 @@ import type {
   SelfAssessmentDraftEntry,
   SelfAssessmentSummary,
 } from '@/api/types';
+import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
+import type { EvaluationPeriod } from '@/api/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, Send } from 'lucide-react';
+import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
 
@@ -31,11 +34,24 @@ export default function SelfAssessmentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(undefined);
+  const [periods, setPeriods] = useState<EvaluationPeriod[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const loadContext = async () => {
+    const loadContext = async (periodId?: string) => {
       setLoading(true);
-      const result = await getSelfAssessmentContextAction();
+      const periodResp = await getCategorizedEvaluationPeriodsAction();
+      if (periodResp.success && periodResp.data) {
+        const all = periodResp.data.all || [];
+        setPeriods(all);
+        if (!periodId) {
+          const resolved = periodResp.data.current?.id || all[0]?.id;
+          setSelectedPeriodId(resolved);
+          periodId = resolved;
+        }
+      }
+
+      const result = await getSelfAssessmentContextAction(periodId);
       if (!result.success || !result.data) {
         setError(result.error || '自己評価データの取得に失敗しました');
         setLoading(false);
@@ -119,19 +135,9 @@ export default function SelfAssessmentPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="container mx-auto p-6">
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  if (!context) {
-    return null;
-  }
+  // Render base layout even when error/context missing so the period selector appears
+  const hasContext = Boolean(context);
+  const activePeriod = periods.find(p => p.id === selectedPeriodId) || null;
 
   const getBucketWeight = (bucket: string) => {
     return stageWeights[bucket as keyof typeof stageWeights] ?? 0;
@@ -139,27 +145,70 @@ export default function SelfAssessmentPage() {
 
   const bucketDisabled = (bucket: string) => getBucketWeight(bucket) === 0 || readOnly;
 
+  const handlePeriodChange = (nextPeriodId: string) => {
+    setSelectedPeriodId(nextPeriodId);
+    setContext(null);
+    setEntries([]);
+    setSummary(null);
+    setError(null);
+    setLoading(true);
+    getSelfAssessmentContextAction(nextPeriodId).then(result => {
+      if (!result.success || !result.data) {
+        setError(result.error || '自己評価データの取得に失敗しました');
+      } else {
+        setContext(result.data);
+        setSummary(result.data.summary ?? null);
+        const initialDraft =
+          result.data.draft && result.data.draft.length > 0
+            ? result.data.draft
+            : result.data.goals.map(goal => ({
+                goalId: goal.id,
+                bucket: goal.goalCategory,
+                ratingCode: undefined,
+                comment: undefined,
+              }));
+        setEntries(initialDraft);
+      }
+      setLoading(false);
+    });
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">自己評価</h1>
-          <p className="text-sm text-muted-foreground">
-            ステージ配分: Q{stageWeights.quantitative}% / Qa{stageWeights.qualitative}% / C{stageWeights.competency}%
-          </p>
+          {hasContext && (
+            <p className="text-sm text-muted-foreground">
+              ステージ配分: Q{stageWeights.quantitative}% / Qa{stageWeights.qualitative}% / C{stageWeights.competency}%
+            </p>
+          )}
           {lastSavedAt && (
             <p className="text-xs text-muted-foreground mt-1">下書き保存: {lastSavedAt}</p>
           )}
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleSaveDraft} disabled={saving || submitting || readOnly}>
+        <div className="flex gap-2 items-center">
+          <EvaluationPeriodSelector
+            periods={periods}
+            selectedPeriodId={selectedPeriodId || ''}
+            currentPeriodId={activePeriod?.id || null}
+            onPeriodChange={handlePeriodChange}
+            isLoading={false}
+          />
+          <Button variant="outline" onClick={handleSaveDraft} disabled={saving || submitting || readOnly || !hasContext}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Save className="h-4 w-4 mr-1" /> 下書き保存
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting || readOnly}>
+          <Button onClick={handleSubmit} disabled={submitting || readOnly || !hasContext}>
             {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Send className="h-4 w-4 mr-1" /> 提出
           </Button>
         </div>
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {summary && (
         <Card className="border-green-200">
@@ -176,57 +225,65 @@ export default function SelfAssessmentPage() {
         </Card>
       )}
 
-      <div className="grid gap-4">
-        {context.goals.map(goal => {
-          const entry = entries.find(e => e.goalId === goal.id);
-          const weight = getBucketWeight(goal.goalCategory);
-          return (
-            <Card key={goal.id}>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>{goal.goalCategory}</span>
-                  <span className="text-sm text-muted-foreground">重み {weight}%</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-48">
-                    <Select
-                      value={entry?.ratingCode || ''}
-                      onValueChange={value => handleRatingChange(goal.id, goal.goalCategory, value)}
-                      disabled={bucketDisabled(goal.goalCategory)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="評価を選択" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ratingOptions.map(option => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex-1">
-                    <Textarea
-                      placeholder="コメント (任意、500文字まで)"
-                      value={entry?.comment || ''}
-                      onChange={e => handleCommentChange(goal.id, e.target.value)}
-                      disabled={readOnly}
-                      maxLength={500}
-                      className="min-h-[100px]"
-                    />
-                    <div className="text-right text-xs text-muted-foreground">
-                      {(entry?.comment?.length ?? 0)}/500
+      {hasContext ? (
+        <div className="grid gap-4">
+          {context.goals.map(goal => {
+            const entry = entries.find(e => e.goalId === goal.id);
+            const weight = getBucketWeight(goal.goalCategory);
+            return (
+              <Card key={goal.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>{goal.goalCategory}</span>
+                    <span className="text-sm text-muted-foreground">重み {weight}%</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-48">
+                      <Select
+                        value={entry?.ratingCode || ''}
+                        onValueChange={value => handleRatingChange(goal.id, goal.goalCategory, value)}
+                        disabled={bucketDisabled(goal.goalCategory)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="評価を選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ratingOptions.map(option => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1">
+                      <Textarea
+                        placeholder="コメント (任意、500文字まで)"
+                        value={entry?.comment || ''}
+                        onChange={e => handleCommentChange(goal.id, e.target.value)}
+                        disabled={readOnly}
+                        maxLength={500}
+                        className="min-h-[100px]"
+                      />
+                      <div className="text-right text-xs text-muted-foreground">
+                        {(entry?.comment?.length ?? 0)}/500
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            評価期間を選択すると対象の目標と自己評価入力が表示されます。
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
