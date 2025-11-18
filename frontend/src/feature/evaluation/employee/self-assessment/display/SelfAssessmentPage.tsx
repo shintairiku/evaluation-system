@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getSelfAssessmentContextAction,
   saveSelfAssessmentDraftAction,
@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 import { Label } from '@/components/ui/label';
+import { useAutoSave } from '@/hooks/useAutoSave';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
 
@@ -189,6 +190,8 @@ export default function SelfAssessmentPage() {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | undefined>(undefined);
   const [bucketRatings, setBucketRatings] = useState<Record<string, string>>({});
   const [bucketComments, setBucketComments] = useState<Record<string, string>>({});
+  const [savedIndicatorVisible, setSavedIndicatorVisible] = useState(false);
+  const saveIndicatorTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const loadContext = async (periodId?: string) => {
@@ -211,32 +214,58 @@ export default function SelfAssessmentPage() {
         return;
       }
       setError(null);
+      // Normalize draft entries (pydantic objects may expose snake_case)
+      const normalizedDraft = (result.data.draft ?? [])
+        .map(entry => ({
+          goalId: `${entry.goalId ?? entry.goal_id ?? entry.goalid ?? ''}`,
+          bucket: entry.bucket,
+          ratingCode: entry.ratingCode ?? entry.rating_code,
+          comment: entry.comment ?? '',
+        }))
+        .filter(entry => Boolean(entry.bucket));
+
       setContext(result.data);
       setSummary(result.data.summary ?? null);
+
       const initialDraft =
-        result.data.draft && result.data.draft.length > 0
-          ? result.data.draft
+        normalizedDraft.length > 0
+          ? normalizedDraft
           : result.data.goals.map(goal => ({
               goalId: goal.id,
               bucket: goal.goalCategory,
               ratingCode: undefined,
-              comment: undefined,
+              comment: '',
             }));
       setEntries(initialDraft);
 
-      // derive bucket-level rating/comment from the first goal of each bucket
       const ratings: Record<string, string> = {};
       const comments: Record<string, string> = {};
-      for (const goal of result.data.goals) {
-        const bucket = goal.goalCategory;
-        const entry = initialDraft.find(e => e.goalId === goal.id);
-        if (entry?.ratingCode && !ratings[bucket]) {
-          ratings[bucket] = entry.ratingCode;
+
+      // Use draft entries directly for bucket values
+      for (const entry of normalizedDraft) {
+        if (!entry.bucket) continue;
+        if (entry.ratingCode && !ratings[entry.bucket]) {
+          ratings[entry.bucket] = entry.ratingCode;
         }
-        if (entry?.comment && !comments[bucket]) {
-          comments[bucket] = entry.comment;
+        if (!comments[entry.bucket]) {
+          comments[entry.bucket] = entry.comment ?? '';
         }
       }
+
+      // Fallback: if still empty, derive from goals/initialDraft
+      if (Object.keys(ratings).length === 0 || Object.keys(comments).length === 0) {
+        for (const goal of result.data.goals) {
+          const bucket = goal.goalCategory;
+          const entry = initialDraft.find(e => e.goalId === goal.id);
+          if (entry?.ratingCode && !ratings[bucket]) {
+            ratings[bucket] = entry.ratingCode;
+          }
+          if (entry && !comments[bucket]) {
+            comments[bucket] = entry.comment ?? '';
+          }
+        }
+      }
+
       setBucketRatings(ratings);
       setBucketComments(comments);
       setLoading(false);
@@ -276,16 +305,39 @@ export default function SelfAssessmentPage() {
     );
   };
 
-  const handleSaveDraft = async () => {
+  const persistDraft = async () => {
+    const payload = entries.map(entry => ({
+      goalId: entry.goalId,
+      bucket: entry.bucket,
+      ratingCode: entry.ratingCode,
+      comment: entry.comment ?? null,
+    }));
+
     setSaving(true);
-    const result = await saveSelfAssessmentDraftAction(entries);
-    if (!result.success) {
-      setError(result.error || '下書き保存に失敗しました');
-    } else {
+    try {
+      const result = await saveSelfAssessmentDraftAction(payload);
+      if (!result.success) {
+        setError(result.error || '下書き保存に失敗しました');
+        return false;
+      }
       setError(null);
       setLastSavedAt(result.updatedAt);
+      if (saveIndicatorTimeout.current) {
+        clearTimeout(saveIndicatorTimeout.current);
+      }
+      setSavedIndicatorVisible(true);
+      saveIndicatorTimeout.current = setTimeout(() => setSavedIndicatorVisible(false), 3000);
+      return true;
+    } catch (err) {
+      setError('下書き保存に失敗しました');
+      return false;
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
+  };
+
+  const handleSaveDraft = async () => {
+    await persistDraft();
   };
 
   const handleSubmit = async () => {
@@ -301,6 +353,58 @@ export default function SelfAssessmentPage() {
     setSubmitting(false);
   };
 
+  const hasContext = Boolean(context);
+  const autoSaveEnabled = hasContext && !readOnly;
+  const autoSaveReady = hasContext && !loading;
+
+  useAutoSave({
+    data: entries,
+    dataKey: { period: selectedPeriodId, entries },
+    onSave: persistDraft,
+    delay: 2000,
+    enabled: autoSaveEnabled,
+    autoSaveReady,
+  });
+
+  useEffect(() => {
+    return () => {
+      if (saveIndicatorTimeout.current) {
+        clearTimeout(saveIndicatorTimeout.current);
+      }
+    };
+  }, []);
+
+  const performanceCategory = useMemo(() => {
+    const keys = Object.keys(bucketRatings);
+    const byBucket = keys.find(k => k.includes('業績'));
+    if (byBucket) return byBucket;
+    return context?.goals.find(g => g.goalCategory?.includes('業績'))?.goalCategory || '業績目標';
+  }, [bucketRatings, context]);
+
+  const competencyCategory = useMemo(() => {
+    const keys = Object.keys(bucketRatings);
+    const byBucket = keys.find(k => k.includes('コンピテンシー'));
+    if (byBucket) return byBucket;
+    return context?.goals.find(g => g.goalCategory?.includes('コンピテンシー'))?.goalCategory || 'コンピテンシー';
+  }, [bucketRatings, context]);
+
+  // Re-hydrate bucket ratings/comments if context.draft changes (e.g., after reload)
+  useEffect(() => {
+    if (!context?.draft || context.draft.length === 0) return;
+    const ratings: Record<string, string> = {};
+    const comments: Record<string, string> = {};
+        for (const entry of context.draft) {
+          const bucket = (entry as any).bucket;
+          if (!bucket) continue;
+          const ratingCode = (entry as any).ratingCode ?? (entry as any).rating_code;
+          const comment = (entry as any).comment ?? '';
+          if (ratingCode && !ratings[bucket]) ratings[bucket] = ratingCode;
+          if (!comments[bucket]) comments[bucket] = comment;
+        }
+    setBucketRatings(prev => ({ ...ratings, ...prev }));
+    setBucketComments(prev => ({ ...comments, ...prev }));
+  }, [context?.draft]);
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -313,21 +417,19 @@ export default function SelfAssessmentPage() {
   }
 
   // Render base layout even when error/context missing so the period selector appears
-  const hasContext = Boolean(context);
   const activePeriod = periods.find(p => p.id === selectedPeriodId) || null;
 
-  const mapCategoryToBucket = (category: string) => {
-    if (category === '業績目標') return 'quantitative'; // default performance goals as quantitative
-    if (category === 'コンピテンシー') return 'competency';
-    return category;
-  };
-
   const getBucketWeight = (category: string) => {
-    const bucket = mapCategoryToBucket(category);
-    return stageWeights[bucket as keyof typeof stageWeights] ?? 0;
+    if (category.includes('業績')) {
+      return (stageWeights.quantitative ?? 0) + (stageWeights.qualitative ?? 0);
+    }
+    if (category.includes('コンピテンシー')) {
+      return stageWeights.competency ?? 0;
+    }
+    return 0;
   };
 
-  const bucketDisabled = (bucket: string) => getBucketWeight(bucket) === 0 || readOnly;
+  const bucketDisabled = (category: string) => getBucketWeight(category) === 0 || readOnly;
 
   const handlePeriodChange = (nextPeriodId: string) => {
     setSelectedPeriodId(nextPeriodId);
@@ -416,7 +518,7 @@ export default function SelfAssessmentPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>業績目標（定量＋定性）</span>
+                  <span>{performanceCategory}（定量＋定性）</span>
                   <span className="flex items-center gap-1 text-sm text-muted-foreground">
                     <Weight className="h-4 w-4" />
                     {stageWeights.quantitative + stageWeights.qualitative}%
@@ -426,7 +528,7 @@ export default function SelfAssessmentPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-4">
                   {context.goals
-                    .filter(g => g.goalCategory === '業績目標')
+                    .filter(g => g.goalCategory === performanceCategory)
                     .map(goal => (
                       <GoalDetailsCard key={goal.id} goal={goal} />
                     ))}
@@ -438,13 +540,25 @@ export default function SelfAssessmentPage() {
                       <Label className="text-sm font-semibold">このカテゴリの自己評価</Label>
                       <p className="text-xs text-muted-foreground">1つ選択してください。コメントは任意です。</p>
                     </div>
-                    <span className="text-[11px] rounded bg-primary/10 px-2 py-1 text-primary">必須</span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-[11px] rounded bg-primary/10 px-2 py-1 text-primary">必須</span>
+                      {saving ? (
+                        <span className="text-[11px] text-blue-500 flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          保存中...
+                        </span>
+                      ) : savedIndicatorVisible ? (
+                        <span className="text-xs text-green-600 flex items-center gap-1">
+                          <span aria-hidden="true">✓</span> 一時保存済み
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="w-full md:w-64">
                     <Select
-                      value={bucketRatings['業績目標'] || ''}
-                      onValueChange={value => applyBucketRating('業績目標', value)}
-                      disabled={bucketDisabled('業績目標')}
+                      value={bucketRatings[performanceCategory] || ''}
+                      onValueChange={value => applyBucketRating(performanceCategory, value)}
+                      disabled={bucketDisabled(performanceCategory)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="評価を選択" />
@@ -462,14 +576,14 @@ export default function SelfAssessmentPage() {
                     <Label className="text-xs text-muted-foreground">コメント (任意、500文字まで)</Label>
                     <Textarea
                       placeholder="例）数値目標に対する自己評価の理由を記載"
-                      value={bucketComments['業績目標'] || ''}
-                      onChange={e => applyBucketComment('業績目標', e.target.value)}
+                      value={bucketComments[performanceCategory] || ''}
+                      onChange={e => applyBucketComment(performanceCategory, e.target.value)}
                       disabled={readOnly}
                       maxLength={500}
                       className="min-h-[100px]"
                     />
                     <div className="text-right text-[11px] text-muted-foreground">
-                      {(bucketComments['業績目標']?.length ?? 0)}/500
+                      {(bucketComments[performanceCategory]?.length ?? 0)}/500
                     </div>
                   </div>
                 </div>
@@ -480,7 +594,7 @@ export default function SelfAssessmentPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>コンピテンシー</span>
+                  <span>{competencyCategory}</span>
                   <span className="flex items-center gap-1 text-sm text-muted-foreground">
                     <Weight className="h-4 w-4" />
                     {stageWeights.competency}%
@@ -490,7 +604,7 @@ export default function SelfAssessmentPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-4">
                   {context.goals
-                    .filter(g => g.goalCategory === 'コンピテンシー')
+                    .filter(g => g.goalCategory === competencyCategory)
                     .map(goal => (
                       <GoalDetailsCard key={goal.id} goal={goal} />
                     ))}
@@ -502,13 +616,25 @@ export default function SelfAssessmentPage() {
                       <Label className="text-sm font-semibold">このカテゴリの自己評価</Label>
                       <p className="text-xs text-muted-foreground">1つ選択してください。コメントは任意です。</p>
                     </div>
-                    <span className="text-[11px] rounded bg-primary/10 px-2 py-1 text-primary">必須</span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-[11px] rounded bg-primary/10 px-2 py-1 text-primary">必須</span>
+                      {saving ? (
+                        <span className="text-[11px] text-blue-500 flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          保存中...
+                        </span>
+                      ) : savedIndicatorVisible ? (
+                        <span className="text-xs text-green-600 flex items-center gap-1">
+                          <span aria-hidden="true">✓</span> 一時保存済み
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="w-full md:w-64">
                     <Select
-                      value={bucketRatings['コンピテンシー'] || ''}
-                      onValueChange={value => applyBucketRating('コンピテンシー', value)}
-                      disabled={bucketDisabled('コンピテンシー')}
+                      value={bucketRatings[competencyCategory] || ''}
+                      onValueChange={value => applyBucketRating(competencyCategory, value)}
+                      disabled={bucketDisabled(competencyCategory)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="評価を選択" />
@@ -526,14 +652,14 @@ export default function SelfAssessmentPage() {
                     <Label className="text-xs text-muted-foreground">コメント (任意、500文字まで)</Label>
                     <Textarea
                       placeholder="例）行動事例や振り返りを記載"
-                      value={bucketComments['コンピテンシー'] || ''}
-                      onChange={e => applyBucketComment('コンピテンシー', e.target.value)}
+                      value={bucketComments[competencyCategory] || ''}
+                      onChange={e => applyBucketComment(competencyCategory, e.target.value)}
                       disabled={readOnly}
                       maxLength={500}
                       className="min-h-[100px]"
                     />
                     <div className="text-right text-[11px] text-muted-foreground">
-                      {(bucketComments['コンピテンシー']?.length ?? 0)}/500
+                      {(bucketComments[competencyCategory]?.length ?? 0)}/500
                     </div>
                   </div>
                 </div>
@@ -550,14 +676,13 @@ export default function SelfAssessmentPage() {
       )}
 
       {hasContext && (
-        <div className="flex justify-end gap-2 pt-2">
-          <Button
-            variant="outline"
-            onClick={handleSaveDraft}
-            disabled={saving || submitting || readOnly || !hasContext}
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Save className="h-4 w-4 mr-1" /> 下書き保存
-          </Button>
+        <div className="flex flex-col items-end gap-1 pt-2">
+          {saving ? (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              自動保存中...
+            </div>
+          ) : null}
           <Button onClick={handleSubmit} disabled={submitting || readOnly || !hasContext}>
             {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Send className="h-4 w-4 mr-1" /> 提出
           </Button>
