@@ -21,6 +21,7 @@ from ..schemas.self_assessment import (
 )
 from ..schemas.supervisor_feedback import SupervisorFeedbackCreate
 from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
+from ..schemas.self_assessment_summary import StageWeights
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.rbac_helper import RBACHelper
@@ -123,16 +124,32 @@ class SelfAssessmentService:
             raise
 
     async def get_current_context(self, current_user_context: AuthContext):
+        return await self.get_self_assessment_context(current_user_context)
+
+    async def get_self_assessment_context(
+        self,
+        current_user_context: AuthContext,
+        user_id: Optional[UUID] = None,
+        period_id: Optional[UUID] = None,
+    ):
         org_id = current_user_context.organization_id
         if not org_id:
             raise PermissionDeniedError("Organization context required")
-        user_id = current_user_context.user_id
-        active_period = await self.evaluation_period_repo.get_active_period(org_id)
-        if not active_period:
-            raise NotFoundError("No active evaluation period found")
+        target_user_id = user_id or current_user_context.user_id
+        await self._assert_user_access(current_user_context, target_user_id)
 
-        goals = await self.goal_repo.get_goals_by_user_and_period(user_id, org_id, active_period.id)
-        stage_weights = await self._get_stage_weights(current_user_context)
+        if period_id:
+            period = await self.evaluation_period_repo.get_by_id(period_id, org_id)
+            if not period:
+                raise NotFoundError("Evaluation period not found")
+        else:
+            period = await self.evaluation_period_repo.get_active_period(org_id)
+            if not period:
+                raise NotFoundError("No active evaluation period found")
+
+        goals = await self.goal_repo.get_latest_approved_goals_for_user_period(target_user_id, org_id, period.id)
+        stage_weights = await self._get_stage_weights(current_user_context, target_user_id)
+        stage_weights_model = StageWeights(**stage_weights)
         thresholds = await self._get_thresholds(org_id)
 
         draft_entries = []
@@ -146,7 +163,7 @@ class SelfAssessmentService:
             })
 
         summary = None
-        existing_summary = await self.summary_repo.get_summary(org_id, user_id, active_period.id)
+        existing_summary = await self.summary_repo.get_summary(org_id, target_user_id, period.id)
         if existing_summary:
             summary = {
                 "stageWeights": stage_weights,
@@ -165,11 +182,13 @@ class SelfAssessmentService:
                     "goalCategory": g.goal_category,
                     "periodId": g.period_id,
                     "status": g.status,
+                    "weight": float(g.weight) if hasattr(g, "weight") and g.weight is not None else None,
+                    "targetData": g.target_data if hasattr(g, "target_data") else None,
                 }
                 for g in goals
             ],
             "draft": draft_entries,
-            "stageWeights": stage_weights,
+            "stageWeights": stage_weights_model,
             "thresholds": thresholds,
             "summary": summary,
         }
@@ -221,26 +240,35 @@ class SelfAssessmentService:
             if bucket and rating_code:
                 bucket_ratings.setdefault(bucket, []).append(rating_code)
 
-        per_bucket, weighted_total = await self.scoring_service.apply_stage_weights(org_id, bucket_ratings, stage_weights)
-        final_rating = await self.scoring_service.map_numeric_to_grade(org_id, weighted_total)
-        flags = await self.scoring_service.evaluate_policy_flags(org_id, bucket_ratings)
-        level_preview = await self.scoring_service.attach_level_preview(org_id, final_rating)
+        # Validate required buckets (weight > 0) have ratings
+        for bucket, weight in stage_weights.items():
+            if float(weight or 0) > 0 and not bucket_ratings.get(bucket):
+                raise ValidationError(f"Missing ratings for bucket {bucket} with weight {weight}")
+
+        summary = await self.scoring_service.compute_summary(org_id, bucket_ratings, stage_weights)
+        per_bucket = summary["per_bucket"]
+        weighted_total = summary["weighted_total"]
+        final_rating = summary["final_rating"]
+        flags = summary["flags"]
+        level_preview = summary["level_adjustment_preview"]
+
+        per_bucket_payload = [
+            {
+                "bucket": b["bucket"],
+                "weight": b["weight"],
+                "avg_score": float(b["avg_score"]),
+                "contribution": float(b["contribution"]),
+            }
+            for b in per_bucket
+        ]
 
         summary_model = SelfAssessmentSummaryModel(
             organization_id=org_id,
             user_id=user_id,
             period_id=active_period.id,
-            stage_id=current_user_context.stage_id,
+            stage_id=await self._get_stage_id(current_user_context, user_id),
             stage_weights=stage_weights,
-            per_bucket=[
-                {
-                    "bucket": b["bucket"],
-                    "weight": b["weight"],
-                    "avg_score": float(b["avg_score"]),
-                    "contribution": float(b["contribution"]),
-                }
-                for b in per_bucket
-            ],
+            per_bucket=per_bucket_payload,
             weighted_total=weighted_total,
             final_rating_code=final_rating,
             flags=flags,
@@ -253,7 +281,7 @@ class SelfAssessmentService:
 
         return {
             "stageWeights": stage_weights,
-            "perBucket": per_bucket,
+            "perBucket": per_bucket_payload,
             "weightedTotal": float(weighted_total),
             "finalRating": final_rating,
             "flags": flags,
@@ -266,6 +294,7 @@ class SelfAssessmentService:
         if not org_id:
             raise PermissionDeniedError("Organization context required")
         target_user = user_id or current_user_context.user_id
+        await self._assert_user_access(current_user_context, target_user)
         summary = await self.summary_repo.get_summary(org_id, target_user, period_id)
         if not summary:
             return None
@@ -279,9 +308,9 @@ class SelfAssessmentService:
             "submittedAt": summary.submitted_at,
         }
 
-    async def _get_stage_weights(self, current_user_context: AuthContext) -> Dict[str, float]:
+    async def _get_stage_weights(self, current_user_context: AuthContext, target_user_id: Optional[UUID] = None) -> Dict[str, float]:
         org_id = current_user_context.organization_id
-        user = await self.user_repo.get_user_by_id(current_user_context.user_id, org_id)
+        user = await self.user_repo.get_user_by_id(target_user_id or current_user_context.user_id, org_id)
         if not user or not user.stage_id:
             return {"quantitative": 0.0, "qualitative": 0.0, "competency": 0.0}
         stage = await self.stage_repo.get_by_id(user.stage_id, org_id)
@@ -303,6 +332,28 @@ class SelfAssessmentService:
             }
             for row in rows
         ]
+
+    async def _get_stage_id(self, current_user_context: AuthContext, target_user_id: Optional[UUID] = None) -> Optional[UUID]:
+        if current_user_context.stage_id and (not target_user_id or target_user_id == current_user_context.user_id):
+            return current_user_context.stage_id
+        org_id = current_user_context.organization_id
+        user = await self.user_repo.get_user_by_id(target_user_id or current_user_context.user_id, org_id)
+        return user.stage_id if user else None
+
+    async def _assert_user_access(self, current_user_context: AuthContext, target_user_id: UUID) -> None:
+        if target_user_id == current_user_context.user_id:
+            return
+        if current_user_context.has_permission(Permission.ASSESSMENT_READ_ALL):
+            return
+        if current_user_context.has_permission(Permission.ASSESSMENT_READ_SUBORDINATES):
+            subordinates = await RBACHelper._get_subordinate_user_ids(
+                current_user_context.user_id,
+                RBACHelper.get_user_repository(),
+                current_user_context.organization_id,
+            )
+            if target_user_id in subordinates:
+                return
+        raise PermissionDeniedError("You do not have permission to access this assessment")
 
     async def get_assessments_by_period(
         self,
