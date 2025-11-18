@@ -20,10 +20,160 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, Send, Weight } from 'lucide-react';
 import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
+import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
 
 const ratingOptions = ['SS', 'S', 'A+', 'A', 'A-', 'B', 'C', 'D'];
+
+interface GoalDetailsCardProps {
+  goal: any;
+}
+
+const GoalDetailsCard = ({ goal }: GoalDetailsCardProps) => {
+  const data = goal.targetData || {};
+  const isCompetency = goal.goalCategory === 'コンピテンシー';
+
+  const title = data.title || data.goal_title || goal.goalCategory;
+  const content = data.means_methods_text || data.goal_description || data.goalDetail || '';
+  const criteria = data.achievement_criteria_text || data.achievementCriteriaText || '';
+  const method = data.action_plan || data.actionPlan || data.means_methods_text || '';
+
+  const competencyIds = useMemo(() => {
+    const ids =
+      goal.competencyIds ||
+      data.competency_ids ||
+      data.competencyIds ||
+      data.competency_ids_array ||
+      [];
+    return Array.isArray(ids) ? ids : [];
+  }, [goal]);
+
+  const idealActions = useMemo(() => {
+    const raw =
+      data.selected_ideal_actions || data.selectedIdealActions || data.ideal_actions || {};
+    return raw && typeof raw === 'object' ? raw : {};
+  }, [goal]);
+
+  const { competencyNames, loading: competencyLoading } = useCompetencyNames(
+    isCompetency ? competencyIds : null
+  );
+  const { resolvedActions, loading: idealActionsLoading } = useIdealActionsResolver(
+    isCompetency ? idealActions : null,
+    competencyIds
+  );
+
+  return (
+    <div className="rounded-xl border px-4 py-4 bg-card">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold text-foreground">{title}</span>
+          {goal.submittedAt && (
+            <span className="text-xs text-muted-foreground">
+              提出日: {new Date(goal.submittedAt).toLocaleDateString('ja-JP')}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {goal.status === 'approved' && (
+            <span className="rounded-full bg-primary/80 px-3 py-1 text-white">承認済み</span>
+          )}
+          <div className="flex items-center gap-1">
+            <Weight className="h-4 w-4" />
+            {goal.weight ?? 0}%
+          </div>
+        </div>
+      </div>
+
+      {isCompetency ? (
+        <div className="grid gap-3 text-sm">
+          <div className="rounded-md bg-muted px-3 py-2">
+            <div className="text-xs font-semibold text-foreground">選択したコンピテンシー</div>
+            <div className="text-muted-foreground">
+              {competencyLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" /> 読み込み中...
+                </div>
+              ) : competencyNames.length > 0 ? (
+                competencyNames.join(', ')
+              ) : competencyIds.length > 0 ? (
+                competencyIds.join(', ')
+              ) : (
+                '記載なし'
+              )}
+            </div>
+          </div>
+          <div className="rounded-md bg-muted px-3 py-2">
+            <div className="text-xs font-semibold text-foreground">理想的な行動</div>
+            <div className="text-muted-foreground">
+              {idealActionsLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" /> 読み込み中...
+                </div>
+              ) : resolvedActions && resolvedActions.length > 0 ? (
+                <ul className="list-disc list-inside space-y-1">
+                  {resolvedActions.map((resolved, idx) => (
+                    <li key={idx}>
+                      <span className="font-medium">{resolved.competencyName}</span>
+                      {resolved.actions.length > 0 && (
+                        <ul className="list-disc list-inside ml-4">
+                          {resolved.actions.map((action, actionIdx) => (
+                            <li key={actionIdx}>{action}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : idealActions && Object.keys(idealActions).length > 0 ? (
+                <ul className="list-disc list-inside space-y-1">
+                  {Object.entries(idealActions).map(([key, actions]) => (
+                    <li key={key}>
+                      <span className="font-medium">{key}</span>
+                      {Array.isArray(actions) && actions.length > 0 && (
+                        <ul className="list-disc list-inside ml-4">
+                          {actions.map((action, idx) => (
+                            <li key={idx}>{action}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                '記載なし'
+              )}
+            </div>
+          </div>
+          <div className="rounded-md bg-muted px-3 py-2">
+            <div className="text-xs font-semibold text-foreground">行動計画</div>
+            <div className="text-muted-foreground whitespace-pre-wrap">{method || '記載なし'}</div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-3 text-sm">
+          <div className="rounded-md bg-muted px-3 py-2">
+            <div className="text-xs font-semibold text-foreground">目標タイトル</div>
+            <div className="text-muted-foreground">{title || '記載なし'}</div>
+          </div>
+          <div className="rounded-md bg-muted px-3 py-2">
+            <div className="text-xs font-semibold text-foreground">具体的な目標内容</div>
+            <div className="text-muted-foreground">{content || '記載なし'}</div>
+          </div>
+          <div className="rounded-md bg-muted px-3 py-2">
+            <div className="text-xs font-semibold text-foreground">達成基準</div>
+            <div className="text-muted-foreground whitespace-pre-wrap">{criteria || '記載なし'}</div>
+          </div>
+          <div className="rounded-md bg-muted px-3 py-2">
+            <div className="text-xs font-semibold text-foreground">方法</div>
+            <div className="text-muted-foreground whitespace-pre-wrap">{method || '記載なし'}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function SelfAssessmentPage() {
   const [context, setContext] = useState<SelfAssessmentContext | null>(null);
@@ -36,6 +186,8 @@ export default function SelfAssessmentPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(undefined);
   const [periods, setPeriods] = useState<EvaluationPeriod[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | undefined>(undefined);
+  const [bucketRatings, setBucketRatings] = useState<Record<string, string>>({});
+  const [bucketComments, setBucketComments] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadContext = async (periodId?: string) => {
@@ -70,6 +222,22 @@ export default function SelfAssessmentPage() {
               comment: undefined,
             }));
       setEntries(initialDraft);
+
+      // derive bucket-level rating/comment from the first goal of each bucket
+      const ratings: Record<string, string> = {};
+      const comments: Record<string, string> = {};
+      for (const goal of result.data.goals) {
+        const bucket = goal.goalCategory;
+        const entry = initialDraft.find(e => e.goalId === goal.id);
+        if (entry?.ratingCode && !ratings[bucket]) {
+          ratings[bucket] = entry.ratingCode;
+        }
+        if (entry?.comment && !comments[bucket]) {
+          comments[bucket] = entry.comment;
+        }
+      }
+      setBucketRatings(ratings);
+      setBucketComments(comments);
       setLoading(false);
     };
 
@@ -79,13 +247,13 @@ export default function SelfAssessmentPage() {
   const stageWeights = useMemo(() => context?.stageWeights ?? { quantitative: 0, qualitative: 0, competency: 0 }, [context]);
   const readOnly = Boolean(summary);
 
-  const handleRatingChange = (goalId: string, bucket: string, ratingCode?: string) => {
+  const applyBucketRating = (bucketCategory: string, ratingCode?: string) => {
+    setBucketRatings(prev => ({ ...prev, [bucketCategory]: ratingCode || '' }));
     setEntries(prev =>
       prev.map(entry =>
-        entry.goalId === goalId
+        entry.bucket === bucketCategory
           ? {
               ...entry,
-              bucket,
               ratingCode,
             }
           : entry
@@ -93,9 +261,17 @@ export default function SelfAssessmentPage() {
     );
   };
 
-  const handleCommentChange = (goalId: string, comment: string) => {
+  const applyBucketComment = (bucketCategory: string, comment: string) => {
+    setBucketComments(prev => ({ ...prev, [bucketCategory]: comment }));
     setEntries(prev =>
-      prev.map(entry => (entry.goalId === goalId ? { ...entry, comment } : entry))
+      prev.map(entry =>
+        entry.bucket === bucketCategory
+          ? {
+              ...entry,
+              comment,
+            }
+          : entry
+      )
     );
   };
 
@@ -253,57 +429,45 @@ export default function SelfAssessmentPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {context.goals.filter(g => g.goalCategory === '業績目標').map(goal => {
-                  const entry = entries.find(e => e.goalId === goal.id);
-                  const goalWeight = goal.weight ?? 0;
-                  const goalTitle = (goal as any).targetData?.title || goal.goalCategory;
-                  return (
-                    <div key={goal.id} className="rounded-lg border px-4 py-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-medium text-primary-foreground/80">
-                          {goalTitle}
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Weight className="h-3 w-3" />
-                          {goalWeight}%
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start">
-                        <div className="w-full md:w-48">
-                          <Select
-                            value={entry?.ratingCode || ''}
-                            onValueChange={value => handleRatingChange(goal.id, goal.goalCategory, value)}
-                            disabled={bucketDisabled(goal.goalCategory)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="評価を選択" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ratingOptions.map(option => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex-1">
-                          <Textarea
-                            placeholder="コメント (任意、500文字まで)"
-                            value={entry?.comment || ''}
-                            onChange={e => handleCommentChange(goal.id, e.target.value)}
-                            disabled={readOnly}
-                            maxLength={500}
-                            className="min-h-[100px]"
-                          />
-                          <div className="text-right text-xs text-muted-foreground">
-                            {(entry?.comment?.length ?? 0)}/500
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                <div className="flex flex-col gap-3">
+                  <div className="w-full md:w-64">
+                    <Select
+                      value={bucketRatings['業績目標'] || ''}
+                      onValueChange={value => applyBucketRating('業績目標', value)}
+                      disabled={bucketDisabled('業績目標')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="評価を選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ratingOptions.map(option => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Textarea
+                    placeholder="コメント (任意、500文字まで)"
+                    value={bucketComments['業績目標'] || ''}
+                    onChange={e => applyBucketComment('業績目標', e.target.value)}
+                    disabled={readOnly}
+                    maxLength={500}
+                    className="min-h-[100px]"
+                  />
+                  <div className="text-right text-xs text-muted-foreground">
+                    {(bucketComments['業績目標']?.length ?? 0)}/500
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {context.goals
+                    .filter(g => g.goalCategory === '業績目標')
+                    .map(goal => (
+                      <GoalDetailsCard key={goal.id} goal={goal} />
+                    ))}
+                </div>
               </CardContent>
             </Card>
 
@@ -319,57 +483,45 @@ export default function SelfAssessmentPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {context.goals.filter(g => g.goalCategory === 'コンピテンシー').map(goal => {
-                  const entry = entries.find(e => e.goalId === goal.id);
-                  const goalWeight = goal.weight ?? 0;
-                  const goalTitle = (goal as any).targetData?.title || goal.goalCategory;
-                  return (
-                    <div key={goal.id} className="rounded-lg border px-4 py-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-medium text-primary-foreground/80">
-                          {goalTitle}
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Weight className="h-3 w-3" />
-                          {goalWeight}%
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start">
-                        <div className="w-full md:w-48">
-                          <Select
-                            value={entry?.ratingCode || ''}
-                            onValueChange={value => handleRatingChange(goal.id, goal.goalCategory, value)}
-                            disabled={bucketDisabled(goal.goalCategory)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="評価を選択" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ratingOptions.map(option => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex-1">
-                          <Textarea
-                            placeholder="コメント (任意、500文字まで)"
-                            value={entry?.comment || ''}
-                            onChange={e => handleCommentChange(goal.id, e.target.value)}
-                            disabled={readOnly}
-                            maxLength={500}
-                            className="min-h-[100px]"
-                          />
-                          <div className="text-right text-xs text-muted-foreground">
-                            {(entry?.comment?.length ?? 0)}/500
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                <div className="flex flex-col gap-3">
+                  <div className="w-full md:w-64">
+                    <Select
+                      value={bucketRatings['コンピテンシー'] || ''}
+                      onValueChange={value => applyBucketRating('コンピテンシー', value)}
+                      disabled={bucketDisabled('コンピテンシー')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="評価を選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ratingOptions.map(option => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Textarea
+                    placeholder="コメント (任意、500文字まで)"
+                    value={bucketComments['コンピテンシー'] || ''}
+                    onChange={e => applyBucketComment('コンピテンシー', e.target.value)}
+                    disabled={readOnly}
+                    maxLength={500}
+                    className="min-h-[100px]"
+                  />
+                  <div className="text-right text-xs text-muted-foreground">
+                    {(bucketComments['コンピテンシー']?.length ?? 0)}/500
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {context.goals
+                    .filter(g => g.goalCategory === 'コンピテンシー')
+                    .map(goal => (
+                      <GoalDetailsCard key={goal.id} goal={goal} />
+                    ))}
+                </div>
               </CardContent>
             </Card>
           </>
