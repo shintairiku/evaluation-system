@@ -378,12 +378,6 @@ export default function SelfAssessmentPage() {
             onPeriodChange={handlePeriodChange}
             isLoading={false}
           />
-          <Button variant="outline" onClick={handleSaveDraft} disabled={saving || submitting || readOnly || !hasContext}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Save className="h-4 w-4 mr-1" /> 下書き保存
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting || readOnly || !hasContext}>
-            {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Send className="h-4 w-4 mr-1" /> 提出
-          </Button>
         </div>
       </div>
 
@@ -532,6 +526,21 @@ export default function SelfAssessmentPage() {
             評価期間を選択すると対象の目標と自己評価入力が表示されます。
           </CardContent>
         </Card>
+      )}
+
+      {hasContext && (
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            variant="outline"
+            onClick={handleSaveDraft}
+            disabled={saving || submitting || readOnly || !hasContext}
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Save className="h-4 w-4 mr-1" /> 下書き保存
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting || readOnly || !hasContext}>
+            {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Send className="h-4 w-4 mr-1" /> 提出
+          </Button>
+        </div>
       )}
     </div>
   );
