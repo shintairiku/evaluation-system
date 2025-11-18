@@ -245,7 +245,7 @@ class GoalRepository(BaseRepository[Goal]):
         user_id: UUID,
         org_id: str,
         period_id: UUID
-    ) -> List[Goal]:
+        ) -> List[Goal]:
         """Fetch latest approved goals per category using the SQL view latest_approved_goals."""
         try:
             from sqlalchemy import text
@@ -256,7 +256,8 @@ class GoalRepository(BaseRepository[Goal]):
             goal_ids = [row.id for row in result.fetchall()]
             if not goal_ids:
                 return []
-            return await self.get_goals_by_ids_batch(goal_ids, org_id)
+            goals_map = await self.get_goals_by_ids_batch(goal_ids, org_id)
+            return list(goals_map.values())
         except SQLAlchemyError as e:
             logger.error(f"Error fetching latest approved goals for user {user_id}, period {period_id} in org {org_id}: {e}")
             raise
