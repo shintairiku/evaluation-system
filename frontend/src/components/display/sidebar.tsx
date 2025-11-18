@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { useGoalListContext } from '@/context/GoalListContext';
 import {
-  Home, Target, ClipboardList, List, ListChecks, Users, CheckCircle, MessageSquare,
+  Home, Target, ClipboardList, ClipboardCheck, List, ListChecks, Users, CheckCircle, MessageSquare,
   UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield, Calendar
 } from 'lucide-react';
 
@@ -29,6 +29,7 @@ const iconMap: Record<string, React.ReactElement> = {
   'home': <Home size={20} />,
   'target': <Target size={20} />,
   'clipboard': <ClipboardList size={20} />,
+  'clipboard-check': <ClipboardCheck size={20} />,
   'list': <List size={20} />,
   'list-checks': <ListChecks size={20} />,
   'users': <Users size={20} />,
