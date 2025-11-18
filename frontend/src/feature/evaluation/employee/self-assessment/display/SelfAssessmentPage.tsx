@@ -226,6 +226,13 @@ export default function SelfAssessmentPage() {
       )}
 
       {hasContext ? (
+        context.goals.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-sm text-muted-foreground">
+              承認済みの目標がありません。目標が承認されると自己評価を入力できます。
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-4">
           {context.goals.map(goal => {
             const entry = entries.find(e => e.goalId === goal.id);
@@ -277,6 +284,7 @@ export default function SelfAssessmentPage() {
             );
           })}
         </div>
+        )
       ) : (
         <Card>
           <CardContent className="py-6 text-sm text-muted-foreground">
