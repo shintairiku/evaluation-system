@@ -10,6 +10,7 @@ export * from './evaluation-periods';
 export * from './competencies';
 export * from './self-assessments';
 export * from './self-assessment-forms';
+export * from './self-assessment-reviews';
 export * from './supervisor-reviews';
 export * from './supervisor-feedbacks';
 export * from './admin-dashboard';
