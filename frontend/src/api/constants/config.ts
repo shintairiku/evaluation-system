@@ -209,6 +209,9 @@ export const API_ENDPOINTS = {
     SUBMIT: '/self-assessments/submit',
     SUMMARY: (periodId: string) => `/self-assessments/summary/${periodId}`,
   },
+  SELF_ASSESSMENT_REVIEWS: {
+    LIST: '/self-assessments/review',
+  },
 
   // Supervisor Review endpoints
   SUPERVISOR_REVIEWS: {

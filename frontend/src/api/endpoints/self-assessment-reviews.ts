@@ -15,11 +15,10 @@ export const selfAssessmentReviewsApi = {
     if (params?.pagination?.limit) queryParams.append('limit', params.pagination.limit.toString());
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
-    queryParams.append('status', 'draft');
 
     const endpoint = queryParams.toString()
-      ? `${API_ENDPOINTS.SUPERVISOR_FEEDBACKS.LIST}?${queryParams.toString()}`
-      : API_ENDPOINTS.SUPERVISOR_FEEDBACKS.LIST;
+      ? `${API_ENDPOINTS.SELF_ASSESSMENT_REVIEWS.LIST}?${queryParams.toString()}`
+      : API_ENDPOINTS.SELF_ASSESSMENT_REVIEWS.LIST;
 
     return httpClient.get<SupervisorFeedbackList>(endpoint);
   },
