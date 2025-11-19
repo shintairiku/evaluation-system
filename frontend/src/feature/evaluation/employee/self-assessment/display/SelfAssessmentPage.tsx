@@ -32,6 +32,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
 
@@ -456,10 +457,31 @@ export default function SelfAssessmentPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>読み込み中...</span>
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+          <Skeleton className="h-10 w-48" />
+        </div>
+
+        <div className="space-y-4">
+          {[1, 2].map(idx => (
+            <Card key={idx}>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-5 w-16" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-4 w-16 ml-auto" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     );
