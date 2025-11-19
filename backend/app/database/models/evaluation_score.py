@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, DECIMAL, JSON, UniqueConstraint, Integer, ForeignKeyConstraint
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, DECIMAL, JSON, UniqueConstraint, Integer, ForeignKeyConstraint, text
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -10,7 +10,11 @@ from .base import Base
 class EvaluationScoreMapping(Base):
     __tablename__ = "evaluation_score_mapping"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(
+        PostgreSQLUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
     organization_id = Column(String(50), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     rating_code = Column(String, nullable=False)
     rating_label = Column(String, nullable=True)
@@ -30,7 +34,11 @@ class EvaluationScoreMapping(Base):
 class RatingThreshold(Base):
     __tablename__ = "rating_thresholds"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(
+        PostgreSQLUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
     organization_id = Column(String(50), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     rating_code = Column(String, nullable=False)
     min_score = Column(DECIMAL(3, 2), nullable=False)
@@ -91,7 +99,11 @@ class LevelAdjustmentMaster(Base):
 class SelfAssessmentSummary(Base):
     __tablename__ = "self_assessment_summaries"
 
-    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    id = Column(
+        PostgreSQLUUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
     organization_id = Column(String(50), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
