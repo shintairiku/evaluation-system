@@ -291,17 +291,6 @@ export default function SelfAssessmentPage() {
   const currentSummary = summary || context?.summary || null;
   const readOnly = Boolean(currentSummary);
 
-  // Debug logging
-  console.log('🔍 Debug Self-Assessment Status:', {
-    selectedPeriodId,
-    hasLocalSummary: Boolean(summary),
-    hasContextSummary: Boolean(context?.summary),
-    currentSummary: currentSummary ? 'EXISTS' : 'NULL',
-    readOnly,
-    contextSummaryData: context?.summary,
-    summaryPeriodId: context?.summary?.submittedAt, // Check if we can see the period
-  });
-
   const applyBucketRating = (bucketCategory: string, ratingCode?: string) => {
     setBucketRatings(prev => ({ ...prev, [bucketCategory]: ratingCode || '' }));
     setEntries(prev =>
