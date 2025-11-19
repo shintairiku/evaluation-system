@@ -58,6 +58,13 @@ export const groups = [
         permission: 'supervisor'
       },
       {
+        href: '/self-assessment-review',
+        label: '自己評価承認',
+        sublabel: 'Self Assessment Approval',
+        icon: 'clipboard-check',
+        permission: 'supervisor'
+      },
+      {
         href: '/evaluation-feedback',
         label: '評価フィードバック',
         sublabel: 'Evaluation Feedback',

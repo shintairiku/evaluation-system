@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
+import { useSelfAssessmentReviewContext } from '@/context/SelfAssessmentReviewContext';
 import { useGoalListContext } from '@/context/GoalListContext';
 import {
   Home, Target, ClipboardList, ClipboardCheck, List, ListChecks, Users, CheckCircle, MessageSquare,
@@ -69,6 +70,15 @@ export default function Sidebar() {
     // Context not available (e.g., during SSR or outside provider)
     // Use default value
     rejectedGoalsCount = 0;
+  }
+
+  // Get self-assessment review pending count with graceful fallback
+  let saPendingCount = 0;
+  try {
+    const context = useSelfAssessmentReviewContext();
+    saPendingCount = context.pendingCount;
+  } catch {
+    saPendingCount = 0;
   }
 
   // 権限フィルタリング（現在はダミー実装）
@@ -133,6 +143,14 @@ export default function Sidebar() {
                           </Badge>
                         </div>
                       )}
+                      {/* Self-assessment Review Pending Count */}
+                      {link.href === '/self-assessment-review' && saPendingCount > 0 && (
+                        <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
+                          <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
+                            {saPendingCount > 99 ? '99' : saPendingCount}
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
                       <div className="font-medium truncate">{link.label}</div>
@@ -150,6 +168,12 @@ export default function Sidebar() {
                       {link.href === '/goal-list' && rejectedGoalsCount > 0 && (
                         <Badge variant="destructive" className="text-xs bg-red-500 text-white">
                           {rejectedGoalsCount > 99 ? '99+' : rejectedGoalsCount}
+                        </Badge>
+                      )}
+                      {/* Self-assessment Review Count - Expanded view */}
+                      {link.href === '/self-assessment-review' && saPendingCount > 0 && (
+                        <Badge variant="destructive" className="text-xs bg-red-500 text-white">
+                          {saPendingCount > 99 ? '99+' : saPendingCount}
                         </Badge>
                       )}
 
