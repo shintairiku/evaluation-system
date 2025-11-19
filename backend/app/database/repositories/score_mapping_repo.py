@@ -28,7 +28,8 @@ class ScoreMappingRepository(BaseRepository[EvaluationScoreMapping]):
             EvaluationScoreMapping.is_active.is_(True),
         )
         result = await self.session.execute(query)
-        value = result.scalar_one_or_none()
+        # Use first() to tolerate duplicate rows instead of raising on scalar_one_or_none
+        value = result.scalars().first()
         return Decimal(value) if value is not None else None
 
     async def list_scores(self, organization_id: str) -> List[EvaluationScoreMapping]:
