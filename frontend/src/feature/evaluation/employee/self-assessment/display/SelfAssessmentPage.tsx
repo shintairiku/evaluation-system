@@ -357,6 +357,23 @@ export default function SelfAssessmentPage() {
   const autoSaveEnabled = hasContext && !readOnly;
   const autoSaveReady = hasContext && !loading;
 
+  // Derive bucket rating/comment from entries whenever they change (keeps UI in sync after reload).
+  useEffect(() => {
+    if (!entries || entries.length === 0) return;
+    const ratings: Record<string, string> = {};
+    const comments: Record<string, string> = {};
+    for (const entry of entries) {
+      if (entry.ratingCode && !ratings[entry.bucket]) {
+        ratings[entry.bucket] = entry.ratingCode;
+      }
+      if (!comments[entry.bucket]) {
+        comments[entry.bucket] = entry.comment ?? '';
+      }
+    }
+    setBucketRatings(ratings);
+    setBucketComments(comments);
+  }, [entries]);
+
   useAutoSave({
     data: entries,
     dataKey: { period: selectedPeriodId, entries },
@@ -470,7 +487,15 @@ export default function SelfAssessmentPage() {
             </p>
           )}
           {lastSavedAt && (
-            <p className="text-xs text-muted-foreground mt-1">下書き保存: {lastSavedAt}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              下書き保存: {new Date(lastSavedAt).toLocaleString('ja-JP', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
           )}
         </div>
         <div className="flex gap-2 items-center">
