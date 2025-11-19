@@ -35,4 +35,5 @@ async def list_pending_reviews(
     except BadRequestError as e:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        logger.error(f"Error in list_pending_reviews: {e}", exc_info=True)
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

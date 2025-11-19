@@ -13,7 +13,6 @@ from .supervisor_reviews import router as supervisor_review_router
 from .evaluation_periods import router as evaluation_period_router
 from .competencies import router as competency_router
 from .supervisor_feedbacks import router as supervisor_feedback_router
-from .self_assessment_review import router as self_assessment_review_router
 from .dashboard import router as dashboard_router
 from .self_assessment_summary import router as self_assessment_summary_router
 from .self_assessments import router as self_assessment_router
@@ -39,7 +38,6 @@ org_api_router.include_router(competency_router)
 org_api_router.include_router(self_assessment_summary_router)
 org_api_router.include_router(self_assessment_router)
 org_api_router.include_router(supervisor_feedback_router)
-org_api_router.include_router(self_assessment_review_router)
 org_api_router.include_router(dashboard_router)
 
 # api_router.include_router(reports_router)

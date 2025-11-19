@@ -5,9 +5,10 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...security.dependencies import get_auth_context
+from ...security.dependencies import get_auth_context, require_supervisor_or_above
 from ...security.context import AuthContext
 from ...schemas.self_assessment import SelfAssessment, SelfAssessmentDetail, SelfAssessmentList, SelfAssessmentCreate, SelfAssessmentUpdate
+from ...schemas.self_assessment_review import SelfAssessmentReviewList
 from ...schemas.common import PaginationParams, BaseResponse
 from ...services.self_assessment_service import SelfAssessmentService
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
@@ -145,6 +146,33 @@ async def get_self_assessment_for_goal(
         raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching self-assessment for goal: {str(e)}")
+
+
+# NOTE: This route MUST come before /{assessment_id} to avoid route conflicts where "review" would be interpreted as an assessment_id
+@router.get("/review", response_model=SelfAssessmentReviewList)
+async def list_pending_self_assessment_reviews(
+    pagination: PaginationParams = Depends(),
+    period_id: Optional[UUID] = Query(None, alias="periodId"),
+    subordinate_id: Optional[UUID] = Query(None, alias="subordinateId"),
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """List pending self-assessment reviews for supervisors."""
+    try:
+        from ...services.supervisor_feedback_service import SupervisorFeedbackService
+        service = SupervisorFeedbackService(session)
+        return await service.get_pending_self_assessment_reviews(
+            current_user_context=context,
+            period_id=period_id,
+            subordinate_id=subordinate_id,
+            pagination=pagination,
+        )
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.get("/{assessment_id}", response_model=SelfAssessmentDetail)
