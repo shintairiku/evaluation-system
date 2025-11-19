@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status as http_sta
 from typing import Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
 
 from ...security.dependencies import require_supervisor_or_above
 from ...security.context import AuthContext
@@ -10,6 +11,8 @@ from ...services.supervisor_feedback_service import SupervisorFeedbackService
 from ...schemas.self_assessment_review import SelfAssessmentReviewList
 from ...schemas.common import PaginationParams
 from ...core.exceptions import PermissionDeniedError, BadRequestError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/self-assessments/review", tags=["self-assessments"])
 
