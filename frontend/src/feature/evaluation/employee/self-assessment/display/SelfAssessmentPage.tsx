@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 import { Label } from '@/components/ui/label';
+import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import {
   Dialog,
@@ -438,6 +439,9 @@ export default function SelfAssessmentPage() {
     [performanceCategory, competencyCategory, bucketRatings, bucketComments]
   );
 
+  const isSubmitted = Boolean(summary || context?.summary);
+  const bucketStatus = isSubmitted ? 'submitted' : 'draft';
+
   // Re-hydrate bucket ratings/comments if context.draft changes (e.g., after reload)
   useEffect(() => {
     if (!context?.draft || context.draft.length === 0) return;
@@ -598,10 +602,13 @@ export default function SelfAssessmentPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>{performanceCategory}（定量＋定性）</span>
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Weight className="h-4 w-4" />
-                    {stageWeights.quantitative + stageWeights.qualitative}%
-                  </span>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <GoalStatusBadge status={bucketStatus} />
+                    <span className="flex items-center gap-1">
+                      <Weight className="h-4 w-4" />
+                      {stageWeights.quantitative + stageWeights.qualitative}%
+                    </span>
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -674,10 +681,13 @@ export default function SelfAssessmentPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>{competencyCategory}</span>
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Weight className="h-4 w-4" />
-                    {stageWeights.competency}%
-                  </span>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <GoalStatusBadge status={bucketStatus} />
+                    <span className="flex items-center gap-1">
+                      <Weight className="h-4 w-4" />
+                      {stageWeights.competency}%
+                    </span>
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">

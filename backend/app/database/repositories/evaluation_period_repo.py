@@ -106,7 +106,8 @@ class EvaluationPeriodRepository(BaseRepository[EvaluationPeriod]):
             query = select(EvaluationPeriod).where(EvaluationPeriod.status == EvaluationPeriodStatus.ACTIVE).order_by(EvaluationPeriod.start_date.desc())
             query = self.apply_org_scope_direct(query, EvaluationPeriod.organization_id, org_id)
             result = await self.session.execute(query)
-            return result.scalar_one_or_none()
+            # Use first() to tolerate multiple active rows and pick the most recent
+            return result.scalars().first()
         except SQLAlchemyError as e:
             logger.error(f"Database error getting active evaluation period for org {org_id}: {e}")
             raise

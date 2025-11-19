@@ -268,6 +268,22 @@ class SelfAssessmentService:
                     return getattr(entry, key)
             return None
 
+        def map_bucket_keys(raw_bucket: Optional[str]) -> List[str]:
+            """Normalize incoming bucket labels to scoring keys."""
+            if not raw_bucket:
+                return []
+            bucket = raw_bucket.lower()
+            keys = []
+            if "業績" in raw_bucket:
+                # map performance to both quantitative and qualitative buckets
+                keys.extend(["quantitative", "qualitative"])
+            if "コンピテンシー" in raw_bucket or "competency" in bucket:
+                keys.append("competency")
+            # Fallback: keep the raw key to avoid dropping data
+            if not keys:
+                keys.append(raw_bucket)
+            return keys
+
         bucket_ratings: Dict[str, List[str]] = {}
         goal_ids = []
         for entry in draft_entries:
@@ -278,8 +294,9 @@ class SelfAssessmentService:
                 raise ValidationError("goalId is required in draft entry")
             goal_id = UUID(str(goal_id_raw))
             goal_ids.append(goal_id)
-            if bucket and rating_code:
-                bucket_ratings.setdefault(bucket, []).append(rating_code)
+            for key in map_bucket_keys(bucket):
+                if rating_code:
+                    bucket_ratings.setdefault(key, []).append(rating_code)
 
         # Validate required buckets (weight > 0) have ratings
         for bucket, weight in stage_weights.items():
@@ -375,8 +392,9 @@ class SelfAssessmentService:
         ]
 
     async def _get_stage_id(self, current_user_context: AuthContext, target_user_id: Optional[UUID] = None) -> Optional[UUID]:
-        if current_user_context.stage_id and (not target_user_id or target_user_id == current_user_context.user_id):
-            return current_user_context.stage_id
+        current_stage = getattr(current_user_context, "stage_id", None)
+        if current_stage and (not target_user_id or target_user_id == current_user_context.user_id):
+            return current_stage
         org_id = current_user_context.organization_id
         user = await self.user_repo.get_user_by_id(target_user_id or current_user_context.user_id, org_id)
         return user.stage_id if user else None
