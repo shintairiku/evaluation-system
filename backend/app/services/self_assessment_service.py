@@ -232,9 +232,41 @@ class SelfAssessmentService:
         if not org_id:
             raise PermissionDeniedError("Organization context required")
         user_id = current_user_context.user_id
-        active_period = await self.evaluation_period_repo.get_active_period(org_id)
-        if not active_period:
-            raise NotFoundError("No active evaluation period found")
+
+        # Helper function to get values from dict or pydantic objects
+        def _get(entry, *keys):
+            if isinstance(entry, dict):
+                for key in keys:
+                    if key in entry:
+                        return entry.get(key)
+                return None
+            for key in keys:
+                if hasattr(entry, key):
+                    return getattr(entry, key)
+            return None
+
+        # Get period_id from the first goal's self-assessment instead of using active period
+        if not draft_entries:
+            raise ValidationError("No draft entries provided")
+
+        first_goal_id = None
+        for entry in draft_entries:
+            goal_id_raw = _get(entry, "goalId", "goal_id")
+            if goal_id_raw:
+                first_goal_id = UUID(str(goal_id_raw))
+                break
+
+        if not first_goal_id:
+            raise ValidationError("No valid goal ID found in draft entries")
+
+        # Get the goal to retrieve its period_id
+        first_goal = await self.goal_repo.get_goal_by_id(first_goal_id, org_id)
+        if not first_goal:
+            raise NotFoundError(f"Goal {first_goal_id} not found")
+
+        target_period_id = first_goal.period_id
+        if not target_period_id:
+            raise ValidationError("Goal does not have a period_id")
 
         stage_weights = await self._get_stage_weights(current_user_context)
 
@@ -242,7 +274,7 @@ class SelfAssessmentService:
         all_period_goals = await self.goal_repo.get_goals_by_user_and_period(
             user_id,
             org_id,
-            active_period.id
+            target_period_id
         )
         not_approved = [
             goal for goal in all_period_goals
@@ -323,7 +355,7 @@ class SelfAssessmentService:
         summary_model = SelfAssessmentSummaryModel(
             organization_id=org_id,
             user_id=user_id,
-            period_id=active_period.id,
+            period_id=target_period_id,
             stage_id=await self._get_stage_id(current_user_context, user_id),
             stage_weights=stage_weights,
             per_bucket=per_bucket_payload,
