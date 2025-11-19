@@ -286,7 +286,21 @@ export default function SelfAssessmentPage() {
   }, []);
 
   const stageWeights = useMemo(() => context?.stageWeights ?? { quantitative: 0, qualitative: 0, competency: 0 }, [context]);
-  const readOnly = Boolean(summary);
+
+  // Use context.summary as the source of truth for submitted status
+  const currentSummary = summary || context?.summary || null;
+  const readOnly = Boolean(currentSummary);
+
+  // Debug logging
+  console.log('🔍 Debug Self-Assessment Status:', {
+    selectedPeriodId,
+    hasLocalSummary: Boolean(summary),
+    hasContextSummary: Boolean(context?.summary),
+    currentSummary: currentSummary ? 'EXISTS' : 'NULL',
+    readOnly,
+    contextSummaryData: context?.summary,
+    summaryPeriodId: context?.summary?.submittedAt, // Check if we can see the period
+  });
 
   const applyBucketRating = (bucketCategory: string, ratingCode?: string) => {
     setBucketRatings(prev => ({ ...prev, [bucketCategory]: ratingCode || '' }));
@@ -439,7 +453,7 @@ export default function SelfAssessmentPage() {
     [performanceCategory, competencyCategory, bucketRatings, bucketComments]
   );
 
-  const isSubmitted = Boolean(summary || context?.summary);
+  const isSubmitted = Boolean(currentSummary);
   const bucketStatus = isSubmitted ? 'submitted' : 'draft';
 
   // Re-hydrate bucket ratings/comments if context.draft changes (e.g., after reload)
@@ -573,16 +587,16 @@ export default function SelfAssessmentPage() {
         </Alert>
       )}
 
-      {summary && (
+      {currentSummary && (
         <Card className="border-green-200">
           <CardHeader>
             <CardTitle>提出済みサマリー</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p>総合評価: <strong>{summary.finalRating}</strong> （{summary.weightedTotal.toFixed(2)} 点）</p>
-            <p>フラグ: {summary.flags?.fail ? 'Fail (MBO D)' : 'なし'}</p>
-            {summary.levelAdjustmentPreview && (
-              <p>レベル調整: {summary.levelAdjustmentPreview.delta ?? 0}</p>
+            <p>総合評価: <strong>{currentSummary.finalRating}</strong> （{currentSummary.weightedTotal.toFixed(2)} 点）</p>
+            <p>フラグ: {currentSummary.flags?.fail ? 'Fail (MBO D)' : 'なし'}</p>
+            {currentSummary.levelAdjustmentPreview && (
+              <p>レベル調整: {currentSummary.levelAdjustmentPreview.delta ?? 0}</p>
             )}
           </CardContent>
         </Card>
