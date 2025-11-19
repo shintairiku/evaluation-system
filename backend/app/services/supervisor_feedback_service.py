@@ -25,6 +25,7 @@ from ..security.rbac_types import ResourceType
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
+from ..schemas.self_assessment_review import SelfAssessmentReview, SelfAssessmentReviewList, ReviewUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -173,6 +174,69 @@ class SupervisorFeedbackService:
         except Exception as e:
             logger.error(f"Error in get_feedbacks: {e}")
             raise
+
+    @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_READ_SUBORDINATES])
+    async def get_pending_self_assessment_reviews(
+        self,
+        current_user_context: AuthContext,
+        period_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
+        pagination: Optional[PaginationParams] = None
+    ) -> SelfAssessmentReviewList:
+        """List pending (draft) self-assessment feedbacks for supervisors."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        # Determine accessible subordinates
+        accessible_user_ids = await RBACHelper.get_accessible_user_ids(current_user_context)
+        if subordinate_id and accessible_user_ids is not None and subordinate_id not in accessible_user_ids:
+            raise PermissionDeniedError("You do not have permission to access this user")
+
+        user_filters = [subordinate_id] if subordinate_id else accessible_user_ids
+
+        feedbacks = await self.supervisor_feedback_repo.get_by_status(
+            status=SubmissionStatus.DRAFT.value,
+            org_id=org_id,
+            supervisor_id=current_user_context.user_id,
+            period_id=period_id,
+            pagination=pagination,
+        )
+        total_count = await self.supervisor_feedback_repo.count_feedbacks(
+            org_id=org_id,
+            supervisor_ids=[current_user_context.user_id],
+            user_ids=user_filters,
+            period_id=period_id,
+            status=SubmissionStatus.DRAFT.value,
+        )
+
+        items: list[SelfAssessmentReview] = []
+        for fb in feedbacks:
+            subordinate = None
+            if fb.self_assessment and fb.self_assessment.goal and fb.self_assessment.goal.user:
+                user = fb.self_assessment.goal.user
+                subordinate = ReviewUser(id=user.id, name=getattr(user, "name", None))
+            items.append(
+                SelfAssessmentReview(
+                    id=fb.id,
+                    self_assessment_id=fb.self_assessment_id,
+                    period_id=fb.period_id,
+                    status=fb.status,
+                    subordinate=subordinate,
+                    created_at=fb.created_at,
+                    updated_at=fb.updated_at,
+                )
+            )
+
+        effective_limit = pagination.limit if pagination else (len(items) or 1)
+        pages = (total_count + effective_limit - 1) // effective_limit
+        return SelfAssessmentReviewList(
+            items=items,
+            total=total_count,
+            page=pagination.page if pagination else 1,
+            limit=effective_limit,
+            pages=pages
+        )
 
     @require_any_permission([Permission.GOAL_READ_ALL, Permission.GOAL_READ_SUBORDINATES, Permission.GOAL_READ_SELF])
     async def get_feedback_by_id(
