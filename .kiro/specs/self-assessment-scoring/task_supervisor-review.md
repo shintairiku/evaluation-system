@@ -1,22 +1,25 @@
 # Supervisor Review for Self-Assessment Buckets
 
-Goal: allow supervisors to review self-assessment submissions (goal ratings + comments) per bucket, approve/reject with comments, and have these items counted in the existing goal-review pending counter.
+Goal: allow supervisors to review self-assessment submissions (goal ratings + comments) per bucket, approve/reject with comments, on a dedicated self-assessment-review page (do not change the existing goal-review page).
 
 ## Scope
-- Surfaces self-assessment submissions to supervisors alongside regular goals.
-- Aggregates goals into two buckets: 業績目標（定量＋定性） and コンピテンシー.
+- New supervisor page `/self-assessment-review` (or equivalent route) separate from goal-review; goal-review UI stays as-is.
+- Surfaces self-assessment submissions to supervisors, grouped by employee.
+- Buckets: 業績目標（定量＋定性）, コンピテンシー, コアバリュー (core value).
 - Supervisor can approve or reject each bucket; rejection requires a comment, approval comment optional.
-- Updates pending counter in supervisor goal-review page to include self-assessment items.
+- Pending indicator for this new page (and dashboard) counts only self-assessment items.
 - Writes results to `supervisor_feedback` (one per self-assessment submission/user/period, with per-bucket decision stored in the payload).
 
 ## UX / UI
-- Goal-review page sidebar counter: pending = existing goal review pending + self-assessment pending for current period.
-- New card type in goal-review list:
-  - Header: employee name, period, label “自己評価レビュー”.
-  - Body sections per bucket showing: bucket name, employee rating code, employee comment, computed contribution (optional), and stage weights for context.
-  - Actions per bucket: Approve or Reject (Reject requires comment textarea).
-  - Global submit: confirm modal summarizing decisions; saves via API and updates counter.
-- Empty states: if no pending self-assessment items, nothing new appears.
+- New page lists employees with pending self-assessment items and shows count badge (self-assessment only).
+- Card layout per employee (spreadsheet-style):
+  - Columns per bucket: Performance（業績：定量＋定性）, Competency（コンピテンシー）, Core Value（コアバリュー）.
+  - For cada bucket mostrar: 最終評価 (nota do funcionário), ウェイト (%), 点数 (pontos calculados).
+  - Linhas: linha base (nota enviada pelo colaborador) e, se o supervisor recalcular, segunda linha com nota/pontos ajustados.
+  - À direita, um bloco de resumo com 合計（点） e 総合評価 (grade final) que atualiza conforme aprovação/rejeição/recalculo.
+- Actions por bucket: Approve / Reject (reject exige comentário).
+- Global submit confirma decisões e salva; atualiza contagem de pendências da nova página.
+- Empty states: se nenhum item pendente, mostrar mensagem dedicada (não afeta goal-review).
 - Layout (match spreadsheet-style card):
   - Columns per bucket: Performance（業績：定量＋定性）, Competency（コンピテンシー）, Core Value（コアバリュー）.
   - For cada bucket mostrar: 最終評価 (nota do funcionário), ウェイト (%), 点数 (pontos calculados).
@@ -25,7 +28,7 @@ Goal: allow supervisors to review self-assessment submissions (goal ratings + co
 
 ## Data Flow
 1) Employee submits self-assessment (existing `/self-assessments/submit`), which already upserts `self_assessment_summaries` and auto-creates `supervisor_feedback` draft.
-2) Supervisor goal-review fetch includes these draft feedback records for period/org.
+2) Supervisor self-assessment-review page fetch inclui esses drafts para período/org.
 3) Approve/Reject per bucket updates `supervisor_feedback` with statuses and comments, then marks overall feedback as `submitted`.
 4) After submission, employee page fetch reflects supervisor decision and allows resubmission only for rejected buckets.
 

@@ -1,16 +1,16 @@
 # Frontend Review Tasks (Self-Assessment + Goal Review)
 
-## Goal-Review Page (Supervisor)
-- Pending badge: include self-assessment pending items (feedback status draft) for current period.
-- List items: add “自己評価レビュー” cards grouped by employee.
-  - Show stage weights, final rating, per-bucket rating/comment from employee.
-  - Per-bucket Approve/Reject controls; rejection requires comment.
-  - Submit actions call new supervisor review endpoint.
-- Empty state: hide card type if none pending.
-- Layout guidance (match spreadsheet-style card):
-  - Columns: Performance（業績：定量＋定性）, Competency（コンピテンシー）, Core Value（コアバリュー）.
-  - Each column shows employee rating, weight %, and calculated points; allow optional supervisor recalculated line.
-  - Right-side summary block shows 合計（点） and 総合評価 updating as supervisor decisions are made.
+## Self-Assessment 承認 Page (Supervisor)
+- Nova página dedicada (não alterar goal-review existente) com badge de pendências apenas para self-assessment.
+- Lista “自己評価承認” agrupados por funcionário.
+  - Mostrar pesos do stage, nota final, rating/comentário por bucket do funcionário.
+  - Controles de Aprovar/Rejeitar por bucket; rejeição exige comentário.
+  - Submit chama endpoint de decisão de self-assessment review.
+- Estado vazio: mensagem específica.
+- Layout (estilo planilha):
+  - Colunas: Performance（業績：定量＋定性）, Competency（コンピテンシー）, Core Value（コアバリュー）.
+  - Cada coluna mostra nota do funcionário, peso % e pontos; opcional linha recalculada pelo supervisor.
+  - Bloco de resumo à direita com 合計（点） e 総合評価, atualizando conforme decisões.
 
 ## Self-Assessment Page (Employee)
 - Submitted summary shows supervisor status per bucket and comment.

@@ -1,9 +1,9 @@
 # Backend Follow-ups for Self-Assessment Supervisor Review
 
 ## Objectives
-- Expose supervisor-facing APIs to review self-assessment buckets and record approve/reject decisions.
+- Expose supervisor-facing APIs to review self-assessment buckets and record approve/reject decisions on a dedicated flow (goal-review remains untouched).
 - Enrich employee context responses with supervisor decision status and comments.
-- Align counters and RBAC with existing goal-review behavior.
+- Provide a self-assessment pending counter/badge with proper RBAC scoping.
 
 ## Repository / Model Changes
 - `supervisor_feedback` table: add JSONB `bucket_decisions` (or equivalent columns) storing per-bucket `{ status, comment, decided_at, decided_by }` keyed by bucket name.
@@ -25,7 +25,7 @@
 - RBAC: require `ASSESSMENT_READ_SUBORDINATES` or `ASSESSMENT_READ_ALL`; scope by organization.
 
 ## Counter Calculation
-- Pending self-assessment review count: `count(distinct self_assessment_id)` from `supervisor_feedback` where `status='draft'`, `period_id=current`, org matches, and supervisor has access. Add to existing goal-review pending count for the sidebar badge.
+- Pending self-assessment review count: `count(distinct self_assessment_id)` from `supervisor_feedback` where `status='draft'`, `period_id=current`, org matches, and supervisor has access. Use for the new page/dashboard badge (do not modify goal-review badge).
 
 ## Validation Rules
 - Reject requires non-empty comment per bucket.
