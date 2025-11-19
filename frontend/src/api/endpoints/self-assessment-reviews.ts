@@ -11,8 +11,9 @@ export const selfAssessmentReviewsApi = {
     subordinateId?: UUID;
   }): Promise<ApiResponse<SupervisorFeedbackList>> => {
     const queryParams = new URLSearchParams();
-    if (params?.pagination?.page) queryParams.append('page', params.pagination.page.toString());
-    if (params?.pagination?.limit) queryParams.append('limit', params.pagination.limit.toString());
+    // Always include page and limit with defaults if not provided
+    queryParams.append('page', (params?.pagination?.page || 1).toString());
+    queryParams.append('limit', (params?.pagination?.limit || 20).toString());
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
 
