@@ -181,7 +181,7 @@ class SupervisorFeedbackService:
         current_user_context: AuthContext,
         period_id: Optional[UUID] = None,
         subordinate_id: Optional[UUID] = None,
-        pagination: Optional[PaginationParams] = None
+        pagination: Optional[PaginationParams] = None,
     ) -> SelfAssessmentReviewList:
         """List pending (draft) self-assessment feedbacks for supervisors."""
         org_id = current_user_context.organization_id
@@ -228,12 +228,13 @@ class SupervisorFeedbackService:
                 )
             )
 
-        effective_limit = pagination.limit if pagination else (len(items) or 1)
+        effective_limit = pagination.limit if pagination else len(items) or 1
+        current_page = pagination.page if pagination else 1
         pages = (total_count + effective_limit - 1) // effective_limit
         return SelfAssessmentReviewList(
             items=items,
             total=total_count,
-            page=pagination.page if pagination else 1,
+            page=current_page,
             limit=effective_limit,
             pages=pages
         )
