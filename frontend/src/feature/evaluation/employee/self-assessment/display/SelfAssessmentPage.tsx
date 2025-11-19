@@ -24,6 +24,14 @@ import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 import { Label } from '@/components/ui/label';
 import { useAutoSave } from '@/hooks/useAutoSave';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
 
@@ -192,6 +200,7 @@ export default function SelfAssessmentPage() {
   const [bucketComments, setBucketComments] = useState<Record<string, string>>({});
   const [savedIndicatorVisible, setSavedIndicatorVisible] = useState(false);
   const saveIndicatorTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     const loadContext = async (periodId?: string) => {
@@ -352,6 +361,13 @@ export default function SelfAssessmentPage() {
     setSummary(result.data);
     setSubmitting(false);
   };
+  const handleRequestSubmit = () => {
+    setConfirmOpen(true);
+  };
+  const handleConfirmSubmit = async () => {
+    setConfirmOpen(false);
+    await handleSubmit();
+  };
 
   const hasContext = Boolean(context);
   const autoSaveEnabled = hasContext && !readOnly;
@@ -404,6 +420,22 @@ export default function SelfAssessmentPage() {
     if (byBucket) return byBucket;
     return context?.goals.find(g => g.goalCategory?.includes('コンピテンシー'))?.goalCategory || 'コンピテンシー';
   }, [bucketRatings, context]);
+
+  const confirmItems = useMemo(
+    () => [
+      {
+        title: performanceCategory,
+        rating: bucketRatings[performanceCategory] || '未選択',
+        comment: bucketComments[performanceCategory] || '—',
+      },
+      {
+        title: competencyCategory,
+        rating: bucketRatings[competencyCategory] || '未選択',
+        comment: bucketComments[competencyCategory] || '—',
+      },
+    ],
+    [performanceCategory, competencyCategory, bucketRatings, bucketComments]
+  );
 
   // Re-hydrate bucket ratings/comments if context.draft changes (e.g., after reload)
   useEffect(() => {
@@ -708,11 +740,43 @@ export default function SelfAssessmentPage() {
               自動保存中...
             </div>
           ) : null}
-          <Button onClick={handleSubmit} disabled={submitting || readOnly || !hasContext}>
+          <Button onClick={handleRequestSubmit} disabled={submitting || readOnly || !hasContext}>
             {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />} <Send className="h-4 w-4 mr-1" /> 提出
           </Button>
         </div>
       )}
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>自己評価を提出しますか？</DialogTitle>
+            <DialogDescription>選択した評価とコメントを確認してください。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {confirmItems.map(item => (
+              <div key={item.title} className="rounded-md border bg-muted/40 p-3 space-y-1">
+                <div className="text-sm font-semibold">{item.title}</div>
+                <div className="text-sm">評価: <span className="font-medium">{item.rating}</span></div>
+                <div className="text-sm">
+                  コメント:
+                  <div className="mt-1 whitespace-pre-wrap text-muted-foreground">{item.comment || '—'}</div>
+                </div>
+              </div>
+            ))}
+            <div className="text-xs text-red-600 border border-red-200 rounded-md bg-red-50 p-2">
+              重要: 提出後は修正できません。内容を確認してください。
+            </div>
+          </div>
+          <DialogFooter className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleConfirmSubmit} disabled={submitting}>
+              {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />} 提出する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
