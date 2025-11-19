@@ -43,7 +43,7 @@ export default function SelfAssessmentReviewPage() {
       setLoading(false);
     };
     load();
-  }, [refreshPendingCount]);
+  }, [selectedPeriodId, refreshPendingCount]);
 
   useEffect(() => {
     refreshPendingCount();
