@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
@@ -33,18 +32,6 @@ const RATING_OPTIONS = [
   { value: 'D', label: 'D - 不十分 (Insufficient)' },
 ];
 
-const STATUS_COLORS = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-};
-
-const STATUS_LABELS = {
-  pending: '保留中',
-  approved: '承認済み',
-  rejected: '却下',
-};
-
 export function BucketReviewCard({
   bucket,
   bucketLabel,
@@ -53,11 +40,9 @@ export function BucketReviewCard({
 }: BucketReviewCardProps) {
   const [localBucket, setLocalBucket] = useState<BucketDecision>(bucket);
 
-  const handleStatusChange = (status: 'pending' | 'approved' | 'rejected') => {
-    const updated = { ...localBucket, status };
-    setLocalBucket(updated);
-    onUpdate(updated);
-  };
+  React.useEffect(() => {
+    setLocalBucket(bucket);
+  }, [bucket]);
 
   const handleSupervisorRatingChange = (rating: string | undefined) => {
     const updated = { ...localBucket, supervisorRating: rating || null };
@@ -76,8 +61,12 @@ export function BucketReviewCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">{bucketLabel}</CardTitle>
-          <Badge className={STATUS_COLORS[localBucket.status as keyof typeof STATUS_COLORS]}>
-            {STATUS_LABELS[localBucket.status as keyof typeof STATUS_LABELS]}
+          <Badge variant="outline">
+            {localBucket.status === 'approved'
+              ? '承認済み'
+              : localBucket.status === 'rejected'
+                ? '却下'
+                : '保留中'}
           </Badge>
         </div>
       </CardHeader>
@@ -104,28 +93,6 @@ export function BucketReviewCard({
         {/* Supervisor Review */}
         {!readonly && (
           <>
-            <div className="space-y-2">
-              <Label htmlFor={`status-${bucket.bucket}`}>承認ステータス</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant={localBucket.status === 'rejected' ? 'destructive' : 'outline'}
-                  onClick={() => handleStatusChange('rejected')}
-                  className="w-full"
-                >
-                  差し戻し
-                </Button>
-                <Button
-                  type="button"
-                  variant={localBucket.status === 'approved' ? 'default' : 'outline'}
-                  onClick={() => handleStatusChange('approved')}
-                  className="w-full"
-                >
-                  承認
-                </Button>
-              </div>
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor={`supervisor-rating-${bucket.bucket}`}>
                 上司評価 <span className="text-gray-500 text-xs">(任意)</span>

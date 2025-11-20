@@ -52,7 +52,7 @@ export default function SelfAssessmentReviewPage() {
     groupedReviews.forEach(group => {
       initialUpdates[group.reviewId] = group.bucketDecisions.map(bucket => ({
         ...bucket,
-        status: bucket.status || 'pending' as const
+        status: bucket.status || 'pending'
       }));
     });
     setBucketUpdates(initialUpdates);
@@ -99,12 +99,12 @@ export default function SelfAssessmentReviewPage() {
     }
   };
 
-  const handleSubmit = async (reviewId: string) => {
+  const handleDecision = async (reviewId: string, status: 'approved' | 'rejected') => {
     setSavingStates(prev => ({ ...prev, [reviewId]: true }));
     try {
       const result = await updateBucketDecisionsAction(reviewId, {
         bucketDecisions: bucketUpdates[reviewId] || [],
-        status: 'submitted'
+        status
       });
 
       if (result.success) {
@@ -112,10 +112,10 @@ export default function SelfAssessmentReviewPage() {
         await reloadData();
         await refreshPendingCount();
       } else {
-        setError(result.error || '提出に失敗しました');
+        setError(result.error || '更新に失敗しました');
       }
     } catch (err) {
-      setError('提出に失敗しました');
+      setError('更新に失敗しました');
     } finally {
       setSavingStates(prev => ({ ...prev, [reviewId]: false }));
     }
@@ -197,7 +197,7 @@ export default function SelfAssessmentReviewPage() {
                 {/* Action Buttons */}
                 <Card>
                   <CardContent className="pt-6">
-                    <div className="flex gap-3">
+                    <div className="flex flex-col md:flex-row gap-3">
                       <Button
                         variant="outline"
                         onClick={() => handleSaveDraft(selectedGroup.reviewId)}
@@ -214,17 +214,32 @@ export default function SelfAssessmentReviewPage() {
                         )}
                       </Button>
                       <Button
-                        onClick={() => handleSubmit(selectedGroup.reviewId)}
+                        variant="destructive"
+                        onClick={() => handleDecision(selectedGroup.reviewId, 'rejected')}
                         disabled={savingStates[selectedGroup.reviewId]}
                         className="flex-1"
                       >
                         {savingStates[selectedGroup.reviewId] ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            提出中...
+                            処理中...
                           </>
                         ) : (
-                          '承認を提出'
+                          '差し戻し'
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => handleDecision(selectedGroup.reviewId, 'approved')}
+                        disabled={savingStates[selectedGroup.reviewId]}
+                        className="flex-1"
+                      >
+                        {savingStates[selectedGroup.reviewId] ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            処理中...
+                          </>
+                        ) : (
+                          '承認'
                         )}
                       </Button>
                     </div>
