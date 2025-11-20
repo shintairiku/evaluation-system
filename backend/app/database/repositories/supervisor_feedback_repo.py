@@ -4,7 +4,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, update, delete, and_, func
+from sqlalchemy import select, update, delete, and_, or_, func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -306,48 +306,69 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         supervisor_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
-        user_ids: Optional[List[UUID]] = None,  # For filtering by assessment owner
+        user_ids: Optional[List[UUID]] = None,  # For filtering by assessment owner OR bucket-based user_id
         pagination: Optional[PaginationParams] = None
     ) -> List[SupervisorFeedback]:
-        """Search supervisor feedbacks with various filters within organization scope."""
+        """
+        Search supervisor feedbacks with various filters within organization scope.
+
+        Supports both models:
+        - Legacy: self_assessment_id → goal → user (goal-based feedback)
+        - New: user_id (bucket-based feedback)
+        """
         try:
             from ..models.goal import Goal
             from ..models.user import User
-            
+
+            # Use LEFT JOINs to support both legacy and bucket-based feedbacks
+            # Create alias for supervisor user to check organization
+            from sqlalchemy.orm import aliased
+            SupervisorUser = aliased(User)
+
             query = (
                 select(SupervisorFeedback)
                 .options(
                     joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
                     joinedload(SupervisorFeedback.supervisor),
-                    joinedload(SupervisorFeedback.period)
+                    joinedload(SupervisorFeedback.period),
+                    joinedload(SupervisorFeedback.user)  # For bucket-based feedbacks
                 )
-                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
-                .join(Goal, SelfAssessment.goal_id == Goal.id)
-                .join(User, Goal.user_id == User.id)
-                .filter(User.clerk_organization_id == org_id)
+                .outerjoin(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .outerjoin(Goal, SelfAssessment.goal_id == Goal.id)
+                .outerjoin(User, Goal.user_id == User.id)
+                # For bucket-based feedbacks, join supervisor to get org_id
+                .join(SupervisorUser, SupervisorFeedback.supervisor_id == SupervisorUser.id)
+                .filter(SupervisorUser.clerk_organization_id == org_id)
             )
-            
+
             # Apply filters
             if supervisor_ids:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
-            
+
             if period_id:
                 query = query.filter(SupervisorFeedback.period_id == period_id)
-            
+
             if status:
                 query = query.filter(SupervisorFeedback.status == status)
-            
+
             if user_ids:
-                # Filter by assessment owners (employees) - already joined with Goal
-                query = query.filter(Goal.user_id.in_(user_ids))
-            
+                # Filter by EITHER:
+                # 1. Legacy model: Goal.user_id (for goal-based feedbacks)
+                # 2. New model: SupervisorFeedback.user_id (for bucket-based feedbacks)
+                query = query.filter(
+                    or_(
+                        Goal.user_id.in_(user_ids),  # Legacy model
+                        SupervisorFeedback.user_id.in_(user_ids)  # New model
+                    )
+                )
+
             # Apply ordering
             query = query.order_by(SupervisorFeedback.created_at.desc())
-            
+
             # Apply pagination
             if pagination:
                 query = query.offset(pagination.offset).limit(pagination.limit)
-            
+
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
@@ -362,33 +383,52 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         status: Optional[str] = None,
         user_ids: Optional[List[UUID]] = None
     ) -> int:
-        """Count supervisor feedbacks matching the given filters within organization scope."""
+        """
+        Count supervisor feedbacks matching the given filters within organization scope.
+
+        Supports both models:
+        - Legacy: self_assessment_id → goal → user (goal-based feedback)
+        - New: user_id (bucket-based feedback)
+        """
         try:
             from ..models.goal import Goal
             from ..models.user import User
-            
+            from sqlalchemy.orm import aliased
+
+            # Create alias for supervisor user to check organization
+            SupervisorUser = aliased(User)
+
             query = (
                 select(func.count(SupervisorFeedback.id))
-                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
-                .join(Goal, SelfAssessment.goal_id == Goal.id)
-                .join(User, Goal.user_id == User.id)
-                .filter(User.clerk_organization_id == org_id)
+                .outerjoin(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .outerjoin(Goal, SelfAssessment.goal_id == Goal.id)
+                .outerjoin(User, Goal.user_id == User.id)
+                # For bucket-based feedbacks, join supervisor to get org_id
+                .join(SupervisorUser, SupervisorFeedback.supervisor_id == SupervisorUser.id)
+                .filter(SupervisorUser.clerk_organization_id == org_id)
             )
-            
+
             # Apply same filters as search_feedbacks
             if supervisor_ids:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
-            
+
             if period_id:
                 query = query.filter(SupervisorFeedback.period_id == period_id)
-            
+
             if status:
                 query = query.filter(SupervisorFeedback.status == status)
-            
+
             if user_ids:
-                # Filter by assessment owners (employees) - already joined with Goal
-                query = query.filter(Goal.user_id.in_(user_ids))
-            
+                # Filter by EITHER:
+                # 1. Legacy model: Goal.user_id (for goal-based feedbacks)
+                # 2. New model: SupervisorFeedback.user_id (for bucket-based feedbacks)
+                query = query.filter(
+                    or_(
+                        Goal.user_id.in_(user_ids),  # Legacy model
+                        SupervisorFeedback.user_id.in_(user_ids)  # New model
+                    )
+                )
+
             result = await self.session.execute(query)
             return result.scalar() or 0
         except SQLAlchemyError as e:
