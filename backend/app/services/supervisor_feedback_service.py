@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from cachetools import TTLCache
@@ -258,6 +259,7 @@ class SupervisorFeedbackService:
                     userId=fb.user_id,
                     periodId=fb.period_id,
                     supervisorId=fb.supervisor_id,
+                    previousFeedbackId=fb.previous_feedback_id,
                     status=fb.status,
                     bucketDecisions=bucket_decisions,
                     subordinate=subordinate,
@@ -549,7 +551,7 @@ class SupervisorFeedbackService:
         self,
         feedback_id: UUID,
         bucket_decisions_data: list,
-        status: Optional[str],
+        status: Optional[SubmissionStatus],
         current_user_context: AuthContext
     ) -> SupervisorFeedback:
         """
@@ -575,28 +577,35 @@ class SupervisorFeedbackService:
             if not existing_feedback.user_id:
                 raise BadRequestError("Can only update bucket-based supervisor feedbacks")
 
-            # Convert bucket decisions to dict format for JSONB storage
-            bucket_decisions_json = []
-            for bd in bucket_decisions_data:
-                bucket_decisions_json.append({
-                    "bucket": bd.bucket,
-                    "employeeWeight": bd.employee_weight,
-                    "employeeContribution": bd.employee_contribution,
-                    "employeeRating": bd.employee_rating,
-                    "status": bd.status,
-                    "supervisorRating": bd.supervisor_rating,
-                    "comment": bd.comment
-                })
+            # Convert bucket decisions when provided
+            if bucket_decisions_data:
+                bucket_decisions_json = []
+                for bd in bucket_decisions_data:
+                    bucket_decisions_json.append({
+                        "bucket": bd.bucket,
+                        "employeeWeight": bd.employee_weight,
+                        "employeeContribution": bd.employee_contribution,
+                        "employeeRating": bd.employee_rating,
+                        "status": bd.status,
+                        "supervisorRating": bd.supervisor_rating,
+                        "comment": bd.comment
+                    })
+                existing_feedback.bucket_decisions = bucket_decisions_json
+            else:
+                bucket_decisions_json = self._clone_bucket_decisions(existing_feedback.bucket_decisions)
 
-            # Update bucket_decisions in the feedback
-            existing_feedback.bucket_decisions = bucket_decisions_json
-
-            # Update status if provided
-            if status:
-                existing_feedback.status = status
-                if status == SubmissionStatus.SUBMITTED.value:
-                    from datetime import datetime, timezone
+            normalized_status = status.value if isinstance(status, SubmissionStatus) else status
+            if normalized_status:
+                self._validate_feedback_status_transition(existing_feedback.status, normalized_status)
+                existing_feedback.status = normalized_status
+                if normalized_status == SubmissionStatus.SUBMITTED.value:
                     existing_feedback.submitted_at = datetime.now(timezone.utc)
+                elif normalized_status == SubmissionStatus.APPROVED.value:
+                    if not existing_feedback.submitted_at:
+                        existing_feedback.submitted_at = datetime.now(timezone.utc)
+                    self._set_bucket_statuses(existing_feedback.bucket_decisions, SubmissionStatus.APPROVED.value)
+                elif normalized_status == SubmissionStatus.REJECTED.value:
+                    self._set_bucket_statuses(existing_feedback.bucket_decisions, SubmissionStatus.REJECTED.value)
 
             # Commit transaction
             await self.session.commit()
@@ -910,6 +919,42 @@ class SupervisorFeedbackService:
         })
         
         return SupervisorFeedbackDetail(**detail_dict)
+
+    def _clone_bucket_decisions(self, bucket_decisions: Optional[list]) -> list:
+        """Create a mutable copy of stored bucket decisions."""
+        if not bucket_decisions:
+            return []
+        return [dict(bucket) for bucket in bucket_decisions]
+
+    def _set_bucket_statuses(self, bucket_decisions: list, status: str) -> None:
+        """Set status field for each bucket decision."""
+        for bucket in bucket_decisions or []:
+            bucket["status"] = status
+
+    def _validate_feedback_status_transition(self, current_status: str, new_status: str) -> None:
+        """Ensure feedback status transitions follow goal-like workflow rules."""
+        valid_transitions = {
+            SubmissionStatus.DRAFT.value: [
+                SubmissionStatus.DRAFT.value,
+                SubmissionStatus.SUBMITTED.value,
+                SubmissionStatus.APPROVED.value,
+                SubmissionStatus.REJECTED.value,
+            ],
+            SubmissionStatus.SUBMITTED.value: [
+                SubmissionStatus.SUBMITTED.value,
+                SubmissionStatus.APPROVED.value,
+                SubmissionStatus.REJECTED.value
+            ],
+            SubmissionStatus.APPROVED.value: [],
+            SubmissionStatus.REJECTED.value: []
+        }
+
+        allowed = valid_transitions.get(current_status, [])
+        if new_status not in allowed:
+            raise BadRequestError(
+                f"Invalid status transition from '{current_status}' to '{new_status}'. "
+                f"Allowed next statuses: {allowed}"
+            )
 
     async def _convert_assessment_to_schema(self, assessment_model) -> SelfAssessment:
         """Convert SelfAssessment database model to SelfAssessment schema."""
