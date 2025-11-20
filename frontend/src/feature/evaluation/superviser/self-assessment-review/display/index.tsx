@@ -3,9 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
+import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
 import { getPendingSelfAssessmentReviewsAction, updateBucketDecisionsAction } from '@/api/server-actions/self-assessment-reviews';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import type { SelfAssessmentReview, EvaluationPeriod, BucketDecision } from '@/api/types';
@@ -49,10 +50,13 @@ export default function SelfAssessmentReviewPage() {
         setError(result.error || '自己評価レビューの取得に失敗しました');
       } else {
         setItems(result.data.items || []);
-        // Initialize bucket updates state
+        // Initialize bucket updates state with 'pending' status by default
         const initialUpdates: Record<string, BucketDecision[]> = {};
         result.data.items?.forEach(item => {
-          initialUpdates[item.id] = item.bucketDecisions;
+          initialUpdates[item.id] = item.bucketDecisions.map(bucket => ({
+            ...bucket,
+            status: bucket.status || 'pending' as const
+          }));
         });
         setBucketUpdates(initialUpdates);
         setError(null);
@@ -171,65 +175,61 @@ export default function SelfAssessmentReviewPage() {
       ) : (
         <div className="space-y-6">
           {items.map(item => (
-            <Card key={item.id} className="border-2">
-              <CardHeader className="bg-gray-50">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl">
-                      {item.subordinate?.name || item.subordinate?.email || '名前なし'}
-                    </CardTitle>
-                    {item.subordinate?.jobTitle && (
-                      <p className="text-sm text-gray-600 mt-1">{item.subordinate.jobTitle}</p>
-                    )}
-                  </div>
-                  <Badge variant="outline">{item.status}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                {/* Bucket Review Cards */}
-                <div className="grid gap-4 md:grid-cols-2">
-                  {bucketUpdates[item.id]?.map((bucket) => (
-                    <BucketReviewCard
-                      key={bucket.bucket}
-                      bucket={bucket}
-                      bucketLabel={BUCKET_LABELS[bucket.bucket as keyof typeof BUCKET_LABELS] || bucket.bucket}
-                      onUpdate={(updatedBucket) => handleBucketUpdate(item.id, updatedBucket)}
-                    />
-                  ))}
-                </div>
+            <div key={item.id} className="space-y-4">
+              {/* Employee Info Card */}
+              {item.subordinate && (
+                <EmployeeInfoCard employee={item.subordinate} />
+              )}
 
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleSaveDraft(item.id)}
-                    disabled={savingStates[item.id]}
-                  >
-                    {savingStates[item.id] ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        保存中...
-                      </>
-                    ) : (
-                      '下書き保存'
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => handleSubmit(item.id)}
-                    disabled={savingStates[item.id]}
-                  >
-                    {savingStates[item.id] ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        提出中...
-                      </>
-                    ) : (
-                      '承認を提出'
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              {/* Bucket Review Cards */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {bucketUpdates[item.id]?.map((bucket) => (
+                  <BucketReviewCard
+                    key={bucket.bucket}
+                    bucket={bucket}
+                    bucketLabel={BUCKET_LABELS[bucket.bucket as keyof typeof BUCKET_LABELS] || bucket.bucket}
+                    onUpdate={(updatedBucket) => handleBucketUpdate(item.id, updatedBucket)}
+                  />
+                ))}
+              </div>
+
+              {/* Action Buttons */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleSaveDraft(item.id)}
+                      disabled={savingStates[item.id]}
+                      className="flex-1"
+                    >
+                      {savingStates[item.id] ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          保存中...
+                        </>
+                      ) : (
+                        '下書き保存'
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => handleSubmit(item.id)}
+                      disabled={savingStates[item.id]}
+                      className="flex-1"
+                    >
+                      {savingStates[item.id] ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          提出中...
+                        </>
+                      ) : (
+                        '承認を提出'
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           ))}
         </div>
       )}
