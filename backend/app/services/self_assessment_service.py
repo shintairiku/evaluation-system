@@ -183,6 +183,21 @@ class SelfAssessmentService:
                 "submittedAt": existing_summary.submitted_at,
             }
 
+        # Determine review status from supervisor feedback
+        review_status = None
+        if latest_feedback and existing_summary:
+            # Only show review status if there's a submitted self-assessment
+            # Map supervisor_feedback status to review status
+            # 'draft' or 'submitted' -> 'pending' (awaiting supervisor decision)
+            # 'approved' -> 'approved'
+            # 'rejected' -> 'rejected'
+            if latest_feedback.status in ['draft', 'submitted']:
+                review_status = 'pending'
+            elif latest_feedback.status == 'approved':
+                review_status = 'approved'
+            elif latest_feedback.status == 'rejected':
+                review_status = 'rejected'
+
         return {
             "goals": [
                 {
@@ -199,6 +214,7 @@ class SelfAssessmentService:
             "stageWeights": stage_weights_model,
             "thresholds": thresholds,
             "summary": summary,
+            "reviewStatus": review_status,
         }
 
     async def save_draft(self, current_user_context: AuthContext, draft_entries: List[dict]):

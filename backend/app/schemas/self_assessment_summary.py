@@ -36,6 +36,7 @@ class SelfAssessmentContext(BaseModel):
     stage_weights: StageWeights = Field(..., alias="stageWeights")
     thresholds: List[Dict[str, Any]]
     summary: Optional[Dict[str, Any]] = None
+    review_status: Optional[str] = Field(None, alias="reviewStatus", description="Supervisor review status: 'pending', 'approved', 'rejected', or null if not submitted")
 
     class Config:
         populate_by_name = True
