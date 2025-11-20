@@ -151,15 +151,23 @@ class SelfAssessmentService:
         stage_weights = await self._get_stage_weights(current_user_context, target_user_id)
         stage_weights_model = StageWeights(**stage_weights)
         thresholds = await self._get_thresholds(org_id)
+        latest_feedback = await self.supervisor_feedback_repo.get_by_user_and_period(
+            target_user_id, period.id, org_id
+        )
+        supervisor_comment_map = self._build_bucket_comment_map(latest_feedback)
 
         draft_entries = []
         for goal in goals:
             assessment = await self.self_assessment_repo.get_by_goal(goal.id, org_id)
+            bucket_key = self._map_goal_category_to_bucket(goal.goal_category)
+            supervisor_comment = supervisor_comment_map.get(bucket_key) if bucket_key else None
             draft_entries.append({
                 "goalId": goal.id,
                 "bucket": goal.goal_category,
                 "ratingCode": assessment.self_rating_text if assessment else None,
                 "comment": assessment.self_comment if assessment else None,
+                "previousSelfAssessmentId": assessment.previous_self_assessment_id if assessment else None,
+                "supervisorComment": supervisor_comment
             })
 
         summary = None
@@ -1020,3 +1028,25 @@ class SelfAssessmentService:
         except Exception as e:
             logger.error(f"Error auto-creating supervisor feedback for user {user_id}, period {period_id}: {str(e)}")
             # Don't re-raise - we don't want auto-creation failure to block submission
+
+    def _map_goal_category_to_bucket(self, goal_category: Optional[str]) -> Optional[str]:
+        """Map goal categories to supervisor feedback bucket keys."""
+        if not goal_category:
+            return None
+        if "業績" in goal_category:
+            return "performance"
+        if "コンピテンシー" in goal_category:
+            return "competency"
+        return None
+
+    def _build_bucket_comment_map(self, feedback) -> Dict[str, str]:
+        """Extract supervisor comments from rejected feedback bucket decisions."""
+        if not feedback or feedback.status != SubmissionStatus.REJECTED.value:
+            return {}
+        comment_map: Dict[str, str] = {}
+        for bucket in feedback.bucket_decisions or []:
+            bucket_key = bucket.get("bucket")
+            comment = bucket.get("comment")
+            if bucket_key and comment:
+                comment_map[bucket_key] = comment
+        return comment_map
