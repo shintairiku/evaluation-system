@@ -113,9 +113,18 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             raise
 
     async def get_by_goal(self, goal_id: UUID, org_id: str) -> Optional[SelfAssessment]:
-        """Get self-assessment by goal ID within organization scope."""
+        """Get the latest self-assessment (terminal in rejection chain) for a goal."""
         try:
-            query = select(SelfAssessment).filter(SelfAssessment.goal_id == goal_id)
+            child = aliased(SelfAssessment)
+            query = (
+                select(SelfAssessment)
+                .outerjoin(child, child.previous_self_assessment_id == SelfAssessment.id)
+                .filter(
+                    SelfAssessment.goal_id == goal_id,
+                    child.id.is_(None)
+                )
+                .order_by(SelfAssessment.created_at.desc())
+            )
             # Apply organization filtering via goal (SelfAssessment -> Goal -> User)
             query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
             result = await self.session.execute(query)
@@ -194,6 +203,49 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching self-assessments for user {user_id}, period {period_id} in org {org_id}: {e}")
+            raise
+
+    async def clone_assessment(self, assessment: SelfAssessment) -> SelfAssessment:
+        """Clone a self-assessment into a new draft linked via previous_self_assessment_id."""
+        clone = SelfAssessment(
+            goal_id=assessment.goal_id,
+            period_id=assessment.period_id,
+            self_rating=assessment.self_rating,
+            self_rating_text=assessment.self_rating_text,
+            self_comment=assessment.self_comment,
+            status=SubmissionStatus.DRAFT.value,
+            previous_self_assessment_id=assessment.id
+        )
+        self.session.add(clone)
+        logger.info(f"Cloned self-assessment {assessment.id} for goal {assessment.goal_id}")
+        return clone
+
+    async def get_current_assessments_for_user_period(
+        self,
+        user_id: UUID,
+        period_id: UUID,
+        org_id: str
+    ) -> List[SelfAssessment]:
+        """Get terminal self-assessments (not superseded) for a user/period."""
+        try:
+            goal_alias = aliased(Goal)
+            child_alias = aliased(SelfAssessment)
+            query = (
+                select(SelfAssessment)
+                .join(goal_alias, SelfAssessment.goal_id == goal_alias.id)
+                .outerjoin(child_alias, child_alias.previous_self_assessment_id == SelfAssessment.id)
+                .filter(
+                    goal_alias.user_id == user_id,
+                    SelfAssessment.period_id == period_id,
+                    child_alias.id.is_(None)
+                )
+                .order_by(SelfAssessment.created_at.desc())
+            )
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
+            result = await self.session.execute(query)
+            return result.scalars().unique().all()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching current self-assessments for user {user_id}, period {period_id} in org {org_id}: {e}")
             raise
 
     async def get_by_period(

@@ -45,3 +45,14 @@ class SelfAssessmentSummaryRepository(BaseRepository[SelfAssessmentSummary]):
         )
         result = await self.session.execute(query)
         return result.scalars().first()
+
+    async def delete_summary(self, org_id: str, user_id: UUID, period_id: UUID) -> None:
+        """Delete summary for given organization/user/period if it exists."""
+        summary = await self.get_summary(org_id, user_id, period_id)
+        if summary:
+            await self.session.delete(summary)
+            logger.info(
+                "Deleted self assessment summary for user %s period %s after rejection",
+                user_id,
+                period_id,
+            )
