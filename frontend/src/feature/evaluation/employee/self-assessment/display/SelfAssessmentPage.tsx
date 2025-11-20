@@ -37,7 +37,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
 
-const ratingOptions = ['SS', 'S', 'A+', 'A', 'A-', 'B', 'C', 'D'];
+const ratingOptions = [
+  { value: 'SS', label: 'SS - 卓越 (Outstanding)' },
+  { value: 'S', label: 'S - 優秀 (Excellent)' },
+  { value: 'A+', label: 'A+ - 非常に良好 (Very Good)' },
+  { value: 'A', label: 'A - 良好 (Good)' },
+  { value: 'A-', label: 'A- - 良 (Above Average)' },
+  { value: 'B', label: 'B - 普通 (Average)' },
+  { value: 'C', label: 'C - 要改善 (Needs Improvement)' },
+  { value: 'D', label: 'D - 不十分 (Insufficient)' },
+];
 
 interface GoalDetailsCardProps {
   goal: any;
@@ -654,8 +663,8 @@ export default function SelfAssessmentPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {ratingOptions.map(option => (
-                          <SelectItem key={option} value={option}>
-                            {option}
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -733,8 +742,8 @@ export default function SelfAssessmentPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {ratingOptions.map(option => (
-                          <SelectItem key={option} value={option}>
-                            {option}
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
