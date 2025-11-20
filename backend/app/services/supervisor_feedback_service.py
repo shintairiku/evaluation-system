@@ -9,13 +9,16 @@ from ..database.repositories.self_assessment_repo import SelfAssessmentRepositor
 from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
+from ..database.repositories.department_repo import DepartmentRepository
+from ..database.repositories.stage_repo import StageRepository
+from ..database.repositories.role_repo import RoleRepository
 from ..database.models.supervisor_feedback import SupervisorFeedback as SupervisorFeedbackModel
 from ..schemas.supervisor_feedback import (
     SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedback, SupervisorFeedbackDetail
 )
 from ..schemas.self_assessment import SelfAssessment
 from ..schemas.evaluation import EvaluationPeriod
-from ..schemas.user import UserProfileOption
+from ..schemas.user import UserProfileOption, UserDetailResponse, UserInDB, User, Department, Stage, Role
 from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
@@ -25,7 +28,7 @@ from ..security.rbac_types import ResourceType
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
-from ..schemas.self_assessment_review import SelfAssessmentReview, SelfAssessmentReviewList, ReviewUser
+from ..schemas.self_assessment_review import SelfAssessmentReview, SelfAssessmentReviewList
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -44,7 +47,10 @@ class SupervisorFeedbackService:
         self.goal_repo = GoalRepository(session)
         self.user_repo = UserRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
-        
+        self.department_repo = DepartmentRepository(session)
+        self.stage_repo = StageRepository(session)
+        self.role_repo = RoleRepository(session)
+
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
     
@@ -224,16 +230,10 @@ class SupervisorFeedbackService:
             if not fb.user_id:
                 continue
 
-            # Get employee details
+            # Get employee details (full user info) with all relationships loaded
             subordinate = None
             if fb.user:
-                user = fb.user
-                subordinate = ReviewUser(
-                    id=user.id,
-                    name=user.name if user.name else user.email,
-                    email=user.email,
-                    job_title=user.job_title
-                )
+                subordinate = await self._enrich_user_for_detail_response(fb.user)
 
             # Parse bucket_decisions from JSONB
             from ..schemas.self_assessment_review import BucketDecision
@@ -950,3 +950,63 @@ class SupervisorFeedbackService:
             job_title=user_model.job_title,
             roles=[]  # Roles would need to be loaded separately if needed
         )
+
+    async def _enrich_user_data(self, user_model) -> User:
+        """Enrich user data with relationships (department, stage, roles) using repository pattern"""
+        from ..database.models.user import User as UserModel
+
+        # Get department using repository
+        department_model = await self.department_repo.get_by_id(user_model.department_id, user_model.clerk_organization_id)
+        if not department_model:
+            # Create a fallback department if not found
+            department = Department(
+                id=user_model.department_id,
+                name="Unknown Department",
+                description="Department not found"
+            )
+        else:
+            department = Department.model_validate(department_model, from_attributes=True)
+
+        # Get stage using repository
+        stage_model = await self.stage_repo.get_by_id(user_model.stage_id, user_model.clerk_organization_id)
+        if not stage_model:
+            # Create a fallback stage if not found
+            stage = Stage(
+                id=user_model.stage_id,
+                name="Unknown Stage",
+                description="Stage not found"
+            )
+        else:
+            stage = Stage.model_validate(stage_model, from_attributes=True)
+
+        # Get roles using repository
+        role_models = await self.role_repo.get_user_roles(user_model.id, user_model.clerk_organization_id)
+        roles = [Role.model_validate(role, from_attributes=True) for role in role_models]
+
+        # Use UserInDB to validate basic user data first
+        user_in_db = UserInDB.model_validate(user_model, from_attributes=True)
+
+        return User(
+            **user_in_db.model_dump(),
+            department=department,
+            stage=stage,
+            roles=roles,
+        )
+
+    async def _enrich_user_for_detail_response(self, user_model) -> UserDetailResponse:
+        """
+        Enrich user model to UserDetailResponse with all relationships loaded.
+        Similar to UserService._enrich_detailed_user_data but without supervisor/subordinates.
+        """
+        # Get basic enriched user data with department, stage, and roles
+        base_user = await self._enrich_user_data(user_model)
+
+        # For self-assessment review, we don't need supervisor/subordinates
+        # Just convert to UserDetailResponse
+        user_detail_data = base_user.model_dump()
+        user_detail_data.update({
+            'supervisor': None,
+            'subordinates': None
+        })
+
+        return UserDetailResponse(**user_detail_data)

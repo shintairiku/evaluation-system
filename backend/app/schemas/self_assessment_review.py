@@ -3,15 +3,7 @@ from typing import Optional, List, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-
-class ReviewUser(BaseModel):
-    """User information for review display"""
-    id: UUID
-    name: Optional[str] = None
-    email: Optional[str] = None
-    job_title: Optional[str] = None
-
-    model_config = {"populate_by_name": True, "from_attributes": True}
+from .user import UserDetailResponse
 
 
 class BucketDecision(BaseModel):
@@ -38,7 +30,7 @@ class SelfAssessmentReview(BaseModel):
     supervisor_id: UUID = Field(..., alias="supervisorId")
     status: str
     bucket_decisions: List[BucketDecision] = Field(default_factory=list, alias="bucketDecisions")
-    subordinate: Optional[ReviewUser] = None  # Employee details
+    subordinate: Optional[UserDetailResponse] = None  # Employee details (full user info)
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
 
