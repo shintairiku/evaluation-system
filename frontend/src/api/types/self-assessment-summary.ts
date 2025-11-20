@@ -63,4 +63,5 @@ export interface SelfAssessmentContext {
   stageWeights: StageWeights;
   thresholds: ThresholdRow[];
   summary?: SelfAssessmentSummary | null;
+  reviewStatus?: 'pending' | 'approved' | 'rejected' | null;
 }
