@@ -923,6 +923,13 @@ class SelfAssessmentService:
             existing = await self.supervisor_feedback_repo.get_by_user_and_period(
                 user_id, period_id, org_id
             )
+
+            previous_feedback_id = None
+            if existing and existing.status in (SubmissionStatus.APPROVED.value, SubmissionStatus.REJECTED.value):
+                # Preserve final record for history; create a new draft for the next cycle
+                previous_feedback_id = existing.id
+                existing = None
+
             if existing:
                 logger.info(f"Supervisor feedback already exists for user {user_id}, period {period_id}, updating bucket_decisions with new employee ratings")
 
@@ -933,7 +940,7 @@ class SelfAssessmentService:
                 comp = next((b for b in summary_data if b['bucket'] == 'competency'), None)
 
                 updated_buckets = []
-                for bucket in existing.bucket_decisions:
+                for bucket in existing.bucket_decisions or []:
                     if bucket['bucket'] == 'performance':
                         # Update performance bucket with new quant + qual data
                         perf_weight = (quant['weight'] if quant else 0) + (qual['weight'] if qual else 0)
@@ -1003,7 +1010,8 @@ class SelfAssessmentService:
                 period_id=period_id,
                 supervisor_id=primary_supervisor.id,
                 bucket_decisions=bucket_decisions,
-                status="draft"
+                status=SubmissionStatus.DRAFT.value,
+                previous_feedback_id=previous_feedback_id
             )
 
             self.session.add(feedback)
