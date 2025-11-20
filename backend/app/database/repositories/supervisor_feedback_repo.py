@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select, update, delete, and_, or_, func
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, aliased
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,15 +86,22 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         try:
             from ..models.goal import Goal
             from ..models.user import User
-            
+
+            goal_user = aliased(User)
+            bucket_user = aliased(User)
+
             query = (
                 select(SupervisorFeedback)
-                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
-                .join(Goal, SelfAssessment.goal_id == Goal.id)
-                .join(User, Goal.user_id == User.id)
+                .outerjoin(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .outerjoin(Goal, SelfAssessment.goal_id == Goal.id)
+                .outerjoin(goal_user, Goal.user_id == goal_user.id)
+                .outerjoin(bucket_user, SupervisorFeedback.user_id == bucket_user.id)
                 .filter(
                     SupervisorFeedback.id == feedback_id,
-                    User.clerk_organization_id == org_id
+                    or_(
+                        goal_user.clerk_organization_id == org_id,
+                        bucket_user.clerk_organization_id == org_id
+                    )
                 )
             )
             result = await self.session.execute(query)
@@ -109,6 +116,9 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             from ..models.goal import Goal
             from ..models.user import User
             
+            goal_user = aliased(User)
+            bucket_user = aliased(User)
+
             query = (
                 select(SupervisorFeedback)
                 .options(
@@ -117,14 +127,20 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                     # Evaluation period for context
                     joinedload(SupervisorFeedback.period),
                     # Supervisor user data
-                    joinedload(SupervisorFeedback.supervisor)
+                    joinedload(SupervisorFeedback.supervisor),
+                    # Bucket-based user data
+                    joinedload(SupervisorFeedback.user)
                 )
-                .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
-                .join(Goal, SelfAssessment.goal_id == Goal.id)
-                .join(User, Goal.user_id == User.id)
+                .outerjoin(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
+                .outerjoin(Goal, SelfAssessment.goal_id == Goal.id)
+                .outerjoin(goal_user, Goal.user_id == goal_user.id)
+                .outerjoin(bucket_user, SupervisorFeedback.user_id == bucket_user.id)
                 .filter(
                     SupervisorFeedback.id == feedback_id,
-                    User.clerk_organization_id == org_id
+                    or_(
+                        goal_user.clerk_organization_id == org_id,
+                        bucket_user.clerk_organization_id == org_id
+                    )
                 )
             )
             result = await self.session.execute(query)
@@ -173,6 +189,8 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                     SupervisorFeedback.period_id == period_id,
                     User.clerk_organization_id == org_id
                 )
+                .order_by(SupervisorFeedback.created_at.desc())
+                .limit(1)
             )
             result = await self.session.execute(query)
             return result.scalars().first()
