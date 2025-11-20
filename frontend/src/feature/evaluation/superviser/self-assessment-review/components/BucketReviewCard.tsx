@@ -23,14 +23,14 @@ interface BucketReviewCardProps {
 }
 
 const RATING_OPTIONS = [
-  { value: 'SS', label: 'SS' },
-  { value: 'S', label: 'S' },
-  { value: 'A+', label: 'A+' },
-  { value: 'A', label: 'A' },
-  { value: 'A-', label: 'A-' },
-  { value: 'B', label: 'B' },
-  { value: 'C', label: 'C' },
-  { value: 'D', label: 'D' },
+  { value: 'SS', label: 'SS - 卓越 (Outstanding)' },
+  { value: 'S', label: 'S - 優秀 (Excellent)' },
+  { value: 'A+', label: 'A+ - 非常に良好 (Very Good)' },
+  { value: 'A', label: 'A - 良好 (Good)' },
+  { value: 'A-', label: 'A- - 良 (Above Average)' },
+  { value: 'B', label: 'B - 普通 (Average)' },
+  { value: 'C', label: 'C - 要改善 (Needs Improvement)' },
+  { value: 'D', label: 'D - 不十分 (Insufficient)' },
 ];
 
 const STATUS_COLORS = {
