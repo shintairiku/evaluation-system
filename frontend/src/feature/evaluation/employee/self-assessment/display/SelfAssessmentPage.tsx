@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, Send, Weight } from 'lucide-react';
+import { Loader2, Save, Send, Weight, CheckCircle2, TrendingUp, Flag } from 'lucide-react';
 import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
@@ -245,6 +245,9 @@ const isResubmission = useMemo(
           bucket: entry.bucket,
           ratingCode: entry.ratingCode ?? entry.rating_code,
           comment: entry.comment ?? '',
+          previousSelfAssessmentId:
+            entry.previousSelfAssessmentId ?? entry.previous_self_assessment_id ?? null,
+          supervisorComment: entry.supervisorComment ?? entry.supervisor_comment ?? null,
         }))
         .filter(entry => Boolean(entry.bucket));
 
@@ -606,15 +609,118 @@ const isResubmission = useMemo(
       )}
 
       {currentSummary && (
-        <Card className="border-green-200">
-          <CardHeader>
-            <CardTitle>提出済みサマリー</CardTitle>
+        <Card className="border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <CardTitle className="text-lg text-green-900">提出済みサマリー</CardTitle>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <p>総合評価: <strong>{currentSummary.finalRating}</strong> （{currentSummary.weightedTotal.toFixed(2)} 点）</p>
-            <p>フラグ: {currentSummary.flags?.fail ? 'Fail (MBO D)' : 'なし'}</p>
-            {currentSummary.levelAdjustmentPreview && (
-              <p>レベル調整: {currentSummary.levelAdjustmentPreview.delta ?? 0}</p>
+          <CardContent className="space-y-3">
+            {/* Main Rating Display */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-green-100 shadow-sm">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">総合評価</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-green-700">{currentSummary.finalRating}</span>
+                  <div className="h-6 w-px bg-border" />
+                  <div className="text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <TrendingUp className="h-4 w-4" />
+                      <span className="font-semibold text-foreground">{currentSummary.weightedTotal.toFixed(2)}</span> 点
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {currentSummary.flags?.fail && (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-red-100 border border-red-200">
+                  <Flag className="h-4 w-4 text-red-600" />
+                  <span className="text-sm font-medium text-red-700">Fail (MBO D)</span>
+                </div>
+              )}
+            </div>
+
+            {/* Bucket Breakdown */}
+            {currentSummary.perBucket && currentSummary.perBucket.length > 0 && (
+              <div className="grid gap-2 md:grid-cols-2">
+                {(() => {
+                  const buckets = currentSummary.perBucket;
+                  const quantBucket = buckets.find(b => b.bucket === 'quantitative');
+                  const qualBucket = buckets.find(b => b.bucket === 'qualitative');
+                  const compBucket = buckets.find(b => b.bucket === 'competency');
+
+                  const displayBuckets = [];
+
+                  // Combine quantitative + qualitative into performance
+                  if (quantBucket || qualBucket) {
+                    const totalWeight = (quantBucket?.weight || 0) + (qualBucket?.weight || 0);
+                    const totalContribution = (quantBucket?.contribution || 0) + (qualBucket?.contribution || 0);
+
+                    displayBuckets.push(
+                      <div key="performance" className="rounded-lg border bg-white p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">目標達成（定量＋定性）</span>
+                          <span className="text-xs text-muted-foreground">{totalWeight.toFixed(1)}%</span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-lg font-semibold text-green-600">{currentSummary.finalRating}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {totalContribution.toFixed(2)} pt
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Add competency bucket
+                  if (compBucket) {
+                    displayBuckets.push(
+                      <div key="competency" className="rounded-lg border bg-white p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">コンピテンシー</span>
+                          <span className="text-xs text-muted-foreground">{compBucket.weight.toFixed(1)}%</span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-lg font-semibold text-green-600">{currentSummary.finalRating}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {compBucket.contribution.toFixed(2)} pt
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return displayBuckets;
+                })()}
+              </div>
+            )}
+
+            {/* Level Adjustment */}
+            {currentSummary.levelAdjustmentPreview && currentSummary.levelAdjustmentPreview.delta != null && currentSummary.levelAdjustmentPreview.delta !== 0 && (
+              <div className="rounded-lg border bg-blue-50 border-blue-200 p-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-blue-900">レベル調整</span>
+                  <span className={`text-base font-semibold ${
+                    (currentSummary.levelAdjustmentPreview.delta || 0) > 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {(currentSummary.levelAdjustmentPreview.delta || 0) > 0 ? '+' : ''}
+                    {currentSummary.levelAdjustmentPreview.delta}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Submission Date */}
+            {currentSummary.submittedAt && (
+              <div className="text-xs text-muted-foreground text-right">
+                提出日時: {new Date(currentSummary.submittedAt).toLocaleString('ja-JP', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </div>
             )}
           </CardContent>
         </Card>
