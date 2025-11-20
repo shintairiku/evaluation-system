@@ -29,7 +29,7 @@ class SupervisorFeedbackUpdate(BaseModel):
 
 class SupervisorFeedbackInDB(SupervisorFeedbackBase):
     id: UUID
-    self_assessment_id: UUID
+    self_assessment_id: Optional[UUID] = Field(None, alias="selfAssessmentId")
     period_id: UUID
     supervisor_id: UUID
     status: SubmissionStatus = SubmissionStatus.DRAFT
@@ -60,7 +60,7 @@ class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
     Supervisor evaluation feedback on employee self-assessment.
     """
     # Field aliases for API compatibility
-    self_assessment_id: UUID = Field(..., alias="selfAssessmentId")
+    self_assessment_id: Optional[UUID] = Field(None, alias="selfAssessmentId")
     period_id: UUID = Field(..., alias="periodId") 
     supervisor_id: UUID = Field(..., alias="supervisorId")
     submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
