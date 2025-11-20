@@ -25,6 +25,7 @@ export * from './evaluation-period';
 // Self Assessment types
 export * from './self-assessment';
 export * from './self-assessment-summary';
+export * from './self-assessment-review';
 
 // Supervisor Review types
 export * from './supervisor-review';
