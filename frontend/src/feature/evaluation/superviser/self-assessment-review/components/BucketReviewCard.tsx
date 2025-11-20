@@ -103,30 +103,22 @@ export function BucketReviewCard({
           <>
             <div className="space-y-2">
               <Label htmlFor={`status-${bucket.bucket}`}>承認ステータス</Label>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={localBucket.status === 'approved' ? 'default' : 'outline'}
-                  onClick={() => handleStatusChange('approved')}
-                  className="flex-1"
-                >
-                  承認
-                </Button>
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
                   variant={localBucket.status === 'rejected' ? 'destructive' : 'outline'}
                   onClick={() => handleStatusChange('rejected')}
-                  className="flex-1"
+                  className="w-full"
                 >
-                  却下
+                  差し戻し
                 </Button>
                 <Button
                   type="button"
-                  variant={localBucket.status === 'pending' ? 'secondary' : 'outline'}
-                  onClick={() => handleStatusChange('pending')}
-                  className="flex-1"
+                  variant={localBucket.status === 'approved' ? 'default' : 'outline'}
+                  onClick={() => handleStatusChange('approved')}
+                  className="w-full"
                 >
-                  保留
+                  承認
                 </Button>
               </div>
             </div>
