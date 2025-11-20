@@ -34,6 +34,7 @@ class SupervisorFeedbackInDB(SupervisorFeedbackBase):
     supervisor_id: UUID
     status: SubmissionStatus = SubmissionStatus.DRAFT
     submitted_at: Optional[datetime] = None
+    previous_feedback_id: Optional[UUID] = Field(None, alias="previousFeedbackId")
     created_at: datetime
     updated_at: datetime
 
@@ -121,7 +122,10 @@ class BucketDecisionUpdate(BaseModel):
 class UpdateBucketDecisionsRequest(BaseModel):
     """Request schema for updating bucket decisions"""
     bucket_decisions: list[BucketDecisionUpdate] = Field(..., alias="bucketDecisions")
-    status: Optional[str] = Field(None, description="Overall feedback status: 'draft' or 'submitted'")
+    status: Optional[SubmissionStatus] = Field(
+        None,
+        description="Overall feedback status: 'draft', 'submitted', 'approved', or 'rejected'"
+    )
 
     model_config = {"populate_by_name": True}
 

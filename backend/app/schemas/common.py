@@ -9,6 +9,8 @@ class SubmissionStatus(str, Enum):
     INCOMPLETE = "incomplete"
     DRAFT = "draft"
     SUBMITTED = "submitted"
+    APPROVED = "approved"
+    REJECTED = "rejected"
 
 class Permission(BaseModel):
     """

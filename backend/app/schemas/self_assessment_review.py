@@ -28,6 +28,7 @@ class SelfAssessmentReview(BaseModel):
     user_id: UUID = Field(..., alias="userId")  # Employee being reviewed
     period_id: UUID = Field(..., alias="periodId")
     supervisor_id: UUID = Field(..., alias="supervisorId")
+    previous_feedback_id: Optional[UUID] = Field(None, alias="previousFeedbackId")
     status: str
     bucket_decisions: List[BucketDecision] = Field(default_factory=list, alias="bucketDecisions")
     subordinate: Optional[UserDetailResponse] = None  # Employee details (full user info)
