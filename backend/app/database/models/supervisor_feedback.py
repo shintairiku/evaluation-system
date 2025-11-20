@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, ForeignKey, text, DECIMAL, CheckConstraint
-from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID, JSONB
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.schema import Index
 from decimal import Decimal
@@ -11,19 +11,28 @@ from .base import Base
 class SupervisorFeedback(Base):
     """
     Supervisor feedback model representing supervisor evaluation of employee self-assessments.
-    
-    This model stores supervisor ratings and comments on self-assessments,
-    following the same patterns as Goal and SupervisorReview models.
+
+    Supports two models:
+    1. New bucket-based model: user_id + bucket_decisions (one feedback per user/period)
+    2. Legacy individual model: self_assessment_id + rating/comment (one feedback per goal)
     """
     __tablename__ = "supervisor_feedback"
 
     # Core fields
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
-    self_assessment_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("self_assessments.id", ondelete="CASCADE"), nullable=False)
+
+    # Legacy model (individual goal feedback)
+    self_assessment_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("self_assessments.id", ondelete="CASCADE"), nullable=True)
+    rating = Column(DECIMAL(5, 2), nullable=True)  # Legacy: 0-100 rating
+    comment = Column(String, nullable=True)  # Legacy: global comment
+
+    # New bucket-based model
+    user_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    bucket_decisions = Column(JSONB, nullable=True, default=list)  # Array of bucket decisions
+
+    # Common fields
     period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
     supervisor_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    rating = Column(DECIMAL(5, 2), nullable=True)  # 0-100 rating or null
-    comment = Column(String, nullable=True)
     status = Column(String(50), nullable=False, default="draft")
     
     # Submission timestamp
@@ -60,7 +69,8 @@ class SupervisorFeedback(Base):
     )
 
     # Relationships
-    self_assessment = relationship("SelfAssessment", back_populates="supervisor_feedback")
+    self_assessment = relationship("SelfAssessment", back_populates="supervisor_feedback")  # Legacy
+    user = relationship("User", foreign_keys=[user_id])  # New model
     period = relationship("EvaluationPeriod", back_populates="supervisor_feedbacks")
     supervisor = relationship("User", foreign_keys=[supervisor_id])
 
@@ -87,4 +97,7 @@ class SupervisorFeedback(Base):
         return status
 
     def __repr__(self):
-        return f"<SupervisorFeedback(id={self.id}, self_assessment_id={self.self_assessment_id}, supervisor_id={self.supervisor_id}, status={self.status}, rating={self.rating})>"
+        if self.user_id:
+            return f"<SupervisorFeedback(id={self.id}, user_id={self.user_id}, period_id={self.period_id}, status={self.status}, buckets={len(self.bucket_decisions or [])})>"
+        else:
+            return f"<SupervisorFeedback(id={self.id}, self_assessment_id={self.self_assessment_id}, supervisor_id={self.supervisor_id}, status={self.status}, rating={self.rating})>"
