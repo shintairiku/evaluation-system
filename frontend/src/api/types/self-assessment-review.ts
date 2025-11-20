@@ -28,7 +28,8 @@ export interface SelfAssessmentReview {
   userId: UUID; // Employee being reviewed
   periodId: UUID;
   supervisorId: UUID;
-  status: string;
+  previousFeedbackId?: UUID | null;
+  status: 'draft' | 'submitted' | 'approved' | 'rejected';
   bucketDecisions: BucketDecision[];
   subordinate?: UserDetailResponse | null; // Employee details (full user info)
   createdAt: string; // ISO date string
@@ -51,5 +52,5 @@ export interface SelfAssessmentReviewList {
  */
 export interface UpdateBucketDecisionsRequest {
   bucketDecisions: BucketDecision[];
-  status?: 'draft' | 'submitted';
+  status?: 'draft' | 'submitted' | 'approved' | 'rejected';
 }
