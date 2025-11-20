@@ -13,6 +13,7 @@ from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepos
 from ..database.repositories.department_repo import DepartmentRepository
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.role_repo import RoleRepository
+from ..database.repositories.self_assessment_summary_repo import SelfAssessmentSummaryRepository
 from ..database.models.supervisor_feedback import SupervisorFeedback as SupervisorFeedbackModel
 from ..schemas.supervisor_feedback import (
     SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedback, SupervisorFeedbackDetail
@@ -51,6 +52,7 @@ class SupervisorFeedbackService:
         self.department_repo = DepartmentRepository(session)
         self.stage_repo = StageRepository(session)
         self.role_repo = RoleRepository(session)
+        self.summary_repo = SelfAssessmentSummaryRepository(session)
 
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
@@ -606,7 +608,11 @@ class SupervisorFeedbackService:
                     self._set_bucket_statuses(existing_feedback.bucket_decisions, SubmissionStatus.APPROVED.value)
                 elif normalized_status == SubmissionStatus.REJECTED.value:
                     self._set_bucket_statuses(existing_feedback.bucket_decisions, SubmissionStatus.REJECTED.value)
-                    await self._create_resubmission_feedback(existing_feedback, bucket_decisions_json)
+                    await self._clone_self_assessments_for_resubmission(
+                        user_id=existing_feedback.user_id,
+                        period_id=existing_feedback.period_id,
+                        org_id=org_id
+                    )
 
             # Commit transaction
             await self.session.commit()
@@ -932,37 +938,34 @@ class SupervisorFeedbackService:
         for bucket in bucket_decisions or []:
             bucket["status"] = status
 
-    def _reset_bucket_decisions_for_resubmission(self, bucket_decisions: list) -> list:
-        """Reset supervisor-specific fields for a new draft feedback."""
-        reset_buckets = []
-        for bucket in bucket_decisions or []:
-            reset_buckets.append({
-                "bucket": bucket.get("bucket"),
-                "employeeWeight": bucket.get("employeeWeight"),
-                "employeeContribution": bucket.get("employeeContribution"),
-                "employeeRating": bucket.get("employeeRating"),
-                "status": "pending",
-                "supervisorRating": None,
-                "comment": None
-            })
-        return reset_buckets
-
-    async def _create_resubmission_feedback(
+    async def _clone_self_assessments_for_resubmission(
         self,
-        rejected_feedback: SupervisorFeedbackModel,
-        bucket_template: list
-    ) -> SupervisorFeedbackModel:
-        """Create a new draft feedback linked to the rejected one for resubmission."""
-        new_feedback = SupervisorFeedbackModel(
-            user_id=rejected_feedback.user_id,
-            period_id=rejected_feedback.period_id,
-            supervisor_id=rejected_feedback.supervisor_id,
-            bucket_decisions=self._reset_bucket_decisions_for_resubmission(bucket_template),
-            status=SubmissionStatus.DRAFT.value,
-            previous_feedback_id=rejected_feedback.id
+        user_id: Optional[UUID],
+        period_id: UUID,
+        org_id: str
+    ) -> None:
+        """Clone submitted self-assessments so employees can edit after rejection."""
+        if not user_id:
+            return
+
+        assessments = await self.self_assessment_repo.get_current_assessments_for_user_period(
+            user_id, period_id, org_id
         )
-        self.session.add(new_feedback)
-        return new_feedback
+        if not assessments:
+            return
+
+        for assessment in assessments:
+            if assessment.status != SubmissionStatus.SUBMITTED.value:
+                continue
+            await self.self_assessment_repo.clone_assessment(assessment)
+
+        await self.summary_repo.delete_summary(org_id, user_id, period_id)
+        logger.info(
+            "Cloned %d self-assessments for user %s period %s after rejection",
+            len(assessments),
+            user_id,
+            period_id
+        )
 
     def _validate_feedback_status_transition(self, current_status: str, new_status: str) -> None:
         """Ensure feedback status transitions follow goal-like workflow rules."""
