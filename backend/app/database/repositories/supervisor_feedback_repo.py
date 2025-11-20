@@ -134,11 +134,11 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             raise
 
     async def get_by_self_assessment(self, self_assessment_id: UUID, org_id: str) -> Optional[SupervisorFeedback]:
-        """Get supervisor feedback by self-assessment ID within organization scope."""
+        """Get supervisor feedback by self-assessment ID within organization scope (legacy model)."""
         try:
             from ..models.goal import Goal
             from ..models.user import User
-            
+
             query = (
                 select(SupervisorFeedback)
                 .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
@@ -153,6 +153,31 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             return result.scalars().first()
         except SQLAlchemyError as e:
             logger.error(f"Error fetching supervisor feedback for self-assessment {self_assessment_id} in org {org_id}: {e}")
+            raise
+
+    async def get_by_user_and_period(
+        self,
+        user_id: UUID,
+        period_id: UUID,
+        org_id: str
+    ) -> Optional[SupervisorFeedback]:
+        """Get supervisor feedback by user and period (new bucket-based model) within organization scope."""
+        try:
+            from ..models.user import User
+
+            query = (
+                select(SupervisorFeedback)
+                .join(User, SupervisorFeedback.user_id == User.id)
+                .filter(
+                    SupervisorFeedback.user_id == user_id,
+                    SupervisorFeedback.period_id == period_id,
+                    User.clerk_organization_id == org_id
+                )
+            )
+            result = await self.session.execute(query)
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching supervisor feedback for user {user_id}, period {period_id} in org {org_id}: {e}")
             raise
 
     async def get_by_supervisor_and_period(
