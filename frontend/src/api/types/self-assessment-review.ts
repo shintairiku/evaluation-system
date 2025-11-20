@@ -1,19 +1,10 @@
 import type { UUID } from './common';
+import type { UserDetailResponse } from './user';
 
 /**
  * Self Assessment Review type definitions
  * These types match the backend Pydantic schemas for pending self-assessment reviews (bucket-based supervisor feedback)
  */
-
-/**
- * User information for review display
- */
-export interface ReviewUser {
-  id: UUID;
-  name?: string | null;
-  email?: string | null;
-  jobTitle?: string | null;
-}
 
 /**
  * Individual bucket decision data for supervisor review
@@ -39,7 +30,7 @@ export interface SelfAssessmentReview {
   supervisorId: UUID;
   status: string;
   bucketDecisions: BucketDecision[];
-  subordinate?: ReviewUser | null; // Employee details
+  subordinate?: UserDetailResponse | null; // Employee details (full user info)
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
 }
