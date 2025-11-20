@@ -17,6 +17,7 @@ export const CACHE_TAGS = {
   GOALS: 'goals',
   USERS: 'users',
   SELF_ASSESSMENTS: 'self-assessments',
+  SELF_ASSESSMENT_REVIEWS: 'self-assessment-reviews',
   SUPERVISOR_REVIEWS: 'supervisor-reviews',
   SUPERVISOR_FEEDBACKS: 'supervisor-feedbacks',
   EVALUATIONS: 'evaluations',
@@ -79,6 +80,10 @@ export const CACHE_STRATEGIES = {
   [CACHE_TAGS.SELF_ASSESSMENTS]: {
     duration: CACHE_DURATIONS.DYNAMIC,
     tags: [CACHE_TAGS.SELF_ASSESSMENTS, CACHE_TAGS.GOALS] as string[],
+  },
+  [CACHE_TAGS.SELF_ASSESSMENT_REVIEWS]: {
+    duration: CACHE_DURATIONS.DYNAMIC,
+    tags: [CACHE_TAGS.SELF_ASSESSMENT_REVIEWS, CACHE_TAGS.SUPERVISOR_FEEDBACKS] as string[],
   },
   [CACHE_TAGS.SUPERVISOR_REVIEWS]: {
     duration: CACHE_DURATIONS.DYNAMIC,

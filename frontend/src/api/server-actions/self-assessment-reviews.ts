@@ -1,8 +1,10 @@
 'use server';
 
 import { cache } from 'react';
+import { revalidateTag } from 'next/cache';
 import { selfAssessmentReviewsApi } from '../endpoints/self-assessment-reviews';
-import type { PaginationParams, SupervisorFeedbackList } from '../types';
+import type { PaginationParams, SelfAssessmentReviewList, UpdateBucketDecisionsRequest } from '../types';
+import { CACHE_TAGS } from '../utils/cache';
 
 export const getPendingSelfAssessmentReviewsAction = cache(async (params?: {
   pagination?: PaginationParams;
@@ -10,7 +12,7 @@ export const getPendingSelfAssessmentReviewsAction = cache(async (params?: {
   subordinateId?: string;
 }) : Promise<{
   success: boolean;
-  data?: SupervisorFeedbackList;
+  data?: SelfAssessmentReviewList;
   error?: string;
 }> => {
   try {
@@ -30,3 +32,25 @@ export const getPendingSelfAssessmentReviewsAction = cache(async (params?: {
     return { success: false, error: 'Unexpected error fetching pending self-assessment reviews' };
   }
 });
+
+export async function updateBucketDecisionsAction(
+  feedbackId: string,
+  data: UpdateBucketDecisionsRequest
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await selfAssessmentReviewsApi.updateBucketDecisions(feedbackId, data);
+
+    if (!response.success) {
+      return { success: false, error: response.errorMessage || 'Failed to update bucket decisions' };
+    }
+
+    // Revalidate relevant caches
+    revalidateTag(CACHE_TAGS.SUPERVISOR_FEEDBACKS);
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENT_REVIEWS);
+
+    return { success: true };
+  } catch (error) {
+    console.error('updateBucketDecisionsAction error:', error);
+    return { success: false, error: 'Unexpected error updating bucket decisions' };
+  }
+}
