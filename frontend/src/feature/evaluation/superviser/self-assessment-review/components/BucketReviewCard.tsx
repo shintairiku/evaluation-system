@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Loader2 } from 'lucide-react';
 import type { BucketDecision } from '@/api/types';
 
 interface BucketReviewCardProps {
@@ -19,6 +20,7 @@ interface BucketReviewCardProps {
   bucketLabel: string;
   onUpdate: (updatedBucket: BucketDecision) => void;
   readonly?: boolean;
+  onAutoSave?: (updatedBucket: BucketDecision) => Promise<boolean>;
 }
 
 const RATING_OPTIONS = [
@@ -36,25 +38,102 @@ export function BucketReviewCard({
   bucket,
   bucketLabel,
   onUpdate,
-  readonly = false
+  readonly = false,
+  onAutoSave
 }: BucketReviewCardProps) {
   const [localBucket, setLocalBucket] = useState<BucketDecision>(bucket);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const savedIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setLocalBucket(bucket);
   }, [bucket]);
+
+  // Auto-save with debounce
+  const triggerAutoSave = useCallback(async (updatedBucket: BucketDecision) => {
+    if (!onAutoSave) return;
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Clear saved indicator timeout
+    if (savedIndicatorTimeoutRef.current) {
+      clearTimeout(savedIndicatorTimeoutRef.current);
+    }
+
+    setSaveStatus('saving');
+
+    // Debounce auto-save
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const success = await onAutoSave(updatedBucket);
+        if (success) {
+          setSaveStatus('saved');
+          // Hide saved indicator after 3 seconds
+          savedIndicatorTimeoutRef.current = setTimeout(() => {
+            setSaveStatus('idle');
+          }, 3000);
+        } else {
+          setSaveStatus('error');
+        }
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+        setSaveStatus('error');
+      }
+    }, 1500); // 1.5 second debounce
+  }, [onAutoSave]);
 
   const handleSupervisorRatingChange = (rating: string | undefined) => {
     const updated = { ...localBucket, supervisorRating: rating || null };
     setLocalBucket(updated);
     onUpdate(updated);
+    triggerAutoSave(updated);
   };
 
   const handleCommentChange = (comment: string) => {
     const updated = { ...localBucket, comment: comment || null };
     setLocalBucket(updated);
     onUpdate(updated);
+    // Trigger auto-save with debounce
+    triggerAutoSave(updated);
   };
+
+  const handleCommentBlur = () => {
+    // Force immediate save on blur by canceling debounce and saving
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    if (onAutoSave && localBucket) {
+      setSaveStatus('saving');
+      onAutoSave(localBucket).then(success => {
+        if (success) {
+          setSaveStatus('saved');
+          savedIndicatorTimeoutRef.current = setTimeout(() => {
+            setSaveStatus('idle');
+          }, 3000);
+        } else {
+          setSaveStatus('error');
+        }
+      }).catch(() => {
+        setSaveStatus('error');
+      });
+    }
+  };
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      if (savedIndicatorTimeoutRef.current) {
+        clearTimeout(savedIndicatorTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <Card>
@@ -94,9 +173,28 @@ export function BucketReviewCard({
         {!readonly && (
           <>
             <div className="space-y-2">
-              <Label htmlFor={`supervisor-rating-${bucket.bucket}`}>
-                上司評価 <span className="text-gray-500 text-xs">(任意)</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor={`supervisor-rating-${bucket.bucket}`}>
+                  上司評価 <span className="text-gray-500 text-xs">(任意)</span>
+                </Label>
+                {/* Auto-save status indicator */}
+                {saveStatus === 'saving' && (
+                  <span className="text-xs text-blue-500 flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    保存中...
+                  </span>
+                )}
+                {saveStatus === 'saved' && (
+                  <span className="text-xs text-green-600 flex items-center gap-1">
+                    <span aria-hidden="true">✓</span> 一時保存済み
+                  </span>
+                )}
+                {saveStatus === 'error' && (
+                  <span className="text-xs text-red-500 flex items-center gap-1">
+                    <span aria-hidden="true">⚠</span> 保存失敗
+                  </span>
+                )}
+              </div>
               <Select
                 value={localBucket.supervisorRating || 'none'}
                 onValueChange={(value) =>
@@ -132,6 +230,7 @@ export function BucketReviewCard({
                 id={`comment-${bucket.bucket}`}
                 value={localBucket.comment || ''}
                 onChange={(e) => handleCommentChange(e.target.value)}
+                onBlur={handleCommentBlur}
                 placeholder="フィードバックを入力してください..."
                 rows={4}
                 className="resize-none"
