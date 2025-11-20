@@ -183,7 +183,12 @@ class SupervisorFeedbackService:
         subordinate_id: Optional[UUID] = None,
         pagination: Optional[PaginationParams] = None,
     ) -> SelfAssessmentReviewList:
-        """List pending (draft) self-assessment feedbacks for supervisors."""
+        """
+        List pending (draft) bucket-based self-assessment feedbacks for supervisors.
+
+        Returns supervisor_feedback records with user_id (new model) that are in draft status,
+        ready for supervisor review.
+        """
         org_id = current_user_context.organization_id
         if not org_id:
             raise PermissionDeniedError("Organization context required")
@@ -195,13 +200,16 @@ class SupervisorFeedbackService:
 
         user_filters = [subordinate_id] if subordinate_id else accessible_user_ids
 
-        feedbacks = await self.supervisor_feedback_repo.get_by_status(
-            status=SubmissionStatus.DRAFT.value,
+        # Get bucket-based feedbacks (user_id IS NOT NULL)
+        feedbacks = await self.supervisor_feedback_repo.search_feedbacks(
             org_id=org_id,
-            supervisor_id=current_user_context.user_id,
+            supervisor_ids=[current_user_context.user_id],
+            user_ids=user_filters,
             period_id=period_id,
+            status=SubmissionStatus.DRAFT.value,
             pagination=pagination,
         )
+
         total_count = await self.supervisor_feedback_repo.count_feedbacks(
             org_id=org_id,
             supervisor_ids=[current_user_context.user_id],
@@ -212,19 +220,49 @@ class SupervisorFeedbackService:
 
         items: list[SelfAssessmentReview] = []
         for fb in feedbacks:
+            # Skip legacy feedbacks (those with self_assessment_id but no user_id)
+            if not fb.user_id:
+                continue
+
+            # Get employee details
             subordinate = None
-            if fb.self_assessment and fb.self_assessment.goal and fb.self_assessment.goal.user:
-                user = fb.self_assessment.goal.user
-                subordinate = ReviewUser(id=user.id, name=getattr(user, "name", None))
+            if fb.user:
+                user = fb.user
+                subordinate = ReviewUser(
+                    id=user.id,
+                    name=user.name if user.name else user.email,
+                    email=user.email,
+                    job_title=user.job_title
+                )
+
+            # Parse bucket_decisions from JSONB
+            from ..schemas.self_assessment_review import BucketDecision
+            bucket_decisions = []
+            if fb.bucket_decisions:
+                for bucket_data in fb.bucket_decisions:
+                    bucket_decisions.append(
+                        BucketDecision(
+                            bucket=bucket_data.get("bucket"),
+                            employeeWeight=bucket_data.get("employeeWeight", 0),
+                            employeeContribution=bucket_data.get("employeeContribution", 0),
+                            employeeRating=bucket_data.get("employeeRating", ""),
+                            status=bucket_data.get("status", "pending"),
+                            supervisorRating=bucket_data.get("supervisorRating"),
+                            comment=bucket_data.get("comment")
+                        )
+                    )
+
             items.append(
                 SelfAssessmentReview(
                     id=fb.id,
-                    self_assessment_id=fb.self_assessment_id,
-                    period_id=fb.period_id,
+                    userId=fb.user_id,
+                    periodId=fb.period_id,
+                    supervisorId=fb.supervisor_id,
                     status=fb.status,
+                    bucketDecisions=bucket_decisions,
                     subordinate=subordinate,
-                    created_at=fb.created_at,
-                    updated_at=fb.updated_at,
+                    createdAt=fb.created_at,
+                    updatedAt=fb.updated_at,
                 )
             )
 
@@ -504,6 +542,75 @@ class SupervisorFeedbackService:
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error deleting feedback {feedback_id}: {str(e)}")
+            raise
+
+    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
+    async def update_bucket_decisions(
+        self,
+        feedback_id: UUID,
+        bucket_decisions_data: list,
+        status: Optional[str],
+        current_user_context: AuthContext
+    ) -> SupervisorFeedback:
+        """
+        Update bucket decisions for a supervisor feedback (new bucket-based model).
+
+        This allows supervisors to update their ratings, comments, and approval status
+        for each bucket (performance, competency) in the employee's self-assessment.
+        """
+        try:
+            # Check if feedback exists
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id, org_id)
+            if not existing_feedback:
+                raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
+
+            # Permission check - only feedback creator can update
+            await self._check_feedback_update_permission(existing_feedback, current_user_context)
+
+            # Business rule: can only update bucket-based feedbacks (those with user_id)
+            if not existing_feedback.user_id:
+                raise BadRequestError("Can only update bucket-based supervisor feedbacks")
+
+            # Convert bucket decisions to dict format for JSONB storage
+            bucket_decisions_json = []
+            for bd in bucket_decisions_data:
+                bucket_decisions_json.append({
+                    "bucket": bd.bucket,
+                    "employeeWeight": bd.employee_weight,
+                    "employeeContribution": bd.employee_contribution,
+                    "employeeRating": bd.employee_rating,
+                    "status": bd.status,
+                    "supervisorRating": bd.supervisor_rating,
+                    "comment": bd.comment
+                })
+
+            # Update bucket_decisions in the feedback
+            existing_feedback.bucket_decisions = bucket_decisions_json
+
+            # Update status if provided
+            if status:
+                existing_feedback.status = status
+                if status == SubmissionStatus.SUBMITTED.value:
+                    from datetime import datetime, timezone
+                    existing_feedback.submitted_at = datetime.now(timezone.utc)
+
+            # Commit transaction
+            await self.session.commit()
+            await self.session.refresh(existing_feedback)
+
+            # Enrich response data
+            enriched_feedback = await self._enrich_feedback_data(existing_feedback)
+
+            logger.info(f"Bucket decisions updated for feedback {feedback_id} by {current_user_context.user_id}")
+            return enriched_feedback
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error updating bucket decisions for feedback {feedback_id}: {str(e)}")
             raise
 
 
