@@ -25,6 +25,7 @@ class SelfAssessment(Base):
     self_rating_text = Column(String, nullable=True)  # SS..D code
     self_comment = Column(String, nullable=True)
     status = Column(String(50), nullable=False, default="draft")
+    previous_self_assessment_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("self_assessments.id", ondelete="SET NULL"), nullable=True)
     
     # Submission timestamp
     submitted_at = Column(DateTime(timezone=True), nullable=True)
@@ -51,8 +52,7 @@ class SelfAssessment(Base):
         ),
         
         # Unique constraint: one self assessment per goal
-        Index('idx_self_assessments_goal_unique', 'goal_id', unique=True),
-        
+        Index('idx_self_assessments_previous_self_assessment_id', 'previous_self_assessment_id'),
         # Performance indexes for common queries
         Index('idx_self_assessments_period_status', 'period_id', 'status'),
         Index('idx_self_assessments_created_at', 'created_at'),
@@ -62,6 +62,7 @@ class SelfAssessment(Base):
     goal = relationship("Goal", back_populates="self_assessments")
     period = relationship("EvaluationPeriod", back_populates="self_assessments")
     supervisor_feedback = relationship("SupervisorFeedback", back_populates="self_assessment", uselist=False)
+    previous_self_assessment = relationship("SelfAssessment", remote_side=[id], foreign_keys=[previous_self_assessment_id])
 
     @validates('self_rating')
     def validate_self_rating(self, key, self_rating):

@@ -31,6 +31,7 @@ class SelfAssessmentInDB(SelfAssessmentBase):
     period_id: UUID
     status: SubmissionStatus = SubmissionStatus.DRAFT
     submitted_at: Optional[datetime] = None
+    previous_self_assessment_id: Optional[UUID] = Field(None, alias="previousSelfAssessmentId")
     created_at: datetime
     updated_at: datetime
 
