@@ -23,11 +23,14 @@ interface BucketReviewCardProps {
 }
 
 const RATING_OPTIONS = [
-  { value: 'S', label: 'S - 優秀 (Excellent)' },
-  { value: 'A', label: 'A - 良好 (Good)' },
-  { value: 'B', label: 'B - 普通 (Average)' },
-  { value: 'C', label: 'C - 要改善 (Needs Improvement)' },
-  { value: 'D', label: 'D - 不十分 (Insufficient)' },
+  { value: 'SS', label: 'SS' },
+  { value: 'S', label: 'S' },
+  { value: 'A+', label: 'A+' },
+  { value: 'A', label: 'A' },
+  { value: 'A-', label: 'A-' },
+  { value: 'B', label: 'B' },
+  { value: 'C', label: 'C' },
+  { value: 'D', label: 'D' },
 ];
 
 const STATUS_COLORS = {
@@ -136,7 +139,13 @@ export function BucketReviewCard({
                 <SelectTrigger id={`supervisor-rating-${bucket.bucket}`}>
                   <SelectValue placeholder="評価を選択（任意）" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={4}
+                  position="popper"
+                  avoidCollisions={false}
+                >
                   <SelectItem value="none">評価なし</SelectItem>
                   {RATING_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
