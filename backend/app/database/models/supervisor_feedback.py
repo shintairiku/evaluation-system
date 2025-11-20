@@ -33,6 +33,7 @@ class SupervisorFeedback(Base):
     # Common fields
     period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
     supervisor_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    previous_feedback_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("supervisor_feedback.id", ondelete="SET NULL"), nullable=True)
     status = Column(String(50), nullable=False, default="draft")
     
     # Submission timestamp
@@ -49,7 +50,7 @@ class SupervisorFeedback(Base):
         
         # Status validation
         CheckConstraint(
-            "status IN ('draft', 'submitted')", 
+            "status IN ('draft', 'submitted', 'approved', 'rejected')", 
             name='check_feedback_status_values'
         ),
         
@@ -66,6 +67,7 @@ class SupervisorFeedback(Base):
         Index('idx_supervisor_feedback_period_status', 'period_id', 'status'),
         Index('idx_supervisor_feedback_supervisor', 'supervisor_id'),
         Index('idx_supervisor_feedback_created_at', 'created_at'),
+        Index('idx_supervisor_feedback_previous_feedback_id', 'previous_feedback_id'),
     )
 
     # Relationships
@@ -73,6 +75,7 @@ class SupervisorFeedback(Base):
     user = relationship("User", foreign_keys=[user_id])  # New model
     period = relationship("EvaluationPeriod", back_populates="supervisor_feedbacks")
     supervisor = relationship("User", foreign_keys=[supervisor_id])
+    previous_feedback = relationship("SupervisorFeedback", remote_side=[id], foreign_keys=[previous_feedback_id])
 
     @validates('rating')
     def validate_rating(self, key, rating):
@@ -87,12 +90,12 @@ class SupervisorFeedback(Base):
     def validate_status(self, key, status):
         """Validate status is one of allowed values and handle submitted_at timestamp"""
         if status is not None:
-            valid_statuses = ['draft', 'submitted']
+            valid_statuses = ['draft', 'submitted', 'approved', 'rejected']
             if status not in valid_statuses:
                 raise ValueError(f"Invalid status: {status}. Must be one of: {valid_statuses}")
             
-            # Auto-set submitted_at when status changes to submitted
-            if status == 'submitted' and self.submitted_at is None:
+            # Auto-set submitted_at when status changes to submitted/approved
+            if status in ('submitted', 'approved') and self.submitted_at is None:
                 self.submitted_at = datetime.now(timezone.utc)
         return status
 
