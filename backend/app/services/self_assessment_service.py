@@ -924,7 +924,34 @@ class SelfAssessmentService:
                 user_id, period_id, org_id
             )
             if existing:
-                logger.info(f"Supervisor feedback already exists for user {user_id}, period {period_id}, skipping auto-creation")
+                logger.info(f"Supervisor feedback already exists for user {user_id}, period {period_id}, updating bucket_decisions with new employee ratings")
+
+                # Update bucket_decisions with new employee ratings from summary_data
+                # This ensures supervisor reviews the latest employee submission
+                quant = next((b for b in summary_data if b['bucket'] == 'quantitative'), None)
+                qual = next((b for b in summary_data if b['bucket'] == 'qualitative'), None)
+                comp = next((b for b in summary_data if b['bucket'] == 'competency'), None)
+
+                updated_buckets = []
+                for bucket in existing.bucket_decisions:
+                    if bucket['bucket'] == 'performance':
+                        # Update performance bucket with new quant + qual data
+                        perf_weight = (quant['weight'] if quant else 0) + (qual['weight'] if qual else 0)
+                        perf_contrib = (quant['contribution'] if quant else 0) + (qual['contribution'] if qual else 0)
+                        bucket['employeeWeight'] = round(perf_weight, 2)
+                        bucket['employeeContribution'] = round(perf_contrib, 2)
+                        bucket['employeeRating'] = final_rating
+                    elif bucket['bucket'] == 'competency' and comp:
+                        # Update competency bucket with new comp data
+                        bucket['employeeWeight'] = round(comp['weight'], 2)
+                        bucket['employeeContribution'] = round(comp['contribution'], 2)
+                        bucket['employeeRating'] = final_rating
+
+                    updated_buckets.append(bucket)
+
+                existing.bucket_decisions = updated_buckets
+                await self.supervisor_feedback_repo.update(existing)
+                logger.info(f"Updated bucket_decisions for user {user_id}, period {period_id} with new employee ratings")
                 return
 
             # Get employee's current supervisor(s)
