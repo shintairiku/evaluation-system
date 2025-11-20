@@ -11,6 +11,8 @@ export interface SelfAssessmentDraftEntry {
   bucket: string;
   ratingCode?: string;
   comment?: string | null;
+  previousSelfAssessmentId?: UUID | null;
+  supervisorComment?: string | null;
 }
 
 export interface SelfAssessmentGoalContext {

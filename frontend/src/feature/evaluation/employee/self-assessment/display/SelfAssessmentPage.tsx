@@ -198,7 +198,11 @@ const GoalDetailsCard = ({ goal }: GoalDetailsCardProps) => {
 
 export default function SelfAssessmentPage() {
   const [context, setContext] = useState<SelfAssessmentContext | null>(null);
-  const [entries, setEntries] = useState<DraftEntryState[]>([]);
+const [entries, setEntries] = useState<DraftEntryState[]>([]);
+const isResubmission = useMemo(
+  () => entries.some(entry => !!entry.previousSelfAssessmentId),
+  [entries]
+);
   const [summary, setSummary] = useState<SelfAssessmentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -255,6 +259,8 @@ export default function SelfAssessmentPage() {
               bucket: goal.goalCategory,
               ratingCode: undefined,
               comment: '',
+              previousSelfAssessmentId: null,
+              supervisorComment: null,
             }));
       setEntries(initialDraft);
 
@@ -435,6 +441,20 @@ export default function SelfAssessmentPage() {
     return context?.goals.find(g => g.goalCategory?.includes('コンピテンシー'))?.goalCategory || 'コンピテンシー';
   }, [bucketRatings, context]);
 
+  const performanceSupervisorComment = useMemo(() => {
+    const entry = entries.find(
+      e => e.bucket === performanceCategory && e.supervisorComment
+    );
+    return entry?.supervisorComment ?? null;
+  }, [entries, performanceCategory]);
+
+  const competencySupervisorComment = useMemo(() => {
+    const entry = entries.find(
+      e => e.bucket === competencyCategory && e.supervisorComment
+    );
+    return entry?.supervisorComment ?? null;
+  }, [entries, competencyCategory]);
+
   const confirmItems = useMemo(
     () => [
       {
@@ -599,6 +619,13 @@ export default function SelfAssessmentPage() {
           </CardContent>
         </Card>
       )}
+      {isResubmission && (
+        <Alert variant="warning">
+          <AlertDescription>
+            差し戻し済み：上司のコメントを確認し、内容を修正して再提出してください。
+          </AlertDescription>
+        </Alert>
+      )}
 
       {hasContext ? (
         context.goals.length === 0 ? (
@@ -624,6 +651,13 @@ export default function SelfAssessmentPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {performanceSupervisorComment && (
+                  <Alert variant="warning">
+                    <AlertDescription>
+                      上司からのコメント: {performanceSupervisorComment}
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <div className="space-y-4">
                   {context.goals
                     .filter(g => g.goalCategory === performanceCategory)
@@ -703,6 +737,13 @@ export default function SelfAssessmentPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {competencySupervisorComment && (
+                  <Alert variant="warning">
+                    <AlertDescription>
+                      上司からのコメント: {competencySupervisorComment}
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <div className="space-y-4">
                   {context.goals
                     .filter(g => g.goalCategory === competencyCategory)
