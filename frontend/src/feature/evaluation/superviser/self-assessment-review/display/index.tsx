@@ -81,21 +81,27 @@ export default function SelfAssessmentReviewPage() {
     }));
   };
 
-  const handleSaveDraft = async (reviewId: string) => {
-    setSavingStates(prev => ({ ...prev, [reviewId]: true }));
+  // Auto-save for individual bucket
+  const handleAutoSaveBucket = async (reviewId: string, updatedBucket: BucketDecision): Promise<boolean> => {
     try {
+      // Update local state first
+      const updatedBuckets = bucketUpdates[reviewId]?.map(b =>
+        b.bucket === updatedBucket.bucket ? updatedBucket : b
+      ) || [];
+
       const result = await updateBucketDecisionsAction(reviewId, {
-        bucketDecisions: bucketUpdates[reviewId] || [],
+        bucketDecisions: updatedBuckets,
         status: 'draft'
       });
 
       if (!result.success) {
-        setError(result.error || '下書き保存に失敗しました');
+        console.error('Auto-save failed:', result.error);
+        return false;
       }
+      return true;
     } catch (err) {
-      setError('下書き保存に失敗しました');
-    } finally {
-      setSavingStates(prev => ({ ...prev, [reviewId]: false }));
+      console.error('Auto-save error:', err);
+      return false;
     }
   };
 
@@ -190,6 +196,7 @@ export default function SelfAssessmentReviewPage() {
                       bucket={bucket}
                       bucketLabel={BUCKET_LABELS[bucket.bucket as keyof typeof BUCKET_LABELS] || bucket.bucket}
                       onUpdate={(updatedBucket) => handleBucketUpdate(selectedGroup.reviewId, updatedBucket)}
+                      onAutoSave={(updatedBucket) => handleAutoSaveBucket(selectedGroup.reviewId, updatedBucket)}
                     />
                   ))}
                 </div>
@@ -198,21 +205,6 @@ export default function SelfAssessmentReviewPage() {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex flex-col md:flex-row gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={() => handleSaveDraft(selectedGroup.reviewId)}
-                        disabled={savingStates[selectedGroup.reviewId]}
-                        className="flex-1"
-                      >
-                        {savingStates[selectedGroup.reviewId] ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            保存中...
-                          </>
-                        ) : (
-                          '下書き保存'
-                        )}
-                      </Button>
                       <Button
                         variant="destructive"
                         onClick={() => handleDecision(selectedGroup.reviewId, 'rejected')}
