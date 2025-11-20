@@ -17,8 +17,8 @@ import { Loader2 } from 'lucide-react';
 import type { BucketDecision } from '@/api/types';
 
 const BUCKET_LABELS = {
-  performance: 'パフォーマンス (Performance)',
-  competency: 'コンピテンシー (Competency)',
+  performance: '目標達成(定量＋定性)',
+  competency: 'コンピテンシー',
 };
 
 export default function SelfAssessmentReviewPage() {
