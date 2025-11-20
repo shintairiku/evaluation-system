@@ -367,6 +367,16 @@ class SelfAssessmentService:
         )
         await self.summary_repo.upsert_summary(summary_model)
         await self.self_assessment_repo.submit_assessments_for_goals(goal_ids, org_id)
+
+        # Auto-create supervisor feedback for bucket-based review
+        await self._auto_create_supervisor_feedback_for_summary(
+            user_id=user_id,
+            period_id=target_period_id,
+            org_id=org_id,
+            summary_data=per_bucket_payload,
+            final_rating=final_rating
+        )
+
         await self.session.commit()
 
         return {
@@ -886,3 +896,92 @@ class SelfAssessmentService:
             logger.error(f"Error auto-creating supervisor feedback for assessment {assessment.id}: {str(e)}")
             # Don't re-raise - we don't want auto-creation failure to block assessment submission
             # This follows the pattern from goal_service.py: "Do not rollback goal submission due to review auto-creation failure"
+
+    async def _auto_create_supervisor_feedback_for_summary(
+        self,
+        user_id: UUID,
+        period_id: UUID,
+        org_id: str,
+        summary_data: List[Dict],
+        final_rating: str
+    ):
+        """
+        Auto-create SupervisorFeedback for self-assessment summary submission.
+        Creates ONE feedback per user/period with bucket-based structure.
+
+        Args:
+            user_id: Employee user ID
+            period_id: Evaluation period ID
+            org_id: Organization ID
+            summary_data: per_bucket data from scoring (quantitative, qualitative, competency)
+            final_rating: Final rating code (S, A, etc.)
+        """
+        try:
+            from ..database.models.supervisor_feedback import SupervisorFeedback
+
+            # Check if feedback already exists
+            existing = await self.supervisor_feedback_repo.get_by_user_and_period(
+                user_id, period_id, org_id
+            )
+            if existing:
+                logger.info(f"Supervisor feedback already exists for user {user_id}, period {period_id}, skipping auto-creation")
+                return
+
+            # Get employee's current supervisor(s)
+            supervisors = await self.user_repo.get_user_supervisors(user_id, org_id)
+            if not supervisors:
+                logger.warning(f"Cannot auto-create feedback: No supervisors found for user {user_id}")
+                return
+
+            primary_supervisor = supervisors[0]
+
+            # Build bucket_decisions from summary data
+            # Group quantitative + qualitative → performance bucket
+            quant = next((b for b in summary_data if b['bucket'] == 'quantitative'), None)
+            qual = next((b for b in summary_data if b['bucket'] == 'qualitative'), None)
+            comp = next((b for b in summary_data if b['bucket'] == 'competency'), None)
+
+            bucket_decisions = []
+
+            # Performance bucket (combines quant + qual)
+            if quant or qual:
+                perf_weight = (quant['weight'] if quant else 0) + (qual['weight'] if qual else 0)
+                perf_contrib = (quant['contribution'] if quant else 0) + (qual['contribution'] if qual else 0)
+
+                bucket_decisions.append({
+                    "bucket": "performance",
+                    "employeeWeight": round(perf_weight, 2),
+                    "employeeContribution": round(perf_contrib, 2),
+                    "employeeRating": final_rating,
+                    "status": "pending",
+                    "supervisorRating": None,
+                    "comment": None
+                })
+
+            # Competency bucket
+            if comp:
+                bucket_decisions.append({
+                    "bucket": "competency",
+                    "employeeWeight": round(comp['weight'], 2),
+                    "employeeContribution": round(comp['contribution'], 2),
+                    "employeeRating": final_rating,
+                    "status": "pending",
+                    "supervisorRating": None,
+                    "comment": None
+                })
+
+            # Create supervisor feedback with bucket decisions
+            feedback = SupervisorFeedback(
+                user_id=user_id,
+                period_id=period_id,
+                supervisor_id=primary_supervisor.id,
+                bucket_decisions=bucket_decisions,
+                status="draft"
+            )
+
+            self.session.add(feedback)
+            logger.info(f"Auto-created bucket-based supervisor feedback for user {user_id}, period {period_id}, supervisor {primary_supervisor.id}")
+
+        except Exception as e:
+            logger.error(f"Error auto-creating supervisor feedback for user {user_id}, period {period_id}: {str(e)}")
+            # Don't re-raise - we don't want auto-creation failure to block submission
