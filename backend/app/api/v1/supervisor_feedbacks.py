@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database.session import get_db_session
 from ...security.dependencies import get_auth_context, require_supervisor_or_above
 from ...security.context import AuthContext
-from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate
+from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate, UpdateBucketDecisionsRequest
 from ...schemas.common import PaginationParams, BaseResponse
 from ...services.supervisor_feedback_service import SupervisorFeedbackService
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
@@ -262,3 +262,38 @@ async def delete_supervisor_feedback(
         raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting supervisor feedback: {str(e)}")
+
+@router.put("/{feedback_id}/bucket-decisions", response_model=SupervisorFeedback)
+async def update_bucket_decisions(
+    feedback_id: UUID,
+    request_data: UpdateBucketDecisionsRequest,
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Update bucket decisions for a supervisor feedback (bucket-based model).
+
+    Allows supervisors to update their ratings, comments, and approval status
+    for each bucket (performance, competency) in an employee's self-assessment.
+
+    The supervisorRating field is optional - supervisors can approve/reject
+    with just comments, without providing a different rating.
+    """
+    try:
+        service = SupervisorFeedbackService(session)
+        return await service.update_bucket_decisions(
+            feedback_id=feedback_id,
+            bucket_decisions_data=request_data.bucket_decisions,
+            status=request_data.status,
+            current_user_context=context
+        )
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error updating bucket decisions: {str(e)}")
