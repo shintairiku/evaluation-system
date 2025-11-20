@@ -102,6 +102,31 @@ class SupervisorFeedbackList(PaginatedResponse[SupervisorFeedback]):
 
 
 # ========================================
+# BUCKET DECISIONS UPDATE SCHEMAS
+# ========================================
+
+class BucketDecisionUpdate(BaseModel):
+    """Individual bucket decision update schema"""
+    bucket: str = Field(..., description="Bucket name: 'performance' or 'competency'")
+    employee_weight: float = Field(..., alias="employeeWeight", description="Employee's weight for this bucket")
+    employee_contribution: float = Field(..., alias="employeeContribution", description="Employee's contribution")
+    employee_rating: str = Field(..., alias="employeeRating", description="Employee's rating code")
+    status: str = Field(..., description="Status: 'pending', 'approved', 'rejected'")
+    supervisor_rating: Optional[str] = Field(None, alias="supervisorRating", description="Supervisor's rating code")
+    comment: Optional[str] = Field(None, description="Supervisor's comment for this bucket")
+
+    model_config = {"populate_by_name": True}
+
+
+class UpdateBucketDecisionsRequest(BaseModel):
+    """Request schema for updating bucket decisions"""
+    bucket_decisions: list[BucketDecisionUpdate] = Field(..., alias="bucketDecisions")
+    status: Optional[str] = Field(None, description="Overall feedback status: 'draft' or 'submitted'")
+
+    model_config = {"populate_by_name": True}
+
+
+# ========================================
 # FORWARD REFERENCES UPDATE
 # ========================================
 
