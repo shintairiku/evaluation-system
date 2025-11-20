@@ -606,6 +606,7 @@ class SupervisorFeedbackService:
                     self._set_bucket_statuses(existing_feedback.bucket_decisions, SubmissionStatus.APPROVED.value)
                 elif normalized_status == SubmissionStatus.REJECTED.value:
                     self._set_bucket_statuses(existing_feedback.bucket_decisions, SubmissionStatus.REJECTED.value)
+                    await self._create_resubmission_feedback(existing_feedback, bucket_decisions_json)
 
             # Commit transaction
             await self.session.commit()
@@ -931,6 +932,38 @@ class SupervisorFeedbackService:
         for bucket in bucket_decisions or []:
             bucket["status"] = status
 
+    def _reset_bucket_decisions_for_resubmission(self, bucket_decisions: list) -> list:
+        """Reset supervisor-specific fields for a new draft feedback."""
+        reset_buckets = []
+        for bucket in bucket_decisions or []:
+            reset_buckets.append({
+                "bucket": bucket.get("bucket"),
+                "employeeWeight": bucket.get("employeeWeight"),
+                "employeeContribution": bucket.get("employeeContribution"),
+                "employeeRating": bucket.get("employeeRating"),
+                "status": "pending",
+                "supervisorRating": None,
+                "comment": None
+            })
+        return reset_buckets
+
+    async def _create_resubmission_feedback(
+        self,
+        rejected_feedback: SupervisorFeedbackModel,
+        bucket_template: list
+    ) -> SupervisorFeedbackModel:
+        """Create a new draft feedback linked to the rejected one for resubmission."""
+        new_feedback = SupervisorFeedbackModel(
+            user_id=rejected_feedback.user_id,
+            period_id=rejected_feedback.period_id,
+            supervisor_id=rejected_feedback.supervisor_id,
+            bucket_decisions=self._reset_bucket_decisions_for_resubmission(bucket_template),
+            status=SubmissionStatus.DRAFT.value,
+            previous_feedback_id=rejected_feedback.id
+        )
+        self.session.add(new_feedback)
+        return new_feedback
+
     def _validate_feedback_status_transition(self, current_status: str, new_status: str) -> None:
         """Ensure feedback status transitions follow goal-like workflow rules."""
         valid_transitions = {
@@ -945,8 +978,12 @@ class SupervisorFeedbackService:
                 SubmissionStatus.APPROVED.value,
                 SubmissionStatus.REJECTED.value
             ],
-            SubmissionStatus.APPROVED.value: [],
-            SubmissionStatus.REJECTED.value: []
+            SubmissionStatus.APPROVED.value: [
+                SubmissionStatus.APPROVED.value
+            ],
+            SubmissionStatus.REJECTED.value: [
+                SubmissionStatus.REJECTED.value
+            ]
         }
 
         allowed = valid_transitions.get(current_status, [])
