@@ -13,6 +13,7 @@ export interface SelfAssessmentDraftEntry {
   comment?: string | null;
   previousSelfAssessmentId?: UUID | null;
   supervisorComment?: string | null;
+  supervisorRating?: string | null;
 }
 
 export interface SelfAssessmentGoalContext {
