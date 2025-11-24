@@ -385,6 +385,13 @@ const isResubmission = useMemo(
     }
     setError(null);
     setSummary(result.data);
+
+    // Reload context to get updated reviewStatus
+    const contextResult = await getSelfAssessmentContextAction(selectedPeriodId);
+    if (contextResult.success && contextResult.data) {
+      setContext(contextResult.data);
+    }
+
     setSubmitting(false);
   };
   const handleRequestSubmit = () => {
@@ -623,10 +630,11 @@ const isResubmission = useMemo(
           weightedTotal={currentSummary.weightedTotal}
         />
       )}
-      {currentSummary && context?.reviewStatus === 'rejected' && (
+      {/* Rejected: summary is deleted, so only check reviewStatus and entries */}
+      {context?.reviewStatus === 'rejected' && entries.length > 0 && (
         <RejectionFeedbackCard
           entries={entries}
-          rejectedAt={currentSummary.submittedAt}
+          rejectedAt={undefined}
         />
       )}
 

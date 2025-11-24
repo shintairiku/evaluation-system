@@ -40,6 +40,11 @@ export function RejectionFeedbackCard({
       if (entry.supervisorComment) {
         feedback[entry.bucket].supervisorComment = entry.supervisorComment;
       }
+
+      // Store supervisor rating
+      if (entry.supervisorRating) {
+        feedback[entry.bucket].supervisorRating = entry.supervisorRating;
+      }
     });
 
     return feedback;
@@ -107,18 +112,29 @@ export function RejectionFeedbackCard({
                     <span className="text-sm font-semibold text-gray-700">
                       {bucketLabels[bucket] || bucket}
                     </span>
-                    {data.employeeRating && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">あなたの評価:</span>
-                        <Badge variant="outline" className="text-xs">
-                          {data.employeeRating}
-                        </Badge>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {data.employeeRating && (
+                        <>
+                          <span className="text-xs text-muted-foreground">あなた:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {data.employeeRating}
+                          </Badge>
+                        </>
+                      )}
+                      {data.supervisorRating && (
+                        <>
+                          <span className="text-xs text-muted-foreground ml-2">推奨:</span>
+                          <Badge variant="default" className="text-xs bg-orange-600">
+                            {data.supervisorRating}
+                          </Badge>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {data.supervisorComment && (
                     <div className="bg-orange-50 rounded p-2.5">
+                      <p className="text-sm font-medium text-gray-600 mb-1">上司からのコメント:</p>
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">
                         {data.supervisorComment}
                       </p>
