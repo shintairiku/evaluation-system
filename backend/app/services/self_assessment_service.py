@@ -155,19 +155,22 @@ class SelfAssessmentService:
             target_user_id, period.id, org_id
         )
         supervisor_comment_map = self._build_bucket_comment_map(latest_feedback)
+        supervisor_rating_map = self._build_bucket_rating_map(latest_feedback)
 
         draft_entries = []
         for goal in goals:
             assessment = await self.self_assessment_repo.get_by_goal(goal.id, org_id)
             bucket_key = self._map_goal_category_to_bucket(goal.goal_category)
             supervisor_comment = supervisor_comment_map.get(bucket_key) if bucket_key else None
+            supervisor_rating = supervisor_rating_map.get(bucket_key) if bucket_key else None
             draft_entries.append({
                 "goalId": goal.id,
                 "bucket": goal.goal_category,
                 "ratingCode": assessment.self_rating_text if assessment else None,
                 "comment": assessment.self_comment if assessment else None,
                 "previousSelfAssessmentId": assessment.previous_self_assessment_id if assessment else None,
-                "supervisorComment": supervisor_comment
+                "supervisorComment": supervisor_comment,
+                "supervisorRating": supervisor_rating
             })
 
         summary = None
@@ -185,12 +188,12 @@ class SelfAssessmentService:
 
         # Determine review status from supervisor feedback
         review_status = None
-        if latest_feedback and existing_summary:
-            # Only show review status if there's a submitted self-assessment
+        if latest_feedback:
             # Map supervisor_feedback status to review status
             # 'draft' or 'submitted' -> 'pending' (awaiting supervisor decision)
             # 'approved' -> 'approved'
             # 'rejected' -> 'rejected'
+            # Note: When rejected, summary is deleted, so we check feedback even without summary
             if latest_feedback.status in ['draft', 'submitted']:
                 review_status = 'pending'
             elif latest_feedback.status == 'approved':
@@ -1066,3 +1069,15 @@ class SelfAssessmentService:
             if bucket_key and comment:
                 comment_map[bucket_key] = comment
         return comment_map
+
+    def _build_bucket_rating_map(self, feedback) -> Dict[str, str]:
+        """Extract supervisor ratings from rejected feedback bucket decisions."""
+        if not feedback or feedback.status != SubmissionStatus.REJECTED.value:
+            return {}
+        rating_map: Dict[str, str] = {}
+        for bucket in feedback.bucket_decisions or []:
+            bucket_key = bucket.get("bucket")
+            rating = bucket.get("supervisorRating")
+            if bucket_key and rating:
+                rating_map[bucket_key] = rating
+        return rating_map

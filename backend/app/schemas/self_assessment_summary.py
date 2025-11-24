@@ -25,6 +25,9 @@ class SelfAssessmentDraftEntry(BaseModel):
     bucket: str
     rating_code: Optional[str] = Field(None, alias="ratingCode")
     comment: Optional[str] = None
+    previous_self_assessment_id: Optional[UUID] = Field(None, alias="previousSelfAssessmentId")
+    supervisor_comment: Optional[str] = Field(None, alias="supervisorComment")
+    supervisor_rating: Optional[str] = Field(None, alias="supervisorRating")
 
     class Config:
         populate_by_name = True
