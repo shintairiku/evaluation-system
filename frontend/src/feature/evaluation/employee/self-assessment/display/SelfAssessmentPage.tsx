@@ -214,6 +214,7 @@ const isResubmission = useMemo(
   const [error, setError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(undefined);
   const [periods, setPeriods] = useState<EvaluationPeriod[]>([]);
+  const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | undefined>(undefined);
   const [bucketRatings, setBucketRatings] = useState<Record<string, string>>({});
   const [bucketComments, setBucketComments] = useState<Record<string, string>>({});
@@ -228,6 +229,7 @@ const isResubmission = useMemo(
       if (periodResp.success && periodResp.data) {
         const all = periodResp.data.all || [];
         setPeriods(all);
+        setCurrentPeriod(periodResp.data.current || null);
         if (!periodId) {
           const resolved = periodResp.data.current?.id || all[0]?.id;
           setSelectedPeriodId(resolved);
@@ -532,8 +534,6 @@ const isResubmission = useMemo(
   }
 
   // Render base layout even when error/context missing so the period selector appears
-  const activePeriod = periods.find(p => p.id === selectedPeriodId) || null;
-
   const getBucketWeight = (category: string) => {
     if (category.includes('業績')) {
       return (stageWeights.quantitative ?? 0) + (stageWeights.qualitative ?? 0);
@@ -600,7 +600,7 @@ const isResubmission = useMemo(
           <EvaluationPeriodSelector
             periods={periods}
             selectedPeriodId={selectedPeriodId || ''}
-            currentPeriodId={activePeriod?.id || null}
+            currentPeriodId={currentPeriod?.id || null}
             onPeriodChange={handlePeriodChange}
             isLoading={false}
           />
