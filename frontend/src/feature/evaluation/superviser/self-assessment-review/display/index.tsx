@@ -114,6 +114,20 @@ export default function SelfAssessmentReviewPage() {
   };
 
   const handleDecision = async (reviewId: string, status: 'approved' | 'rejected') => {
+    // Validate that at least one bucket has a comment when rejecting
+    if (status === 'rejected') {
+      const hasComment = bucketUpdates[reviewId]?.some(bucket =>
+        bucket.comment && bucket.comment.trim().length > 0
+      );
+
+      if (!hasComment) {
+        toast.error('コメントが必要です', {
+          description: '差し戻しの際は、少なくとも1つのバケットにコメントを入力してください。'
+        });
+        return;
+      }
+    }
+
     setSavingStates(prev => ({ ...prev, [reviewId]: true }));
     try {
       const result = await updateBucketDecisionsAction(reviewId, {
