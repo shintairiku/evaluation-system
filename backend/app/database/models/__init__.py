@@ -15,13 +15,18 @@ from .evaluation_score import (
     LevelAdjustmentMaster,
     SelfAssessmentSummary,
 )
+from .viewer_visibility import (
+    ViewerVisibilityDepartment,
+    ViewerVisibilitySupervisorTeam,
+    ViewerVisibilityUser,
+)
 
 __all__ = [
     "Base",
     "User", 
     "Department", 
-    "Role", 
-    "UserSupervisor", 
+    "Role",
+    "UserSupervisor",
     "user_roles",
     "Organization",
     "DomainSettings",
@@ -41,4 +46,7 @@ __all__ = [
     "SelfAssessmentSummary",
     "PermissionModel",
     "RolePermissionModel",
+    "ViewerVisibilityUser",
+    "ViewerVisibilityDepartment",
+    "ViewerVisibilitySupervisorTeam",
 ]

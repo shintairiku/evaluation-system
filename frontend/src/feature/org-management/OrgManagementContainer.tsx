@@ -171,6 +171,8 @@ export function OrgManagementContainer({
       permissionCatalog={permissionCatalog}
       permissionGroups={safePermissionGroups}
       groupedCatalogWarning={permissionCatalogGroupedWarning ?? undefined}
+      users={users}
+      departments={departments}
     />
   );
 

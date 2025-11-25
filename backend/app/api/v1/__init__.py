@@ -16,6 +16,7 @@ from .supervisor_feedbacks import router as supervisor_feedback_router
 from .dashboard import router as dashboard_router
 from .self_assessment_summary import router as self_assessment_summary_router
 from .self_assessments import router as self_assessment_router
+from .viewers import router as viewer_router
 
 # from .reports import router as reports_router  # Will be defined in the future
 # from .webhooks import router as webhooks_router
@@ -31,6 +32,7 @@ org_api_router.include_router(department_router)
 org_api_router.include_router(stage_router)
 org_api_router.include_router(permission_router)
 org_api_router.include_router(admin_router)
+org_api_router.include_router(viewer_router)
 org_api_router.include_router(goal_router)
 org_api_router.include_router(supervisor_review_router)
 org_api_router.include_router(evaluation_period_router)

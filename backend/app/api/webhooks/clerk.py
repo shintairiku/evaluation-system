@@ -12,6 +12,7 @@ from ...database.repositories.user_repo import UserRepository
 from ...database.repositories.organization_repo import OrganizationRepository
 from ...database.repositories.webhook_event_repo import WebhookEventRepository
 from ...core.config import settings
+from ...services.org_bootstrap_service import OrgBootstrapService
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +169,13 @@ class WebhookProcessor:
                 "name": org_name,
                 "slug": org_slug
             })
-            await self.session.commit()
+            # Seed default roles and role-permissions for this organization
+            try:
+                bootstrap = OrgBootstrapService(self.session)
+                await bootstrap.bootstrap(org_id)
+            finally:
+                # Commit regardless of bootstrap logging failures; rollback handled upstream on exceptions
+                await self.session.commit()
             
             logger.info(f"Organization created: {org_id} ({org_name})")
             

@@ -5,11 +5,14 @@ import type {
   PermissionGroup,
   RoleDetail,
   RolePermissionResponse,
+  UserDetailResponse,
+  Department,
 } from '@/api/types';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { RolePermissionMatrix } from './RolePermissionMatrix';
 import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ViewerVisibilityPanel } from './ViewerVisibilityPanel';
 
 interface PermissionsTabProps {
   roles: RoleDetail[];
@@ -17,6 +20,8 @@ interface PermissionsTabProps {
   permissionCatalog: PermissionCatalogItem[];
   permissionGroups?: PermissionGroup[];
   groupedCatalogWarning?: string;
+  users: UserDetailResponse[];
+  departments: Department[];
 }
 
 export function PermissionsTab({
@@ -25,6 +30,8 @@ export function PermissionsTab({
   permissionCatalog,
   permissionGroups,
   groupedCatalogWarning,
+  users,
+  departments,
 }: PermissionsTabProps) {
   const { hasRole, isLoading, error } = useUserRoles();
   const isAdmin = !isLoading && hasRole('admin');
@@ -45,14 +52,22 @@ export function PermissionsTab({
   }
 
   return (
-    <RolePermissionMatrix
-      roles={roles}
-      isAdmin={isAdmin}
-      initialAssignments={rolePermissions}
-      initialCatalog={permissionCatalog}
-      initialGroupedCatalog={permissionGroups}
-      groupedCatalogWarning={groupedCatalogWarning ?? undefined}
-      roleGuardError={error ?? undefined}
-    />
+    <div className="space-y-6">
+      <RolePermissionMatrix
+        roles={roles}
+        isAdmin={isAdmin}
+        initialAssignments={rolePermissions}
+        initialCatalog={permissionCatalog}
+        initialGroupedCatalog={permissionGroups}
+        groupedCatalogWarning={groupedCatalogWarning ?? undefined}
+        roleGuardError={error ?? undefined}
+      />
+      <ViewerVisibilityPanel
+        users={users}
+        departments={departments}
+        canEdit={isAdmin}
+        guardError={error ?? undefined}
+      />
+    </div>
   );
 }
