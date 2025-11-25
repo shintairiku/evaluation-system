@@ -975,17 +975,28 @@ class SelfAssessmentService:
                         bucket['employeeWeight'] = round(perf_weight, 2)
                         bucket['employeeContribution'] = round(perf_contrib, 2)
                         bucket['employeeRating'] = final_rating
+                        # Reset supervisor feedback for new submission
+                        bucket['status'] = 'pending'
+                        bucket['supervisorRating'] = None
+                        bucket['comment'] = None
                     elif bucket['bucket'] == 'competency' and comp:
                         # Update competency bucket with new comp data
                         bucket['employeeWeight'] = round(comp['weight'], 2)
                         bucket['employeeContribution'] = round(comp['contribution'], 2)
                         bucket['employeeRating'] = final_rating
+                        # Reset supervisor feedback for new submission
+                        bucket['status'] = 'pending'
+                        bucket['supervisorRating'] = None
+                        bucket['comment'] = None
 
                     updated_buckets.append(bucket)
 
                 existing.bucket_decisions = updated_buckets
+                # Reset feedback status to draft for supervisor to review again
+                existing.status = SubmissionStatus.DRAFT.value
+                existing.submitted_at = None
                 await self.supervisor_feedback_repo.update(existing)
-                logger.info(f"Updated bucket_decisions for user {user_id}, period {period_id} with new employee ratings")
+                logger.info(f"Updated bucket_decisions for user {user_id}, period {period_id} with new employee ratings and reset to draft")
                 return
 
             # Get employee's current supervisor(s)
