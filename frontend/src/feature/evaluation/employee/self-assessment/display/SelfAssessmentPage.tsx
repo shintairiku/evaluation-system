@@ -579,8 +579,11 @@ const isResubmission = useMemo(
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">自己評価</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            目標に対する自己評価を入力してください
+          </p>
           {hasContext && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mt-1">
               ステージ配分: Q{stageWeights.quantitative}% / Qa{stageWeights.qualitative}% / C{stageWeights.competency}%
             </p>
           )}
