@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import type { BucketDecision } from '@/api/types';
+import { SELF_ASSESSMENT_RATING_OPTIONS, SUPERVISOR_REVIEW_UI } from '@/feature/evaluation/employee/self-assessment/constants';
 
 interface BucketReviewCardProps {
   bucket: BucketDecision;
@@ -22,17 +23,6 @@ interface BucketReviewCardProps {
   readonly?: boolean;
   onAutoSave?: (updatedBucket: BucketDecision) => Promise<boolean>;
 }
-
-const RATING_OPTIONS = [
-  { value: 'SS', label: 'SS - 卓越 (Outstanding)' },
-  { value: 'S', label: 'S - 優秀 (Excellent)' },
-  { value: 'A+', label: 'A+ - 非常に良好 (Very Good)' },
-  { value: 'A', label: 'A - 良好 (Good)' },
-  { value: 'A-', label: 'A- - 良 (Above Average)' },
-  { value: 'B', label: 'B - 普通 (Average)' },
-  { value: 'C', label: 'C - 要改善 (Needs Improvement)' },
-  { value: 'D', label: 'D - 不十分 (Insufficient)' },
-];
 
 export function BucketReviewCard({
   bucket,
@@ -72,10 +62,10 @@ export function BucketReviewCard({
         const success = await onAutoSave(updatedBucket);
         if (success) {
           setSaveStatus('saved');
-          // Hide saved indicator after 3 seconds
+          // Hide saved indicator
           savedIndicatorTimeoutRef.current = setTimeout(() => {
             setSaveStatus('idle');
-          }, 3000);
+          }, SUPERVISOR_REVIEW_UI.SAVE_INDICATOR_DURATION_MS);
         } else {
           setSaveStatus('error');
         }
@@ -83,7 +73,7 @@ export function BucketReviewCard({
         console.error('Auto-save failed:', error);
         setSaveStatus('error');
       }
-    }, 1500); // 1.5 second debounce
+    }, SUPERVISOR_REVIEW_UI.AUTO_SAVE_DEBOUNCE_MS);
   }, [onAutoSave]);
 
   const handleSupervisorRatingChange = (rating: string | undefined) => {
@@ -113,7 +103,7 @@ export function BucketReviewCard({
           setSaveStatus('saved');
           savedIndicatorTimeoutRef.current = setTimeout(() => {
             setSaveStatus('idle');
-          }, 3000);
+          }, SUPERVISOR_REVIEW_UI.SAVE_INDICATOR_DURATION_MS);
         } else {
           setSaveStatus('error');
         }
@@ -212,7 +202,7 @@ export function BucketReviewCard({
                   avoidCollisions={false}
                 >
                   <SelectItem value="none">評価なし</SelectItem>
-                  {RATING_OPTIONS.map((option) => (
+                  {SELF_ASSESSMENT_RATING_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
