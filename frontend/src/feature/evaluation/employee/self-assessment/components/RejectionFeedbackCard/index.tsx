@@ -50,9 +50,9 @@ export function RejectionFeedbackCard({
     return feedback;
   }, [entries]);
 
-  // Check if there are any supervisor comments
+  // Check if there are any supervisor comments or ratings
   const hasSupervisorFeedback = React.useMemo(() => {
-    return entries.some(entry => entry.supervisorComment);
+    return entries.some(entry => entry.supervisorComment || entry.supervisorRating);
   }, [entries]);
 
   const formatDate = (dateString?: string) => {
@@ -104,7 +104,8 @@ export function RejectionFeedbackCard({
             </div>
 
             {Object.entries(bucketFeedback).map(([bucket, data]) => {
-              if (!data.supervisorComment) return null;
+              // Show bucket if there's either a comment OR a rating
+              if (!data.supervisorComment && !data.supervisorRating) return null;
 
               return (
                 <div key={bucket} className="bg-white rounded-lg border border-orange-200 p-3 space-y-2">
