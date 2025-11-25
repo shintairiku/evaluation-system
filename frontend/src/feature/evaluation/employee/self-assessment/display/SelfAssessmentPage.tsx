@@ -38,19 +38,9 @@ import { PendingReviewCard } from '../components/PendingReviewCard';
 import { ApprovedSummaryCard } from '../components/ApprovedSummaryCard';
 import { RejectionFeedbackCard } from '../components/RejectionFeedbackCard';
 import { toast } from 'sonner';
+import { SELF_ASSESSMENT_RATING_OPTIONS, SELF_ASSESSMENT_UI, SELF_ASSESSMENT_MESSAGES } from '../constants';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
-
-const ratingOptions = [
-  { value: 'SS', label: 'SS - 卓越 (Outstanding)' },
-  { value: 'S', label: 'S - 優秀 (Excellent)' },
-  { value: 'A+', label: 'A+ - 非常に良好 (Very Good)' },
-  { value: 'A', label: 'A - 良好 (Good)' },
-  { value: 'A-', label: 'A- - 良 (Above Average)' },
-  { value: 'B', label: 'B - 普通 (Average)' },
-  { value: 'C', label: 'C - 要改善 (Needs Improvement)' },
-  { value: 'D', label: 'D - 不十分 (Insufficient)' },
-];
 
 interface GoalDetailsCardProps {
   goal: any;
@@ -364,7 +354,7 @@ const isResubmission = useMemo(
         clearTimeout(saveIndicatorTimeout.current);
       }
       setSavedIndicatorVisible(true);
-      saveIndicatorTimeout.current = setTimeout(() => setSavedIndicatorVisible(false), 3000);
+      saveIndicatorTimeout.current = setTimeout(() => setSavedIndicatorVisible(false), SELF_ASSESSMENT_UI.SAVED_INDICATOR_DURATION);
       return true;
     } catch (err) {
       setError('下書き保存に失敗しました');
@@ -382,9 +372,9 @@ const isResubmission = useMemo(
     setSubmitting(true);
     const result = await submitSelfAssessmentFormAction(entries);
     if (!result.success || !result.data) {
-      const errorMessage = result.error || '提出に失敗しました';
+      const errorMessage = result.error || SELF_ASSESSMENT_MESSAGES.ERROR.SUBMIT;
       setError(errorMessage);
-      toast.error('提出に失敗しました', {
+      toast.error(SELF_ASSESSMENT_MESSAGES.ERROR.SUBMIT, {
         description: errorMessage
       });
       setSubmitting(false);
@@ -399,8 +389,8 @@ const isResubmission = useMemo(
       setContext(contextResult.data);
     }
 
-    toast.success('自己評価が正常に提出されました', {
-      description: '上司による審査をお待ちください。'
+    toast.success(SELF_ASSESSMENT_MESSAGES.SUCCESS.SUBMIT, {
+      description: SELF_ASSESSMENT_MESSAGES.SUCCESS.SUBMIT_DESCRIPTION
     });
 
     setSubmitting(false);
@@ -438,7 +428,7 @@ const isResubmission = useMemo(
     data: entries,
     dataKey: { period: selectedPeriodId, entries },
     onSave: persistDraft,
-    delay: 2000,
+    delay: SELF_ASSESSMENT_UI.AUTO_SAVE_DELAY,
     enabled: autoSaveEnabled,
     autoSaveReady,
   });
@@ -698,7 +688,7 @@ const isResubmission = useMemo(
                         <SelectValue placeholder="評価を選択" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ratingOptions.map(option => (
+                        {SELF_ASSESSMENT_RATING_OPTIONS.map(option => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
@@ -777,7 +767,7 @@ const isResubmission = useMemo(
                         <SelectValue placeholder="評価を選択" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ratingOptions.map(option => (
+                        {SELF_ASSESSMENT_RATING_OPTIONS.map(option => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
