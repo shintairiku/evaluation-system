@@ -55,7 +55,30 @@ class SelfAssessmentService:
         
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
-    
+
+    @staticmethod
+    def _get(entry, *keys):
+        """
+        Helper function to get values from dict or pydantic objects.
+        Tries multiple keys (e.g., camelCase and snake_case variants) and returns the first found value.
+
+        Args:
+            entry: Dictionary or object to extract value from
+            *keys: One or more key names to try (in order of preference)
+
+        Returns:
+            The value of the first matching key, or None if no keys match
+        """
+        if isinstance(entry, dict):
+            for key in keys:
+                if key in entry:
+                    return entry.get(key)
+            return None
+        for key in keys:
+            if hasattr(entry, key):
+                return getattr(entry, key)
+        return None
+
     async def get_assessments(
         self,
         current_user_context: AuthContext,
@@ -226,21 +249,10 @@ class SelfAssessmentService:
             raise PermissionDeniedError("Organization context required")
         now = datetime.now(timezone.utc)
 
-        def _get(entry, *keys):
-            if isinstance(entry, dict):
-                for key in keys:
-                    if key in entry:
-                        return entry.get(key)
-                return None
-            for key in keys:
-                if hasattr(entry, key):
-                    return getattr(entry, key)
-            return None
-
         for entry in draft_entries:
-            goal_id_raw = _get(entry, "goalId", "goal_id")
-            rating_code = _get(entry, "ratingCode", "rating_code")
-            comment = _get(entry, "comment")
+            goal_id_raw = self._get(entry, "goalId", "goal_id")
+            rating_code = self._get(entry, "ratingCode", "rating_code")
+            comment = self._get(entry, "comment")
             if not goal_id_raw:
                 raise ValidationError("goalId is required in draft entry")
             goal_id = UUID(str(goal_id_raw))
@@ -260,25 +272,13 @@ class SelfAssessmentService:
             raise PermissionDeniedError("Organization context required")
         user_id = current_user_context.user_id
 
-        # Helper function to get values from dict or pydantic objects
-        def _get(entry, *keys):
-            if isinstance(entry, dict):
-                for key in keys:
-                    if key in entry:
-                        return entry.get(key)
-                return None
-            for key in keys:
-                if hasattr(entry, key):
-                    return getattr(entry, key)
-            return None
-
         # Get period_id from the first goal's self-assessment instead of using active period
         if not draft_entries:
             raise ValidationError("No draft entries provided")
 
         first_goal_id = None
         for entry in draft_entries:
-            goal_id_raw = _get(entry, "goalId", "goal_id")
+            goal_id_raw = self._get(entry, "goalId", "goal_id")
             if goal_id_raw:
                 first_goal_id = UUID(str(goal_id_raw))
                 break
@@ -316,17 +316,6 @@ class SelfAssessmentService:
         # Persist draft first
         await self.save_draft(current_user_context, draft_entries)
 
-        def _get(entry, *keys):
-            if isinstance(entry, dict):
-                for key in keys:
-                    if key in entry:
-                        return entry.get(key)
-                return None
-            for key in keys:
-                if hasattr(entry, key):
-                    return getattr(entry, key)
-            return None
-
         def map_bucket_keys(raw_bucket: Optional[str]) -> List[str]:
             """Normalize incoming bucket labels to scoring keys."""
             if not raw_bucket:
@@ -346,9 +335,9 @@ class SelfAssessmentService:
         bucket_ratings: Dict[str, List[str]] = {}
         goal_ids = []
         for entry in draft_entries:
-            bucket = _get(entry, "bucket")
-            rating_code = _get(entry, "ratingCode", "rating_code")
-            goal_id_raw = _get(entry, "goalId", "goal_id")
+            bucket = self._get(entry, "bucket")
+            rating_code = self._get(entry, "ratingCode", "rating_code")
+            goal_id_raw = self._get(entry, "goalId", "goal_id")
             if not goal_id_raw:
                 raise ValidationError("goalId is required in draft entry")
             goal_id = UUID(str(goal_id_raw))
