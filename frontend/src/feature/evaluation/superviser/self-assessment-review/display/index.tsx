@@ -16,11 +16,7 @@ import { BucketReviewCard } from '../components/BucketReviewCard';
 import { Loader2 } from 'lucide-react';
 import type { BucketDecision } from '@/api/types';
 import { toast } from 'sonner';
-
-const BUCKET_LABELS = {
-  performance: '目標達成(定量＋定性)',
-  competency: 'コンピテンシー',
-};
+import { BUCKET_LABELS, SUPERVISOR_REVIEW_MESSAGES } from '@/feature/evaluation/employee/self-assessment/constants';
 
 export default function SelfAssessmentReviewPage() {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
@@ -121,7 +117,7 @@ export default function SelfAssessmentReviewPage() {
       );
 
       if (!hasComment) {
-        toast.error('コメントが必要です', {
+        toast.error(SUPERVISOR_REVIEW_MESSAGES.ERROR.COMMENT_REQUIRED, {
           description: '差し戻しの際は、少なくとも1つのバケットにコメントを入力してください。'
         });
         return;
@@ -138,11 +134,11 @@ export default function SelfAssessmentReviewPage() {
       if (result.success) {
         // Show success toast
         if (status === 'approved') {
-          toast.success('自己評価を承認しました', {
+          toast.success(SUPERVISOR_REVIEW_MESSAGES.SUCCESS.APPROVE, {
             description: '承認が完了し、従業員に通知されました。'
           });
         } else {
-          toast.success('自己評価を差し戻しました', {
+          toast.success(SUPERVISOR_REVIEW_MESSAGES.SUCCESS.REJECT, {
             description: '従業員に修正依頼が送信されました。'
           });
         }
