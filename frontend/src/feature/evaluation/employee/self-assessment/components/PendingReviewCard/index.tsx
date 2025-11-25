@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, TrendingUp } from 'lucide-react';
 import type { SelfAssessmentDraftEntry } from '@/api/types';
+import { BUCKET_LABELS } from '../../constants';
+import { formatAssessmentDate } from '@/lib/date-utils';
 
 interface PendingReviewCardProps {
   entries: SelfAssessmentDraftEntry[];
@@ -36,18 +38,6 @@ export function PendingReviewCard({
 
     return totals;
   }, [entries]);
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   return (
     <Card className="bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200">
@@ -86,17 +76,11 @@ export function PendingReviewCard({
         {/* Bucket Breakdown */}
         <div className="grid gap-2 md:grid-cols-2">
           {Object.entries(bucketTotals).map(([bucket, data]) => {
-            const bucketLabels: Record<string, string> = {
-              quantitative: '定量目標',
-              qualitative: '定性目標',
-              competency: 'コンピテンシー'
-            };
-
             return (
               <div key={bucket} className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">
-                    {bucketLabels[bucket] || bucket}
+                    {BUCKET_LABELS[bucket as keyof typeof BUCKET_LABELS] || bucket}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {data.count}件
@@ -119,7 +103,7 @@ export function PendingReviewCard({
           <div className="pt-2 border-t border-gray-200">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">提出日時</span>
-              <span className="font-medium text-gray-700">{formatDate(submittedAt)}</span>
+              <span className="font-medium text-gray-700">{formatAssessmentDate(submittedAt)}</span>
             </div>
           </div>
         )}

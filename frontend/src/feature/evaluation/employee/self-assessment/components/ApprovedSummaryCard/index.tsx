@@ -5,23 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, TrendingUp, Flag } from 'lucide-react';
 import type { SelfAssessmentSummary } from '@/api/types';
+import { formatAssessmentDate } from '@/lib/date-utils';
 
 interface ApprovedSummaryCardProps {
   summary: SelfAssessmentSummary;
 }
 
 export function ApprovedSummaryCard({ summary }: ApprovedSummaryCardProps) {
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   return (
     <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
@@ -135,7 +125,7 @@ export function ApprovedSummaryCard({ summary }: ApprovedSummaryCardProps) {
           <div className="pt-2 border-t border-green-200">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">承認日時</span>
-              <span className="font-medium text-gray-700">{formatDate(summary.submittedAt)}</span>
+              <span className="font-medium text-gray-700">{formatAssessmentDate(summary.submittedAt)}</span>
             </div>
           </div>
         )}

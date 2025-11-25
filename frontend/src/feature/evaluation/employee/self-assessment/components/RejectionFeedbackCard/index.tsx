@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, MessageSquare, TrendingUp } from 'lucide-react';
 import type { SelfAssessmentDraftEntry } from '@/api/types';
+import { BUCKET_LABELS } from '../../constants';
+import { formatAssessmentDate } from '@/lib/date-utils';
 
 interface RejectionFeedbackCardProps {
   entries: SelfAssessmentDraftEntry[];
@@ -55,24 +57,6 @@ export function RejectionFeedbackCard({
     return entries.some(entry => entry.supervisorComment || entry.supervisorRating);
   }, [entries]);
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const bucketLabels: Record<string, string> = {
-    quantitative: '定量目標',
-    qualitative: '定性目標',
-    competency: 'コンピテンシー'
-  };
-
   return (
     <Card className="bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200">
       <CardHeader className="pb-3">
@@ -111,7 +95,7 @@ export function RejectionFeedbackCard({
                 <div key={bucket} className="bg-white rounded-lg border border-orange-200 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-gray-700">
-                      {bucketLabels[bucket] || bucket}
+                      {BUCKET_LABELS[bucket as keyof typeof BUCKET_LABELS] || bucket}
                     </span>
                     <div className="flex items-center gap-2">
                       {data.employeeRating && (
@@ -154,7 +138,7 @@ export function RejectionFeedbackCard({
               <div key={bucket} className="rounded-lg border border-orange-200 bg-white p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">
-                    {bucketLabels[bucket] || bucket}
+                    {BUCKET_LABELS[bucket as keyof typeof BUCKET_LABELS] || bucket}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {data.count}件
@@ -178,7 +162,7 @@ export function RejectionFeedbackCard({
           <div className="pt-2 border-t border-orange-200">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">差し戻し日時</span>
-              <span className="font-medium text-gray-700">{formatDate(rejectedAt)}</span>
+              <span className="font-medium text-gray-700">{formatAssessmentDate(rejectedAt)}</span>
             </div>
           </div>
         )}
