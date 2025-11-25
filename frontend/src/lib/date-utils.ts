@@ -52,3 +52,33 @@ export function formatDateShort(date: Date | string | null | undefined): string 
     return '-';
   }
 }
+
+/**
+ * Format date for self-assessment display (Japanese locale with time)
+ * Used in self-assessment cards to show submission/rejection dates
+ *
+ * @param dateString - ISO date string or undefined
+ * @returns Formatted date string with time (YYYY年MM月DD日 HH:mm), or '-' if invalid/null
+ *
+ * @example
+ * ```typescript
+ * formatAssessmentDate('2024-11-05T10:30:00Z') // '2024年11月5日 10:30'
+ * formatAssessmentDate(undefined) // '-'
+ * ```
+ */
+export function formatAssessmentDate(dateString?: string): string {
+  if (!dateString) return '-';
+
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '-';
+  }
+}
