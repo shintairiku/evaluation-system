@@ -985,7 +985,7 @@ class SupervisorFeedbackService:
                 SubmissionStatus.APPROVED.value
             ],
             SubmissionStatus.REJECTED.value: [
-                SubmissionStatus.REJECTED.value
+                SubmissionStatus.REJECTED.value  # Allow re-rejection after employee resubmits
             ]
         }
 
