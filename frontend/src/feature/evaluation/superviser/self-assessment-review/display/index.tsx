@@ -47,6 +47,13 @@ export default function SelfAssessmentReviewPage() {
     setError(loadError);
   }, [loadError]);
 
+  // Initialize selected period to current period when data loads
+  React.useEffect(() => {
+    if (!selectedPeriodId && currentPeriod) {
+      setSelectedPeriodId(currentPeriod.id);
+    }
+  }, [currentPeriod, selectedPeriodId]);
+
   // Initialize bucket updates when data loads
   React.useEffect(() => {
     const initialUpdates: Record<string, BucketDecision[]> = {};
