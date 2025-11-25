@@ -15,6 +15,7 @@ import { useSelfAssessmentReviewData } from '../hooks/useSelfAssessmentReviewDat
 import { BucketReviewCard } from '../components/BucketReviewCard';
 import { Loader2 } from 'lucide-react';
 import type { BucketDecision } from '@/api/types';
+import { toast } from 'sonner';
 
 const BUCKET_LABELS = {
   performance: '目標達成(定量＋定性)',
@@ -114,14 +115,33 @@ export default function SelfAssessmentReviewPage() {
       });
 
       if (result.success) {
+        // Show success toast
+        if (status === 'approved') {
+          toast.success('自己評価を承認しました', {
+            description: '承認が完了し、従業員に通知されました。'
+          });
+        } else {
+          toast.success('自己評価を差し戻しました', {
+            description: '従業員に修正依頼が送信されました。'
+          });
+        }
+
         // Refresh data
         await reloadData();
         await refreshPendingCount();
       } else {
-        setError(result.error || '更新に失敗しました');
+        const errorMessage = result.error || '更新に失敗しました';
+        setError(errorMessage);
+        toast.error('操作に失敗しました', {
+          description: errorMessage
+        });
       }
     } catch (err) {
-      setError('更新に失敗しました');
+      const errorMessage = '更新に失敗しました';
+      setError(errorMessage);
+      toast.error('操作に失敗しました', {
+        description: errorMessage
+      });
     } finally {
       setSavingStates(prev => ({ ...prev, [reviewId]: false }));
     }
