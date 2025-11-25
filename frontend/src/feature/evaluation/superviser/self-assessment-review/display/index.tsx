@@ -156,11 +156,42 @@ export default function SelfAssessmentReviewPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-4 md:p-6">
-        <div className="h-10 w-32 bg-gray-200 rounded animate-pulse mb-4" />
-        <div className="space-y-3">
-          <div className="h-24 bg-gray-100 rounded animate-pulse" />
-          <div className="h-24 bg-gray-100 rounded animate-pulse" />
+      <div className="container mx-auto p-4 md:p-6 space-y-8">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
+            <div className="h-4 w-64 bg-gray-100 rounded animate-pulse" />
+          </div>
+          <div className="h-10 w-32 bg-gray-200 rounded animate-pulse" />
+        </div>
+
+        {/* Employee Card Skeleton */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-gray-200 animate-pulse" />
+              <div className="space-y-2 flex-1">
+                <div className="h-5 w-32 bg-gray-200 rounded animate-pulse" />
+                <div className="h-4 w-48 bg-gray-100 rounded animate-pulse" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bucket Cards Skeleton */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {[1, 2].map((idx) => (
+            <Card key={idx}>
+              <CardContent className="p-4 space-y-4">
+                <div className="h-6 w-40 bg-gray-200 rounded animate-pulse" />
+                <div className="space-y-2">
+                  <div className="h-10 w-full bg-gray-100 rounded animate-pulse" />
+                  <div className="h-24 w-full bg-gray-100 rounded animate-pulse" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     );
@@ -227,6 +258,37 @@ export default function SelfAssessmentReviewPage() {
                     />
                   ))}
                 </div>
+
+                {/* Total Contribution Summary */}
+                {bucketUpdates[selectedGroup.reviewId] && (
+                  <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-700">総合貢献度</h3>
+                        <div className="flex items-center gap-6">
+                          {bucketUpdates[selectedGroup.reviewId].map((bucket) => (
+                            <div key={bucket.bucket} className="text-sm">
+                              <span className="text-gray-600">
+                                {bucket.bucket === 'performance' ? '目標達成' : 'コンピテンシー'}:
+                              </span>
+                              <span className="ml-2 font-semibold text-blue-700">
+                                {bucket.employeeContribution.toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                          <div className="border-l pl-4 border-blue-300">
+                            <span className="text-gray-600">合計:</span>
+                            <span className="ml-2 text-lg font-bold text-blue-800">
+                              {bucketUpdates[selectedGroup.reviewId]
+                                .reduce((sum, b) => sum + b.employeeContribution, 0)
+                                .toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Action Buttons */}
                 <Card>
