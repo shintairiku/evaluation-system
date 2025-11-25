@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PendingReviewCard } from '../components/PendingReviewCard';
 import { ApprovedSummaryCard } from '../components/ApprovedSummaryCard';
 import { RejectionFeedbackCard } from '../components/RejectionFeedbackCard';
+import { toast } from 'sonner';
 
 type DraftEntryState = SelfAssessmentDraftEntry;
 
@@ -379,7 +380,11 @@ const isResubmission = useMemo(
     setSubmitting(true);
     const result = await submitSelfAssessmentFormAction(entries);
     if (!result.success || !result.data) {
-      setError(result.error || '提出に失敗しました');
+      const errorMessage = result.error || '提出に失敗しました';
+      setError(errorMessage);
+      toast.error('提出に失敗しました', {
+        description: errorMessage
+      });
       setSubmitting(false);
       return;
     }
@@ -391,6 +396,10 @@ const isResubmission = useMemo(
     if (contextResult.success && contextResult.data) {
       setContext(contextResult.data);
     }
+
+    toast.success('自己評価が正常に提出されました', {
+      description: '上司による審査をお待ちください。'
+    });
 
     setSubmitting(false);
   };
@@ -453,20 +462,6 @@ const isResubmission = useMemo(
     if (byBucket) return byBucket;
     return context?.goals.find(g => g.goalCategory?.includes('コンピテンシー'))?.goalCategory || 'コンピテンシー';
   }, [bucketRatings, context]);
-
-  const performanceSupervisorComment = useMemo(() => {
-    const entry = entries.find(
-      e => e.bucket === performanceCategory && e.supervisorComment
-    );
-    return entry?.supervisorComment ?? null;
-  }, [entries, performanceCategory]);
-
-  const competencySupervisorComment = useMemo(() => {
-    const entry = entries.find(
-      e => e.bucket === competencyCategory && e.supervisorComment
-    );
-    return entry?.supervisorComment ?? null;
-  }, [entries, competencyCategory]);
 
   const confirmItems = useMemo(
     () => [
@@ -662,13 +657,6 @@ const isResubmission = useMemo(
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {performanceSupervisorComment && (
-                  <Alert variant="warning">
-                    <AlertDescription>
-                      上司からのコメント: {performanceSupervisorComment}
-                    </AlertDescription>
-                  </Alert>
-                )}
                 <div className="space-y-4">
                   {context.goals
                     .filter(g => g.goalCategory === performanceCategory)
@@ -748,13 +736,6 @@ const isResubmission = useMemo(
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {competencySupervisorComment && (
-                  <Alert variant="warning">
-                    <AlertDescription>
-                      上司からのコメント: {competencySupervisorComment}
-                    </AlertDescription>
-                  </Alert>
-                )}
                 <div className="space-y-4">
                   {context.goals
                     .filter(g => g.goalCategory === competencyCategory)
