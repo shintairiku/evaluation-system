@@ -60,6 +60,32 @@ export const goalsApi = {
   },
 
   /**
+   * Get rejected draft goals for current user (employee only)
+   *
+   * Returns goals that are in draft status and have a previous_goal_id
+   * (indicating they were created from a rejected goal for correction).
+   *
+   * Used for sidebar counter to show employees how many goals need attention.
+   */
+  getRejectedDrafts: async (params?: {
+    periodId?: UUID;
+    page?: number;
+    limit?: number;
+  }): Promise<ApiResponse<GoalListResponse>> => {
+    const queryParams = new URLSearchParams();
+
+    if (params?.periodId) queryParams.append('periodId', params.periodId);
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+    const endpoint = queryParams.toString()
+      ? `${API_ENDPOINTS.GOALS.REJECTED_DRAFTS}?${queryParams.toString()}`
+      : API_ENDPOINTS.GOALS.REJECTED_DRAFTS;
+
+    return httpClient.get<GoalListResponse>(endpoint);
+  },
+
+  /**
    * Get a specific goal by ID
    */
   getGoalById: async (goalId: UUID): Promise<ApiResponse<GoalResponse>> => {

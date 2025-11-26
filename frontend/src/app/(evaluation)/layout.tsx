@@ -1,7 +1,6 @@
 import Header from "@/components/display/header";
 import Sidebar from "@/components/display/sidebar";
 import { AuthSyncProvider } from '@/components/auth/AuthSyncProvider';
-import { GoalListProvider } from '@/context/GoalListContext';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 
@@ -22,17 +21,15 @@ export default function EvaluationLayout({
 
   return (
     <AuthSyncProvider>
-      <GoalListProvider>
-        <div className="min-h-screen bg-background">
-          <Header />
-          <Sidebar />
-          <main className="ml-[64px] min-w-0">
-            <div className="mt-[45px]">
-              {children}
-            </div>
-          </main>
-        </div>
-      </GoalListProvider>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <Sidebar />
+        <main className="ml-[64px] min-w-0">
+          <div className="mt-[45px]">
+            {children}
+          </div>
+        </main>
+      </div>
     </AuthSyncProvider>
   );
 }

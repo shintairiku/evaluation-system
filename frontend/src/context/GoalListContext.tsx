@@ -1,10 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
-import { useAuth } from '@clerk/nextjs';
-import { getGoalsAction } from '@/api/server-actions/goals';
-import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
-import { checkUserExistsAction } from '@/api/server-actions/users';
+import { getRejectedDraftsAction } from '@/api/server-actions/goals';
 
 /**
  * Goal List Context State
@@ -46,8 +43,8 @@ export interface GoalListProviderProps {
  * @param props - Provider props
  */
 export function GoalListProvider({ children }: GoalListProviderProps) {
-  const { userId: clerkUserId } = useAuth();
   const [rejectedGoalsCount, setRejectedGoalsCountState] = useState<number>(0);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
   const setRejectedGoalsCount = useCallback((count: number) => {
     if (count < 0) return; // Prevent negative values
@@ -61,62 +58,30 @@ export function GoalListProvider({ children }: GoalListProviderProps) {
   /**
    * Refresh rejected goals count
    *
-   * Fetches goals in draft status with previousGoalId (rejected goals awaiting re-submission)
-   * Only counts goals for the current evaluation period and current user
+   * Fetches rejected draft goals using the dedicated backend endpoint.
+   * Backend automatically filters by current user and applies all necessary checks.
    */
   const refreshRejectedGoalsCount = useCallback(async () => {
     try {
-      // Check if user is authenticated
-      if (!clerkUserId) {
-        setRejectedGoalsCountState(0);
-        return;
-      }
-
-      // Get internal user ID from Clerk ID
-      const userExistsResult = await checkUserExistsAction(clerkUserId);
-      if (!userExistsResult.success || !userExistsResult.data?.exists || !userExistsResult.data.user_id) {
-        // User not found, reset counter
-        setRejectedGoalsCountState(0);
-        return;
-      }
-
-      const internalUserId = userExistsResult.data.user_id;
-
-      // Get current evaluation period
-      const periodResult = await getCategorizedEvaluationPeriodsAction();
-      if (!periodResult.success || !periodResult.data?.current) {
-        // No current period, reset counter
-        setRejectedGoalsCountState(0);
-        return;
-      }
-
-      const currentPeriodId = periodResult.data.current.id;
-
-      // Fetch goals for current period and current user only
-      const goalsResult = await getGoalsAction({
-        periodId: currentPeriodId,
-        userId: internalUserId, // Filter by current user's goals only
+      // Call dedicated endpoint - backend handles authentication and filtering
+      const result = await getRejectedDraftsAction({
         limit: 100 // Reasonable limit for notification purposes
       });
 
-      if (goalsResult.success && goalsResult.data?.items) {
-        // Count goals that are:
-        // 1. In draft status (editable)
-        // 2. Have previousGoalId (were rejected and copied for re-submission)
-        const rejectedDrafts = goalsResult.data.items.filter(
-          goal => goal.status === 'draft' && goal.previousGoalId
-        );
-
-        setRejectedGoalsCountState(rejectedDrafts.length);
+      if (result.success && result.data?.items) {
+        setRejectedGoalsCountState(result.data.items.length);
+        setIsInitialized(true);
       } else {
-        // Failed to fetch goals, keep previous count
-        console.warn('Failed to fetch goals for rejected count');
+        // Failed to fetch, keep previous count
+        console.warn('Failed to fetch rejected drafts for count');
+        setIsInitialized(true);
       }
     } catch (error) {
       console.error('Error refreshing rejected goals count:', error);
+      setIsInitialized(true);
       // Don't reset count on error, keep previous value
     }
-  }, [clerkUserId]);
+  }, []); // No dependencies - backend handles everything
 
   // Load rejected goals count on provider initialization
   useEffect(() => {

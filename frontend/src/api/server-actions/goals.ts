@@ -62,6 +62,36 @@ export const getGoalsAction = cache(async (params?: {
   return _getGoalsAction(params);
 });
 
+/**
+ * Server action to get rejected draft goals for current user with caching
+ */
+export const getRejectedDraftsAction = cache(async (params?: {
+  periodId?: UUID;
+  page?: number;
+  limit?: number;
+}): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> => {
+  try {
+    const response = await goalsApi.getRejectedDrafts(params);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch rejected drafts',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get rejected drafts action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching rejected drafts',
+    };
+  }
+});
 
 /**
  * Server action to get a single goal by ID with caching

@@ -114,6 +114,40 @@ async def create_goal(
             detail=f"Error creating goal: {str(e)}"
         )
 
+@router.get("/rejected-drafts", response_model=GoalList)
+async def get_rejected_drafts(
+    pagination: PaginationParams = Depends(),
+    period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get rejected draft goals for the current user (employee only).
+
+    Returns goals that are in draft status and have a previous_goal_id
+    (indicating they were created from a rejected goal for correction).
+
+    Used for the sidebar counter to show employees how many goals need attention.
+    """
+    try:
+        service = GoalService(session)
+        result = await service.get_rejected_drafts(
+            current_user_context=context,
+            period_id=period_id,
+            pagination=pagination
+        )
+        return result
+    except PermissionDeniedError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching rejected drafts: {str(e)}"
+        )
+
 @router.get("/period/{period_id}", response_model=GoalList)
 async def get_goals_by_period(
     period_id: UUID,
