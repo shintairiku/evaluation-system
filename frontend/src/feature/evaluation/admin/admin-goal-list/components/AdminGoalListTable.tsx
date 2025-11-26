@@ -213,6 +213,9 @@ export const AdminGoalListTable = React.memo<AdminGoalListTableProps>(
               <GoalCard
                 goal={selectedGoal}
                 currentUserId={undefined}
+                userName={getUserName(selectedGoal.userId)}
+                supervisorName={getSupervisorName(selectedGoal.userId)}
+                approverName={selectedGoal.approvedBy ? getUserName(selectedGoal.approvedBy) : undefined}
               />
             )}
           </DialogContent>

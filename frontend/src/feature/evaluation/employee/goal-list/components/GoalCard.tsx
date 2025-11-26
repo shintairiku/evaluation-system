@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Target, Brain, Calendar, Weight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
+import { GoalAuditHistory } from '@/components/evaluation/GoalAuditHistory';
 import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
@@ -23,6 +24,12 @@ interface GoalCardProps {
   className?: string;
   /** Current user ID to determine if edit button should be shown */
   currentUserId?: string;
+  /** User name who created/owns the goal (for audit history) */
+  userName?: string;
+  /** Supervisor name to whom the goal was sent (for audit history) */
+  supervisorName?: string;
+  /** Approver name if different from supervisor (for audit history) */
+  approverName?: string;
 }
 
 /**
@@ -47,7 +54,7 @@ interface GoalCardProps {
  * ```
  */
 export const GoalCard = React.memo<GoalCardProps>(
-  function GoalCard({ goal, className, currentUserId }: GoalCardProps) {
+  function GoalCard({ goal, className, currentUserId, userName, supervisorName, approverName }: GoalCardProps) {
     const router = useRouter();
     const isPerformanceGoal = goal.goalCategory === '業績目標';
     const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
@@ -138,11 +145,21 @@ export const GoalCard = React.memo<GoalCardProps>(
               提出日: {formatDate(goal.createdAt)}
             </time>
           </div>
+
+          {/* Audit History - shown when userName is provided (admin view) */}
+          {userName && (
+            <GoalAuditHistory
+              goal={goal}
+              userName={userName}
+              supervisorName={supervisorName}
+              approverName={approverName}
+            />
+          )}
         </CardHeader>
 
         <CardContent className="pt-0 space-y-4">
           {/* Rejection History - shown if this goal has rejection history */}
-          {goal.rejectionHistory && goal.rejectionHistory.length > 0 && (
+          {goal.rejectionHistory && Array.isArray(goal.rejectionHistory) && goal.rejectionHistory.length > 0 && (
             <div className="space-y-3">
               {goal.rejectionHistory.map((rejection, index) => (
                 <Alert key={rejection.id} variant="default" className="border-amber-200 bg-amber-50">
