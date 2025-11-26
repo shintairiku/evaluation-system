@@ -340,6 +340,65 @@ class GoalRepository(BaseRepository[Goal]):
             logger.error(f"Error counting goals: {e}")
             raise
 
+    async def get_rejected_drafts(
+        self,
+        user_id: UUID,
+        org_id: str,
+        period_id: Optional[UUID] = None,
+        pagination: Optional[PaginationParams] = None
+    ) -> List[Goal]:
+        """
+        Get rejected draft goals for a specific user (goals awaiting correction).
+
+        Filters:
+        - status = 'draft'
+        - previous_goal_id IS NOT NULL (indicates created from rejection)
+        - user_id = provided user
+        - optionally filtered by period_id
+
+        Used for sidebar counter to show employee how many rejected goals need attention.
+        """
+        try:
+            query = select(Goal)
+
+            # Apply organization filter first (required)
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            self.ensure_org_filter_applied("get_rejected_drafts", org_id)
+
+            # Filter by user (employee's own rejected drafts only)
+            query = query.filter(Goal.user_id == user_id)
+
+            # Filter by status = draft AND has previous_goal_id
+            query = query.filter(
+                and_(
+                    Goal.status == GoalStatus.DRAFT.value,
+                    Goal.previous_goal_id.isnot(None)
+                )
+            )
+
+            # Optional period filter
+            if period_id:
+                query = query.filter(Goal.period_id == period_id)
+
+            # Order by most recent first
+            query = query.order_by(Goal.created_at.desc())
+
+            # Apply pagination
+            if pagination:
+                query = query.offset(pagination.offset).limit(pagination.limit)
+
+            result = await self.session.execute(query)
+            goals = result.scalars().all()
+
+            logger.info(
+                f"Found {len(goals)} rejected drafts for user {user_id} in org {org_id}"
+                + (f" in period {period_id}" if period_id else "")
+            )
+            return goals
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching rejected drafts for user {user_id} in org {org_id}: {e}")
+            raise
+
     async def get_weight_totals_by_category(
         self, 
         user_id: UUID, 
