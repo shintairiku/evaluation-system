@@ -147,6 +147,89 @@ class GoalService:
             logger.error(f"Error in get_goals: {e}")
             raise
 
+    async def get_rejected_drafts(
+        self,
+        current_user_context: AuthContext,
+        period_id: Optional[UUID] = None,
+        pagination: Optional[PaginationParams] = None
+    ) -> PaginatedResponse[Goal]:
+        """
+        Get rejected draft goals for the current user (employee only).
+
+        Returns goals that:
+        - Have status = 'draft'
+        - Have previous_goal_id set (created from rejection)
+        - Belong to the current user
+
+        This endpoint is used for the sidebar counter to show employees
+        how many rejected goals need their attention.
+
+        Access rules:
+        - Employees: can only see their own rejected drafts
+        - Supervisors/Admins: cannot use this endpoint (returns their employee rejected drafts, not subordinates')
+
+        Args:
+            current_user_context: Authentication context
+            period_id: Optional filter by evaluation period
+            pagination: Pagination parameters
+
+        Returns:
+            Paginated list of rejected draft goals
+
+        Raises:
+            PermissionDeniedError: If organization context is missing
+        """
+        try:
+            org_id = current_user_context.organization_id
+            user_id = current_user_context.user_id
+
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+            if not user_id:
+                raise PermissionDeniedError("User context required")
+
+            # Get rejected drafts for current user only
+            goals = await self.goal_repo.get_rejected_drafts(
+                user_id=user_id,
+                org_id=org_id,
+                period_id=period_id,
+                pagination=pagination
+            )
+
+            # Convert to Goal schema
+            goal_responses = []
+            for goal_model in goals:
+                goal_schema = await self._enrich_goal_data(
+                    goal_model,
+                    include_reviews=False,
+                    include_rejection_history=False,
+                    reviews_map={},
+                    rejection_histories_map={},
+                    org_id=org_id
+                )
+                goal_responses.append(goal_schema)
+
+            # Count total (without pagination) for metadata
+            # For simplicity, if pagination is applied, return count of current page
+            # In practice, frontend only needs the count, not pagination metadata
+            total_count = len(goals)
+            if pagination:
+                total_pages = (total_count + pagination.limit - 1) // pagination.limit
+            else:
+                total_pages = 1
+
+            return PaginatedResponse(
+                items=goal_responses,
+                total=total_count,
+                page=pagination.page if pagination else 1,
+                limit=pagination.limit if pagination else total_count,
+                pages=total_pages
+            )
+
+        except Exception as e:
+            logger.error(f"Error in get_rejected_drafts: {e}")
+            raise
+
     async def get_goal_by_id(
         self,
         goal_id: UUID,
