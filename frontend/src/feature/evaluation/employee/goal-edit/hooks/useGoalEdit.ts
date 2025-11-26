@@ -161,7 +161,7 @@ export function useGoalEdit(goalId: UUID): UseGoalEditReturn {
     } finally {
       setIsSaving(false);
     }
-  }, [goal]);
+  }, [goal, refreshRejectedGoalsCount]);
 
   return {
     goal,
