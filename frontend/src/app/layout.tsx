@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { jaJP } from "@clerk/localizations";
 import { LoadingProvider } from "@/context/LoadingContext";
 import { GoalReviewProvider } from "@/context/GoalReviewContext";
+import { GoalListProvider } from "@/context/GoalListContext";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
@@ -33,8 +34,10 @@ export default function RootLayout({
         <body className="font-sans antialiased">
           <LoadingProvider>
             <GoalReviewProvider>
-              {children}
-              <Toaster richColors position="top-right" />
+              <GoalListProvider>
+                {children}
+                <Toaster richColors position="top-right" />
+              </GoalListProvider>
             </GoalReviewProvider>
           </LoadingProvider>
         </body>
