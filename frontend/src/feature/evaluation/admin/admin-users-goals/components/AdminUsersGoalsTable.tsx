@@ -240,6 +240,9 @@ export function AdminUsersGoalsTable({ userSummaries, isLoading, users }: AdminU
                         key={goal.id}
                         goal={goal}
                         currentUserId={undefined}
+                        userName={selectedSummary.userName}
+                        supervisorName={selectedSummary.supervisor?.name}
+                        approverName={goal.approvedBy ? users.find(u => u.id === goal.approvedBy)?.name : undefined}
                       />
                     ))
                   ) : (

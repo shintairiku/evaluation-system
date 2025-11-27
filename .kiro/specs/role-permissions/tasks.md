@@ -261,39 +261,39 @@ Viewer ロールに対して、ユーザー/部署/チーム単位で「どの�
 ## Implementation Details:
 ### 3. Backend: DB schema + endpoints + RBAC integration
 
-- [ ] **3.1. Create junction tables with strict FKs**
+- [x] **3.1. Create junction tables with strict FKs**
   > `viewer_visibility_user`, `viewer_visibility_department`, `viewer_visibility_supervisor_team` + read-only view `viewer_visibility_grants`. Add composite unique and indexes on `(org_id, viewer_user_id, target, resource_type)`.
   >
   > **Related Requirements:** R2, R5
 
-- [ ] **3.2. Implement endpoints**
+- [x] **3.2. Implement endpoints**
   > `GET /api/viewers/{viewer_id}/visibility`, `PUT /api/viewers/{viewer_id}/visibility`, `PATCH /api/viewers/{viewer_id}/visibility` (Admin only). Payload supports subject_type = user/department/supervisor_team and resource_type.
   >
   > **Related Requirements:** R2, R5
 
-- [ ] **3.3. RBACHelper integration**
+- [x] **3.3. RBACHelper integration**
   > For Viewer role only: compute effective targets per `resource_type` as `self ∪ overrides`; no implicit grant to unrelated resources.
   >
   > **Related Requirements:** R2, R5
 
-- [ ] **3.4. Audit + cache invalidation**
+- [x] **3.4. Audit + cache invalidation**
   > Audit actor, viewer_id, targets, resource_type, added/removed; invalidate relevant caches ≤ 5s.
   >
   > **Related Requirements:** R2, R5
 
 ### 4. Frontend: Viewer Visibility panel (Permissions tab)
 
-- [ ] **4.1. Target picker**
+- [x] **4.1. Target picker**
   > Select user/department/supervisor_team; searchable multi-select; shows current grants; bulk add/remove.
   >
   > **Related Requirements:** R2
 
-- [ ] **4.2. Resource type selector**
+- [x] **4.2. Resource type selector**
   > Choose data type (Goal/Evaluation/Assessment/…); default Goal; per-type list of grants.
   >
   > **Related Requirements:** R2
 
-- [ ] **4.3. Error and empty states**
+- [x] **4.3. Error and empty states**
   > Clear UX for 403, 409, network errors; empty list guidance.
   >
   > **Related Requirements:** R2
@@ -309,18 +309,24 @@ permissions.py の定義をソースオブトゥルースとして初期シー�
 ## Implementation Details:
 ### 5. Seed, feature flag, and fallback
 
-- [ ] **5.1. Seeding scripts**
-  > Seed `permissions` and `role_permissions` from `Permission` enum and `ROLE_PERMISSIONS`; add migration test to assert 1:1 parity with static mapping.
+- [x] **5.1. Seeding scripts**
+  > Implemented via OrgBootstrapService: seeds `permissions` catalog and default `role_permissions` per organization; wired to Clerk `organization.created` webhook.
   >
   > **Related Requirements:** R3
 
-- [ ] **5.2. Feature flag wiring**
-  > OFF → static PermissionManager mapping; ON → DB-backed with fallback if empty.
+- [-] ~~**5.2. Feature flag wiring**~~
+  > Not applicable. We run DB-backed permissions only; static fallback removed by design. No runtime feature flag needed.
   >
-  > **Related Requirements:** R4
+  > **Related Requirements:** R4 (N/A by product decision)
 
-- [ ] **5.3. Observability**
-  > Structured logs for writes and invalidations (org_id, role/viewer, resource_type); metrics for cache hit ratio and p95 authorization latency.
+- [x] **5.3. Observability**
+  > Implemented lightweight observability:
+  > - Cache metrics/logs in `backend/app/security/role_permission_cache.py`:
+  >   `role_permissions.cache.hit`, `role_permissions.cache.miss`, `role_permissions.cache.load`,
+  >   plus in-process counters via `get_cache_metrics()`.
+  > - Authorization timing in `backend/app/security/dependencies.py`:
+  >   `auth.permissions.load.ms` and `auth.viewer_visibility.load.ms` structured logs.
+  > - Existing audit/invalidation logs remain in place.
   >
   > **Related Requirements:** R5
 

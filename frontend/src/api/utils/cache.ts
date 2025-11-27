@@ -21,6 +21,7 @@ export const CACHE_TAGS = {
   SUPERVISOR_FEEDBACKS: 'supervisor-feedbacks',
   EVALUATIONS: 'evaluations',
   ADMIN_DASHBOARD: 'admin-dashboard',
+  VIEWER_VISIBILITY: 'viewer-visibility',
 } as const;
 
 /**
@@ -95,6 +96,10 @@ export const CACHE_STRATEGIES = {
   [CACHE_TAGS.ADMIN_DASHBOARD]: {
     duration: CACHE_DURATIONS.REALTIME,
     tags: [CACHE_TAGS.ADMIN_DASHBOARD] as string[],
+  },
+  [CACHE_TAGS.VIEWER_VISIBILITY]: {
+    duration: CACHE_DURATIONS.DYNAMIC,
+    tags: [CACHE_TAGS.VIEWER_VISIBILITY] as string[],
   },
 } as const;
 

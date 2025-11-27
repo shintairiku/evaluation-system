@@ -132,7 +132,7 @@ def build_role(name: str) -> RoleModel:
 
 
 @pytest.mark.asyncio
-async def test_get_role_permissions_defaults_when_empty(memory_session):
+async def test_get_role_permissions_empty_when_no_assignments(memory_session):
     role = build_role("admin")
     memory_session.add(role)
     await memory_session.flush()
@@ -142,7 +142,7 @@ async def test_get_role_permissions_defaults_when_empty(memory_session):
 
     response = await service.get_role_permissions(role.id, context)
 
-    # With no assignments in DB, a role returns no permissions
+    # With no role-permission assignments, service should return an empty list
     returned_codes = sorted(item.code for item in response.permissions)
     assert returned_codes == []
 
