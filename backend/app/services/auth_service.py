@@ -1,10 +1,13 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from clerk_backend_api import Clerk
+import hashlib
 import logging
-import httpx
-from jose import jwt, jwk, JWTError
+import time
 from typing import Dict, Any, Optional
+
+import httpx
 from cachetools import TTLCache
+from clerk_backend_api import Clerk
+from jose import JWTError, jwk, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
@@ -21,6 +24,16 @@ logger = logging.getLogger(__name__)
 
 # Global JWKS cache - 15 minutes TTL for security keys
 _jwks_cache: TTLCache = TTLCache(maxsize=10, ttl=900)
+
+# Short-lived cache for decoded AuthUser by token hash to avoid repeated JWT
+# verification work across rapid successive requests. TTL is intentionally
+# low; entries are also validated against the token's exp claim on read.
+_token_cache: TTLCache = TTLCache(maxsize=512, ttl=120)
+
+
+def _token_cache_key(token: str) -> str:
+    """Hash the token so we never keep the raw token string in memory."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 class AuthService:
     """Service for handling user authentication operations."""
@@ -122,6 +135,17 @@ class AuthService:
             Exception: If token is invalid or verification fails
         """
         try:
+            cache_key = _token_cache_key(token)
+            cached_entry = _token_cache.get(cache_key)
+            if cached_entry:
+                cached_user, cached_exp = cached_entry
+                # Respect token expiry even while cached
+                if not cached_exp or cached_exp > time.time():
+                    logger.debug("Using cached AuthUser for token hash")
+                    return cached_user
+                # Drop stale entry
+                _token_cache.pop(cache_key, None)
+
             # Get environment variables for verification
             clerk_issuer = getattr(settings, 'CLERK_ISSUER', None)
             # Allow comma-separated audiences for dev/preview without changing Clerk JWT
@@ -223,8 +247,8 @@ class AuthService:
             clerk_id = normalized.get("sub")
             if not clerk_id:
                 raise ValueError("User ID not found in token")
-                
-            return AuthUser(
+
+            auth_user = AuthUser(
                 clerk_id=clerk_id,
                 email=normalized.get("email", ""),
                 first_name=normalized.get("given_name", ""),
@@ -235,6 +259,16 @@ class AuthService:
                 organization_name=normalized.get("organization_slug"),  # Keep for backward compatibility
                 organization_slug=normalized.get("organization_slug")   # For organization-scoped routing
             )
+
+            # Cache with respect to token expiry if present
+            exp_ts = None
+            try:
+                exp_ts = payload.get("exp") if isinstance(payload, dict) else None
+            except Exception:
+                exp_ts = None
+            _token_cache[cache_key] = (auth_user, exp_ts)
+
+            return auth_user
             
         except JWTError as e:
             logger.error(f"JWT verification failed: {e}")
