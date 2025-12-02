@@ -861,7 +861,7 @@ class GoalRepository(BaseRepository[Goal]):
                 achievement_criteria_text=goal_data.achievement_criteria_text,
                 means_methods_text=goal_data.means_methods_text,
             )
-            return payload.model_dump()
+            return payload.model_dump(mode="json")
 
         if goal_data.goal_category == "コンピテンシー":  # Competency goal
             payload = CompetencyGoalTargetData(
@@ -869,10 +869,10 @@ class GoalRepository(BaseRepository[Goal]):
                 selected_ideal_actions=goal_data.selected_ideal_actions,
                 action_plan=goal_data.action_plan,
             )
-            return payload.model_dump()
+            return payload.model_dump(mode="json")
 
         if goal_data.goal_category == "コアバリュー":  # Core value goal
             payload = CoreValueGoalTargetData(core_value_plan=goal_data.core_value_plan)
-            return payload.model_dump()
+            return payload.model_dump(mode="json")
 
         raise ValidationError(f"Unknown goal_category: {goal_data.goal_category}")
