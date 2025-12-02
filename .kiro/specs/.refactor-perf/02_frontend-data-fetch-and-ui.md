@@ -20,6 +20,7 @@
 - Reduce unnecessary server actions (especially repeated user/context fetches).
 - Make auto-save and high-churn interactions batch-friendly and latency-tolerant.
 - Re-enable static/partial-static rendering where safe.
+- Align client/server action patterns with the performance budgets and SLOs enforced by the infra/observability layer, so UI changes do not push key flows over their latency thresholds.
 
 ## 4. Proposed Direction (Outline)
 

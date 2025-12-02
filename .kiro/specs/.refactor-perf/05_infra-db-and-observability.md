@@ -18,6 +18,7 @@
 - Make performance characteristics visible (endpoints, server actions, DB queries).
 - Ensure DB schema and indexes match real query patterns as the system grows.
 - Tune Cloud Run / Vercel / Docker configs for realistic concurrency and resource usage.
+- Define clear performance SLOs (e.g. p95 latency per key endpoint / server action) and enforce them as a blocking check in CI/CD.
 
 ## 4. Proposed Direction (Outline)
 
@@ -27,10 +28,12 @@
 - Review and adjust Cloud Run settings (concurrency, CPU, memory) and autoscaling for backend.
 - Periodically review query plans for top N endpoints and adjust indexes/migrations where necessary.
 - Consider introducing a simple metrics sink (e.g. Cloud Monitoring, OpenTelemetry) for long-term trending.
+- Introduce a “performance budget” for critical flows (goal list, evaluation session, dashboards) and wire a CI/CD perf job that:
+  - Runs representative benchmarks against these flows.
+  - Fails the pipeline when p95 latency exceeds the agreed threshold, so code changes that regress performance are not accepted.
 
 ## 5. Open Questions
 
 - Do we want a dedicated staging DB or keep a single multi-tenant DB for all environments?
 - What SLOs should we commit to (e.g. p95 < X ms for key endpoints)?
 - Which external monitoring/alerting stack will we standardize on (Cloud native vs third-party)?
-

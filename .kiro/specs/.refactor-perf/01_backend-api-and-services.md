@@ -18,6 +18,7 @@
 - Reduce per-request overhead for common flows (goal list, evaluation input, dashboards).
 - Standardize “page-shaped” backend responses that map 1:1 to frontend server actions.
 - Ensure queries stay efficient as org/user/goal counts grow (indexes, batching, read models).
+- Keep backend endpoints for key flows within the performance budgets and SLOs defined in the infra/observability spec (see `05_infra-db-and-observability.md`).
 
 ## 4. Proposed Direction (Outline)
 

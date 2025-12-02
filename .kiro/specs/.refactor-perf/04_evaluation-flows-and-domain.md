@@ -17,6 +17,7 @@
 - Design evaluation endpoints around “evaluation session” and “evaluation summary” shapes, not raw tables.
 - Minimize the number of round-trips needed for a typical evaluation flow (setting goals, self-assessment, supervisor review, 360/core value).
 - Make it easy to compute org/department-level aggregates without scanning large raw tables each time.
+- Keep end-to-end evaluation flows within the performance budgets and SLOs defined in the infra/observability spec, with metrics that can be checked automatically in CI/CD.
 
 ## 4. Proposed Direction (Outline)
 

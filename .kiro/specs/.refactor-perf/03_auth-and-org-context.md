@@ -18,6 +18,7 @@
 - Guarantee security and multi-tenant isolation without unnecessary repeated work.
 - Have a single, well-defined “auth + org context” object per request that both frontend and backend layers can reuse.
 - Make org switching safe and explicit while avoiding stale context.
+- Ensure auth and org context handling contributes minimal overhead to the p95 latency targets defined in the infra/observability spec for hot endpoints and server actions.
 
 ## 4. Proposed Direction (Outline)
 
