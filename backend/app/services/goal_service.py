@@ -16,6 +16,13 @@ from ..schemas.goal import (
     GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus,
     CompetencyGoalUpdate
 )
+from ..schemas.goal_page import (
+    EvaluationPeriodSummary,
+    GoalListPageFilters,
+    GoalListPageItem,
+    GoalListPageMeta,
+    GoalListPageResponse,
+)
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
 from ..security.permissions import Permission
@@ -145,6 +152,108 @@ class GoalService:
             
         except Exception as e:
             logger.error(f"Error in get_goals: {e}")
+            raise
+
+    async def get_goal_list_page(
+        self,
+        current_user_context: AuthContext,
+        period_id: Optional[UUID] = None,
+        status: Optional[List[str]] = None,
+        user_id: Optional[UUID] = None,
+        page: int = 1,
+        limit: int = 50,
+    ) -> GoalListPageResponse:
+        """Return a page-shaped response for the goal list UI in a single call."""
+        try:
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            # Clamp pagination to safe bounds
+            page = max(1, page)
+            limit = max(1, min(limit, 200))
+            pagination = PaginationParams(page=page, limit=limit)
+
+            accessible_user_ids = await self._get_accessible_goal_user_ids(
+                current_user_context=current_user_context,
+                requested_user_id=user_id,
+            )
+
+            # If the caller has no accessible users, short-circuit with an empty page
+            if accessible_user_ids is not None and len(accessible_user_ids) == 0:
+                empty_meta = GoalListPageMeta(total=0, page=pagination.page, limit=pagination.limit, pages=1)
+                empty_filters = GoalListPageFilters(
+                    period_id=period_id,
+                    statuses=status or None,
+                    periods=[],
+                )
+                return GoalListPageResponse(goals=[], meta=empty_meta, filters=empty_filters)
+
+            rows, total = await self.goal_repo.get_goal_list_page(
+                org_id=org_id,
+                user_ids=accessible_user_ids,
+                period_id=period_id,
+                status=status,
+                pagination=pagination,
+            )
+
+            items: List[GoalListPageItem] = []
+            for row in rows:
+                target_data = row.get("target_data") or {}
+                weight_value = row.get("weight")
+                items.append(
+                    GoalListPageItem(
+                        goal_id=row["goal_id"],
+                        user_id=row["user_id"],
+                        user_name=row.get("user_name"),
+                        employee_code=row.get("employee_code"),
+                        department_name=row.get("department_name"),
+                        period_id=row["period_id"],
+                        period_name=row.get("period_name"),
+                        goal_category=row.get("goal_category"),
+                        status=row.get("status"),
+                        weight=float(weight_value) if weight_value is not None else 0.0,
+                        title=target_data.get("title"),
+                        performance_goal_type=target_data.get("performance_goal_type"),
+                        action_plan=target_data.get("action_plan"),
+                        updated_at=row.get("updated_at"),
+                    )
+                )
+
+            periods = await self.evaluation_period_repo.get_all(org_id)
+            period_summaries = [
+                EvaluationPeriodSummary(
+                    id=period.id,
+                    name=period.name,
+                    start_date=period.start_date,
+                    end_date=period.end_date,
+                    status=period.status.value if hasattr(period, "status") and hasattr(period.status, "value") else str(period.status),
+                )
+                for period in periods
+            ]
+
+            pages = (total + pagination.limit - 1) // pagination.limit if total else 1
+            meta = GoalListPageMeta(
+                total=total,
+                page=pagination.page,
+                limit=pagination.limit,
+                pages=pages,
+            )
+
+            filters = GoalListPageFilters(
+                period_id=period_id,
+                statuses=status or None,
+                periods=period_summaries,
+            )
+
+            return GoalListPageResponse(
+                goals=items,
+                meta=meta,
+                filters=filters,
+            )
+
+        except Exception as e:
+            logger.error(f"Error in get_goal_list_page: {e}")
             raise
 
     async def get_goal_by_id(
