@@ -1,117 +1,117 @@
 # Frontend Performance Gap Analysis
-## Alignment Analysis: Branch `develop` vs. Refactoring Specification
+## Análise de Alinhamento: Branch `develop` vs. Especificação de Refatoração
 
-**Date:** 2025-12-02
-**Branch Analyzed:** `develop`
-**Reference Document:** `.kiro/specs/.refactor-perf/02_frontend-data-fetch-and-ui.md`
-**Author:** Performance Analysis Team
-
----
-
-## 🎯 EXECUTIVE SUMMARY
-
-After a detailed analysis of the current code in the `develop` branch, we have identified **critical gaps** between the current state and the performance optimization proposals described in the refactoring document. The project **has not yet implemented** most of the proposed improvements.
-
-### Overall Implementation Status
-- ✅ **Implemented:** 20%
-- ⚠️ **Partially Implemented:** 30%
-- ❌ **Not Implemented:** 50%
-
-### Estimated Impact of Optimizations
-By implementing all proposed improvements, we expect:
-- **-30-40%** latency reduction (Quick Wins)
-- **-60-70%** HTTP request reduction (Batching)
-- **-50-60%** total latency reduction on main pages (Page Loaders)
+**Data:** 2025-12-02
+**Branch Analisada:** `develop`
+**Documento de Referência:** `.kiro/specs/.refactor-perf/02_frontend-data-fetch-and-ui.md`
+**Autor:** Performance Analysis Team
 
 ---
 
-## 📋 DETAILED ANALYSIS BY ISSUE
+## 🎯 RESUMO EXECUTIVO
 
-### 1. ❌ **CRITICAL: Global `dynamic = 'force-dynamic'`**
+Após análise detalhada do código atual na branch `develop`, identificamos **gaps críticos** entre o estado atual e as propostas de otimização de performance descritas no documento de refatoração. O projeto **ainda não implementou** a maioria das melhorias propostas.
 
-**Status:** ❌ **NOT RESOLVED**
+### Status Geral de Implementação
+- ✅ **Implementado:** 20%
+- ⚠️ **Parcialmente Implementado:** 30%
+- ❌ **Não Implementado:** 50%
 
-**Location:** `frontend/src/app/layout.tsx:17`
+### Impacto Estimado das Otimizações
+Ao implementar todas as melhorias propostas, esperamos:
+- **-30-40%** redução de latência (Quick Wins)
+- **-60-70%** redução de requests HTTP (Batching)
+- **-50-60%** redução de latência total em páginas principais (Page Loaders)
+
+---
+
+## 📋 ANÁLISE DETALHADA POR PROBLEMA
+
+### 1. ❌ **CRÍTICO: Global `dynamic = 'force-dynamic'`**
+
+**Status:** ❌ **NÃO RESOLVIDO**
+
+**Localização:** `frontend/src/app/layout.tsx:17`
 
 ```typescript
-// ❌ STILL PRESENT in the code
+// ❌ AINDA PRESENTE no código
 export const dynamic = 'force-dynamic';
 ```
 
-**Problem:**
-- This configuration disables **all** static optimizations in Next.js 15
-- All pages are forced to render dynamically
-- Direct impact on Time to First Byte (TTFB) and general performance
-- Was added to avoid issues with Clerk keys during build, but affects the entire application
+**Problema:**
+- Esta configuração desativa **todas** as otimizações estáticas do Next.js 15
+- Todas as páginas são forçadas a renderizar dinamicamente
+- Impacto direto no Time to First Byte (TTFB) e performance geral
+- Foi adicionada para evitar problemas com Clerk keys durante build, mas afeta todo o aplicativo
 
-**Current Impact:**
-- ❌ Page caching disabled
-- ❌ Static Site Generation (SSG) disabled
-- ❌ Incremental Static Regeneration (ISR) disabled
-- ❌ Higher server load for each request
+**Impacto Atual:**
+- ❌ Cache de páginas desabilitado
+- ❌ Static Site Generation (SSG) desabilitado
+- ❌ Incremental Static Regeneration (ISR) desabilitado
+- ❌ Maior carga no servidor para cada request
 
-**Specification (02_frontend-data-fetch-and-ui.md):**
+**Especificação (02_frontend-data-fetch-and-ui.md):**
 > "Revisit `dynamic = 'force-dynamic'` after Clerk integration is stable; mark non-sensitive pages as static or partially static."
 
-**Proposed Solution:**
-1. Remove `export const dynamic = 'force-dynamic'` from global `layout.tsx`
-2. Add selectively only to pages that actually need it:
+**Solução Proposta:**
+1. Remover `export const dynamic = 'force-dynamic'` do `layout.tsx` global
+2. Adicionar seletivamente apenas em páginas que realmente precisam:
    - Dashboards (employee, supervisor, admin)
-   - Pages with real-time data
-   - Pages that depend on auth context
-3. Allow public pages and landing pages to be static
+   - Páginas com dados em tempo real
+   - Páginas que dependem de auth context
+3. Permitir que páginas públicas e landing pages sejam estáticas
 
-**Expected Code:**
+**Código Esperado:**
 ```typescript
-// ❌ Remove from global layout.tsx
+// ❌ Remover do layout.tsx global
 // export const dynamic = 'force-dynamic';
 
-// ✅ Add only to specific pages
-// Example: app/(evaluation)/goal-input/page.tsx
-export const dynamic = 'force-dynamic'; // Only where needed
+// ✅ Adicionar apenas em páginas específicas
+// Exemplo: app/(evaluation)/goal-input/page.tsx
+export const dynamic = 'force-dynamic'; // Somente onde necessário
 ```
 
-**Expected Benefits:**
-- ✅ 80% reduction in TTFB for static pages
-- ✅ Lower server load
-- ✅ Better user experience (pages load instantly)
+**Benefícios Esperados:**
+- ✅ Redução de 80% no TTFB para páginas estáticas
+- ✅ Menor carga no servidor
+- ✅ Melhor experiência do usuário (páginas carregam instantaneamente)
 
 ---
 
-### 2. ❌ **CRITICAL: Org Slug Recomputed on Every Request**
+### 2. ❌ **CRÍTICO: Org Slug Recomputado a Cada Request**
 
-**Status:** ❌ **NOT RESOLVED**
+**Status:** ❌ **NÃO RESOLVIDO**
 
-**Location:** `frontend/src/api/client/http-unified-client.ts:115-120`
+**Localização:** `frontend/src/api/client/http-unified-client.ts:115-120`
 
 ```typescript
-// ❌ PROBLEM STILL EXISTS
+// ❌ PROBLEMA AINDA EXISTE
 private async getOrgSlug(): Promise<string | null> {
   // Always fetch fresh org slug to prevent stale organization context
   // This is especially important when users switch between organizations
   // The performance impact is minimal since JWT parsing is fast
-  return this.fetchOrgSlug(); // ALWAYS recomputes!
+  return this.fetchOrgSlug(); // SEMPRE recomputa!
 }
 ```
 
-**Problem:**
-- The code **always** fetches the org slug, ignoring the cache
-- Properties `this.orgSlug` and `this.orgSlugPromise` exist but **are not used**
-- JWT parsing happens on **every HTTP call**, even within the same request/session
-- On the server, this means repeated calls to `getCurrentOrgSlug()` which does JWT parsing every time
-- On the client, repeated JWT token parsing
+**Problema:**
+- O código **sempre** busca o org slug, ignorando o cache
+- Propriedades `this.orgSlug` e `this.orgSlugPromise` existem mas **não são utilizadas**
+- Parsing de JWT acontece em **cada chamada HTTP**, mesmo dentro da mesma request/sessão
+- No servidor, isso significa chamadas repetidas para `getCurrentOrgSlug()` que faz parsing JWT toda vez
+- No cliente, repetição de parsing do token JWT
 
-**Current Impact:**
-- 🔄 Unnecessary JWT parsing on every HTTP request (~15-20x per page)
-- 🔄 Multiple async calls to `getCurrentOrgSlug()` on the server
-- 🔄 Accumulated overhead of ~5-10ms per request
+**Impacto Atual:**
+- 🔄 Parsing JWT desnecessário a cada HTTP request (~15-20x por página)
+- 🔄 Múltiplas chamadas assíncronas para `getCurrentOrgSlug()` no servidor
+- 🔄 Overhead acumulado de ~5-10ms por request
 
-**Specification (02_frontend-data-fetch-and-ui.md):**
+**Especificação (02_frontend-data-fetch-and-ui.md):**
 > "Fix `UnifiedHttpClient` org slug caching: actually use `orgSlug` / `orgSlugPromise` to memoize per client and per request instead of recomputing on every call."
 
-**Proposed Solution:**
+**Solução Proposta:**
 ```typescript
-// ✅ SOLUTION: Use per-request memoization
+// ✅ SOLUÇÃO: Usar memoização por request
 private async getOrgSlug(): Promise<string | null> {
   // Reuse cached promise if available (within same request context)
   if (this.orgSlugPromise) {
@@ -129,35 +129,35 @@ private async getOrgSlug(): Promise<string | null> {
 }
 ```
 
-**Maintain Cache Invalidation:**
+**Manter Invalidação de Cache:**
 ```typescript
-// ✅ Already exists - keep it working
+// ✅ Já existe - manter funcionando
 public clearOrgSlugCache(): void {
   this.orgSlug = null;
   this.orgSlugPromise = null;
 }
 
-// Call when user switches org
+// Chamar quando usuário troca de org
 if (orgSlugFromToken !== this.orgSlug) {
   this.clearOrgSlugCache();
 }
 ```
 
-**Expected Benefits:**
-- ✅ JWT parsing only once per request
-- ✅ ~90% overhead reduction for subsequent requests
-- ✅ Maintains security and org switching functionality
+**Benefícios Esperados:**
+- ✅ Parsing JWT uma única vez por request
+- ✅ Redução de overhead em ~90% para requests subsequentes
+- ✅ Mantém segurança e org switching funcionando
 
 ---
 
-### 3. ❌ **CRITICAL: JWT Parser without React.cache() (Server-Side)**
+### 3. ❌ **CRÍTICO: JWT Parser sem React.cache() (Server-Side)**
 
-**Status:** ❌ **NOT RESOLVED**
+**Status:** ❌ **NÃO RESOLVIDO**
 
-**Location:** `frontend/src/api/utils/jwt-parser.ts:197-226`
+**Localização:** `frontend/src/api/utils/jwt-parser.ts:197-226`
 
 ```typescript
-// ❌ NO CACHE - normal function
+// ❌ SEM CACHE - função normal
 export async function getCurrentOrgSlug(): Promise<string | null> {
   try {
     const { auth } = await import('@clerk/nextjs/server');
@@ -184,33 +184,33 @@ export async function getCurrentOrgSlug(): Promise<string | null> {
 }
 ```
 
-**Verification:**
+**Verificação:**
 ```bash
 grep -n "React\.cache\|cache(" frontend/src/api/utils/jwt-parser.ts
-# Result: No matches found ❌
+# Resultado: No matches found ❌
 ```
 
-**Problem:**
-- Does not use `React.cache()` for per-request memoization
-- The `getCurrentOrgSlug()` function is called multiple times within a single server request
-- Each call executes:
-  1. Clerk's `auth()`
+**Problema:**
+- Não utiliza `React.cache()` para memoização por request
+- A função `getCurrentOrgSlug()` é chamada múltiplas vezes dentro de uma mesma request do servidor
+- Cada chamada executa:
+  1. `auth()` do Clerk
   2. `getToken()`
-  3. JWT parsing (split, base64 decode, JSON.parse)
+  3. Parsing do JWT (split, base64 decode, JSON.parse)
 
-**Current Impact:**
-- 🔄 Multiple `auth()` and `getToken()` calls in the same request
-- 🔄 Repeated JWT parsing unnecessarily (5-10x per server action)
-- 📉 Accumulated latency in server actions that make multiple API calls
+**Impacto Atual:**
+- 🔄 Múltiplas chamadas `auth()` e `getToken()` na mesma request
+- 🔄 Parsing JWT repetido desnecessariamente (5-10x por server action)
+- 📉 Latência acumulada em server actions que fazem múltiplas chamadas API
 
-**Specification (02_frontend-data-fetch-and-ui.md):**
+**Especificação (02_frontend-data-fetch-and-ui.md):**
 > "Add server-side request-level caching for org context: Wrap `getCurrentOrgSlug` / `getCurrentOrgContext` (from `src/api/utils/jwt-parser.ts`) with React's `cache()` so JWT parsing happens at most once per request."
 
-**Proposed Solution:**
+**Solução Proposta:**
 ```typescript
 import { cache } from 'react';
 
-// ✅ SOLUTION: Per-request memoization with React.cache()
+// ✅ SOLUÇÃO: Memoização por request com React.cache()
 export const getCurrentOrgSlug = cache(async (): Promise<string | null> => {
   try {
     const { auth } = await import('@clerk/nextjs/server');
@@ -241,7 +241,7 @@ export const getCurrentOrgSlug = cache(async (): Promise<string | null> => {
   }
 });
 
-// Similarly for getCurrentOrgContext
+// Similarmente para getCurrentOrgContext
 export const getCurrentOrgContext = cache(async () => {
   try {
     // Try to get token from Clerk (client-side)
@@ -271,24 +271,24 @@ export const getCurrentOrgContext = cache(async () => {
 });
 ```
 
-**Expected Benefits:**
-- ✅ `React.cache()` guarantees single execution per server request
-- ✅ Multiple calls in the same request return cached result
-- ✅ Cache automatically cleared between requests (no stale data)
-- ✅ ~90% reduction in JWT parsing calls
+**Benefícios Esperados:**
+- ✅ `React.cache()` garante execução única por request do servidor
+- ✅ Múltiplas chamadas na mesma request retornam resultado cacheado
+- ✅ Cache automaticamente limpo entre requests (sem stale data)
+- ✅ Redução de ~90% nas chamadas de parsing JWT
 
 ---
 
-### 4. ❌ **HIGH IMPACT: Individual Auto-Save (No Batching)**
+### 4. ❌ **ALTO IMPACTO: Auto-Save Individual (Sem Batching)**
 
-**Status:** ❌ **NOT RESOLVED**
+**Status:** ❌ **NÃO RESOLVIDO**
 
-**Location:** `frontend/src/hooks/useGoalAutoSave.ts:282-363`
+**Localização:** `frontend/src/hooks/useGoalAutoSave.ts:282-363`
 
 ```typescript
-// ❌ STILL SAVES INDIVIDUALLY
+// ❌ AINDA SALVA INDIVIDUALMENTE
 const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
-  // ... validation and filtering ...
+  // ... validação e filtragem ...
 
   try {
     let allSuccessful = true;
@@ -314,33 +314,33 @@ const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
 }, [selectedPeriod?.id, /* ... */]);
 ```
 
-**Verification:**
+**Verificação:**
 ```bash
 grep -i "batchSaveGoals\|batch.*save\|bulkSave" frontend/**/*.ts
-# Result: No files found ❌
+# Resultado: No files found ❌
 ```
 
-**Problem:**
-- Auto-save system saves **each goal individually** on every change
-- For a list of 10 goals, there can be 10 separate HTTP requests
-- Each individual auto-save:
-  - Calls `createGoalAction()` or `updateGoalAction()`
-  - Recomputes org slug
-  - Does JWT parsing
-  - Executes complete HTTP request with retry logic
+**Problema:**
+- Sistema de auto-save salva **cada goal individualmente** a cada mudança
+- Para uma lista de 10 goals, podem acontecer 10 requests HTTP separados
+- Cada auto-save individual:
+  - Chama `createGoalAction()` ou `updateGoalAction()`
+  - Recomputa org slug
+  - Faz parsing JWT
+  - Executa request HTTP completo com retry logic
 
-**Current Impact:**
-- 🌐 10 changed goals = 10 separate HTTP requests
-- 🔄 Network, auth, and parsing overhead for each goal
-- 💾 Unnecessary pressure on backend and database
-- 📱 Wasted mobile battery and data
+**Impacto Atual:**
+- 🌐 10 goals alterados = 10 requests HTTP separados
+- 🔄 Overhead de network, auth, e parsing para cada goal
+- 💾 Pressão desnecessária no backend e database
+- 📱 Bateria e dados móveis desperdiçados
 
-**Specification (02_frontend-data-fetch-and-ui.md):**
+**Especificação (02_frontend-data-fetch-and-ui.md):**
 > "Add a batched 'save goals for period' server action to replace per-goal auto-save writes where UX allows."
 
-**Proposed Solution:**
+**Solução Proposta:**
 
-**Backend: Batch Save Endpoint**
+**Backend: Endpoint de Batch Save**
 ```python
 # backend/app/api/v1/goals.py
 @router.post("/org/{org_slug}/goals/batch-save")
@@ -448,9 +448,9 @@ export async function batchSaveGoalsAction(
 }
 ```
 
-**Frontend: Refactor useGoalAutoSave**
+**Frontend: Refatorar useGoalAutoSave**
 ```typescript
-// ✅ SOLUTION: Group changes and send in batch
+// ✅ SOLUÇÃO: Agrupa mudanças e envia em batch
 const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
   if (!selectedPeriod?.id) {
     return false;
@@ -474,7 +474,7 @@ const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
     return true;
   }
 
-  // ✅ NEW: Group all changed goals in a batch
+  // ✅ NOVO: Agrupa todos os goals alterados em um batch
   const batch: BatchGoalSaveItem[] = actuallyChangedGoals.map(change => ({
     id: change.goalId,
     type: change.goalType,
@@ -487,7 +487,7 @@ const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
   isSavingRef.current = true;
 
   try {
-    // ✅ NEW: Send everything in a single call
+    // ✅ NOVO: Envia tudo em uma única chamada
     const result = await batchSaveGoalsAction(selectedPeriod.id, batch);
 
     if (result.success && result.data) {
@@ -538,27 +538,27 @@ const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
 }, [selectedPeriod, /* ... */]);
 ```
 
-**Expected Benefits:**
-- ✅ Reduction from 10 requests → 1 request
-- ✅ Lower network/auth/parsing overhead
-- ✅ Better UX with consolidated feedback
-- ✅ Backend can optimize with batch insert/update in a single transaction
-- ✅ ~90% reduction in HTTP requests for auto-save
+**Benefícios Esperados:**
+- ✅ Redução de 10 requests → 1 request
+- ✅ Menor overhead de network/auth/parsing
+- ✅ Melhor UX com feedback consolidado
+- ✅ Backend pode otimizar com batch insert/update em transação única
+- ✅ Redução de ~90% em requests HTTP para auto-save
 
 ---
 
-### 5. ⚠️ **PARTIAL: Redundant Server Actions**
+### 5. ⚠️ **PARCIAL: Server Actions Redundantes**
 
-**Status:** ⚠️ **PARTIALLY RESOLVED**
+**Status:** ⚠️ **PARCIALMENTE RESOLVIDO**
 
-**Observations:**
+**Observações:**
 
-#### ✅ **GOOD: Dashboard already uses consolidated approach**
+#### ✅ **BOM: Dashboard já usa approach consolidado**
 
-**Location:** `frontend/src/api/server-actions/employee-dashboard.ts:24-37`
+**Localização:** `frontend/src/api/server-actions/employee-dashboard.ts:24-37`
 
 ```typescript
-// ✅ ALREADY IMPLEMENTED: Consolidated server action
+// ✅ JÁ IMPLEMENTADO: Server action consolidado
 export const getEmployeeDashboardDataAction = cache(
   async (): Promise<ApiResponse<EmployeeDashboardData>> => {
     try {
@@ -575,25 +575,25 @@ export const getEmployeeDashboardDataAction = cache(
 );
 ```
 
-This server action returns **all data** from the employee dashboard in a single call:
+Este server action retorna **todos os dados** do dashboard employee em uma única chamada:
 - Personal progress
 - TODO tasks
 - Deadline alerts
 - History access
 
-**Benefit:** Single request instead of 4+ separate requests.
+**Benefício:** Uma única request em vez de 4+ requests separados.
 
-#### ❌ **MISSING: Other pages don't yet have consolidated loaders**
+#### ❌ **FALTA: Outras páginas ainda não têm loaders consolidados**
 
-**Pages without Page-Level Loaders:**
-- ❌ Goal Input page → multiple separate server actions
-- ❌ Goal List page → multiple separate server actions
-- ❌ Goal Review page → multiple separate server actions
-- ❌ Evaluation Input page → multiple separate server actions
+**Páginas sem Page-Level Loaders:**
+- ❌ Goal Input page → múltiplos server actions separados
+- ❌ Goal List page → múltiplos server actions separados
+- ❌ Goal Review page → múltiplos server actions separados
+- ❌ Evaluation Input page → múltiplos server actions separados
 
-**Current Pattern (Not Optimized):**
+**Padrão Atual (Não Otimizado):**
 ```typescript
-// ❌ Multiple separate server actions
+// ❌ Múltiplas server actions separadas
 const user = await getCurrentUserAction();
 const roles = await getUserRolesAction();
 const stage = await getUserStageAction();
@@ -602,19 +602,19 @@ const goals = await getGoalsAction(periodId);
 const period = await getPeriodAction(periodId);
 ```
 
-**Impact:**
-- 🔄 Multiple roundtrips to the server
-- 🔄 Multiple database queries
-- 📉 Waterfall effect (one after another)
-- 📉 Total latency = sum of all individual latencies
+**Impacto:**
+- 🔄 Múltiplas roundtrips ao servidor
+- 🔄 Múltiplas queries ao banco de dados
+- 📉 Waterfall effect (uma após a outra)
+- 📉 Latência total = soma de todas as latências individuais
 
-**Specification (02_frontend-data-fetch-and-ui.md):**
+**Especificação (02_frontend-data-fetch-and-ui.md):**
 > "Introduce page-level loaders (server actions) per core screen:
 > - Employee goal list, goal input, evaluation input.
 > - Supervisor dashboard and evaluation feedback.
 > - Admin goal list / org-wide evaluation views."
 
-**Proposed Solution:**
+**Solução Proposta:**
 
 **1. Goal Input Page Loader**
 ```typescript
@@ -732,39 +732,39 @@ export const loadGoalReviewPageAction = cache(
 );
 ```
 
-**Usage in Pages:**
+**Uso nas Páginas:**
 ```typescript
-// ❌ BEFORE: Multiple calls
+// ❌ ANTES: Múltiplas chamadas
 const user = await getCurrentUserAction();
 const goals = await getGoalsAction(periodId);
 const period = await getPeriodAction(periodId);
 const competencies = await getCompetenciesAction();
 
-// ✅ AFTER: Single call
+// ✅ DEPOIS: Uma única chamada
 const pageData = await loadGoalInputPageAction(periodId);
 const { user, goals, period, competencies, stageBudgets } = pageData.data;
 ```
 
-**Expected Benefits:**
-- ✅ Reduction from 4-6 requests → 1 request per page
-- ✅ Backend can optimize queries (joins, batch loading)
-- ✅ Lower total latency (no waterfall)
-- ✅ Cleaner and more maintainable code
+**Benefícios Esperados:**
+- ✅ Redução de 4-6 requests → 1 request por página
+- ✅ Backend pode otimizar queries (joins, batch loading)
+- ✅ Menor latência total (sem waterfall)
+- ✅ Código mais limpo e manutenível
 
-**Priority Pages for Implementation:**
-1. **Goal Input Page** (high usage, multiple queries)
-2. **Goal List Page** (high usage, initial page)
-3. **Goal Review Page** (supervisor - multiple users)
-4. **Evaluation Input Page** (self-assessment)
-5. **Admin Goal List Page** (org-wide view)
+**Páginas Prioritárias para Implementação:**
+1. **Goal Input Page** (alta utilização, múltiplas queries)
+2. **Goal List Page** (alta utilização, página inicial)
+3. **Goal Review Page** (supervisor - múltiplos usuários)
+4. **Evaluation Input Page** (autoavaliação)
+5. **Admin Goal List Page** (visualização org-wide)
 
 ---
 
-### 6. ✅ **POSITIVE: Server Actions already use React.cache()**
+### 6. ✅ **POSITIVO: Server Actions já usam React.cache()**
 
-**Status:** ✅ **CORRECTLY IMPLEMENTED**
+**Status:** ✅ **IMPLEMENTADO CORRETAMENTE**
 
-**Examples found:**
+**Exemplos encontrados:**
 
 **Goals Server Actions:**
 ```typescript
@@ -794,191 +794,191 @@ export const getTodoTasksAction = cache(async () => {
 });
 ```
 
-**Other Server Actions:**
+**Outros Server Actions:**
 - `getEvaluationPeriodsAction` - cache ✅
 - `getDepartmentsAction` - cache ✅
 - `getCompetenciesAction` - cache ✅
 - `getUsersAction` - cache ✅
 
-**Assessment:** ✅ **Good practice already implemented!**
+**Avaliação:** ✅ **Boa prática já implementada!**
 
-Server actions are using `React.cache()` to deduplicate requests during SSR. This ensures that multiple calls to the same server action within a request return the cached result.
+Server actions estão usando `React.cache()` para deduplicate requests durante SSR. Isso garante que múltiplas chamadas ao mesmo server action dentro de uma request retornam o resultado cacheado.
 
-**Observed Benefits:**
-- Automatic deduplication of requests during SSR
-- Per-request cache (automatically cleared between requests)
-- Better performance on pages with multiple calls to the same server action
-
----
-
-## 📊 COMPARISON TABLE: Current State vs. Specification
-
-| Issue | Refactor Document | Develop Branch | Status | Priority |
-|-------|-------------------|----------------|--------|----------|
-| Global `dynamic = 'force-dynamic'` | ❌ Remove and apply selectively | ❌ Still present globally | ❌ Not resolved | 🔴 High |
-| Org slug caching (HTTP Client) | ✅ Memoize with `orgSlugPromise` | ❌ Always recomputes | ❌ Not resolved | 🔴 High |
-| JWT parser caching (Server-side) | ✅ Use `React.cache()` | ❌ Normal function without cache | ❌ Not resolved | 🔴 High |
-| Auto-save batching | ✅ Batch save endpoint | ❌ Saves individually | ❌ Not resolved | 🟡 Medium |
-| Page-level loaders | ✅ Loaders for all pages | ⚠️ Only dashboards | ⚠️ Partial | 🟡 Medium |
-| Server actions with cache | ✅ Use `React.cache()` | ✅ Already implemented | ✅ Complete | ✅ OK |
+**Benefícios Observados:**
+- Deduplicação automática de requests durante SSR
+- Cache por request (limpo automaticamente entre requests)
+- Melhor performance em páginas com múltiplas chamadas ao mesmo server action
 
 ---
 
-## 🎯 IMPLEMENTATION PRIORITIZATION
+## 📊 TABELA COMPARATIVA: Estado Atual vs. Especificação
 
-### 🔴 **PHASE 1: QUICK WINS (High Priority)**
-**Estimated Time:** 1-2 days
-**Expected Impact:** -30-40% latency
-**Complexity:** Low
-
-#### Tasks:
-1. **Add `React.cache()` to JWT Parser**
-   - File: `frontend/src/api/utils/jwt-parser.ts`
-   - Functions: `getCurrentOrgSlug()`, `getCurrentOrgContext()`
-   - Lines: 197-226
-   - Effort: 1 hour
-   - Impact: -60% JWT parsing calls on server
-
-2. **Implement org slug cache in UnifiedHttpClient**
-   - File: `frontend/src/api/client/http-unified-client.ts`
-   - Method: `getOrgSlug()`
-   - Lines: 115-120
-   - Effort: 2 hours
-   - Impact: -80% JWT parsing on client/server
-
-3. **Remove global `dynamic = 'force-dynamic'`**
-   - File: `frontend/src/app/layout.tsx`
-   - Line: 17
-   - Effort: 2 hours (including tests)
-   - Impact: -50% TTFB for static pages
-
-4. **Add `dynamic = 'force-dynamic'` selectively**
-   - Dynamic pages: dashboards, goal-input, evaluation-input
-   - Effort: 1 hour
-   - Impact: Maintains performance on pages that need dynamic rendering
-
-5. **Validation Tests**
-   - Org switching still works
-   - Build completes without errors
-   - SSG works for static pages
-   - Effort: 2 hours
-
-**Total Phase 1:** ~8 hours (1 day of work)
+| Problema | Documento Refactor | Branch Develop | Status | Prioridade |
+|----------|-------------------|----------------|--------|-----------|
+| Global `dynamic = 'force-dynamic'` | ❌ Remover e aplicar seletivamente | ❌ Ainda presente globalmente | ❌ Não resolvido | 🔴 Alta |
+| Org slug caching (HTTP Client) | ✅ Memoizar com `orgSlugPromise` | ❌ Sempre recomputa | ❌ Não resolvido | 🔴 Alta |
+| JWT parser caching (Server-side) | ✅ Usar `React.cache()` | ❌ Função normal sem cache | ❌ Não resolvido | 🔴 Alta |
+| Auto-save batching | ✅ Batch save endpoint | ❌ Salva individualmente | ❌ Não resolvido | 🟡 Média |
+| Page-level loaders | ✅ Loaders para todas as páginas | ⚠️ Apenas dashboards | ⚠️ Parcial | 🟡 Média |
+| Server actions com cache | ✅ Usar `React.cache()` | ✅ Já implementado | ✅ Completo | ✅ OK |
 
 ---
 
-### 🟡 **PHASE 2: BATCHING (Medium Priority)**
-**Estimated Time:** 2-3 days
-**Expected Impact:** -60-70% HTTP requests
-**Complexity:** Medium
+## 🎯 PRIORIZAÇÃO DE IMPLEMENTAÇÃO
 
-#### Tasks:
+### 🔴 **FASE 1: QUICK WINS (Prioridade Alta)**
+**Tempo Estimado:** 1-2 dias
+**Impacto Esperado:** -30-40% latência
+**Complexidade:** Baixa
 
-1. **Backend: Create Batch Save Endpoint**
-   - File: `backend/app/api/v1/goals.py`
+#### Tarefas:
+1. **Adicionar `React.cache()` em JWT Parser**
+   - Arquivo: `frontend/src/api/utils/jwt-parser.ts`
+   - Funções: `getCurrentOrgSlug()`, `getCurrentOrgContext()`
+   - Linhas: 197-226
+   - Esforço: 1 hora
+   - Impacto: -60% de chamadas JWT parsing no servidor
+
+2. **Implementar cache de org slug no UnifiedHttpClient**
+   - Arquivo: `frontend/src/api/client/http-unified-client.ts`
+   - Método: `getOrgSlug()`
+   - Linhas: 115-120
+   - Esforço: 2 horas
+   - Impacto: -80% de parsing JWT no client/server
+
+3. **Remover `dynamic = 'force-dynamic'` global**
+   - Arquivo: `frontend/src/app/layout.tsx`
+   - Linha: 17
+   - Esforço: 2 horas (incluindo testes)
+   - Impacto: -50% TTFB para páginas estáticas
+
+4. **Adicionar `dynamic = 'force-dynamic'` seletivamente**
+   - Páginas dinâmicas: dashboards, goal-input, evaluation-input
+   - Esforço: 1 hora
+   - Impacto: Mantém performance em páginas que precisam de dynamic rendering
+
+5. **Testes de Validação**
+   - Org switching ainda funciona
+   - Build completa sem erros
+   - SSG funciona para páginas estáticas
+   - Esforço: 2 horas
+
+**Total Fase 1:** ~8 horas (1 dia de trabalho)
+
+---
+
+### 🟡 **FASE 2: BATCHING (Prioridade Média)**
+**Tempo Estimado:** 2-3 dias
+**Impacto Esperado:** -60-70% requests HTTP
+**Complexidade:** Média
+
+#### Tarefas:
+
+1. **Backend: Criar Endpoint de Batch Save**
+   - Arquivo: `backend/app/api/v1/goals.py`
    - Endpoint: `POST /org/{org_slug}/goals/batch-save`
-   - Effort: 4 hours
-   - Impact: Backend ready for batch operations
+   - Esforço: 4 horas
+   - Impacto: Backend preparado para batch operations
 
-2. **Backend: Implement Batch Save Logic**
+2. **Backend: Implementar Lógica de Batch Save**
    - Service: `backend/app/services/goal_service.py`
-   - Add `batch_save_goals()` method
-   - Atomic transactions
-   - Effort: 3 hours
-   - Impact: Guaranteed atomicity
+   - Adicionar método `batch_save_goals()`
+   - Transações atômicas
+   - Esforço: 3 horas
+   - Impacto: Garantia de atomicidade
 
 3. **Frontend: API Endpoint Function**
-   - File: `frontend/src/api/endpoints/goals.ts`
-   - Function: `batchSaveGoals()`
-   - Effort: 1 hour
+   - Arquivo: `frontend/src/api/endpoints/goals.ts`
+   - Função: `batchSaveGoals()`
+   - Esforço: 1 hora
 
 4. **Frontend: Server Action**
-   - File: `frontend/src/api/server-actions/goals.ts`
-   - Function: `batchSaveGoalsAction()`
-   - Effort: 2 hours
+   - Arquivo: `frontend/src/api/server-actions/goals.ts`
+   - Função: `batchSaveGoalsAction()`
+   - Esforço: 2 horas
 
-5. **Frontend: Refactor useGoalAutoSave**
-   - File: `frontend/src/hooks/useGoalAutoSave.ts`
-   - Group changes in batch
-   - Process results
-   - Effort: 4 hours
+5. **Frontend: Refatorar useGoalAutoSave**
+   - Arquivo: `frontend/src/hooks/useGoalAutoSave.ts`
+   - Agrupar mudanças em batch
+   - Processar resultados
+   - Esforço: 4 horas
 
-6. **Tests**
-   - Unit tests (backend and frontend)
-   - Integration tests
-   - E2E tests
-   - Effort: 4 hours
+6. **Testes**
+   - Testes unitários (backend e frontend)
+   - Testes de integração
+   - Testes E2E
+   - Esforço: 4 horas
 
-**Total Phase 2:** ~18 hours (2-3 days of work)
+**Total Fase 2:** ~18 horas (2-3 dias de trabalho)
 
 ---
 
-### 🟢 **PHASE 3: PAGE LOADERS (Medium-Low Priority)**
-**Estimated Time:** 3-5 days
-**Expected Impact:** -50-60% total latency on main pages
-**Complexity:** Medium-High
+### 🟢 **FASE 3: PAGE LOADERS (Prioridade Média-Baixa)**
+**Tempo Estimado:** 3-5 dias
+**Impacto Esperado:** -50-60% latência total em páginas principais
+**Complexidade:** Média-Alta
 
-#### Tasks:
+#### Tarefas:
 
-1. **Backend: Goal Input Page Endpoint**
+1. **Backend: Endpoint Goal Input Page**
    - Endpoint: `GET /org/{org_slug}/pages/goal-input`
-   - Returns: user, period, goals, competencies, stageBudgets
-   - Effort: 3 hours
+   - Retorna: user, period, goals, competencies, stageBudgets
+   - Esforço: 3 horas
 
 2. **Frontend: Goal Input Page Loader**
    - Server action: `loadGoalInputPageAction()`
-   - Effort: 2 hours
+   - Esforço: 2 horas
 
-3. **Refactor Goal Input Page**
-   - Use page loader
-   - Remove separate calls
-   - Effort: 3 hours
+3. **Refatorar Goal Input Page**
+   - Usar page loader
+   - Remover chamadas separadas
+   - Esforço: 3 horas
 
-4. **Backend: Goal List Page Endpoint**
+4. **Backend: Endpoint Goal List Page**
    - Endpoint: `GET /org/{org_slug}/pages/goal-list`
-   - Returns: user, goals, periods, statistics
-   - Effort: 3 hours
+   - Retorna: user, goals, periods, statistics
+   - Esforço: 3 horas
 
 5. **Frontend: Goal List Page Loader**
    - Server action: `loadGoalListPageAction()`
-   - Effort: 2 hours
+   - Esforço: 2 horas
 
-6. **Refactor Goal List Page**
-   - Use page loader
-   - Effort: 3 hours
+6. **Refatorar Goal List Page**
+   - Usar page loader
+   - Esforço: 3 horas
 
-7. **Backend: Goal Review Page Endpoint**
+7. **Backend: Endpoint Goal Review Page**
    - Endpoint: `GET /org/{org_slug}/pages/goal-review`
-   - Returns: supervisor, goals, period, reviewStats
-   - Effort: 3 hours
+   - Retorna: supervisor, goals, period, reviewStats
+   - Esforço: 3 horas
 
 8. **Frontend: Goal Review Page Loader**
    - Server action: `loadGoalReviewPageAction()`
-   - Effort: 2 hours
+   - Esforço: 2 horas
 
-9. **Refactor Goal Review Page**
-   - Use page loader
-   - Effort: 3 hours
+9. **Refatorar Goal Review Page**
+   - Usar page loader
+   - Esforço: 3 horas
 
-10. **Complete E2E Tests**
-    - All main flows
+10. **Testes E2E Completos**
+    - Todos os fluxos principais
     - Performance benchmarks
-    - Effort: 4 hours
+    - Esforço: 4 horas
 
-**Total Phase 3:** ~28 hours (3-4 days of work)
+**Total Fase 3:** ~28 horas (3-4 dias de trabalho)
 
 ---
 
-## 📈 ESTIMATED METRICS
+## 📈 MÉTRICAS ESTIMADAS
 
-### Current State (Branch `develop`)
+### Estado Atual (Branch `develop`)
 ```
 ┌─────────────────────────────────────────────┐
-│ CURRENT PERFORMANCE (Not Optimized)        │
+│ PERFORMANCE ATUAL (Não Otimizado)          │
 ├─────────────────────────────────────────────┤
-│ TTFB (all pages):              ~500ms      │
-│ TTFB (dynamic pages):          ~500ms      │
-│ TTFB (static pages):           ~500ms ❌   │
+│ TTFB (todas as páginas):       ~500ms      │
+│ TTFB (páginas dinâmicas):      ~500ms      │
+│ TTFB (páginas estáticas):      ~500ms ❌   │
 │ Server Action latency:         ~300ms      │
 │ JWT parsing calls/page:        15-20x      │
 │ Auto-save (10 goals):          10 req      │
@@ -988,13 +988,13 @@ Server actions are using `React.cache()` to deduplicate requests during SSR. Thi
 └─────────────────────────────────────────────┘
 ```
 
-### After Phase 1: Quick Wins
+### Após Fase 1: Quick Wins
 ```
 ┌─────────────────────────────────────────────┐
-│ AFTER QUICK WINS (-30-40% latency)         │
+│ APÓS QUICK WINS (-30-40% latência)         │
 ├─────────────────────────────────────────────┤
-│ TTFB (static pages):           ~100ms ✅   │
-│ TTFB (dynamic pages):          ~300ms      │
+│ TTFB (páginas estáticas):      ~100ms ✅   │
+│ TTFB (páginas dinâmicas):      ~300ms      │
 │ Server Action latency:         ~180ms ✅   │
 │ JWT parsing calls/page:        2-3x   ✅   │
 │ Auto-save (10 goals):          10 req      │
@@ -1004,13 +1004,13 @@ Server actions are using `React.cache()` to deduplicate requests during SSR. Thi
 └─────────────────────────────────────────────┘
 ```
 
-### After Phase 2: Batching
+### Após Fase 2: Batching
 ```
 ┌─────────────────────────────────────────────┐
-│ AFTER BATCHING (-60-70% requests)          │
+│ APÓS BATCHING (-60-70% requests)           │
 ├─────────────────────────────────────────────┤
-│ TTFB (static pages):           ~100ms      │
-│ TTFB (dynamic pages):          ~300ms      │
+│ TTFB (páginas estáticas):      ~100ms      │
+│ TTFB (páginas dinâmicas):      ~300ms      │
 │ Server Action latency:         ~180ms      │
 │ JWT parsing calls/page:        2-3x        │
 │ Auto-save (10 goals):          1 req  ✅   │
@@ -1020,13 +1020,13 @@ Server actions are using `React.cache()` to deduplicate requests during SSR. Thi
 └─────────────────────────────────────────────┘
 ```
 
-### After Phase 3: Page Loaders (Final State)
+### Após Fase 3: Page Loaders (Estado Final)
 ```
 ┌─────────────────────────────────────────────┐
-│ FINAL STATE (All Optimizations)            │
+│ ESTADO FINAL (Todas Otimizações)           │
 ├─────────────────────────────────────────────┤
-│ TTFB (static pages):           ~100ms ✅   │
-│ TTFB (dynamic pages):          ~200ms ✅   │
+│ TTFB (páginas estáticas):      ~100ms ✅   │
+│ TTFB (páginas dinâmicas):      ~200ms ✅   │
 │ Server Action latency:         ~100ms ✅   │
 │ JWT parsing calls/page:        2x     ✅   │
 │ Auto-save (10 goals):          1 req  ✅   │
@@ -1035,9 +1035,9 @@ Server actions are using `React.cache()` to deduplicate requests during SSR. Thi
 │ Dashboard load:                ~500ms ✅   │
 └─────────────────────────────────────────────┘
 
-Total Improvements:
-  - TTFB (static):    -80%  (500ms → 100ms)
-  - TTFB (dynamic):   -60%  (500ms → 200ms)
+Melhorias Totais:
+  - TTFB (estáticas): -80%  (500ms → 100ms)
+  - TTFB (dinâmicas): -60%  (500ms → 200ms)
   - Server Actions:   -67%  (300ms → 100ms)
   - JWT parsing:      -90%  (20x → 2x)
   - Auto-save reqs:   -90%  (10 req → 1 req)
@@ -1046,55 +1046,55 @@ Total Improvements:
 
 ---
 
-## 🧪 VALIDATION AND TESTING
+## 🧪 VALIDAÇÃO E TESTES
 
-### Test Checklist by Phase
+### Checklist de Testes por Fase
 
-#### Phase 1: Quick Wins
-- [ ] **Org switching:** User switches organization → context updates correctly
-- [ ] **JWT cache invalidation:** Token expires → new parsing occurs
-- [ ] **Static pages build:** Build completes without errors for static pages
-- [ ] **Dynamic pages:** Dashboards still render correctly
-- [ ] **Auth flow:** Login/logout work normally
-- [ ] **Performance:** TTFB reduced on static pages
+#### Fase 1: Quick Wins
+- [ ] **Org switching:** Usuário troca de organização → contexto atualiza corretamente
+- [ ] **JWT cache invalidation:** Token expira → novo parsing acontece
+- [ ] **Static pages build:** Build completa sem erros para páginas estáticas
+- [ ] **Dynamic pages:** Dashboards ainda renderizam corretamente
+- [ ] **Auth flow:** Login/logout funcionam normalmente
+- [ ] **Performance:** TTFB reduzido em páginas estáticas
 
-#### Phase 2: Batching
-- [ ] **Batch save:** 10 changed goals → 1 HTTP request sent
-- [ ] **Atomic transactions:** Failure in 1 goal → rollback all
-- [ ] **Individual save fallback:** System degrades gracefully if batch fails
-- [ ] **Toast notifications:** Correct user feedback (success/error)
-- [ ] **Server ID replacement:** Temporary IDs replaced with server IDs
-- [ ] **Performance:** Significant reduction in HTTP requests
+#### Fase 2: Batching
+- [ ] **Batch save:** 10 goals alterados → 1 request HTTP enviado
+- [ ] **Atomic transactions:** Falha em 1 goal → rollback de todos
+- [ ] **Individual save fallback:** Sistema degrada gracefully se batch falhar
+- [ ] **Toast notifications:** Feedback correto ao usuário (sucesso/erro)
+- [ ] **Server ID replacement:** IDs temporários substituídos por server IDs
+- [ ] **Performance:** Redução significativa em requests HTTP
 
-#### Phase 3: Page Loaders
-- [ ] **Goal Input page:** Single request returns all data
-- [ ] **Goal List page:** Single request returns all data
-- [ ] **Goal Review page:** Single request returns all data
-- [ ] **Data consistency:** Loaded data is synchronized
-- [ ] **Error handling:** Failures are handled gracefully
-- [ ] **Performance:** Reduction in total page latency
+#### Fase 3: Page Loaders
+- [ ] **Goal Input page:** Uma única request retorna todos os dados
+- [ ] **Goal List page:** Uma única request retorna todos os dados
+- [ ] **Goal Review page:** Uma única request retorna todos os dados
+- [ ] **Data consistency:** Dados carregados estão sincronizados
+- [ ] **Error handling:** Falhas são tratadas gracefully
+- [ ] **Performance:** Redução em latência total da página
 
-### Metrics to Monitor
+### Métricas para Monitorar
 
 1. **Core Web Vitals**
-   - **TTFB** (Time to First Byte): < 200ms for dynamic pages, < 100ms for static
+   - **TTFB** (Time to First Byte): < 200ms para páginas dinâmicas, < 100ms para estáticas
    - **LCP** (Largest Contentful Paint): < 2.5s
    - **FID** (First Input Delay): < 100ms
    - **CLS** (Cumulative Layout Shift): < 0.1
 
 2. **Custom Metrics**
-   - **Number of HTTP requests per page**: 50-90% reduction
-   - **JWT parsing calls per request**: ~2x (vs. 15-20x before)
+   - **Number of HTTP requests per page**: Redução de 50-90%
+   - **JWT parsing calls per request**: ~2x (vs. 15-20x antes)
    - **Server action execution time**: < 100ms
-   - **Auto-save latency**: < 500ms for batch of 10 goals
+   - **Auto-save latency**: < 500ms para batch de 10 goals
 
 3. **Backend Metrics**
-   - **Database query count**: Reduction in N+1 queries
-   - **Database query time**: < 50ms for optimized queries
+   - **Database query count**: Redução em queries N+1
+   - **Database query time**: < 50ms para queries otimizadas
    - **API response time p95**: < 200ms
    - **API response time p99**: < 500ms
 
-### Monitoring Tools
+### Ferramentas de Monitoramento
 - **Next.js Analytics**: Core Web Vitals
 - **Chrome DevTools**: Network waterfall, Performance profiling
 - **Lighthouse**: Performance score
@@ -1102,74 +1102,74 @@ Total Improvements:
 
 ---
 
-## ⚠️ RISKS AND MITIGATIONS
+## ⚠️ RISCOS E MITIGAÇÕES
 
-### Risk 1: Stale Cache After Org Switching
-**Probability:** Medium
-**Impact:** High (user sees data from another organization)
-**Symptoms:**
-- User switches org but sees data from previous org
-- API calls are made to incorrect org slug
+### Risco 1: Cache Stale após Org Switching
+**Probabilidade:** Média
+**Impacto:** Alto (usuário vê dados de outra organização)
+**Sintomas:**
+- Usuário troca de org mas vê dados da org anterior
+- API calls são feitas para org slug incorreto
 
-**Mitigation:**
-- ✅ `clearOrgSlugCache()` mechanism already exists in code
-- ✅ Add specific tests for org switching
-- ✅ Invalidate cache when detecting org change
-- ✅ Add logging for debugging
+**Mitigação:**
+- ✅ Mecanismo de `clearOrgSlugCache()` já existe no código
+- ✅ Adicionar testes específicos para org switching
+- ✅ Invalidar cache ao detectar mudança de org
+- ✅ Adicionar logging para debugging
 
-**Validation Tests:**
+**Testes de Validação:**
 ```typescript
 // Test case: Org switching
-1. Login to org A
-2. Load page with org A data
-3. Switch to org B
-4. Verify clearOrgSlugCache() was called
-5. Verify next request uses org B slug
-6. Verify org B data is displayed
+1. Login na org A
+2. Carregar página com dados da org A
+3. Trocar para org B
+4. Verificar que clearOrgSlugCache() foi chamado
+5. Verificar que próxima request usa org B slug
+6. Verificar que dados da org B são exibidos
 ```
 
 ---
 
-### Risk 2: Batch Save Partial Failure
-**Probability:** Low
-**Impact:** Medium (some goals not saved)
-**Symptoms:**
-- Some goals saved, others not
-- Inconsistent state between frontend and backend
+### Risco 2: Batch Save Falha Parcialmente
+**Probabilidade:** Baixa
+**Impacto:** Médio (alguns goals não salvos)
+**Sintomas:**
+- Alguns goals salvos, outros não
+- Estado inconsistente entre frontend e backend
 
-**Mitigation:**
-- ✅ Implement atomic transactions in backend (all or nothing)
-- ✅ Retry logic for partial failures
-- ✅ Clear feedback to user about what was saved
-- ✅ Fallback to individual save if batch fails
+**Mitigação:**
+- ✅ Implementar transações atômicas no backend (all or nothing)
+- ✅ Retry logic para failures parciais
+- ✅ Feedback claro ao usuário sobre o que foi salvo
+- ✅ Fallback para individual save se batch falhar
 
-**Validation Tests:**
+**Testes de Validação:**
 ```typescript
 // Test case: Batch save with validation error
-1. Create batch with 10 goals
-2. Inject validation error in goal #5
-3. Send batch save
-4. Verify no goals were saved (atomic rollback)
-5. Verify error is reported to user
-6. Verify user can correct and retry
+1. Criar batch com 10 goals
+2. Injetar erro de validação no goal #5
+3. Enviar batch save
+4. Verificar que nenhum goal foi salvo (atomic rollback)
+5. Verificar que erro é reportado ao usuário
+6. Verificar que usuário pode corrigir e retentar
 ```
 
 ---
 
-### Risk 3: Breaking Changes in Components
-**Probability:** Medium
-**Impact:** Medium (regressions in functionality)
-**Symptoms:**
-- Components broken after refactoring
-- E2E tests failing
+### Risco 3: Breaking Changes em Componentes
+**Probabilidade:** Média
+**Impacto:** Médio (regressões em funcionalidades)
+**Sintomas:**
+- Componentes quebrados após refactoring
+- Testes E2E falhando
 
-**Mitigation:**
-- ✅ Maintain initial backwards compatibility
-- ✅ Progressive migration with feature flags
-- ✅ Prepared rollback plan
-- ✅ Comprehensive E2E tests before merge
+**Mitigação:**
+- ✅ Manter backwards compatibility inicial
+- ✅ Migration progressiva com feature flags
+- ✅ Rollback plan preparado
+- ✅ Testes E2E abrangentes antes de merge
 
-**Migration Strategy:**
+**Estratégia de Migration:**
 ```typescript
 // Feature flag approach
 const USE_PAGE_LOADER = process.env.NEXT_PUBLIC_USE_PAGE_LOADER === 'true';
@@ -1187,18 +1187,18 @@ if (USE_PAGE_LOADER) {
 
 ---
 
-### Risk 4: Performance Regression
-**Probability:** Low
-**Impact:** High (worsens performance instead of improving)
-**Symptoms:**
-- Latency increases instead of decreases
-- More requests instead of fewer
+### Risco 4: Performance Regression
+**Probabilidade:** Baixa
+**Impacto:** Alto (piora performance ao invés de melhorar)
+**Sintomas:**
+- Latência aumenta ao invés de diminuir
+- Mais requests ao invés de menos
 
-**Mitigation:**
-- ✅ Benchmarks before and after each phase
-- ✅ Continuous metrics monitoring
-- ✅ Load tests
-- ✅ Immediate rollback if metrics worsen
+**Mitigação:**
+- ✅ Benchmarks antes e depois de cada fase
+- ✅ Monitoring contínuo de métricas
+- ✅ Testes de carga
+- ✅ Rollback imediato se métricas piorarem
 
 **Benchmarking:**
 ```bash
@@ -1214,20 +1214,20 @@ npm run benchmark:compare
 
 ---
 
-### Risk 5: Build Failures with SSG
-**Probability:** Medium
-**Impact:** Medium (deploy blocked)
-**Symptoms:**
-- Build fails with Clerk keys error
-- Static pages are not generated
+### Risco 5: Build Failures com SSG
+**Probabilidade:** Média
+**Impacto:** Médio (deploy bloqueado)
+**Sintomas:**
+- Build falha com erro de Clerk keys
+- Páginas estáticas não são geradas
 
-**Mitigation:**
-- ✅ Test build locally before merge
-- ✅ CI/CD validates build before deploy
-- ✅ Fallback to dynamic rendering if SSG fails
-- ✅ Document which pages should be static
+**Mitigação:**
+- ✅ Testar build localmente antes de merge
+- ✅ CI/CD valida build antes de deploy
+- ✅ Fallback para dynamic rendering se SSG falhar
+- ✅ Documentar quais páginas devem ser estáticas
 
-**Build Validation:**
+**Validação de Build:**
 ```bash
 # Local build test
 npm run build
@@ -1241,46 +1241,46 @@ echo $?  # Should be 0
 
 ---
 
-## 📚 REFERENCES
+## 📚 REFERÊNCIAS
 
-### Key Files for Modification
+### Arquivos Chave para Modificação
 
 #### Frontend
-1. **Global Layout**
-   - `frontend/src/app/layout.tsx:17` - Remove `dynamic = 'force-dynamic'`
+1. **Layout Global**
+   - `frontend/src/app/layout.tsx:17` - Remover `dynamic = 'force-dynamic'`
 
 2. **HTTP Client**
-   - `frontend/src/api/client/http-unified-client.ts:115-120` - Implement org slug cache
+   - `frontend/src/api/client/http-unified-client.ts:115-120` - Implementar cache de org slug
 
 3. **JWT Parser**
-   - `frontend/src/api/utils/jwt-parser.ts:197-226` - Add `React.cache()`
+   - `frontend/src/api/utils/jwt-parser.ts:197-226` - Adicionar `React.cache()`
 
 4. **Auto-Save Hook**
-   - `frontend/src/hooks/useGoalAutoSave.ts:282-363` - Implement batching
+   - `frontend/src/hooks/useGoalAutoSave.ts:282-363` - Implementar batching
 
 5. **Server Actions**
-   - `frontend/src/api/server-actions/goals.ts` - Add `batchSaveGoalsAction()`
-   - `frontend/src/api/server-actions/goal-input.ts` - Create `loadGoalInputPageAction()`
-   - `frontend/src/api/server-actions/goal-list.ts` - Create `loadGoalListPageAction()`
+   - `frontend/src/api/server-actions/goals.ts` - Adicionar `batchSaveGoalsAction()`
+   - `frontend/src/api/server-actions/goal-input.ts` - Criar `loadGoalInputPageAction()`
+   - `frontend/src/api/server-actions/goal-list.ts` - Criar `loadGoalListPageAction()`
 
 6. **API Endpoints**
-   - `frontend/src/api/endpoints/goals.ts` - Add `batchSaveGoals()`
+   - `frontend/src/api/endpoints/goals.ts` - Adicionar `batchSaveGoals()`
 
 #### Backend
 1. **Goals API**
-   - `backend/app/api/v1/goals.py` - Add `/batch-save` endpoint
+   - `backend/app/api/v1/goals.py` - Adicionar endpoint `/batch-save`
 
 2. **Goal Service**
-   - `backend/app/services/goal_service.py` - Add `batch_save_goals()`
+   - `backend/app/services/goal_service.py` - Adicionar `batch_save_goals()`
 
 3. **Page Endpoints**
-   - `backend/app/api/v1/pages.py` - Create endpoints for page loaders
+   - `backend/app/api/v1/pages.py` - Criar endpoints para page loaders
 
-### Specification Documents
+### Documentos de Especificação
 
 1. **Performance Refactor Series**
    - `.kiro/specs/.refactor-perf/01_backend-api-and-services.md` - Backend optimizations
-   - `.kiro/specs/.refactor-perf/02_frontend-data-fetch-and-ui.md` - Frontend optimizations (this document)
+   - `.kiro/specs/.refactor-perf/02_frontend-data-fetch-and-ui.md` - Frontend optimizations (este documento)
    - `.kiro/specs/.refactor-perf/03_auth-and-org-context.md` - Auth and org context
    - `.kiro/specs/.refactor-perf/04_evaluation-flows-and-domain.md` - Evaluation flows
    - `.kiro/specs/.refactor-perf/05_infra-db-and-observability.md` - Infrastructure and observability
@@ -1289,7 +1289,7 @@ echo $?  # Should be 0
    - `CLAUDE.md` - Project conventions and structure
    - `README.md` - Project overview
 
-### Useful Links
+### Links Úteis
 
 - [Next.js 15 Documentation - React Cache](https://nextjs.org/docs/app/building-your-application/caching#react-cache)
 - [Next.js 15 Documentation - Dynamic Rendering](https://nextjs.org/docs/app/building-your-application/rendering/server-components#dynamic-rendering)
@@ -1298,55 +1298,55 @@ echo $?  # Should be 0
 
 ---
 
-## ✅ CONCLUSION
+## ✅ CONCLUSÃO
 
-### Analysis Summary
+### Sumário da Análise
 
-The `develop` branch **has not yet implemented** most of the optimizations proposed in the document `.kiro/specs/.refactor-perf/02_frontend-data-fetch-and-ui.md`.
+A branch `develop` **ainda não implementou** a maioria das otimizações propostas no documento `.kiro/specs/.refactor-perf/02_frontend-data-fetch-and-ui.md`.
 
-### Main Gaps Identified
+### Principais Gaps Identificados
 
-1. ❌ **Global dynamic rendering** still active - Disables all static optimizations
-2. ❌ **Org slug caching not functional** - Cache exists but is not used
-3. ❌ **JWT parser without cache** on server-side - Parsing repeated 15-20x per request
-4. ❌ **Individual auto-save** without batching - 10 goals = 10 HTTP requests
-5. ⚠️ **Partial page loaders** - Only dashboards implemented
+1. ❌ **Global dynamic rendering** ainda ativo - Desabilita todas as otimizações estáticas
+2. ❌ **Org slug caching não funcional** - Cache existe mas não é utilizado
+3. ❌ **JWT parser sem cache** no server-side - Parsing repetido 15-20x por request
+4. ❌ **Auto-save individual** sem batching - 10 goals = 10 requests HTTP
+5. ⚠️ **Page loaders parciais** - Apenas dashboards implementados
 
-### Positive State
+### Estado Positivo
 
-✅ **Server actions already use React.cache()** correctly - Good practice implemented for request deduplication during SSR
+✅ **Server actions já usam React.cache()** corretamente - Boa prática implementada para deduplicação de requests durante SSR
 
-### Final Recommendation
+### Recomendação Final
 
-**Implement in phases according to the proposed action plan:**
+**Implementar em fases conforme o plano de ação proposto:**
 
-1. **Phase 1 (1-2 days):** Quick Wins → **-30-40% latency**
-   - Highest impact with lowest effort
-   - Low risk of regressions
-   - Immediate results
+1. **Fase 1 (1-2 dias):** Quick Wins → **-30-40% latência**
+   - Maior impacto com menor esforço
+   - Baixo risco de regressões
+   - Resultados imediatos
 
-2. **Phase 2 (2-3 days):** Batching → **-60-70% requests**
-   - Significant reduction in network overhead
-   - Improves auto-save UX
-   - Lower backend pressure
+2. **Fase 2 (2-3 dias):** Batching → **-60-70% requests**
+   - Redução significativa em network overhead
+   - Melhora UX do auto-save
+   - Menor pressão no backend
 
-3. **Phase 3 (3-5 days):** Page Loaders → **-50-60% total latency**
-   - Deep optimization of main pages
-   - Better code structure
-   - Preparation for scale
+3. **Fase 3 (3-5 dias):** Page Loaders → **-50-60% latência total**
+   - Otimização profunda das páginas principais
+   - Melhor estrutura de código
+   - Preparação para escala
 
-**Total:** ~2 weeks of development for complete implementation
+**Total:** ~2 semanas de desenvolvimento para implementação completa
 
-### Next Steps
+### Próximos Passos
 
-1. ✅ **Team approval of this document**
-2. ✅ **Creation of GitHub issues** for each phase
-3. ✅ **Resource allocation** for implementation
-4. ✅ **Benchmark setup** for improvement validation
-5. ✅ **Incremental implementation** starting with Phase 1
+1. ✅ **Aprovação deste documento** pela equipe
+2. ✅ **Criação de issues no GitHub** para cada fase
+3. ✅ **Alocação de recursos** para implementação
+4. ✅ **Setup de benchmarks** para validação de melhorias
+5. ✅ **Implementação incremental** começando pela Fase 1
 
 ---
 
-**Document created on:** 2025-12-02
-**Last updated:** 2025-12-02
-**Status:** ✅ Ready for review and implementation
+**Documento criado em:** 2025-12-02
+**Última atualização:** 2025-12-02
+**Status:** ✅ Pronto para revisão e implementação
