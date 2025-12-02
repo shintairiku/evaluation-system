@@ -4,6 +4,10 @@
 
 認可・組織キャッシュを導入した後（#374 参照）も、組織スコープのリストエンドポイント（ユーザー、目標、評価期間、上司レビュー、部門）は依然として2〜5秒のマルチセカンドレイテンシーが発生しています。主なボトルネックはJWT/組織解決ではなく、RBACコンテキストのロードと重いリストクエリにあると思われます。本課題は、RBACの参照最適化とページ志向のリストクエリの改善にフォーカスします。
 
+Relate Docs:
+- .kiro/specs/.refactor-perf/01_backend-api-and-services.md
+- docs/issues/optimize-auth-org-resolution-and-page-read-endpoints.md
+
 ## Background
 
 Recent logs from the dockerized production-like environment (run via `scripts/run-local.sh`) show:
