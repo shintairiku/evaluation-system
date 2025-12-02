@@ -4,6 +4,8 @@
 
 FastAPI ミドルウェア層での org 解決や AuthService による JWT デコードを最適化し、ページ単位の読み取り用 API を追加することで、1 画面表示あたりのクエリ数・API 呼び出し回数を削減しつつ、Goal の JSONB (target_data) スキーマを厳格化して不正データを早期に排除する。
 
+Related Docs: .kiro/specs/.refactor-perf/01_backend-api-and-services.md
+
 ## Background
 
 Current API design and data-access patterns produce redundant work per request:
