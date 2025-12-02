@@ -196,6 +196,7 @@ export const API_ENDPOINTS = {
 
   // Self Assessment endpoints
   SELF_ASSESSMENTS: {
+    // Legacy endpoints (kept for backward compatibility)
     LIST: '/self-assessments/',
     BY_ID: (id: string) => `/self-assessments/${id}`,
     CREATE: '/self-assessments/',
@@ -205,6 +206,12 @@ export const API_ENDPOINTS = {
     BY_PERIOD: (periodId: string) => `/self-assessments/period/${periodId}`,
     BY_GOAL: (goalId: string) => `/self-assessments/goal/${goalId}`,
     SUBMIT: (id: string) => `/self-assessments/${id}/submit`,
+
+    // New endpoints from API contract (Phase 3: Mock Implementation)
+    CONTEXT: '/self-assessments/context', // GET - Get all data for self-assessment page
+    DRAFT: '/self-assessments/draft', // POST - Auto-save draft
+    SUBMIT_NEW: '/self-assessments/submit', // POST - Submit completed assessment
+    SUMMARY: (periodId: string) => `/self-assessments/summary/${periodId}`, // GET - Get summary
   },
 
   // Supervisor Review endpoints
@@ -216,6 +223,10 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/supervisor-reviews/${id}`,
     PENDING: '/supervisor-reviews/pending',
     SUBMIT: (id: string) => `/supervisor-reviews/${id}/submit`,
+
+    // New endpoints from API contract (Phase 3: Mock Implementation)
+    PENDING_GROUPED: '/supervisor-reviews/pending/grouped', // GET - Grouped by employee
+    BUCKET_DECISIONS: (assessmentId: string) => `/supervisor-reviews/${assessmentId}/bucket-decisions`, // PATCH - Submit bucket decisions
   },
 
   // Supervisor Feedback endpoints
