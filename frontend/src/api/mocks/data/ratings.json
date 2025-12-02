@@ -1,0 +1,97 @@
+{
+  "ratings": [
+    {
+      "code": "SS",
+      "numericValue": 7,
+      "label": "SS (最優秀)",
+      "description": "期待を大幅に上回る卓越した成果",
+      "threshold": {
+        "min": 95,
+        "max": 100
+      },
+      "color": "#9333ea"
+    },
+    {
+      "code": "S",
+      "numericValue": 6,
+      "label": "S (優秀)",
+      "description": "期待を上回る優れた成果",
+      "threshold": {
+        "min": 85,
+        "max": 94
+      },
+      "color": "#7c3aed"
+    },
+    {
+      "code": "A+",
+      "numericValue": 5,
+      "label": "A+ (良好+)",
+      "description": "期待を上回る良好な成果",
+      "threshold": {
+        "min": 75,
+        "max": 84
+      },
+      "color": "#3b82f6"
+    },
+    {
+      "code": "A",
+      "numericValue": 4,
+      "label": "A (良好)",
+      "description": "期待通りの良好な成果",
+      "threshold": {
+        "min": 65,
+        "max": 74
+      },
+      "color": "#10b981"
+    },
+    {
+      "code": "A-",
+      "numericValue": 3,
+      "label": "A- (良好-)",
+      "description": "概ね期待通りの成果",
+      "threshold": {
+        "min": 55,
+        "max": 64
+      },
+      "color": "#84cc16"
+    },
+    {
+      "code": "B",
+      "numericValue": 2,
+      "label": "B (要改善)",
+      "description": "一部改善が必要",
+      "threshold": {
+        "min": 40,
+        "max": 54
+      },
+      "color": "#f59e0b"
+    },
+    {
+      "code": "C",
+      "numericValue": 1,
+      "label": "C (要大幅改善)",
+      "description": "大幅な改善が必要",
+      "threshold": {
+        "min": 20,
+        "max": 39
+      },
+      "color": "#f97316"
+    },
+    {
+      "code": "D",
+      "numericValue": 0,
+      "label": "D (不可)",
+      "description": "期待を大きく下回る",
+      "threshold": {
+        "min": 0,
+        "max": 19
+      },
+      "color": "#ef4444"
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2025-12-02",
+    "description": "Rating scale used for employee evaluations. Scores range from SS (highest) to D (lowest)."
+  }
+}

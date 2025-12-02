@@ -1,0 +1,62 @@
+{
+  "stageWeights": [
+    {
+      "stageId": "stage-1",
+      "stageName": "Stage 1",
+      "quantitative": 40,
+      "qualitative": 40,
+      "competency": 20,
+      "description": "新入社員・初級レベル"
+    },
+    {
+      "stageId": "stage-2",
+      "stageName": "Stage 2",
+      "quantitative": 40,
+      "qualitative": 40,
+      "competency": 20,
+      "description": "中級レベル"
+    },
+    {
+      "stageId": "stage-3",
+      "stageName": "Stage 3",
+      "quantitative": 40,
+      "qualitative": 40,
+      "competency": 20,
+      "description": "上級レベル"
+    },
+    {
+      "stageId": "stage-4",
+      "stageName": "Stage 4",
+      "quantitative": 40,
+      "qualitative": 40,
+      "competency": 20,
+      "description": "シニアレベル"
+    },
+    {
+      "stageId": "stage-5",
+      "stageName": "Stage 5",
+      "quantitative": 50,
+      "qualitative": 30,
+      "competency": 20,
+      "description": "リーダーレベル"
+    },
+    {
+      "stageId": "stage-6",
+      "stageName": "Stage 6",
+      "quantitative": 50,
+      "qualitative": 30,
+      "competency": 20,
+      "description": "マネージャーレベル"
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2025-12-02",
+    "description": "Stage-based weights for evaluation categories. Stage 1-4 use 40/40/20 distribution, Stage 5-6 use 50/30/20 distribution.",
+    "notes": [
+      "Quantitative: Measurable goals with numeric targets",
+      "Qualitative: Non-numeric goals (e.g., process improvement, teamwork)",
+      "Competency: Skills and behaviors assessment"
+    ]
+  }
+}
