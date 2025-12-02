@@ -22,7 +22,7 @@ class Permission(BaseModel):
 
 class PaginationParams(BaseModel):
     page: int = Field(default=1, ge=1, description="Page number (1-based)")
-    limit: int = Field(default=20, ge=1, le=100, description="Items per page")
+    limit: int = Field(default=20, ge=1, le=200, description="Items per page")
     
     @property
     def offset(self) -> int:
