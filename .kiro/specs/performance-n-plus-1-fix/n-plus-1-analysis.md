@@ -30,6 +30,24 @@ for subordinate in subordinates:
     # Total: 1-3 queries regardless of N
 ```
 
+## Summary of All N+1 Issues Found
+
+| # | Issue | File | Lines | Query Type | Per Item | Priority |
+|---|-------|------|-------|-----------|----------|----------|
+| 1 | Subordinates detail list | dashboard_service.py | 446-544 | Multiple (4) | 4 per subordinate | **CRITICAL** |
+| 2 | Todo tasks approved goals | dashboard_service.py | 791-815 | Single (1) | 1 per goal | HIGH |
+| 3 | History access periods | dashboard_service.py | 939-977 | Multiple (3) | 3 per period | HIGH |
+| 4 | Stages with user count | stage_service.py | 131-133 | Single (1) | 1 per stage | HIGH |
+| 5 | User subordinates enrichment | user_service.py | 1076-1078 | Multiple (3) | 3 per user | **CRITICAL** |
+| 6 | Department users enrichment | department_service.py | 305-316 | Multiple (3) | 3 per user | **CRITICAL** |
+| 7 | Competency name fallback | goal_service.py | 1094-1099 | Single (1) | 1 per competency | MEDIUM |
+| 8 | Supervisor feedback creation | self_assessment_service.py | 526 | Single (1) | 1 per assessment | LOW |
+| 9 | Missing eager loading | user_repo.py | 345, 359 | Varies | On access | MEDIUM |
+
+**Total Issues Found:** 9 (3 Critical, 3 High, 2 Medium, 1 Low)
+
+---
+
 ## Critical Issues Found
 
 ### 1. Dashboard Service - Subordinates List (CRITICAL)
@@ -72,16 +90,218 @@ for subordinate in subordinates:  # Line 446
 
 ---
 
-### 2. User Repository - Missing Eager Loading
+### 2. Dashboard Service - Todo Tasks Approved Goals (HIGH)
+
+**Location:** `backend/app/services/dashboard_service.py:791-815`
+
+**Problem:**
+The `_get_employee_todo_tasks()` method loops through approved goals and queries for self-assessments individually.
+
+**Code Analysis:**
+```python
+# Line 791: Loop through approved goals
+for goal in approved_goals:
+    # Lines 792-800: Query self-assessment for each goal
+    assessment_query = select(SelfAssessment).where(
+        and_(
+            SelfAssessment.user_id == user_id,
+            SelfAssessment.period_id == goal.period_id,
+            SelfAssessment.competency_id == goal.competency_id
+        )
+    )
+    assessment_result = await self.session.execute(assessment_query)
+    assessment = assessment_result.scalar_one_or_none()
+```
+
+**Impact:**
+- **20 approved goals:** 1 + 20 = **21 queries**
+- **50 approved goals:** 1 + 50 = **51 queries**
+
+**Solution:** Batch fetch all self-assessments for the user and period, then lookup in-memory.
+
+---
+
+### 3. Dashboard Service - History Access Periods (HIGH)
+
+**Location:** `backend/app/services/dashboard_service.py:939-977`
+
+**Problem:**
+The `_get_history_access()` method loops through completed periods and executes 3 count queries per period.
+
+**Code Analysis:**
+```python
+# Line 939: Loop through recent periods (up to 5)
+for period in recent_periods:
+    # Query 1: Count goals (Lines 941-945)
+    goals_query = select(func.count(Goal.id)).where(...)
+    goals_result = await self.session.execute(goals_query)
+
+    # Query 2: Count assessments (Lines 948-956)
+    assessments_query = select(func.count(SelfAssessment.id)).where(...)
+    assessments_result = await self.session.execute(assessments_query)
+
+    # Query 3: Count feedbacks (Lines 959-967)
+    feedbacks_query = select(func.count(SupervisorFeedback.id)).where(...)
+    feedbacks_result = await self.session.execute(feedbacks_query)
+```
+
+**Impact:**
+- **5 periods:** 1 + (5 × 3) = **16 queries**
+- Could be reduced to **2-3 queries** with batch aggregation
+
+**Solution:** Single query with GROUP BY period_id to get all counts at once.
+
+---
+
+### 4. Stage Service - Stages with User Count (HIGH)
+
+**Location:** `backend/app/services/stage_service.py:131-133`
+
+**Problem:**
+The `get_stages()` method loops through stages and counts users for each stage individually.
+
+**Code Analysis:**
+```python
+# Line 131: Loop through stages
+for stage in stage_models:
+    # Line 132: Count users for each stage
+    user_count = await self.stage_repo.count_users_by_stage(stage.id, org_id)
+    stage_responses.append(StageResponse(..., user_count=user_count))
+```
+
+**Impact:**
+- **10 stages:** 1 + 10 = **11 queries**
+- **20 stages:** 1 + 20 = **21 queries**
+
+**Solution:** Single GROUP BY query to count users per stage, or add subquery to initial stage fetch.
+
+---
+
+### 5. User Service - User Subordinates Enrichment (CRITICAL)
+
+**Location:** `backend/app/services/user_service.py:1076-1078`
+
+**Problem:**
+The service loops through subordinates and calls `_enrich_user_data()` which makes 3 queries per user.
+
+**Code Analysis:**
+```python
+# Line 1074-1078: Loop through subordinates
+for subordinate_model in subordinate_models:
+    enriched_subordinate = await self._enrich_user_data(subordinate_model)
+    # _enrich_user_data internally calls:
+    # - department_repo.get_by_id() [1 query]
+    # - stage_repo.get_by_id() [1 query]
+    # - role_repo.get_user_roles() [1 query]
+```
+
+**Impact:**
+- **50 subordinates:** 1 + (50 × 3) = **151 queries**
+- **100 subordinates:** 1 + (100 × 3) = **301 queries**
+
+**Used in:**
+- `get_user_by_id()` endpoint (Line 240)
+- `get_users()` endpoint (Lines 134-136)
+
+**Solution:** Use eager loading in repository query with `joinedload(User.department, User.stage, User.roles)`
+
+---
+
+### 6. Department Service - Department Users Enrichment (CRITICAL)
+
+**Location:** `backend/app/services/department_service.py:305-316`
+
+**Problem:**
+Same as Issue #5 - loops through department users calling `_enrich_user_data()` for each.
+
+**Code Analysis:**
+```python
+# Line 305: List comprehension calling _enrich_user_data for each user
+enriched_users = [await user_service._enrich_user_data(u) for u in user_models]
+# Each call makes 3 queries (department, stage, roles)
+
+# Lines 312-316: Additional filtering in Python instead of database
+if role_names:
+    viewers = await self.user_repo.get_users_by_role_names(role_names)
+    viewer_ids = {v.id for v in viewers}
+    enriched_users = [u for u in enriched_users if u["id"] in viewer_ids]
+```
+
+**Impact:**
+- **30 users in department:** 1 + (30 × 3) = **91 queries**
+- **Plus:** Extra query for role filtering
+
+**Solution:**
+1. Use eager loading in initial user fetch
+2. Move role filtering to SQL WHERE clause
+
+---
+
+### 7. Goal Service - Competency Name Fallback (MEDIUM)
+
+**Location:** `backend/app/services/goal_service.py:1094-1099`
+
+**Problem:**
+Fallback code that fetches competencies one-by-one if batch map is not provided.
+
+**Code Analysis:**
+```python
+# Lines 1088-1093: Batch loading (GOOD)
+if competency_map:
+    goal_dict["competency_name"] = competency_map.get(goal.competency_id)
+
+# Lines 1094-1099: Fallback (BAD - N+1)
+else:
+    for cid in ids:
+        competency = await self.competency_repo.get_by_id(cid, org_id)
+        if competency:
+            goal_dict["competency_name"] = competency.name
+```
+
+**Impact:**
+- Usually mitigated by batch loading flag
+- **Fallback:** M competency IDs = M additional queries
+
+**Priority:** Medium (has optimization, but fallback exists)
+
+**Solution:** Always ensure competency_map is provided, or remove fallback.
+
+---
+
+### 8. Self-Assessment Service - Supervisor Feedback Creation (LOW)
+
+**Location:** `backend/app/services/self_assessment_service.py:526`
+
+**Problem:**
+When auto-creating supervisor feedback, fetches supervisors without eager loading.
+
+**Code Analysis:**
+```python
+# Line 526
+supervisors = await self.user_repo.get_supervisors(goal.user_id)
+# If get_supervisors() doesn't use joinedload, accessing supervisor.email later triggers queries
+```
+
+**Impact:**
+- Low - only occurs during self-assessment submission
+- 1-3 additional queries per assessment
+
+**Priority:** Low
+
+**Solution:** Add eager loading option to `get_supervisors()` method.
+
+---
+
+### 9. User Repository - Missing Eager Loading (MEDIUM)
 
 **Location:** `backend/app/database/repositories/user_repo.py`
 
 **Problem:**
-Several methods fetch users without eager loading related data, causing N+1 when the service layer accesses relationships.
+Key methods return users without eager loading relationships.
 
-#### 2.1 `get_subordinates()` (Line 359-375)
+**Methods affected:**
 
-**Current Implementation:**
+#### 9.1 `get_subordinates()` (Line 359-375)
 ```python
 async def get_subordinates(self, supervisor_id: UUID, org_id: str) -> list[User]:
     result = await self.session.execute(
@@ -90,86 +310,55 @@ async def get_subordinates(self, supervisor_id: UUID, org_id: str) -> list[User]
         .filter(...)
     )
     return result.scalars().all()
+    # Missing: .options(joinedload(User.department), joinedload(User.stage), ...)
 ```
 
-**Issue:** No eager loading of `department`, `stage`, `roles`, or related evaluation data.
-
-**Impact:** When service accesses `subordinate.department.name`, triggers additional query per subordinate.
-
-#### 2.2 `search_users()` (Line 437-493)
-
-**Current Implementation:**
+#### 9.2 `get_user_supervisors()` (Line 345-357)
 ```python
-async def search_users(...) -> list[User]:
-    query = select(User).options(
-        joinedload(User.department),
-        joinedload(User.stage),
-        joinedload(User.roles)
-    )
-    # Good! Uses joinedload
-```
-
-**Status:** ✅ Already optimized with eager loading
-
-#### 2.3 `get_users_by_status()` (Line 252-268)
-
-**Current Implementation:**
-```python
-async def get_users_by_status(self, status: UserStatus, org_id: str) -> list[User]:
-    query = select(User).options(
-        joinedload(User.department),
-        joinedload(User.stage),
-        joinedload(User.supervisor_relations).joinedload(UserSupervisor.supervisor)
-    )
-```
-
-**Status:** ✅ Already optimized with eager loading
-
----
-
-### 3. Dashboard Service - Team Progress Queries
-
-**Location:** `backend/app/services/dashboard_service.py:260-348`
-
-**Problem:**
-Multiple separate queries to count related data for subordinates.
-
-**Current Implementation:**
-```python
-async def _get_team_progress(self, supervisor_id: UUID, org_id: str) -> TeamProgressData:
-    # Query 1: Get subordinates
-    subordinates = await self.user_repo.get_subordinates(supervisor_id, org_id)
-    subordinate_ids = [sub.id for sub in subordinates]
-
-    # Query 2: Count goals set
-    goals_set_query = select(func.count(...)).where(Goal.user_id.in_(subordinate_ids))
-
-    # Query 3: Count goals approved
-    goals_approved_query = select(func.count(...)).where(Goal.user_id.in_(subordinate_ids))
-
-    # Query 4: Count self-assessments
-    assessments_completed_query = select(func.count(...)).where(...)
-
-    # Query 5: Count feedbacks
-    feedbacks_query = select(func.count(...)).where(...)
+async def get_user_supervisors(self, user_id: UUID, org_id: str) -> list[User]:
+    query = select(User).join(UserSupervisor, User.id == UserSupervisor.supervisor_id)...
+    # Missing eager loading
 ```
 
 **Impact:**
-- Fixed number of queries (5-6) regardless of subordinate count
-- **Not a classic N+1**, but could be optimized with a single aggregate query
+- When service layer accesses `user.department.name`, triggers lazy load
+- Causes N+1 in combination with Issues #5 and #6
 
-**Priority:** Medium (not N+1, but can be improved)
+**Solution:** Add `with_relations` parameter to enable eager loading when needed.
 
 ---
 
 ## Performance Impact Summary
 
-| Location | Current Queries | Optimized Queries | Improvement |
-|----------|----------------|-------------------|-------------|
-| Subordinates List (10 users) | 41 | 4-5 | **90% reduction** |
-| Subordinates List (50 users) | 201 | 4-5 | **97% reduction** |
-| Subordinates List (100 users) | 401 | 4-5 | **99% reduction** |
-| Team Progress | 5-6 | 2-3 | 40-50% reduction |
+### Critical Issues Impact
+
+| Issue | Scenario | Current Queries | Optimized Queries | Improvement |
+|-------|----------|----------------|-------------------|-------------|
+| #1 Subordinates List | 10 subordinates | 41 | 4-5 | **90% reduction** |
+| #1 Subordinates List | 50 subordinates | 201 | 4-5 | **97% reduction** |
+| #1 Subordinates List | 100 subordinates | 401 | 4-5 | **99% reduction** |
+| #5 User Enrichment | 50 users | 151 | 2-3 | **98% reduction** |
+| #6 Department Users | 30 users | 91 | 2-3 | **97% reduction** |
+
+### High Priority Issues Impact
+
+| Issue | Scenario | Current Queries | Optimized Queries | Improvement |
+|-------|----------|----------------|-------------------|-------------|
+| #2 Todo Tasks | 20 goals | 21 | 2-3 | **86% reduction** |
+| #3 History Access | 5 periods | 16 | 2-3 | **81% reduction** |
+| #4 Stage Counts | 10 stages | 11 | 1-2 | **90% reduction** |
+
+### Combined Dashboard Load (Worst Case)
+
+**Scenario:** Supervisor with 50 subordinates accessing dashboard
+
+| Component | Current | Optimized | Reduction |
+|-----------|---------|-----------|-----------|
+| Subordinates List (#1) | 201 | 4-5 | -196 queries |
+| History Access (#3) | 16 | 2-3 | -13 queries |
+| **Total** | **~217** | **~7-8** | **96% reduction** |
+
+**Expected response time improvement:** 3.8s → 0.5-0.8s (estimated 70-85% faster)
 
 ---
 
@@ -312,59 +501,254 @@ async def get_subordinates(
 
 ---
 
-### Solution 3: Optimize Team Progress (Optional)
+### Solution 3: Fix Todo Tasks - Batch Fetch Assessments (HIGH)
 
-**Combine multiple count queries into one:**
+**Strategy:** Fetch all assessments upfront instead of querying in loop
 
 ```python
-async def _get_team_progress(self, supervisor_id: UUID, org_id: str) -> TeamProgressData:
-    subordinates = await self.user_repo.get_subordinates(supervisor_id, org_id)
+async def _get_employee_todo_tasks(self, user_id: UUID, org_id: str, ...):
+    # ... get approved_goals ...
 
-    if not subordinates:
-        return TeamProgressData(...)
-
-    subordinate_ids = [sub.id for sub in subordinates]
-
-    # Single query with multiple aggregates
-    stats_query = select(
-        func.count(func.distinct(Goal.user_id)).label('goals_set'),
-        func.sum(case((Goal.status == 'approved', 1), else_=0)).label('goals_approved'),
-        func.count(func.distinct(SelfAssessment.user_id)).label('assessments_completed'),
-        func.count(func.distinct(SupervisorFeedback.employee_id)).label('feedbacks_provided')
-    ).select_from(User).outerjoin(
-        Goal, and_(Goal.user_id == User.id, Goal.period_id == current_period.id)
-    ).outerjoin(
-        SelfAssessment, and_(
-            SelfAssessment.user_id == User.id,
-            SelfAssessment.period_id == current_period.id,
-            SelfAssessment.status == 'submitted'
+    # Batch fetch all self-assessments for user and period (1 query)
+    if approved_goals and current_period:
+        competency_ids = [g.competency_id for g in approved_goals]
+        assessments_query = select(SelfAssessment).where(
+            and_(
+                SelfAssessment.user_id == user_id,
+                SelfAssessment.period_id == current_period.id,
+                SelfAssessment.competency_id.in_(competency_ids)
+            )
         )
-    ).outerjoin(
-        SupervisorFeedback, and_(
-            SupervisorFeedback.employee_id == User.id,
-            SupervisorFeedback.period_id == current_period.id,
-            SupervisorFeedback.status == 'submitted'
+        assessments_result = await self.session.execute(assessments_query)
+        all_assessments = assessments_result.scalars().all()
+
+        # Create lookup dict by competency_id
+        assessments_by_competency = {a.competency_id: a for a in all_assessments}
+
+    # Loop through goals using pre-fetched data
+    for goal in approved_goals:
+        assessment = assessments_by_competency.get(goal.competency_id)
+        # ... rest of logic ...
+```
+
+**Result:**
+- **Before:** 1 + N queries (N = number of goals)
+- **After:** 2 queries total
+
+---
+
+### Solution 4: Fix History Access - Batch Aggregation (HIGH)
+
+**Strategy:** Single GROUP BY query instead of loop with count queries
+
+```python
+async def _get_history_access(self, user_id: UUID, org_id: str) -> HistoryAccessData:
+    recent_periods = await self.evaluation_period_repo.get_recent_completed_periods(
+        user_id, org_id, limit=5
+    )
+
+    if not recent_periods:
+        return HistoryAccessData(...)
+
+    period_ids = [p.id for p in recent_periods]
+
+    # Single query with GROUP BY to get all counts (3 queries → 1 query per entity type)
+    # Goals count by period
+    goals_stats = await self.session.execute(
+        select(
+            Goal.period_id,
+            func.count(Goal.id).label('count')
+        ).where(
+            and_(Goal.user_id == user_id, Goal.period_id.in_(period_ids))
+        ).group_by(Goal.period_id)
+    )
+    goals_count_map = {row.period_id: row.count for row in goals_stats}
+
+    # Assessments count by period
+    assessments_stats = await self.session.execute(
+        select(
+            SelfAssessment.period_id,
+            func.count(SelfAssessment.id).label('count')
+        ).where(
+            and_(SelfAssessment.user_id == user_id, SelfAssessment.period_id.in_(period_ids))
+        ).group_by(SelfAssessment.period_id)
+    )
+    assessments_count_map = {row.period_id: row.count for row in assessments_stats}
+
+    # Feedbacks count by period
+    feedbacks_stats = await self.session.execute(
+        select(
+            SupervisorFeedback.period_id,
+            func.count(SupervisorFeedback.id).label('count')
+        ).where(
+            and_(SupervisorFeedback.employee_id == user_id, SupervisorFeedback.period_id.in_(period_ids))
+        ).group_by(SupervisorFeedback.period_id)
+    )
+    feedbacks_count_map = {row.period_id: row.count for row in feedbacks_stats}
+
+    # Build history using pre-fetched counts
+    for period in recent_periods:
+        summary = HistoricalPeriodSummary(
+            period_id=period.id,
+            goals_count=goals_count_map.get(period.id, 0),
+            assessments_count=assessments_count_map.get(period.id, 0),
+            feedbacks_count=feedbacks_count_map.get(period.id, 0),
+            # ...
         )
-    ).where(User.id.in_(subordinate_ids))
+```
 
-    result = await self.session.execute(stats_query)
-    stats = result.one()
+**Result:**
+- **Before:** 1 + (N × 3) queries
+- **After:** 4 queries total (1 periods + 3 aggregates)
 
-    # Use stats directly
-    return TeamProgressData(
-        goals_set_count=stats.goals_set or 0,
-        goals_approved_count=stats.goals_approved or 0,
+---
+
+### Solution 5: Fix Stage Service - Batch User Counts (HIGH)
+
+**Strategy:** Single GROUP BY query or add subquery to initial fetch
+
+```python
+async def get_stages(self, org_id: str) -> list[StageResponse]:
+    # Fetch stages
+    stage_models = await self.stage_repo.get_by_organization(org_id)
+
+    if not stage_models:
+        return []
+
+    stage_ids = [s.id for s in stage_models]
+
+    # Batch count users per stage (1 query with GROUP BY)
+    user_counts_query = select(
+        User.stage_id,
+        func.count(User.id).label('user_count')
+    ).where(
+        and_(
+            User.clerk_organization_id == org_id,
+            User.stage_id.in_(stage_ids)
+        )
+    ).group_by(User.stage_id)
+
+    counts_result = await self.session.execute(user_counts_query)
+    user_count_map = {row.stage_id: row.user_count for row in counts_result}
+
+    # Build responses using pre-fetched counts
+    stage_responses = []
+    for stage in stage_models:
+        user_count = user_count_map.get(stage.id, 0)
+        stage_responses.append(StageResponse(..., user_count=user_count))
+
+    return stage_responses
+```
+
+**Result:**
+- **Before:** 1 + N queries
+- **After:** 2 queries total
+
+---
+
+### Solution 6: Fix User Service - Use Eager Loading (CRITICAL)
+
+**Strategy:** Update repository calls to use eager loading
+
+```python
+# In user_service.py
+
+async def get_users(self, ...):
+    # Change from:
+    # users = await self.user_repo.search_users(...)
+
+    # To: (search_users already has eager loading - OK!)
+    users = await self.user_repo.search_users(
+        org_id=org_id,
+        search_term=search_term,
+        # ... filters ...
+    )
+    # Now users already have .department, .stage, .roles loaded
+
+    # No need for _enrich_user_data loop!
+    return [self._user_to_dict(user) for user in users]
+
+async def get_subordinates_by_supervisor_id(self, supervisor_id: UUID, org_id: str):
+    # Change from:
+    # subordinate_models = await self.user_repo.get_subordinates(supervisor_id, org_id)
+
+    # To:
+    subordinate_models = await self.user_repo.get_subordinates(
+        supervisor_id, org_id, with_relations=True  # Enable eager loading
+    )
+
+    # Now can access .department, .stage, .roles without extra queries
+    return [self._user_to_dict(sub) for sub in subordinate_models]
+```
+
+**Result:**
+- **Before:** 1 + (N × 3) queries
+- **After:** 1-2 queries total (with JOINs)
+
+---
+
+### Solution 7: Fix Department Service - Eager Loading + SQL Filtering (CRITICAL)
+
+**Strategy:** Combine eager loading with SQL-based role filtering
+
+```python
+async def get_department_detail(self, department_id: UUID, org_id: str, ...):
+    # Get users with eager loading
+    query = select(User).options(
+        joinedload(User.department),
+        joinedload(User.stage),
+        joinedload(User.roles)
+    ).where(
+        and_(
+            User.department_id == department_id,
+            User.clerk_organization_id == org_id,
+            User.status == UserStatus.ACTIVE
+        )
+    )
+
+    # Add role filtering in SQL (if needed)
+    if role_names:
+        query = query.join(user_roles).join(Role).where(
+            Role.name.in_([name.lower() for name in role_names])
+        )
+
+    result = await self.session.execute(query)
+    user_models = result.scalars().unique().all()
+
+    # Convert to dicts - no extra queries needed!
+    enriched_users = [self._user_to_dict(u) for u in user_models]
+
+    return DepartmentDetailResponse(
+        id=department.id,
+        name=department.name,
+        users=enriched_users,
         # ...
     )
 ```
+
+**Result:**
+- **Before:** 1 + (N × 3) + 1 queries
+- **After:** 1-2 queries total
 
 ---
 
 ## Implementation Priority
 
-1. **CRITICAL - Subordinates List:** Fix immediately (90%+ query reduction)
-2. **HIGH - User Repository:** Add eager loading options
-3. **MEDIUM - Team Progress:** Optimize when time permits
+### Phase 1: Critical Fixes (Week 1)
+1. ✅ **Solution 6:** Fix User Service eager loading (#5)
+2. ✅ **Solution 7:** Fix Department Service (#6)
+3. ✅ **Solution 1:** Fix Dashboard Subordinates List (#1)
+4. ✅ **Solution 2:** Add eager loading to user_repo
+
+### Phase 2: High Priority (Week 2)
+5. ✅ **Solution 3:** Fix Todo Tasks batch fetching (#2)
+6. ✅ **Solution 4:** Fix History Access aggregation (#3)
+7. ✅ **Solution 5:** Fix Stage Service user counts (#4)
+
+### Phase 3: Medium/Low Priority (Week 3)
+8. 🔸 Fix competency name fallback (#7)
+9. 🔸 Add eager loading to supervisor feedback (#8)
+10. 🔸 Ensure all repository methods support eager loading (#9)
 
 ---
 
