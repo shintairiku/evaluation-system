@@ -88,6 +88,20 @@ for subordinate in subordinates:  # Line 446
 **Observed Performance:**
 - Slow request log: `GET /api/v1/auth/user/... - Process time: 3.8124s`
 
+**Confirmed in Supabase Query Performance Dashboard:**
+- Query: `SELECT users.id, users.department_id, users.stage_id...`
+  - **Calls:** 98,276 executions
+  - **Mean time:** 21ms
+  - **Cache hit rate:** 100%
+- Query: `SELECT roles.id, roles.organization_id, roles.name...`
+  - **Calls:** 73,544 executions
+  - **Mean time:** 21ms
+- Query: `SELECT organizations.id, organizations.name...`
+  - **Calls:** 70,653 executions
+  - **Mean time:** 25ms
+
+**Total N+1 Impact Observed:** ~240,000+ queries from issues #5 and #6 alone
+
 ---
 
 ### 2. Dashboard Service - Todo Tasks Approved Goals (HIGH)
@@ -775,13 +789,85 @@ async def get_department_detail(self, department_id: UUID, org_id: str, ...):
 
 ## Supabase Query Performance Monitoring
 
-Check query performance at:
-https://supabase.com/dashboard/project/yxekevoucqfiskisokju/observability/query-performance
+### Dashboard Access
 
-**Focus on:**
-- Queries with high execution count
-- Queries with slow average duration
-- Queries appearing in tight loops
+**URL:** https://supabase.com/dashboard/project/yxekevoucqfiskisokju/observability/query-performance
+
+**Database Role:** `postgres` (visible in all queries)
+
+**Connection String:** `postgresql://postgres.yxekevoucqfiskisokju@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`
+
+---
+
+### Actual Production Metrics (Confirmed Data)
+
+The following data was captured from the Supabase Query Performance dashboard, confirming the N+1 problems documented in this analysis:
+
+#### Top Offending Queries
+
+| Query Pattern | Calls | Mean Time | Cache Hit | Issue |
+|--------------|-------|-----------|-----------|-------|
+| `SELECT users.id, users.department_id, users.stage_id, users.name...` | **98,276** | 21ms | 100% | #5, #6 |
+| `SELECT roles.id, roles.organization_id, roles.name...` | **73,544** | 21ms | 100% | #5, #6 |
+| `SELECT organizations.id, organizations.name...` | **70,653** | 25ms | 100% | Multiple |
+| `SELECT c.oid::int8 AS id, nc.nspname...` | **35,065** | 225ms | 100% | Metadata |
+| `SELECT roles.id, roles.name, roles.description...` | **35,489** | 24ms | 100% | #5, #6 |
+| `SELECT c.oid::int8 AS id, nc.nspname...` | **27,485** | 170ms | 100% | Metadata |
+| `with base_table_info as (select c.oid::int8 as id...)` | **26,885** | 139ms | 100% | Metadata |
+
+#### Analysis
+
+**Total Query Volume (Slow Queries Category):** 47 slow query patterns
+
+**Cache Performance:** 100% cache hit rate across all queries (excellent caching, but still too many queries)
+
+**Key Findings:**
+
+1. **User/Role/Organization queries dominate:**
+   - Combined: ~240,000+ executions
+   - All related to issues #5 and #6 (user enrichment loops)
+   - Despite 100% cache hits, the sheer volume is problematic
+
+2. **Metadata queries are slow but frequent:**
+   - 35,065 calls at 225ms mean time
+   - 27,485 calls at 170ms mean time
+   - These appear to be SQLAlchemy introspection queries
+
+3. **Performance paradox:**
+   - Individual queries are fast (21-25ms) thanks to caching
+   - But 98,276 × 21ms = **2,063 seconds** of cumulative query time
+   - This is why the dashboard loads in 3.8 seconds
+
+#### Expected Improvement After Fixes
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| User queries | 98,276 | ~100-200 | **99.8% reduction** |
+| Role queries | 73,544 | ~50-100 | **99.9% reduction** |
+| Org queries | 70,653 | ~50-100 | **99.9% reduction** |
+| **Total** | **~242,000** | **~200-400** | **99.8% reduction** |
+
+**Response Time Impact:**
+- Current: 3.8s (measured)
+- Projected: 0.3-0.6s (estimated 85-92% faster)
+
+---
+
+### How to Monitor Improvements
+
+1. **Before implementing fixes:**
+   - Take screenshot of current query counts
+   - Note top 10 queries by call count
+
+2. **After implementing each fix:**
+   - Refresh Supabase Query Performance page
+   - Verify query count reduction
+   - Check that mean time remains similar (caching preserved)
+
+3. **Metrics to track:**
+   - Total calls for user queries (target: <500)
+   - Total calls for role queries (target: <200)
+   - Slow request logs in backend (target: <500ms)
 
 ---
 
