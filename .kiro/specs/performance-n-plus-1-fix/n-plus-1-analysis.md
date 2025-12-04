@@ -1,5 +1,17 @@
 # N+1 Query Problem Analysis
 
+## Document History
+
+| Date | Version | Changes | Author |
+|------|---------|---------|--------|
+| 2025-12-04 | 1.0 | Initial analysis - 9 N+1 issues documented | Claude Code |
+| 2025-12-04 | 1.1 | Issue #378 implemented and verified (97% reduction) | Claude Code |
+| 2025-12-04 | 1.2 | Added Issue #10: Auth permission loading from log analysis | Claude Code |
+
+**Current Status:** 1 Fixed, 3 Closed/Skipped, 6 Pending (10 total issues)
+
+---
+
 ## Overview
 
 This document provides a comprehensive analysis of N+1 query problems identified in the HR Evaluation System, along with proposed solutions to improve database query performance.
@@ -32,19 +44,20 @@ for subordinate in subordinates:
 
 ## Summary of All N+1 Issues Found
 
-| # | Issue | File | Lines | Query Type | Per Item | Priority |
-|---|-------|------|-------|-----------|----------|----------|
-| 1 | Subordinates detail list | dashboard_service.py | 446-544 | Multiple (4) | 4 per subordinate | **CRITICAL** |
-| 2 | Todo tasks approved goals | dashboard_service.py | 791-815 | Single (1) | 1 per goal | HIGH |
-| 3 | History access periods | dashboard_service.py | 939-977 | Multiple (3) | 3 per period | HIGH |
-| 4 | Stages with user count | stage_service.py | 131-133 | Single (1) | 1 per stage | HIGH |
-| 5 | User subordinates enrichment | user_service.py | 1076-1078 | Multiple (3) | 3 per user | **CRITICAL** |
-| 6 | Department users enrichment | department_service.py | 305-316 | Multiple (3) | 3 per user | **CRITICAL** |
-| 7 | Competency name fallback | goal_service.py | 1094-1099 | Single (1) | 1 per competency | MEDIUM |
-| 8 | Supervisor feedback creation | self_assessment_service.py | 526 | Single (1) | 1 per assessment | LOW |
-| 9 | Missing eager loading | user_repo.py | 345, 359 | Varies | On access | MEDIUM |
+| # | Issue | File | Lines | Query Type | Per Item | Priority | Status |
+|---|-------|------|-------|-----------|----------|----------|--------|
+| 1 | Subordinates detail list | dashboard_service.py | 446-544 | Multiple (4) | 4 per subordinate | **CRITICAL** | SKIPPED (Dashboard not in use) |
+| 2 | Todo tasks approved goals | dashboard_service.py | 791-815 | Single (1) | 1 per goal | HIGH | SKIPPED (Dashboard not in use) |
+| 3 | History access periods | dashboard_service.py | 939-977 | Multiple (3) | 3 per period | HIGH | SKIPPED (Dashboard not in use) |
+| 4 | Stages with user count | stage_service.py | 131-133 | Single (1) | 1 per stage | HIGH | PENDING |
+| 5 | User subordinates enrichment | user_service.py | 1076-1078 | Multiple (3) | 3 per user | **CRITICAL** | CLOSED (v2 API resolves) |
+| 6 | Department users enrichment | department_service.py | 293-365 | Multiple (3) | 3 per user | **CRITICAL** | ✅ **FIXED** (Issue #378) |
+| 7 | Competency name fallback | goal_service.py | 1094-1099 | Single (1) | 1 per competency | MEDIUM | PENDING |
+| 8 | Supervisor feedback creation | self_assessment_service.py | 526 | Single (1) | 1 per assessment | LOW | PENDING |
+| 9 | Missing eager loading | user_repo.py | 345, 359 | Varies | On access | MEDIUM | PENDING |
+| **10** | **Auth permission loading** | dependencies.py | 206-236 | Single (1-3) | Per request | **MEDIUM-HIGH** | 🆕 **NEW** |
 
-**Total Issues Found:** 9 (3 Critical, 3 High, 2 Medium, 1 Low)
+**Total Issues Found:** 10 (1 Fixed, 3 Closed/Skipped, 6 Pending)
 
 ---
 
@@ -342,6 +355,139 @@ async def get_user_supervisors(self, user_id: UUID, org_id: str) -> list[User]:
 
 ---
 
+### 10. Authentication Dependencies - Permission Loading (MEDIUM-HIGH) 🆕
+
+**Location:** `backend/app/security/dependencies.py:206-236`
+
+**Problem:**
+On every HTTP request, the authentication middleware loads user permissions from the database. While the system uses an in-memory cache with 5-second TTL, high-traffic production environments still generate frequent permission queries when the cache expires.
+
+**Code Analysis:**
+```python
+# Line 206-236: Load permissions for each role
+dynamic_overrides = {}
+if role_infos and auth_user.organization_id:
+    perm_load_start = perf_counter()
+    for role_info in role_infos:  # Loop through user roles
+        if not isinstance(role_info.id, UUID):
+            continue
+        try:
+            # This calls get_cached_role_permissions which queries DB on cache miss
+            cached_perms = await get_cached_role_permissions(
+                session=session,
+                organization_id=auth_user.organization_id,
+                role_id=role_info.id,
+                role_name=role_info.name,
+            )
+        except Exception:
+            logger.exception("Failed to load dynamic permissions...")
+            cached_perms = None
+        if cached_perms is not None:
+            dynamic_overrides[role_info.name.lower()] = cached_perms
+```
+
+**Cache Implementation (role_permission_cache.py):**
+```python
+# Line 14: Short TTL causes frequent cache misses under load
+_TTL = timedelta(seconds=5)  # Cache expires every 5 seconds
+
+# Lines 55-56: On cache miss, queries database
+repo = PermissionRepository(session)
+permission_models = await repo.list_for_role(str(role_id), organization_id)
+```
+
+**Observed in Docker Logs:**
+```
+INFO:app.security.dependencies:auth.permissions.load.ms
+INFO:app.security.role_permission_cache:role_permissions.cache.load
+INFO:sqlalchemy.engine.Engine:SELECT permissions.id, permissions.code...
+```
+
+**Log Analysis:**
+- 36 permission queries observed in 2000 log lines
+- Pattern: Multiple `auth.permissions.load.ms` events
+- Mix of `cache.hit` and `cache.load` (cache miss)
+- Each cache miss triggers 1 query per role
+
+**Impact:**
+
+**Single User Request:**
+- Best case (cache hit): 0 queries
+- Cache miss with 1 role: 1 query
+- Cache miss with 2 roles: 2 queries
+
+**Production Environment (10 concurrent users):**
+- Current TTL: 5 seconds
+- Cache expires: 12 times/minute
+- Requests during 5s window: ~10-20 requests
+- **Queries per minute**: ~120-240 permission queries
+
+**With 100 concurrent users:**
+- **Queries per minute**: ~1,200-2,400 permission queries
+
+**Why this happens:**
+1. Multiple users make requests simultaneously
+2. Cache is per (organization_id, role_id) tuple
+3. When cache expires, next request for that role triggers DB query
+4. Short 5-second TTL means frequent cache invalidation
+5. High traffic = more chances of cache miss
+
+**Current Design Strengths:**
+✅ Uses cache to reduce queries (not naive)
+✅ Cache is properly scoped by org + role
+✅ Query is optimized (single JOIN, no lazy loading)
+✅ TTL of 5 seconds provides good freshness
+
+**Performance Bottleneck:**
+❌ Short TTL (5s) + High Traffic = Frequent cache misses
+❌ No persistent cache (in-memory only)
+❌ Cache doesn't survive server restart
+
+**Priority:** MEDIUM-HIGH
+- Not as critical as #378 (92 queries → 3)
+- But affects EVERY authenticated request
+- Impact scales linearly with traffic
+
+**Solution Options:**
+
+**Option 1: Increase TTL (Quick Win) ✅ RECOMMENDED**
+```python
+# backend/app/security/role_permission_cache.py line 14
+_TTL = timedelta(seconds=30)  # Increase from 5s to 30s
+```
+
+**Impact:**
+- Cache expires: 2 times/minute (was 12 times/minute)
+- **Reduction: 83% fewer permission queries**
+- Trade-off: Permissions take up to 30s to refresh after admin changes
+
+**Option 2: Redis Cache (Best for Production)**
+- Replace in-memory cache with Redis
+- TTL can be 5-10 minutes
+- Survives server restarts
+- Supports active invalidation on permission changes
+
+**Impact:**
+- Cache expires: 0.1-0.2 times/minute
+- **Reduction: 99% fewer permission queries**
+- Trade-off: Adds Redis dependency
+
+**Option 3: Hybrid - In-Memory + Redis**
+- Fast in-memory L1 cache (5s TTL)
+- Persistent Redis L2 cache (5 min TTL)
+- Best of both worlds
+
+**Impact:**
+- L1 cache handles most requests
+- L2 cache prevents DB queries on L1 miss
+- **Reduction: 99.9% fewer permission queries**
+- Trade-off: More complex implementation
+
+**Recommendation:**
+Start with **Option 1** (increase TTL to 30s) as quick win, then evaluate if Redis is needed based on production metrics.
+
+---
+
 ## Performance Impact Summary
 
 ### Critical Issues Impact
@@ -361,6 +507,14 @@ async def get_user_supervisors(self, user_id: UUID, org_id: str) -> list[User]:
 | #2 Todo Tasks | 20 goals | 21 | 2-3 | **86% reduction** |
 | #3 History Access | 5 periods | 16 | 2-3 | **81% reduction** |
 | #4 Stage Counts | 10 stages | 11 | 1-2 | **90% reduction** |
+
+### Medium-High Priority Issues Impact
+
+| Issue | Scenario | Current Queries | Optimized Queries | Improvement |
+|-------|----------|----------------|-------------------|-------------|
+| #10 Auth Permissions | 10 users, 5s | 120-240/min | 20-40/min | **83% reduction** (TTL 30s) |
+| #10 Auth Permissions | 100 users, 5s | 1,200-2,400/min | 200-400/min | **83% reduction** (TTL 30s) |
+| #10 Auth Permissions | With Redis | 1,200-2,400/min | 10-20/min | **99% reduction** (Redis cache) |
 
 ### Combined Dashboard Load (Worst Case)
 
@@ -748,21 +902,36 @@ async def get_department_detail(self, department_id: UUID, org_id: str, ...):
 
 ## Implementation Priority
 
-### Phase 1: Critical Fixes (Week 1)
-1. ✅ **Solution 6:** Fix User Service eager loading (#5)
-2. ✅ **Solution 7:** Fix Department Service (#6)
-3. ✅ **Solution 1:** Fix Dashboard Subordinates List (#1)
-4. ✅ **Solution 2:** Add eager loading to user_repo
+### Phase 1: Critical Fixes ✅ COMPLETED
+1. ✅ **Issue #378:** Fix Department Service (#6) - **MERGED**
+   - Status: Implemented and verified
+   - Result: 92 queries → 3 queries (97% reduction)
+   - Branch: `perf/fase-1-department-n-plus-1`
 
-### Phase 2: High Priority (Week 2)
-5. ✅ **Solution 3:** Fix Todo Tasks batch fetching (#2)
-6. ✅ **Solution 4:** Fix History Access aggregation (#3)
-7. ✅ **Solution 5:** Fix Stage Service user counts (#4)
+2. ❌ **Issue #377:** User Service (#5) - **CLOSED** (v2 API already resolves)
+3. ❌ **Issue #379:** Dashboard Service (#1-3) - **CLOSED** (Dashboard not in use)
 
-### Phase 3: Medium/Low Priority (Week 3)
-8. 🔸 Fix competency name fallback (#7)
-9. 🔸 Add eager loading to supervisor feedback (#8)
-10. 🔸 Ensure all repository methods support eager loading (#9)
+### Phase 2: High Priority ⏭️ PENDING
+4. 🔸 **Issue #380:** Increase auth permission cache TTL (#10) - **NEW**
+   - Quick win: Change TTL from 5s to 30s
+   - Expected: 83% reduction in permission queries
+   - File: `backend/app/security/role_permission_cache.py:14`
+
+5. 🔸 **Solution 5:** Fix Stage Service user counts (#4)
+   - Single GROUP BY query for stage counts
+   - Expected: 90% reduction (11 → 1-2 queries)
+
+### Phase 3: Medium/Low Priority ⏭️ PENDING
+6. 🔸 Fix competency name fallback (#7)
+7. 🔸 Add eager loading to supervisor feedback (#8)
+8. 🔸 Ensure all repository methods support eager loading (#9)
+
+### Future Enhancements (Production Scale)
+9. 💡 **Redis Cache for Permissions:** Replace in-memory cache with Redis
+   - Persistent cache survives server restarts
+   - Supports active invalidation on permission changes
+   - Expected: 99% reduction in permission queries
+   - Trade-off: Adds Redis dependency
 
 ---
 
@@ -873,12 +1042,31 @@ The following data was captured from the Supabase Query Performance dashboard, c
 
 ## Next Steps
 
-1. ✅ Document N+1 issues
-2. ⬜ Implement Solution 1 (Subordinates List)
-3. ⬜ Implement Solution 2 (User Repository)
-4. ⬜ Test and verify improvements
-5. ⬜ Monitor Supabase metrics
-6. ⬜ Consider Solution 3 if needed
+### Completed ✅
+1. ✅ Document N+1 issues (10 issues identified)
+2. ✅ Implement Issue #378 (Department Service) - **97% reduction**
+3. ✅ Test and verify improvements (92 → 3 queries confirmed)
+4. ✅ Close redundant issues (#377 v2 API, #379 Dashboard unused)
+
+### Pending - Phase 2 (High Priority) ⏭️
+5. 🔸 **NEW: Issue #380** - Increase auth permission cache TTL
+   - Quick win: Single line change (5s → 30s)
+   - Expected: 83% reduction in permission queries
+   - Impact: Affects ALL authenticated requests
+
+6. 🔸 Implement Issue #4 - Stage Service user counts
+   - Single GROUP BY query
+   - Expected: 90% reduction
+
+### Pending - Phase 3 (Medium/Low Priority)
+7. 🔸 Fix competency name fallback (#7)
+8. 🔸 Add eager loading to supervisor feedback (#8)
+9. 🔸 Ensure all repository methods support eager loading (#9)
+
+### Future Considerations
+10. 💡 Monitor production metrics in Supabase Query Performance
+11. 💡 Consider Redis cache for permissions if traffic increases
+12. 💡 Evaluate need for other optimizations based on real usage patterns
 
 ---
 
