@@ -292,31 +292,66 @@ class DepartmentService:
     
     async def _enrich_department_detail(self, dept: DepartmentModel) -> DepartmentDetail:
         """Enrich department data with detailed information"""
-        from ..schemas.user import UserStatus
-        from ..services.user_service import UserService
+        from ..schemas.user import UserStatus, User, Department as DepartmentSchema, Stage, Role, UserInDB
 
+        # Fetch users with eager loading (already loads department, stage, roles via joinedload)
         user_models = await self.user_repo.search_users(
-            department_ids=[dept.id], 
+            org_id=dept.organization_id,
+            department_ids=[dept.id],
             statuses=[UserStatus.ACTIVE]
         )
         user_count = len(user_models)
-        
-        user_service = UserService(self.session)
-        enriched_users = [await user_service._enrich_user_data(u) for u in user_models]
 
-        # Get department manager
+        # Convert user models to schema using already-loaded relationships (no N+1!)
+        enriched_users = []
+        for user_model in user_models:
+            # Use relationships loaded by search_users joinedload
+            department = DepartmentSchema.model_validate(user_model.department, from_attributes=True) if user_model.department else DepartmentSchema(
+                id=user_model.department_id,
+                name="Unknown Department",
+                description="Department not found"
+            )
+
+            stage = Stage.model_validate(user_model.stage, from_attributes=True) if user_model.stage else Stage(
+                id=user_model.stage_id,
+                name="Unknown Stage",
+                description="Stage not found"
+            )
+
+            roles = [Role.model_validate(role, from_attributes=True) for role in user_model.roles]
+
+            user_in_db = UserInDB.model_validate(user_model, from_attributes=True)
+            enriched_user = User(
+                **user_in_db.model_dump(),
+                department=department,
+                stage=stage,
+                roles=roles,
+            )
+            enriched_users.append(enriched_user)
+
+        # Get department manager using search_users with role filter (single query!)
         manager_id = None
         manager_name = None
         try:
-            manager_users = await self.user_repo.get_users_by_role_names(["manager"])
-            for user in manager_users:
-                if user.department_id == dept.id:
-                    manager_id = user.id
-                    manager_name = user.name
-                    break  # Take the first manager found
+            # Get "manager" role ID first
+            from ..database.repositories.role_repo import RoleRepository
+            role_repo = RoleRepository(self.session)
+            manager_role = await role_repo.get_by_name("manager", dept.organization_id)
+
+            if manager_role:
+                # Use search_users with role filter to find managers in this department
+                manager_users = await self.user_repo.search_users(
+                    org_id=dept.organization_id,
+                    department_ids=[dept.id],
+                    role_ids=[manager_role.id],
+                    statuses=[UserStatus.ACTIVE]
+                )
+                if manager_users:
+                    manager_id = manager_users[0].id
+                    manager_name = manager_users[0].name
         except Exception as e:
             logger.warning(f"Could not find manager for department {dept.id}: {e}")
-        
+
         return DepartmentDetail(
             id=dept.id,
             name=dept.name,
