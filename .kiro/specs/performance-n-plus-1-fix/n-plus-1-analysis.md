@@ -7,8 +7,12 @@
 | 2025-12-04 | 1.0 | Initial analysis - 9 N+1 issues documented | Claude Code |
 | 2025-12-04 | 1.1 | Issue #378 implemented and verified (97% reduction) | Claude Code |
 | 2025-12-04 | 1.2 | Added Issue #10: Auth permission loading from log analysis | Claude Code |
+| 2025-12-04 | 1.3 | Issue #382 implemented - Stage user counts batch query (82% reduction) | Claude Code |
+| 2025-12-04 | 1.4 | Issue #383 implemented - Competency fallback batch loading | Claude Code |
+| 2025-12-08 | 1.5 | Comprehensive scan - Added Phase 2 issues (7 new N+1 problems found) | Claude Code |
+| 2025-12-08 | 1.6 | Phase 2 verification - Removed false positives, kept only 2 real issues | Claude Code |
 
-**Current Status:** 1 Fixed, 3 Closed/Skipped, 6 Pending (10 total issues)
+**Current Status:** 3 Fixed, 3 Closed/Skipped, 6 Pending (12 total issues)
 
 ---
 
@@ -44,20 +48,42 @@ for subordinate in subordinates:
 
 ## Summary of All N+1 Issues Found
 
+### Phase 1 Issues (Original Analysis - 2025-12-04)
+
 | # | Issue | File | Lines | Query Type | Per Item | Priority | Status |
 |---|-------|------|-------|-----------|----------|----------|--------|
 | 1 | Subordinates detail list | dashboard_service.py | 446-544 | Multiple (4) | 4 per subordinate | **CRITICAL** | SKIPPED (Dashboard not in use) |
 | 2 | Todo tasks approved goals | dashboard_service.py | 791-815 | Single (1) | 1 per goal | HIGH | SKIPPED (Dashboard not in use) |
 | 3 | History access periods | dashboard_service.py | 939-977 | Multiple (3) | 3 per period | HIGH | SKIPPED (Dashboard not in use) |
-| 4 | Stages with user count | stage_service.py | 131-133 | Single (1) | 1 per stage | HIGH | PENDING |
+| 4 | Stages with user count | stage_service.py | 131-143 | Single (1) | 1 per stage | HIGH | ✅ **FIXED** (Issue #382 - PR #385) |
 | 5 | User subordinates enrichment | user_service.py | 1076-1078 | Multiple (3) | 3 per user | **CRITICAL** | CLOSED (v2 API resolves) |
-| 6 | Department users enrichment | department_service.py | 293-365 | Multiple (3) | 3 per user | **CRITICAL** | ✅ **FIXED** (Issue #378) |
-| 7 | Competency name fallback | goal_service.py | 1094-1099 | Single (1) | 1 per competency | MEDIUM | PENDING |
+| 6 | Department users enrichment | department_service.py | 293-365 | Multiple (3) | 3 per user | **CRITICAL** | ✅ **FIXED** (Issue #378 - PR #381 MERGED) |
+| 7 | Competency name fallback | goal_service.py | 1094-1099 | Single (1) | 1 per competency | MEDIUM | ✅ **FIXED** (Issue #383 - PR #386) |
 | 8 | Supervisor feedback creation | self_assessment_service.py | 526 | Single (1) | 1 per assessment | LOW | PENDING |
 | 9 | Missing eager loading | user_repo.py | 345, 359 | Varies | On access | MEDIUM | PENDING |
-| **10** | **Auth permission loading** | dependencies.py | 206-236 | Single (1-3) | Per request | **MEDIUM-HIGH** | 🆕 **NEW** |
+| 10 | Auth permission loading | dependencies.py | 206-236 | Single (1-3) | Per request | MEDIUM-HIGH | PENDING (covered by #372) |
 
-**Total Issues Found:** 10 (1 Fixed, 3 Closed/Skipped, 6 Pending)
+**Phase 1 Total:** 10 issues (3 Fixed, 3 Closed/Skipped, 4 Pending)
+
+### Phase 2 Issues (Comprehensive Scan - 2025-12-08)
+
+| # | Issue | File | Lines | Query Type | Per Item | Priority | Status |
+|---|-------|------|-------|-----------|----------|----------|--------|
+| 11 | Goal competency validation (create) | goal_service.py | 759-763 | Single (1) | 1 per competency | MEDIUM | 🆕 **PENDING** |
+| 12 | Goal competency validation (update) | goal_service.py | 768-771 | Single (1) | 1 per competency | MEDIUM | 🆕 **PENDING** |
+
+**Phase 2 Total:** 2 new issues (0 Fixed, 2 Pending)
+
+**Note:** Initial scan found 7 potential issues, but 5 were false positives:
+- Issue "Role list with permissions": Code already optimized with batch permission loading
+- Issue "Viewer visibility check": Method doesn't exist in codebase
+- Issue "Org bootstrap roles": Service doesn't exist in codebase
+- Issue "Subordinates fallback": Already optimized with JOIN query
+- Issue "Self-assessment supervisor": Method doesn't exist in codebase
+
+---
+
+**Grand Total:** 12 issues (3 Fixed, 3 Closed/Skipped, 6 Pending)
 
 ---
 
@@ -1048,25 +1074,126 @@ The following data was captured from the Supabase Query Performance dashboard, c
 3. ✅ Test and verify improvements (92 → 3 queries confirmed)
 4. ✅ Close redundant issues (#377 v2 API, #379 Dashboard unused)
 
-### Pending - Phase 2 (High Priority) ⏭️
-5. 🔸 **NEW: Issue #380** - Increase auth permission cache TTL
+### Pending - Phase 2 (Medium Priority) ⏭️
+5. 🔸 **Issue #380** - Increase auth permission cache TTL
    - Quick win: Single line change (5s → 30s)
    - Expected: 83% reduction in permission queries
    - Impact: Affects ALL authenticated requests
 
-6. 🔸 Implement Issue #4 - Stage Service user counts
-   - Single GROUP BY query
-   - Expected: 90% reduction
+6. 🔸 **Issue #11-12** - Goal competency validation (create & update)
+   - Use existing `get_by_ids_batch()` method
+   - Expected: 67-80% reduction (3-5 competencies)
+   - Impact: Write operations (goal creation/update)
 
-### Pending - Phase 3 (Medium/Low Priority)
-7. 🔸 Fix competency name fallback (#7)
-8. 🔸 Add eager loading to supervisor feedback (#8)
-9. 🔸 Ensure all repository methods support eager loading (#9)
+### Pending - Phase 3 (Low Priority)
+7. 🔸 Add eager loading to supervisor feedback (#8)
+8. 🔸 Ensure all repository methods support eager loading (#9)
 
 ### Future Considerations
 10. 💡 Monitor production metrics in Supabase Query Performance
 11. 💡 Consider Redis cache for permissions if traffic increases
 12. 💡 Evaluate need for other optimizations based on real usage patterns
+
+---
+
+## Phase 2 Issues - Detailed Analysis
+
+### Issue #11: Goal Competency Validation - Create (MEDIUM Priority)
+
+**File:** `backend/app/services/goal_service.py:759-763`
+
+**Problem:**
+When creating competency-type goals (コンピテンシー), the validation method loops through competency IDs to validate each one exists, making individual database queries.
+
+**Current Code:**
+```python
+async def _validate_goal_creation(self, goal_data: GoalCreate, user_id: UUID, org_id: UUID):
+    """Validate goal creation business rules."""
+    # ... other validation ...
+
+    # Check if competencies exist (for competency goals)
+    if goal_data.goal_category == "コンピテンシー" and goal_data.competency_ids:
+        for competency_id in goal_data.competency_ids:  # N iterations
+            competency = await self.competency_repo.get_by_id(competency_id, org_id)  # N queries
+            if not competency:
+                raise BadRequestError(f"Competency {competency_id} not found")
+```
+
+**Impact Calculation:**
+- Typical competency goal: 3-5 competencies
+- **Before:** N queries (one per competency)
+- **After:** 1 query (batch validation)
+- **Reduction:** 67-80% (for 3-5 competencies)
+
+**Usage Verification:**
+- Used by: Goal creation endpoint `POST /goals`
+- Frequency: LOW-MEDIUM (when competency goals are created)
+- Impact: MEDIUM (affects write operations)
+
+**Proposed Solution:**
+
+**Use Existing Batch Method:**
+```python
+async def _validate_goal_creation(self, goal_data: GoalCreate, user_id: UUID, org_id: UUID):
+    """Validate goal creation business rules."""
+    # ... other validation ...
+
+    # Check if competencies exist (for competency goals) - OPTIMIZED
+    if goal_data.goal_category == "コンピテンシー" and goal_data.competency_ids:
+        # Batch validate all competencies in one query
+        comp_map = await self.competency_repo.get_by_ids_batch(
+            goal_data.competency_ids,
+            org_id
+        )
+
+        # Check if any competency is missing
+        missing = [cid for cid in goal_data.competency_ids if cid not in comp_map]
+        if missing:
+            raise BadRequestError(f"Competencies not found: {missing}")
+```
+
+**Note:** The `get_by_ids_batch()` method already exists (added for Issue #383), so this is a simple refactor.
+
+**Priority:** MEDIUM
+- Affects write operations (less frequent than reads)
+- Easy fix using existing batch method
+- Good practice for data validation
+
+---
+
+### Issue #12: Goal Competency Validation - Update (MEDIUM Priority)
+
+**File:** `backend/app/services/goal_service.py:768-771`
+
+**Problem:**
+Same as Issue #11, but in the goal update validation method.
+
+**Current Code:**
+```python
+async def _validate_goal_update(self, goal_data: GoalUpdate, existing_goal: GoalModel, org_id: UUID):
+    """Validate goal update business rules."""
+    # Check if competencies exist (for competency goals)
+    if isinstance(goal_data, CompetencyGoalUpdate) and goal_data.competency_ids:
+        for competency_id in goal_data.competency_ids:  # N iterations
+            competency = await self.competency_repo.get_by_id(competency_id, org_id)  # N queries
+            if not competency:
+                raise BadRequestError(f"Competency {competency_id} not found")
+```
+
+**Impact Calculation:**
+- Same as Issue #11: 67-80% reduction
+
+**Usage Verification:**
+- Used by: Goal update endpoint `PUT /goals/{id}`
+- Frequency: LOW-MEDIUM (when competency goals are updated)
+- Impact: MEDIUM (affects write operations)
+
+**Proposed Solution:**
+Same batch validation approach as Issue #11.
+
+**Priority:** MEDIUM
+- Same rationale as Issue #11
+- Should be fixed together with #11 for consistency
 
 ---
 
