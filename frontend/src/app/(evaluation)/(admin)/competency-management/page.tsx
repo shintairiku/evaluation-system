@@ -37,15 +37,10 @@ export default async function CompetencyManagementPage() {
 
   const stages = stagesResult.data!;
 
-  // Fetch competencies for ALL stages in parallel (for admin view)
-  const competencyPromises = stages.map(stage =>
-    getCompetenciesAction({ stageId: stage.id, limit: 100 })
-  );
-  const competencyResults = await Promise.all(competencyPromises);
+  // Fetch competencies for all stages in a single request (admin can view all)
+  const competenciesResult = await getCompetenciesAction({ limit: 100 });
 
-  // Check if any competency fetch failed
-  const failedResult = competencyResults.find(result => !result.success);
-  if (failedResult) {
+  if (!competenciesResult.success || !competenciesResult.data) {
     return (
       <div className="container mx-auto py-8">
         <div className="text-center space-y-4">
@@ -54,22 +49,18 @@ export default async function CompetencyManagementPage() {
             Failed to load competencies data.
           </p>
           <p className="text-xs text-gray-400 mt-4">
-            Error: {failedResult.error}
+            Error: {competenciesResult.error}
           </p>
         </div>
       </div>
     );
   }
 
-  // Combine all competencies from all stages into a single response
-  const allCompetencies = competencyResults.flatMap(result => result.data?.items || []);
-  const totalCompetencies = allCompetencies.length;
-
   const competencies = {
-    items: allCompetencies,
-    total: totalCompetencies,
+    items: competenciesResult.data.items,
+    total: competenciesResult.data.total,
     page: 1,
-    limit: totalCompetencies,
+    limit: competenciesResult.data.total,
     pages: 1,
   };
 
