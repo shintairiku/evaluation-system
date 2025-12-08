@@ -227,24 +227,38 @@ class UserServiceV2:
                     if sub.stage_id:
                         stage_ids.add(sub.stage_id)
 
-        department_models = await self._timed(self.user_repo.fetch_departments, department_ids)
-        stage_models = await self._timed(self.user_repo.fetch_stages, stage_ids)
-        role_models = await self._timed(self.user_repo.fetch_roles_for_users, related_ids)
+        department_models: Dict[UUID, DepartmentSchema] = {}
+        stage_models: Dict[UUID, StageSchema] = {}
+        role_models: Dict[UUID, List[RoleSchema]] = {}
 
-        department_dtos = {
-            dep_id: DepartmentSchema.model_validate(model, from_attributes=True)
-            for dep_id, model in department_models.items()
-        }
-        stage_dtos = {
-            stage_id: StageSchema.model_validate(model, from_attributes=True)
-            for stage_id, model in stage_models.items()
-        }
-        role_dtos: Dict[UUID, List[RoleSchema]] = {}
-        for user_id, roles in role_models.items():
-            role_dtos[user_id] = sorted(
-                [RoleSchema.model_validate(role, from_attributes=True) for role in roles],
-                key=lambda role: role.hierarchy_order,
-            )
+        # Only fetch departments if explicitly requested or needed for related relations
+        if "department" in include or "supervisor" in include or "subordinates" in include:
+            raw_departments = await self._timed(self.user_repo.fetch_departments, department_ids)
+            department_models = {
+                dep_id: DepartmentSchema.model_validate(model, from_attributes=True)
+                for dep_id, model in raw_departments.items()
+            }
+
+        # Only fetch stages if explicitly requested or needed for related relations
+        if "stage" in include or "supervisor" in include or "subordinates" in include:
+            raw_stages = await self._timed(self.user_repo.fetch_stages, stage_ids)
+            stage_models = {
+                stage_id: StageSchema.model_validate(model, from_attributes=True)
+                for stage_id, model in raw_stages.items()
+            }
+
+        # Only fetch roles if explicitly requested or needed for supervisor/subordinate relations
+        if "roles" in include or "supervisor" in include or "subordinates" in include:
+            raw_roles = await self._timed(self.user_repo.fetch_roles_for_users, related_ids)
+            for user_id, roles in raw_roles.items():
+                role_models[user_id] = sorted(
+                    [RoleSchema.model_validate(role, from_attributes=True) for role in roles],
+                    key=lambda role: role.hierarchy_order,
+                )
+
+        department_dtos = department_models
+        stage_dtos = stage_models
+        role_dtos: Dict[UUID, List[RoleSchema]] = role_models
 
         supervisor_dtos: Dict[UUID, UserSchema] = {}
         if supervisor_models:
@@ -348,4 +362,3 @@ class UserServiceV2:
         if limit <= 0:
             return 0
         return math.ceil(total / limit)
-
