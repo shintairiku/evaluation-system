@@ -14,6 +14,11 @@ export interface PaginationParams {
   page?: number;
   limit?: number;
   withCount?: boolean;
+  /**
+   * Optional comma-separated list of related entities to include.
+   * Used by some v2 endpoints (e.g. users) to control eager loading.
+   */
+  include?: string;
 }
 
 export interface PaginatedResponse<T> {
