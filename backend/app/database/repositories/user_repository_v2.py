@@ -315,6 +315,33 @@ class UserRepositoryV2(BaseRepository[User]):
         sort_column = self.SUPPORTED_SORT_FIELDS[field_name]
         return sort_column, direction
 
+    async def list_departments_for_org(self, org_id: str) -> List[Department]:
+        stmt = (
+            select(Department)
+            .where(Department.organization_id == org_id)
+            .order_by(Department.name)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_stages_for_org(self, org_id: str) -> List[Stage]:
+        stmt = (
+            select(Stage)
+            .where(Stage.organization_id == org_id)
+            .order_by(Stage.name)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_roles_for_org(self, org_id: str) -> List[Role]:
+        stmt = (
+            select(Role)
+            .where(Role.organization_id == org_id)
+            .order_by(Role.hierarchy_order)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def fetch_departments(self, ids: Iterable[UUID]) -> Dict[UUID, Department]:
         id_list = [dept_id for dept_id in set(ids) if dept_id]
         if not id_list:
