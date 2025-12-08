@@ -129,9 +129,13 @@ class GoalService:
                 from uuid import UUID as _UUID
                 competency_ids: set[UUID] = set()
                 for goal_model in goals:
-                    if goal_model.type == GoalType.COMPETENCY and goal_model.target_data:
-                        ids = goal_model.target_data.get("competency_ids", []) or []
-                        for cid in ids:
+                    if (
+                        goal_model.goal_category == "コンピテンシー"
+                        and goal_model.target_data
+                        and isinstance(goal_model.target_data, dict)
+                        and goal_model.target_data.get("competency_ids")
+                    ):
+                        for cid in goal_model.target_data.get("competency_ids", []) or []:
                             try:
                                 competency_ids.add(_UUID(str(cid)))
                             except (ValueError, TypeError):
@@ -709,9 +713,13 @@ class GoalService:
                 from uuid import UUID as _UUID
                 competency_ids: set[UUID] = set()
                 for goal_model in goals:
-                    if goal_model.type == GoalType.COMPETENCY and goal_model.target_data:
-                        ids = goal_model.target_data.get("competency_ids", []) or []
-                        for cid in ids:
+                    if (
+                        goal_model.goal_category == "コンピテンシー"
+                        and goal_model.target_data
+                        and isinstance(goal_model.target_data, dict)
+                        and goal_model.target_data.get("competency_ids")
+                    ):
+                        for cid in goal_model.target_data.get("competency_ids", []) or []:
                             try:
                                 competency_ids.add(_UUID(str(cid)))
                             except (ValueError, TypeError):
@@ -1237,8 +1245,13 @@ class GoalService:
 
             competency_ids: set[UUID] = set()
 
-            # Extract competency_ids from target_data
-            if goal_model.type == GoalType.COMPETENCY and goal_model.target_data:
+            # Extract competency_ids from target_data for competency goals
+            if (
+                goal_model.goal_category == "コンピテンシー"
+                and goal_model.target_data
+                and isinstance(goal_model.target_data, dict)
+                and goal_model.target_data.get("competency_ids")
+            ):
                 ids = goal_model.target_data.get("competency_ids", []) or []
                 for cid in ids:
                     try:
