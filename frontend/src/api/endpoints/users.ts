@@ -27,6 +27,9 @@ export const usersApi = {
     if (params?.withCount !== undefined) {
       queryParams.append('withCount', params.withCount ? 'true' : 'false');
     }
+     if (params?.include) {
+       queryParams.append('include', params.include);
+     }
     
     const endpoint = queryParams.toString() 
       ? `${API_ENDPOINTS.USERS.LIST}?${queryParams.toString()}`

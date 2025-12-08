@@ -7,8 +7,9 @@
 | 2025-12-04 | 1.0 | Initial analysis - 9 N+1 issues documented | Claude Code |
 | 2025-12-04 | 1.1 | Issue #378 implemented and verified (97% reduction) | Claude Code |
 | 2025-12-04 | 1.2 | Added Issue #10: Auth permission loading from log analysis | Claude Code |
+| 2025-12-04 | 1.3 | Issue #382 implemented - Stage user counts batch query (82% reduction) | Claude Code |
 
-**Current Status:** 1 Fixed, 3 Closed/Skipped, 6 Pending (10 total issues)
+**Current Status:** 2 Fixed, 3 Closed/Skipped, 5 Pending (10 total issues)
 
 ---
 
@@ -49,7 +50,7 @@ for subordinate in subordinates:
 | 1 | Subordinates detail list | dashboard_service.py | 446-544 | Multiple (4) | 4 per subordinate | **CRITICAL** | SKIPPED (Dashboard not in use) |
 | 2 | Todo tasks approved goals | dashboard_service.py | 791-815 | Single (1) | 1 per goal | HIGH | SKIPPED (Dashboard not in use) |
 | 3 | History access periods | dashboard_service.py | 939-977 | Multiple (3) | 3 per period | HIGH | SKIPPED (Dashboard not in use) |
-| 4 | Stages with user count | stage_service.py | 131-133 | Single (1) | 1 per stage | HIGH | PENDING |
+| 4 | Stages with user count | stage_service.py | 131-133 | Single (1) | 1 per stage | HIGH | ✅ **FIXED** (Issue #382) |
 | 5 | User subordinates enrichment | user_service.py | 1076-1078 | Multiple (3) | 3 per user | **CRITICAL** | CLOSED (v2 API resolves) |
 | 6 | Department users enrichment | department_service.py | 293-365 | Multiple (3) | 3 per user | **CRITICAL** | ✅ **FIXED** (Issue #378) |
 | 7 | Competency name fallback | goal_service.py | 1094-1099 | Single (1) | 1 per competency | MEDIUM | PENDING |
@@ -57,7 +58,7 @@ for subordinate in subordinates:
 | 9 | Missing eager loading | user_repo.py | 345, 359 | Varies | On access | MEDIUM | PENDING |
 | **10** | **Auth permission loading** | dependencies.py | 206-236 | Single (1-3) | Per request | **MEDIUM-HIGH** | 🆕 **NEW** |
 
-**Total Issues Found:** 10 (1 Fixed, 3 Closed/Skipped, 6 Pending)
+**Total Issues Found:** 10 (2 Fixed, 3 Closed/Skipped, 5 Pending)
 
 ---
 
@@ -180,27 +181,79 @@ for period in recent_periods:
 
 ---
 
-### 4. Stage Service - Stages with User Count (HIGH)
+### 4. Stage Service - Stages with User Count (HIGH) ✅ FIXED
 
-**Location:** `backend/app/services/stage_service.py:131-133`
+**Status:** ✅ **FIXED** in Issue #382 (2025-12-04)
 
-**Problem:**
-The `get_stages()` method loops through stages and counts users for each stage individually.
+**Location:** `backend/app/services/stage_service.py:131-143`
 
-**Code Analysis:**
+**Problem (BEFORE):**
+The `get_stages_with_user_count()` method looped through stages and counted users for each stage individually.
+
+**Code Analysis (BEFORE):**
 ```python
-# Line 131: Loop through stages
+# Line 131-133: N+1 Problem
 for stage in stage_models:
-    # Line 132: Count users for each stage
-    user_count = await self.stage_repo.count_users_by_stage(stage.id, org_id)
-    stage_responses.append(StageResponse(..., user_count=user_count))
+    user_count = await self.stage_repo.count_users_by_stage(stage.id, org_id)  # N queries!
+    stages_with_count.append(self._map_stage_to_with_count(stage, user_count))
 ```
 
-**Impact:**
+**Impact (BEFORE):**
 - **10 stages:** 1 + 10 = **11 queries**
 - **20 stages:** 1 + 20 = **21 queries**
 
-**Solution:** Single GROUP BY query to count users per stage, or add subquery to initial stage fetch.
+**Solution (AFTER):**
+Implemented batch counting in repository and service layer:
+
+**Repository (stage_repo.py:168-209):**
+```python
+async def count_users_by_stages_batch(self, stage_ids: List[UUID], org_id: str) -> dict[UUID, int]:
+    """Batch count users for multiple stages in a single query."""
+    result = await self.session.execute(
+        select(User.stage_id, func.count(User.id))
+        .where(
+            User.stage_id.in_(stage_ids),
+            User.clerk_organization_id == org_id
+        )
+        .group_by(User.stage_id)
+    )
+
+    counts_map = {stage_id: count for stage_id, count in result.all()}
+
+    # Fill in zeros for stages with no users
+    for stage_id in stage_ids:
+        if stage_id not in counts_map:
+            counts_map[stage_id] = 0
+
+    return counts_map
+```
+
+**Service (stage_service.py:131-143):**
+```python
+stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
+
+# Batch count users for all stages in a single query (N+1 fix)
+stage_ids = [stage.id for stage in stage_models]
+user_counts_map = await self.stage_repo.count_users_by_stages_batch(
+    stage_ids,
+    current_user_context.organization_id
+)
+
+# Build response using pre-loaded counts
+for stage in stage_models:
+    user_count = user_counts_map.get(stage.id, 0)
+    stages_with_count.append(self._map_stage_to_with_count(stage, user_count))
+```
+
+**Result:**
+- **10 stages:** 1 (fetch stages) + 1 (batch count) = **2 queries** (82% reduction from 11 queries)
+- **20 stages:** 1 + 1 = **2 queries** (90% reduction from 21 queries)
+
+**Used by:**
+- `/admin/stage-management` - Admin stage management page
+- `/admin/competency-management` - Admin competency management page
+
+**PR:** #385 (perf/fase-1-stage-counts)
 
 ---
 
