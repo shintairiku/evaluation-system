@@ -3,6 +3,8 @@
  * Used to get org_slug from Clerk JWT tokens for organization-scoped API routes
  */
 
+import { cache } from 'react';
+
 // Define Clerk window interface for better type safety
 interface ClerkWindow extends Window {
   Clerk?: {
@@ -154,15 +156,18 @@ export function getOrgContextFromToken(token: string | null): {
 /**
  * React hook-friendly version to get organization context from current auth token
  * This should be used in React components that have access to Clerk's useAuth
+ *
+ * Wrapped with React.cache() to deduplicate calls during a single render.
+ * This prevents parsing the same JWT token multiple times per request.
  */
-export async function getCurrentOrgContext(): Promise<{
+export const getCurrentOrgContext = cache(async (): Promise<{
   orgId: string | null;
   orgSlug: string | null;
   orgName: string | null;
   userRoles: string[] | null;
   orgRole: string | null;
   internalUserId: string | null;
-}> {
+}> => {
   try {
     // Try to get token from Clerk (client-side)
     if (typeof window !== 'undefined') {
@@ -188,13 +193,16 @@ export async function getCurrentOrgContext(): Promise<{
       internalUserId: null
     };
   }
-}
+});
 
 /**
  * Server-side utility to extract organization slug from Clerk token
  * Used in server actions to get org context for API calls
+ *
+ * Wrapped with React.cache() to deduplicate calls during a single render.
+ * This prevents parsing the same JWT token multiple times per request.
  */
-export async function getCurrentOrgSlug(): Promise<string | null> {
+export const getCurrentOrgSlug = cache(async (): Promise<string | null> => {
   try {
     // Import Clerk server-side auth
     const { auth } = await import('@clerk/nextjs/server');
@@ -223,4 +231,4 @@ export async function getCurrentOrgSlug(): Promise<string | null> {
     console.warn('Failed to get org slug from token:', error);
     return null;
   }
-}
+});
