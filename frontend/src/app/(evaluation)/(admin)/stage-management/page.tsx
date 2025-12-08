@@ -35,7 +35,11 @@ export default async function StageManagementPage() {
   // Fetch users data for stage management
   const usersResult = await getUsersAction({ 
     limit: 100, // Reasonable limit to prevent performance issues
-    page: 1 
+    page: 1,
+    // For stage management we only need basic user info + stage,
+    // so avoid expensive relationship loading and total count computation.
+    withCount: false,
+    include: 'stage',
   });
 
   // Handle users fetch error

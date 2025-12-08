@@ -182,27 +182,79 @@ for period in recent_periods:
 
 ---
 
-### 4. Stage Service - Stages with User Count (HIGH)
+### 4. Stage Service - Stages with User Count (HIGH) ✅ FIXED
 
-**Location:** `backend/app/services/stage_service.py:131-133`
+**Status:** ✅ **FIXED** in Issue #382 (2025-12-04)
 
-**Problem:**
-The `get_stages()` method loops through stages and counts users for each stage individually.
+**Location:** `backend/app/services/stage_service.py:131-143`
 
-**Code Analysis:**
+**Problem (BEFORE):**
+The `get_stages_with_user_count()` method looped through stages and counted users for each stage individually.
+
+**Code Analysis (BEFORE):**
 ```python
-# Line 131: Loop through stages
+# Line 131-133: N+1 Problem
 for stage in stage_models:
-    # Line 132: Count users for each stage
-    user_count = await self.stage_repo.count_users_by_stage(stage.id, org_id)
-    stage_responses.append(StageResponse(..., user_count=user_count))
+    user_count = await self.stage_repo.count_users_by_stage(stage.id, org_id)  # N queries!
+    stages_with_count.append(self._map_stage_to_with_count(stage, user_count))
 ```
 
-**Impact:**
+**Impact (BEFORE):**
 - **10 stages:** 1 + 10 = **11 queries**
 - **20 stages:** 1 + 20 = **21 queries**
 
-**Solution:** Single GROUP BY query to count users per stage, or add subquery to initial stage fetch.
+**Solution (AFTER):**
+Implemented batch counting in repository and service layer:
+
+**Repository (stage_repo.py:168-209):**
+```python
+async def count_users_by_stages_batch(self, stage_ids: List[UUID], org_id: str) -> dict[UUID, int]:
+    """Batch count users for multiple stages in a single query."""
+    result = await self.session.execute(
+        select(User.stage_id, func.count(User.id))
+        .where(
+            User.stage_id.in_(stage_ids),
+            User.clerk_organization_id == org_id
+        )
+        .group_by(User.stage_id)
+    )
+
+    counts_map = {stage_id: count for stage_id, count in result.all()}
+
+    # Fill in zeros for stages with no users
+    for stage_id in stage_ids:
+        if stage_id not in counts_map:
+            counts_map[stage_id] = 0
+
+    return counts_map
+```
+
+**Service (stage_service.py:131-143):**
+```python
+stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
+
+# Batch count users for all stages in a single query (N+1 fix)
+stage_ids = [stage.id for stage in stage_models]
+user_counts_map = await self.stage_repo.count_users_by_stages_batch(
+    stage_ids,
+    current_user_context.organization_id
+)
+
+# Build response using pre-loaded counts
+for stage in stage_models:
+    user_count = user_counts_map.get(stage.id, 0)
+    stages_with_count.append(self._map_stage_to_with_count(stage, user_count))
+```
+
+**Result:**
+- **10 stages:** 1 (fetch stages) + 1 (batch count) = **2 queries** (82% reduction from 11 queries)
+- **20 stages:** 1 + 1 = **2 queries** (90% reduction from 21 queries)
+
+**Used by:**
+- `/admin/stage-management` - Admin stage management page
+- `/admin/competency-management` - Admin competency management page
+
+**PR:** #385 (perf/fase-1-stage-counts)
 
 ---
 
