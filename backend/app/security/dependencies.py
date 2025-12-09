@@ -21,7 +21,6 @@ from ..services.auth_service import AuthService
 from .permissions import Permission
 from .role_permission_cache import (
     get_cached_permissions_for_roles,
-    get_cached_role_permissions,
 )
 from .viewer_visibility_cache import get_cached_viewer_visibility_overrides
 from .context import AuthContext, RoleInfo
@@ -163,6 +162,7 @@ async def get_auth_context(
                 request.state.auth_context = cached_ctx
                 request.state.auth_context_token = token
             except Exception:
+                # Request.state might be frozen in rare cases; skip silently
                 pass
             return cached_ctx
         
@@ -332,7 +332,10 @@ async def get_auth_context(
             request.state.auth_context = auth_context
             request.state.auth_context_token = token
         except Exception:
-            pass
+            logger = logging.getLogger(__name__)
+            logger.exception(
+                "Failed to set auth_context or auth_context_token on request.state",
+            )
 
         await _set_cached_auth_context(cache_key, auth_context)
 
