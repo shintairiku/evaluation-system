@@ -4,7 +4,9 @@ Simplified FastAPI dependencies for authentication and authorization.
 This module provides clean, simple dependencies for RBAC without over-engineering.
 """
 
-from typing import List
+import asyncio
+from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
 from uuid import UUID
 import logging
 from fastapi import Depends, HTTPException, Request, status
@@ -28,6 +30,17 @@ security = HTTPBearer(
     scheme_name="Bearer",  # Label in OpenAPI docs
     auto_error=False,       # We'll raise detailed errors ourselves
 )
+
+
+# In-process, short-lived cache to avoid rebuilding AuthContext (and its role permission
+# lookups) on every request for the same Bearer token. This complements the per-request
+# request.state cache and the role_permission_cache module.
+_AUTH_CTX_TTL = timedelta(seconds=10)
+# cache_key is a string derived from (clerk_user_id, organization_id) so it remains
+# stable even when bearer tokens rotate frequently (e.g., Clerk short-lived tokens).
+_auth_ctx_cache: Dict[str, Tuple[AuthContext, datetime]] = {}
+_auth_ctx_lock = asyncio.Lock()
+_auth_ctx_metrics = {"hits": 0, "misses": 0}
 
 
 async def get_auth_context(
@@ -75,7 +88,7 @@ async def get_auth_context(
         existing_token = getattr(request.state, "auth_context_token", None)
         if existing_ctx and existing_token == token:
             return existing_ctx
-        
+
         # SECURITY: Only allow development tokens in development environment
         from ..core.config import Settings
         settings = Settings()
@@ -115,7 +128,7 @@ async def get_auth_context(
                 logger.warning(f"🔧 DEVELOPMENT: Using dev token (preview={token_preview}) - NEVER use in production!")
                 
                 dev_user = dev_keys[token]
-                return AuthContext(
+                dev_ctx = AuthContext(
                     user_id=UUID(dev_user["user_id"]),
                     clerk_user_id=dev_user["clerk_user_id"],
                     roles=dev_user["roles"],
@@ -123,6 +136,9 @@ async def get_auth_context(
                     organization_slug="dev-organization",
                     viewer_visibility_overrides=None,
                 )
+                cache_key = _make_cache_key(dev_ctx.clerk_user_id, dev_ctx.organization_id)
+                await _set_cached_auth_context(cache_key, dev_ctx)
+                return dev_ctx
         
         # Use auth info pre-attached by middleware when available to avoid
         # re-decoding JWTs within the same request.
@@ -138,6 +154,17 @@ async def get_auth_context(
             except Exception:
                 # Request.state might be frozen in rare cases; skip silently
                 pass
+
+        # Short-lived process cache keyed by user/org to handle rotating tokens
+        cache_key = _make_cache_key(auth_user.clerk_id, auth_user.organization_id)
+        cached_ctx = await _get_cached_auth_context(cache_key)
+        if cached_ctx:
+            try:
+                request.state.auth_context = cached_ctx
+                request.state.auth_context_token = token
+            except Exception:
+                pass
+            return cached_ctx
         
         # Check if user exists in our database (use repository directly, not service)
         user_repo = UserRepository(session)
@@ -307,6 +334,8 @@ async def get_auth_context(
         except Exception:
             pass
 
+        await _set_cached_auth_context(cache_key, auth_context)
+
         total_ms = (perf_counter() - build_start) * 1000.0
         logging.getLogger(__name__).info(
             "auth.context.build.ms",
@@ -400,3 +429,30 @@ require_supervisor_or_above = require_role(["admin", "manager", "supervisor"])
 
 # Backward compatibility alias
 get_security_context = get_auth_context
+
+
+def _make_cache_key(clerk_user_id: str | None, organization_id: str | None) -> str:
+    return f"{clerk_user_id or '<none>'}|{organization_id or '<none>'}"
+
+
+async def _get_cached_auth_context(cache_key: str) -> AuthContext | None:
+    """Return a cached AuthContext for the given cache key if it is still fresh."""
+    now = datetime.utcnow()
+    async with _auth_ctx_lock:
+        entry = _auth_ctx_cache.get(cache_key)
+        if entry:
+            ctx, cached_at = entry
+            if now - cached_at <= _AUTH_CTX_TTL:
+                _auth_ctx_metrics["hits"] += 1
+                return ctx
+            # Stale entry; drop it so future calls reload
+            _auth_ctx_cache.pop(cache_key, None)
+        _auth_ctx_metrics["misses"] += 1
+    return None
+
+
+async def _set_cached_auth_context(cache_key: str, ctx: AuthContext) -> None:
+    """Store AuthContext in the short-lived in-process cache."""
+    now = datetime.utcnow()
+    async with _auth_ctx_lock:
+        _auth_ctx_cache[cache_key] = (ctx, now)
