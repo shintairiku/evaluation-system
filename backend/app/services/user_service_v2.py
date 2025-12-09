@@ -342,7 +342,7 @@ class UserServiceV2:
 
         # Only fetch roles if explicitly requested or needed for supervisor/subordinate relations
         if "roles" in include or "supervisor" in include or "subordinates" in include:
-            raw_roles = await self._timed(self.user_repo.fetch_roles_for_users, related_ids)
+            raw_roles = await self._timed(self.user_repo.fetch_roles_for_users, related_ids, org_id)
             for user_id, roles in raw_roles.items():
                 role_models[user_id] = sorted(
                     [RoleSchema.model_validate(role, from_attributes=True) for role in roles],
