@@ -1,8 +1,5 @@
 import { Metadata } from 'next';
-import { getUsersAction } from '@/api/server-actions/users';
-import { getDepartmentsAction } from '@/api/server-actions/departments';
-import { getRolesAction } from '@/api/server-actions/roles';
-import { getStagesAction } from '@/api/server-actions/stages';
+import { getUsersPageAction } from '@/api/server-actions/users';
 import { OrgManagementContainer } from '@/feature/org-management';
 import {
   getAllRolePermissionsAction,
@@ -17,10 +14,11 @@ export const metadata: Metadata = {
 
 export default async function OrgManagementPage() {
   // Fetch users first to leverage admin-only API guard (403 handled by middleware fallback)
-  const usersResult = await getUsersAction({
+  const usersResult = await getUsersPageAction({
     limit: 50,
     page: 1,
     withCount: false,
+    include: 'department,stage,roles',
   });
 
   if (!usersResult.success) {
@@ -42,34 +40,22 @@ export default async function OrgManagementPage() {
   }
 
   const [
-    departmentsResult,
-    rolesResult,
-    stagesResult,
     permissionCatalogResult,
     permissionCatalogGroupedResult,
     rolePermissionsResult,
   ] = await Promise.all([
-    getDepartmentsAction(),
-    getRolesAction(),
-    getStagesAction(),
     getPermissionCatalogAction(),
     getPermissionCatalogGroupedAction(),
     getAllRolePermissionsAction(),
   ]);
 
   if (
-    !departmentsResult.success ||
-    !rolesResult.success ||
-    !stagesResult.success ||
     !permissionCatalogResult.success ||
     !rolePermissionsResult.success
   ) {
     throw new Error(
       [
         !usersResult.success ? usersResult.error || 'Failed to load users' : null,
-        !departmentsResult.success ? departmentsResult.error || 'Failed to load departments' : null,
-        !rolesResult.success ? rolesResult.error || 'Failed to load roles' : null,
-        !stagesResult.success ? stagesResult.error || 'Failed to load stages' : null,
         !permissionCatalogResult.success ? permissionCatalogResult.error || 'Failed to load permission catalog' : null,
         !rolePermissionsResult.success ? rolePermissionsResult.error || 'Failed to load role permissions' : null,
       ]
@@ -77,6 +63,9 @@ export default async function OrgManagementPage() {
         .join(' | ') || 'Failed to load organization management resources',
     );
   }
+
+  const filters = usersResult.data?.filters;
+  const initialRoles = (filters?.roles ?? []).map((role) => ({ ...role, permissions: [] }));
 
   const permissionCatalogGrouped = permissionCatalogGroupedResult.success
     ? permissionCatalogGroupedResult.data?.groups ?? []
@@ -88,11 +77,11 @@ export default async function OrgManagementPage() {
   return (
     <div className="container mx-auto px-6 py-10">
       <OrgManagementContainer
-        initialUsers={usersResult.data?.items ?? []}
-        totalUsers={usersResult.data?.total ?? 0}
-        initialDepartments={departmentsResult.data ?? []}
-        initialRoles={rolesResult.data ?? []}
-        initialStages={stagesResult.data ?? []}
+        initialUsers={usersResult.data?.users ?? []}
+        totalUsers={usersResult.data?.meta.total ?? 0}
+        initialDepartments={filters?.departments ?? []}
+        initialRoles={initialRoles}
+        initialStages={filters?.stages ?? []}
         initialRolePermissions={rolePermissionsResult.data ?? []}
         permissionCatalog={permissionCatalogResult.data ?? []}
         permissionCatalogGrouped={permissionCatalogGrouped}
