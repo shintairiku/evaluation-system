@@ -65,7 +65,16 @@ export default async function OrgManagementPage() {
   }
 
   const filters = usersResult.data?.filters;
-  const initialRoles = (filters?.roles ?? []).map((role) => ({ ...role, permissions: [] }));
+  const initialRoles = (filters?.roles ?? []).map((role) => {
+    const matchingPermissions = (rolePermissionsResult.data ?? []).find(
+      (rp) => rp.role_id === role.id || rp.roleId === role.id,
+    );
+
+    return {
+      ...role,
+      permissions: matchingPermissions?.permissions ?? [],
+    };
+  });
 
   const permissionCatalogGrouped = permissionCatalogGroupedResult.success
     ? permissionCatalogGroupedResult.data?.groups ?? []
