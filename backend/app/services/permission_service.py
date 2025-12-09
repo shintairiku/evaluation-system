@@ -80,6 +80,13 @@ _permission_catalog_cache = TTLCache(maxsize=4, ttl=120)
 _permission_catalog_grouped_cache = TTLCache(maxsize=4, ttl=120)
 
 
+def _invalidate_permission_caches(cache_key: str) -> None:
+    """Clear cached permission responses for the given organization scope."""
+    _role_permissions_cache.pop(cache_key, None)
+    _permission_catalog_cache.pop(cache_key, None)
+    _permission_catalog_grouped_cache.pop(cache_key, None)
+
+
 class PermissionService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -266,7 +273,9 @@ class PermissionService:
         )
 
         response = await self.get_role_permissions(role_id, context)
-        invalidate_role_permission_cache(context.organization_id, role.id)
+        await invalidate_role_permission_cache(context.organization_id, role.id)
+        cache_key = context.organization_id or "_global"
+        _invalidate_permission_caches(cache_key)
         self._record_audit_event(
             context=context,
             role=role,
@@ -318,7 +327,9 @@ class PermissionService:
 
         response = await self.get_role_permissions(role_id, context)
         after_codes = {item.code for item in response.permissions}
-        invalidate_role_permission_cache(context.organization_id, role.id)
+        await invalidate_role_permission_cache(context.organization_id, role.id)
+        cache_key = context.organization_id or "_global"
+        _invalidate_permission_caches(cache_key)
         self._record_audit_event(
             context=context,
             role=role,
@@ -366,7 +377,9 @@ class PermissionService:
 
         response = await self.get_role_permissions(role_id, context)
         after_codes = {item.code for item in response.permissions}
-        invalidate_role_permission_cache(context.organization_id, role.id)
+        await invalidate_role_permission_cache(context.organization_id, role.id)
+        cache_key = context.organization_id or "_global"
+        _invalidate_permission_caches(cache_key)
         self._record_audit_event(
             context=context,
             role=role,
