@@ -28,6 +28,8 @@ class Stage(Base):
     __table_args__ = (
         # Unique constraint: stage names unique within organization
         UniqueConstraint('organization_id', 'name', name='uq_stages_org_name'),
+        # Index to speed org-scoped stage lookups and admin listing
+        Index('ix_stages_org_name', 'organization_id', 'name'),
     )
 
 
@@ -65,6 +67,3 @@ class StageWeightHistory(Base):
 
     stage = relationship("Stage", back_populates="weight_history")
 
-
-# Index to speed org-scoped stage lookups and admin listing
-Index('ix_stages_org_name', Stage.organization_id, Stage.name)
