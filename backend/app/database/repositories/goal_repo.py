@@ -14,7 +14,8 @@ from ..models.user import User
 from ..models.evaluation import EvaluationPeriod
 from ...schemas.goal import (
     GoalCreate, GoalUpdate, GoalStatus,
-    PerformanceGoalUpdate, CompetencyGoalUpdate, CoreValueGoalUpdate
+    PerformanceGoalUpdate, CompetencyGoalUpdate, CoreValueGoalUpdate,
+    PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData,
 )
 from ...schemas.common import PaginationParams
 from ...core.exceptions import (
@@ -293,6 +294,68 @@ class GoalRepository(BaseRepository[Goal]):
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
             logger.error(f"Error searching goals for org {org_id}: {e}")
+            raise
+
+    async def get_goal_list_page(
+        self,
+        org_id: str,
+        user_ids: Optional[List[UUID]],
+        period_id: Optional[UUID],
+        status: Optional[List[str]],
+        pagination: Optional[PaginationParams],
+    ) -> tuple[list[dict], int]:
+        """Optimized read model for the goal list page with joins to user/period/department."""
+        try:
+            from ..models.user import Department
+
+            base_query = (
+                select(
+                    Goal.id.label("goal_id"),
+                    Goal.user_id,
+                    Goal.period_id,
+                    Goal.goal_category,
+                    Goal.status,
+                    Goal.weight,
+                    Goal.target_data,
+                    Goal.updated_at,
+                    User.name.label("user_name"),
+                    User.employee_code.label("employee_code"),
+                    Department.name.label("department_name"),
+                    EvaluationPeriod.name.label("period_name"),
+                    EvaluationPeriod.start_date.label("period_start"),
+                    EvaluationPeriod.end_date.label("period_end"),
+                )
+                .join(User, Goal.user_id == User.id)
+                .join(EvaluationPeriod, Goal.period_id == EvaluationPeriod.id)
+                .outerjoin(Department, User.department_id == Department.id)
+                .where(User.clerk_organization_id == org_id)
+            )
+
+            # Apply filters
+            if user_ids:
+                base_query = base_query.filter(Goal.user_id.in_(user_ids))
+            if period_id:
+                base_query = base_query.filter(Goal.period_id == period_id)
+            if status:
+                if isinstance(status, list):
+                    base_query = base_query.filter(Goal.status.in_(status))
+                else:
+                    base_query = base_query.filter(Goal.status == status)
+
+            count_query = base_query.with_only_columns(func.count())
+
+            if pagination:
+                base_query = base_query.offset(pagination.offset).limit(pagination.limit)
+
+            result = await self.session.execute(base_query.order_by(Goal.updated_at.desc()))
+            rows = list(result.mappings().all())
+
+            total_result = await self.session.execute(count_query)
+            total = total_result.scalar() or 0
+
+            return rows, total
+        except SQLAlchemyError as e:
+            logger.error(f"Error fetching goal list page for org {org_id}: {e}")
             raise
 
     async def count_goals(
@@ -790,28 +853,26 @@ class GoalRepository(BaseRepository[Goal]):
 
     def _build_target_data(self, goal_data: GoalCreate) -> Dict[str, Any]:
         """Build target_data JSON structure based on goal category."""
-        target_data = {}
-        
         if goal_data.goal_category == "業績目標":  # Performance goal
-            target_data = {
-                "title": goal_data.title,
-                "performance_goal_type": goal_data.performance_goal_type.value,
-                "specific_goal_text": goal_data.specific_goal_text,
-                "achievement_criteria_text": goal_data.achievement_criteria_text,
-                "means_methods_text": goal_data.means_methods_text
-            }
-        elif goal_data.goal_category == "コンピテンシー":  # Competency goal
-            target_data = {
-                "action_plan": goal_data.action_plan
-            }
-            # Only include optional fields if they have values
-            if goal_data.competency_ids:
-                target_data["competency_ids"] = [str(cid) for cid in goal_data.competency_ids]
-            if goal_data.selected_ideal_actions:
-                target_data["selected_ideal_actions"] = goal_data.selected_ideal_actions
-        elif goal_data.goal_category == "コアバリュー":  # Core value goal
-            target_data = {
-                "core_value_plan": goal_data.core_value_plan
-            }
-        
-        return target_data
+            payload = PerformanceGoalTargetData(
+                title=goal_data.title,
+                performance_goal_type=goal_data.performance_goal_type,
+                specific_goal_text=goal_data.specific_goal_text,
+                achievement_criteria_text=goal_data.achievement_criteria_text,
+                means_methods_text=goal_data.means_methods_text,
+            )
+            return payload.model_dump(mode="json")
+
+        if goal_data.goal_category == "コンピテンシー":  # Competency goal
+            payload = CompetencyGoalTargetData(
+                competency_ids=goal_data.competency_ids,
+                selected_ideal_actions=goal_data.selected_ideal_actions,
+                action_plan=goal_data.action_plan,
+            )
+            return payload.model_dump(mode="json")
+
+        if goal_data.goal_category == "コアバリュー":  # Core value goal
+            payload = CoreValueGoalTargetData(core_value_plan=goal_data.core_value_plan)
+            return payload.model_dump(mode="json")
+
+        raise ValidationError(f"Unknown goal_category: {goal_data.goal_category}")

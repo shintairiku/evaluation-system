@@ -30,6 +30,8 @@ class PerformanceGoalTargetData(BaseModel):
     achievement_criteria_text: str = Field(..., description="達成基準")
     means_methods_text: str = Field(..., description="達成手段・方法")
 
+    model_config = {"use_enum_values": True}
+
 
 class CompetencyGoalTargetData(BaseModel):
     competency_ids: Optional[List[UUID]] = Field(None, description="コンピテンシーID一覧（任意）")
@@ -65,11 +67,10 @@ class CompetencyGoalTargetData(BaseModel):
         return values
 
 
-# class CoreValueGoalTargetData(BaseModel):
-#     core_value_plan: str = Field(..., description="コアバリュー実践計画")
+class CoreValueGoalTargetData(BaseModel):
+    core_value_plan: str = Field(..., description="コアバリュー実践計画")
 
-
-TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData]
+TargetData = Union[PerformanceGoalTargetData, CompetencyGoalTargetData, CoreValueGoalTargetData]
 
 
 # === Goal Schemas ===
@@ -97,6 +98,7 @@ class GoalCreate(BaseModel):
     competency_ids: Optional[List[UUID]] = Field(None, alias="competencyIds", description="コンピテンシーID一覧")
     selected_ideal_actions: Optional[Dict[str, List[str]]] = Field(None, alias="selectedIdealActions", description="各コンピテンシーの選択した理想的行動")
     action_plan: Optional[str] = Field(None, alias="actionPlan", description="行動計画")
+    core_value_plan: Optional[str] = Field(None, alias="coreValuePlan", description="コアバリュー実践計画")
     
     @model_validator(mode='after')
     @classmethod
@@ -169,7 +171,12 @@ class GoalCreate(BaseModel):
                         raise ValueError(f"Ideal actions for competency {competency_id} must be a list")
                     if not all(action in valid_keys for action in actions):
                         raise ValueError(f"Ideal actions for competency {competency_id} must contain only '1', '2', '3', '4', or '5'")
-        
+
+        elif goal_category == "コアバリュー":
+            core_value_plan_value = values.get('core_value_plan') or values.get('coreValuePlan')
+            if core_value_plan_value is None:
+                raise ValueError("Core value goals require: coreValuePlan")
+
         return values
 
 
@@ -236,8 +243,8 @@ class GoalInDB(BaseModel):
                 data['target_data'] = PerformanceGoalTargetData(**target_data_dict)
             elif goal_category == "コンピテンシー":
                 data['target_data'] = CompetencyGoalTargetData(**target_data_dict)
-            # elif goal_category == "コアバリュー":
-            #     data['target_data'] = CoreValueGoalTargetData(**target_data_dict)
+            elif goal_category == "コアバリュー":
+                data['target_data'] = CoreValueGoalTargetData(**target_data_dict)
         except Exception:
             # Let the default validation handle the error
             pass

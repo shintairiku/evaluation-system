@@ -16,6 +16,13 @@ from ..schemas.goal import (
     GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus,
     CompetencyGoalUpdate
 )
+from ..schemas.goal_page import (
+    EvaluationPeriodSummary,
+    GoalListPageFilters,
+    GoalListPageItem,
+    GoalListPageMeta,
+    GoalListPageResponse,
+)
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
 from ..security.permissions import Permission
@@ -116,6 +123,30 @@ class GoalService:
                     org_id=org_id
                 )
 
+            # Batch load competency names for all goals (N+1 fix)
+            competency_name_map: dict[str, str] = {}
+            try:
+                from uuid import UUID as _UUID
+                competency_ids: set[UUID] = set()
+                for goal_model in goals:
+                    if (
+                        goal_model.goal_category == "コンピテンシー"
+                        and goal_model.target_data
+                        and isinstance(goal_model.target_data, dict)
+                        and goal_model.target_data.get("competency_ids")
+                    ):
+                        for cid in goal_model.target_data.get("competency_ids", []) or []:
+                            try:
+                                competency_ids.add(_UUID(str(cid)))
+                            except (ValueError, TypeError):
+                                pass
+
+                if competency_ids:
+                    comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                    competency_name_map = {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+            except Exception as e:
+                logger.warning(f"Failed to batch load competency names: {e}")
+
             # Convert to response format
             enriched_goals = []
             for goal_model in goals:
@@ -125,7 +156,8 @@ class GoalService:
                     include_rejection_history=include_rejection_history,
                     reviews_map=reviews_map,
                     rejection_histories_map=rejection_histories_map,
-                    org_id=org_id
+                    org_id=org_id,
+                    competency_name_map=competency_name_map
                 )
                 enriched_goals.append(enriched_goal)
             
@@ -145,6 +177,108 @@ class GoalService:
             
         except Exception as e:
             logger.error(f"Error in get_goals: {e}")
+            raise
+
+    async def get_goal_list_page(
+        self,
+        current_user_context: AuthContext,
+        period_id: Optional[UUID] = None,
+        status: Optional[List[str]] = None,
+        user_id: Optional[UUID] = None,
+        page: int = 1,
+        limit: int = 50,
+    ) -> GoalListPageResponse:
+        """Return a page-shaped response for the goal list UI in a single call."""
+        try:
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            # Clamp pagination to safe bounds
+            page = max(1, page)
+            limit = max(1, min(limit, 200))
+            pagination = PaginationParams(page=page, limit=limit)
+
+            accessible_user_ids = await self._get_accessible_goal_user_ids(
+                current_user_context=current_user_context,
+                requested_user_id=user_id,
+            )
+
+            # If the caller has no accessible users, short-circuit with an empty page
+            if accessible_user_ids is not None and len(accessible_user_ids) == 0:
+                empty_meta = GoalListPageMeta(total=0, page=pagination.page, limit=pagination.limit, pages=1)
+                empty_filters = GoalListPageFilters(
+                    period_id=period_id,
+                    statuses=status or None,
+                    periods=[],
+                )
+                return GoalListPageResponse(goals=[], meta=empty_meta, filters=empty_filters)
+
+            rows, total = await self.goal_repo.get_goal_list_page(
+                org_id=org_id,
+                user_ids=accessible_user_ids,
+                period_id=period_id,
+                status=status,
+                pagination=pagination,
+            )
+
+            items: List[GoalListPageItem] = []
+            for row in rows:
+                target_data = row.get("target_data") or {}
+                weight_value = row.get("weight")
+                items.append(
+                    GoalListPageItem(
+                        goal_id=row["goal_id"],
+                        user_id=row["user_id"],
+                        user_name=row.get("user_name"),
+                        employee_code=row.get("employee_code"),
+                        department_name=row.get("department_name"),
+                        period_id=row["period_id"],
+                        period_name=row.get("period_name"),
+                        goal_category=row.get("goal_category"),
+                        status=row.get("status"),
+                        weight=float(weight_value) if weight_value is not None else 0.0,
+                        title=target_data.get("title"),
+                        performance_goal_type=target_data.get("performance_goal_type"),
+                        action_plan=target_data.get("action_plan"),
+                        updated_at=row.get("updated_at"),
+                    )
+                )
+
+            periods = await self.evaluation_period_repo.get_all(org_id)
+            period_summaries = [
+                EvaluationPeriodSummary(
+                    id=period.id,
+                    name=period.name,
+                    start_date=period.start_date,
+                    end_date=period.end_date,
+                    status=period.status.value if hasattr(period, "status") and hasattr(period.status, "value") else str(period.status),
+                )
+                for period in periods
+            ]
+
+            pages = (total + pagination.limit - 1) // pagination.limit if total else 1
+            meta = GoalListPageMeta(
+                total=total,
+                page=pagination.page,
+                limit=pagination.limit,
+                pages=pages,
+            )
+
+            filters = GoalListPageFilters(
+                period_id=period_id,
+                statuses=status or None,
+                periods=period_summaries,
+            )
+
+            return GoalListPageResponse(
+                goals=items,
+                meta=meta,
+                filters=filters,
+            )
+
+        except Exception as e:
+            logger.error(f"Error in get_goal_list_page: {e}")
             raise
 
     async def get_goal_by_id(
@@ -229,10 +363,15 @@ class GoalService:
             if goal_data.status == GoalStatus.SUBMITTED:
                 await self._create_related_assessment_records(created_goal, org_id)
                 await self.session.commit()
-            
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(created_goal)
-            
+
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(created_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                created_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal created successfully: {created_goal.id}")
             return enriched_goal
             
@@ -309,10 +448,15 @@ class GoalService:
             
             # Commit transaction
             await self.session.commit()
-            
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(updated_goal)
-            
+
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                updated_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal updated successfully: {goal_id}")
             return enriched_goal
             
@@ -414,9 +558,14 @@ class GoalService:
                     logger.error(f"Auto-create SupervisorReview failed for goal {goal_id}: {auto_create_error}")
                     # Do not rollback goal submission due to review auto-creation failure
 
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(updated_goal)
-            
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                updated_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal submitted with status '{status}': {goal_id} by {current_user_context.user_id}")
             return enriched_goal
             
@@ -464,10 +613,15 @@ class GoalService:
             
             # Commit transaction
             await self.session.commit()
-            
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(updated_goal)
-            
+
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                updated_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal approved successfully: {goal_id} by {current_user_context.user_id}")
             return enriched_goal
             
@@ -513,10 +667,15 @@ class GoalService:
             
             # Commit transaction
             await self.session.commit()
-            
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(updated_goal)
-            
+
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                updated_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal rejected successfully: {goal_id} by {current_user_context.user_id}")
             return enriched_goal
             
@@ -547,11 +706,39 @@ class GoalService:
             
             # Count for pagination
             total_count = len(goals)  # Simple count for now
-            
+
+            # Batch load competency names for all goals (N+1 fix)
+            competency_name_map: dict[str, str] = {}
+            try:
+                from uuid import UUID as _UUID
+                competency_ids: set[UUID] = set()
+                for goal_model in goals:
+                    if (
+                        goal_model.goal_category == "コンピテンシー"
+                        and goal_model.target_data
+                        and isinstance(goal_model.target_data, dict)
+                        and goal_model.target_data.get("competency_ids")
+                    ):
+                        for cid in goal_model.target_data.get("competency_ids", []) or []:
+                            try:
+                                competency_ids.add(_UUID(str(cid)))
+                            except (ValueError, TypeError):
+                                pass
+
+                if competency_ids:
+                    comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                    competency_name_map = {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+            except Exception as e:
+                logger.warning(f"Failed to batch load competency names: {e}")
+
             # Enrich data
             enriched_goals = []
             for goal_model in goals:
-                enriched_goal = await self._enrich_goal_data(goal_model)
+                enriched_goal = await self._enrich_goal_data(
+                    goal_model,
+                    org_id=org_id,
+                    competency_name_map=competency_name_map
+                )
                 enriched_goals.append(enriched_goal)
             
             # Create response
@@ -721,11 +908,10 @@ class GoalService:
         """Determine which users' goals the current user can access."""
         
         if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            # Admin: can see all goals, but default to own goals unless a target user is explicitly requested
+            # Admin: full visibility. Respect explicit user filter; otherwise no user filter.
             if requested_user_id:
                 return [requested_user_id]
-            # Default behavior: scope to the current user's own goals to avoid accidental cross-user data
-            return [current_user_context.user_id]
+            return None
         
         accessible_ids = []
         
@@ -1037,6 +1223,52 @@ class GoalService:
 
         logger.info(f"Batch fetched rejection histories for {len(previous_goal_ids)} goal chains")
         return histories_map
+
+    async def _build_competency_name_map_for_goal(
+        self,
+        goal_model: GoalModel,
+        org_id: str
+    ) -> dict[str, str]:
+        """
+        Extract competency IDs from a single goal and batch fetch their names.
+        This prevents N+1 queries in the fallback path of _enrich_goal_data.
+
+        Args:
+            goal_model: Goal model to extract competency_ids from
+            org_id: Organization ID for scoping
+
+        Returns:
+            dict[str, str]: Map of competency_id (as string) to competency name
+        """
+        try:
+            from uuid import UUID as _UUID
+
+            competency_ids: set[UUID] = set()
+
+            # Extract competency_ids from target_data for competency goals
+            if (
+                goal_model.goal_category == "コンピテンシー"
+                and goal_model.target_data
+                and isinstance(goal_model.target_data, dict)
+                and goal_model.target_data.get("competency_ids")
+            ):
+                ids = goal_model.target_data.get("competency_ids", []) or []
+                for cid in ids:
+                    try:
+                        competency_ids.add(_UUID(str(cid)))
+                    except (ValueError, TypeError):
+                        logger.warning(f"Invalid competency_id format in goal {goal_model.id}: {cid}")
+
+            # Batch fetch competencies if any IDs found
+            if competency_ids:
+                comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                return {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+
+            return {}
+
+        except Exception as e:
+            logger.warning(f"Failed to build competency name map for goal {goal_model.id}: {e}")
+            return {}
 
     async def _enrich_goal_data(
         self,

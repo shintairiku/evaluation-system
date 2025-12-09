@@ -7,7 +7,7 @@ This module provides clean, simple dependencies for RBAC without over-engineerin
 from typing import List
 import logging
 from uuid import UUID
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from time import perf_counter
@@ -28,8 +28,9 @@ security = HTTPBearer(
 
 
 async def get_auth_context(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
 ) -> AuthContext:
     """
     Main dependency to get authenticated user's authorization context.
@@ -113,9 +114,20 @@ async def get_auth_context(
                     viewer_visibility_overrides=None,
                 )
         
-        # Verify with Clerk and get user info
-        auth_service = AuthService(session)
-        auth_user = await auth_service.get_user_from_token(token)
+        # Use auth info pre-attached by middleware when available to avoid
+        # re-decoding JWTs within the same request.
+        state_user = getattr(request.state, "auth_user", None)
+
+        if state_user:
+            auth_user = state_user
+        else:
+            auth_service = AuthService(session)
+            auth_user = await auth_service.get_user_from_token(token)
+            try:
+                request.state.auth_user = auth_user
+            except Exception:
+                # Request.state might be frozen in rare cases; skip silently
+                pass
         
         # Check if user exists in our database (use repository directly, not service)
         user_repo = UserRepository(session)

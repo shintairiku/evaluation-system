@@ -1,9 +1,10 @@
 import logging
+import re
 import time
 from typing import Callable
-import re
 
-from fastapi import Request, Response, HTTPException
+from cachetools import TTLCache
+from fastapi import HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.datastructures import Headers
@@ -13,6 +14,10 @@ from ..services.auth_service import AuthService
 
 
 logger = logging.getLogger(__name__)
+
+# Short TTL caches to avoid repeated DB lookups for the same org slug and
+# repeated JWT decoding in rapid, successive calls hitting this middleware.
+_org_slug_cache: TTLCache = TTLCache(maxsize=256, ttl=120)
 
 
 class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
@@ -64,6 +69,12 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 
         # Extract org_slug from URL
         org_slug = match.group(1)
+        org_slug_key = org_slug.lower()
+
+        # If previous middleware already attached org context, reuse it
+        existing_org_id = getattr(request.state, "org_id", None)
+        existing_org_slug = getattr(request.state, "org_slug", None)
+        cached_org = _org_slug_cache.get(org_slug_key)
 
         try:
             # Normalize headers for case-insensitive lookup
@@ -88,24 +99,34 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
                 auth_service = AuthService(session)
                 auth_user = await auth_service.get_user_from_token(token)
 
-                # Validate organization access
-                org_repo = OrganizationRepository(session)
-                organization = await org_repo.get_by_slug(org_slug)
+                # Determine organization id/slug using, in order of priority:
+                # 1) Previously set request.state (same request), 2) short-term cache,
+                # 3) DB lookup as a fallback.
+                if existing_org_id and existing_org_slug == org_slug:
+                    db_org_id = existing_org_id
+                    db_org_slug = existing_org_slug
+                elif cached_org:
+                    db_org_id, db_org_slug = cached_org
+                else:
+                    org_repo = OrganizationRepository(session)
+                    organization = await org_repo.get_by_slug(org_slug)
 
-                if not organization:
-                    logger.warning(f"Organization not found for slug: {org_slug}")
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Organization '{org_slug}' not found"
-                    )
+                    if not organization:
+                        logger.warning(f"Organization not found for slug: {org_slug}")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Organization '{org_slug}' not found"
+                        )
+
+                    db_org_id = organization.id
+                    db_org_slug = organization.slug
+                    _org_slug_cache[org_slug_key] = (db_org_id, db_org_slug)
 
                 # Check if user belongs to this organization
                 # Both auth_user.organization_id and organization.id are Clerk org IDs (String type)
                 # We compare IDs for authoritative check, and log slugs for debugging
                 user_org_id = auth_user.organization_id
                 user_org_slug = auth_user.organization_slug
-                db_org_id = organization.id
-                db_org_slug = organization.slug
 
                 logger.debug(
                     f"Org validation: URL slug='{org_slug}', "
@@ -128,10 +149,10 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 
                 # Add validated org info to request state for downstream use
                 request.state.org_slug = org_slug
-                request.state.org_id = organization.id
+                request.state.org_id = db_org_id
                 request.state.auth_user = auth_user
 
-                logger.debug(f"Org slug validation successful: {org_slug} -> {organization.id}")
+                logger.debug(f"Org slug validation successful: {org_slug} -> {db_org_id}")
 
             except HTTPException:
                 raise

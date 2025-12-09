@@ -149,18 +149,59 @@ class StageRepository(BaseRepository[Stage]):
         return result.scalar_one_or_none() is not None
     
     async def count_users_by_stage(self, stage_id: UUID, org_id: str) -> int:
-        """Count number of users in a stage within organization scope."""
-        from ..models.user import User
-        
+        """Count number of users in a single stage within organization scope."""
         # First verify stage exists in organization
         existing = await self.get_by_id(stage_id, org_id)
         if not existing:
             return 0
-        
+
         result = await self.session.execute(
             select(func.count(User.id)).where(
                 User.stage_id == stage_id,
-                User.clerk_organization_id == org_id
+                User.clerk_organization_id == org_id,
             )
         )
         return result.scalar_one()
+
+    async def count_users_by_stages_batch(self, stage_ids: List[UUID], org_id: str) -> dict[UUID, int]:
+        """
+        Batch count users for multiple stages in a single query.
+
+        Args:
+            stage_ids: List of stage UUIDs to count users for
+            org_id: Organization ID for scope filtering
+
+        Returns:
+            Dictionary mapping stage_id to user count
+
+        Example:
+            {
+                UUID('stage-1-id'): 15,
+                UUID('stage-2-id'): 8,
+                UUID('stage-3-id'): 0
+            }
+        """
+        if not stage_ids:
+            return {}
+
+        # Query: SELECT stage_id, COUNT(id) FROM users
+        #        WHERE stage_id IN (...) AND clerk_organization_id = org_id
+        #        GROUP BY stage_id
+        result = await self.session.execute(
+            select(User.stage_id, func.count(User.id))
+            .where(
+                User.stage_id.in_(stage_ids),
+                User.clerk_organization_id == org_id,
+            )
+            .group_by(User.stage_id)
+        )
+
+        # Build map from results
+        counts_map = {stage_id: count for stage_id, count in result.all()}
+
+        # Fill in zeros for stages with no users
+        for stage_id in stage_ids:
+            if stage_id not in counts_map:
+                counts_map[stage_id] = 0
+
+        return counts_map
