@@ -76,6 +76,7 @@ PERMISSION_CATALOG_METADATA: Dict[str, tuple[str, str]] = {
 
 # Read-heavy response caches (short TTL to avoid staleness after role/permission edits)
 _role_permissions_cache = TTLCache(maxsize=32, ttl=120)
+_permission_catalog_cache = TTLCache(maxsize=4, ttl=120)
 _permission_catalog_grouped_cache = TTLCache(maxsize=4, ttl=120)
 
 
@@ -109,9 +110,13 @@ class PermissionService:
 
     @require_permission(PermissionEnum.ROLE_READ_ALL)
     async def list_catalog(self, context: AuthContext) -> List[PermissionCatalogItem]:
+        cache_key = context.organization_id or "_global"
+        if cached := _permission_catalog_cache.get(cache_key):
+            return cached
+
         await self._ensure_catalog_seeded()
         permissions = await self.permission_repo.list_permissions()
-        return [
+        response = [
             PermissionCatalogItem(
                 code=permission.code,
                 description=permission.description,
@@ -119,6 +124,8 @@ class PermissionService:
             )
             for permission in permissions
         ]
+        _permission_catalog_cache[cache_key] = response
+        return response
 
     @require_permission(PermissionEnum.ROLE_READ_ALL)
     async def list_catalog_grouped(self, context: AuthContext) -> PermissionCatalogGroupedResponse:
