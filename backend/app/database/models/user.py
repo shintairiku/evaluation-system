@@ -101,9 +101,3 @@ class UserSupervisor(Base):
     user = relationship("User", foreign_keys=[user_id], back_populates="supervisor_relations")
     supervisor = relationship("User", foreign_keys=[supervisor_id], back_populates="subordinate_relations")
 
-
-# Performance indexes for org-scoped list queries
-Index('ix_users_org_name', User.clerk_organization_id, User.name)
-Index('ix_users_org_status', User.clerk_organization_id, User.status)
-Index('ix_users_org_stage', User.clerk_organization_id, User.stage_id)
-Index('ix_user_roles_role_id', user_roles.c.role_id)
