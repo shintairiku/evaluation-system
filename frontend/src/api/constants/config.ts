@@ -105,6 +105,7 @@ export const API_ENDPOINTS = {
   // User endpoints (organization-scoped)
   USERS: {
     LIST: '/v2/users/',
+    PAGE: '/v2/users/page',
     BY_ID: (id: string) => `/users/${id}`,
     CREATE: '/users/',
     UPDATE: (id: string) => `/users/${id}`,

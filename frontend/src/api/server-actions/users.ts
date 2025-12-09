@@ -15,6 +15,7 @@ import type {
   SimpleUser,
   BulkUserStatusUpdateItem,
   BulkUserStatusUpdateResponse,
+  UserListPageResponse,
 } from '../types';
 
 // Search parameters interface for server-side search
@@ -58,6 +59,38 @@ export const getUsersAction = cache(
       return {
         success: false,
         error: 'An unexpected error occurred while fetching users',
+      };
+    }
+  },
+);
+
+export const getUsersPageAction = cache(
+  async (
+    params?: Parameters<typeof usersApi.getUsersPage>[0],
+  ): Promise<{
+    success: boolean;
+    data?: UserListPageResponse;
+    error?: string;
+  }> => {
+    try {
+      const response = await usersApi.getUsersPage(params);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.error || 'Failed to fetch user list page',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get users page action error:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred while fetching user list page',
       };
     }
   },
