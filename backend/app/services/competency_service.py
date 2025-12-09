@@ -63,13 +63,22 @@ class CompetencyService:
             if not current_user_context.organization_id:
                 raise PermissionDeniedError("User has no organization assigned")
             
-            # Apply stage-based filtering - default to user's own stage when no specific stage requested
+            # Apply stage-based filtering:
+            # - Admin: when no stage_ids provided, see all stages in org
+            # - Non-admin: default to user's own stage
             if stage_ids is None:
-                # No specific stage requested - use user's own stage for both admin and non-admin users
-                user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
-                if user_stage_id is None:
-                    raise PermissionDeniedError("User has no stage assigned")
-                filtered_stage_ids = [user_stage_id]
+                if current_user_context.is_admin():
+                    # Admin without explicit filter can see all stages
+                    filtered_stage_ids = None
+                else:
+                    # Non-admin users default to their own stage
+                    user_stage_id = await self._get_user_stage_id(
+                        current_user_context.user_id,
+                        current_user_context.organization_id,
+                    )
+                    if user_stage_id is None:
+                        raise PermissionDeniedError("User has no stage assigned")
+                    filtered_stage_ids = [user_stage_id]
             else:
                 # Specific stages requested - apply role-based filtering
                 if current_user_context.is_admin():
@@ -77,10 +86,13 @@ class CompetencyService:
                     filtered_stage_ids = stage_ids
                 else:
                     # Non-admin users can only see competencies for their own stage
-                    user_stage_id = await self._get_user_stage_id(current_user_context.user_id, current_user_context.organization_id)
+                    user_stage_id = await self._get_user_stage_id(
+                        current_user_context.user_id,
+                        current_user_context.organization_id,
+                    )
                     if user_stage_id is None:
                         raise PermissionDeniedError("User has no stage assigned")
-                    
+
                     # Check if user's stage is included in requested stages
                     if user_stage_id not in stage_ids:
                         raise PermissionDeniedError("Access denied to requested stages")
@@ -88,7 +100,12 @@ class CompetencyService:
             
             # Create cache key (include user role and org for cache segregation)
             user_role = current_user_context.role_names[0] if current_user_context.role_names else "unknown"
-            cache_key = f"competencies:{current_user_context.organization_id}:{user_role}:{search_term}:{filtered_stage_ids}:{pagination.page if pagination else 1}:{pagination.limit if pagination else 'all'}"
+            cache_key = (
+                f"competencies:{current_user_context.organization_id}:"
+                f"{user_role}:{search_term}:{filtered_stage_ids}:"
+                f"{pagination.page if pagination else 1}:"
+                f"{pagination.limit if pagination else 'all'}"
+            )
             
             # Check cache first
             if cache_key in competency_search_cache:
@@ -99,7 +116,7 @@ class CompetencyService:
             competencies = await self.competency_repo.search(
                 org_id=current_user_context.organization_id,
                 search_term=search_term,
-                stage_ids=filtered_stage_ids
+                stage_ids=filtered_stage_ids,
             )
             
             # Apply pagination if provided

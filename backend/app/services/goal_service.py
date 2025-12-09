@@ -123,6 +123,30 @@ class GoalService:
                     org_id=org_id
                 )
 
+            # Batch load competency names for all goals (N+1 fix)
+            competency_name_map: dict[str, str] = {}
+            try:
+                from uuid import UUID as _UUID
+                competency_ids: set[UUID] = set()
+                for goal_model in goals:
+                    if (
+                        goal_model.goal_category == "コンピテンシー"
+                        and goal_model.target_data
+                        and isinstance(goal_model.target_data, dict)
+                        and goal_model.target_data.get("competency_ids")
+                    ):
+                        for cid in goal_model.target_data.get("competency_ids", []) or []:
+                            try:
+                                competency_ids.add(_UUID(str(cid)))
+                            except (ValueError, TypeError):
+                                pass
+
+                if competency_ids:
+                    comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                    competency_name_map = {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+            except Exception as e:
+                logger.warning(f"Failed to batch load competency names: {e}")
+
             # Convert to response format
             enriched_goals = []
             for goal_model in goals:
@@ -132,7 +156,8 @@ class GoalService:
                     include_rejection_history=include_rejection_history,
                     reviews_map=reviews_map,
                     rejection_histories_map=rejection_histories_map,
-                    org_id=org_id
+                    org_id=org_id,
+                    competency_name_map=competency_name_map
                 )
                 enriched_goals.append(enriched_goal)
             
@@ -338,10 +363,15 @@ class GoalService:
             if goal_data.status == GoalStatus.SUBMITTED:
                 await self._create_related_assessment_records(created_goal, org_id)
                 await self.session.commit()
-            
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(created_goal)
-            
+
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(created_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                created_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal created successfully: {created_goal.id}")
             return enriched_goal
             
@@ -418,10 +448,15 @@ class GoalService:
             
             # Commit transaction
             await self.session.commit()
-            
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(updated_goal)
-            
+
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                updated_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal updated successfully: {goal_id}")
             return enriched_goal
             
@@ -523,9 +558,14 @@ class GoalService:
                     logger.error(f"Auto-create SupervisorReview failed for goal {goal_id}: {auto_create_error}")
                     # Do not rollback goal submission due to review auto-creation failure
 
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(updated_goal)
-            
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                updated_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal submitted with status '{status}': {goal_id} by {current_user_context.user_id}")
             return enriched_goal
             
@@ -573,10 +613,15 @@ class GoalService:
             
             # Commit transaction
             await self.session.commit()
-            
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(updated_goal)
-            
+
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                updated_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal approved successfully: {goal_id} by {current_user_context.user_id}")
             return enriched_goal
             
@@ -622,10 +667,15 @@ class GoalService:
             
             # Commit transaction
             await self.session.commit()
-            
-            # Enrich response data
-            enriched_goal = await self._enrich_goal_data(updated_goal)
-            
+
+            # Enrich response data with competency names (N+1 fix)
+            competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
+            enriched_goal = await self._enrich_goal_data(
+                updated_goal,
+                org_id=org_id,
+                competency_name_map=competency_name_map
+            )
+
             logger.info(f"Goal rejected successfully: {goal_id} by {current_user_context.user_id}")
             return enriched_goal
             
@@ -656,11 +706,39 @@ class GoalService:
             
             # Count for pagination
             total_count = len(goals)  # Simple count for now
-            
+
+            # Batch load competency names for all goals (N+1 fix)
+            competency_name_map: dict[str, str] = {}
+            try:
+                from uuid import UUID as _UUID
+                competency_ids: set[UUID] = set()
+                for goal_model in goals:
+                    if (
+                        goal_model.goal_category == "コンピテンシー"
+                        and goal_model.target_data
+                        and isinstance(goal_model.target_data, dict)
+                        and goal_model.target_data.get("competency_ids")
+                    ):
+                        for cid in goal_model.target_data.get("competency_ids", []) or []:
+                            try:
+                                competency_ids.add(_UUID(str(cid)))
+                            except (ValueError, TypeError):
+                                pass
+
+                if competency_ids:
+                    comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                    competency_name_map = {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+            except Exception as e:
+                logger.warning(f"Failed to batch load competency names: {e}")
+
             # Enrich data
             enriched_goals = []
             for goal_model in goals:
-                enriched_goal = await self._enrich_goal_data(goal_model)
+                enriched_goal = await self._enrich_goal_data(
+                    goal_model,
+                    org_id=org_id,
+                    competency_name_map=competency_name_map
+                )
                 enriched_goals.append(enriched_goal)
             
             # Create response
@@ -1157,6 +1235,52 @@ class GoalService:
 
         logger.info(f"Batch fetched rejection histories for {len(previous_goal_ids)} goal chains")
         return histories_map
+
+    async def _build_competency_name_map_for_goal(
+        self,
+        goal_model: GoalModel,
+        org_id: str
+    ) -> dict[str, str]:
+        """
+        Extract competency IDs from a single goal and batch fetch their names.
+        This prevents N+1 queries in the fallback path of _enrich_goal_data.
+
+        Args:
+            goal_model: Goal model to extract competency_ids from
+            org_id: Organization ID for scoping
+
+        Returns:
+            dict[str, str]: Map of competency_id (as string) to competency name
+        """
+        try:
+            from uuid import UUID as _UUID
+
+            competency_ids: set[UUID] = set()
+
+            # Extract competency_ids from target_data for competency goals
+            if (
+                goal_model.goal_category == "コンピテンシー"
+                and goal_model.target_data
+                and isinstance(goal_model.target_data, dict)
+                and goal_model.target_data.get("competency_ids")
+            ):
+                ids = goal_model.target_data.get("competency_ids", []) or []
+                for cid in ids:
+                    try:
+                        competency_ids.add(_UUID(str(cid)))
+                    except (ValueError, TypeError):
+                        logger.warning(f"Invalid competency_id format in goal {goal_model.id}: {cid}")
+
+            # Batch fetch competencies if any IDs found
+            if competency_ids:
+                comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                return {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+
+            return {}
+
+        except Exception as e:
+            logger.warning(f"Failed to build competency name map for goal {goal_model.id}: {e}")
+            return {}
 
     async def _enrich_goal_data(
         self,

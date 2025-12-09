@@ -149,9 +149,7 @@ class StageRepository(BaseRepository[Stage]):
         return result.scalar_one_or_none() is not None
     
     async def count_users_by_stage(self, stage_id: UUID, org_id: str) -> int:
-        """Count number of users in a stage within organization scope."""
-        from ..models.user import User
-
+        """Count number of users in a single stage within organization scope."""
         # First verify stage exists in organization
         existing = await self.get_by_id(stage_id, org_id)
         if not existing:
@@ -160,7 +158,7 @@ class StageRepository(BaseRepository[Stage]):
         result = await self.session.execute(
             select(func.count(User.id)).where(
                 User.stage_id == stage_id,
-                User.clerk_organization_id == org_id
+                User.clerk_organization_id == org_id,
             )
         )
         return result.scalar_one()
@@ -193,7 +191,7 @@ class StageRepository(BaseRepository[Stage]):
             select(User.stage_id, func.count(User.id))
             .where(
                 User.stage_id.in_(stage_ids),
-                User.clerk_organization_id == org_id
+                User.clerk_organization_id == org_id,
             )
             .group_by(User.stage_id)
         )

@@ -55,11 +55,7 @@ for subordinate in subordinates:
 | 1 | Subordinates detail list | dashboard_service.py | 446-544 | Multiple (4) | 4 per subordinate | **CRITICAL** | SKIPPED (Dashboard not in use) |
 | 2 | Todo tasks approved goals | dashboard_service.py | 791-815 | Single (1) | 1 per goal | HIGH | SKIPPED (Dashboard not in use) |
 | 3 | History access periods | dashboard_service.py | 939-977 | Multiple (3) | 3 per period | HIGH | SKIPPED (Dashboard not in use) |
-<<<<<<< HEAD
 | 4 | Stages with user count | stage_service.py | 131-143 | Single (1) | 1 per stage | HIGH | ✅ **FIXED** (Issue #382 - PR #385) |
-=======
-| 4 | Stages with user count | stage_service.py | 131-133 | Single (1) | 1 per stage | HIGH | ✅ **FIXED** (Issue #382) |
->>>>>>> develop
 | 5 | User subordinates enrichment | user_service.py | 1076-1078 | Multiple (3) | 3 per user | **CRITICAL** | CLOSED (v2 API resolves) |
 | 6 | Department users enrichment | department_service.py | 293-365 | Multiple (3) | 3 per user | **CRITICAL** | ✅ **FIXED** (Issue #378 - PR #381 MERGED) |
 | 7 | Competency name fallback | goal_service.py | 1094-1099 | Single (1) | 1 per competency | MEDIUM | ✅ **FIXED** (Issue #383 - PR #386) |
@@ -67,7 +63,6 @@ for subordinate in subordinates:
 | 9 | Missing eager loading | user_repo.py | 345, 359 | Varies | On access | MEDIUM | PENDING |
 | 10 | Auth permission loading | dependencies.py | 206-236 | Single (1-3) | Per request | MEDIUM-HIGH | PENDING (covered by #372) |
 
-<<<<<<< HEAD
 **Phase 1 Total:** 10 issues (3 Fixed, 3 Closed/Skipped, 4 Pending)
 
 ### Phase 2 Issues (Comprehensive Scan - 2025-12-08)
@@ -89,9 +84,6 @@ for subordinate in subordinates:
 ---
 
 **Grand Total:** 12 issues (3 Fixed, 3 Closed/Skipped, 6 Pending)
-=======
-**Total Issues Found:** 10 (2 Fixed, 3 Closed/Skipped, 5 Pending)
->>>>>>> develop
 
 ---
 
@@ -350,34 +342,87 @@ if role_names:
 
 ---
 
-### 7. Goal Service - Competency Name Fallback (MEDIUM)
+### 7. Goal Service - Competency Name Fallback (MEDIUM) ✅ FIXED
 
-**Location:** `backend/app/services/goal_service.py:1094-1099`
+**Status:** ✅ **FIXED** in Issue #383 (2025-12-04)
 
-**Problem:**
-Fallback code that fetches competencies one-by-one if batch map is not provided.
+**Location:** `backend/app/services/goal_service.py:1041-1154`
 
-**Code Analysis:**
+**Problem (BEFORE):**
+Fallback code in `_enrich_goal_data()` fetched competencies one-by-one when `competency_name_map` was not provided.
+
+**Code Analysis (BEFORE):**
 ```python
-# Lines 1088-1093: Batch loading (GOOD)
-if competency_map:
-    goal_dict["competency_name"] = competency_map.get(goal.competency_id)
-
-# Lines 1094-1099: Fallback (BAD - N+1)
-else:
+# Lines 1088-1093: Optimized path (only used by search_goals)
+if competency_name_map is not None:
     for cid in ids:
-        competency = await self.competency_repo.get_by_id(cid, org_id)
-        if competency:
-            goal_dict["competency_name"] = competency.name
+        name = competency_name_map.get(str(cid))
+        if name:
+            competency_names[str(cid)] = name
+
+# Lines 1094-1099: Fallback (N+1 problem!)
+elif org_id:
+    for cid in ids:
+        comp = await self.competency_repo.get_by_id(cid, org_id)  # N queries!
+        if comp:
+            competency_names[str(cid)] = comp.name
 ```
 
-**Impact:**
-- Usually mitigated by batch loading flag
-- **Fallback:** M competency IDs = M additional queries
+**Impact (BEFORE):**
+- `create_goal()`, `update_goal()`, `submit_goal()`, `approve_goal()`, `reject_goal()` all used fallback
+- `get_my_goals()` and `get_pending_approvals()` also used fallback
+- 1-3 extra queries per single-goal operation
+- Up to N queries for multi-goal operations without batch loading
 
-**Priority:** Medium (has optimization, but fallback exists)
+**Solution (AFTER):**
+Implemented two-pronged approach:
 
-**Solution:** Always ensure competency_map is provided, or remove fallback.
+**1. Helper method for single-goal operations ([goal_service.py:1041-1080](backend/app/services/goal_service.py#L1041-L1080)):**
+```python
+async def _build_competency_name_map_for_goal(
+    self,
+    goal_model: GoalModel,
+    org_id: str
+) -> dict[str, str]:
+    """Extract competency IDs from a single goal and batch fetch their names."""
+    competency_ids: set[UUID] = set()
+
+    # Extract competency_ids from target_data
+    if goal_model.type == GoalType.COMPETENCY and goal_model.target_data:
+        ids = goal_model.target_data.get("competency_ids", []) or []
+        for cid in ids:
+            competency_ids.add(UUID(str(cid)))
+
+    # Batch fetch competencies if any IDs found
+    if competency_ids:
+        comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+        return {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+
+    return {}
+```
+
+**2. Updated single-goal methods to use helper:**
+- `create_goal()` - Lines 233-239
+- `update_goal()` - Lines 318-324
+- `submit_goal()` - Lines 427-433
+- `approve_goal()` - Lines 483-489
+- `reject_goal()` - Lines 537-543
+
+**3. Updated multi-goal methods with batch loading:**
+- `get_my_goals()` - Lines 119-149
+- `get_pending_approvals()` - Lines 576-604
+
+**Result:**
+- **Single-goal operations:** 1-3 competency_ids → 1 batch query (instead of 1-3 individual queries)
+- **Multi-goal operations:** All competency_ids extracted first → 1 batch query
+- **Fallback path eliminated:** All code paths now use batch loading
+
+**Used by:**
+- All goal CRUD operations (create/update/submit/approve/reject)
+- Goal list endpoints (my goals, pending approvals)
+- Note: `search_goals()` already had optimization
+
+**PR:** #386 (perf/fase-1-competency-fallback)
 
 ---
 
