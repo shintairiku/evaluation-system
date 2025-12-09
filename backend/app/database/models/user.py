@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text, Integer, UniqueConstraint
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text, Integer, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -100,3 +100,10 @@ class UserSupervisor(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="supervisor_relations")
     supervisor = relationship("User", foreign_keys=[supervisor_id], back_populates="subordinate_relations")
+
+
+# Performance indexes for org-scoped list queries
+Index('ix_users_org_name', User.clerk_organization_id, User.name)
+Index('ix_users_org_status', User.clerk_organization_id, User.status)
+Index('ix_users_org_stage', User.clerk_organization_id, User.stage_id)
+Index('ix_user_roles_role_id', user_roles.c.role_id)
