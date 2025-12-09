@@ -44,8 +44,9 @@ class UserServiceV2:
     Optimised user listing service that orchestrates batched repository calls and RBAC filtering.
     """
 
-    # Shared across instances (one per request) to get actual caching benefit
+    # Shared across all instances to enable cross-request caching
     _global_page_cache: TTLCache = TTLCache(maxsize=128, ttl=30)
+    _filters_cache: TTLCache = TTLCache(maxsize=64, ttl=60)
 
     DEFAULT_INCLUDES: Set[str] = frozenset({"department", "stage", "roles", "supervisor", "subordinates"})
     MAX_LIMIT = 100
@@ -58,6 +59,8 @@ class UserServiceV2:
         self._db_time_ms = 0.0
         # Short-lived in-process cache for hot list responses (per org/filters)
         self._page_cache: TTLCache = UserServiceV2._global_page_cache
+        # Shared filters cache across instances to avoid per-request rebuilds
+        self._filters_cache: TTLCache = UserServiceV2._filters_cache
 
     async def list_users(
         self,
@@ -523,21 +526,17 @@ class UserServiceV2:
         )
 
     async def _get_cached_filters(self, org_id: str):
-        # Simple TTL using perf_counter delta stored on self
-        now = perf_counter()
-        ttl_seconds = 60
-        cache_entry = getattr(self, "_filters_cache", {}).get(org_id)
-        if cache_entry and (now - cache_entry["ts"]) < ttl_seconds:
-            return cache_entry["departments"], cache_entry["stages"], cache_entry["roles"]
+        cached = self._filters_cache.get(org_id)
+        if cached:
+            return cached
 
         departments = await self._timed(self.user_repo.list_departments_for_org, org_id)
         stages = await self._timed(self.user_repo.list_stages_for_org, org_id)
         roles = await self._timed(self.user_repo.list_roles_for_org, org_id)
 
-        cache_bucket = getattr(self, "_filters_cache", {})
-        cache_bucket[org_id] = {"ts": now, "departments": departments, "stages": stages, "roles": roles}
-        self._filters_cache = cache_bucket
-        return departments, stages, roles
+        filters_tuple = (departments, stages, roles)
+        self._filters_cache[org_id] = filters_tuple
+        return filters_tuple
 
     def _estimate_total(self, users: Sequence[UserModel], pagination: PaginationParams) -> int:
         if not users:
