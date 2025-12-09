@@ -173,10 +173,12 @@ async def get_cached_permissions_for_roles(
     return permissions_by_role
 
 
-def invalidate_role_permission_cache(organization_id: str, role_id: UUID) -> None:
+async def invalidate_role_permission_cache(organization_id: str, role_id: UUID) -> None:
     """Invalidate cached permissions for a given role within an organization."""
     cache_key = (organization_id, str(role_id))
-    removed = _cache.pop(cache_key, None)
+    async with _lock:
+        removed = _cache.pop(cache_key, None)
+
     if removed:
         logger.info(
             "role_permissions.cache.invalidated",
