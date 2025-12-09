@@ -940,22 +940,34 @@ class GoalService:
         period = await self.evaluation_period_repo.get_by_id(goal_data.period_id, org_id)
         if not period:
             raise BadRequestError(f"Evaluation period {goal_data.period_id} not found")
-        
-        # Check if competencies exist (for competency goals)
+
+        # Check if competencies exist (for competency goals) - OPTIMIZED: batch validation
         if goal_data.goal_category == "コンピテンシー" and goal_data.competency_ids:
-            for competency_id in goal_data.competency_ids:
-                competency = await self.competency_repo.get_by_id(competency_id, org_id)
-                if not competency:
-                    raise BadRequestError(f"Competency {competency_id} not found")
+            # Batch validate all competencies in one query
+            comp_map = await self.competency_repo.get_by_ids_batch(
+                goal_data.competency_ids,
+                org_id
+            )
+
+            # Check if any competency is missing
+            missing = [cid for cid in goal_data.competency_ids if cid not in comp_map]
+            if missing:
+                raise BadRequestError(f"Competencies not found: {missing}")
 
     async def _validate_goal_update(self, goal_data: GoalUpdate, existing_goal: GoalModel, org_id: UUID):
         """Validate goal update business rules."""
-        # Check if competencies exist (for competency goals)
+        # Check if competencies exist (for competency goals) - OPTIMIZED: batch validation
         if isinstance(goal_data, CompetencyGoalUpdate) and goal_data.competency_ids:
-            for competency_id in goal_data.competency_ids:
-                competency = await self.competency_repo.get_by_id(competency_id, org_id)
-                if not competency:
-                    raise BadRequestError(f"Competency {competency_id} not found")
+            # Batch validate all competencies in one query
+            comp_map = await self.competency_repo.get_by_ids_batch(
+                goal_data.competency_ids,
+                org_id
+            )
+
+            # Check if any competency is missing
+            missing = [cid for cid in goal_data.competency_ids if cid not in comp_map]
+            if missing:
+                raise BadRequestError(f"Competencies not found: {missing}")
 
     async def _validate_weight_limits(
         self,
