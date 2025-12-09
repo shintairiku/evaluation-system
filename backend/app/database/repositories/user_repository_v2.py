@@ -360,7 +360,7 @@ class UserRepositoryV2(BaseRepository[User]):
         stages = {stage.id: stage for stage in result.scalars().all()}
         return stages
 
-    async def fetch_roles_for_users(self, user_ids: Iterable[UUID]) -> Dict[UUID, List[Role]]:
+    async def fetch_roles_for_users(self, user_ids: Iterable[UUID], org_id: str) -> Dict[UUID, List[Role]]:
         id_list = [user_id for user_id in set(user_ids) if user_id]
         if not id_list:
             return {}
@@ -369,6 +369,7 @@ class UserRepositoryV2(BaseRepository[User]):
             select(Role, user_roles.c.user_id)
             .join(user_roles, Role.id == user_roles.c.role_id)
             .where(user_roles.c.user_id.in_(id_list))
+            .where(Role.organization_id == org_id)
         )
         result = await self.session.execute(stmt)
 
