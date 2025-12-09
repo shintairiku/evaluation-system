@@ -173,14 +173,14 @@ export function getOrgContextFromToken(token: string | null): {
  * React.cache() only caches for the duration of a single render/request,
  * so the environment check will work correctly in both SSR and CSR contexts.
  */
-export const getCurrentOrgContext = cache(async (): Promise<{
+export const getCurrentOrgContext = cache(async function getCurrentOrgContext(): Promise<{
   orgId: string | null;
   orgSlug: string | null;
   orgName: string | null;
   userRoles: string[] | null;
   orgRole: string | null;
   internalUserId: string | null;
-}> => {
+}> {
   try {
     // Try to get token from Clerk (client-side)
     if (typeof window !== 'undefined') {
@@ -208,6 +208,8 @@ export const getCurrentOrgContext = cache(async (): Promise<{
   }
 });
 
+
+
 /**
  * Extract organization slug from Clerk token (server-side)
  * Used in server actions to get org context for API calls
@@ -223,7 +225,7 @@ export const getCurrentOrgContext = cache(async (): Promise<{
  * - Part of the -95% JWT parsing optimization (20x → 1x per page)
  * - Critical for server actions that need org_slug for API routes
  */
-export const getCurrentOrgSlug = cache(async (): Promise<string | null> => {
+export const getCurrentOrgSlug = cache(async function getCurrentOrgSlug(): Promise<string | null> {
   try {
     // Import Clerk server-side auth
     const { auth } = await import('@clerk/nextjs/server');
