@@ -1,3 +1,5 @@
+import { cache } from 'react';
+
 /**
  * JWT parsing utilities for extracting organization information
  * Used to get org_slug from Clerk JWT tokens for organization-scoped API routes
@@ -155,7 +157,7 @@ export function getOrgContextFromToken(token: string | null): {
  * React hook-friendly version to get organization context from current auth token
  * This should be used in React components that have access to Clerk's useAuth
  */
-export async function getCurrentOrgContext(): Promise<{
+async function resolveCurrentOrgContext(): Promise<{
   orgId: string | null;
   orgSlug: string | null;
   orgName: string | null;
@@ -164,6 +166,22 @@ export async function getCurrentOrgContext(): Promise<{
   internalUserId: string | null;
 }> {
   try {
+    if (typeof window === 'undefined') {
+      const { auth } = await import('@clerk/nextjs/server');
+      const serverAuth = await auth();
+      const token = await serverAuth.getToken({ template: 'org-jwt' });
+      const payload = getOrgContextFromToken(token);
+
+      return {
+        orgId: payload.orgId || serverAuth.orgId || null,
+        orgSlug: payload.orgSlug || serverAuth.orgSlug || null,
+        orgName: payload.orgName || null,
+        userRoles: payload.userRoles,
+        orgRole: payload.orgRole || serverAuth.orgRole || null,
+        internalUserId: payload.internalUserId || null,
+      };
+    }
+
     // Try to get token from Clerk (client-side)
     if (typeof window !== 'undefined') {
       const clerk = (window as ClerkWindow).Clerk;
@@ -191,10 +209,19 @@ export async function getCurrentOrgContext(): Promise<{
 }
 
 /**
+ * Cached version of getCurrentOrgContext for server-side usage.
+ * Client-side still computes fresh values to reflect live org switches.
+ */
+export const getCurrentOrgContext =
+  typeof window === 'undefined'
+    ? cache(resolveCurrentOrgContext)
+    : resolveCurrentOrgContext;
+
+/**
  * Server-side utility to extract organization slug from Clerk token
  * Used in server actions to get org context for API calls
  */
-export async function getCurrentOrgSlug(): Promise<string | null> {
+async function resolveCurrentOrgSlug(): Promise<string | null> {
   try {
     // Import Clerk server-side auth
     const { auth } = await import('@clerk/nextjs/server');
@@ -224,3 +251,12 @@ export async function getCurrentOrgSlug(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Cached org slug resolution for server-side to avoid repeated JWT parsing per request.
+ * Client-side consumers should call resolveCurrentOrgSlug directly to stay responsive to org switches.
+ */
+export const getCurrentOrgSlug =
+  typeof window === 'undefined'
+    ? cache(resolveCurrentOrgSlug)
+    : async () => null;
