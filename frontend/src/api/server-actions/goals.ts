@@ -4,7 +4,7 @@ import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { goalsApi } from '../endpoints/goals';
 import { CACHE_TAGS } from '../utils/cache';
-import type { 
+import type {
   UUID,
   GoalCreateRequest,
   GoalUpdateRequest,
@@ -14,9 +14,12 @@ import type {
 
 
 /**
- * Server action to get goals with optional filtering, pagination, and caching
+ * Server action to get goals with optional filtering, pagination
+ *
+ * NOTE: Cache removed due to Next.js 15.3.6 issue with React.cache() and array parameters
+ * causing stale/inconsistent data to be returned. See: CVE-2025-66478 patch side effects
  */
-async function _getGoalsAction(params?: {
+export async function getGoalsAction(params?: {
   periodId?: UUID;
   userId?: UUID;
   goalCategory?: string;
@@ -48,19 +51,6 @@ async function _getGoalsAction(params?: {
     };
   }
 }
-
-export const getGoalsAction = cache(async (params?: {
-  periodId?: UUID;
-  userId?: UUID;
-  goalCategory?: string;
-  status?: string | string[];
-  page?: number;
-  limit?: number;
-  includeReviews?: boolean;
-  includeRejectionHistory?: boolean;
-}): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> => {
-  return _getGoalsAction(params);
-});
 
 
 /**
