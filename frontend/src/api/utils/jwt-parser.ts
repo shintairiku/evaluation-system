@@ -1,5 +1,3 @@
-import { cache } from 'react';
-
 /**
  * JWT parsing utilities for extracting organization information
  * Used to get org_slug from Clerk JWT tokens for organization-scoped API routes
@@ -212,10 +210,7 @@ async function resolveCurrentOrgContext(): Promise<{
  * Cached version of getCurrentOrgContext for server-side usage.
  * Client-side still computes fresh values to reflect live org switches.
  */
-export const getCurrentOrgContext =
-  typeof window === 'undefined'
-    ? cache(resolveCurrentOrgContext)
-    : resolveCurrentOrgContext;
+export const getCurrentOrgContext = resolveCurrentOrgContext;
 
 /**
  * Server-side utility to extract organization slug from Clerk token
@@ -258,5 +253,5 @@ async function resolveCurrentOrgSlug(): Promise<string | null> {
  */
 export const getCurrentOrgSlug =
   typeof window === 'undefined'
-    ? cache(resolveCurrentOrgSlug)
+    ? resolveCurrentOrgSlug
     : async () => null;
