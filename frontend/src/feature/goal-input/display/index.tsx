@@ -151,7 +151,7 @@ export default function GoalInputPage() {
 
   // Wrapper for period selection that includes data loading
   const handlePeriodSelection = (period: EvaluationPeriod) => {
-    handlePeriodSelected(period, resetGoalData);
+    handlePeriodSelected(period, resetGoalData, currentUser?.id);
   };
 
   const handleNext = () => {

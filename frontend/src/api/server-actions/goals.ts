@@ -30,13 +30,20 @@ export async function getGoalsAction(params?: {
   includeRejectionHistory?: boolean;
 }): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
   try {
+    console.log('🔍 [getGoalsAction] Called with params:', JSON.stringify(params, null, 2));
     const response = await goalsApi.getGoals(params);
 
     if (!response.success || !response.data) {
+      console.log('❌ [getGoalsAction] Failed:', response.errorMessage);
       return {
         success: false,
         error: response.errorMessage || 'Failed to fetch goals',
       };
+    }
+
+    console.log('✅ [getGoalsAction] Success. Items returned:', response.data.items?.length || 0);
+    if (response.data.items && response.data.items.length > 0) {
+      console.log('📊 [getGoalsAction] Goals statuses:', response.data.items.map(g => ({ id: g.id.substring(0, 8), status: g.status, userId: g.userId?.substring(0, 8) })));
     }
 
     return {

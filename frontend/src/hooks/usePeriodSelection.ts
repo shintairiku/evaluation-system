@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { getGoalsAction } from '@/api/server-actions/goals';
-import type { EvaluationPeriod } from '@/api/types';
+import type { EvaluationPeriod, UUID } from '@/api/types';
 import type { GoalResponse } from '@/api/types/goal';
 import type { PerformanceGoal, CompetencyGoal } from './useGoalData';
 
@@ -18,7 +18,7 @@ export interface UsePeriodSelectionReturn {
     performanceGoals: PerformanceGoal[];
     competencyGoals: CompetencyGoal[];
   } | null;
-  handlePeriodSelected: (period: EvaluationPeriod, resetGoalData: () => void) => Promise<void>;
+  handlePeriodSelected: (period: EvaluationPeriod, resetGoalData: () => void, userId?: UUID) => Promise<void>;
   activateAutoSave: () => void;
   clearPeriodSelection: () => void;
 }
@@ -67,7 +67,8 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
 
   const handlePeriodSelected = useCallback(async (
     period: EvaluationPeriod,
-    resetGoalData: () => void
+    resetGoalData: () => void,
+    userId?: UUID
   ) => {
     setSelectedPeriod(period);
     setIsLoadingExistingGoals(true);
@@ -84,15 +85,25 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
       // Reset goal data first
       resetGoalData();
 
-      // Fetch ALL goals for this period to check for blocking statuses
+      // Fetch goals for this period AND current user to check for blocking statuses
+      console.log('🔍 [usePeriodSelection] Fetching goals for period:', period.id, 'userId:', userId?.substring(0, 8));
       const result = await getGoalsAction({
         periodId: period.id,
+        userId: userId, // ✅ FIX: Filter by current user only
         status: ['draft', 'submitted', 'approved', 'rejected'] // Fetch ALL to check for blocking
       });
 
       if (result.success && result.data?.items) {
         const goals = result.data.items;
-        if (process.env.NODE_ENV !== 'production') console.debug(`📊 Found ${goals.length} existing goals for period`);
+        console.log(`📊 [usePeriodSelection] Found ${goals.length} existing goals for period`);
+        console.log('📋 [usePeriodSelection] Goals breakdown:', {
+          total: goals.length,
+          draft: goals.filter(g => g.status === 'draft').length,
+          submitted: goals.filter(g => g.status === 'submitted').length,
+          approved: goals.filter(g => g.status === 'approved').length,
+          rejected: goals.filter(g => g.status === 'rejected').length,
+          userIds: [...new Set(goals.map(g => g.userId?.substring(0, 8)))]
+        });
 
         // TASK-04: Check for blocking goals (submitted or approved)
         const hasSubmittedGoals = goals.some(g => g.status === 'submitted');
@@ -100,7 +111,8 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
 
         if (hasSubmittedGoals || hasApprovedGoals) {
           // BLOCK: Goals with submitted/approved status exist
-          if (process.env.NODE_ENV !== 'production') console.debug('🚫 Blocking goal creation - submitted/approved goals exist');
+          console.error('🚫 [usePeriodSelection] BLOCKING goal creation - submitted/approved goals exist');
+          console.error('🚨 [usePeriodSelection] This is the BUG! Should only check current user\'s goals, not all users!');
           setHasBlockingGoals(true);
           setBlockingMessage(
             hasApprovedGoals
