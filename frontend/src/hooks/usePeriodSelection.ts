@@ -85,34 +85,25 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
       // Reset goal data first
       resetGoalData();
 
-      // Fetch goals for this period AND current user to check for blocking statuses
-      console.log('🔍 [usePeriodSelection] Fetching goals for period:', period.id, 'userId:', userId?.substring(0, 8));
+      // Fetch ALL goals for this period to check for blocking statuses
+      // IMPORTANT: Must pass userId to filter by current user only (especially for ADMIN users)
       const result = await getGoalsAction({
         periodId: period.id,
-        userId: userId, // ✅ FIX: Filter by current user only
-        status: ['draft', 'submitted', 'approved', 'rejected'] // Fetch ALL to check for blocking
+        userId: userId,
+        status: ['draft', 'submitted', 'approved', 'rejected']
       });
 
       if (result.success && result.data?.items) {
         const goals = result.data.items;
-        console.log(`📊 [usePeriodSelection] Found ${goals.length} existing goals for period`);
-        console.log('📋 [usePeriodSelection] Goals breakdown:', {
-          total: goals.length,
-          draft: goals.filter(g => g.status === 'draft').length,
-          submitted: goals.filter(g => g.status === 'submitted').length,
-          approved: goals.filter(g => g.status === 'approved').length,
-          rejected: goals.filter(g => g.status === 'rejected').length,
-          userIds: [...new Set(goals.map(g => g.userId?.substring(0, 8)))]
-        });
+        if (process.env.NODE_ENV !== 'production') console.debug(`📊 Found ${goals.length} existing goals for period`);
 
-        // TASK-04: Check for blocking goals (submitted or approved)
+        // Check for blocking goals (submitted or approved)
         const hasSubmittedGoals = goals.some(g => g.status === 'submitted');
         const hasApprovedGoals = goals.some(g => g.status === 'approved');
 
         if (hasSubmittedGoals || hasApprovedGoals) {
           // BLOCK: Goals with submitted/approved status exist
-          console.error('🚫 [usePeriodSelection] BLOCKING goal creation - submitted/approved goals exist');
-          console.error('🚨 [usePeriodSelection] This is the BUG! Should only check current user\'s goals, not all users!');
+          if (process.env.NODE_ENV !== 'production') console.debug('🚫 Blocking goal creation - submitted/approved goals exist');
           setHasBlockingGoals(true);
           setBlockingMessage(
             hasApprovedGoals
