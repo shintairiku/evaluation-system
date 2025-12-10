@@ -98,6 +98,8 @@ class UnifiedHttpClient {
   private responseInterceptors: ResponseInterceptor[] = [];
   private orgSlug: string | null = null;
   private orgSlugPromise: Promise<string | null> | null = null;
+  private activeRequests = 0;
+  private waitingQueue: Array<() => void> = [];
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -113,10 +115,28 @@ class UnifiedHttpClient {
    * Caches the result to avoid repeated JWT parsing, but ensures cache freshness
    */
   private async getOrgSlug(): Promise<string | null> {
-    // Always fetch fresh org slug to prevent stale organization context
-    // This is especially important when users switch between organizations
-    // The performance impact is minimal since JWT parsing is fast
-    return this.fetchOrgSlug();
+    // Server-side requests must not share org slug across requests (multi-tenant safety)
+    if (isServer) {
+      return this.fetchOrgSlug();
+    }
+
+    // Client-side can memoize per session for perf
+    if (this.orgSlug) {
+      return this.orgSlug;
+    }
+
+    if (this.orgSlugPromise) {
+      return this.orgSlugPromise;
+    }
+
+    this.orgSlugPromise = (async () => {
+      const slug = await this.fetchOrgSlug();
+      this.orgSlug = slug;
+      this.orgSlugPromise = null;
+      return slug;
+    })();
+
+    return this.orgSlugPromise;
   }
 
   /**
@@ -343,6 +363,46 @@ class UnifiedHttpClient {
     }
   }
 
+  /**
+   * Lightweight semaphore to cap concurrent requests.
+   * Logs when throttling kicks in (dev only).
+   */
+  private async acquireRequestSlot(): Promise<void> {
+    if (this.activeRequests < API_CONFIG.MAX_CONCURRENT_REQUESTS) {
+      this.activeRequests += 1;
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      const resume = () => {
+        this.activeRequests += 1;
+        resolve();
+      };
+      this.waitingQueue.push(resume);
+    });
+
+    if (!API_CONFIG.IS_PRODUCTION) {
+      console.debug(
+        `[UnifiedHttpClient] Throttling activated at ${this.activeRequests} active requests (limit ${API_CONFIG.MAX_CONCURRENT_REQUESTS})`
+      );
+    }
+  }
+
+  private releaseRequestSlot(waitedMs: number): void {
+    this.activeRequests = Math.max(0, this.activeRequests - 1);
+    const next = this.waitingQueue.shift();
+    if (next) {
+      next();
+    }
+
+    if (!API_CONFIG.IS_PRODUCTION && waitedMs > 0) {
+      const queued = this.waitingQueue.length;
+      console.debug(
+        `[UnifiedHttpClient] Request released after waiting ${waitedMs}ms. Active=${this.activeRequests}, queued=${queued}`
+      );
+    }
+  }
+
   // Get auth headers (with Clerk integration)
   private async getAuthHeaders(): Promise<Record<string, string>> {
     try {
@@ -476,6 +536,9 @@ class UnifiedHttpClient {
   ): Promise<{ response?: Response; error?: unknown; isTimeout?: boolean; duration: number }> {
     const { method = 'GET', headers: customHeaders, body } = config;
     const startTime = Date.now();
+    const waitStart = Date.now();
+    await this.acquireRequestSlot();
+    const waitedFor = Date.now() - waitStart;
     
     // Create AbortController for timeout functionality
     const abortController = new AbortController();
@@ -546,6 +609,7 @@ class UnifiedHttpClient {
       return { error, isTimeout, duration };
     } finally {
       clearTimeout(timeoutId);
+      this.releaseRequestSlot(waitedFor);
     }
   }
 
