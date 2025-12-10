@@ -1,0 +1,74 @@
+# Frontend Refactor Checklist
+Tick boxes as you finish reviewing or refactoring each area. Add or remove items as the structure evolves.
+
+- [ ] frontend/
+  - [ ] src/
+    - [ ] app/
+      - [ ] layout.tsx
+      - [ ] globals.css
+      - [ ] page.tsx (uses `checkUserExistsAction`)
+      - [ ] (auth)/
+        - [ ] layout.tsx
+        - [ ] setup/
+          - [ ] page.tsx
+          - [ ] SetupPageClient.tsx (uses `getProfileOptionsAction`)
+          - [ ] confirmation/
+            - [ ] page.tsx
+            - [ ] ConfirmationDisplay.tsx (uses `getPendingApprovalUsersAction`)
+      - [ ] (evaluation)/
+        - [ ] layout.tsx (uses `getCurrentUserContextAction`)
+        - [ ] goal-input/page.tsx
+        - [ ] user-profiles/page.tsx
+        - [ ] (employee)/
+          - [ ] evaluation-input/page.tsx
+          - [ ] goal-list/page.tsx (loader: `getEmployeeGoalListPageDataAction`)
+        - [ ] (supervisor)/
+          - [ ] evaluation-feedback/page.tsx
+          - [ ] goal-review/page.tsx (loader: `getSupervisorGoalReviewPageDataAction`)
+        - [ ] (admin)/
+          - [ ] admin-goal-list/page.tsx
+          - [ ] competency-management/page.tsx (uses `getStagesAdminAction`, `getCompetenciesAction`)
+          - [ ] evaluation-period-management/page.tsx (uses `getCategorizedEvaluationPeriodsAction`)
+          - [ ] stage-management/page.tsx (uses `getStagesAdminAction`, `getUsersPageAction`)
+          - [ ] org-management/page.tsx (uses `getUsersPageAction`, `getAllRolePermissionsAction`, `getPermissionCatalogAction`, `getPermissionCatalogGroupedAction`)
+          - [ ] report/page.tsx
+          - [ ] others: add as discovered
+    - [ ] feature/
+      - [ ] evaluation/
+        - [ ] employee/
+          - [ ] goal-list/display/index.tsx (uses hook below)
+          - [ ] goal-list/hooks/useGoalListData.ts (uses `getGoalsAction`, `getCategorizedEvaluationPeriodsAction`, `getUsersAction`)
+        - [ ] superviser/goal-review/
+          - [ ] display/index.tsx (uses hook below)
+          - [ ] hooks/useGoalReviewData.ts (uses `getPendingSupervisorReviewsAction`, `getUsersAction`, `getCategorizedEvaluationPeriodsAction`, `getGoalsAction`)
+        - [ ] goal-input/ (add specific leaves as you touch them)
+        - [ ] admin/ (e.g., admin-users-goals, etc.)
+      - [ ] org-management/ (mark specific files when edited)
+    - [ ] components/
+      - [ ] auth/
+      - [ ] display/
+      - [ ] evaluation/
+      - [ ] ui/
+      - [ ] dashboard/
+    - [ ] context/
+      - [ ] CurrentUserContext.tsx (uses `router.refresh`)
+      - [ ] GoalListContext.tsx
+    - [ ] hooks/
+      - [ ] useUserRoles.ts (uses `checkUserExistsAction`, `getUserByIdAction`)
+      - [ ] others: add as they change
+    - [ ] api/
+      - [ ] server-actions/
+        - [ ] current-user-context.ts (uses `auth`, `getCurrentOrgContext`, `checkUserExistsAction`, `getUserByIdAction`, `getCategorizedEvaluationPeriodsAction`)
+        - [ ] page-loaders.ts (`getEmployeeGoalListPageDataAction`, `getSupervisorGoalReviewPageDataAction`)
+        - [ ] add more actions as you touch them
+      - [ ] types/
+        - [ ] current-user-context.ts
+        - [ ] page-loaders.ts
+      - [ ] README.md
+    - [ ] styles/
+    - [ ] utils/
+  - [ ] public/
+  - [ ] package.json
+  - [ ] tsconfig.json
+
+Usage: Replace `[ ]` with `[x]` as you complete sections. Append file-level bullets for any new leaves you modify and note related server actions/loaders inline.
