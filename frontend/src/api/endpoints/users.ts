@@ -12,9 +12,24 @@ import type {
   SimpleUser,
   BulkUserStatusUpdateItem,
   BulkUserStatusUpdateResponse,
+  UserListPageResponse,
 } from '../types';
 
 const httpClient = getHttpClient();
+
+type GetUsersPageParams = PaginationParams & {
+  include?: string;
+  withCount?: boolean;
+  cursor?: string;
+  sort?: string;
+  search?: string;
+  q?: string;
+  department_ids?: string[];
+  stage_ids?: string[];
+  role_ids?: string[];
+  statuses?: string[];
+  supervisor_id?: string;
+};
 
 export const usersApi = {
   /**
@@ -36,6 +51,38 @@ export const usersApi = {
       : API_ENDPOINTS.USERS.LIST;
     
     return httpClient.get<UserList>(endpoint);
+  },
+
+  /**
+   * Page-shaped users endpoint that bundles list data with filter metadata
+   */
+  getUsersPage: async (params?: GetUsersPageParams): Promise<ApiResponse<UserListPageResponse>> => {
+    const queryParams = new URLSearchParams();
+
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.withCount !== undefined) {
+      queryParams.append('withCount', params.withCount ? 'true' : 'false');
+    }
+    if (params?.include) {
+      queryParams.append('include', params.include);
+    }
+    if (params?.cursor) queryParams.append('cursor', params.cursor);
+    if (params?.sort) queryParams.append('sort', params.sort);
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.q) queryParams.append('q', params.q);
+
+    (params?.department_ids ?? []).forEach((id) => queryParams.append('department_ids', id));
+    (params?.stage_ids ?? []).forEach((id) => queryParams.append('stage_ids', id));
+    (params?.role_ids ?? []).forEach((id) => queryParams.append('role_ids', id));
+    (params?.statuses ?? []).forEach((status) => queryParams.append('statuses', status));
+    if (params?.supervisor_id) queryParams.append('supervisor_id', params.supervisor_id);
+
+    const endpoint = queryParams.toString()
+      ? `${API_ENDPOINTS.USERS.PAGE}?${queryParams.toString()}`
+      : API_ENDPOINTS.USERS.PAGE;
+
+    return httpClient.get<UserListPageResponse>(endpoint);
   },
 
   /**

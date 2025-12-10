@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, text, UniqueConstraint, DECIMAL
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, text, UniqueConstraint, DECIMAL, Index
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID, JSONB
 from sqlalchemy.orm import relationship
 
@@ -28,6 +28,8 @@ class Stage(Base):
     __table_args__ = (
         # Unique constraint: stage names unique within organization
         UniqueConstraint('organization_id', 'name', name='uq_stages_org_name'),
+        # Index to speed org-scoped stage lookups and admin listing
+        Index('ix_stages_org_name', 'organization_id', 'name'),
     )
 
 
@@ -64,3 +66,4 @@ class StageWeightHistory(Base):
     changed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     stage = relationship("Stage", back_populates="weight_history")
+

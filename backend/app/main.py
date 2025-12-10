@@ -7,6 +7,7 @@ import logging
 from .api.v1 import org_api_router
 from .api.v2 import org_api_router_v2
 from .api.v1.auth import router as auth_router
+from .database.index_bootstrap import ensure_perf_indexes
 from .core.middleware import LoggingMiddleware, OrgSlugValidationMiddleware, http_exception_handler, general_exception_handler
 from .core.config import settings
 from .schemas.common import HealthCheckResponse
@@ -128,6 +129,16 @@ def custom_openapi():
 app.openapi_schema = None
 app.openapi = custom_openapi
 logger.info("Custom OpenAPI function assigned successfully")
+
+
+@app.on_event("startup")
+async def _bootstrap_indexes():
+    """Create performance indexes (idempotent)."""
+    try:
+        await ensure_perf_indexes()
+        logger.info("Performance indexes ensured")
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to ensure performance indexes: %s", exc)
 
 @app.get("/", response_model=HealthCheckResponse)
 async def root():

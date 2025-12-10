@@ -1,5 +1,5 @@
 import { getStagesAdminAction } from '@/api/server-actions/stages';
-import { getUsersAction } from '@/api/server-actions/users';
+import { getUsersPageAction } from '@/api/server-actions/users';
 import { StageManagementContainer } from '@/feature/stage-management';
 
 /**
@@ -33,7 +33,7 @@ export default async function StageManagementPage() {
   }
 
   // Fetch users data for stage management
-  const usersResult = await getUsersAction({ 
+  const usersResult = await getUsersPageAction({ 
     limit: 100, // Reasonable limit to prevent performance issues
     page: 1,
     // For stage management we only need basic user info + stage,
@@ -51,8 +51,8 @@ export default async function StageManagementPage() {
     <div className="container mx-auto p-6">
       <StageManagementContainer
         initialStages={stagesResult.data || []}
-        initialUsers={usersResult.data?.items || []}
-        total={usersResult.data?.total || 0}
+        initialUsers={usersResult.data?.users || []}
+        total={usersResult.data?.meta.total || 0}
       />
     </div>
   );

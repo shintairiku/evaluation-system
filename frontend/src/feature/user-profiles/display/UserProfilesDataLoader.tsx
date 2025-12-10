@@ -1,4 +1,4 @@
-import { getUsersAction } from '@/api/server-actions';
+import { getUsersPageAction } from '@/api/server-actions/users';
 import UserManagementWithSearch from "./UserManagementWithSearch";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
@@ -13,7 +13,7 @@ export default async function UserProfilesDataLoader({
   limit = 50 
 }: UserProfilesDataLoaderProps) {
   // Server-side data fetching using getUsersAction
-  const result = await getUsersAction({ page, limit });
+  const result = await getUsersPageAction({ page, limit, withCount: false, include: 'stage' });
 
   if (!result.success) {
     return (
@@ -27,6 +27,6 @@ export default async function UserProfilesDataLoader({
   }
   
   return (
-    <UserManagementWithSearch initialUsers={result.data!.items} />
+    <UserManagementWithSearch initialUsers={result.data!.users} />
   );
-} 
+}

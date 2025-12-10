@@ -4,9 +4,11 @@ Simplified FastAPI dependencies for authentication and authorization.
 This module provides clean, simple dependencies for RBAC without over-engineering.
 """
 
-from typing import List
-import logging
+import asyncio
+from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
 from uuid import UUID
+import logging
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +19,9 @@ from ..database.repositories.role_repo import RoleRepository
 from ..database.repositories.user_repo import UserRepository
 from ..services.auth_service import AuthService
 from .permissions import Permission
-from .role_permission_cache import get_cached_role_permissions
+from .role_permission_cache import (
+    get_cached_permissions_for_roles,
+)
 from .viewer_visibility_cache import get_cached_viewer_visibility_overrides
 from .context import AuthContext, RoleInfo
 
@@ -25,6 +29,17 @@ security = HTTPBearer(
     scheme_name="Bearer",  # Label in OpenAPI docs
     auto_error=False,       # We'll raise detailed errors ourselves
 )
+
+
+# In-process, short-lived cache to avoid rebuilding AuthContext (and its role permission
+# lookups) on every request for the same Bearer token. This complements the per-request
+# request.state cache and the role_permission_cache module.
+_AUTH_CTX_TTL = timedelta(seconds=10)
+# cache_key is a string derived from (clerk_user_id, organization_id) so it remains
+# stable even when bearer tokens rotate frequently (e.g., Clerk short-lived tokens).
+_auth_ctx_cache: Dict[str, Tuple[AuthContext, datetime]] = {}
+_auth_ctx_lock = asyncio.Lock()
+_auth_ctx_metrics = {"hits": 0, "misses": 0}
 
 
 async def get_auth_context(
@@ -41,9 +56,10 @@ async def get_auth_context(
     Returns:
         AuthContext: Complete user auth context with roles and permissions
         
-    Raises:
-        HTTPException: If authentication fails or user not found
+        Raises:
+            HTTPException: If authentication fails or user not found
     """
+    build_start = perf_counter()
     try:
         # Extract token, tolerating missing credentials (HTTPBearer with auto_error=False)
         if not credentials or not credentials.scheme:
@@ -65,7 +81,13 @@ async def get_auth_context(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Missing Bearer token",
             )
-        
+
+        # Fast path: reuse already-built AuthContext within the same request
+        existing_ctx = getattr(request.state, "auth_context", None)
+        existing_token = getattr(request.state, "auth_context_token", None)
+        if existing_ctx and existing_token == token:
+            return existing_ctx
+
         # SECURITY: Only allow development tokens in development environment
         from ..core.config import Settings
         settings = Settings()
@@ -105,7 +127,7 @@ async def get_auth_context(
                 logger.warning(f"🔧 DEVELOPMENT: Using dev token (preview={token_preview}) - NEVER use in production!")
                 
                 dev_user = dev_keys[token]
-                return AuthContext(
+                dev_ctx = AuthContext(
                     user_id=UUID(dev_user["user_id"]),
                     clerk_user_id=dev_user["clerk_user_id"],
                     roles=dev_user["roles"],
@@ -113,6 +135,9 @@ async def get_auth_context(
                     organization_slug="dev-organization",
                     viewer_visibility_overrides=None,
                 )
+                cache_key = _make_cache_key(dev_ctx.clerk_user_id, dev_ctx.organization_id)
+                await _set_cached_auth_context(cache_key, dev_ctx)
+                return dev_ctx
         
         # Use auth info pre-attached by middleware when available to avoid
         # re-decoding JWTs within the same request.
@@ -128,6 +153,18 @@ async def get_auth_context(
             except Exception:
                 # Request.state might be frozen in rare cases; skip silently
                 pass
+
+        # Short-lived process cache keyed by user/org to handle rotating tokens
+        cache_key = _make_cache_key(auth_user.clerk_id, auth_user.organization_id)
+        cached_ctx = await _get_cached_auth_context(cache_key)
+        if cached_ctx:
+            try:
+                request.state.auth_context = cached_ctx
+                request.state.auth_context_token = token
+            except Exception:
+                # Request.state might be frozen in rare cases; skip silently
+                pass
+            return cached_ctx
         
         # Check if user exists in our database (use repository directly, not service)
         user_repo = UserRepository(session)
@@ -216,26 +253,22 @@ async def get_auth_context(
         dynamic_overrides = {}
         if role_infos and auth_user.organization_id:
             perm_load_start = perf_counter()
-            for role_info in role_infos:
-                if not isinstance(role_info.id, UUID):
-                    continue
-                try:
-                    cached_perms = await get_cached_role_permissions(
-                        session=session,
-                        organization_id=auth_user.organization_id,
-                        role_id=role_info.id,
-                        role_name=role_info.name,
-                    )
-                except Exception:  # pragma: no cover - cache failures should not block auth
-                    logger = logging.getLogger(__name__)
-                    logger.exception(
-                        "Failed to load dynamic permissions for role %s (%s); continuing without permissions",
-                        role_info.name,
-                        role_info.id,
-                    )
-                    cached_perms = None
-                if cached_perms is not None:
-                    dynamic_overrides[role_info.name.lower()] = cached_perms
+            try:
+                permissions_by_role = await get_cached_permissions_for_roles(
+                    session=session,
+                    organization_id=auth_user.organization_id,
+                    roles=role_infos,
+                )
+                for role_info in role_infos:
+                    perms = permissions_by_role.get(role_info.name.lower())
+                    if perms is not None:
+                        dynamic_overrides[role_info.name.lower()] = perms
+            except Exception:  # pragma: no cover - cache failures should not block auth
+                logger = logging.getLogger(__name__)
+                logger.exception(
+                    "Failed to load dynamic permissions for roles %s; continuing without permissions",
+                    [role.name for role in role_infos],
+                )
             perm_load_ms = (perf_counter() - perm_load_start) * 1000.0
             logging.getLogger(__name__).info(
                 "auth.permissions.load.ms",
@@ -254,30 +287,37 @@ async def get_auth_context(
             and auth_user.organization_id
             and any(role.name.lower() == "viewer" for role in role_infos)
         ):
-            try:
-                vv_start = perf_counter()
-                viewer_overrides = await get_cached_viewer_visibility_overrides(
-                    session=session,
-                    organization_id=auth_user.organization_id,
-                    viewer_user_id=user_id,
-                )
-                vv_ms = (perf_counter() - vv_start) * 1000.0
-                logging.getLogger(__name__).info(
-                    "auth.viewer_visibility.load.ms",
-                    extra={
-                        "event": "auth.viewer_visibility.load.ms",
-                        "organization_id": auth_user.organization_id,
-                        "elapsed_ms": round(vv_ms, 2),
-                    },
-                )
-            except Exception:  # pragma: no cover - cache failures should not block auth
-                logger = logging.getLogger(__name__)
-                logger.exception(
-                    "Failed to load viewer visibility overrides for user %s",
-                    user_id,
-                )
+            cache_bucket = getattr(request.state, "_viewer_visibility_cache", {})
+            vv_cache_key = (auth_user.organization_id, str(user_id))
+            if vv_cache_key in cache_bucket:
+                viewer_overrides = cache_bucket[vv_cache_key]
+            else:
+                try:
+                    vv_start = perf_counter()
+                    viewer_overrides = await get_cached_viewer_visibility_overrides(
+                        session=session,
+                        organization_id=auth_user.organization_id,
+                        viewer_user_id=user_id,
+                    )
+                    cache_bucket[vv_cache_key] = viewer_overrides
+                    request.state._viewer_visibility_cache = cache_bucket
+                    vv_ms = (perf_counter() - vv_start) * 1000.0
+                    logging.getLogger(__name__).info(
+                        "auth.viewer_visibility.load.ms",
+                        extra={
+                            "event": "auth.viewer_visibility.load.ms",
+                            "organization_id": auth_user.organization_id,
+                            "elapsed_ms": round(vv_ms, 2),
+                        },
+                    )
+                except Exception:  # pragma: no cover - cache failures should not block auth
+                    logger = logging.getLogger(__name__)
+                    logger.exception(
+                        "Failed to load viewer visibility overrides for user %s",
+                        user_id,
+                    )
 
-        return AuthContext(
+        auth_context = AuthContext(
             user_id=user_id,
             clerk_user_id=auth_user.clerk_id,
             roles=role_infos,
@@ -286,6 +326,31 @@ async def get_auth_context(
             role_permission_overrides=dynamic_overrides or None,
             viewer_visibility_overrides=viewer_overrides,
         )
+
+        # Store on request.state for subsequent dependency resolution within this request
+        try:
+            request.state.auth_context = auth_context
+            request.state.auth_context_token = token
+        except Exception:
+            logger = logging.getLogger(__name__)
+            logger.exception(
+                "Failed to set auth_context or auth_context_token on request.state",
+            )
+
+        await _set_cached_auth_context(cache_key, auth_context)
+
+        total_ms = (perf_counter() - build_start) * 1000.0
+        logging.getLogger(__name__).info(
+            "auth.context.build.ms",
+            extra={
+                "event": "auth.context.build.ms",
+                "organization_id": auth_user.organization_id,
+                "elapsed_ms": round(total_ms, 2),
+                "role_count": len(role_infos),
+            },
+        )
+
+        return auth_context
         
     except HTTPException:
         raise
@@ -367,3 +432,30 @@ require_supervisor_or_above = require_role(["admin", "manager", "supervisor"])
 
 # Backward compatibility alias
 get_security_context = get_auth_context
+
+
+def _make_cache_key(clerk_user_id: str | None, organization_id: str | None) -> str:
+    return f"{clerk_user_id or '<none>'}|{organization_id or '<none>'}"
+
+
+async def _get_cached_auth_context(cache_key: str) -> AuthContext | None:
+    """Return a cached AuthContext for the given cache key if it is still fresh."""
+    now = datetime.utcnow()
+    async with _auth_ctx_lock:
+        entry = _auth_ctx_cache.get(cache_key)
+        if entry:
+            ctx, cached_at = entry
+            if now - cached_at <= _AUTH_CTX_TTL:
+                _auth_ctx_metrics["hits"] += 1
+                return ctx
+            # Stale entry; drop it so future calls reload
+            _auth_ctx_cache.pop(cache_key, None)
+        _auth_ctx_metrics["misses"] += 1
+    return None
+
+
+async def _set_cached_auth_context(cache_key: str, ctx: AuthContext) -> None:
+    """Store AuthContext in the short-lived in-process cache."""
+    now = datetime.utcnow()
+    async with _auth_ctx_lock:
+        _auth_ctx_cache[cache_key] = (ctx, now)
