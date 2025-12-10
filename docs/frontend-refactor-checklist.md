@@ -9,12 +9,12 @@ Tick boxes as you finish reviewing or refactoring each area. Add or remove items
       - [ ] page.tsx (uses `checkUserExistsAction`)
       - [ ] (auth)/
         - [ ] layout.tsx
-        - [ ] setup/
-          - [ ] page.tsx
-          - [ ] SetupPageClient.tsx (uses `getProfileOptionsAction`)
-          - [ ] confirmation/
-            - [ ] page.tsx
-            - [ ] ConfirmationDisplay.tsx (uses `getPendingApprovalUsersAction`)
+        - [x] setup/
+          - [x] page.tsx
+          - [x] SetupPageClient.tsx (uses `getProfileOptionsAction`)
+          - [x] confirmation/
+            - [x] page.tsx
+            - [x] ConfirmationDisplay.tsx (uses `getPendingApprovalUsersAction`)
       - [ ] (evaluation)/
         - [ ] layout.tsx (uses `getCurrentUserContextAction`)
         - [ ] goal-input/page.tsx
