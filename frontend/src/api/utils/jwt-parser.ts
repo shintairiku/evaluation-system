@@ -161,7 +161,7 @@ export function getOrgContextFromToken(token: string | null): {
  * - Server-side: Falls back to ClientAuth helper
  *
  * React.cache() SAFETY: The cache wrapper is safe in both contexts:
- * - Server (SSR): Deduplicates calls within a single request lifecycle
+ * - Server (SSR): Deduplicates calls within a single server request
  * - Client (CSR): Deduplicates calls within a single component render
  * - The typeof window check ensures proper environment detection
  *
@@ -170,8 +170,9 @@ export function getOrgContextFromToken(token: string | null): {
  * - Affects 100% of pages and API calls that need org context
  *
  * Note: The typeof window !== 'undefined' check is intentional and safe.
- * React.cache() only caches for the duration of a single render/request,
- * so the environment check will work correctly in both SSR and CSR contexts.
+ * React.cache() only caches for the duration of a single server request (SSR)
+ * or component render (CSR), so the environment check will work correctly in
+ * both SSR and CSR contexts.
  */
 export const getCurrentOrgContext = cache(async function getCurrentOrgContext(): Promise<{
   orgId: string | null;

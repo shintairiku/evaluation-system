@@ -150,9 +150,9 @@ if (orgSlugFromToken !== this.orgSlug) {
 
 ---
 
-### 3. ❌ **CRITICAL: JWT Parser sem React.cache() (Server-Side)**
+### 3. 🟡 **CRITICAL: JWT Parser sem React.cache() (Server-Side)**
 
-**Status:** ❌ **NOT RESOLVED**
+**Status:** 🟡 **IN PROGRESS** (PR #393 - perf/task-390-jwt-cache)
 
 **Location:** `frontend/src/api/utils/jwt-parser.ts:197-226`
 
