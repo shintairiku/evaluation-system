@@ -14,12 +14,9 @@ import type {
 
 
 /**
- * Server action to get goals with optional filtering, pagination
- *
- * NOTE: Cache removed due to Next.js 15.3.6 issue with React.cache() and array parameters
- * causing stale/inconsistent data to be returned. See: CVE-2025-66478 patch side effects
+ * Server action to get goals with optional filtering, pagination, and caching
  */
-export async function getGoalsAction(params?: {
+async function _getGoalsAction(params?: {
   periodId?: UUID;
   userId?: UUID;
   goalCategory?: string;
@@ -30,20 +27,13 @@ export async function getGoalsAction(params?: {
   includeRejectionHistory?: boolean;
 }): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
   try {
-    console.log('🔍 [getGoalsAction] Called with params:', JSON.stringify(params, null, 2));
     const response = await goalsApi.getGoals(params);
 
     if (!response.success || !response.data) {
-      console.log('❌ [getGoalsAction] Failed:', response.errorMessage);
       return {
         success: false,
         error: response.errorMessage || 'Failed to fetch goals',
       };
-    }
-
-    console.log('✅ [getGoalsAction] Success. Items returned:', response.data.items?.length || 0);
-    if (response.data.items && response.data.items.length > 0) {
-      console.log('📊 [getGoalsAction] Goals statuses:', response.data.items.map(g => ({ id: g.id.substring(0, 8), status: g.status, userId: g.userId?.substring(0, 8) })));
     }
 
     return {
@@ -58,6 +48,19 @@ export async function getGoalsAction(params?: {
     };
   }
 }
+
+export const getGoalsAction = cache(async (params?: {
+  periodId?: UUID;
+  userId?: UUID;
+  goalCategory?: string;
+  status?: string | string[];
+  page?: number;
+  limit?: number;
+  includeReviews?: boolean;
+  includeRejectionHistory?: boolean;
+}): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> => {
+  return _getGoalsAction(params);
+});
 
 
 /**
