@@ -29,6 +29,7 @@ interface CompetencyGoalsStepProps {
   onPrevious: () => void;
   periodId?: string;
   stageBudgets: StageWeightBudget;
+  userStageId?: string;
 }
 
 export function CompetencyGoalsStep({
@@ -37,7 +38,8 @@ export function CompetencyGoalsStep({
   goalTracking,
   onNext,
   onPrevious,
-  stageBudgets
+  stageBudgets,
+  userStageId
 }: CompetencyGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoal = goals[0];
@@ -56,8 +58,12 @@ export function CompetencyGoalsStep({
         setIsLoadingCompetencies(true);
         setCompetencyError(null);
         
-        // Backend automatically filters by user's stage via RBAC
-        const result = await getCompetenciesAction({ limit: 100 });
+        // Filter competencies by user's stage
+        // For admin users, explicitly pass stageId to avoid seeing all stages
+        const result = await getCompetenciesAction({
+          limit: 100,
+          stageId: userStageId
+        });
         
         if (result.success && result.data?.items) {
           setCompetencies(result.data.items);
