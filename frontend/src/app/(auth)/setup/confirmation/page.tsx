@@ -1,5 +1,5 @@
-import ConfirmationDisplay from '@/feature/setup/confirmation/ConfirmationDisplay';
+import { SetupConfirmation } from '@/feature/setup/display/SetupConfirmation';
 
 export default function ConfirmationPage() {
-  return <ConfirmationDisplay />;
+  return <SetupConfirmation />;
 }
