@@ -8,39 +8,62 @@ Tick boxes as you finish reviewing or refactoring each area. Add or remove items
       - [ ] globals.css
       - [ ] page.tsx (uses `checkUserExistsAction`)
       - [ ] (auth)/
-        - [ ] layout.tsx
+        - [x] layout.tsx
         - [x] setup/
           - [x] page.tsx
-          - [x] SetupPageClient.tsx (uses `getProfileOptionsAction`)
           - [x] confirmation/
             - [x] page.tsx
-            - [x] ConfirmationDisplay.tsx (uses `getPendingApprovalUsersAction`)
       - [ ] (evaluation)/
         - [ ] layout.tsx (uses `getCurrentUserContextAction`)
-        - [ ] goal-input/page.tsx
-        - [ ] user-profiles/page.tsx
+        - [ ] goal-input/
+          - [ ] page.tsx
+        - [ ] user-profiles/
+          - [ ] page.tsx
         - [ ] (employee)/
-          - [ ] evaluation-input/page.tsx
-          - [ ] goal-list/page.tsx (loader: `getEmployeeGoalListPageDataAction`)
+          - [ ] evaluation-input/
+            - [ ] page.tsx
+          - [ ] goal-list/
+            - [ ] page.tsx (loader: `getEmployeeGoalListPageDataAction`)
         - [ ] (supervisor)/
-          - [ ] evaluation-feedback/page.tsx
-          - [ ] goal-review/page.tsx (loader: `getSupervisorGoalReviewPageDataAction`)
+          - [ ] evaluation-feedback/
+            - [ ] page.tsx
+          - [ ] goal-review/
+            - [ ] page.tsx (loader: `getSupervisorGoalReviewPageDataAction`)
         - [ ] (admin)/
-          - [ ] admin-goal-list/page.tsx
-          - [ ] competency-management/page.tsx (uses `getStagesAdminAction`, `getCompetenciesAction`)
-          - [ ] evaluation-period-management/page.tsx (uses `getCategorizedEvaluationPeriodsAction`)
-          - [ ] stage-management/page.tsx (uses `getStagesAdminAction`, `getUsersPageAction`)
-          - [ ] org-management/page.tsx (uses `getUsersPageAction`, `getAllRolePermissionsAction`, `getPermissionCatalogAction`, `getPermissionCatalogGroupedAction`)
-          - [ ] report/page.tsx
+          - [ ] admin-goal-list/
+            - [ ] page.tsx
+          - [ ] competency-management/
+            - [ ] page.tsx (uses `getStagesAdminAction`, `getCompetenciesAction`)
+          - [ ] evaluation-period-management/
+            - [ ] page.tsx (uses `getCategorizedEvaluationPeriodsAction`)
+          - [ ] stage-management/
+            - [ ] page.tsx (uses `getStagesAdminAction`, `getUsersPageAction`)
+          - [ ] org-management/
+            - [ ] page.tsx (uses `getUsersPageAction`, `getAllRolePermissionsAction`, `getPermissionCatalogAction`, `getPermissionCatalogGroupedAction`)
+          - [ ] report/
+            - [ ] page.tsx
           - [ ] others: add as discovered
     - [ ] feature/
+      - [x] setup/
+        - [x] display/
+          - [x] ProfileForm.tsx
+          - [x] SetupPage.tsx
+          - [x] SetupConfirmation.tsx
+        - [x] components/
+          - [x] HierarchySetupWrapper.tsx
       - [ ] evaluation/
         - [ ] employee/
-          - [ ] goal-list/display/index.tsx (uses hook below)
-          - [ ] goal-list/hooks/useGoalListData.ts (uses `getGoalsAction`, `getCategorizedEvaluationPeriodsAction`, `getUsersAction`)
-        - [ ] superviser/goal-review/
-          - [ ] display/index.tsx (uses hook below)
-          - [ ] hooks/useGoalReviewData.ts (uses `getPendingSupervisorReviewsAction`, `getUsersAction`, `getCategorizedEvaluationPeriodsAction`, `getGoalsAction`)
+          - [ ] goal-list/
+            - [ ] display/
+              - [ ] index.tsx (uses hook below)
+            - [ ] hooks/
+              - [ ] useGoalListData.ts (uses `getGoalsAction`, `getCategorizedEvaluationPeriodsAction`, `getUsersAction`)
+        - [ ] superviser/
+          - [ ] goal-review/
+            - [ ] display/
+              - [ ] index.tsx (uses hook below)
+            - [ ] hooks/
+              - [ ] useGoalReviewData.ts (uses `getPendingSupervisorReviewsAction`, `getUsersAction`, `getCategorizedEvaluationPeriodsAction`, `getGoalsAction`)
         - [ ] goal-input/ (add specific leaves as you touch them)
         - [ ] admin/ (e.g., admin-users-goals, etc.)
       - [ ] org-management/ (mark specific files when edited)
@@ -58,6 +81,7 @@ Tick boxes as you finish reviewing or refactoring each area. Add or remove items
       - [ ] others: add as they change
     - [ ] api/
       - [ ] server-actions/
+        - [x] auth.ts (uses `getProfileOptionsAction` for setup flow only)
         - [ ] current-user-context.ts (uses `auth`, `getCurrentOrgContext`, `checkUserExistsAction`, `getUserByIdAction`, `getCategorizedEvaluationPeriodsAction`)
         - [ ] page-loaders.ts (`getEmployeeGoalListPageDataAction`, `getSupervisorGoalReviewPageDataAction`)
         - [ ] add more actions as you touch them
