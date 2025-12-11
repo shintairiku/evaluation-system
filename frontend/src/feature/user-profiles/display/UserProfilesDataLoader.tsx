@@ -12,8 +12,9 @@ export default async function UserProfilesDataLoader({
   page = 1, 
   limit = 50 
 }: UserProfilesDataLoaderProps) {
-  // Server-side data fetching using getUsersAction
-  const result = await getUsersPageAction({ page, limit, withCount: false, include: 'stage' });
+  // Server-side data fetching using getUsersPageAction
+  // Include department and roles to display complete user information
+  const result = await getUsersPageAction({ page, limit, withCount: false, include: 'department,stage,roles' });
 
   if (!result.success) {
     return (
