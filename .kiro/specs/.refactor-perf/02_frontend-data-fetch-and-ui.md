@@ -123,3 +123,19 @@ The items below should be implemented in roughly this order so we can land incre
     - “One page = one loader” pattern and examples.
     - When to add a new server action vs when to piggyback on an existing loader.
     - How to work with org-context caching and `CurrentUserContext`.
+
+### 6.6 Page-by-page frontend audit (recurring)
+
+- **M13 – Per-route performance and structure check**
+  - For each `app/.../page.tsx` and related layout, inspect:
+    - Route layout + page component, associated `feature/*` display + hooks, shared pieces in `components/*`, and any `api/server-actions` touched.
+    - Folder placement: keep page-specific UI in `feature/<domain>/<page>/display`, hooks in `feature/<domain>/<page>/hooks`, and cross-page UI in `components/*`.
+    - Performance: keep loaders on the server, avoid client-side server-action calls, ensure Suspense/loading/error states, memoize/paginate list renders, and watch bundle weight for heavy imports.
+  - After completing a route, tick it in `docs/frontend-refactor-checklist.md` and append bullets for any newly touched leaves.
+
+## 7. Page-by-page review runbook
+- Pick the next unchecked route from `docs/frontend-refactor-checklist.md`.
+- Trace data flow: identify the server action(s) that load the page, map props to client components, and list any remaining client-triggered server actions.
+- Verify folder/file organization: move or rename files if the route’s UI/hooks live outside `feature/<domain>/<page>/...` without justification; keep shared UI in `components/*`.
+- Validate performance: drop unnecessary `dynamic = 'force-dynamic'`, ensure suspense/loading/error boundaries, batch network calls where possible, memoize/paginate large lists, and prefer streaming where safe.
+- Record outcomes in the checklist (static vs dynamic choice, loader used, any follow-ups) and add new bullets for newly discovered files.
