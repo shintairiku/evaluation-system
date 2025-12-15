@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -378,6 +379,9 @@ export default function UserEditViewModal({
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             )}
           </DialogTitle>
+          <DialogDescription>
+            ユーザー情報を編集できます
+          </DialogDescription>
         </DialogHeader>
 
         <form action={formAction} className="space-y-4">
