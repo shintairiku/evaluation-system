@@ -1,5 +1,6 @@
-import { getUsersPageAction } from '@/api/server-actions/users';
+import { getUserDirectoryBasePageDataAction } from '@/api/server-actions/users';
 import UserManagementWithSearch from "./UserManagementWithSearch";
+import { ProfileOptionsProvider } from '@/feature/user-shared/context/ProfileOptionsContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -12,8 +13,7 @@ export default async function UserProfilesDataLoader({
   page = 1, 
   limit = 50 
 }: UserProfilesDataLoaderProps) {
-  // Server-side data fetching using getUsersAction
-  const result = await getUsersPageAction({ page, limit, withCount: false, include: 'stage' });
+  const result = await getUserDirectoryBasePageDataAction({ page, limit });
 
   if (!result.success) {
     return (
@@ -26,7 +26,16 @@ export default async function UserProfilesDataLoader({
     );
   }
   
+  const filters = result.data!.filters;
+  const initialOptions = {
+    departments: filters.departments ?? [],
+    stages: filters.stages ?? [],
+    roles: filters.roles ?? [],
+  };
+
   return (
-    <UserManagementWithSearch initialUsers={result.data!.users} />
+    <ProfileOptionsProvider initialOptions={initialOptions}>
+      <UserManagementWithSearch initialUsers={result.data!.users} />
+    </ProfileOptionsProvider>
   );
 }
