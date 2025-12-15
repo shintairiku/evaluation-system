@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 
-export default function ConfirmationDisplay() {
+export function SetupConfirmation() {
   const router = useRouter();
 
   return (
