@@ -26,7 +26,6 @@ import { toast } from 'sonner';
 import { updateUserAction } from '@/api/server-actions/users';
 import { validateHierarchyChange as validateHierarchyChangeUtil } from '@/utils/hierarchy';
 
-
 interface UserOrganizationViewProps {
   users: UserDetailResponse[];
   onUserUpdate?: (user: UserDetailResponse) => void;

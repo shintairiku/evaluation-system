@@ -6,7 +6,7 @@ Tick boxes as you finish reviewing or refactoring each area. Add or remove items
     - [ ] app/
       - [ ] layout.tsx
       - [ ] globals.css
-      - [ ] page.tsx (uses `checkUserExistsAction`)
+      - [x] page.tsx (uses `checkUserExistsAction`)
       - [ ] (auth)/
         - [x] layout.tsx
         - [x] setup/
@@ -14,11 +14,11 @@ Tick boxes as you finish reviewing or refactoring each area. Add or remove items
           - [x] confirmation/
             - [x] page.tsx
       - [ ] (evaluation)/
-        - [ ] layout.tsx (uses `getCurrentUserContextAction`)
+        - [x] layout.tsx (uses `getCurrentUserContextAction`)
         - [ ] goal-input/
           - [ ] page.tsx
-        - [ ] user-profiles/
-          - [ ] page.tsx
+        - [x] user-profiles/
+          - [x] page.tsx (delegates to `UserProfilesRoute`)
         - [ ] (employee)/
           - [ ] evaluation-input/
             - [ ] page.tsx
@@ -38,8 +38,8 @@ Tick boxes as you finish reviewing or refactoring each area. Add or remove items
             - [ ] page.tsx (uses `getCategorizedEvaluationPeriodsAction`)
           - [ ] stage-management/
             - [ ] page.tsx (uses `getStagesAdminAction`, `getUsersPageAction`)
-          - [ ] org-management/
-            - [ ] page.tsx (uses `getUsersPageAction`, `getAllRolePermissionsAction`, `getPermissionCatalogAction`, `getPermissionCatalogGroupedAction`)
+          - [x] org-management/
+            - [x] page.tsx (delegates to `OrgManagementRoute`, loader: `getUserDirectoryBasePageDataAction`)
           - [ ] report/
             - [ ] page.tsx
           - [ ] others: add as discovered
@@ -66,7 +66,25 @@ Tick boxes as you finish reviewing or refactoring each area. Add or remove items
               - [ ] useGoalReviewData.ts (uses `getPendingSupervisorReviewsAction`, `getUsersAction`, `getCategorizedEvaluationPeriodsAction`, `getGoalsAction`)
         - [ ] goal-input/ (add specific leaves as you touch them)
         - [ ] admin/ (e.g., admin-users-goals, etc.)
-      - [ ] org-management/ (mark specific files when edited)
+      - [x] user-profiles/
+        - [x] display/UserProfilesRoute.tsx
+        - [x] display/UserProfilesDataLoader.tsx (loader: `getUserDirectoryBasePageDataAction`)
+        - [x] display/UserManagementWithSearch.tsx
+        - [x] display/views/UserTableView.tsx
+        - [x] display/views/UserGalleryView.tsx
+        - [x] display/views/UserOrganizationView.tsx
+        - [x] components/UserEditViewModal.tsx
+        - [x] components/ViewModeSelector.tsx
+      - [x] org-management/
+        - [x] OrgManagementRoute.tsx (loader: `getUserDirectoryBasePageDataAction`)
+        - [x] OrgManagementContainer.tsx
+        - [x] tabs/users/*
+        - [x] tabs/departments/*
+        - [x] tabs/roles/*
+        - [x] tabs/permissions/*
+      - [x] user-shared/
+        - [x] context/ProfileOptionsContext.tsx (supports `initialOptions`)
+        - [x] hooks/useProfileOptions.ts
     - [ ] components/
       - [ ] auth/
       - [ ] display/
@@ -74,20 +92,25 @@ Tick boxes as you finish reviewing or refactoring each area. Add or remove items
       - [ ] ui/
       - [ ] dashboard/
     - [ ] context/
-      - [ ] CurrentUserContext.tsx (uses `router.refresh`)
+      - [x] CurrentUserContext.tsx (uses `router.refresh`)
       - [ ] GoalListContext.tsx
     - [ ] hooks/
-      - [ ] useUserRoles.ts (uses `checkUserExistsAction`, `getUserByIdAction`)
+      - [x] useUserRoles.ts (uses `checkUserExistsAction`, `getUserByIdAction`)
       - [ ] others: add as they change
     - [ ] api/
       - [ ] server-actions/
         - [x] auth.ts (uses `getProfileOptionsAction` for setup flow only)
-        - [ ] current-user-context.ts (uses `auth`, `getCurrentOrgContext`, `checkUserExistsAction`, `getUserByIdAction`, `getCategorizedEvaluationPeriodsAction`)
+        - [x] current-user-context.ts (uses `auth`, `getCurrentOrgContext`, `checkUserExistsAction`, `getUserByIdAction`, `getCategorizedEvaluationPeriodsAction`)
         - [ ] page-loaders.ts (`getEmployeeGoalListPageDataAction`, `getSupervisorGoalReviewPageDataAction`)
+        - [x] users.ts + users/* (queries/mutations/page-loaders refactor)
+          - [x] users/queries.ts
+          - [x] users/mutations.ts
+          - [x] users/page-loaders.ts
+          - [x] users/index.ts
         - [ ] add more actions as you touch them
       - [ ] types/
-        - [ ] current-user-context.ts
-        - [ ] page-loaders.ts
+        - [x] current-user-context.ts
+        - [x] page-loaders.ts (added `UserDirectoryBasePageData`)
       - [ ] README.md
     - [ ] styles/
     - [ ] utils/

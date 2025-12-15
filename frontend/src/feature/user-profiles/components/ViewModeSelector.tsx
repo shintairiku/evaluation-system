@@ -10,8 +10,10 @@ interface ViewModeSelectorProps {
 }
 
 export default function ViewModeSelector({ viewMode, onViewModeChange }: ViewModeSelectorProps) {
+  const handleValueChange = (value: string) => onViewModeChange(value as ViewMode);
+
   return (
-    <Tabs value={viewMode} onValueChange={(value) => onViewModeChange(value as ViewMode)}>
+    <Tabs value={viewMode} onValueChange={handleValueChange}>
       <TabsList className="grid w-full max-w-md grid-cols-3">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Table className="w-4 h-4" />

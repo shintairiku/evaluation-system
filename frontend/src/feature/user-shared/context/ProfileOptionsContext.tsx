@@ -25,18 +25,28 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 interface ProfileOptionsProviderProps {
   children: ReactNode;
+  initialOptions?: ProfileOptions;
 }
 
-export function ProfileOptionsProvider({ children }: ProfileOptionsProviderProps) {
-  const [options, setOptions] = useState<ProfileOptions>({
-    departments: [],
-    stages: [],
-    roles: []
-  });
+export function ProfileOptionsProvider({ children, initialOptions }: ProfileOptionsProviderProps) {
+  const hasInitialOptions = Boolean(
+    initialOptions &&
+      (initialOptions.departments.length > 0 ||
+        initialOptions.stages.length > 0 ||
+        initialOptions.roles.length > 0),
+  );
+
+  const [options, setOptions] = useState<ProfileOptions>(
+    initialOptions ?? {
+      departments: [],
+      stages: [],
+      roles: [],
+    },
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastFetch, setLastFetch] = useState<number>(0);
-  const hasFetchedRef = useRef(false);
+  const [lastFetch, setLastFetch] = useState<number>(hasInitialOptions ? Date.now() : 0);
+  const hasFetchedRef = useRef(hasInitialOptions);
 
   const fetchOptions = async () => {
     const now = Date.now();

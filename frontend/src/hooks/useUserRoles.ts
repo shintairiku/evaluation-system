@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
-import { getUserByIdAction, checkUserExistsAction } from '@/api/server-actions/users';
 import { getRoleHierarchyLevel } from '@/utils/hierarchy';
 import type { UserDetailResponse } from '@/api/types';
+import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
+import { checkUserExistsAction, getUserByIdAction } from '@/api/server-actions/users';
 
 export interface UserRole {
   role: string;
@@ -50,10 +52,45 @@ export const DASHBOARD_ROLE_MAPPING: Record<string, string> = {
  * - Manages loading and error states
  */
 export function useUserRoles(): UseUserRolesReturn {
+  const router = useRouter();
   const { userId } = useAuth();
-  const [currentUser, setCurrentUser] = useState<UserDetailResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const optionalContext = useOptionalCurrentUserContext();
+  const [currentUser, setCurrentUser] = useState<UserDetailResponse | null>(optionalContext?.user ?? null);
+  const [isLoading, setIsLoading] = useState(!optionalContext);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchUserData = useCallback(async () => {
+    if (!userId) {
+      setError('認証されていません');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const exists = await checkUserExistsAction(userId);
+      if (!exists.success || !exists.data?.exists || !exists.data.user_id) {
+        setError('ユーザーが見つかりません');
+        setIsLoading(false);
+        return;
+      }
+
+      const detail = await getUserByIdAction(exists.data.user_id);
+      if (!detail.success || !detail.data) {
+        setError('ユーザー詳細の取得に失敗しました');
+        setIsLoading(false);
+        return;
+      }
+
+      setCurrentUser(detail.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ユーザー情報の取得中にエラーが発生しました');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
 
   // Convert backend roles to dashboard-compatible format
   const userRoles = useMemo((): UserRole[] => {
@@ -93,45 +130,16 @@ export function useUserRoles(): UseUserRolesReturn {
     return availableRoles;
   }, [currentUser?.roles]);
 
-  const fetchUserData = async () => {
-    if (!userId) {
-      setError('認証されていません');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // First check if user exists and get basic info
-      const userExistsResult = await checkUserExistsAction(userId);
-
-      if (!userExistsResult.success || !userExistsResult.data?.exists || !userExistsResult.data.user_id) {
-        setError('ユーザーが見つかりません');
-        return;
-      }
-
-      // Get full user details including roles
-      const userDetailResult = await getUserByIdAction(userExistsResult.data.user_id);
-
-      if (!userDetailResult.success || !userDetailResult.data) {
-        setError('ユーザー詳細の取得に失敗しました');
-        return;
-      }
-
-      setCurrentUser(userDetailResult.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'ユーザー情報の取得中にエラーが発生しました');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchUserData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]); // fetchUserData is stable as it only depends on userId
+    if (optionalContext) {
+      setCurrentUser(optionalContext.user);
+      setError(null);
+      setIsLoading(false);
+    } else {
+      // Fallback: fetch user data when no provider is present
+      fetchUserData();
+    }
+  }, [optionalContext, fetchUserData]);
 
   // Utility functions
   const hasRole = (role: string): boolean => {
@@ -150,7 +158,11 @@ export function useUserRoles(): UseUserRolesReturn {
   };
 
   const refetch = async () => {
-    await fetchUserData();
+    if (optionalContext) {
+      router.refresh();
+    } else {
+      await fetchUserData();
+    }
   };
 
   return {

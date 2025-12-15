@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { UserDetailResponse } from '@/api/types';
-import UserEditViewModal from './UserEditViewModal';
+import UserEditViewModal from '../../components/UserEditViewModal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MESSAGES } from '@/components/constants/messages';
 
