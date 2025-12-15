@@ -238,6 +238,35 @@ class UserServiceV2:
             filters=filters,
         )
 
+    async def get_user_detail(
+        self,
+        ctx: AuthContext,
+        user_id: UUID,
+        *,
+        include: Optional[Set[str]] = None,
+    ) -> Optional[UserDetailResponse]:
+        if not ctx.organization_id:
+            raise BadRequestError("Organization context is required")
+
+        include_set = self._normalise_include(include)
+        self._reset_metrics()
+
+        users_map = await self._timed(
+            self.user_repo.fetch_users_by_ids,
+            [user_id],
+            ctx.organization_id,
+        )
+        user_model = users_map.get(user_id)
+        if not user_model:
+            return None
+
+        response_items = await self._build_response_items(
+            [user_model],
+            ctx.organization_id,
+            include_set,
+        )
+        return response_items[0] if response_items else None
+
     async def _apply_supervisor_filter(
         self,
         accessible_user_ids: Optional[Sequence[UUID]],
