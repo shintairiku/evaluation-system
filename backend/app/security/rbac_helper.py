@@ -72,7 +72,9 @@ class RBACHelper:
             - USER_READ_SUBORDINATES: Returns list of subordinate user IDs
             - USER_READ_SELF: Returns list containing only current user ID
         """
-        cache_key = f"accessible_users_{auth_context.user_id}_{target_user_id}"
+        org_id = getattr(auth_context, "organization_id", None)
+        role_key = ",".join(sorted([role.lower() for role in (auth_context.role_names or [])]))
+        cache_key = f"accessible_users::{org_id}::{auth_context.user_id}::{role_key}::{target_user_id}"
         
         # Check cache first
         if cached_result := resource_access_cache.get(cache_key):
@@ -82,7 +84,7 @@ class RBACHelper:
         base_result: Optional[List[UUID]] = None
         
         if auth_context.has_permission(Permission.USER_READ_ALL):
-            # Admin: Can access all users
+            # Can access all users
             base_result = None
         elif auth_context.has_permission(Permission.USER_READ_SUBORDINATES):
             # Manager/Supervisor: Can access subordinates

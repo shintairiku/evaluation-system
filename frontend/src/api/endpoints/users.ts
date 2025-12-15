@@ -93,6 +93,13 @@ export const usersApi = {
   },
 
   /**
+   * Get the current authenticated user
+   */
+  getCurrentUser: async (): Promise<ApiResponse<UserDetailResponse | null>> => {
+    return httpClient.get<UserDetailResponse | null>(API_ENDPOINTS.USERS.ME);
+  },
+
+  /**
    * Create a new user
    */
   createUser: async (data: UserCreate): Promise<ApiResponse<UserDetailResponse>> => {

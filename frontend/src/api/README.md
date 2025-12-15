@@ -101,6 +101,17 @@ export function UsersWrapper() {
 }
 ```
 
+## Page Loader Pattern (Performance)
+- Prefer **one page = one loader**: add a server action under `server-actions/page-loaders.ts` that bundles everything the page needs (user/org context, periods, list data).
+- Hydrate client components with the loader output instead of firing multiple server actions from the browser.
+- Keep loaders serialisable (plain objects/arrays). Convert to richer structures (e.g., `Map`) inside client hooks if needed.
+- Cache org/user context per request with `getCurrentUserContextAction` to avoid repeated Clerk/JWT parsing.
+
+## Dynamic vs Static Rendering
+- Default to static/ISR for informational pages that **do not depend on auth** (e.g., `/access-denied` uses `force-static`).
+- Keep auth-sensitive route groups dynamic only where necessary (see `(auth)/layout.tsx` for scoped `force-dynamic`), not at the root layout level.
+- Pages that call `auth()` naturally opt into dynamic rendering; avoid `force-dynamic` unless absolutely required.
+
 ## Environment Variables
 
 Add these to your `.env.local`:

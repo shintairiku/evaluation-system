@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { UserDetailResponse, UserUpdate, UserStatus } from '@/api/types';
 import type { UUID } from '@/api/types/common';
 import { updateUserAction, updateUserStageAction, getUserByIdAction } from '@/api/server-actions/users';
-import { useProfileOptions } from '@/context/ProfileOptionsContext';
+import { useProfileOptions } from '@/feature/user-shared/hooks/useProfileOptions';
 import { HierarchyEditCard } from '@/components/hierarchy';
 
 interface UserEditViewModalProps {
@@ -378,6 +379,9 @@ export default function UserEditViewModal({
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             )}
           </DialogTitle>
+          <DialogDescription>
+            ユーザー情報を編集できます
+          </DialogDescription>
         </DialogHeader>
 
         <form action={formAction} className="space-y-4">

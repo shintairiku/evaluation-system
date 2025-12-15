@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { Shield, ArrowLeft, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+export const dynamic = 'force-static';
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'アクセス拒否 | 人事評価システム',
   description: 'このページにアクセスする権限がありません'

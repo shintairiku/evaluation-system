@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Search, X, Loader2 } from "lucide-react";
 import type { UserDetailResponse } from '@/api/types';
 import { searchUsersAction, SearchUsersParams } from '@/api/server-actions/users';
-import { useProfileOptions } from '@/context/ProfileOptionsContext';
+import { useProfileOptions } from '@/feature/user-shared/hooks/useProfileOptions';
 
 interface UserSearchProps {
   onSearchResults: (users: UserDetailResponse[], total: number, isFiltered?: boolean) => void;

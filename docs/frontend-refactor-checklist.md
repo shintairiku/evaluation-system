@@ -1,0 +1,121 @@
+# Frontend Refactor Checklist
+Tick boxes as you finish reviewing or refactoring each area. Add or remove items as the structure evolves.
+
+- [ ] frontend/
+  - [ ] src/
+    - [ ] app/
+      - [ ] layout.tsx
+      - [ ] globals.css
+      - [x] page.tsx (uses `checkUserExistsAction`)
+      - [ ] (auth)/
+        - [x] layout.tsx
+        - [x] setup/
+          - [x] page.tsx
+          - [x] confirmation/
+            - [x] page.tsx
+      - [ ] (evaluation)/
+        - [x] layout.tsx (uses `getCurrentUserContextAction`)
+        - [ ] goal-input/
+          - [ ] page.tsx
+        - [x] user-profiles/
+          - [x] page.tsx (delegates to `UserProfilesRoute`)
+        - [ ] (employee)/
+          - [ ] evaluation-input/
+            - [ ] page.tsx
+          - [ ] goal-list/
+            - [ ] page.tsx (loader: `getEmployeeGoalListPageDataAction`)
+        - [ ] (supervisor)/
+          - [ ] evaluation-feedback/
+            - [ ] page.tsx
+          - [ ] goal-review/
+            - [ ] page.tsx (loader: `getSupervisorGoalReviewPageDataAction`)
+        - [ ] (admin)/
+          - [ ] admin-goal-list/
+            - [ ] page.tsx
+          - [ ] competency-management/
+            - [ ] page.tsx (uses `getStagesAdminAction`, `getCompetenciesAction`)
+          - [ ] evaluation-period-management/
+            - [ ] page.tsx (uses `getCategorizedEvaluationPeriodsAction`)
+          - [ ] stage-management/
+            - [ ] page.tsx (uses `getStagesAdminAction`, `getUsersPageAction`)
+          - [x] org-management/
+            - [x] page.tsx (delegates to `OrgManagementRoute`, loader: `getUserDirectoryBasePageDataAction`)
+          - [ ] report/
+            - [ ] page.tsx
+          - [ ] others: add as discovered
+    - [ ] feature/
+      - [x] setup/
+        - [x] display/
+          - [x] ProfileForm.tsx
+          - [x] SetupPage.tsx
+          - [x] SetupConfirmation.tsx
+        - [x] components/
+          - [x] HierarchySetupWrapper.tsx
+      - [ ] evaluation/
+        - [ ] employee/
+          - [ ] goal-list/
+            - [ ] display/
+              - [ ] index.tsx (uses hook below)
+            - [ ] hooks/
+              - [ ] useGoalListData.ts (uses `getGoalsAction`, `getCategorizedEvaluationPeriodsAction`, `getUsersAction`)
+        - [ ] superviser/
+          - [ ] goal-review/
+            - [ ] display/
+              - [ ] index.tsx (uses hook below)
+            - [ ] hooks/
+              - [ ] useGoalReviewData.ts (uses `getPendingSupervisorReviewsAction`, `getUsersAction`, `getCategorizedEvaluationPeriodsAction`, `getGoalsAction`)
+        - [ ] goal-input/ (add specific leaves as you touch them)
+        - [ ] admin/ (e.g., admin-users-goals, etc.)
+      - [x] user-profiles/
+        - [x] display/UserProfilesRoute.tsx
+        - [x] display/UserProfilesDataLoader.tsx (loader: `getUserDirectoryBasePageDataAction`)
+        - [x] display/UserManagementWithSearch.tsx
+        - [x] display/views/UserTableView.tsx
+        - [x] display/views/UserGalleryView.tsx
+        - [x] display/views/UserOrganizationView.tsx
+        - [x] components/UserEditViewModal.tsx
+        - [x] components/ViewModeSelector.tsx
+      - [x] org-management/
+        - [x] OrgManagementRoute.tsx (loader: `getUserDirectoryBasePageDataAction`)
+        - [x] OrgManagementContainer.tsx
+        - [x] tabs/users/*
+        - [x] tabs/departments/*
+        - [x] tabs/roles/*
+        - [x] tabs/permissions/*
+      - [x] user-shared/
+        - [x] context/ProfileOptionsContext.tsx (supports `initialOptions`)
+        - [x] hooks/useProfileOptions.ts
+    - [ ] components/
+      - [ ] auth/
+      - [ ] display/
+      - [ ] evaluation/
+      - [ ] ui/
+      - [ ] dashboard/
+    - [ ] context/
+      - [x] CurrentUserContext.tsx (uses `router.refresh`)
+      - [ ] GoalListContext.tsx
+    - [ ] hooks/
+      - [x] useUserRoles.ts (uses `checkUserExistsAction`, `getUserByIdAction`)
+      - [ ] others: add as they change
+    - [ ] api/
+      - [ ] server-actions/
+        - [x] auth.ts (uses `getProfileOptionsAction` for setup flow only)
+        - [x] current-user-context.ts (uses `auth`, `getCurrentOrgContext`, `checkUserExistsAction`, `getUserByIdAction`, `getCategorizedEvaluationPeriodsAction`)
+        - [ ] page-loaders.ts (`getEmployeeGoalListPageDataAction`, `getSupervisorGoalReviewPageDataAction`)
+        - [x] users.ts + users/* (queries/mutations/page-loaders refactor)
+          - [x] users/queries.ts
+          - [x] users/mutations.ts
+          - [x] users/page-loaders.ts
+          - [x] users/index.ts
+        - [ ] add more actions as you touch them
+      - [ ] types/
+        - [x] current-user-context.ts
+        - [x] page-loaders.ts (added `UserDirectoryBasePageData`)
+      - [ ] README.md
+    - [ ] styles/
+    - [ ] utils/
+  - [ ] public/
+  - [ ] package.json
+  - [ ] tsconfig.json
+
+Usage: Replace `[ ]` with `[x]` as you complete sections. Append file-level bullets for any new leaves you modify and note related server actions/loaders inline.

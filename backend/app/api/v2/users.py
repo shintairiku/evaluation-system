@@ -20,6 +20,48 @@ from ...services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+@router.get("/me", response_model=Optional[UserDetailResponse])
+async def get_current_user_v2(
+    org_slug: str,  # Path param from parent router; retained for signature parity
+    context: AuthContext = Depends(get_auth_context),
+    include: Optional[str] = Query(None, description="Comma-separated list of relations to include"),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """
+    Return the current authenticated user for this organization.
+
+    If the Clerk user has not completed signup (no DB user row yet),
+    returns null for backward-compatible frontend behavior.
+    """
+    if not context.user_id:
+        return None
+
+    try:
+        service = UserServiceV2(session)
+        include_parts: Optional[Set[str]]
+        if include:
+            include_parts = {part.strip() for part in include.split(",") if part.strip()}
+        else:
+            include_parts = {"department", "stage", "roles"}
+
+        return await service.get_user_detail(
+            context,
+            context.user_id,
+            include=include_parts,
+        )
+
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch current user",
+        ) from exc
+
 
 @router.get("/", response_model=PaginatedResponse[UserDetailResponse])
 async def list_users_v2(

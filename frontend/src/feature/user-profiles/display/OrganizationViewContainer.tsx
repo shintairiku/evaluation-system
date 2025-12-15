@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Edit, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
 import type { UserDetailResponse } from '@/api/types';
-import UserOrganizationView from './UserOrganizationView';
+import UserOrganizationView from './views/UserOrganizationView';
 import ReadOnlyOrganizationView from './ReadOnlyOrganizationView';
 
 interface OrganizationViewContainerProps {
