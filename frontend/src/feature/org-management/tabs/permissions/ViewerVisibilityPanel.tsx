@@ -90,6 +90,8 @@ type TargetOption = {
   description?: string;
 };
 
+const formatUserLabel = (user: UserDetailResponse) => `${user.name} (${user.employee_code})`;
+
 export function ViewerVisibilityPanel({ users, departments, canEdit, guardError }: ViewerVisibilityPanelProps) {
   const viewerUsers = useMemo(
     () =>
@@ -132,14 +134,14 @@ export function ViewerVisibilityPanel({ users, departments, canEdit, guardError 
       case 'supervisor_team':
         return supervisorCandidates.map((user) => ({
           id: user.id,
-          label: user.name,
+          label: formatUserLabel(user),
           description: user.job_title || user.email,
         }));
       case 'user':
       default:
         return users.map((user) => ({
           id: user.id,
-          label: user.name,
+          label: formatUserLabel(user),
           description: user.email,
         }));
     }
@@ -339,7 +341,7 @@ export function ViewerVisibilityPanel({ users, departments, canEdit, guardError 
               <SelectContent>
                 {viewerUsers.map((viewer) => (
                   <SelectItem key={viewer.id} value={viewer.id}>
-                    {viewer.name}
+                    {formatUserLabel(viewer)}
                   </SelectItem>
                 ))}
               </SelectContent>
