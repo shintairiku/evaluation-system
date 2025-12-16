@@ -1,5 +1,6 @@
 import logging
 from typing import Dict, List, Optional, Set
+from cachetools import TTLCache
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,6 +74,18 @@ PERMISSION_CATALOG_METADATA: Dict[str, tuple[str, str]] = {
     PermissionEnum.STAGE_MANAGE.value: ("ステージ", "ステージを管理"),
 }
 
+# Read-heavy response caches (short TTL to avoid staleness after role/permission edits)
+_role_permissions_cache = TTLCache(maxsize=32, ttl=120)
+_permission_catalog_cache = TTLCache(maxsize=4, ttl=120)
+_permission_catalog_grouped_cache = TTLCache(maxsize=4, ttl=120)
+
+
+def _invalidate_permission_caches(cache_key: str) -> None:
+    """Clear cached permission responses for the given organization scope."""
+    _role_permissions_cache.pop(cache_key, None)
+    _permission_catalog_cache.pop(cache_key, None)
+    _permission_catalog_grouped_cache.pop(cache_key, None)
+
 
 class PermissionService:
     def __init__(self, session: AsyncSession):
@@ -104,9 +117,13 @@ class PermissionService:
 
     @require_permission(PermissionEnum.ROLE_READ_ALL)
     async def list_catalog(self, context: AuthContext) -> List[PermissionCatalogItem]:
+        cache_key = context.organization_id or "_global"
+        if cached := _permission_catalog_cache.get(cache_key):
+            return cached
+
         await self._ensure_catalog_seeded()
         permissions = await self.permission_repo.list_permissions()
-        return [
+        response = [
             PermissionCatalogItem(
                 code=permission.code,
                 description=permission.description,
@@ -114,9 +131,15 @@ class PermissionService:
             )
             for permission in permissions
         ]
+        _permission_catalog_cache[cache_key] = response
+        return response
 
     @require_permission(PermissionEnum.ROLE_READ_ALL)
     async def list_catalog_grouped(self, context: AuthContext) -> PermissionCatalogGroupedResponse:
+        cache_key = context.organization_id or "_global"
+        if cached := _permission_catalog_grouped_cache.get(cache_key):
+            return cached
+
         await self._ensure_catalog_seeded()
         grouped_permissions = await self.permission_repo.list_permissions_grouped()
 
@@ -147,7 +170,9 @@ class PermissionService:
                 )
             )
 
-        return PermissionCatalogGroupedResponse(groups=groups, total_permissions=total)
+        response = PermissionCatalogGroupedResponse(groups=groups, total_permissions=total)
+        _permission_catalog_grouped_cache[cache_key] = response
+        return response
 
     @require_permission(PermissionEnum.ROLE_READ_ALL)
     async def get_role_permissions(self, role_id: UUID, context: AuthContext) -> RolePermissionResponse:
@@ -248,7 +273,9 @@ class PermissionService:
         )
 
         response = await self.get_role_permissions(role_id, context)
-        invalidate_role_permission_cache(context.organization_id, role.id)
+        await invalidate_role_permission_cache(context.organization_id, role.id)
+        cache_key = context.organization_id or "_global"
+        _invalidate_permission_caches(cache_key)
         self._record_audit_event(
             context=context,
             role=role,
@@ -300,7 +327,9 @@ class PermissionService:
 
         response = await self.get_role_permissions(role_id, context)
         after_codes = {item.code for item in response.permissions}
-        invalidate_role_permission_cache(context.organization_id, role.id)
+        await invalidate_role_permission_cache(context.organization_id, role.id)
+        cache_key = context.organization_id or "_global"
+        _invalidate_permission_caches(cache_key)
         self._record_audit_event(
             context=context,
             role=role,
@@ -348,7 +377,9 @@ class PermissionService:
 
         response = await self.get_role_permissions(role_id, context)
         after_codes = {item.code for item in response.permissions}
-        invalidate_role_permission_cache(context.organization_id, role.id)
+        await invalidate_role_permission_cache(context.organization_id, role.id)
+        cache_key = context.organization_id or "_global"
+        _invalidate_permission_caches(cache_key)
         self._record_audit_event(
             context=context,
             role=role,
@@ -361,6 +392,10 @@ class PermissionService:
 
     @require_permission(PermissionEnum.ROLE_READ_ALL)
     async def list_all_role_permissions(self, context: AuthContext) -> List[RolePermissionResponse]:
+        cache_key = context.organization_id or "_global"
+        if cached := _role_permissions_cache.get(cache_key):
+            return cached
+
         await self._ensure_catalog_seeded()
         roles = await self.role_repo.get_all(context.organization_id)
         role_ids = [role.id for role in roles]
@@ -386,4 +421,5 @@ class PermissionService:
                     version=version or "0",
                 ),
             )
+        _role_permissions_cache[cache_key] = responses
         return responses

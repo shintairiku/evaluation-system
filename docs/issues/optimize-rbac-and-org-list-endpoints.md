@@ -72,3 +72,8 @@ Out of scope:
 - Identified N+1 patterns and Python-side filtering in the targeted services/repositories are replaced with SQL-based filters and batch queries.
 - Slow-log entries for the targeted endpoints (2–5s range) are reduced to within agreed SLOs under the same test load in the dockerized production-like environment.
 
+## Progress (2025-12-09)
+
+- Review notes: no regressions or correctness issues identified in the new user list page endpoint, caching changes, or related frontend adjustments; the revised surfaces compile cleanly.
+- Status: user list page endpoint and caching layer are implemented and compile with the frontend list view; ready for targeted latency profiling against the dockerized env once merged.
+- Next focus: measure request timings for the updated user list path, then apply the same caching/read-model approach to the remaining slow org-scoped list endpoints (evaluation periods, supervisor reviews, goals, departments).

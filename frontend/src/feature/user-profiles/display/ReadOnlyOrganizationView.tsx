@@ -12,7 +12,7 @@ import 'reactflow/dist/style.css';
 import type { UserDetailResponse, SimpleUser } from '@/api/types';
 import { Building2 } from 'lucide-react';
 import { getUsersForOrgChartAction } from '@/api/server-actions/users';
-import { useProfileOptions } from '@/context/ProfileOptionsContext';
+import { useProfileOptions } from '@/feature/user-shared/hooks/useProfileOptions';
 import { getTopUsersByRole } from '../utils/hierarchyLayoutUtils';
 import { OrgNode, UserNode } from '../components/OrganizationNodes';
 import { useOrganizationLayout } from '../hooks/useOrganizationLayout';

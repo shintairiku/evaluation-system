@@ -321,10 +321,8 @@ class TestRBACHelperWithAllRoles:
         # Create some subordinate users for managers/supervisors
         self.subordinate_users = [Mock(id=uuid4()) for _ in range(3)]
         
-        async def mock_get_subordinates(supervisor_id):
-            # Only return subordinates for specific test cases
-            # For most tests, return empty list (no subordinates)
-            return []
+        async def mock_get_subordinates(supervisor_id, org_id):
+            return list(self.subordinate_users)
         
         self.mock_repo.get_subordinates = AsyncMock(side_effect=mock_get_subordinates)
         RBACHelper.initialize_with_repository(self.mock_repo)
@@ -362,12 +360,12 @@ class TestRBACHelperWithAllRoles:
     @pytest.mark.parametrize("role_name", ["admin", "manager", "supervisor", "employee", "viewer", "parttime"])
     async def test_get_accessible_resource_ids_by_role(self, role_name: str):
         """Test get_accessible_resource_ids for all roles with different resource types"""
-            role_info = RoleInfo(id=1, name=role_name, description=f"{role_name} role")
-            auth_context = AuthContext(
-                user_id=uuid4(),
-                roles=[role_info],
-                role_permission_overrides={role_name: ROLE_PERMISSIONS_MAP[role_name]},
-            )
+        role_info = RoleInfo(id=1, name=role_name, description=f"{role_name} role")
+        auth_context = AuthContext(
+            user_id=uuid4(),
+            roles=[role_info],
+            role_permission_overrides={role_name: ROLE_PERMISSIONS_MAP[role_name]},
+        )
         
         # Test with USER resource type
         try:
@@ -386,7 +384,7 @@ class TestRBACHelperWithAllRoles:
             # Some roles may not have permissions for certain resource types
             assert role_name in ["parttime"], \
                 f"Unexpected PermissionDeniedError for role {role_name}"
-    
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("role_name", ["admin", "manager", "supervisor", "employee", "viewer", "parttime"])
     async def test_can_access_resource_by_role(self, role_name: str):

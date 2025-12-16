@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Edit, Eye, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
 import type { UserDetailResponse, SimpleUser } from '@/api/types';
 import { getUsersForOrgChartAction } from '@/api/server-actions';
-import UserOrganizationView from './UserOrganizationView';
+import UserOrganizationView from './views/UserOrganizationView';
 import ReadOnlyOrganizationView from './ReadOnlyOrganizationView';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';

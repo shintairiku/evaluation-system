@@ -906,12 +906,14 @@ class GoalService:
         requested_user_id: Optional[UUID] = None
     ) -> Optional[List[UUID]]:
         """Determine which users' goals the current user can access."""
-        
+
         if current_user_context.has_permission(Permission.GOAL_READ_ALL):
-            # Admin: full visibility. Respect explicit user filter; otherwise no user filter.
+            # Admin: can read any user's goals when explicitly requested
             if requested_user_id:
                 return [requested_user_id]
-            return None
+            # Safe default: admin sees only their own goals unless explicitly requesting others
+            # For org-wide view, use get_all_goals_for_admin() endpoint instead
+            return [current_user_context.user_id]
         
         accessible_ids = []
         

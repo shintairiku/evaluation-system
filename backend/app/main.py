@@ -7,13 +7,12 @@ import logging
 from .api.v1 import org_api_router
 from .api.v2 import org_api_router_v2
 from .api.v1.auth import router as auth_router
+from .database.index_bootstrap import ensure_perf_indexes
 from .core.middleware import LoggingMiddleware, OrgSlugValidationMiddleware, http_exception_handler, general_exception_handler
 from .core.config import settings
 from .schemas.common import HealthCheckResponse
 from .database.session import AsyncSessionLocal
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
@@ -69,7 +68,7 @@ def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
     
-    logger.info("Generating custom OpenAPI schema...")
+    logger.debug("Generating custom OpenAPI schema...")
     
     # Rebuild schemas to resolve forward references before generating OpenAPI
     try:
@@ -107,19 +106,19 @@ def custom_openapi():
     }
     
     # Apply security requirements to all endpoints
-    logger.info("OpenAPI paths found:")
+    logger.debug("OpenAPI paths found:")
     for path, path_item in openapi_schema["paths"].items():
-        logger.info(f"  Path: {path}")
+        logger.debug(f"  Path: {path}")
         for method, method_data in path_item.items():
             if isinstance(method_data, dict) and method.lower() in ["get", "post", "put", "patch", "delete"]:
                 if path in public_endpoints:
                     # Public endpoints don't require auth
                     method_data["security"] = []
-                    logger.info(f"    {method.upper()}: PUBLIC (no auth)")
+                    logger.debug(f"    {method.upper()}: PUBLIC (no auth)")
                 else:
                     # Protected endpoints require BearerAuth
                     method_data["security"] = [{"BearerAuth": []}]
-                    logger.info(f"    {method.upper()}: PROTECTED (requires auth)")
+                    logger.debug(f"    {method.upper()}: PROTECTED (requires auth)")
     
     app.openapi_schema = openapi_schema
     return app.openapi_schema
@@ -127,7 +126,17 @@ def custom_openapi():
 # Clear any existing schema cache and assign our custom function
 app.openapi_schema = None
 app.openapi = custom_openapi
-logger.info("Custom OpenAPI function assigned successfully")
+logger.debug("Custom OpenAPI function assigned successfully")
+
+
+@app.on_event("startup")
+async def _bootstrap_indexes():
+    """Create performance indexes (idempotent)."""
+    try:
+        await ensure_perf_indexes()
+        logger.debug("Performance indexes ensured")
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to ensure performance indexes: %s", exc)
 
 @app.get("/", response_model=HealthCheckResponse)
 async def root():

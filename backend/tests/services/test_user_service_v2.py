@@ -62,3 +62,47 @@ async def test_service_list_users_without_count_flags_approximate(test_session, 
     assert result.approximate_total is True
     assert result.payload.total == 2
     assert len(result.payload.items) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_user_list_page_returns_filters_and_meta(test_session, seeded_user_data):
+    service = UserServiceV2(test_session)
+    org_id = seeded_user_data["org"].id
+    ctx = build_admin_context(seeded_user_data["users"]["admin"], org_id)
+
+    result = await service.get_user_list_page(
+        ctx,
+        page=1,
+        limit=10,
+        include={"department", "stage", "roles"},
+        with_count=True,
+    )
+
+    assert result.meta.total == 4
+    assert result.meta.page == 1
+    assert result.meta.pages == 1
+    assert len(result.users) == 4
+
+    department_names = {dept.name for dept in result.filters.departments}
+    assert {"Engineering", "Product"}.issubset(department_names)
+    assert len(result.filters.roles) == 3
+    assert len(result.filters.stages) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_user_list_page_approximate_total_when_count_disabled(test_session, seeded_user_data):
+    service = UserServiceV2(test_session)
+    org_id = seeded_user_data["org"].id
+    ctx = build_admin_context(seeded_user_data["users"]["admin"], org_id)
+
+    result = await service.get_user_list_page(
+        ctx,
+        page=1,
+        limit=2,
+        include={"department", "stage"},
+        with_count=False,
+    )
+
+    assert result.meta.approximate_total is True
+    assert result.meta.total == 2
+    assert len(result.users) == 2

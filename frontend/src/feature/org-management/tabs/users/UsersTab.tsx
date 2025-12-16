@@ -99,7 +99,7 @@ export function UsersTab({
     () =>
       users.map((user) => ({
         id: user.id,
-        label: user.name,
+        label: `${user.name} (${user.employee_code})`,
       })),
     [users],
   );

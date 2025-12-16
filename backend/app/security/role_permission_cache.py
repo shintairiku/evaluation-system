@@ -1,17 +1,21 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Set, Tuple
+from typing import Dict, Iterable, Sequence, Set, Tuple
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.repositories.permission_repo import PermissionRepository
+from ..database.repositories.permission_repo import (
+    PermissionRepository,
+    RolePermissionRepository,
+)
 from .permissions import Permission as PermissionEnum
 
 logger = logging.getLogger(__name__)
 
-_TTL = timedelta(seconds=5)
+# Short-lived cache to avoid repeated permission lookups on hot paths.
+_TTL = timedelta(seconds=30)
 _cache: Dict[Tuple[str, str], Tuple[Set[PermissionEnum], datetime]] = {}
 _lock = asyncio.Lock()
 
@@ -113,10 +117,68 @@ async def get_cached_role_permissions(
     return dynamic_permissions
 
 
-def invalidate_role_permission_cache(organization_id: str, role_id: UUID) -> None:
+async def get_cached_permissions_for_roles(
+    session: AsyncSession,
+    organization_id: str,
+    roles: Sequence,
+) -> Dict[str, Set[PermissionEnum]]:
+    """
+    Batch-aware helper that returns permissions for multiple roles, loading all cache
+    misses in a single query to minimise DB round-trips on cold paths.
+    """
+    now = datetime.utcnow()
+    permissions_by_role: Dict[str, Set[PermissionEnum]] = {}
+    roles_to_load: Dict[str, Tuple[UUID, str]] = {}
+
+    async with _lock:
+        for role in roles:
+            if not getattr(role, "id", None) or not isinstance(role.id, UUID):
+                continue
+            cache_key = (organization_id, str(role.id))
+            cached = _cache.get(cache_key)
+            if cached and now - cached[1] <= _TTL:
+                _metrics["hits"] += 1
+                permissions_by_role[role.name.lower()] = cached[0]
+            else:
+                roles_to_load[cache_key] = (role.id, role.name)
+                _metrics["misses"] += 1
+
+    if not roles_to_load:
+        return permissions_by_role
+
+    role_ids: Iterable[UUID] = [role_id for role_id, _ in roles_to_load.values()]
+    repo = RolePermissionRepository(session)
+    fetched = await repo.fetch_permissions_for_roles(role_ids, organization_id)
+
+    updates: Dict[Tuple[str, str], Tuple[Set[PermissionEnum], datetime]] = {}
+    for cache_key, (role_id, role_name) in roles_to_load.items():
+        permissions_models = fetched.get(str(role_id), ([], None))[0]
+        perm_set: Set[PermissionEnum] = set()
+        for permission in permissions_models:
+            try:
+                perm_set.add(PermissionEnum(permission.code))
+            except ValueError:
+                logger.warning(
+                    "Unknown permission code '%s' for role '%s'; skipping during batch cache population",
+                    permission.code,
+                    role_name,
+                )
+        updates[cache_key] = (perm_set, now)
+        permissions_by_role[role_name.lower()] = perm_set
+
+    async with _lock:
+        _cache.update(updates)
+        _metrics["loads"] += 1
+
+    return permissions_by_role
+
+
+async def invalidate_role_permission_cache(organization_id: str, role_id: UUID) -> None:
     """Invalidate cached permissions for a given role within an organization."""
     cache_key = (organization_id, str(role_id))
-    removed = _cache.pop(cache_key, None)
+    async with _lock:
+        removed = _cache.pop(cache_key, None)
+
     if removed:
         logger.info(
             "role_permissions.cache.invalidated",

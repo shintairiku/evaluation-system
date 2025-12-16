@@ -12,10 +12,10 @@ import type {
   PermissionGroup,
 } from '@/api/types';
 import { OrgManagementView } from './OrgManagementView';
-import { UsersTab } from './user-management-tab/UsersTab';
-import { DepartmentsTab } from './department-management-tab/DepartmentsTab';
-import { RolesTab } from './role-management-tab/RolesTab';
-import { PermissionsTab } from './permission-management-tab/PermissionsTab';
+import { UsersTab } from './tabs/users/UsersTab';
+import { DepartmentsTab } from './tabs/departments/DepartmentsTab';
+import { RolesTab } from './tabs/roles/RolesTab';
+import { PermissionsTab } from './tabs/permissions/PermissionsTab';
 
 interface OrgManagementContainerProps {
   initialUsers: UserDetailResponse[];
