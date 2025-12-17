@@ -4,7 +4,6 @@ import { useRef } from 'react';
 import { type GoalResponse } from '@/api/types';
 import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
-import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { useGoalApprovalActions } from '../../hooks/useGoalApprovalActions';
 
@@ -35,11 +34,6 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
 
   // Determine goal type
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
-
-  // Get competency names for competency goals
-  const { competencyNames } = useCompetencyNames(
-    isCompetencyGoal ? goal.competencyIds : null
-  );
 
   // Auto-save hook - handles draft save, load, and before unload
   const { saveStatus, debouncedSave, save } = useAutoSave({
@@ -75,9 +69,14 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
   // Generate appropriate goal title based on goal type
   const getGoalTitle = (): string => {
     if (isCompetencyGoal) {
-      // For competency goals, use competency names
-      if (competencyNames.length > 0) {
-        return competencyNames.join(', ');
+      if (optimisticGoal.competencyIds && optimisticGoal.competencyIds.length > 0 && optimisticGoal.competencyNames) {
+        const names = optimisticGoal.competencyIds
+          .map(id => optimisticGoal.competencyNames?.[id])
+          .filter((name): name is string => Boolean(name));
+
+        if (names.length === optimisticGoal.competencyIds.length) {
+          return names.join(', ');
+        }
       }
       // Fallback to competency category
       return 'コンピテンシー目標';
