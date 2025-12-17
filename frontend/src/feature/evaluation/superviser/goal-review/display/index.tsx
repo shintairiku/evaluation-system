@@ -15,7 +15,6 @@ import { useGoalReviewData } from '../hooks/useGoalReviewData';
 import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { createSkipLink, generateAccessibilityId } from '@/utils/accessibility';
-import type { EvaluationPeriod } from '@/api/types';
 
 /**
  * Main goal review page for supervisors to approve/reject employee goals
@@ -26,6 +25,7 @@ import type { EvaluationPeriod } from '@/api/types';
 export default function GoalReviewPage() {
   // State for selected period
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+  const [dataSelectedPeriodId, setDataSelectedPeriodId] = useState<string | undefined>(undefined);
 
   const {
     loading,
@@ -37,7 +37,7 @@ export default function GoalReviewPage() {
     allPeriods,
     setSelectedEmployeeId,
     reloadData
-  } = useGoalReviewData({ selectedPeriodId: selectedPeriodId || undefined });
+  } = useGoalReviewData({ selectedPeriodId: dataSelectedPeriodId });
 
   // Responsive and accessibility hooks
   const { isMobile, isTablet, isDesktop } = useResponsiveBreakpoint();
@@ -74,6 +74,7 @@ export default function GoalReviewPage() {
   // Handle period change
   const handlePeriodChange = (periodId: string) => {
     setSelectedPeriodId(periodId);
+    setDataSelectedPeriodId(currentPeriod && periodId === currentPeriod.id ? undefined : periodId);
   };
 
 
