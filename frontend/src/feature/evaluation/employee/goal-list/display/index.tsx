@@ -38,8 +38,10 @@ import { useGoalListContext } from '@/context/GoalListContext';
 export default function GoalListPage() {
   // State for selected period
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+  const [dataSelectedPeriodId, setDataSelectedPeriodId] = useState<string | undefined>(undefined);
 
   const {
+    goals,
     filteredGoals,
     groupedGoals,
     selectedEmployeeId,
@@ -54,17 +56,23 @@ export default function GoalListPage() {
     setShowResubmissionsOnly,
     setSelectedEmployeeId,
     refetch,
-  } = useGoalListData({ selectedPeriodId: selectedPeriodId || undefined });
+  } = useGoalListData({ selectedPeriodId: dataSelectedPeriodId });
 
   const { currentUser } = useUserRoles();
 
   // Get goal list context for rejected goals counter
-  const { refreshRejectedGoalsCount } = useGoalListContext();
+  const { setRejectedGoalsCount } = useGoalListContext();
 
-  // Refresh rejected goals count when goals data changes
+  // Keep sidebar rejected-goals badge in sync without refetching.
   React.useEffect(() => {
-    refreshRejectedGoalsCount();
-  }, [filteredGoals, refreshRejectedGoalsCount]);
+    if (!currentUser?.id) return;
+
+    const rejectedDraftCount = goals.filter(
+      goal => goal.userId === currentUser.id && goal.status === 'draft' && Boolean(goal.previousGoalId)
+    ).length;
+
+    setRejectedGoalsCount(rejectedDraftCount);
+  }, [currentUser?.id, goals, setRejectedGoalsCount]);
 
   // Initialize selected period to current period when data loads
   React.useEffect(() => {
@@ -82,6 +90,7 @@ export default function GoalListPage() {
   // Handle period change
   const handlePeriodChange = (periodId: string) => {
     setSelectedPeriodId(periodId);
+    setDataSelectedPeriodId(currentPeriod && periodId === currentPeriod.id ? undefined : periodId);
   };
 
   // Loading skeleton
