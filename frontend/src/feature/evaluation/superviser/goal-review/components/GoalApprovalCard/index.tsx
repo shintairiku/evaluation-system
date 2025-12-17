@@ -4,7 +4,6 @@ import { Target, Brain, Calendar, Weight, Loader2 } from 'lucide-react';
 import type { GoalResponse } from '@/api/types';
 import { GoalApprovalHandler } from '../GoalApprovalHandler';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
-import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
@@ -50,10 +49,18 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
   const titleId = React.useMemo(() => generateAccessibilityId('goal-title'), []);
   const statusId = React.useMemo(() => generateAccessibilityId('goal-status'), []);
 
-  // Resolve competency IDs to names for display
-  const { competencyNames, loading: competencyLoading } = useCompetencyNames(
-    isCompetencyGoal ? goal.competencyIds : null
-  );
+  const competencyNamesForDisplay = React.useMemo(() => {
+    if (!isCompetencyGoal) return null;
+    if (!goal.competencyIds || goal.competencyIds.length === 0) return null;
+    if (!goal.competencyNames) return null;
+
+    const names = goal.competencyIds
+      .map(id => goal.competencyNames?.[id])
+      .filter((name): name is string => Boolean(name));
+
+    if (names.length !== goal.competencyIds.length) return null;
+    return names;
+  }, [goal.competencyIds, goal.competencyNames, isCompetencyGoal]);
 
   // Resolve ideal action IDs to descriptive texts
   const { resolvedActions, loading: actionsLoading } = useIdealActionsResolver(
@@ -172,17 +179,10 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
               <div>
                 <h4 className="font-semibold mb-2" role="heading" aria-level={4}>選択したコンピテンシー</h4>
                 <div className="bg-gray-50 p-3 rounded-md" role="region" aria-labelledby="competencies-label">
-                  {competencyLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground"
-                         {...createAriaLiveRegion('polite')}
-                         aria-label="コンピテンシー情報を読み込み中">
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                      コンピテンシー名を読み込み中...
-                    </div>
-                  ) : competencyNames.length > 0 ? (
+                  {competencyNamesForDisplay ? (
                     <p className="text-sm" id="competencies-label"
-                       aria-label={`選択されたコンピテンシー: ${competencyNames.join(', ')}`}>
-                      {competencyNames.join(', ')}
+                       aria-label={`選択されたコンピテンシー: ${competencyNamesForDisplay.join(', ')}`}>
+                      {competencyNamesForDisplay.join(', ')}
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground" id="competencies-label"
