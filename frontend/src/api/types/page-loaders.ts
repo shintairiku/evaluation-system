@@ -14,8 +14,8 @@ export interface EmployeeGoalListPageData {
   currentUserContext: CurrentUserContextPayload;
   periods: CategorizedEvaluationPeriods | null;
   goals: GoalResponse[];
-  users: UserDetailResponse[];
   selectedPeriod: EvaluationPeriod | null;
+  rejectedGoalsCount: number;
 }
 
 export interface SupervisorGoalReviewGroup {
