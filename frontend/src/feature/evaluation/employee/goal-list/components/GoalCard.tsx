@@ -7,6 +7,7 @@ import { Target, Brain, Calendar, Weight, Loader2, AlertCircle, CheckCircle } fr
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import { GoalAuditHistory } from '@/components/evaluation/GoalAuditHistory';
 import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
+import { resolveCompetencyNamesForDisplay } from '@/utils/goal-competency-names';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { useRouter } from 'next/navigation';
 
@@ -60,16 +61,10 @@ export const GoalCard = React.memo<GoalCardProps>(
     const rejectionHistory = goal.rejectionHistory;
 
     const competencyNamesForDisplay = React.useMemo(() => {
-      if (!isCompetencyGoal) return null;
-      if (!goal.competencyIds || goal.competencyIds.length === 0) return null;
-      if (!goal.competencyNames) return null;
-
-      const names = goal.competencyIds
-        .map(id => goal.competencyNames?.[id])
-        .filter((name): name is string => Boolean(name));
-
-      if (names.length !== goal.competencyIds.length) return null;
-      return names;
+      return resolveCompetencyNamesForDisplay(
+        isCompetencyGoal ? goal.competencyIds : null,
+        goal.competencyNames,
+      );
     }, [goal.competencyIds, goal.competencyNames, isCompetencyGoal]);
 
     // Resolve ideal action IDs to descriptive texts
@@ -299,10 +294,10 @@ export const GoalCard = React.memo<GoalCardProps>(
           {/* Competency Goal Content */}
           {isCompetencyGoal && (
             <div className="space-y-4">
-            {goal.competencyIds && goal.competencyIds.length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2">選択したコンピテンシー</h4>
-                <div className="bg-gray-50 p-3 rounded-md">
+              {goal.competencyIds && goal.competencyIds.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-2">選択したコンピテンシー</h4>
+                  <div className="bg-gray-50 p-3 rounded-md">
                     {competencyNamesForDisplay ? (
                       <p className="text-sm">
                         {competencyNamesForDisplay.join(', ')}
