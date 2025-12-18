@@ -23,7 +23,7 @@ export interface UsePeriodSelectionReturn {
   clearPeriodSelection: () => void;
 }
 
-export function usePeriodSelection(): UsePeriodSelectionReturn {
+export function usePeriodSelection(currentUserId?: string): UsePeriodSelectionReturn {
   const [selectedPeriod, setSelectedPeriod] = useState<EvaluationPeriod | null>(null);
   const [isLoadingExistingGoals, setIsLoadingExistingGoals] = useState(false);
   const [isAutoSaveReady, setIsAutoSaveReady] = useState(false);
@@ -87,6 +87,7 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
       // Fetch ALL goals for this period to check for blocking statuses
       const result = await getGoalsAction({
         periodId: period.id,
+        userId: currentUserId,
         status: ['draft', 'submitted', 'approved', 'rejected'] // Fetch ALL to check for blocking
       });
 
@@ -167,7 +168,7 @@ export function usePeriodSelection(): UsePeriodSelectionReturn {
     } finally {
       setIsGoalFetching(false);
     }
-  }, [convertServerGoalToFrontend]);
+  }, [convertServerGoalToFrontend, currentUserId]);
 
   const activateAutoSave = useCallback(() => {
     if (process.env.NODE_ENV !== 'production') console.debug('🚀 Auto-save activated after goals loaded into forms');
