@@ -8,6 +8,7 @@ import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResol
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
 import { generateAccessibilityId, createAriaLiveRegion } from '@/utils/accessibility';
+import { resolveCompetencyNamesForDisplay } from '@/utils/goal-competency-names';
 
 /**
  * Props for the GoalApprovalCard component
@@ -50,16 +51,10 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
   const statusId = React.useMemo(() => generateAccessibilityId('goal-status'), []);
 
   const competencyNamesForDisplay = React.useMemo(() => {
-    if (!isCompetencyGoal) return null;
-    if (!goal.competencyIds || goal.competencyIds.length === 0) return null;
-    if (!goal.competencyNames) return null;
-
-    const names = goal.competencyIds
-      .map(id => goal.competencyNames?.[id])
-      .filter((name): name is string => Boolean(name));
-
-    if (names.length !== goal.competencyIds.length) return null;
-    return names;
+    return resolveCompetencyNamesForDisplay(
+      isCompetencyGoal ? goal.competencyIds : null,
+      goal.competencyNames,
+    );
   }, [goal.competencyIds, goal.competencyNames, isCompetencyGoal]);
 
   // Resolve ideal action IDs to descriptive texts
