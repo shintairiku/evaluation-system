@@ -383,7 +383,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
               {/* 入力フィールド */}
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor={`title-${goal.id}`}>目標タイトル</Label>
+                  <Label htmlFor={`title-${goal.id}`} className="mb-2">目標タイトル</Label>
                   <Input
                     id={`title-${goal.id}`}
                     value={goal.title}
@@ -394,7 +394,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor={`specific-${goal.id}`}>具体的な目標</Label>
+                    <Label htmlFor={`specific-${goal.id}`} className="mb-2">具体的な目標</Label>
                     <Textarea
                       id={`specific-${goal.id}`}
                       value={goal.specificGoal}
@@ -404,7 +404,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
                     />
                   </div>
                   <div>
-                    <Label htmlFor={`criteria-${goal.id}`}>達成基準</Label>
+                    <Label htmlFor={`criteria-${goal.id}`} className="mb-2">達成基準</Label>
                     <Textarea
                       id={`criteria-${goal.id}`}
                       value={goal.achievementCriteria}
@@ -416,7 +416,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
                 </div>
 
                 <div>
-                  <Label htmlFor={`method-${goal.id}`}>実行方法・アプローチ</Label>
+                  <Label htmlFor={`method-${goal.id}`} className="mb-2">実行方法・アプローチ</Label>
                   <Textarea
                     id={`method-${goal.id}`}
                     value={goal.method}
