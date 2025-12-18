@@ -1,7 +1,58 @@
 # Goals Performance Refactor + Frontend Folder Restructure (Architecture Change Plan)
 
-Status: **Plan only** (no code changes yet).  
+Status: **Implemented (partial)** — execution is the source of truth; any remaining “plan” notes below are kept only as historical context.  
 Scope: goals-related pages and shared goal UI/data (employee goal-list + supervisor goal-review), plus API layer folder structure alignment.
+
+## Implementation summary (as implemented)
+
+- Fixed a backend multi-tenant scoping bug where an explicit empty accessible user list (`[]`) could accidentally skip user filtering and return org-wide goals.
+  - `backend/app/database/repositories/goal_repo.py`: fail-closed on `user_ids=[]` and always apply the filter when `user_ids is not None`.
+  - `backend/app/services/goal_service.py`: short-circuit empty accessible users; treat `GOAL_MANAGE_SELF` as self-access; include subordinate access for approvers.
+- Employee `/goal-list` now loads via a server loader pipeline:
+  - `GoalListDataLoader` → `getEmployeeGoalListPageDataAction` → `getGoalsAction`
+- Frontend “employee self” flows now pass `userId` defensively when fetching goals (goal list loader, goal-input blocking checks, submit step, rejected draft count):
+  - `frontend/src/api/server-actions/goals/page-loaders.ts`
+  - `frontend/src/hooks/usePeriodSelection.ts`
+  - `frontend/src/feature/goal-input/display/ConfirmationStep.tsx`
+  - `frontend/src/context/GoalListContext.tsx`
+- Added regression tests to enforce “empty list never widens scope”:
+  - `backend/tests/repositories/test_goal_repo_scoping.py`
+  - `backend/tests/services/test_goal_service_scoping.py`
+
+## Historical plan notes (may be outdated)
+
+Last updated: **2025-12-18**
+
+Note: the sections below were written as a forward-looking plan and may not reflect current code; the “Implementation summary (as implemented)” section above is authoritative.
+
+### Phase 1 — Stop the worst redundant calls (frontend-only)
+
+Completed:
+- `GoalResponse` includes `competencyNames?: Record<string, string> | null` and UI uses it (removes per-card competency fetch).
+- Selected-period “double fetch” removed (period selection no longer triggers a second full reload).
+- Rejected-goals badge no longer triggers repeated “refetch loops” from the goal-list page.
+- Added shared helper for competency display name mapping to avoid drift: `resolveCompetencyNamesForDisplay(...)`.
+- Supervisor goal-review period switching corrected: `getPendingSupervisorReviewsAction` now receives `periodId`.
+
+Notes:
+- Backend already returns `competencyNames` consistently via `GoalService.get_goals()` enrichment (batched competency name map + response schema alias).
+
+### Phase 2 — Introduce Goals domain folder + page loaders
+
+Completed:
+- Added `frontend/src/api/server-actions/goals/**` (queries/mutations/page-loaders) and kept `frontend/src/api/server-actions/goals.ts` as a thin re-export for backward compatibility.
+- Implemented employee goal-list page loader: `getEmployeeGoalListPageDataAction` (composes `getCurrentUserContextAction` + `getGoalsAction` once; returns serializable data).
+- Split employee goal-list into Route/DataLoader/Client:
+  - `GoalListRoute.tsx` (server shell with Suspense)
+  - `GoalListDataLoader.tsx` (server component calling loader)
+  - `GoalListClient.tsx` (client UI shell; URL-driven period selection via `?periodId=...`)
+
+### Known gaps / next steps
+
+- Phase 3 (Supervisor goal-review “one page = one loader”): still pending (currently uses client hook + N calls per subordinate).
+- GoalListProvider still triggers a refresh on mount; it now uses `CurrentUserContext` (no Clerk/user-exists lookup), but can be further optimized (e.g., skip refresh if a page loader already set the count).
+- Sidebar prefetch: consider `prefetch={false}` for heavy links or add caching around loaders (Phase 4).
+- Lint baseline: repo has pre-existing lint errors unrelated to this refactor; avoid widening scope unless we decide to fix baseline.
 
 ## 0) Objectives
 
