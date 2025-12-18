@@ -6,6 +6,7 @@ import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { useGoalApprovalActions } from '../../hooks/useGoalApprovalActions';
+import { resolveCompetencyNamesForDisplay } from '@/utils/goal-competency-names';
 
 /**
  * Props for the GoalApprovalHandler component
@@ -69,15 +70,8 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
   // Generate appropriate goal title based on goal type
   const getGoalTitle = (): string => {
     if (isCompetencyGoal) {
-      if (optimisticGoal.competencyIds && optimisticGoal.competencyIds.length > 0 && optimisticGoal.competencyNames) {
-        const names = optimisticGoal.competencyIds
-          .map(id => optimisticGoal.competencyNames?.[id])
-          .filter((name): name is string => Boolean(name));
-
-        if (names.length === optimisticGoal.competencyIds.length) {
-          return names.join(', ');
-        }
-      }
+      const names = resolveCompetencyNamesForDisplay(optimisticGoal.competencyIds, optimisticGoal.competencyNames);
+      if (names) return names.join(', ');
       // Fallback to competency category
       return 'コンピテンシー目標';
     } else {
