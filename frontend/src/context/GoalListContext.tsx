@@ -1,10 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
-import { useAuth } from '@clerk/nextjs';
 import { getGoalsAction } from '@/api/server-actions/goals';
-import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
-import { checkUserExistsAction } from '@/api/server-actions/users';
+import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
 
 /**
  * Goal List Context State
@@ -46,7 +44,7 @@ export interface GoalListProviderProps {
  * @param props - Provider props
  */
 export function GoalListProvider({ children }: GoalListProviderProps) {
-  const { userId: clerkUserId } = useAuth();
+  const currentUserContext = useOptionalCurrentUserContext();
   const [rejectedGoalsCount, setRejectedGoalsCountState] = useState<number>(0);
 
   const setRejectedGoalsCount = useCallback((count: number) => {
@@ -66,36 +64,19 @@ export function GoalListProvider({ children }: GoalListProviderProps) {
    */
   const refreshRejectedGoalsCount = useCallback(async () => {
     try {
-      // Check if user is authenticated
-      if (!clerkUserId) {
+      const currentUserId = currentUserContext?.user?.id;
+      const currentPeriodId = currentUserContext?.currentPeriod?.id;
+
+      if (!currentUserId || !currentPeriodId) {
         setRejectedGoalsCountState(0);
         return;
       }
-
-      // Get internal user ID from Clerk ID
-      const userExistsResult = await checkUserExistsAction(clerkUserId);
-      if (!userExistsResult.success || !userExistsResult.data?.exists || !userExistsResult.data.user_id) {
-        // User not found, reset counter
-        setRejectedGoalsCountState(0);
-        return;
-      }
-
-      const internalUserId = userExistsResult.data.user_id;
-
-      // Get current evaluation period
-      const periodResult = await getCategorizedEvaluationPeriodsAction();
-      if (!periodResult.success || !periodResult.data?.current) {
-        // No current period, reset counter
-        setRejectedGoalsCountState(0);
-        return;
-      }
-
-      const currentPeriodId = periodResult.data.current.id;
 
       // Fetch goals for current period and current user only
       const goalsResult = await getGoalsAction({
         periodId: currentPeriodId,
-        userId: internalUserId, // Filter by current user's goals only
+        userId: currentUserId,
+        status: 'draft',
         limit: 100 // Reasonable limit for notification purposes
       });
 
@@ -104,7 +85,7 @@ export function GoalListProvider({ children }: GoalListProviderProps) {
         // 1. In draft status (editable)
         // 2. Have previousGoalId (were rejected and copied for re-submission)
         const rejectedDrafts = goalsResult.data.items.filter(
-          goal => goal.status === 'draft' && goal.previousGoalId
+          goal => Boolean(goal.previousGoalId)
         );
 
         setRejectedGoalsCountState(rejectedDrafts.length);
@@ -116,7 +97,7 @@ export function GoalListProvider({ children }: GoalListProviderProps) {
       console.error('Error refreshing rejected goals count:', error);
       // Don't reset count on error, keep previous value
     }
-  }, [clerkUserId]);
+  }, [currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
 
   // Load rejected goals count on provider initialization
   useEffect(() => {
