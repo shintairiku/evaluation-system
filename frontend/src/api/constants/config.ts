@@ -2,6 +2,7 @@ declare const process: {
   env: {
     [key: string]: string | undefined;
     NEXT_PUBLIC_API_BASE_URL?: string;
+    NEXT_PUBLIC_ENABLE_REQUEST_LOGGING?: string;
     NODE_ENV?: string;
   };
 };
@@ -46,7 +47,10 @@ export const API_CONFIG = {
   IS_DEVELOPMENT: process.env.NODE_ENV === 'development',
   
   // Logging configuration
-  ENABLE_REQUEST_LOGGING: process.env.NEXT_PUBLIC_ENABLE_REQUEST_LOGGING === 'true', // Opt-in request logging
+  // Default to logging in non-production for better DX (can be disabled with 'false').
+  ENABLE_REQUEST_LOGGING:
+    process.env.NEXT_PUBLIC_ENABLE_REQUEST_LOGGING === 'true' ||
+    (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_REQUEST_LOGGING !== 'false'),
   ENABLE_ERROR_LOGGING: true, // Always log errors
   
   // Performance settings
