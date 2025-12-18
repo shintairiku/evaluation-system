@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, List, Dict
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from cachetools import TTLCache
 
@@ -85,6 +85,19 @@ class GoalService:
             org_id = current_user_context.organization_id
             if not org_id:
                 raise PermissionDeniedError("Organization context required")
+
+            # If the caller has no accessible users, return an empty page rather than
+            # risk widening scope due to downstream truthiness checks.
+            if accessible_user_ids is not None and len(accessible_user_ids) == 0:
+                page_number = pagination.page if pagination else 1
+                page_limit = pagination.limit if pagination else 0
+                return PaginatedResponse(
+                    items=[],
+                    total=0,
+                    page=page_number,
+                    limit=page_limit,
+                    pages=1,
+                )
             
             # Search goals with filters
             goals = await self.goal_repo.search_goals(
@@ -642,6 +655,8 @@ class GoalService:
             org_id = current_user_context.organization_id
             if not org_id:
                 raise PermissionDeniedError("Organization context required")
+            if not rejection_reason or not rejection_reason.strip():
+                raise ValidationError("Rejection reason is required")
             goal = await self.goal_repo.get_goal_by_id_with_details(goal_id, org_id)
             if not goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
@@ -662,9 +677,51 @@ class GoalService:
             
             # Update status
             updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.REJECTED, org_id)
-            
-            # TODO: Store rejection reason (requires extending model)
-            
+
+            # Persist rejection reason via supervisor_review (source of truth for feedback).
+            reviewed_at = datetime.now(timezone.utc)
+            existing_review = await self.supervisor_review_repo.get_by_unique_keys(
+                goal_id=goal_id,
+                period_id=goal.period_id,
+                supervisor_id=current_user_context.user_id,
+                org_id=org_id,
+            )
+            if existing_review:
+                await self.supervisor_review_repo.update(
+                    existing_review.id,
+                    org_id,
+                    action="REJECTED",
+                    comment=rejection_reason.strip(),
+                    status="submitted",
+                    reviewed_at=reviewed_at,
+                )
+            else:
+                await self.supervisor_review_repo.create(
+                    goal_id=goal_id,
+                    period_id=goal.period_id,
+                    supervisor_id=current_user_context.user_id,
+                    subordinate_id=goal.user_id,
+                    org_id=org_id,
+                    action="REJECTED",
+                    comment=rejection_reason.strip(),
+                    status="submitted",
+                    reviewed_at=reviewed_at,
+                )
+
+            # Ensure a replacement draft exists for resubmission (avoid duplicates).
+            replacement = await self.goal_repo.get_replacement_draft_by_previous_goal_id(goal_id, org_id)
+            if not replacement:
+                await self.goal_repo.create_goal_from_model(
+                    user_id=goal.user_id,
+                    period_id=goal.period_id,
+                    goal_category=goal.goal_category,
+                    target_data=goal.target_data,
+                    weight=float(goal.weight),
+                    org_id=org_id,
+                    status=GoalStatus.DRAFT,
+                    previous_goal_id=goal_id,
+                )
+
             # Commit transaction
             await self.session.commit()
 
@@ -907,26 +964,45 @@ class GoalService:
     ) -> Optional[List[UUID]]:
         """Determine which users' goals the current user can access."""
 
-        if current_user_context.has_permission(Permission.GOAL_READ_ALL):
+        if current_user_context.has_permission(Permission.GOAL_READ_ALL) or current_user_context.has_permission(Permission.GOAL_MANAGE):
             # Admin: can read any user's goals when explicitly requested
             if requested_user_id:
                 return [requested_user_id]
             # Safe default: admin sees only their own goals unless explicitly requesting others
             # For org-wide view, use get_all_goals_for_admin() endpoint instead
-            return [current_user_context.user_id]
+            return [current_user_context.user_id] if current_user_context.user_id else []
         
         accessible_ids = []
         
-        # Add self if user has GOAL_READ_SELF permission
-        if current_user_context.has_permission(Permission.GOAL_READ_SELF):
+        # Add self when the user can either read or manage their own goals.
+        can_access_self = (
+            current_user_context.has_permission(Permission.GOAL_READ_SELF)
+            or current_user_context.has_permission(Permission.GOAL_MANAGE_SELF)
+        )
+        if can_access_self and current_user_context.user_id:
             accessible_ids.append(current_user_context.user_id)
         
-        if current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES):
+        # Supervisors: can see subordinates' goals.
+        # Approvers must also be able to view the goals they act on.
+        can_access_subordinates = (
+            current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES)
+            or current_user_context.has_permission(Permission.GOAL_APPROVE)
+        )
+        if can_access_subordinates:
             # Supervisor: can see subordinates' goals
             subordinate_ids = await RBACHelper._get_subordinate_user_ids(
                 current_user_context.user_id, self.user_repo, current_user_context.organization_id
             )
             accessible_ids.extend(subordinate_ids)
+
+        # Deduplicate while preserving order
+        seen = set()
+        deduped: list[UUID] = []
+        for uid in accessible_ids:
+            if uid and uid not in seen:
+                seen.add(uid)
+                deduped.append(uid)
+        accessible_ids = deduped
         
         # If specific user requested, check if accessible
         if requested_user_id:
