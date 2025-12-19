@@ -10,11 +10,14 @@ Scope: goals-related pages and shared goal UI/data (employee goal-list + supervi
   - `backend/app/services/goal_service.py`: short-circuit empty accessible users; treat `GOAL_MANAGE_SELF` as self-access; include subordinate access for approvers.
 - Employee `/goal-list` now loads via a server loader pipeline:
   - `GoalListDataLoader` → `getEmployeeGoalListPageDataAction` → `getGoalsAction`
+- Supervisor `/goal-review` now loads via a server loader pipeline (removes per-subordinate N calls):
+  - `GoalReviewDataLoader` → `getSupervisorGoalReviewPageDataAction` → `getPendingSupervisorReviewsAction` + `getGoalsAction`
 - Frontend “employee self” flows now pass `userId` defensively when fetching goals (goal list loader, goal-input blocking checks, submit step, rejected draft count):
   - `frontend/src/api/server-actions/goals/page-loaders.ts`
   - `frontend/src/hooks/usePeriodSelection.ts`
   - `frontend/src/feature/goal-input/display/ConfirmationStep.tsx`
   - `frontend/src/context/GoalListContext.tsx`
+- `GoalListProvider` no longer always triggers a client refresh on mount when a server-provided initial rejected count is available (layout preloads it).
 - Added regression tests to enforce “empty list never widens scope”:
   - `backend/tests/repositories/test_goal_repo_scoping.py`
   - `backend/tests/services/test_goal_service_scoping.py`
@@ -48,9 +51,6 @@ Completed:
   - `GoalListClient.tsx` (client UI shell; URL-driven period selection via `?periodId=...`)
 
 ### Known gaps / next steps
-
-- Phase 3 (Supervisor goal-review “one page = one loader”): still pending (currently uses client hook + N calls per subordinate).
-- GoalListProvider still triggers a refresh on mount; it now uses `CurrentUserContext` (no Clerk/user-exists lookup), but can be further optimized (e.g., skip refresh if a page loader already set the count).
 - Sidebar prefetch: consider `prefetch={false}` for heavy links or add caching around loaders (Phase 4).
 - Lint baseline: repo has pre-existing lint errors unrelated to this refactor; avoid widening scope unless we decide to fix baseline.
 
