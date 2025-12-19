@@ -5,7 +5,7 @@ import type { UserDetailResponse, GoalResponse } from '@/api/types';
 interface GroupedGoals {
   employee: UserDetailResponse;
   goals: GoalResponse[];
-  pendingCount: number;
+  pendingCount?: number;
 }
 
 interface EmployeeTabNavigationProps {
@@ -32,7 +32,7 @@ export function EmployeeTabNavigation({
             )}
           </span>
           <Badge variant="secondary" className="ml-1 text-xs">
-            {group.pendingCount}
+            {group.pendingCount ?? group.goals.length}
           </Badge>
         </TabsTrigger>
       ))}
