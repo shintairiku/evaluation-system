@@ -31,6 +31,7 @@ const GoalListContext = createContext<GoalListContextType | undefined>(undefined
 
 export interface GoalListProviderProps {
   children: ReactNode;
+  initialRejectedGoalsCount?: number;
 }
 
 /**
@@ -43,9 +44,11 @@ export interface GoalListProviderProps {
  *
  * @param props - Provider props
  */
-export function GoalListProvider({ children }: GoalListProviderProps) {
+export function GoalListProvider({ children, initialRejectedGoalsCount }: GoalListProviderProps) {
   const currentUserContext = useOptionalCurrentUserContext();
-  const [rejectedGoalsCount, setRejectedGoalsCountState] = useState<number>(0);
+  const [rejectedGoalsCount, setRejectedGoalsCountState] = useState<number>(() => (
+    typeof initialRejectedGoalsCount === 'number' ? initialRejectedGoalsCount : 0
+  ));
 
   const setRejectedGoalsCount = useCallback((count: number) => {
     if (count < 0) return; // Prevent negative values
@@ -99,10 +102,17 @@ export function GoalListProvider({ children }: GoalListProviderProps) {
     }
   }, [currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
 
-  // Load rejected goals count on provider initialization
+  // Keep state in sync when the server provides an initial value (e.g., from a layout loader).
   useEffect(() => {
+    if (typeof initialRejectedGoalsCount !== 'number') return;
+    setRejectedGoalsCountState(initialRejectedGoalsCount);
+  }, [initialRejectedGoalsCount]);
+
+  // Load rejected goals count on provider initialization only when we don't already have a server-provided value.
+  useEffect(() => {
+    if (typeof initialRejectedGoalsCount === 'number') return;
     refreshRejectedGoalsCount();
-  }, [refreshRejectedGoalsCount]);
+  }, [initialRejectedGoalsCount, refreshRejectedGoalsCount]);
 
   const value: GoalListContextType = useMemo(() => ({
     rejectedGoalsCount,
