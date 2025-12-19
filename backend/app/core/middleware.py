@@ -156,24 +156,22 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 
                 logger.debug(f"Org slug validation successful: {org_slug} -> {db_org_id}")
 
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.error(f"Organization validation failed: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail="Organization validation failed"
-                )
             finally:
                 await session.close()
 
-        except HTTPException:
-            raise
+        except HTTPException as e:
+            # BaseHTTPMiddleware can emit noisy ExceptionGroup traces when exceptions
+            # bubble out; return a response directly instead.
+            return JSONResponse(
+                status_code=e.status_code,
+                content={"detail": e.detail},
+                headers=getattr(e, "headers", None),
+            )
         except Exception as e:
             logger.error(f"Unhandled exception: {e}")
-            raise HTTPException(
+            return JSONResponse(
                 status_code=500,
-                detail="Organization validation failed"
+                content={"detail": "Organization validation failed"},
             )
 
         return await call_next(request)
