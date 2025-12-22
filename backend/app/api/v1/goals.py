@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database.session import get_db_session
 from ...security.dependencies import get_auth_context, require_supervisor_or_above
 from ...security.context import AuthContext
-from ...schemas.goal import Goal, GoalDetail, GoalList, GoalCreate, GoalUpdate
+from ...schemas.goal import Goal, GoalDetail, GoalList, GoalCreate, GoalUpdate, GoalsByIdsRequest
 from ...schemas.common import PaginationParams, BaseResponse
 from ...services.goal_service import GoalService
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
@@ -21,6 +21,11 @@ async def get_goals(
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
     goal_category: Optional[str] = Query(None, alias="goalCategory", description="Filter by goal category (業績目標, コンピテンシー, コアバリュー)"),
     status: Optional[List[str]] = Query(None, description="Filter by status (draft, submitted, approved, rejected)"),
+    has_previous_goal_id: Optional[bool] = Query(
+        None,
+        alias="hasPreviousGoalId",
+        description="Filter by whether goal has previousGoalId (e.g., resubmission drafts)",
+    ),
     include_reviews: bool = Query(
         False,
         alias="includeReviews",
@@ -51,6 +56,7 @@ async def get_goals(
             period_id=period_id,
             goal_category=goal_category,
             status=status,
+            has_previous_goal_id=has_previous_goal_id,
             pagination=pagination,
             include_reviews=include_reviews,
             include_rejection_history=include_rejection_history
@@ -72,6 +78,40 @@ async def get_goals(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching goals: {str(e)}"
+        )
+
+
+@router.post("/by-ids", response_model=List[Goal])
+async def get_goals_by_ids(
+    payload: GoalsByIdsRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Batch fetch goals by explicit IDs (used by goal-review loader to avoid N+1)."""
+    try:
+        goal_ids = payload.goal_ids or []
+        if len(goal_ids) > 200:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="goalIds is too large (max 200)",
+            )
+
+        service = GoalService(session)
+        return await service.get_goals_by_ids(
+            current_user_context=context,
+            goal_ids=goal_ids,
+            include_reviews=payload.include_reviews,
+            include_rejection_history=payload.include_rejection_history,
+        )
+
+    except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching goals by ids: {str(e)}",
         )
 
 @router.post("/", response_model=Goal)
@@ -327,4 +367,3 @@ async def get_pending_approval_alias(
 ):
     """Get goals pending approval (supervisor/admin only) - Alias endpoint."""
     return await get_pending_approvals(pagination, period_id, context, session)
-
