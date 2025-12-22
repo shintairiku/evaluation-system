@@ -225,9 +225,18 @@ class SupervisorReviewService:
             raise PermissionDeniedError("Organization context required")
 
         items = await self.repo.get_pending_reviews(
-            current_user_context.user_id, org_id, period_id=period_id, subordinate_id=subordinate_id, pagination=pagination
+            current_user_context.user_id,
+            org_id,
+            period_id=period_id,
+            subordinate_id=subordinate_id,
+            pagination=pagination,
         )
-        total = len(items)
+        total = await self.repo.count_pending_reviews(
+            current_user_context.user_id,
+            org_id,
+            period_id=period_id,
+            subordinate_id=subordinate_id,
+        )
         schemas = [SupervisorReviewSchema.model_validate(r, from_attributes=True) for r in items]
         pages = (total + pagination.limit - 1) // pagination.limit
         return PaginatedResponse(items=schemas, total=total, page=pagination.page, limit=pagination.limit, pages=pages)
@@ -444,5 +453,4 @@ class SupervisorReviewService:
         except Exception as e:
             logger.error(f"Failed to create draft from rejected goal {rejected_goal_id}: {e}")
             # Don't raise - rejection should still succeed even if draft creation fails
-
 

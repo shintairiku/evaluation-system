@@ -10,9 +10,10 @@ from cachetools import TTLCache
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.exceptions import BadRequestError
+from ..core.exceptions import BadRequestError, PermissionDeniedError
 from ..database.models.user import User as UserModel
 from ..database.repositories.user_repository_v2 import UserRepositoryV2
+from ..database.repositories.supervisor_review_repository import SupervisorReviewRepository
 from ..schemas.common import PaginatedResponse, PaginationParams
 from ..schemas.stage_competency import Stage as StageSchema
 from ..schemas.user import (
@@ -28,6 +29,7 @@ from ..schemas.user_page import (
     UserListPageResponse,
 )
 from ..security.context import AuthContext
+from ..security.permissions import Permission
 from ..security.rbac_helper import RBACHelper
 
 
@@ -266,6 +268,71 @@ class UserServiceV2:
             include_set,
         )
         return response_items[0] if response_items else None
+
+    async def get_users_by_ids(
+        self,
+        ctx: AuthContext,
+        user_ids: Sequence[UUID],
+        *,
+        include: Optional[Set[str]] = None,
+    ) -> List[UserDetailResponse]:
+        """Batch fetch user details by explicit IDs with RBAC enforcement."""
+        if not ctx.organization_id:
+            raise BadRequestError("Organization context is required")
+
+        requested_ids: list[UUID] = []
+        seen: set[UUID] = set()
+        for user_id in user_ids:
+            if not user_id or user_id in seen:
+                continue
+            seen.add(user_id)
+            requested_ids.append(user_id)
+
+        if not requested_ids:
+            return []
+
+        include_set = self._normalise_include(include or {"department", "stage", "roles"})
+        self._reset_metrics()
+
+        accessible_user_ids: Optional[Sequence[UUID]]
+        try:
+            accessible_user_ids = await RBACHelper.get_accessible_user_ids(ctx)
+        except PermissionDeniedError:
+            accessible_user_ids = []
+
+        review_access_ids: set[UUID] = set()
+        if ctx.user_id and ctx.has_permission(Permission.GOAL_APPROVE):
+            review_access_ids = await self._timed(
+                SupervisorReviewRepository(self.session).get_subordinate_ids_for_supervisor,
+                ctx.user_id,
+                ctx.organization_id,
+                subordinate_ids=list(requested_ids),
+                status="draft",
+            )
+
+        if accessible_user_ids == [] and not review_access_ids:
+            return []
+
+        if accessible_user_ids is not None:
+            accessible_set = set(accessible_user_ids)
+            if review_access_ids:
+                accessible_set.update(review_access_ids)
+            requested_ids = [user_id for user_id in requested_ids if user_id in accessible_set]
+            if not requested_ids:
+                return []
+
+        users_map = await self._timed(
+            self.user_repo.fetch_users_by_ids,
+            requested_ids,
+            ctx.organization_id,
+        )
+        ordered_models = [users_map[user_id] for user_id in requested_ids if user_id in users_map]
+
+        return await self._build_response_items(
+            ordered_models,
+            ctx.organization_id,
+            include_set,
+        )
 
     async def _apply_supervisor_filter(
         self,

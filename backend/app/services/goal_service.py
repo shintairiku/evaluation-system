@@ -61,6 +61,7 @@ class GoalService:
         period_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
         status: Optional[List[str]] = None,
+        has_previous_goal_id: Optional[bool] = None,
         pagination: Optional[PaginationParams] = None,
         include_reviews: bool = False,
         include_rejection_history: bool = False
@@ -106,6 +107,7 @@ class GoalService:
                 period_id=period_id,
                 goal_category=goal_category,
                 status=status,
+                has_previous_goal_id=has_previous_goal_id,
                 pagination=pagination
             )
             
@@ -115,7 +117,8 @@ class GoalService:
                 user_ids=accessible_user_ids,
                 period_id=period_id,
                 goal_category=goal_category,
-                status=status
+                status=status,
+                has_previous_goal_id=has_previous_goal_id,
             )
 
             # Batch fetch supervisor reviews if requested (performance optimization)
@@ -138,6 +141,7 @@ class GoalService:
 
             # Batch load competency names for all goals (N+1 fix)
             competency_name_map: dict[str, str] = {}
+            competency_description_map: dict[str, dict[str, str]] = {}
             try:
                 from uuid import UUID as _UUID
                 competency_ids: set[UUID] = set()
@@ -157,6 +161,9 @@ class GoalService:
                 if competency_ids:
                     comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
                     competency_name_map = {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+                    competency_description_map = {
+                        str(cid): (comp.description or {}) for cid, comp in comp_map.items() if comp
+                    }
             except Exception as e:
                 logger.warning(f"Failed to batch load competency names: {e}")
 
@@ -170,7 +177,8 @@ class GoalService:
                     reviews_map=reviews_map,
                     rejection_histories_map=rejection_histories_map,
                     org_id=org_id,
-                    competency_name_map=competency_name_map
+                    competency_name_map=competency_name_map,
+                    competency_description_map=competency_description_map,
                 )
                 enriched_goals.append(enriched_goal)
             
@@ -191,6 +199,128 @@ class GoalService:
         except Exception as e:
             logger.error(f"Error in get_goals: {e}")
             raise
+
+    async def get_goals_by_ids(
+        self,
+        current_user_context: AuthContext,
+        goal_ids: List[UUID],
+        *,
+        include_reviews: bool = False,
+        include_rejection_history: bool = False,
+    ) -> List[Goal]:
+        """Return goals by explicit IDs with permission enforcement and batch enrichment."""
+        if not goal_ids:
+            return []
+
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        # Determine which users' goals the current user can access.
+        accessible_user_ids = await self._get_accessible_goal_user_ids(current_user_context)
+
+        # Approvers must be able to fetch goals they have pending reviews for, even if
+        # the current subordinate relationship has changed or the user is inactive.
+        review_assigned_goal_ids: set[UUID] = set()
+        if (
+            current_user_context.user_id
+            and current_user_context.has_permission(Permission.GOAL_APPROVE)
+        ):
+            review_assigned_goal_ids = await self.supervisor_review_repo.get_goal_ids_for_supervisor(
+                current_user_context.user_id,
+                org_id,
+                goal_ids=goal_ids,
+                status="draft",
+            )
+
+        if (
+            accessible_user_ids is not None
+            and len(accessible_user_ids) == 0
+            and len(review_assigned_goal_ids) == 0
+        ):
+            return []
+
+        goals_map = await self.goal_repo.get_goals_by_ids_batch(goal_ids, org_id)
+
+        accessible_set = set(accessible_user_ids) if accessible_user_ids is not None else None
+        seen: set[UUID] = set()
+        ordered_goals: list[GoalModel] = []
+        for goal_id in goal_ids:
+            if goal_id in seen:
+                continue
+            seen.add(goal_id)
+            goal_model = goals_map.get(goal_id)
+            if not goal_model:
+                continue
+            if (
+                accessible_set is not None
+                and goal_model.user_id not in accessible_set
+                and goal_id not in review_assigned_goal_ids
+            ):
+                continue
+            ordered_goals.append(goal_model)
+
+        if not ordered_goals:
+            return []
+
+        # Batch fetch supervisor reviews if requested (performance optimization)
+        reviews_map = {}
+        if include_reviews:
+            reviews_map = await self.supervisor_review_repo.get_by_goals_batch(
+                goal_ids=[g.id for g in ordered_goals],
+                org_id=org_id,
+            )
+
+        rejection_histories_map = {}
+        if include_rejection_history:
+            rejection_histories_map = await self._get_rejection_histories_batch(
+                goals=ordered_goals,
+                org_id=org_id,
+            )
+
+        competency_name_map: dict[str, str] = {}
+        competency_description_map: dict[str, dict[str, str]] = {}
+        try:
+            from uuid import UUID as _UUID
+
+            competency_ids: set[UUID] = set()
+            for goal_model in ordered_goals:
+                if (
+                    goal_model.goal_category == "コンピテンシー"
+                    and goal_model.target_data
+                    and isinstance(goal_model.target_data, dict)
+                    and goal_model.target_data.get("competency_ids")
+                ):
+                    for cid in goal_model.target_data.get("competency_ids", []) or []:
+                        try:
+                            competency_ids.add(_UUID(str(cid)))
+                        except (ValueError, TypeError):
+                            pass
+
+            if competency_ids:
+                comp_map = await self.competency_repo.get_by_ids_batch(list(competency_ids), org_id)
+                competency_name_map = {str(cid): comp.name for cid, comp in comp_map.items() if comp}
+                competency_description_map = {
+                    str(cid): (comp.description or {}) for cid, comp in comp_map.items() if comp
+                }
+        except Exception as e:
+            logger.warning(f"Failed to batch load competency names: {e}")
+
+        enriched_goals: list[Goal] = []
+        for goal_model in ordered_goals:
+            enriched_goal = await self._enrich_goal_data(
+                goal_model,
+                include_reviews=include_reviews,
+                include_rejection_history=include_rejection_history,
+                reviews_map=reviews_map,
+                rejection_histories_map=rejection_histories_map,
+                org_id=org_id,
+                competency_name_map=competency_name_map,
+                competency_description_map=competency_description_map,
+            )
+            enriched_goals.append(enriched_goal)
+
+        return enriched_goals
 
     async def get_goal_list_page(
         self,
@@ -1369,7 +1499,8 @@ class GoalService:
         rejection_histories_map: dict = None,
         org_id: str = None,
         *,
-        competency_name_map: dict[str, str] | None = None
+        competency_name_map: dict[str, str] | None = None,
+        competency_description_map: dict[str, dict[str, str]] | None = None,
     ) -> Goal:
         """
         Convert GoalModel to Goal response schema with enriched data.
@@ -1425,6 +1556,44 @@ class GoalService:
             except Exception as e:
                 logger.warning(f"Failed to resolve competency names for goal {goal_model.id}: {str(e)}")
                 # Continue without competency names if lookup fails
+
+        # Add resolved ideal action texts for competency goals (avoids client-side N+1 fetches)
+        if (
+            goal_model.goal_category == "コンピテンシー"
+            and goal_model.target_data
+            and isinstance(goal_model.target_data, dict)
+            and goal_model.target_data.get("selected_ideal_actions")
+        ):
+            try:
+                selected = goal_model.target_data.get("selected_ideal_actions") or {}
+                if isinstance(selected, dict) and selected:
+                    ideal_action_texts: dict[str, list[str]] = {}
+
+                    for competency_key, action_ids in selected.items():
+                        if not isinstance(action_ids, list):
+                            continue
+
+                        comp_id_str = str(competency_key)
+                        desc_map = None
+                        if competency_description_map is not None:
+                            desc_map = competency_description_map.get(comp_id_str)
+
+                        resolved: list[str] = []
+                        if isinstance(desc_map, dict):
+                            for action_id in action_ids:
+                                text = desc_map.get(str(action_id))
+                                if text:
+                                    resolved.append(text)
+
+                        if not resolved:
+                            resolved = [f"行動 {str(action_id)}" for action_id in action_ids]
+
+                        ideal_action_texts[comp_id_str] = resolved
+
+                    if ideal_action_texts:
+                        goal_dict["ideal_action_texts"] = ideal_action_texts
+            except Exception as e:
+                logger.warning(f"Failed to resolve ideal action texts for goal {goal_model.id}: {str(e)}")
 
         # Performance optimization: Embed supervisor review if requested
         if include_reviews and reviews_map is not None:
