@@ -4,7 +4,6 @@ import "@/styles/accessibility.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { jaJP } from "@clerk/localizations";
 import { LoadingProvider } from "@/context/LoadingContext";
-import { GoalReviewProvider } from "@/context/GoalReviewContext";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
@@ -28,10 +27,8 @@ export default function RootLayout({
         <head />
         <body className="font-sans antialiased">
           <LoadingProvider>
-            <GoalReviewProvider>
-              {children}
-              <Toaster richColors position="top-right" />
-            </GoalReviewProvider>
+            {children}
+            <Toaster richColors position="top-right" />
           </LoadingProvider>
         </body>
       </html>
