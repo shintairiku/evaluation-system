@@ -21,7 +21,7 @@ export interface EmployeeGoalListPageData {
 export interface SupervisorGoalReviewGroup {
   employee: UserDetailResponse;
   goals: GoalResponse[];
-  goalToReviewMap: Record<string, string>;
+  reviewsByGoalId: Record<string, SupervisorReview>;
 }
 
 export interface SupervisorGoalReviewPageData {

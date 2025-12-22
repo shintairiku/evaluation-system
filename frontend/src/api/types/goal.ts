@@ -76,6 +76,7 @@ export interface GoalResponse {
   competencyIds?: UUID[] | null;
   competencyNames?: Record<string, string> | null;
   selectedIdealActions?: Record<string, string[]> | null;
+  idealActionTexts?: Record<string, string[]> | null;
   actionPlan?: string;
 
   // Performance optimization: Embedded reviews (populated when includeReviews=true)
@@ -85,4 +86,3 @@ export interface GoalResponse {
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface GoalListResponse extends PaginatedResponse<GoalResponse> {}
-
