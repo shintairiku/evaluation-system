@@ -5,23 +5,28 @@ import { getCategorizedEvaluationPeriodsAction } from './evaluation-periods';
 import { getCurrentUserAction } from './users';
 import type { CurrentUserContextPayload } from '../types/current-user-context';
 
-export async function getCurrentUserContextAction(): Promise<CurrentUserContextPayload> {
+interface CurrentUserContextOptions {
+  includeUser?: boolean;
+}
+
+export async function getCurrentUserContextAction(
+  options?: CurrentUserContextOptions,
+): Promise<CurrentUserContextPayload> {
   const { userId: clerkUserId, orgId: clerkOrgId } = await auth();
   const orgContext = await getCurrentOrgContext();
+  const includeUser = options?.includeUser !== false;
 
-  let user = null;
-  if (clerkUserId) {
-    try {
-      const userResult = await getCurrentUserAction();
-      if (userResult.success) {
-        user = userResult.data ?? null;
-      }
-    } catch (error) {
+  const periodsPromise = getCategorizedEvaluationPeriodsAction();
+  const userPromise = includeUser && clerkUserId
+    ? getCurrentUserAction().catch((error) => {
       console.warn('Failed to load current user context:', error);
-    }
-  }
+      return { success: false } as const;
+    })
+    : Promise.resolve(null);
 
-  const periodsResult = await getCategorizedEvaluationPeriodsAction();
+  const [periodsResult, userResult] = await Promise.all([periodsPromise, userPromise]);
+
+  const user = userResult && userResult.success ? userResult.data ?? null : null;
 
   return {
     user,
