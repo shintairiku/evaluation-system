@@ -1,4 +1,6 @@
 import type { UUID, SubmissionStatus } from './common';
+import type { GoalResponse } from './goal';
+import type { UserDetailResponse } from './user';
 
 /**
  * Supervisor Review type definitions
@@ -26,6 +28,8 @@ export interface SupervisorReview extends SupervisorReviewBase {
   reviewedAt?: string; // ISO date string
   createdAt: string;
   updatedAt: string;
+  goal?: GoalResponse;
+  subordinate?: UserDetailResponse;
 }
 
 export interface SupervisorReviewDetail extends SupervisorReview {
@@ -34,7 +38,6 @@ export interface SupervisorReviewDetail extends SupervisorReview {
   daysUntilDeadline?: number;
   
   // Related information (optional, may be populated by backend)
-  goal?: unknown; // Avoid circular import
   evaluationPeriod?: unknown; // Avoid circular import
   employee?: unknown; // Avoid circular import
 }

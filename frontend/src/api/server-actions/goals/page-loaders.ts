@@ -84,7 +84,7 @@ export async function getSupervisorGoalReviewPageDataAction(
   params?: { periodId?: UUID },
 ): Promise<{ success: boolean; data?: SupervisorGoalReviewPageData; error?: string }> {
   try {
-    const currentUserContext = await getCurrentUserContextAction();
+    const currentUserContext = await getCurrentUserContextAction({ includeUser: false });
     const periods = currentUserContext.periods;
     const allPeriods = periods?.all ?? [];
 
@@ -102,6 +102,7 @@ export async function getSupervisorGoalReviewPageDataAction(
     const reviewsResult = await getPendingSupervisorReviewsAction({
       pagination: { limit: 200 },
       periodId: selectedPeriod.id,
+      include: 'goal,subordinate',
     });
 
     const reviews = reviewsResult.success && reviewsResult.data?.items ? reviewsResult.data.items : [];
@@ -129,14 +130,32 @@ export async function getSupervisorGoalReviewPageDataAction(
     const goalIds = Array.from(new Set(reviews.map(r => r.goalId))).sort();
     const userIds = Array.from(new Set(reviews.map(r => r.subordinateId))).sort();
 
+    const embeddedGoals = new Map(reviews.filter(r => r.goal).map(r => [r.goal!.id, r.goal!]));
+    const embeddedUsers = new Map(reviews.filter(r => r.subordinate).map(r => [r.subordinate!.id, r.subordinate!]));
+
+    const missingGoalIds = goalIds.filter(id => !embeddedGoals.has(id));
+    const missingUserIds = userIds.filter(id => !embeddedUsers.has(id));
+
     const [usersResult, goalsResult] = await Promise.all([
-      getUsersByIdsAction({
-        userIds,
-        include: 'department,roles',
-      }),
-      getGoalsByIdsAction({
-        goalIds,
-      }),
+      missingUserIds.length > 0
+        ? getUsersByIdsAction({
+            userIds: missingUserIds,
+            include: 'department,roles',
+          })
+        : Promise.resolve(
+            ({ success: true, data: [], error: undefined }) satisfies Awaited<
+              ReturnType<typeof getUsersByIdsAction>
+            >,
+          ),
+      missingGoalIds.length > 0
+        ? getGoalsByIdsAction({
+            goalIds: missingGoalIds,
+          })
+        : Promise.resolve(
+            ({ success: true, data: [], error: undefined }) satisfies Awaited<
+              ReturnType<typeof getGoalsByIdsAction>
+            >,
+          ),
     ]);
 
     if (!usersResult.success || !usersResult.data) {
@@ -153,8 +172,8 @@ export async function getSupervisorGoalReviewPageDataAction(
       };
     }
 
-    const users = usersResult.data;
-    const goals = goalsResult.data;
+    const users = [...embeddedUsers.values(), ...usersResult.data];
+    const goals = [...embeddedGoals.values(), ...goalsResult.data];
 
     const userById = new Map(users.map(u => [u.id, u]));
     const goalById = new Map(goals.map(g => [g.id, g]));

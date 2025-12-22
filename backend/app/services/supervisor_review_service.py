@@ -9,11 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database.repositories.supervisor_review_repository import SupervisorReviewRepository
 from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
+from ..services.goal_service import GoalService
+from ..services.user_service_v2 import UserServiceV2
 from ..database.models.goal import Goal as GoalModel
 from ..schemas.supervisor_review import (
     SupervisorReviewCreate,
     SupervisorReviewUpdate,
     SupervisorReview as SupervisorReviewSchema,
+    SupervisorReviewWithContext,
     SupervisorReviewDetail as SupervisorReviewDetailSchema,
     SupervisorAction,
 )
@@ -218,6 +221,7 @@ class SupervisorReviewService:
         period_id: Optional[UUID] = None,
         subordinate_id: Optional[UUID] = None,
         pagination: PaginationParams,
+        include: Optional[set[str]] = None,
     ) -> PaginatedResponse[SupervisorReviewSchema]:
         # Permission check handled by @require_permission decorator
         org_id = current_user_context.organization_id
@@ -238,8 +242,46 @@ class SupervisorReviewService:
             subordinate_id=subordinate_id,
         )
         schemas = [SupervisorReviewSchema.model_validate(r, from_attributes=True) for r in items]
+        items_out: list[SupervisorReviewSchema | SupervisorReviewWithContext] = schemas
+
+        include_set = {part.strip().lower() for part in include or set() if part.strip()}
+        if schemas and include_set:
+            goal_ids = {schema.goal_id for schema in schemas if schema.goal_id}
+            subordinate_ids = {schema.subordinate_id for schema in schemas if schema.subordinate_id}
+
+            goal_map = {}
+            if "goal" in include_set and goal_ids:
+                goal_service = GoalService(self.session)
+                goals = await goal_service.get_goals_by_ids(
+                    current_user_context,
+                    list(goal_ids),
+                    include_reviews=False,
+                    include_rejection_history=False,
+                )
+                goal_map = {goal.id: goal for goal in goals}
+
+            user_map = {}
+            if "subordinate" in include_set and subordinate_ids:
+                user_service = UserServiceV2(self.session)
+                users = await user_service.get_users_by_ids(
+                    current_user_context,
+                    list(subordinate_ids),
+                    include={"department", "roles"},
+                )
+                user_map = {user.id: user for user in users}
+
+            enriched_items: list[SupervisorReviewWithContext] = []
+            for schema in schemas:
+                payload = schema.model_dump()
+                if "goal" in include_set:
+                    payload["goal"] = goal_map.get(schema.goal_id)
+                if "subordinate" in include_set:
+                    payload["subordinate"] = user_map.get(schema.subordinate_id)
+                enriched_items.append(SupervisorReviewWithContext(**payload))
+            items_out = enriched_items
+
         pages = (total + pagination.limit - 1) // pagination.limit
-        return PaginatedResponse(items=schemas, total=total, page=pagination.page, limit=pagination.limit, pages=pages)
+        return PaginatedResponse(items=items_out, total=total, page=pagination.page, limit=pagination.limit, pages=pages)
 
     # ========================================
     # UPDATE / SUBMIT
@@ -453,4 +495,3 @@ class SupervisorReviewService:
         except Exception as e:
             logger.error(f"Failed to create draft from rejected goal {rejected_goal_id}: {e}")
             # Don't raise - rejection should still succeed even if draft creation fails
-

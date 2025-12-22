@@ -4,6 +4,8 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import datetime
 from .common import SubmissionStatus, PaginatedResponse
+from .goal import Goal
+from .user import UserDetailResponse
 
 if TYPE_CHECKING:
     pass
@@ -63,6 +65,15 @@ class SupervisorReview(SupervisorReviewInDB):
     pass
 
 
+class SupervisorReviewWithContext(SupervisorReviewInDB):
+    """
+    Supervisor review schema with optional related goal and subordinate details.
+    Used by endpoints that embed related objects for UI performance.
+    """
+    goal: Optional[Goal] = None
+    subordinate: Optional[UserDetailResponse] = None
+
+
 class SupervisorReviewDetail(SupervisorReviewInDB):
     """
     Detailed supervisor review schema for single item views.
@@ -95,6 +106,11 @@ class SupervisorReviewList(PaginatedResponse[SupervisorReview]):
     pass
 
 
+class SupervisorReviewWithContextList(PaginatedResponse[SupervisorReviewWithContext]):
+    """Schema for paginated supervisor review list responses with embedded context"""
+    pass
+
+
 # ========================================
 # FORWARD REFERENCES UPDATE
 # ========================================
@@ -108,4 +124,3 @@ except Exception as e:
     # Log the error but don't fail the import
     print(f"Warning: Could not rebuild forward references in supervisor_review schemas: {e}")
     pass
-
