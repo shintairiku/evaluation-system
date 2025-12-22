@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { getPendingSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
+import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
 
 export interface GoalReviewState {
   pendingCount: number;
@@ -21,6 +22,7 @@ export interface GoalReviewProviderProps {
 }
 
 export function GoalReviewProvider({ children }: GoalReviewProviderProps) {
+  const currentUserContext = useOptionalCurrentUserContext();
   const [pendingCount, setPendingCountState] = useState<number>(0);
 
   const setPendingCount = useCallback((count: number) => {
@@ -36,17 +38,19 @@ export function GoalReviewProvider({ children }: GoalReviewProviderProps) {
     try {
       // ARCHITECTURAL MIGRATION: Use supervisor_review table instead of goals table
       // This aligns with the Goal Review page implementation using the same data source
+      const currentPeriodId = currentUserContext?.currentPeriod?.id;
       const result = await getPendingSupervisorReviewsAction({
-        pagination: { limit: 100 }
+        pagination: { limit: 1 },
+        periodId: currentPeriodId ?? undefined,
       });
-      if (result.success && result.data?.items) {
-        setPendingCountState(result.data.items.length);
+      if (result.success && result.data) {
+        setPendingCountState(result.data.total);
       }
     } catch (error) {
       console.error('Error refreshing pending count:', error);
       // Don't reset count on error, keep previous value
     }
-  }, []);
+  }, [currentUserContext?.currentPeriod?.id]);
 
   // Load pending count on provider initialization
   useEffect(() => {

@@ -75,23 +75,17 @@ export function GoalListProvider({ children, initialRejectedGoalsCount }: GoalLi
         return;
       }
 
-      // Fetch goals for current period and current user only
+      // Fetch only the count: one row + total, filtered to resubmission drafts.
       const goalsResult = await getGoalsAction({
         periodId: currentPeriodId,
         userId: currentUserId,
         status: 'draft',
-        limit: 100 // Reasonable limit for notification purposes
+        hasPreviousGoalId: true,
+        limit: 1
       });
 
-      if (goalsResult.success && goalsResult.data?.items) {
-        // Count goals that are:
-        // 1. In draft status (editable)
-        // 2. Have previousGoalId (were rejected and copied for re-submission)
-        const rejectedDrafts = goalsResult.data.items.filter(
-          goal => Boolean(goal.previousGoalId)
-        );
-
-        setRejectedGoalsCountState(rejectedDrafts.length);
+      if (goalsResult.success && goalsResult.data) {
+        setRejectedGoalsCountState(goalsResult.data.total);
       } else {
         // Failed to fetch goals, keep previous count
         console.warn('Failed to fetch goals for rejected count');
