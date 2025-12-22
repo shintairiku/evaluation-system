@@ -29,6 +29,11 @@ PERF_INDEX_STATEMENTS = [
     CREATE INDEX IF NOT EXISTS ix_user_roles_role_id
     ON user_roles (role_id)
     """,
+    # Supervisor review pending queue
+    """
+    CREATE INDEX IF NOT EXISTS ix_supervisor_reviews_supervisor_status_period_subordinate
+    ON supervisor_reviews (supervisor_id, status, period_id, subordinate_id)
+    """,
     # Stages admin list
     """
     CREATE INDEX IF NOT EXISTS ix_stages_org_name
@@ -40,4 +45,12 @@ PERF_INDEX_STATEMENTS = [
 async def ensure_perf_indexes() -> None:
     async with engine.begin() as conn:
         for stmt in PERF_INDEX_STATEMENTS:
-            await conn.execute(text(stmt))
+            try:
+                await conn.execute(text(stmt))
+            except Exception as exc:
+                message = str(exc)
+                # IF NOT EXISTS is not fully race-safe across concurrent startups.
+                # Ignore duplicate index creation attempts and proceed.
+                if "pg_class_relname_nsp_index" in message or "already exists" in message:
+                    continue
+                raise
