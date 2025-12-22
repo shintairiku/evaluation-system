@@ -5,19 +5,23 @@ FROM node:22-alpine AS base
 WORKDIR /app
 # Install dependencies only when needed
 RUN apk add --no-cache libc6-compat
+ENV NPM_CONFIG_FETCH_RETRIES=5 \
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 
 # 2. Dependencies Stage: Install dependencies
 FROM base AS deps
 # Copy package files
 COPY package.json package-lock.json ./
 # Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --omit=dev --prefer-offline --no-audit --no-fund \
+    && npm cache clean --force
 
 # 3. Builder Stage: Build the application
 FROM base AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --prefer-offline --no-audit --no-fund
 COPY . .
 # Build arguments for environment variables
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -38,7 +42,7 @@ RUN npm run build
 FROM base AS development
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --prefer-offline --no-audit --no-fund
 COPY . .
 EXPOSE 3000
 ENV PORT 3000
