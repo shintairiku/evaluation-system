@@ -11,7 +11,7 @@ Scope: goals-related pages and shared goal UI/data (employee goal-list + supervi
 - Employee `/goal-list` now loads via a server loader pipeline:
   - `GoalListDataLoader` → `getEmployeeGoalListPageDataAction` → `getGoalsAction`
 - Supervisor `/goal-review` now loads via a server loader pipeline (removes per-subordinate N calls):
-  - `GoalReviewDataLoader` → `getSupervisorGoalReviewPageDataAction` → `getPendingSupervisorReviewsAction` + `getGoalsAction`
+  - `GoalReviewDataLoader` → `getSupervisorGoalReviewPageDataAction` → `getPendingSupervisorReviewsAction` + batch fetch (`users/by-ids` + `goals/by-ids`)
 - Frontend “employee self” flows now pass `userId` defensively when fetching goals (goal list loader, goal-input blocking checks, submit step, rejected draft count):
   - `frontend/src/api/server-actions/goals/page-loaders.ts`
   - `frontend/src/hooks/usePeriodSelection.ts`
@@ -21,6 +21,38 @@ Scope: goals-related pages and shared goal UI/data (employee goal-list + supervi
 - Added regression tests to enforce “empty list never widens scope”:
   - `backend/tests/repositories/test_goal_repo_scoping.py`
   - `backend/tests/services/test_goal_service_scoping.py`
+
+### 2025-12-19 follow-up notes (perf + correctness)
+
+- Batch endpoints added + wired (avoid org-wide scans on goal-review):
+  - `POST /goals/by-ids` → `backend/app/api/v1/goals.py` + `backend/app/services/goal_service.py`
+  - `POST /v2/users/by-ids` → `backend/app/api/v2/users.py` + `backend/app/services/user_service_v2.py`
+  - Goal-review loader now uses these endpoints and builds `reviewsByGoalId` (review object, not just `reviewId`):
+    - `frontend/src/api/server-actions/goals/page-loaders.ts`
+    - `frontend/src/api/types/page-loaders.ts`
+- Removed competency “ideal actions” N+1:
+  - Backend enriches goals with `idealActionTexts` (resolved from competency descriptions).
+  - Frontend renders directly from `goal.idealActionTexts` (no `useIdealActionsResolver` / no per-goal fetch).
+    - `backend/app/services/goal_service.py`
+    - `backend/app/schemas/goal.py`
+    - `frontend/src/feature/evaluation/employee/goal-list/components/GoalCard.tsx`
+    - `frontend/src/feature/evaluation/superviser/goal-review/components/GoalApprovalCard/index.tsx`
+- Removed supervisor-review draft load N+1:
+  - `useAutoSave` now hydrates initial comment/status from already-loaded pending review data (no `getSupervisorReviewById` per card).
+    - `frontend/src/feature/evaluation/superviser/goal-review/hooks/useAutoSave.ts`
+- Sidebar/request flood reduction:
+  - Disabled Next.js `Link` prefetch in the sidebar to prevent many unrelated RSC fetches while navigating.
+    - `frontend/src/components/display/sidebar.tsx`
+- Badge counts made “count-only”:
+  - Pending approvals: `limit: 1` + use `total` from `/supervisor-reviews/pending`.
+    - `frontend/src/context/GoalReviewContext.tsx`
+  - Rejected/resubmission drafts: `hasPreviousGoalId=true`, `limit: 1` + use `total`.
+    - `frontend/src/context/GoalListContext.tsx`
+- Fixed “pendingCount shows 1 but list empty” edge case:
+  - `/goals/by-ids` and `/v2/users/by-ids` now allow access when the supervisor has a draft `supervisor_review` assigned for the requested goal/subordinate (even if subordinate relationship/status changed).
+    - `backend/app/services/goal_service.py`
+    - `backend/app/services/user_service_v2.py`
+    - `backend/app/database/repositories/supervisor_review_repository.py`
 
 ## Historical plan notes (may be outdated)
 
@@ -51,7 +83,7 @@ Completed:
   - `GoalListClient.tsx` (client UI shell; URL-driven period selection via `?periodId=...`)
 
 ### Known gaps / next steps
-- Sidebar prefetch: consider `prefetch={false}` for heavy links or add caching around loaders (Phase 4).
+- Sidebar prefetch: implemented `prefetch={false}` in sidebar; consider selectively re-enabling only for light routes later.
 - Lint baseline: repo has pre-existing lint errors unrelated to this refactor; avoid widening scope unless we decide to fix baseline.
 
 ## 0) Objectives
