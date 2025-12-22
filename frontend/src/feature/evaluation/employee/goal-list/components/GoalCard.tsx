@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Target, Brain, Calendar, Weight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Target, Brain, Calendar, Weight, AlertCircle, CheckCircle } from 'lucide-react';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import { GoalAuditHistory } from '@/components/evaluation/GoalAuditHistory';
-import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 import { resolveCompetencyNamesForDisplay } from '@/utils/goal-competency-names';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { useRouter } from 'next/navigation';
@@ -68,10 +67,21 @@ export const GoalCard = React.memo<GoalCardProps>(
     }, [goal.competencyIds, goal.competencyNames, isCompetencyGoal]);
 
     // Resolve ideal action IDs to descriptive texts
-    const { resolvedActions, loading: actionsLoading } = useIdealActionsResolver(
-      isCompetencyGoal ? goal.selectedIdealActions : null,
-      goal.competencyIds
-    );
+    const resolvedIdealActions = React.useMemo(() => {
+      if (!isCompetencyGoal || !goal.selectedIdealActions) return [];
+
+      return Object.entries(goal.selectedIdealActions).map(([competencyId, actionIds]) => {
+        const competencyName = goal.competencyNames?.[competencyId] ?? competencyId;
+        const resolved = goal.idealActionTexts?.[competencyId];
+
+        return {
+          competencyName,
+          actions: Array.isArray(resolved) && resolved.length > 0
+            ? resolved
+            : actionIds.map(actionId => `行動 ${actionId}`),
+        };
+      });
+    }, [goal.competencyNames, goal.idealActionTexts, goal.selectedIdealActions, isCompetencyGoal]);
 
     // Get category icon
     const getCategoryIcon = () => {
@@ -315,40 +325,20 @@ export const GoalCard = React.memo<GoalCardProps>(
                 <div>
                   <h4 className="font-semibold mb-2">理想的な行動</h4>
                   <div className="bg-gray-50 p-3 rounded-md">
-                    {actionsLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        理想的な行動を読み込み中...
-                      </div>
-                    ) : resolvedActions.length > 0 ? (
-                      <div className="space-y-2">
-                        {resolvedActions.map((resolved, index) => (
-                          <div key={index} className="text-sm">
-                            <span className="font-medium">
-                              {resolved.competencyName}:
-                            </span>
-                            <ul className="list-disc list-inside ml-2 mt-1">
-                              {resolved.actions.map((action, actionIndex) => (
-                                <li key={actionIndex}>{action}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {Object.entries(goal.selectedIdealActions).map(([key, actions]) => (
-                          <div key={key} className="text-sm">
-                            <span className="font-medium">{key}:</span>
-                            <ul className="list-disc list-inside ml-2 mt-1">
-                              {actions.map((action, index) => (
-                                <li key={index}>行動 {action}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      {resolvedIdealActions.map((resolved, index) => (
+                        <div key={index} className="text-sm">
+                          <span className="font-medium">
+                            {resolved.competencyName}:
+                          </span>
+                          <ul className="list-disc list-inside ml-2 mt-1">
+                            {resolved.actions.map((action, actionIndex) => (
+                              <li key={actionIndex}>{action}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
