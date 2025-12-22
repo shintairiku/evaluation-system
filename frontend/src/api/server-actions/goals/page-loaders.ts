@@ -1,12 +1,12 @@
 'use server';
 
 import { getCurrentUserContextAction } from '../current-user-context';
-import { getGoalByIdAction, getGoalsAction } from './queries';
+import { getGoalsAction, getGoalsByIdsAction } from './queries';
 import type { EmployeeGoalListPageData } from '../../types/page-loaders';
 import type { UUID } from '../../types';
 import type { SupervisorGoalReviewPageData, SupervisorGoalReviewGroup } from '../../types/page-loaders';
 import { getPendingSupervisorReviewsAction } from '../supervisor-reviews';
-import { getUsersAction } from '../users';
+import { getUsersByIdsAction } from '../users';
 
 export async function getEmployeeGoalListPageDataAction(
   params?: { periodId?: UUID },
@@ -121,57 +121,43 @@ export async function getSupervisorGoalReviewPageDataAction(
           periods,
           selectedPeriod,
           grouped: [],
-          totalPendingCount: 0,
+          totalPendingCount: reviewsResult.data?.total ?? 0,
         },
       };
     }
 
+    const goalIds = Array.from(new Set(reviews.map(r => r.goalId))).sort();
+    const userIds = Array.from(new Set(reviews.map(r => r.subordinateId))).sort();
+
     const [usersResult, goalsResult] = await Promise.all([
-      getUsersAction(),
-      getGoalsAction({
-        periodId: selectedPeriod.id,
-        status: 'submitted',
-        limit: 200,
+      getUsersByIdsAction({
+        userIds,
+        include: 'department,roles',
+      }),
+      getGoalsByIdsAction({
+        goalIds,
       }),
     ]);
 
-    if (!usersResult.success || !usersResult.data?.items) {
+    if (!usersResult.success || !usersResult.data) {
       return {
         success: false,
         error: usersResult.error || '従業員情報の読み込みに失敗しました',
       };
     }
 
-    if (!goalsResult.success || !goalsResult.data?.items) {
+    if (!goalsResult.success || !goalsResult.data) {
       return {
         success: false,
         error: goalsResult.error || '目標の読み込みに失敗しました',
       };
     }
 
-    const users = usersResult.data.items;
-    const goals = goalsResult.data.items;
+    const users = usersResult.data;
+    const goals = goalsResult.data;
 
     const userById = new Map(users.map(u => [u.id, u]));
     const goalById = new Map(goals.map(g => [g.id, g]));
-
-    const missingGoalIds = Array.from(new Set(
-      reviews
-        .map(r => r.goalId)
-        .filter(goalId => !goalById.has(goalId)),
-    ));
-
-    if (missingGoalIds.length > 0) {
-      const missingResults = await Promise.all(
-        missingGoalIds.map(goalId => getGoalByIdAction(goalId)),
-      );
-
-      missingResults.forEach(result => {
-        if (result.success && result.data) {
-          goalById.set(result.data.id, result.data);
-        }
-      });
-    }
 
     // Preserve review order for a stable first selection.
     const groupedBySubordinate = new Map<string, SupervisorGoalReviewGroup>();
@@ -188,17 +174,17 @@ export async function getSupervisorGoalReviewPageDataAction(
         groupedBySubordinate.set(review.subordinateId, {
           employee,
           goals: [],
-          goalToReviewMap: {},
+          reviewsByGoalId: {},
         });
       }
 
       const group = groupedBySubordinate.get(review.subordinateId)!;
       group.goals.push(goal);
-      group.goalToReviewMap[review.goalId] = review.id;
+      group.reviewsByGoalId[review.goalId] = review;
     }
 
     const grouped = Array.from(groupedBySubordinate.values()).filter(g => g.goals.length > 0);
-    const totalPendingCount = grouped.reduce((sum, g) => sum + g.goals.length, 0);
+    const totalPendingCount = reviewsResult.data?.total ?? reviews.length;
 
     return {
       success: true,

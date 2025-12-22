@@ -13,6 +13,7 @@ async function _getGoalsAction(params?: {
   userId?: UUID;
   goalCategory?: string;
   status?: string | string[];
+  hasPreviousGoalId?: boolean;
   page?: number;
   limit?: number;
   includeReviews?: boolean;
@@ -42,6 +43,34 @@ async function _getGoalsAction(params?: {
 }
 
 export const getGoalsAction = cache(_getGoalsAction);
+
+export const getGoalsByIdsAction = cache(async (params: {
+  goalIds: UUID[];
+  includeReviews?: boolean;
+  includeRejectionHistory?: boolean;
+}): Promise<{ success: boolean; data?: GoalResponse[]; error?: string }> => {
+  try {
+    const response = await goalsApi.getGoalsByIds(params);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch goals',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get goals by ids action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching goals',
+    };
+  }
+});
 
 export const getGoalByIdAction = cache(async (goalId: UUID): Promise<{
   success: boolean;
@@ -106,4 +135,3 @@ async function _getAdminGoalsAction(params?: {
 }
 
 export const getAdminGoalsAction = cache(_getAdminGoalsAction);
-
