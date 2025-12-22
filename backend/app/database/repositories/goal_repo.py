@@ -276,6 +276,7 @@ class GoalRepository(BaseRepository[Goal]):
         department_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
         status: Optional[List[str]] = None,
+        has_previous_goal_id: Optional[bool] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[Goal]:
         """Search goals with various filters within organization scope."""
@@ -314,6 +315,11 @@ class GoalRepository(BaseRepository[Goal]):
                 else:
                     # Backward compatibility for single status
                     query = query.filter(Goal.status == status)
+
+            if has_previous_goal_id is True:
+                query = query.filter(Goal.previous_goal_id.isnot(None))
+            elif has_previous_goal_id is False:
+                query = query.filter(Goal.previous_goal_id.is_(None))
 
             # Apply ordering
             query = query.order_by(Goal.created_at.desc())
@@ -402,7 +408,8 @@ class GoalRepository(BaseRepository[Goal]):
         period_id: Optional[UUID] = None,
         department_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
-        status: Optional[List[str]] = None
+        status: Optional[List[str]] = None,
+        has_previous_goal_id: Optional[bool] = None,
     ) -> int:
         """Count goals matching the given filters within organization scope."""
         # IMPORTANT: Treat an explicit empty user_ids list as "no accessible users".
@@ -438,6 +445,11 @@ class GoalRepository(BaseRepository[Goal]):
                 else:
                     # Backward compatibility for single status
                     query = query.filter(Goal.status == status)
+
+            if has_previous_goal_id is True:
+                query = query.filter(Goal.previous_goal_id.isnot(None))
+            elif has_previous_goal_id is False:
+                query = query.filter(Goal.previous_goal_id.is_(None))
 
             result = await self.session.execute(query)
             return result.scalar() or 0
