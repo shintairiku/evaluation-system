@@ -1,14 +1,13 @@
 import React from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Target, Brain, Calendar, Weight, Loader2 } from 'lucide-react';
-import type { GoalResponse } from '@/api/types';
+import { Target, Brain, Calendar, Weight } from 'lucide-react';
+import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { GoalApprovalHandler } from '../GoalApprovalHandler';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
-import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
-import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
-import { generateAccessibilityId, createAriaLiveRegion } from '@/utils/accessibility';
+import { generateAccessibilityId } from '@/utils/accessibility';
+import { resolveCompetencyNamesForDisplay } from '@/utils/goal-competency-names';
 
 /**
  * Props for the GoalApprovalCard component
@@ -20,8 +19,8 @@ interface GoalApprovalCardProps {
   employeeName?: string;
   /** Callback function called when goal is updated */
   onGoalUpdate?: () => void;
-  /** Supervisor review ID for this goal (for approval actions) */
-  reviewId?: string;
+  /** Supervisor review for this goal (used for auto-save + approval actions) */
+  review?: SupervisorReview;
 }
 
 /**
@@ -32,7 +31,7 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
   goal,
   employeeName,
   onGoalUpdate,
-  reviewId
+  review,
 }) {
   const isPerformanceGoal = goal.goalCategory === '業績目標';
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
@@ -50,16 +49,28 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
   const titleId = React.useMemo(() => generateAccessibilityId('goal-title'), []);
   const statusId = React.useMemo(() => generateAccessibilityId('goal-status'), []);
 
-  // Resolve competency IDs to names for display
-  const { competencyNames, loading: competencyLoading } = useCompetencyNames(
-    isCompetencyGoal ? goal.competencyIds : null
-  );
+  const competencyNamesForDisplay = React.useMemo(() => {
+    return resolveCompetencyNamesForDisplay(
+      isCompetencyGoal ? goal.competencyIds : null,
+      goal.competencyNames,
+    );
+  }, [goal.competencyIds, goal.competencyNames, isCompetencyGoal]);
 
-  // Resolve ideal action IDs to descriptive texts
-  const { resolvedActions, loading: actionsLoading } = useIdealActionsResolver(
-    isCompetencyGoal ? goal.selectedIdealActions : null,
-    goal.competencyIds
-  );
+  const resolvedIdealActions = React.useMemo(() => {
+    if (!isCompetencyGoal || !goal.selectedIdealActions) return [];
+
+    return Object.entries(goal.selectedIdealActions).map(([competencyId, actionIds]) => {
+      const competencyName = goal.competencyNames?.[competencyId] ?? competencyId;
+      const resolved = goal.idealActionTexts?.[competencyId];
+
+      return {
+        competencyName,
+        actions: Array.isArray(resolved) && resolved.length > 0
+          ? resolved
+          : actionIds.map(actionId => `行動 ${actionId}`),
+      };
+    });
+  }, [goal.competencyNames, goal.idealActionTexts, goal.selectedIdealActions, isCompetencyGoal]);
 
   const getCategoryIcon = () => {
     if (isPerformanceGoal) {
@@ -172,17 +183,10 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
               <div>
                 <h4 className="font-semibold mb-2" role="heading" aria-level={4}>選択したコンピテンシー</h4>
                 <div className="bg-gray-50 p-3 rounded-md" role="region" aria-labelledby="competencies-label">
-                  {competencyLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground"
-                         {...createAriaLiveRegion('polite')}
-                         aria-label="コンピテンシー情報を読み込み中">
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                      コンピテンシー名を読み込み中...
-                    </div>
-                  ) : competencyNames.length > 0 ? (
+                  {competencyNamesForDisplay ? (
                     <p className="text-sm" id="competencies-label"
-                       aria-label={`選択されたコンピテンシー: ${competencyNames.join(', ')}`}>
-                      {competencyNames.join(', ')}
+                       aria-label={`選択されたコンピテンシー: ${competencyNamesForDisplay.join(', ')}`}>
+                      {competencyNamesForDisplay.join(', ')}
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground" id="competencies-label"
@@ -198,45 +202,23 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
               <div>
                 <h4 className="font-semibold mb-2" role="heading" aria-level={4}>理想的な行動</h4>
                 <div className="bg-gray-50 p-3 rounded-md" role="region" aria-labelledby="ideal-actions-label">
-                  {actionsLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground"
-                         {...createAriaLiveRegion('polite')}
-                         aria-label="理想的な行動を読み込み中">
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                      理想的な行動を読み込み中...
-                    </div>
-                  ) : resolvedActions.length > 0 ? (
-                    <div className="space-y-2" id="ideal-actions-label">
-                      {resolvedActions.map((resolved, index) => (
-                        <div key={index} className="text-sm" role="group"
-                             aria-labelledby={`competency-${index}-title`}>
-                          <span className="font-medium" id={`competency-${index}-title`}>
-                            {resolved.competencyName}:
-                          </span>
-                          <ul className="list-disc list-inside ml-2 mt-1"
-                              role="list"
-                              aria-label={`${resolved.competencyName}の理想的な行動`}>
-                            {resolved.actions.map((action, actionIndex) => (
-                              <li key={actionIndex} role="listitem">{action}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-2" id="ideal-actions-label">
-                      {Object.entries(goal.selectedIdealActions).map(([key, actions]) => (
-                        <div key={key} className="text-sm" role="group">
-                          <span className="font-medium">{key}:</span>
-                          <ul className="list-disc list-inside ml-2 mt-1" role="list">
-                            {actions.map((action, index) => (
-                              <li key={index} role="listitem">行動 {action}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="space-y-2" id="ideal-actions-label">
+                    {resolvedIdealActions.map((resolved, index) => (
+                      <div key={index} className="text-sm" role="group"
+                           aria-labelledby={`competency-${index}-title`}>
+                        <span className="font-medium" id={`competency-${index}-title`}>
+                          {resolved.competencyName}:
+                        </span>
+                        <ul className="list-disc list-inside ml-2 mt-1"
+                            role="list"
+                            aria-label={`${resolved.competencyName}の理想的な行動`}>
+                          {resolved.actions.map((action, actionIndex) => (
+                            <li key={actionIndex} role="listitem">{action}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -270,7 +252,7 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
               goal={goal}
               employeeName={employeeName}
               onSuccess={onGoalUpdate}
-              reviewId={reviewId}
+              review={review}
             />
           </div>
         )}

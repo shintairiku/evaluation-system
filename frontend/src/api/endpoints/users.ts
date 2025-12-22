@@ -54,6 +54,19 @@ export const usersApi = {
   },
 
   /**
+   * Batch fetch users by explicit IDs (avoids org-wide user list fetches)
+   */
+  getUsersByIds: async (params: {
+    userIds: UUID[];
+    include?: string;
+  }): Promise<ApiResponse<UserDetailResponse[]>> => {
+    return httpClient.post<UserDetailResponse[]>(API_ENDPOINTS.USERS.BY_IDS, {
+      userIds: params.userIds,
+      include: params.include,
+    });
+  },
+
+  /**
    * Page-shaped users endpoint that bundles list data with filter metadata
    */
   getUsersPage: async (params?: GetUsersPageParams): Promise<ApiResponse<UserListPageResponse>> => {

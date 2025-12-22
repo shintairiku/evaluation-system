@@ -117,6 +117,41 @@ export const getUserByIdAction = cache(
   },
 );
 
+export const getUsersByIdsAction = cache(
+  async (
+    params: {
+      userIds: UUID[];
+      include?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    data?: UserDetailResponse[];
+    error?: string;
+  }> => {
+    try {
+      const response = await usersApi.getUsersByIds(params);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.error || 'Failed to fetch users',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get users by ids action error:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred while fetching users',
+      };
+    }
+  },
+);
+
 export const getCurrentUserAction = async (): Promise<{
   success: boolean;
   data?: UserDetailResponse | null;

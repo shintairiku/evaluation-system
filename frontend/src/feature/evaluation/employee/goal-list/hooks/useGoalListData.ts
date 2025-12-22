@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getGoalsAction } from '@/api/server-actions/goals';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getUsersAction } from '@/api/server-actions/users';
+import { filterLatestGoals } from '@/lib/goal-utils';
 import type { GoalResponse, GoalStatus, EvaluationPeriod, UserDetailResponse } from '@/api/types';
 
 /**
@@ -167,8 +168,9 @@ export function useGoalListData(params?: UseGoalListDataParams): UseGoalListData
 
         const goals = goalsResult.data.items;
 
-        // Filter out rejected goals from display (they're replaced by new draft copies)
-        const activeGoals = goals.filter(goal => goal.status !== 'rejected');
+        // Keep rejected goals unless they are superseded by a replacement draft copy.
+        // A goal is superseded when another goal references it via previousGoalId.
+        const activeGoals = filterLatestGoals(goals);
 
         // Reviews and rejection history are already embedded in the goal objects!
         // No need for separate fetches - this is the performance optimization

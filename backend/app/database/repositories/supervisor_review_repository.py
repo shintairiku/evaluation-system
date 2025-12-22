@@ -213,6 +213,56 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         logger.info(f"Batch fetched {len(reviews_map)} reviews for {len(goal_ids)} goals in org {org_id}")
         return reviews_map
 
+    async def get_goal_ids_for_supervisor(
+        self,
+        supervisor_id: UUID,
+        org_id: str,
+        *,
+        goal_ids: List[UUID],
+        status: Optional[str] = None,
+    ) -> set[UUID]:
+        """Return goal IDs that have a supervisor review assigned to the supervisor (org-scoped)."""
+        if not goal_ids:
+            return set()
+
+        query = select(SupervisorReview.goal_id).filter(
+            and_(
+                SupervisorReview.supervisor_id == supervisor_id,
+                SupervisorReview.goal_id.in_(goal_ids),
+            )
+        )
+        if status:
+            query = query.filter(SupervisorReview.status == status)
+
+        query = self.apply_org_scope_via_goal(query, SupervisorReview.goal_id, org_id)
+        result = await self.session.execute(query)
+        return set(result.scalars().all())
+
+    async def get_subordinate_ids_for_supervisor(
+        self,
+        supervisor_id: UUID,
+        org_id: str,
+        *,
+        subordinate_ids: List[UUID],
+        status: Optional[str] = None,
+    ) -> set[UUID]:
+        """Return subordinate IDs that have supervisor reviews assigned to the supervisor (org-scoped)."""
+        if not subordinate_ids:
+            return set()
+
+        query = select(SupervisorReview.subordinate_id).filter(
+            and_(
+                SupervisorReview.supervisor_id == supervisor_id,
+                SupervisorReview.subordinate_id.in_(subordinate_ids),
+            )
+        )
+        if status:
+            query = query.filter(SupervisorReview.status == status)
+
+        query = self.apply_org_scope_via_goal(query, SupervisorReview.goal_id, org_id)
+        result = await self.session.execute(query)
+        return set(result.scalars().all())
+
     async def get_by_supervisor(
         self,
         supervisor_id: UUID,
@@ -359,6 +409,33 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
         result = await self.session.execute(query)
         return result.scalars().all()
 
+    async def count_pending_reviews(
+        self,
+        supervisor_id: UUID,
+        org_id: str,
+        *,
+        period_id: Optional[UUID] = None,
+        subordinate_id: Optional[UUID] = None,
+    ) -> int:
+        """Count pending reviews that need attention (supervisor only)."""
+        query = (
+            select(func.count(SupervisorReview.id))
+            .filter(
+                and_(
+                    SupervisorReview.supervisor_id == supervisor_id,
+                    SupervisorReview.status == "draft",
+                )
+            )
+        )
+        if period_id:
+            query = query.filter(SupervisorReview.period_id == period_id)
+        if subordinate_id:
+            query = query.filter(SupervisorReview.subordinate_id == subordinate_id)
+
+        query = self.apply_org_scope_via_goal_with_status(query, SupervisorReview.goal_id, org_id, "submitted")
+        result = await self.session.execute(query)
+        return int(result.scalar() or 0)
+
     async def search(
         self,
         org_id: str,
@@ -459,5 +536,3 @@ class SupervisorReviewRepository(BaseRepository[SupervisorReview]):
             sa_delete(SupervisorReview).where(SupervisorReview.id == review_id)
         )
         return result.rowcount > 0
-
-

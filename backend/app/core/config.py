@@ -39,6 +39,8 @@ class Settings:
     CLERK_AUDIENCE: Optional[str] = os.getenv("CLERK_AUDIENCE")
     CLERK_WEBHOOK_SECRET: Optional[str] = os.getenv("CLERK_WEBHOOK_SECRET")
     CLERK_ORGANIZATION_ENABLED: bool = os.getenv("CLERK_ORGANIZATION_ENABLED", "True").lower() == "true"
+    # Allow small clock skew between Clerk and backend containers (nbf/exp validation).
+    CLERK_JWT_LEEWAY_SECONDS: int = int(os.getenv("CLERK_JWT_LEEWAY_SECONDS", "10"))
     
     # =============================================================================
     # DATABASE SETTINGS (Supabase)

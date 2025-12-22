@@ -2,6 +2,7 @@ from typing import Optional, Set
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.exceptions import BadRequestError, PermissionDeniedError
@@ -19,6 +20,16 @@ from ...services.user_service_v2 import UserServiceV2
 from ...services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+class UsersByIdsRequest(BaseModel):
+    user_ids: list[UUID] = Field(..., alias="userIds")
+    include: Optional[str] = Field(
+        None,
+        description="Comma-separated list of relations to include (e.g., department,stage,roles)",
+    )
+
+    model_config = {"populate_by_name": True}
 
 @router.get("/me", response_model=Optional[UserDetailResponse])
 async def get_current_user_v2(
@@ -117,6 +128,46 @@ async def list_users_v2(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch users",
+        ) from exc
+
+
+@router.post("/by-ids", response_model=list[UserDetailResponse])
+async def get_users_by_ids_v2(
+    org_slug: str,  # Path param from parent router; retained for signature parity
+    payload: UsersByIdsRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Batch fetch user details by explicit IDs with RBAC enforcement."""
+    try:
+        service = UserServiceV2(session)
+        include_parts = {part.strip() for part in payload.include.split(",") if part.strip()} if payload.include else {
+            "department",
+            "stage",
+            "roles",
+        }
+
+        if len(payload.user_ids) > 200:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="userIds is too large (max 200)")
+
+        return await service.get_users_by_ids(
+            context,
+            payload.user_ids,
+            include=include_parts,
+        )
+
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - defensive fallback
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

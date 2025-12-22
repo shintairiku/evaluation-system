@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { submitGoalAction, getGoalsAction } from '@/api/server-actions/goals';
 import { Competency, CompetencyDescription } from '@/api/types/competency';
 import stage1Competencies from '../data/stage1-competencies.json';
+import type { StageWeightBudget } from '../types';
 
 interface LegacyCompetency {
   id: string;
@@ -38,7 +39,9 @@ interface ConfirmationStepProps {
   performanceGoals: PerformanceGoal[];
   competencyGoals: CompetencyGoal[];
   periodId?: string;
+  currentUserId?: string;
   onPrevious: () => void;
+  stageBudgets?: StageWeightBudget;
 }
 
 // Convert legacy format to new format
@@ -65,7 +68,8 @@ function convertLegacyCompetencies(legacyCompetencies: LegacyCompetency[]): Comp
   });
 }
 
-export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, onPrevious }: ConfirmationStepProps) {
+export function ConfirmationStep(props: ConfirmationStepProps) {
+  const { performanceGoals, competencyGoals, periodId, currentUserId, onPrevious } = props;
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
   
@@ -86,6 +90,7 @@ export function ConfirmationStep({ performanceGoals, competencyGoals, periodId, 
         // Get all goals for the period to check their current status
         const goalsResult = await getGoalsAction({
           periodId,
+          userId: currentUserId,
           status: ['draft', 'rejected'] // Only fetch goals that can be submitted
         });
         

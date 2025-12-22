@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+import os
 from typing import Callable
 
 from cachetools import TTLCache
@@ -11,6 +12,7 @@ from starlette.datastructures import Headers
 
 from ..database.repositories.organization_repo import OrganizationRepository
 from ..services.auth_service import AuthService
+from .config import settings
 
 
 logger = logging.getLogger(__name__)
@@ -154,24 +156,22 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 
                 logger.debug(f"Org slug validation successful: {org_slug} -> {db_org_id}")
 
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.error(f"Organization validation failed: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail="Organization validation failed"
-                )
             finally:
                 await session.close()
 
-        except HTTPException:
-            raise
+        except HTTPException as e:
+            # BaseHTTPMiddleware can emit noisy ExceptionGroup traces when exceptions
+            # bubble out; return a response directly instead.
+            return JSONResponse(
+                status_code=e.status_code,
+                content={"detail": e.detail},
+                headers=getattr(e, "headers", None),
+            )
         except Exception as e:
             logger.error(f"Unhandled exception: {e}")
-            raise HTTPException(
+            return JSONResponse(
                 status_code=500,
-                detail="Organization validation failed"
+                content={"detail": "Organization validation failed"},
             )
 
         return await call_next(request)
@@ -179,6 +179,16 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 
 # Middleware for logging requests and responses
 class LoggingMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app):
+        super().__init__(app)
+        # In Docker/dev, people often expect to see request/response logs.
+        # Keep production quieter by default, but allow explicit opt-in.
+        self.log_all_requests = (
+            os.getenv("LOG_ALL_REQUESTS", "false").lower() == "true"
+            or settings.DEBUG
+            or settings.LOG_LEVEL.upper() == "DEBUG"
+        )
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         start_time = time.time()
 
@@ -187,7 +197,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             process_time = time.time() - start_time
 
-            # Only log slow requests (>2s) or errors
+            # Only log slow requests (>2s) or errors by default; opt-in to log all requests.
             if process_time > 2.0:
                 logger.warning(
                     f"Slow request: {request.method} {request.url} - "
@@ -199,6 +209,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     f"Error response: {request.method} {request.url} - "
                     f"Status: {response.status_code} - "
                     f"Process time: {process_time:.4f}s"
+                )
+            elif self.log_all_requests:
+                logger.info(
+                    f"{request.method} {request.url} - "
+                    f"{response.status_code} - {process_time:.4f}s"
                 )
             # Use debug level for normal requests (won't show unless LOG_LEVEL=DEBUG)
             else:

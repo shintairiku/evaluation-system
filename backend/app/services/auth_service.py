@@ -191,6 +191,8 @@ class AuthService:
                     "verify_nbf": True,
                     "require_exp": True,
                     "require_iat": True,
+                    # Tolerate minor clock drift between services/containers.
+                    "leeway": settings.CLERK_JWT_LEEWAY_SECONDS,
                 }
 
                 # Build common kwargs (issuer always enforced when provided)

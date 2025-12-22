@@ -2,6 +2,7 @@ declare const process: {
   env: {
     [key: string]: string | undefined;
     NEXT_PUBLIC_API_BASE_URL?: string;
+    NEXT_PUBLIC_ENABLE_REQUEST_LOGGING?: string;
     NODE_ENV?: string;
   };
 };
@@ -46,7 +47,10 @@ export const API_CONFIG = {
   IS_DEVELOPMENT: process.env.NODE_ENV === 'development',
   
   // Logging configuration
-  ENABLE_REQUEST_LOGGING: process.env.NEXT_PUBLIC_ENABLE_REQUEST_LOGGING === 'true', // Opt-in request logging
+  // Default to logging in non-production for better DX (can be disabled with 'false').
+  ENABLE_REQUEST_LOGGING:
+    process.env.NEXT_PUBLIC_ENABLE_REQUEST_LOGGING === 'true' ||
+    (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_REQUEST_LOGGING !== 'false'),
   ENABLE_ERROR_LOGGING: true, // Always log errors
   
   // Performance settings
@@ -105,6 +109,7 @@ export const API_ENDPOINTS = {
   // User endpoints (organization-scoped)
   USERS: {
     LIST: '/v2/users/',
+    BY_IDS: '/v2/users/by-ids',
     PAGE: '/v2/users/page',
     ME: '/v2/users/me',
     BY_ID: (id: string) => `/users/${id}`,
@@ -161,6 +166,7 @@ export const API_ENDPOINTS = {
   // Goal endpoints
   GOALS: {
     LIST: '/goals/',
+    BY_IDS: '/goals/by-ids',
     BY_ID: (id: string) => `/goals/${id}`,
     CREATE: '/goals/',
     UPDATE: (id: string) => `/goals/${id}`,

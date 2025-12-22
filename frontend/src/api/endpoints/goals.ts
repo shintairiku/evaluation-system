@@ -26,6 +26,7 @@ export const goalsApi = {
     userId?: UUID;
     goalCategory?: string;
     status?: string | string[];
+    hasPreviousGoalId?: boolean;
     page?: number;
     limit?: number;
     includeReviews?: boolean;
@@ -45,6 +46,10 @@ export const goalsApi = {
       }
     }
 
+    if (params?.hasPreviousGoalId !== undefined) {
+      queryParams.append('hasPreviousGoalId', params.hasPreviousGoalId ? 'true' : 'false');
+    }
+
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
@@ -57,6 +62,21 @@ export const goalsApi = {
       : API_ENDPOINTS.GOALS.LIST;
 
     return httpClient.get<GoalListResponse>(endpoint);
+  },
+
+  /**
+   * Batch fetch goals by explicit IDs (avoids broad list scans)
+   */
+  getGoalsByIds: async (params: {
+    goalIds: UUID[];
+    includeReviews?: boolean;
+    includeRejectionHistory?: boolean;
+  }): Promise<ApiResponse<GoalResponse[]>> => {
+    return httpClient.post<GoalResponse[]>(API_ENDPOINTS.GOALS.BY_IDS, {
+      goalIds: params.goalIds,
+      includeReviews: params.includeReviews ?? false,
+      includeRejectionHistory: params.includeRejectionHistory ?? false,
+    });
   },
 
   /**
