@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
-import { type GoalResponse } from '@/api/types';
+import { type GoalResponse, type SupervisorReview } from '@/api/types';
 import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 import { useAutoSave } from '../../hooks/useAutoSave';
@@ -18,8 +18,8 @@ interface GoalApprovalHandlerProps {
   employeeName?: string;
   /** Callback function called after successful approval/rejection */
   onSuccess?: () => void;
-  /** Supervisor review ID for this goal (required for approval actions) */
-  reviewId?: string;
+  /** Supervisor review for this goal (used for approval + draft comment auto-save) */
+  review?: SupervisorReview;
 }
 
 /**
@@ -29,9 +29,10 @@ interface GoalApprovalHandlerProps {
  * @param props - The component props
  * @returns JSX element containing approval form and confirmation dialog
  */
-export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }: GoalApprovalHandlerProps) {
+export function GoalApprovalHandler({ goal, employeeName, onSuccess, review }: GoalApprovalHandlerProps) {
   // Reference to the ApprovalForm for form control
   const approvalFormRef = useRef<ApprovalFormRef>(null);
+  const reviewId = review?.id;
 
   // Determine goal type
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
@@ -39,6 +40,8 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
   // Auto-save hook - handles draft save, load, and before unload
   const { saveStatus, debouncedSave, save } = useAutoSave({
     reviewId,
+    initialComment: review?.comment,
+    initialStatus: review?.status,
     getComment: () => approvalFormRef.current?.getComment() || '',
     setComment: (comment) => approvalFormRef.current?.setComment(comment)
   });

@@ -186,7 +186,7 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
                         goal={goal}
                         employeeName={selectedGroup.employee.name}
                         onGoalUpdate={() => router.refresh()}
-                        reviewId={selectedGroup.goalToReviewMap[goal.id]}
+                        review={selectedGroup.reviewsByGoalId[goal.id]}
                       />
                     ))}
                   </div>
@@ -199,4 +199,3 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
     </ErrorBoundary>
   );
 }
-
