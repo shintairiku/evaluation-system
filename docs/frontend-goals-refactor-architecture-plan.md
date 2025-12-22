@@ -3,7 +3,7 @@
 Status: **Implemented (partial)** — execution is the source of truth; any remaining “plan” notes below are kept only as historical context.  
 Scope: goals-related pages and shared goal UI/data (employee goal-list + supervisor goal-review), plus API layer folder structure alignment.
 
-## Implementation summary (as implemented)
+## Implementation smmary (as implemented)
 
 - Fixed a backend multi-tenant scoping bug where an explicit empty accessible user list (`[]`) could accidentally skip user filtering and return org-wide goals.
   - `backend/app/database/repositories/goal_repo.py`: fail-closed on `user_ids=[]` and always apply the filter when `user_ids is not None`.
@@ -82,9 +82,6 @@ Completed:
   - `GoalListDataLoader.tsx` (server component calling loader)
   - `GoalListClient.tsx` (client UI shell; URL-driven period selection via `?periodId=...`)
 
-### Known gaps / next steps
-- Sidebar prefetch: implemented `prefetch={false}` in sidebar; consider selectively re-enabling only for light routes later.
-- Lint baseline: repo has pre-existing lint errors unrelated to this refactor; avoid widening scope unless we decide to fix baseline.
 
 ## 0) Objectives
 
