@@ -24,7 +24,7 @@ Employees need a structured way to evaluate their own performance against approv
 ```
 Employee creates Performance + Competency goals
          ↓
-Supervisor approves goals
+Supervisor reviews and approves goals
          ↓
 Employee completes self-assessments (Performance + Competency)
          ↓
