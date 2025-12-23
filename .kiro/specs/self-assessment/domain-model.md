@@ -16,11 +16,24 @@ Employees need a structured way to evaluate their own performance against approv
 - Submit their evaluation for supervisor review
 
 **Assessment Scope:**
-1. **業績目標 (Performance Goals)**: Created by employee, approved by supervisor → Self-assessed by employee
-2. **コンピテンシー (Competency Goals)**: Created by employee, approved by supervisor → Self-assessed by employee
-3. **コアバリュー (Core Value Goals)**: Created by employee, approved by supervisor → Self-assessed by employee
+1. **業績目標 (Performance Goals)**: Created by employee → Approved by supervisor → Self-assessed by employee → Supervisor reviews self-assessment
+2. **コンピテンシー (Competency Goals)**: Created by employee → Approved by supervisor → Self-assessed by employee → Supervisor reviews self-assessment
+3. **コアバリュー (Core Value Goals)**: **Only available AFTER supervisor approves self-assessments for Performance and Competency goals**
 
-All **approved goals** (regardless of category) require self-assessment before supervisor review.
+**Sequential Flow:**
+```
+Employee creates Performance + Competency goals
+         ↓
+Supervisor approves goals
+         ↓
+Employee completes self-assessments (Performance + Competency)
+         ↓
+Supervisor reviews and approves self-assessments
+         ↓
+Core Value goals become available
+         ↓
+Employee completes Core Value self-assessment
+```
 
 ### Business Value
 - **Employee Empowerment**: Employees have a voice in their performance evaluation
@@ -127,7 +140,7 @@ All **approved goals** (regardless of category) require self-assessment before s
 
 ### 2.5. SupervisorFeedback
 
-**Purpose**: Supervisor's review of an employee's self-assessment.
+**Purpose**: Supervisor's review and approval of an employee's self-assessment.
 
 **Key Attributes**:
 - `id` (UUID) - Unique identifier
@@ -135,11 +148,17 @@ All **approved goals** (regardless of category) require self-assessment before s
 - `supervisor_rating_code` (Enum) - Supervisor's grade: **SS | S | A+ | A | A- | B | C | D**
 - `supervisor_rating` (Decimal) - Numeric equivalent for calculations (0.0-7.0)
 - `supervisor_comment` (String) - Supervisor's feedback
-- `status` (Enum) - Review status
+- `status` (Enum) - Review status: `pending`, `approved`, `rejected`
+- `reviewed_at` (DateTime) - Timestamp when supervisor completed review
+- `created_at` (DateTime) - Record creation timestamp
+
+**Lifecycle**: pending → approved/rejected
 
 **Relationship**: One-to-one with SelfAssessment
 
-**Note**: Supervisor uses the same grading system as employee self-assessment
+**Business Rule**:
+- Supervisor must approve ALL Performance and Competency self-assessments before Core Value goals become available
+- Status `approved` unlocks Core Value assessment phase
 
 ---
 
@@ -205,7 +224,8 @@ erDiagram
         string supervisor_rating_code "SS|S|A+|A|A-|B|C|D"
         decimal supervisor_rating "0-7, auto-calculated"
         string supervisor_comment
-        string status
+        string status "pending|approved|rejected"
+        timestamp reviewed_at "nullable"
         timestamp created_at
     }
 ```
@@ -229,6 +249,11 @@ erDiagram
 - ✅ Goal must belong to the current user (employee)
 - ✅ Goal's evaluation period must be active
 - ✅ **One self-assessment per goal** (unique constraint on `goal_id`)
+
+**Goal Category Sequential Rules**:
+- ✅ **Performance Goals** (`業績目標`): Can be self-assessed immediately after approval
+- ✅ **Competency Goals** (`コンピテンシー`): Can be self-assessed immediately after approval
+- ✅ **Core Value Goals** (`コアバリュー`): Can ONLY be self-assessed **after supervisor has approved** self-assessments for ALL Performance and Competency goals in the same period
 
 **Period Constraints**:
 - ✅ Can only create self-assessments during active evaluation periods
@@ -373,6 +398,54 @@ stateDiagram-v2
 - ⚠️ Can supervisor **return** for revision (Submitted → Draft)?
 - ⚠️ What happens if goal is rejected **after** self-assessment is submitted?
 
+### 5.2. SupervisorFeedback State Transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Supervisor starts review
+    Pending --> Approved: Supervisor approves
+    Pending --> Rejected: Supervisor rejects
+    Approved --> [*]: Process complete
+    Rejected --> [*]: Process complete
+
+    note right of Pending
+        ✅ Supervisor can edit rating/comment
+        ❌ Not yet finalized
+        ⏳ Employee waiting
+    end note
+
+    note right of Approved
+        ✅ Self-assessment locked
+        ✅ Counts toward Core Value unlock
+        🔓 Unlocks Core Value phase (if all approved)
+    end note
+
+    note right of Rejected
+        ❌ Employee may need to revise
+        ⚠️ Blocks Core Value phase
+        🔄 May require employee resubmission
+    end note
+```
+
+**SupervisorFeedback Transition Rules**:
+
+| From State | To State | Trigger | Who | Conditions |
+|------------|----------|---------|-----|------------|
+| (none) | Pending | Create | Supervisor | Self-assessment is submitted |
+| Pending | Approved | Approve | Supervisor | `supervisor_rating_code` is provided |
+| Pending | Rejected | Reject | Supervisor | Rejection reason provided |
+| Approved | (none) | - | - | **No reverse transition** |
+| Rejected | (none) | - | - | **No reverse transition** |
+
+**Core Value Unlock Logic**:
+- Core Value goals become available when **ALL** Performance + Competency self-assessments have `SupervisorFeedback.status = 'approved'`
+- If ANY self-assessment is rejected, Core Value phase remains locked until resolution
+
+**Open Questions**:
+- ⚠️ Can supervisor **change** approval after approving (Approved → Pending)?
+- ⚠️ If supervisor rejects, can employee **resubmit** the same self-assessment or must create new?
+- ⚠️ What happens if supervisor takes too long to review (timeout/auto-approve)?
+
 ---
 
 ## 6. Open Questions
@@ -425,6 +498,17 @@ stateDiagram-v2
 - [ ] **Comment language**: Japanese only? Multi-language support needed?
 - [ ] **UI localization**: Interface in Japanese? English? Both?
 
+### 6.8. Core Value Sequential Flow
+- [ ] **Unlock trigger**: Does Core Value phase unlock automatically when all Performance+Competency self-assessments are approved?
+- [ ] **Notification**: How is employee notified that Core Value goals are now available?
+- [ ] **Partial approval**: What if only some Performance/Competency self-assessments are approved? Does employee wait for all?
+- [ ] **Rejection handling**: If supervisor rejects a Performance self-assessment after Core Value is already completed, what happens?
+  - Invalidate Core Value assessment?
+  - Lock Core Value in current state?
+  - Allow Core Value to remain valid?
+- [ ] **Multiple Core Value goals**: Can employee have multiple Core Value goals, or just one?
+- [ ] **Core Value approval**: Does Core Value self-assessment also require supervisor approval, or is it final after employee submission?
+
 ---
 
 ## 7. Assumptions (to be validated)
@@ -432,12 +516,14 @@ stateDiagram-v2
 Based on current code analysis:
 
 1. ✅ **One self-assessment per goal** (enforced by unique constraint)
-2. ✅ **Two states only**: draft and submitted (no "pending", "approved", "rejected" states for self-assessment itself)
-3. ✅ **No edit after submission** (assumed, but not enforced in current code)
-4. ✅ **Auto-save in frontend** (not enforced by backend)
-5. ⚠️ **No explicit deadline enforcement** (evaluation period has deadline, but unclear if enforced for self-assessments)
-6. ⚠️ **No character limits on comments** (unlimited currently)
-7. ⚠️ **Grading system**: Letter grades (SS, S, A+, A, A-, B, C, D) with numeric equivalents (0.0-7.0) - **Current code uses 0-100 scale and needs migration**
+2. ✅ **Two states only for SelfAssessment**: draft and submitted (no "pending", "approved", "rejected" states for self-assessment entity itself)
+3. ✅ **SupervisorFeedback has three states**: pending, approved, rejected (approval state tracked separately)
+4. ✅ **No edit after submission** (assumed, but not enforced in current code)
+5. ✅ **Auto-save in frontend** (not enforced by backend)
+6. ⚠️ **No explicit deadline enforcement** (evaluation period has deadline, but unclear if enforced for self-assessments)
+7. ⚠️ **No character limits on comments** (unlimited currently)
+8. ⚠️ **Grading system**: Letter grades (SS, S, A+, A, A-, B, C, D) with numeric equivalents (0.0-7.0) - **Current code uses 0-100 scale and needs migration**
+9. ⚠️ **Sequential flow**: Core Value goals require ALL Performance + Competency self-assessments to be approved first - **Current code does not enforce this sequencing**
 
 ---
 
