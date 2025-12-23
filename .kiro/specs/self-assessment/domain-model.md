@@ -125,7 +125,7 @@ Following the same pattern as goal-review:
 - **`self_rating_code`** (Enum) - Employee's grade: **SS | S | A+ | A | A- | B | C | D** (optional in draft, **required** for submission)
 - `self_rating` (Decimal) - Numeric equivalent for calculations (internal, derived from rating_code)
 - **`self_comment`** (String) - Employee's narrative self-assessment (optional in draft, **required** for submission)
-- `status` (Enum) - Current state: `draft` or `submitted`
+- `status` (Enum) - Current state: `draft`, `submitted`, `approved`, or `rejected`
 - `submitted_at` (DateTime) - Timestamp when assessment was submitted
 - `created_at` (DateTime) - Record creation timestamp
 - `updated_at` (DateTime) - Last modification timestamp
@@ -142,9 +142,9 @@ Following the same pattern as goal-review:
 | C | 1.0 | Below Expectations |
 | D | 0.0 | Unsatisfactory |
 
-**Lifecycle**: draft → submitted
+**Lifecycle**: draft → submitted → approved OR rejected
 
-**Cardinality**: One self-assessment per goal (1:1 relationship)
+**Cardinality**: One **active** self-assessment per goal (multiple can exist for rejection history)
 
 ---
 
@@ -277,7 +277,7 @@ erDiagram
         string self_rating_code "SS|S|A+|A|A-|B|C|D, nullable"
         decimal self_rating "0-7, nullable, auto-calculated"
         string self_comment "nullable"
-        string status "draft|submitted"
+        string status "draft|submitted|approved|rejected"
         timestamp submitted_at "nullable"
         timestamp created_at
         timestamp updated_at
@@ -367,12 +367,26 @@ A- → 3.0 | B → 2.0 | C → 1.0  | D → 0.0
 - ✅ Must have `self_comment` (enforced at submission)
 - ✅ Awaiting supervisor feedback
 - ✅ **Can be edited and resubmitted** by employee if supervisor has not yet reviewed (SupervisorFeedback.status = 'pending' or not created)
-- 🔄 **If rejected**: Original self-assessment remains as 'submitted' (immutable history). System creates **NEW self-assessment** in 'draft' status with `previous_self_assessment_id` pointing to rejected version (see Rejection Flow in section 5.2)
-- ❌ **Becomes read-only** once supervisor **approves** (SupervisorFeedback.status = 'approved')
+- 🔄 **If supervisor approves**: Status changes to 'approved' (immutable)
+- 🔄 **If supervisor rejects**: Status changes to 'rejected' (see Rejection Flow in section 5.2)
+
+**Approved State**:
+- 🔒 **Read-only** (immutable, permanently locked)
+- ✅ Supervisor approved this self-assessment
+- ✅ Counts toward Core Value unlock requirement
+- ✅ Final record of employee's self-evaluation
+- ❌ Cannot be edited or deleted
+
+**Rejected State**:
+- 🔒 **Read-only** (immutable history record)
+- ✅ Visible in rejection history
+- ✅ Supervisor's rejection comment available via SupervisorFeedback
+- ✅ System automatically creates **NEW self-assessment** in 'draft' status with `previous_self_assessment_id` pointing to this rejected record
+- ❌ Cannot be edited or deleted
 
 **Database Constraint**:
 ```sql
-CHECK ((status != 'submitted') OR (submitted_at IS NOT NULL))
+CHECK ((status NOT IN ('submitted', 'approved', 'rejected')) OR (submitted_at IS NOT NULL))
 ```
 
 ---
@@ -385,7 +399,7 @@ CHECK ((status != 'submitted') OR (submitted_at IS NOT NULL))
 - ✅ Can **update** their own self-assessments (only in draft state)
 - ✅ Can **delete** their own self-assessments (only in draft state)
 - ✅ Can **submit** their own self-assessments
-- ❌ **Cannot** edit submitted self-assessments
+- ❌ **Cannot** edit submitted/approved/rejected self-assessments
 - ❌ **Cannot** view/edit other employees' self-assessments
 
 **Supervisor Permissions**:
@@ -427,8 +441,8 @@ CHECK ((status != 'submitted') OR (submitted_at IS NOT NULL))
 | `self_rating_code` | Draft: ❌ No<br>Submit: ✅ Yes | SS\|S\|A+\|A\|A-\|B\|C\|D | Letter grade |
 | `self_rating` | Auto-calculated | 0.0-7.0 (decimal) | Numeric equivalent for calculations |
 | `self_comment` | Draft: ❌ No<br>Submit: ✅ Yes | String, non-empty | **REQUIRED for submission** |
-| `status` | ✅ Yes | `draft` or `submitted` | Default: `draft` |
-| `submitted_at` | Draft: ❌ No<br>Submit: ✅ Yes | Auto-set on submission | - |
+| `status` | ✅ Yes | `draft`, `submitted`, `approved`, or `rejected` | Default: `draft` |
+| `submitted_at` | Draft: ❌ No<br>Submit/Approved/Rejected: ✅ Yes | Auto-set on submission | Required for submitted, approved, and rejected states |
 
 ---
 
@@ -438,7 +452,10 @@ CHECK ((status != 'submitted') OR (submitted_at IS NOT NULL))
 stateDiagram-v2
     [*] --> Draft: Employee creates
     Draft --> Submitted: Employee submits
-    Submitted --> [*]: Process complete
+    Submitted --> Rejected: Supervisor rejects
+    Submitted --> Approved: Supervisor approves
+    Rejected --> [*]: Immutable (history)
+    Approved --> [*]: Process complete
 
     note right of Draft
         ✅ Editable
@@ -454,8 +471,20 @@ stateDiagram-v2
         ✅ Grade + Comment required
         ⏳ Awaiting supervisor review
         🔄 Can edit before review
-        🔄 If rejected: stays 'submitted', NEW draft created with previous_self_assessment_id
-        🔒 Locked only after approval
+    end note
+
+    note right of Rejected
+        🔒 Read-only (immutable)
+        ✅ Status changed to 'rejected'
+        ✅ NEW draft auto-created with previous_self_assessment_id
+        📝 Rejection comment visible via SupervisorFeedback
+    end note
+
+    note right of Approved
+        🔒 Locked permanently
+        ✅ Status = 'approved'
+        ✅ Counts toward Core Value unlock
+        📊 Final self-evaluation record
     end note
 ```
 
@@ -467,18 +496,20 @@ stateDiagram-v2
 | Draft | Submitted | Submit | Employee | `self_rating_code` AND `self_comment` are provided |
 | Draft | (deleted) | Delete | Employee | Still in draft state |
 | Submitted | Draft | Edit | Employee | SupervisorFeedback not yet reviewed (status = 'pending' or not created) |
-| Submitted | (immutable) | Rejected | System | SupervisorFeedback.status = 'rejected' → Rejected self-assessment stays 'submitted', NEW draft created with `previous_self_assessment_id` |
-| Submitted | (locked) | Approved | System | SupervisorFeedback.status = 'approved' |
+| Submitted | Rejected | Reject | System | SupervisorFeedback.status = 'rejected' → Self-assessment status changes to 'rejected', NEW draft created with `previous_self_assessment_id` |
+| Submitted | Approved | Approve | System | SupervisorFeedback.status = 'approved' → **Self-assessment status changes to 'approved'** (immutable) |
+| Rejected | (none) | - | - | **Immutable** - Read-only history record |
+| Approved | (none) | - | - | **Immutable** - No reverse transition |
 
 **Resubmission Rules**:
 - ✅ Employee can edit and resubmit self-assessment **before** supervisor completes review
-- 🔄 **If rejected**: Original self-assessment stays 'submitted' (immutable). System creates **NEW draft** with `previous_self_assessment_id` pointing to rejected version
-  - Employee can see supervisor's rejection comment from SupervisorFeedback
-  - Employee revises NEW draft rating/comment based on feedback
+- 🔄 **If rejected**: Self-assessment status changes to 'rejected' (immutable). System creates **NEW draft** with `previous_self_assessment_id` pointing to rejected version
+  - Employee can see supervisor's rejection comment from SupervisorFeedback (no need to view original self-assessment)
+  - Employee revises NEW draft rating/comment based on supervisor feedback
   - Employee resubmits NEW draft for supervisor review again
   - Forms rejection history chain for audit trail
-- ❌ Once supervisor **approves**, self-assessment becomes **permanently locked**
-- ⚠️ **Open Question**: Should employee receive notification when supervisor locks or rejects the assessment?
+- ✅ Once supervisor **approves**, self-assessment status changes to 'approved' and becomes **permanently locked**
+- ✅ **Notification**: Employee receives badge counter notification when supervisor rejects assessment (see Notification System in section 1)
 
 ### 5.2. SupervisorFeedback State Transitions
 
@@ -497,15 +528,16 @@ stateDiagram-v2
     end note
 
     note right of Approved
-        ✅ Self-assessment locked
+        ✅ Self-assessment status changes to 'approved'
+        🔒 Self-assessment locked (immutable)
         ✅ Counts toward Core Value unlock
         🔓 Unlocks Core Value phase (if all approved)
     end note
 
     note right of Rejected
-        🔄 Original self-assessment stays 'submitted' (immutable)
+        🔄 Self-assessment status changed to 'rejected' (immutable)
         ✅ System creates NEW draft with previous_self_assessment_id
-        ✅ Employee can see rejection reason
+        ✅ Employee can see rejection reason via SupervisorFeedback
         ⚠️ Blocks Core Value phase
         ✏️ Employee revises NEW draft and resubmits
     end note
@@ -526,26 +558,28 @@ stateDiagram-v2
 - ✅ **Rejected**: Comment is **REQUIRED** (must explain rejection reason to employee)
 
 **Core Value Unlock Logic**:
-- Core Value goals become available when **ALL** Performance + Competency self-assessments have `SupervisorFeedback.status = 'approved'`
-- If ANY self-assessment is rejected, Core Value phase remains locked until resolution
+- Core Value goals become available when **ALL** Performance + Competency self-assessments have `status = 'approved'`
+- Query: `SELECT COUNT(*) FROM self_assessments WHERE status = 'approved' AND goal_category IN ('業績目標', 'コンピテンシー')`
+- If ANY self-assessment is not approved (draft/submitted/rejected), Core Value phase remains locked until resolution
 
 **Rejection Flow** (Following Goal Review Pattern):
 - 🔄 When supervisor rejects (SupervisorFeedback.status = 'rejected'):
-  1. **Original self-assessment remains with status = 'submitted'** (immutable history record)
+  1. **Original self-assessment status changes to 'rejected'** (immutable history record)
   2. **System creates NEW self-assessment in 'draft' status** with:
      - Same goal_id, period_id
      - Copy of self_rating_code, self_comment from rejected version
      - `previous_self_assessment_id` → points to rejected self-assessment (for history tracking)
-  3. Employee can view supervisor's rejection comment from SupervisorFeedback
+  3. Employee sees supervisor's rejection comment from SupervisorFeedback (**no need to view original self-assessment**)
   4. Employee edits the NEW draft self-assessment
-  5. Employee resubmits the NEW self-assessment
+  5. Employee resubmits the NEW draft
   6. Supervisor reviews the NEW self-assessment
   7. Process repeats until approved
 
 **History Tracking**:
 - Each rejection creates a new self-assessment linked via `previous_self_assessment_id`
-- Chain: Rejected SA1 ← SA2 (draft) → Rejected SA2 ← SA3 (draft) → Approved SA3
+- Chain: Rejected SA1 (status='rejected') ← SA2 (draft → submitted → rejected) ← SA3 (draft → submitted → approved)
 - Full rejection history visible by following `previous_self_assessment_id` chain
+- Employee can query rejection history, but **supervisor's comment is sufficient** - no UI needed to view original rejected self-assessments
 
 **Open Questions**:
 - ⚠️ Can supervisor **change** approval after approving (Approved → Pending)?
@@ -639,7 +673,7 @@ const { rejectedSelfAssessmentsCount } = useSelfAssessmentListContext();
   - Auto-submit with current data?
   - Mark as incomplete?
   - Prevent submission?
-- [ ] **Rejection cycle limit**: Is there a maximum number of reject-revise-resubmit cycles?
+- [x] ~~**Rejection cycle limit**~~ → ✅ **RESOLVED**: No limit - process repeats until supervisor approves
 - [ ] **UI for rejection history**: How should UI display the rejection history chain to employees and supervisors?
 
 ### 6.2. Comment Requirements
@@ -698,11 +732,11 @@ const { rejectedSelfAssessmentsCount } = useSelfAssessmentListContext();
 
 Based on current code analysis:
 
-1. ✅ **One self-assessment per goal** (enforced by unique constraint on `goal_id`)
-2. ✅ **Two states only for SelfAssessment**: draft and submitted (no "pending", "approved", "rejected" states for self-assessment entity itself)
-3. ✅ **SupervisorFeedback has three states**: pending, approved, rejected (approval state tracked separately)
+1. ⚠️ **One ACTIVE self-assessment per goal** (unique constraint on `goal_id` may need adjustment - multiple can exist for rejection history)
+2. ⚠️ **Four states for SelfAssessment**: draft, submitted, approved, and rejected (following goal-review pattern) - **Current code only has draft/submitted**
+3. ✅ **SupervisorFeedback has three states**: pending, approved, rejected (approval/rejection state tracked separately)
 4. ⚠️ **Resubmission allowed**: Employee can edit and resubmit before supervisor reviews - **Current code does NOT allow this**
-5. ⚠️ **Rejection history pattern**: Following goal-review pattern where rejected self-assessment stays 'submitted' and system creates NEW draft with `previous_self_assessment_id` - **Current code does NOT implement this pattern**
+5. ⚠️ **Rejection history pattern**: Following goal-review pattern where rejected self-assessment status changes to 'rejected' and system creates NEW draft with `previous_self_assessment_id` - **Current code does NOT implement this pattern**
 6. ⚠️ **Rejection history field**: `previous_self_assessment_id` field needed for tracking rejection history chain - **Current database model does NOT have this field**
 7. ✅ **Auto-save in frontend** (not enforced by backend)
 8. ⚠️ **Employee comment REQUIRED**: Must provide comment on submission - **Current code makes it optional**
