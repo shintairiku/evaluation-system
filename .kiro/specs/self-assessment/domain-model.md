@@ -52,12 +52,62 @@ Employee completes Core Value self-assessment
   - Draft auto-save functionality
   - Letter grade selection (SS, S, A+, A, A-, B, C, D)
   - Comment input for each goal
+  - **Badge notification**: Shows count of rejected self-assessments requiring attention
 
 - **Supervisor Review Pages**: Located in `/evaluation-feedback` section
   - Supervisor reviews submitted self-assessments
   - Provides supervisor rating and feedback
   - Approves or rejects employee self-assessments
   - Controls Core Value phase unlock
+  - **Badge notification**: Shows count of pending self-assessments to review
+
+### Notification System (Badge Counters)
+Following the same pattern as goal-review:
+- **When employee submits self-assessment**:
+  - Badge counter appears on `/evaluation-feedback` navigation icon (left sidebar)
+  - Supervisor sees count of pending self-assessments requiring review
+
+- **When supervisor rejects self-assessment**:
+  - Badge counter appears on `/evaluation-input` navigation icon (left sidebar)
+  - Employee sees count of rejected self-assessments requiring revision
+
+- **Badge behavior**:
+  - Counter increments for each new submitted/rejected item
+  - Counter decrements when supervisor approves or employee resubmits
+  - Real-time updates via existing notification system
+
+#### Technical Implementation (Following Goal Review Pattern)
+
+**Architecture**: React Context API for state management
+
+**Context Providers** (to be implemented):
+- `SelfAssessmentReviewContext` - For supervisor side (pending self-assessments count)
+  - Extends pattern from `GoalReviewContext`
+  - Query: Count of `self_assessments` with `status = 'submitted'` (awaiting supervisor review)
+  - API: Use existing `getSelfAssessmentsAction()` with filter
+
+- `SelfAssessmentListContext` - For employee side (rejected self-assessments count)
+  - Extends pattern from `GoalListContext`
+  - Query: Count of `self_assessments` with `status = 'draft'` AND `previous_self_assessment_id IS NOT NULL`
+  - API: Use existing `getSelfAssessmentsAction()` with filter
+
+**Badge Display**:
+- Location: `Sidebar` component (left navigation bar)
+- Visual: Red badge with counter (max display: 99+)
+- States:
+  - Collapsed sidebar: Badge on icon only
+  - Expanded sidebar: Badge next to label text
+  - Hover: Transition effect
+
+**Update Triggers**:
+- Initial load: Auto-fetch on context provider mount
+- Manual refresh: Page components call `refreshCount()` on data changes
+- Cache: 5-minute cache + `revalidateTag()` on mutations
+
+**Reference Implementation**:
+- Pattern: `frontend/src/context/GoalReviewContext.tsx`
+- Alternative: `frontend/src/context/GoalListContext.tsx` (with client-side filtering)
+- Display: `frontend/src/components/display/sidebar.tsx` (lines 120-153)
 
 ---
 
@@ -504,6 +554,81 @@ stateDiagram-v2
 
 ---
 
+## 5.3. Notification System Integration
+
+### Badge Counter Implementation
+
+**Frontend Context Architecture** (React Context API):
+
+| Context | Purpose | Count Logic | API Endpoint |
+|---------|---------|-------------|--------------|
+| `SelfAssessmentReviewContext` | Supervisor notification | Count `self_assessments` where `status = 'submitted'` | `getSelfAssessmentsAction({ status: 'submitted' })` |
+| `SelfAssessmentListContext` | Employee notification | Count `self_assessments` where `status = 'draft' AND previous_self_assessment_id IS NOT NULL` | `getSelfAssessmentsAction({ status: 'draft' })` + client filter |
+
+**Provider Hierarchy**:
+```
+app/layout.tsx (Root Layout)
+  └─ GoalReviewProvider (Global - existing)
+     └─ SelfAssessmentReviewProvider (Global - to implement)
+        └─ app/(evaluation)/layout.tsx (Evaluation Layout)
+           └─ GoalListProvider (Scoped - existing)
+              └─ SelfAssessmentListContext (Scoped - to implement)
+                 └─ Sidebar + Pages
+```
+
+**Sidebar Display Logic** (`frontend/src/components/display/sidebar.tsx`):
+```typescript
+// Supervisor side - /evaluation-feedback
+const { pendingSelfAssessmentsCount } = useSelfAssessmentReviewContext();
+{pendingSelfAssessmentsCount > 0 && (
+  <Badge variant="destructive">
+    {pendingSelfAssessmentsCount > 99 ? '99+' : pendingSelfAssessmentsCount}
+  </Badge>
+)}
+
+// Employee side - /evaluation-input
+const { rejectedSelfAssessmentsCount } = useSelfAssessmentListContext();
+{rejectedSelfAssessmentsCount > 0 && (
+  <Badge variant="destructive">
+    {rejectedSelfAssessmentsCount > 99 ? '99+' : rejectedSelfAssessmentsCount}
+  </Badge>
+)}
+```
+
+**Cache Strategy**:
+- **Cache Tag**: `CACHE_TAGS.SELF_ASSESSMENTS` (already exists)
+- **Duration**: 5 minutes (DYNAMIC)
+- **Revalidation**: Automatic on mutations via `revalidateTag('SELF_ASSESSMENTS')`
+- **Manual Refresh**: Pages call `refreshPendingSelfAssessmentsCount()` on data changes
+
+**Update Flow**:
+1. **Employee submits self-assessment**:
+   - Backend creates `self_assessment` with `status = 'submitted'`
+   - Revalidates `SELF_ASSESSMENTS` cache tag
+   - Supervisor's `SelfAssessmentReviewContext` refreshes count
+   - Badge appears on `/evaluation-feedback` icon
+
+2. **Supervisor rejects self-assessment**:
+   - Backend creates `supervisor_feedback` with `status = 'rejected'`
+   - Backend creates NEW `self_assessment` with `status = 'draft'` and `previous_self_assessment_id`
+   - Revalidates `SELF_ASSESSMENTS` cache tag
+   - Employee's `SelfAssessmentListContext` refreshes count
+   - Badge appears on `/evaluation-input` icon
+
+3. **Supervisor approves self-assessment**:
+   - Backend updates `supervisor_feedback` to `status = 'approved'`
+   - Revalidates `SELF_ASSESSMENTS` cache tag
+   - Supervisor's count decrements (no longer `submitted`)
+   - Badge counter updates or disappears
+
+**Reference Files**:
+- Context template: `frontend/src/context/GoalReviewContext.tsx`
+- Alternative pattern: `frontend/src/context/GoalListContext.tsx`
+- Sidebar integration: `frontend/src/components/display/sidebar.tsx` (lines 120-153)
+- API layer: `frontend/src/api/server-actions/self-assessments.ts` (already exists)
+
+---
+
 ## 6. Open Questions
 
 ### 6.1. Submission Flow
@@ -525,11 +650,11 @@ stateDiagram-v2
 - [ ] **Comment template or guidance?** Should UI provide prompts?
 
 ### 6.3. Notifications
-- [ ] **Who gets notified when**:
-  - Employee submits self-assessment → Supervisor?
-  - Supervisor submits feedback → Employee?
-  - Deadline approaching → Employee?
-- [ ] **Notification channels**: Email, in-app, both?
+- [x] ~~**Who gets notified when**~~ → ✅ **RESOLVED**: Badge counter notification system (following goal-review pattern):
+  - **Employee submits self-assessment** → Badge counter appears on `/evaluation-feedback` icon in left navigation bar for supervisor (showing count of pending self-assessments)
+  - **Supervisor rejects self-assessment** → Badge counter appears on `/evaluation-input` icon in left navigation bar for employee (showing count of rejected self-assessments to review)
+  - Same logic already implemented for goal review
+- [ ] **Notification channels**: Email notifications needed in addition to badge counters?
 
 ### 6.4. Supervisor Feedback Integration
 - [ ] **Can supervisor see self-assessment before completing their own review?**
@@ -586,6 +711,8 @@ Based on current code analysis:
 11. ⚠️ **No character limits on comments** (unlimited currently)
 12. ⚠️ **Grading system**: Letter grades (SS, S, A+, A, A-, B, C, D) with numeric equivalents (0.0-7.0) - **Current code uses 0-100 scale and needs migration**
 13. ⚠️ **Sequential flow**: Core Value goals require ALL Performance + Competency self-assessments to be approved first - **Current code does not enforce this sequencing**
+14. ✅ **Badge notification system**: Follows existing goal-review pattern with React Context API for badge counters in sidebar navigation - **Implementation documented in section 5.3**
+15. ⚠️ **Badge counter contexts**: Need to implement `SelfAssessmentReviewContext` (supervisor) and `SelfAssessmentListContext` (employee) following existing `GoalReviewContext` and `GoalListContext` patterns - **Not yet implemented**
 
 ---
 
