@@ -16,6 +16,7 @@ from .services.auth_service import close_jwks_client
 
 logger = logging.getLogger(__name__)
 
+
 app = FastAPI(
     title="HR Evaluation System API",
     description="API for managing employee evaluations, goals, and performance reports",
