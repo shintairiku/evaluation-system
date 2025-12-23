@@ -152,7 +152,7 @@ export const getUsersByIdsAction = cache(
   },
 );
 
-export const getCurrentUserAction = cache(async (): Promise<{
+export const getCurrentUserAction = async (): Promise<{
   success: boolean;
   data?: UserDetailResponse | null;
   error?: string;
@@ -178,7 +178,7 @@ export const getCurrentUserAction = cache(async (): Promise<{
       error: 'An unexpected error occurred while fetching current user',
     };
   }
-});
+};
 
 export const checkUserExistsAction = cache(
   async (

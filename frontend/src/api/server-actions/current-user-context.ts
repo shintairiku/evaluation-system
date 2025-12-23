@@ -1,6 +1,5 @@
 'use server';
 import { auth } from '@clerk/nextjs/server';
-import { cache } from 'react';
 import { getCurrentOrgContext } from '../utils/jwt-parser';
 import { getCategorizedEvaluationPeriodsAction } from './evaluation-periods';
 import { getCurrentUserAction } from './users';
@@ -10,7 +9,7 @@ interface CurrentUserContextOptions {
   includeUser?: boolean;
 }
 
-const getCurrentUserContextCached = cache(async (
+const getCurrentUserContext = async (
   includeUser: boolean,
 ): Promise<CurrentUserContextPayload> => {
   const { userId: clerkUserId, orgId: clerkOrgId } = await auth();
@@ -38,11 +37,11 @@ const getCurrentUserContextCached = cache(async (
     currentPeriod: periodsResult.success ? periodsResult.data?.current ?? null : null,
     periods: periodsResult.success ? periodsResult.data ?? null : null,
   };
-});
+};
 
 export async function getCurrentUserContextAction(
   options?: CurrentUserContextOptions,
 ): Promise<CurrentUserContextPayload> {
   const includeUser = options?.includeUser !== false;
-  return getCurrentUserContextCached(includeUser);
+  return getCurrentUserContext(includeUser);
 }
