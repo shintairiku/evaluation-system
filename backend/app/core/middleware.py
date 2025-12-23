@@ -48,57 +48,56 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         path = request.url.path
-
-        # Allow OPTIONS requests (CORS preflight)
-        if request.method == "OPTIONS":
-            return await call_next(request)
-
-        # Allow public routes to pass through without authentication
-        if path in self.public_routes:
-            return await call_next(request)
-
-        # Allow public route prefixes to pass through
-        for prefix in self.public_prefixes:
-            if path.startswith(prefix):
-                return await call_next(request)
-
-        # Check if this is an organization-scoped route
-        match = self.org_route_pattern.match(path)
-
-        if not match:
-            # Not an org-scoped route, proceed normally
-            return await call_next(request)
-
-        # Extract org_slug from URL
-        org_slug = match.group(1)
-        org_slug_key = org_slug.lower()
-
-        # If previous middleware already attached org context, reuse it
-        existing_org_id = getattr(request.state, "org_id", None)
-        existing_org_slug = getattr(request.state, "org_slug", None)
-        cached_org = _org_slug_cache.get(org_slug_key)
+        session = None
+        session_owner = False
 
         try:
-            # Normalize headers for case-insensitive lookup
-            headers = Headers(request.headers)
+            # Allow OPTIONS requests (CORS preflight)
+            if request.method == "OPTIONS":
+                return await call_next(request)
 
-            # Support any casing for the Authorization header, including lowercase from proxies
-            auth_header = headers.get("authorization")
-            if not auth_header or not auth_header.lower().startswith("bearer "):
-                raise HTTPException(
-                    status_code=401,
-                    detail="Missing or invalid Authorization header"
-                )
+            # Allow public routes to pass through without authentication
+            if path in self.public_routes:
+                return await call_next(request)
 
-            # Preserve token casing while ignoring prefix casing
-            token = auth_header.split(" ", 1)[1]
+            # Allow public route prefixes to pass through
+            for prefix in self.public_prefixes:
+                if path.startswith(prefix):
+                    return await call_next(request)
 
-            # Get database session and validate organization
-            session_gen = self.get_session()
-            session = await session_gen.__anext__()
+            # Check if this is an organization-scoped route
+            match = self.org_route_pattern.match(path)
+
+            if not match:
+                # Not an org-scoped route, proceed normally
+                return await call_next(request)
+
             try:
-                # Validate JWT and extract user info
-                auth_service = AuthService(session)
+                # Extract org_slug from URL
+                org_slug = match.group(1)
+                org_slug_key = org_slug.lower()
+
+                # If previous middleware already attached org context, reuse it
+                existing_org_id = getattr(request.state, "org_id", None)
+                existing_org_slug = getattr(request.state, "org_slug", None)
+                cached_org = _org_slug_cache.get(org_slug_key)
+
+                # Normalize headers for case-insensitive lookup
+                headers = Headers(request.headers)
+
+                # Support any casing for the Authorization header, including lowercase from proxies
+                auth_header = headers.get("authorization")
+                if not auth_header or not auth_header.lower().startswith("bearer "):
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Missing or invalid Authorization header"
+                    )
+
+                # Preserve token casing while ignoring prefix casing
+                token = auth_header.split(" ", 1)[1]
+
+                # Validate JWT and extract user info (no DB required)
+                auth_service = AuthService(None)
                 auth_user = await auth_service.get_user_from_token(token)
 
                 # Determine organization id/slug using, in order of priority:
@@ -110,6 +109,15 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
                 elif cached_org:
                     db_org_id, db_org_slug = cached_org
                 else:
+                    # Only open a DB session if we must resolve the org slug.
+                    session = getattr(request.state, "db_session", None)
+                    if session is None:
+                        session_gen = self.get_session()
+                        session = await session_gen.__anext__()
+                        request.state.db_session = session
+                        request.state._db_session_owner = True
+                        session_owner = True
+
                     org_repo = OrganizationRepository(session)
                     organization = await org_repo.get_by_slug(org_slug)
 
@@ -156,25 +164,28 @@ class OrgSlugValidationMiddleware(BaseHTTPMiddleware):
 
                 logger.debug(f"Org slug validation successful: {org_slug} -> {db_org_id}")
 
-            finally:
+            except HTTPException as e:
+                # BaseHTTPMiddleware can emit noisy ExceptionGroup traces when exceptions
+                # bubble out; return a response directly instead.
+                return JSONResponse(
+                    status_code=e.status_code,
+                    content={"detail": e.detail},
+                    headers=getattr(e, "headers", None),
+                )
+            except Exception as e:
+                logger.error(f"Unhandled exception: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"detail": "Organization validation failed"},
+                )
+
+            return await call_next(request)
+        finally:
+            if session_owner and session is not None:
                 await session.close()
-
-        except HTTPException as e:
-            # BaseHTTPMiddleware can emit noisy ExceptionGroup traces when exceptions
-            # bubble out; return a response directly instead.
-            return JSONResponse(
-                status_code=e.status_code,
-                content={"detail": e.detail},
-                headers=getattr(e, "headers", None),
-            )
-        except Exception as e:
-            logger.error(f"Unhandled exception: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"detail": "Organization validation failed"},
-            )
-
-        return await call_next(request)
+                if getattr(request.state, "db_session", None) is session:
+                    request.state.db_session = None
+                    request.state._db_session_owner = False
 
 
 # Middleware for logging requests and responses
