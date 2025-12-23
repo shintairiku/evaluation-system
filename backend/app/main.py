@@ -12,6 +12,7 @@ from .core.middleware import LoggingMiddleware, OrgSlugValidationMiddleware, htt
 from .core.config import settings
 from .schemas.common import HealthCheckResponse
 from .database.session import AsyncSessionLocal
+from .services.auth_service import close_jwks_client
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,12 @@ async def _bootstrap_indexes():
         logger.debug("Performance indexes ensured")
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("Failed to ensure performance indexes: %s", exc)
+
+
+@app.on_event("shutdown")
+async def _shutdown_clients():
+    """Close shared HTTP clients."""
+    await close_jwks_client()
 
 @app.get("/", response_model=HealthCheckResponse)
 async def root():
