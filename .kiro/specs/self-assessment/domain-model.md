@@ -46,6 +46,19 @@ Employee completes Core Value self-assessment
 2. **Supervisors**: Review employee self-assessments alongside their own evaluations
 3. **Admins**: Monitor self-assessment completion rates and compliance
 
+### UI Implementation
+- **Employee Self-Assessment Pages**: Located in `/evaluation-input` section
+  - Employee creates and submits self-assessments
+  - Draft auto-save functionality
+  - Letter grade selection (SS, S, A+, A, A-, B, C, D)
+  - Comment input for each goal
+
+- **Supervisor Review Pages**: Located in `/evaluation-feedback` section
+  - Supervisor reviews submitted self-assessments
+  - Provides supervisor rating and feedback
+  - Approves or rejects employee self-assessments
+  - Controls Core Value phase unlock
+
 ---
 
 ## 2. Core Entities
@@ -58,9 +71,10 @@ Employee completes Core Value self-assessment
 - `id` (UUID) - Unique identifier
 - `goal_id` (UUID) - Reference to the goal being assessed
 - `period_id` (UUID) - Reference to the evaluation period
-- **`self_rating_code`** (Enum) - Employee's grade: **SS | S | A+ | A | A- | B | C | D** (optional until submission)
+- **`previous_self_assessment_id`** (UUID, nullable) - Reference to previous self-assessment (for rejection history tracking)
+- **`self_rating_code`** (Enum) - Employee's grade: **SS | S | A+ | A | A- | B | C | D** (optional in draft, **required** for submission)
 - `self_rating` (Decimal) - Numeric equivalent for calculations (internal, derived from rating_code)
-- `self_comment` (String) - Employee's narrative self-assessment (optional)
+- **`self_comment`** (String) - Employee's narrative self-assessment (optional in draft, **required** for submission)
 - `status` (Enum) - Current state: `draft` or `submitted`
 - `submitted_at` (DateTime) - Timestamp when assessment was submitted
 - `created_at` (DateTime) - Record creation timestamp
@@ -145,9 +159,9 @@ Employee completes Core Value self-assessment
 **Key Attributes**:
 - `id` (UUID) - Unique identifier
 - `self_assessment_id` (UUID) - Reference to self-assessment
-- `supervisor_rating_code` (Enum) - Supervisor's grade: **SS | S | A+ | A | A- | B | C | D**
+- `supervisor_rating_code` (Enum) - Supervisor's grade: **SS | S | A+ | A | A- | B | C | D** (required for approval)
 - `supervisor_rating` (Decimal) - Numeric equivalent for calculations (0.0-7.0)
-- `supervisor_comment` (String) - Supervisor's feedback
+- **`supervisor_comment`** (String) - Supervisor's feedback (**optional** for approval, **required** for rejection)
 - `status` (Enum) - Review status: `pending`, `approved`, `rejected`
 - `reviewed_at` (DateTime) - Timestamp when supervisor completed review
 - `created_at` (DateTime) - Record creation timestamp
@@ -209,6 +223,7 @@ erDiagram
         uuid id PK
         uuid goal_id FK "UNIQUE"
         uuid period_id FK
+        uuid previous_self_assessment_id FK "nullable, points to rejected self-assessment"
         string self_rating_code "SS|S|A+|A|A-|B|C|D, nullable"
         decimal self_rating "0-7, nullable, auto-calculated"
         string self_comment "nullable"
@@ -231,8 +246,9 @@ erDiagram
 ```
 
 **Key Relationships**:
-- One Goal → One SelfAssessment (1:1, optional)
+- One Goal → One or More SelfAssessments (1:N, for rejection history chain)
 - One SelfAssessment → One SupervisorFeedback (1:1, optional)
+- One SelfAssessment → One Previous SelfAssessment (self-referential, optional, for rejection history)
 - One User → Many Goals (1:N)
 - One User → Many SelfAssessments (1:N)
 - One EvaluationPeriod → Many Goals (1:N)
@@ -278,9 +294,11 @@ A- → 3.0 | B → 2.0 | C → 1.0  | D → 0.0
 ```
 
 **Comment Rules**:
-- ✅ Comment is **always optional** (no length restrictions currently)
+- ✅ **Employee self-assessment comment**: **REQUIRED** (mandatory for submission)
+- ✅ **Supervisor comment**:
+  - **Optional** when approving self-assessment
+  - **REQUIRED** when rejecting self-assessment (must provide rejection reason)
 - ⚠️ **Open Question**: Should there be a minimum/maximum character count?
-- ⚠️ **Open Question**: Should comment be required for certain rating grades (e.g., D or C)?
 
 ---
 
@@ -294,11 +312,13 @@ A- → 3.0 | B → 2.0 | C → 1.0  | D → 0.0
 - ✅ Rating and comment are optional
 
 **Submitted State**:
-- ✅ **Read-only** for employee (cannot edit or delete)
 - ✅ Must have `submitted_at` timestamp (database constraint)
-- ✅ Must have `self_rating` (enforced at submission)
+- ✅ Must have `self_rating_code` (enforced at submission)
+- ✅ Must have `self_comment` (enforced at submission)
 - ✅ Awaiting supervisor feedback
-- ⚠️ **Open Question**: Can employee cancel submission within a grace period?
+- ✅ **Can be edited and resubmitted** by employee if supervisor has not yet reviewed (SupervisorFeedback.status = 'pending' or not created)
+- 🔄 **If rejected**: Original self-assessment remains as 'submitted' (immutable history). System creates **NEW self-assessment** in 'draft' status with `previous_self_assessment_id` pointing to rejected version (see Rejection Flow in section 5.2)
+- ❌ **Becomes read-only** once supervisor **approves** (SupervisorFeedback.status = 'approved')
 
 **Database Constraint**:
 ```sql
@@ -334,6 +354,7 @@ CHECK ((status != 'submitted') OR (submitted_at IS NOT NULL))
 **Unique Constraint**:
 - ✅ One self-assessment per goal
 - ✅ Database index: `idx_self_assessments_goal_unique` on `goal_id`
+- ⚠️ **Important**: With rejection history pattern, multiple self-assessments can exist for the same goal (original rejected + new drafts), but only ONE active self-assessment per goal at a time. May need to adjust unique constraint logic to allow this pattern.
 
 **Cascade Deletion**:
 - ✅ If a goal is deleted → self-assessment is deleted (`ON DELETE CASCADE`)
@@ -342,6 +363,7 @@ CHECK ((status != 'submitted') OR (submitted_at IS NOT NULL))
 **Referential Integrity**:
 - ✅ `goal_id` must reference an existing goal
 - ✅ `period_id` must reference an existing evaluation period
+- ✅ `previous_self_assessment_id` (nullable) must reference an existing self-assessment (for rejection history chain)
 
 ---
 
@@ -349,11 +371,12 @@ CHECK ((status != 'submitted') OR (submitted_at IS NOT NULL))
 
 | Field | Required? | Constraints | Notes |
 |-------|-----------|-------------|-------|
-| `goal_id` | ✅ Yes | Must be approved goal owned by user | Unique |
+| `goal_id` | ✅ Yes | Must be approved goal owned by user | See unique constraint note in 4.5 |
 | `period_id` | ✅ Yes | Must be active period | - |
+| `previous_self_assessment_id` | ❌ No | Must reference existing self-assessment if provided | For rejection history tracking |
 | `self_rating_code` | Draft: ❌ No<br>Submit: ✅ Yes | SS\|S\|A+\|A\|A-\|B\|C\|D | Letter grade |
 | `self_rating` | Auto-calculated | 0.0-7.0 (decimal) | Numeric equivalent for calculations |
-| `self_comment` | ❌ No | None currently | Optional |
+| `self_comment` | Draft: ❌ No<br>Submit: ✅ Yes | String, non-empty | **REQUIRED for submission** |
 | `status` | ✅ Yes | `draft` or `submitted` | Default: `draft` |
 | `submitted_at` | Draft: ❌ No<br>Submit: ✅ Yes | Auto-set on submission | - |
 
@@ -373,14 +396,16 @@ stateDiagram-v2
         ✅ Can delete
         ❌ Grade (rating_code) optional
         ❌ submitted_at NULL
+        🔗 May have previous_self_assessment_id (if created from rejection)
     end note
 
     note right of Submitted
-        ❌ Read-only (employee)
         ✅ submitted_at set
-        ✅ Grade (rating_code) required
-        ✅ Awaiting supervisor review
-        🔒 Cannot edit/delete
+        ✅ Grade + Comment required
+        ⏳ Awaiting supervisor review
+        🔄 Can edit before review
+        🔄 If rejected: stays 'submitted', NEW draft created with previous_self_assessment_id
+        🔒 Locked only after approval
     end note
 ```
 
@@ -389,14 +414,21 @@ stateDiagram-v2
 | From State | To State | Trigger | Who | Conditions |
 |------------|----------|---------|-----|------------|
 | (none) | Draft | Create | Employee | Goal is approved + period is active |
-| Draft | Submitted | Submit | Employee | `self_rating_code` is provided |
+| Draft | Submitted | Submit | Employee | `self_rating_code` AND `self_comment` are provided |
 | Draft | (deleted) | Delete | Employee | Still in draft state |
-| Submitted | (none) | - | - | **No reverse transition** |
+| Submitted | Draft | Edit | Employee | SupervisorFeedback not yet reviewed (status = 'pending' or not created) |
+| Submitted | (immutable) | Rejected | System | SupervisorFeedback.status = 'rejected' → Rejected self-assessment stays 'submitted', NEW draft created with `previous_self_assessment_id` |
+| Submitted | (locked) | Approved | System | SupervisorFeedback.status = 'approved' |
 
-**Open Questions**:
-- ⚠️ Can employee **cancel** submission within X hours?
-- ⚠️ Can supervisor **return** for revision (Submitted → Draft)?
-- ⚠️ What happens if goal is rejected **after** self-assessment is submitted?
+**Resubmission Rules**:
+- ✅ Employee can edit and resubmit self-assessment **before** supervisor completes review
+- 🔄 **If rejected**: Original self-assessment stays 'submitted' (immutable). System creates **NEW draft** with `previous_self_assessment_id` pointing to rejected version
+  - Employee can see supervisor's rejection comment from SupervisorFeedback
+  - Employee revises NEW draft rating/comment based on feedback
+  - Employee resubmits NEW draft for supervisor review again
+  - Forms rejection history chain for audit trail
+- ❌ Once supervisor **approves**, self-assessment becomes **permanently locked**
+- ⚠️ **Open Question**: Should employee receive notification when supervisor locks or rejects the assessment?
 
 ### 5.2. SupervisorFeedback State Transitions
 
@@ -421,9 +453,11 @@ stateDiagram-v2
     end note
 
     note right of Rejected
-        ❌ Employee may need to revise
+        🔄 Original self-assessment stays 'submitted' (immutable)
+        ✅ System creates NEW draft with previous_self_assessment_id
+        ✅ Employee can see rejection reason
         ⚠️ Blocks Core Value phase
-        🔄 May require employee resubmission
+        ✏️ Employee revises NEW draft and resubmits
     end note
 ```
 
@@ -432,38 +466,62 @@ stateDiagram-v2
 | From State | To State | Trigger | Who | Conditions |
 |------------|----------|---------|-----|------------|
 | (none) | Pending | Create | Supervisor | Self-assessment is submitted |
-| Pending | Approved | Approve | Supervisor | `supervisor_rating_code` is provided |
-| Pending | Rejected | Reject | Supervisor | Rejection reason provided |
+| Pending | Approved | Approve | Supervisor | `supervisor_rating_code` is provided, `supervisor_comment` is **optional** |
+| Pending | Rejected | Reject | Supervisor | `supervisor_comment` is **REQUIRED** (rejection reason mandatory) |
 | Approved | (none) | - | - | **No reverse transition** |
 | Rejected | (none) | - | - | **No reverse transition** |
+
+**Supervisor Comment Rules**:
+- ✅ **Approved**: Comment is optional (supervisor can provide feedback but not mandatory)
+- ✅ **Rejected**: Comment is **REQUIRED** (must explain rejection reason to employee)
 
 **Core Value Unlock Logic**:
 - Core Value goals become available when **ALL** Performance + Competency self-assessments have `SupervisorFeedback.status = 'approved'`
 - If ANY self-assessment is rejected, Core Value phase remains locked until resolution
 
+**Rejection Flow** (Following Goal Review Pattern):
+- 🔄 When supervisor rejects (SupervisorFeedback.status = 'rejected'):
+  1. **Original self-assessment remains with status = 'submitted'** (immutable history record)
+  2. **System creates NEW self-assessment in 'draft' status** with:
+     - Same goal_id, period_id
+     - Copy of self_rating_code, self_comment from rejected version
+     - `previous_self_assessment_id` → points to rejected self-assessment (for history tracking)
+  3. Employee can view supervisor's rejection comment from SupervisorFeedback
+  4. Employee edits the NEW draft self-assessment
+  5. Employee resubmits the NEW self-assessment
+  6. Supervisor reviews the NEW self-assessment
+  7. Process repeats until approved
+
+**History Tracking**:
+- Each rejection creates a new self-assessment linked via `previous_self_assessment_id`
+- Chain: Rejected SA1 ← SA2 (draft) → Rejected SA2 ← SA3 (draft) → Approved SA3
+- Full rejection history visible by following `previous_self_assessment_id` chain
+
 **Open Questions**:
 - ⚠️ Can supervisor **change** approval after approving (Approved → Pending)?
-- ⚠️ If supervisor rejects, can employee **resubmit** the same self-assessment or must create new?
 - ⚠️ What happens if supervisor takes too long to review (timeout/auto-approve)?
+- ✅ **RESOLVED**: Rejection history is tracked via `previous_self_assessment_id` chain following goal-review pattern
 
 ---
 
 ## 6. Open Questions
 
 ### 6.1. Submission Flow
-- [ ] **Can employee cancel submission?** (e.g., within 1 hour grace period)
-- [ ] **Can supervisor return for revision?** If yes:
-  - What status does self-assessment return to? (Draft with revisions needed?)
-  - Can employee see supervisor's reason for return?
+- [x] ~~**Can employee cancel submission?**~~ → ✅ **RESOLVED**: Employee can resubmit before supervisor reviews
+- [x] ~~**After rejection**~~ → ✅ **RESOLVED**: Original self-assessment stays 'submitted', system creates NEW draft with `previous_self_assessment_id` pointing to rejected version (following goal-review pattern)
+- [x] ~~**Rejection history**~~ → ✅ **RESOLVED**: Full rejection history tracked via `previous_self_assessment_id` chain
 - [ ] **Submission deadline**: What happens to draft assessments after period deadline?
   - Auto-submit with current data?
   - Mark as incomplete?
   - Prevent submission?
+- [ ] **Rejection cycle limit**: Is there a maximum number of reject-revise-resubmit cycles?
+- [ ] **UI for rejection history**: How should UI display the rejection history chain to employees and supervisors?
 
-### 6.2. Rating and Comment Requirements
+### 6.2. Comment Requirements
+- [x] ~~**Employee comment required?**~~ → ✅ **RESOLVED**: REQUIRED for submission
+- [x] ~~**Supervisor comment required?**~~ → ✅ **RESOLVED**: Optional for approval, REQUIRED for rejection
 - [ ] **Minimum comment length?** (e.g., 10 characters for meaningful feedback)
 - [ ] **Maximum comment length?** (e.g., 1000 characters to prevent essays)
-- [ ] **Comment required for low grades?** (e.g., if grade is C or D, comment is mandatory)
 - [ ] **Comment template or guidance?** Should UI provide prompts?
 
 ### 6.3. Notifications
@@ -515,15 +573,19 @@ stateDiagram-v2
 
 Based on current code analysis:
 
-1. ✅ **One self-assessment per goal** (enforced by unique constraint)
+1. ✅ **One self-assessment per goal** (enforced by unique constraint on `goal_id`)
 2. ✅ **Two states only for SelfAssessment**: draft and submitted (no "pending", "approved", "rejected" states for self-assessment entity itself)
 3. ✅ **SupervisorFeedback has three states**: pending, approved, rejected (approval state tracked separately)
-4. ✅ **No edit after submission** (assumed, but not enforced in current code)
-5. ✅ **Auto-save in frontend** (not enforced by backend)
-6. ⚠️ **No explicit deadline enforcement** (evaluation period has deadline, but unclear if enforced for self-assessments)
-7. ⚠️ **No character limits on comments** (unlimited currently)
-8. ⚠️ **Grading system**: Letter grades (SS, S, A+, A, A-, B, C, D) with numeric equivalents (0.0-7.0) - **Current code uses 0-100 scale and needs migration**
-9. ⚠️ **Sequential flow**: Core Value goals require ALL Performance + Competency self-assessments to be approved first - **Current code does not enforce this sequencing**
+4. ⚠️ **Resubmission allowed**: Employee can edit and resubmit before supervisor reviews - **Current code does NOT allow this**
+5. ⚠️ **Rejection history pattern**: Following goal-review pattern where rejected self-assessment stays 'submitted' and system creates NEW draft with `previous_self_assessment_id` - **Current code does NOT implement this pattern**
+6. ⚠️ **Rejection history field**: `previous_self_assessment_id` field needed for tracking rejection history chain - **Current database model does NOT have this field**
+7. ✅ **Auto-save in frontend** (not enforced by backend)
+8. ⚠️ **Employee comment REQUIRED**: Must provide comment on submission - **Current code makes it optional**
+9. ⚠️ **Supervisor comment conditionally required**: Optional for approval, REQUIRED for rejection - **Current code does NOT enforce this**
+10. ⚠️ **No explicit deadline enforcement** (evaluation period has deadline, but unclear if enforced for self-assessments)
+11. ⚠️ **No character limits on comments** (unlimited currently)
+12. ⚠️ **Grading system**: Letter grades (SS, S, A+, A, A-, B, C, D) with numeric equivalents (0.0-7.0) - **Current code uses 0-100 scale and needs migration**
+13. ⚠️ **Sequential flow**: Core Value goals require ALL Performance + Competency self-assessments to be approved first - **Current code does not enforce this sequencing**
 
 ---
 
