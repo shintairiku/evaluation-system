@@ -84,12 +84,17 @@ git --version
    - Go to Project Settings → Database
    - Copy these values to a notepad:
      ```
-     Connection string (URI):
+     Direct connection (IPv6 / long-lived workloads):
+     postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+
+     Session pooler (recommended for Cloud Run / lower overhead):
      postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
 
-     Connection pooling (recommended for serverless):
+     Transaction pooler (default / compatibility):
      postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true
      ```
+   - **Performance note:** Keep `SUPABASE_DATABASE_URL` on transaction pooler (6543) and put the session pooler URL into `SUPABASE_DATABASE_URL_SESSION`.  
+     When you want session pooling, set `DB_POOL_MODE=session` and the app will use the session URL.
    - Copy API keys:
      - `anon public` key
      - `service_role` key (keep this secret!)
@@ -134,11 +139,13 @@ Create a checklist of all values you'll need (use the `.env.prod` template):
 **Backend (Cloud Run):**
 ```bash
 CLERK_SECRET_KEY=sk_live_xxxxx              # From Clerk
-SUPABASE_DATABASE_URL=postgresql://...      # From Supabase (pooler URL)
+SUPABASE_DATABASE_URL=postgresql://...      # Transaction pooler (6543)
+SUPABASE_DATABASE_URL_SESSION=postgresql://... # Session pooler (5432)
 CLERK_ISSUER=https://xxx.clerk.accounts.dev # From Clerk JWT settings
 CLERK_AUDIENCE=your-domain.com              # Your domain or Clerk default
 CLERK_AUTHORIZED_PARTIES=your-app.vercel.app # Enforce JWT azp matches frontend origin
 CLERK_WEBHOOK_SECRET=whsec_xxxxx            # Will get after webhook setup
+DB_POOL_MODE=session                       # Optional: set to 'session' to use SUPABASE_DATABASE_URL_SESSION
 ```
 
 **Frontend (Vercel):**
@@ -209,8 +216,11 @@ echo -n "sk_live_YOUR_CLERK_SECRET_KEY" | gcloud secrets create clerk-secret-key
 
 <START FROM HERE>
 
-# 2. Database URL (use connection pooling URL from Supabase)
+# 2. Database URLs
+# - Keep transaction pooler in database-url (default).
+# - Store session pooler in database-url-session for optional use via DB_POOL_MODE=session.
 echo -n "postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true" | gcloud secrets create database-url --data-file=-
+echo -n "postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres" | gcloud secrets create database-url-session --data-file=-
 
 # 3. Clerk Issuer
 echo -n "https://your-app.clerk.accounts.dev" | gcloud secrets create clerk-issuer --data-file=-
@@ -227,11 +237,14 @@ echo -n "PLACEHOLDER_WILL_UPDATE_LATER" | gcloud secrets create clerk-webhook-se
 # 6. Application Secret Key (generate with: openssl rand -hex 32)
 echo -n "$(openssl rand -hex 32)" | gcloud secrets create app-secret-key --data-file=-
 
+# 7. Optional DB pool mode (set to "session" to use database-url-session)
+echo -n "session" | gcloud secrets create db-pool-mode --data-file=-
+
 echo "✅ Secrets created!"
 
 # Grant Cloud Run service account access to all secrets
 echo "Granting Cloud Run access to secrets..."
-for secret in clerk-secret-key database-url clerk-issuer clerk-audience clerk-authorized-parties clerk-webhook-secret app-secret-key; do
+for secret in clerk-secret-key database-url database-url-session clerk-issuer clerk-audience clerk-authorized-parties clerk-webhook-secret app-secret-key db-pool-mode; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
@@ -285,8 +298,8 @@ gcloud run deploy hr-evaluation-backend \
   --region $REGION \
   --platform managed \
   --allow-unauthenticated \
-  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False" \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
+  --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False,DB_POOL_MODE=session" \
+  --set-secrets "DB_POOL_MODE=db-pool-mode:latest,CLERK_SECRET_KEY=clerk-secret-key:latest,SUPABASE_DATABASE_URL=database-url:latest,SUPABASE_DATABASE_URL_SESSION=database-url-session:latest,CLERK_ISSUER=clerk-issuer:latest,CLERK_AUDIENCE=clerk-audience:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret:latest,SECRET_KEY=app-secret-key:latest" \
   --min-instances 0 \
   --max-instances 5 \
   --memory 512Mi \
@@ -337,15 +350,18 @@ open $BACKEND_URL/docs  # Opens FastAPI Swagger UI in browser
 ```bash
 # Create development-specific secrets
 echo -n "sk_test_YOUR_CLERK_DEV_SECRET_KEY" | gcloud secrets create clerk-secret-key-dev --data-file=-
-echo -n "postgresql://postgres.[DEV-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true" | gcloud secrets create database-url-dev --data-file=-
+# Dev uses shared DB secrets (no -dev suffix):
+# - database-url (transaction pooler)
+# - database-url-session (session pooler)
 echo -n "https://your-dev-app.clerk.accounts.dev" | gcloud secrets create clerk-issuer-dev --data-file=-
 echo -n "your-dev-domain.com" | gcloud secrets create clerk-audience-dev --data-file=-
 echo -n "your-dev-frontend.vercel.app,localhost:3000" | gcloud secrets create clerk-authorized-parties-dev --data-file=-
 echo -n "whsec_DEV_WEBHOOK_SECRET" | gcloud secrets create clerk-webhook-secret-dev --data-file=-
 echo -n "$(openssl rand -hex 32)" | gcloud secrets create app-secret-key-dev --data-file=-
+echo -n "session" | gcloud secrets create db-pool-mode-dev --data-file=-
 
 # Grant permissions for dev secrets
-for secret in clerk-secret-key-dev database-url-dev clerk-issuer-dev clerk-audience-dev clerk-authorized-parties-dev clerk-webhook-secret-dev app-secret-key-dev; do
+for secret in clerk-secret-key-dev clerk-issuer-dev clerk-audience-dev clerk-authorized-parties-dev clerk-webhook-secret-dev app-secret-key-dev db-pool-mode-dev database-url database-url-session; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
@@ -365,8 +381,8 @@ gcloud run deploy hr-evaluation-backend-dev \
   --region $REGION \
   --platform managed \
   --allow-unauthenticated \
-  --set-env-vars "ENVIRONMENT=development,LOG_LEVEL=DEBUG,DEBUG=True" \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,SUPABASE_DATABASE_URL=database-url-dev:latest,CLERK_ISSUER=clerk-issuer-dev:latest,CLERK_AUDIENCE=clerk-audience-dev:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,SECRET_KEY=app-secret-key-dev:latest" \
+  --set-env-vars "ENVIRONMENT=development,LOG_LEVEL=DEBUG,DEBUG=True,DB_POOL_MODE=session" \
+  --set-secrets "DB_POOL_MODE=db-pool-mode-dev:latest,CLERK_SECRET_KEY=clerk-secret-key-dev:latest,SUPABASE_DATABASE_URL=database-url:latest,SUPABASE_DATABASE_URL_SESSION=database-url-session:latest,CLERK_ISSUER=clerk-issuer-dev:latest,CLERK_AUDIENCE=clerk-audience-dev:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties-dev:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,SECRET_KEY=app-secret-key-dev:latest" \
   --min-instances 0 \
   --max-instances 5 \
   --memory 512Mi \
@@ -445,7 +461,7 @@ jobs:
           --region $REGION \
           --platform managed \
           --allow-unauthenticated \
-          --set-env-vars "ENVIRONMENT=$ENV_MODE,LOG_LEVEL=INFO,DEBUG=$DEBUG_MODE" \
+          --set-env-vars "ENVIRONMENT=$ENV_MODE,LOG_LEVEL=INFO,DEBUG=$DEBUG_MODE,DB_POOL_MODE=session" \
           --set-secrets "CLERK_SECRET_KEY=clerk-secret-key$SECRETS_SUFFIX:latest,SUPABASE_DATABASE_URL=database-url$SECRETS_SUFFIX:latest,CLERK_ISSUER=clerk-issuer$SECRETS_SUFFIX:latest,CLERK_AUDIENCE=clerk-audience$SECRETS_SUFFIX:latest,CLERK_AUTHORIZED_PARTIES=clerk-authorized-parties$SECRETS_SUFFIX:latest,CLERK_WEBHOOK_SECRET=clerk-webhook-secret$SECRETS_SUFFIX:latest,SECRET_KEY=app-secret-key$SECRETS_SUFFIX:latest" \
           --min-instances 0 \
           --max-instances 10 \
@@ -914,13 +930,16 @@ Before first development deployment:
 1. **Create GCP Development Secrets** (one-time setup):
    ```bash
    # See detailed instructions in development-environment-setup.md
-   # You need to create -dev versions of all secrets:
+   # You need to create -dev versions of Clerk/App secrets:
    # - clerk-secret-key-dev
-   # - database-url-dev
    # - clerk-issuer-dev
    # - clerk-audience-dev
    # - clerk-webhook-secret-dev
    # - app-secret-key-dev
+   # - db-pool-mode-dev (optional; set to "session")
+   # DB secrets are shared (no -dev suffix):
+   # - database-url
+   # - database-url-session
    ```
 
 2. **Configure Vercel Preview Environment** (one-time setup):
@@ -1084,11 +1103,13 @@ gcloud run services update hr-evaluation-backend --region $REGION --no-traffic
 | `ENVIRONMENT` | Yes | `production` | Application environment |
 | `FRONTEND_URL` | Yes | `https://your-app.vercel.app` | Frontend URL for CORS |
 | `CLERK_SECRET_KEY` | Yes | `sk_live_...` | Clerk secret key (Secret Manager) |
-| `SUPABASE_DATABASE_URL` | Yes | `postgresql://...` | Database connection string (Secret Manager) |
+| `SUPABASE_DATABASE_URL` | Yes | `postgresql://...` | Transaction pooler connection string (Secret Manager) |
+| `SUPABASE_DATABASE_URL_SESSION` | No | `postgresql://...` | Session pooler connection string (Secret Manager) |
 | `CLERK_ISSUER` | Yes | `https://clerk.your-app.com` | Clerk JWT issuer |
 | `CLERK_AUDIENCE` | Yes (if used) | `your-audience` | Clerk JWT audience |
 | `CLERK_AUTHORIZED_PARTIES` | Yes | `your-app.vercel.app` | Comma-separated list of allowed `azp` (Authorized Party) origins |
 | `CLERK_WEBHOOK_SECRET` | Yes | `whsec_...` | Clerk webhook secret |
+| `DB_POOL_MODE` | No | `session` | Set to `session` to use `SUPABASE_DATABASE_URL_SESSION`. Can be provided via Secret Manager `db-pool-mode`. |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
 | `DEBUG` | No | `false` | Debug mode (should be false) |
 
@@ -1590,8 +1611,8 @@ git push origin develop
 gcloud secrets list --format="table(name)" | grep -E "(clerk|database|webhook)"
 
 # 2. Verify secret naming convention
-# Production secrets: clerk-secret-key, database-url, etc.
-# Development secrets: clerk-secret-key-dev, database-url-dev, etc.
+# Production secrets: clerk-secret-key, database-url, database-url-session, etc.
+# Development secrets: clerk-secret-key-dev, db-pool-mode-dev, etc.
 
 # 3. Check Cloud Run service configurations
 gcloud run services describe hr-evaluation-backend --region $REGION --format=yaml | grep -A 20 secrets
@@ -1613,15 +1634,17 @@ gcloud run services update hr-evaluation-backend-dev \
 echo "Production DB:"
 gcloud secrets versions access latest --secret=database-url
 
-echo "Development DB:"  
-gcloud secrets versions access latest --secret=database-url-dev
+echo "Development DB (shared secret):"
+gcloud secrets versions access latest --secret=database-url
 
 # 2. Check they point to different databases
 # Production should have different PROJECT_REF than development
 
 # 3. Update development database URL if needed
 echo -n "postgresql://postgres.[DEV-REF]:[DEV-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true" | \
-  gcloud secrets versions add database-url-dev --data-file=-
+  gcloud secrets versions add database-url --data-file=-
+echo -n "postgresql://postgres.[DEV-REF]:[DEV-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres" | \
+  gcloud secrets versions add database-url-session --data-file=-
 
 # 4. Redeploy development backend
 gcloud run services update hr-evaluation-backend-dev --region $REGION --no-traffic
