@@ -9,11 +9,18 @@
 ## 1. Business Context
 
 ### Problem Statement
-Employees need a structured way to evaluate their own performance against pre-defined goals before supervisor review. The self-assessment process allows employees to:
+Employees need a structured way to evaluate their own performance against approved goals and competencies before supervisor review. The self-assessment process allows employees to:
 - Reflect on their achievements during the evaluation period
-- Rate their own performance on a 0-100 scale
-- Provide narrative comments about their work
+- Rate their own performance using the company's grading system: **SS, S, A+, A, A-, B, C, D**
+- Provide narrative comments for each goal and competency
 - Submit their evaluation for supervisor review
+
+**Assessment Scope:**
+1. **業績目標 (Performance Goals)**: Created by employee, approved by supervisor → Self-assessed by employee
+2. **コンピテンシー (Competency Goals)**: Created by employee, approved by supervisor → Self-assessed by employee
+3. **コアバリュー (Core Value Goals)**: Created by employee, approved by supervisor → Self-assessed by employee
+
+All **approved goals** (regardless of category) require self-assessment before supervisor review.
 
 ### Business Value
 - **Employee Empowerment**: Employees have a voice in their performance evaluation
@@ -32,18 +39,31 @@ Employees need a structured way to evaluate their own performance against pre-de
 
 ### 2.1. SelfAssessment
 
-**Purpose**: Represents an employee's self-evaluation of a specific goal.
+**Purpose**: Represents an employee's self-evaluation of a specific goal (any category: Performance, Competency, or Core Value).
 
 **Key Attributes**:
 - `id` (UUID) - Unique identifier
 - `goal_id` (UUID) - Reference to the goal being assessed
 - `period_id` (UUID) - Reference to the evaluation period
-- `self_rating` (Decimal 0-100) - Employee's numerical self-rating (optional until submission)
+- **`self_rating_code`** (Enum) - Employee's grade: **SS | S | A+ | A | A- | B | C | D** (optional until submission)
+- `self_rating` (Decimal) - Numeric equivalent for calculations (internal, derived from rating_code)
 - `self_comment` (String) - Employee's narrative self-assessment (optional)
 - `status` (Enum) - Current state: `draft` or `submitted`
 - `submitted_at` (DateTime) - Timestamp when assessment was submitted
 - `created_at` (DateTime) - Record creation timestamp
 - `updated_at` (DateTime) - Last modification timestamp
+
+**Grading System**:
+| Grade | Numeric Value | Meaning |
+|-------|--------------|---------|
+| SS | 7.0 | Exceptional |
+| S | 6.0 | Excellent |
+| A+ | 5.0 | Very Good+ |
+| A | 4.0 | Very Good |
+| A- | 3.0 | Good |
+| B | 2.0 | Acceptable |
+| C | 1.0 | Below Expectations |
+| D | 0.0 | Unsatisfactory |
 
 **Lifecycle**: draft → submitted
 
@@ -112,11 +132,14 @@ Employees need a structured way to evaluate their own performance against pre-de
 **Key Attributes**:
 - `id` (UUID) - Unique identifier
 - `self_assessment_id` (UUID) - Reference to self-assessment
-- `supervisor_rating` (Decimal 0-100) - Supervisor's rating
+- `supervisor_rating_code` (Enum) - Supervisor's grade: **SS | S | A+ | A | A- | B | C | D**
+- `supervisor_rating` (Decimal) - Numeric equivalent for calculations (0.0-7.0)
 - `supervisor_comment` (String) - Supervisor's feedback
 - `status` (Enum) - Review status
 
 **Relationship**: One-to-one with SelfAssessment
+
+**Note**: Supervisor uses the same grading system as employee self-assessment
 
 ---
 
@@ -167,7 +190,8 @@ erDiagram
         uuid id PK
         uuid goal_id FK "UNIQUE"
         uuid period_id FK
-        decimal self_rating "0-100, nullable"
+        string self_rating_code "SS|S|A+|A|A-|B|C|D, nullable"
+        decimal self_rating "0-7, nullable, auto-calculated"
         string self_comment "nullable"
         string status "draft|submitted"
         timestamp submitted_at "nullable"
@@ -178,7 +202,8 @@ erDiagram
     SUPERVISOR_FEEDBACK {
         uuid id PK
         uuid self_assessment_id FK "UNIQUE"
-        decimal supervisor_rating "0-100"
+        string supervisor_rating_code "SS|S|A+|A|A-|B|C|D"
+        decimal supervisor_rating "0-7, auto-calculated"
         string supervisor_comment
         string status
         timestamp created_at
@@ -213,16 +238,24 @@ erDiagram
 
 ### 4.2. Rating Validation
 
-**Self-Rating Rules**:
-- ✅ Rating range: **0 to 100** (decimal, e.g., 85.5)
-- ✅ Rating is **optional** in draft state
-- ✅ Rating is **required** for submission
-- ✅ Database enforces: `CHECK (self_rating >= 0 AND self_rating <= 100)`
+**Self-Rating Code Rules**:
+- ✅ Rating code must be one of: **SS, S, A+, A, A-, B, C, D**
+- ✅ Rating code is **optional** in draft state
+- ✅ Rating code is **required** for submission
+- ✅ Database stores both:
+  - `self_rating_code` (string): The letter grade (e.g., "A+")
+  - `self_rating` (decimal): Numeric equivalent (e.g., 5.0) for calculations
+
+**Grade-to-Number Mapping**:
+```
+SS → 7.0 | S → 6.0 | A+ → 5.0 | A → 4.0
+A- → 3.0 | B → 2.0 | C → 1.0  | D → 0.0
+```
 
 **Comment Rules**:
 - ✅ Comment is **always optional** (no length restrictions currently)
 - ⚠️ **Open Question**: Should there be a minimum/maximum character count?
-- ⚠️ **Open Question**: Should comment be required for certain rating thresholds?
+- ⚠️ **Open Question**: Should comment be required for certain rating grades (e.g., D or C)?
 
 ---
 
@@ -293,7 +326,8 @@ CHECK ((status != 'submitted') OR (submitted_at IS NOT NULL))
 |-------|-----------|-------------|-------|
 | `goal_id` | ✅ Yes | Must be approved goal owned by user | Unique |
 | `period_id` | ✅ Yes | Must be active period | - |
-| `self_rating` | Draft: ❌ No<br>Submit: ✅ Yes | 0-100 (decimal) | - |
+| `self_rating_code` | Draft: ❌ No<br>Submit: ✅ Yes | SS\|S\|A+\|A\|A-\|B\|C\|D | Letter grade |
+| `self_rating` | Auto-calculated | 0.0-7.0 (decimal) | Numeric equivalent for calculations |
 | `self_comment` | ❌ No | None currently | Optional |
 | `status` | ✅ Yes | `draft` or `submitted` | Default: `draft` |
 | `submitted_at` | Draft: ❌ No<br>Submit: ✅ Yes | Auto-set on submission | - |
@@ -312,14 +346,14 @@ stateDiagram-v2
         ✅ Editable
         ✅ Auto-save enabled
         ✅ Can delete
-        ❌ Rating optional
+        ❌ Grade (rating_code) optional
         ❌ submitted_at NULL
     end note
 
     note right of Submitted
         ❌ Read-only (employee)
         ✅ submitted_at set
-        ✅ Rating required
+        ✅ Grade (rating_code) required
         ✅ Awaiting supervisor review
         🔒 Cannot edit/delete
     end note
@@ -330,7 +364,7 @@ stateDiagram-v2
 | From State | To State | Trigger | Who | Conditions |
 |------------|----------|---------|-----|------------|
 | (none) | Draft | Create | Employee | Goal is approved + period is active |
-| Draft | Submitted | Submit | Employee | `self_rating` is provided |
+| Draft | Submitted | Submit | Employee | `self_rating_code` is provided |
 | Draft | (deleted) | Delete | Employee | Still in draft state |
 | Submitted | (none) | - | - | **No reverse transition** |
 
@@ -356,7 +390,7 @@ stateDiagram-v2
 ### 6.2. Rating and Comment Requirements
 - [ ] **Minimum comment length?** (e.g., 10 characters for meaningful feedback)
 - [ ] **Maximum comment length?** (e.g., 1000 characters to prevent essays)
-- [ ] **Comment required for low ratings?** (e.g., if rating < 50, comment is mandatory)
+- [ ] **Comment required for low grades?** (e.g., if grade is C or D, comment is mandatory)
 - [ ] **Comment template or guidance?** Should UI provide prompts?
 
 ### 6.3. Notifications
@@ -403,6 +437,7 @@ Based on current code analysis:
 4. ✅ **Auto-save in frontend** (not enforced by backend)
 5. ⚠️ **No explicit deadline enforcement** (evaluation period has deadline, but unclear if enforced for self-assessments)
 6. ⚠️ **No character limits on comments** (unlimited currently)
+7. ⚠️ **Grading system**: Letter grades (SS, S, A+, A, A-, B, C, D) with numeric equivalents (0.0-7.0) - **Current code uses 0-100 scale and needs migration**
 
 ---
 
