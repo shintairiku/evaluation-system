@@ -119,8 +119,10 @@ jobs:
           LOG_LEVEL=INFO
           DEBUG=False
         secrets: |
+          DB_POOL_MODE=db-pool-mode${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
           CLERK_SECRET_KEY=clerk-secret-key${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
           SUPABASE_DATABASE_URL=database-url:latest
+          SUPABASE_DATABASE_URL_SESSION=database-url-session:latest
           CLERK_ISSUER=clerk-issuer${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
           CLERK_AUDIENCE=clerk-audience${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
           CLERK_WEBHOOK_SECRET=clerk-webhook-secret${{ steps.env-vars.outputs.SECRET_SUFFIX }}:latest
