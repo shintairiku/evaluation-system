@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { toast } from 'sonner';
-import { updateSupervisorReviewAction, getSupervisorReviewByIdAction } from '@/api/server-actions/supervisor-reviews';
+import { updateSupervisorReviewAction } from '@/api/server-actions/supervisor-reviews';
 import { SupervisorAction, SubmissionStatus } from '@/api/types';
 
 /**
@@ -14,6 +13,10 @@ export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 interface UseAutoSaveOptions {
   /** Supervisor review ID to auto-save to */
   reviewId?: string;
+  /** Initial draft comment to populate into the form (avoid per-card fetch) */
+  initialComment?: string;
+  /** Initial draft status (avoid per-card fetch) */
+  initialStatus?: SubmissionStatus;
   /** Debounce delay in milliseconds (default: 2000) */
   debounceDelay?: number;
   /** Status clear timeout in milliseconds (default: 3000) */
@@ -46,7 +49,7 @@ interface UseAutoSaveReturn {
  * Features:
  * - Debounced auto-save (2 seconds default)
  * - Manual save on blur
- * - Load existing draft on mount
+ * - Populate initial draft comment from server-loaded review
  * - Save before page unload
  * - Visual save status indicators
  *
@@ -70,6 +73,8 @@ interface UseAutoSaveReturn {
  */
 export function useAutoSave({
   reviewId,
+  initialComment,
+  initialStatus,
   debounceDelay = 2000,
   statusClearTimeout = 3000,
   getComment,
@@ -77,14 +82,15 @@ export function useAutoSave({
 }: UseAutoSaveOptions): UseAutoSaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [lastSavedComment, setLastSavedComment] = useState<string>('');
-  const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+  const [loadedDraftReviewId, setLoadedDraftReviewId] = useState<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
    * Core save function - saves comment as draft to supervisor review
    */
   const save = useCallback(async (comment: string) => {
-    if (!reviewId || !comment?.trim() || comment === lastSavedComment) {
+    const nextComment = comment?.trim();
+    if (!reviewId || !nextComment || nextComment === lastSavedComment) {
       return; // Don't save if no reviewId, empty, or unchanged
     }
 
@@ -97,12 +103,12 @@ export function useAutoSave({
     try {
       const result = await updateSupervisorReviewAction(reviewId, {
         action: SupervisorAction.PENDING,
-        comment: comment.trim(),
+        comment: nextComment,
         status: SubmissionStatus.DRAFT
       });
 
       if (result.success) {
-        setLastSavedComment(comment);
+        setLastSavedComment(nextComment);
         setSaveStatus('saved');
 
         // Clear status after timeout
@@ -131,36 +137,18 @@ export function useAutoSave({
   }, [save, debounceDelay]);
 
   /**
-   * Load existing draft on mount
+   * Populate initial draft comment (avoid per-card fetch)
    */
   useEffect(() => {
-    const loadExistingDraft = async () => {
-      if (!reviewId || isDraftLoaded) return;
+    if (!reviewId || loadedDraftReviewId === reviewId) return;
 
-      try {
-        const result = await getSupervisorReviewByIdAction(reviewId);
+    if (initialStatus === SubmissionStatus.DRAFT && initialComment?.trim()) {
+      setComment(initialComment);
+      setLastSavedComment(initialComment.trim());
+    }
 
-        if (result.success && result.data) {
-          const review = result.data;
-
-          // Only load if status is draft and has comment
-          if (review.status === 'draft' && review.comment) {
-            setComment(review.comment);
-            setLastSavedComment(review.comment);
-            setIsDraftLoaded(true);
-
-            toast.info('下書きが読み込まれました', {
-              description: '前回保存したコメントが復元されました'
-            });
-          }
-        }
-      } catch {
-        // Silent fail - draft loading is not critical
-      }
-    };
-
-    loadExistingDraft();
-  }, [reviewId, isDraftLoaded, setComment]);
+    setLoadedDraftReviewId(reviewId);
+  }, [reviewId, loadedDraftReviewId, initialComment, initialStatus, setComment]);
 
   /**
    * Save before page unload
@@ -198,6 +186,6 @@ export function useAutoSave({
     lastSavedComment,
     save,
     debouncedSave,
-    isDraftLoaded
+    isDraftLoaded: Boolean(reviewId && loadedDraftReviewId === reviewId)
   };
 }

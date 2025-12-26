@@ -4,7 +4,14 @@ from uuid import UUID
 
 from ...security.dependencies import get_auth_context, require_supervisor_or_above
 from ...security.context import AuthContext
-from ...schemas.supervisor_review import SupervisorReview, SupervisorReviewDetail, SupervisorReviewList, SupervisorReviewCreate, SupervisorReviewUpdate
+from ...schemas.supervisor_review import (
+    SupervisorReview,
+    SupervisorReviewDetail,
+    SupervisorReviewList,
+    SupervisorReviewWithContextList,
+    SupervisorReviewCreate,
+    SupervisorReviewUpdate,
+)
 from ...schemas.common import PaginationParams, BaseResponse
 from ...database.session import get_db_session
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +43,13 @@ async def get_supervisor_reviews(
             pagination=pagination,
         )
         # Adapt to SupervisorReviewList schema signature
-        return SupervisorReviewList(items=result.items, total=result.total, page=result.page, limit=result.limit, pages=result.pages)
+        return SupervisorReviewWithContextList(
+            items=result.items,
+            total=result.total,
+            page=result.page,
+            limit=result.limit,
+            pages=result.pages,
+        )
     except (PermissionDeniedError, ValidationError, BadRequestError, ConflictError, NotFoundError) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
@@ -59,19 +72,28 @@ async def create_supervisor_review(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating supervisor review: {str(e)}")
 
 # Optional api endpoints (must come before /{review_id} to avoid routing conflicts)
-@router.get("/pending", response_model=SupervisorReviewList)
+@router.get("/pending", response_model=SupervisorReviewWithContextList)
 async def get_pending_reviews(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     subordinate_id: Optional[UUID] = Query(None, alias="subordinateId", description="Filter by subordinate ID"),
+    include: Optional[str] = Query(
+        None,
+        description="Comma-separated related objects to include (e.g., goal,subordinate)",
+    ),
     context: AuthContext = Depends(require_supervisor_or_above),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Get pending supervisor reviews that need attention (supervisor only)."""
     try:
         service = SupervisorReviewService(session)
+        include_set = {part.strip() for part in include.split(",")} if include else None
         result = await service.get_pending_reviews(
-            current_user_context=context, period_id=period_id, subordinate_id=subordinate_id, pagination=pagination
+            current_user_context=context,
+            period_id=period_id,
+            subordinate_id=subordinate_id,
+            pagination=pagination,
+            include=include_set,
         )
         return SupervisorReviewList(items=result.items, total=result.total, page=result.page, limit=result.limit, pages=result.pages)
     except (PermissionDeniedError, BadRequestError) as e:
@@ -144,5 +166,3 @@ async def delete_supervisor_review(
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting supervisor review: {str(e)}")
-
-

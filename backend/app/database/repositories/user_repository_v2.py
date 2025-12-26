@@ -315,6 +315,33 @@ class UserRepositoryV2(BaseRepository[User]):
         sort_column = self.SUPPORTED_SORT_FIELDS[field_name]
         return sort_column, direction
 
+    async def list_departments_for_org(self, org_id: str) -> List[Department]:
+        stmt = (
+            select(Department)
+            .where(Department.organization_id == org_id)
+            .order_by(Department.name)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_stages_for_org(self, org_id: str) -> List[Stage]:
+        stmt = (
+            select(Stage)
+            .where(Stage.organization_id == org_id)
+            .order_by(Stage.name)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_roles_for_org(self, org_id: str) -> List[Role]:
+        stmt = (
+            select(Role)
+            .where(Role.organization_id == org_id)
+            .order_by(Role.hierarchy_order)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def fetch_departments(self, ids: Iterable[UUID]) -> Dict[UUID, Department]:
         id_list = [dept_id for dept_id in set(ids) if dept_id]
         if not id_list:
@@ -333,7 +360,7 @@ class UserRepositoryV2(BaseRepository[User]):
         stages = {stage.id: stage for stage in result.scalars().all()}
         return stages
 
-    async def fetch_roles_for_users(self, user_ids: Iterable[UUID]) -> Dict[UUID, List[Role]]:
+    async def fetch_roles_for_users(self, user_ids: Iterable[UUID], org_id: str) -> Dict[UUID, List[Role]]:
         id_list = [user_id for user_id in set(user_ids) if user_id]
         if not id_list:
             return {}
@@ -342,6 +369,7 @@ class UserRepositoryV2(BaseRepository[User]):
             select(Role, user_roles.c.user_id)
             .join(user_roles, Role.id == user_roles.c.role_id)
             .where(user_roles.c.user_id.in_(id_list))
+            .where(Role.organization_id == org_id)
         )
         result = await self.session.execute(stmt)
 

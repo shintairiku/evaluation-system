@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from cachetools import TTLCache
 
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.competency_repo import CompetencyRepository
@@ -25,11 +26,15 @@ logger = logging.getLogger(__name__)
 
 class StageService:
     """Service layer for stage-related business logic and operations"""
+
+    _global_cache = TTLCache(maxsize=64, ttl=30)
     
     def __init__(self, session: AsyncSession):
         self.session = session
         self.stage_repo = StageRepository(session)
         self.competency_repo = CompetencyRepository(session)
+        # Short-lived cache for read-most admin/list endpoints
+        self._cache = StageService._global_cache
     
     @require_permission(Permission.STAGE_MANAGE)
     async def create_stage(self, current_user_context: AuthContext, stage_data: StageCreate) -> StageDetail:
@@ -111,9 +116,14 @@ class StageService:
         """
         # Permission check handled by @require_permission decorator
 
-        stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
+        cache_key = f"all_stages::{current_user_context.organization_id}"
+        if cached := self._cache.get(cache_key):
+            return cached
 
-        return [self._map_stage_to_basic(stage) for stage in stage_models]
+        stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
+        result = [self._map_stage_to_basic(stage) for stage in stage_models]
+        self._cache[cache_key] = result
+        return result
     
     @require_permission(Permission.STAGE_MANAGE)
     async def get_stages_with_user_count(self, current_user_context: AuthContext) -> List[StageWithUserCount]:
@@ -125,14 +135,26 @@ class StageService:
         """
         # Permission check handled by @require_permission decorator
 
+        cache_key = f"stages_with_count::{current_user_context.organization_id}"
+        if cached := self._cache.get(cache_key):
+            return cached
+
         stage_models = await self.stage_repo.get_all(current_user_context.organization_id)
-        stages_with_count = []
+        if not stage_models:
+            return []
 
-        for stage in stage_models:
-            user_count = await self.stage_repo.count_users_by_stage(stage.id, current_user_context.organization_id)
-            stages_with_count.append(self._map_stage_to_with_count(stage, user_count))
+        stage_ids = [stage.id for stage in stage_models]
+        user_counts = await self.stage_repo.count_users_by_stages_batch(
+            stage_ids,
+            current_user_context.organization_id,
+        )
 
-        return stages_with_count
+        result = [
+            self._map_stage_to_with_count(stage, user_counts.get(stage.id, 0))
+            for stage in stage_models
+        ]
+        self._cache[cache_key] = result
+        return result
     
     @require_permission(Permission.STAGE_MANAGE)
     async def update_stage(self, current_user_context: AuthContext, stage_id: UUID, stage_data: StageUpdate) -> StageDetail:

@@ -151,6 +151,33 @@ export interface UserList {
   pages: number;
 }
 
+export interface UserListPageMeta {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  approximate_total?: boolean;
+  next_cursor?: string | null;
+}
+
+export interface UserListPageFilters {
+  search?: string | null;
+  statuses?: UserStatus[];
+  department_ids?: UUID[];
+  stage_ids?: UUID[];
+  role_ids?: UUID[];
+  supervisor_id?: UUID | null;
+  departments: Department[];
+  stages: Stage[];
+  roles: Role[];
+}
+
+export interface UserListPageResponse {
+  users: UserDetailResponse[];
+  meta: UserListPageMeta;
+  filters: UserListPageFilters;
+}
+
 export type UserProfile = UserDetailResponse;
 
 export interface UserProfileOption {

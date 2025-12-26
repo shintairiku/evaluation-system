@@ -3,11 +3,10 @@ import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Target, Brain, Calendar, Weight, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Target, Brain, Calendar, Weight, AlertCircle, CheckCircle } from 'lucide-react';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import { GoalAuditHistory } from '@/components/evaluation/GoalAuditHistory';
-import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
-import { useIdealActionsResolver } from '@/hooks/evaluation/useIdealActionsResolver';
+import { resolveCompetencyNamesForDisplay } from '@/utils/goal-competency-names';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { useRouter } from 'next/navigation';
 
@@ -58,17 +57,31 @@ export const GoalCard = React.memo<GoalCardProps>(
     const router = useRouter();
     const isPerformanceGoal = goal.goalCategory === '業績目標';
     const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
+    const rejectionHistory = goal.rejectionHistory;
 
-    // Resolve competency IDs to names for display
-    const { competencyNames, loading: competencyLoading } = useCompetencyNames(
-      isCompetencyGoal ? goal.competencyIds : null
-    );
+    const competencyNamesForDisplay = React.useMemo(() => {
+      return resolveCompetencyNamesForDisplay(
+        isCompetencyGoal ? goal.competencyIds : null,
+        goal.competencyNames,
+      );
+    }, [goal.competencyIds, goal.competencyNames, isCompetencyGoal]);
 
     // Resolve ideal action IDs to descriptive texts
-    const { resolvedActions, loading: actionsLoading } = useIdealActionsResolver(
-      isCompetencyGoal ? goal.selectedIdealActions : null,
-      goal.competencyIds
-    );
+    const resolvedIdealActions = React.useMemo(() => {
+      if (!isCompetencyGoal || !goal.selectedIdealActions) return [];
+
+      return Object.entries(goal.selectedIdealActions).map(([competencyId, actionIds]) => {
+        const competencyName = goal.competencyNames?.[competencyId] ?? competencyId;
+        const resolved = goal.idealActionTexts?.[competencyId];
+
+        return {
+          competencyName,
+          actions: Array.isArray(resolved) && resolved.length > 0
+            ? resolved
+            : actionIds.map(actionId => `行動 ${actionId}`),
+        };
+      });
+    }, [goal.competencyNames, goal.idealActionTexts, goal.selectedIdealActions, isCompetencyGoal]);
 
     // Get category icon
     const getCategoryIcon = () => {
@@ -159,16 +172,16 @@ export const GoalCard = React.memo<GoalCardProps>(
 
         <CardContent className="pt-0 space-y-4">
           {/* Rejection History - shown if this goal has rejection history */}
-          {goal.rejectionHistory && Array.isArray(goal.rejectionHistory) && goal.rejectionHistory.length > 0 && (
+          {Array.isArray(rejectionHistory) && rejectionHistory.length > 0 && (
             <div className="space-y-3">
-              {goal.rejectionHistory.map((rejection, index) => (
+              {rejectionHistory.map((rejection, index) => (
                 <Alert key={rejection.id} variant="default" className="border-amber-200 bg-amber-50">
                   <AlertCircle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="ml-2">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="font-semibold text-amber-900">
-                          {goal.rejectionHistory.length > 1
+                          {rejectionHistory.length > 1
                             ? `${index + 1}回目の差し戻し`
                             : 'この目標は以前差し戻されました'}
                         </p>
@@ -295,14 +308,9 @@ export const GoalCard = React.memo<GoalCardProps>(
                 <div>
                   <h4 className="font-semibold mb-2">選択したコンピテンシー</h4>
                   <div className="bg-gray-50 p-3 rounded-md">
-                    {competencyLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        コンピテンシー名を読み込み中...
-                      </div>
-                    ) : competencyNames.length > 0 ? (
+                    {competencyNamesForDisplay ? (
                       <p className="text-sm">
-                        {competencyNames.join(', ')}
+                        {competencyNamesForDisplay.join(', ')}
                       </p>
                     ) : (
                       <p className="text-sm text-muted-foreground">
@@ -317,40 +325,20 @@ export const GoalCard = React.memo<GoalCardProps>(
                 <div>
                   <h4 className="font-semibold mb-2">理想的な行動</h4>
                   <div className="bg-gray-50 p-3 rounded-md">
-                    {actionsLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        理想的な行動を読み込み中...
-                      </div>
-                    ) : resolvedActions.length > 0 ? (
-                      <div className="space-y-2">
-                        {resolvedActions.map((resolved, index) => (
-                          <div key={index} className="text-sm">
-                            <span className="font-medium">
-                              {resolved.competencyName}:
-                            </span>
-                            <ul className="list-disc list-inside ml-2 mt-1">
-                              {resolved.actions.map((action, actionIndex) => (
-                                <li key={actionIndex}>{action}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {Object.entries(goal.selectedIdealActions).map(([key, actions]) => (
-                          <div key={key} className="text-sm">
-                            <span className="font-medium">{key}:</span>
-                            <ul className="list-disc list-inside ml-2 mt-1">
-                              {actions.map((action, index) => (
-                                <li key={index}>行動 {action}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      {resolvedIdealActions.map((resolved, index) => (
+                        <div key={index} className="text-sm">
+                          <span className="font-medium">
+                            {resolved.competencyName}:
+                          </span>
+                          <ul className="list-disc list-inside ml-2 mt-1">
+                            {resolved.actions.map((action, actionIndex) => (
+                              <li key={actionIndex}>{action}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

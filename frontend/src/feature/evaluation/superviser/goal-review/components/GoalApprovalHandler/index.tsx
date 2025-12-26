@@ -1,12 +1,12 @@
 'use client';
 
 import { useRef } from 'react';
-import { type GoalResponse } from '@/api/types';
+import { type GoalResponse, type SupervisorReview } from '@/api/types';
 import { ApprovalForm, type ApprovalFormRef } from '../ApprovalForm';
 import { ConfirmationDialog } from '../ConfirmationDialog';
-import { useCompetencyNames } from '@/hooks/evaluation/useCompetencyNames';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { useGoalApprovalActions } from '../../hooks/useGoalApprovalActions';
+import { resolveCompetencyNamesForDisplay } from '@/utils/goal-competency-names';
 
 /**
  * Props for the GoalApprovalHandler component
@@ -18,8 +18,8 @@ interface GoalApprovalHandlerProps {
   employeeName?: string;
   /** Callback function called after successful approval/rejection */
   onSuccess?: () => void;
-  /** Supervisor review ID for this goal (required for approval actions) */
-  reviewId?: string;
+  /** Supervisor review for this goal (used for approval + draft comment auto-save) */
+  review?: SupervisorReview;
 }
 
 /**
@@ -29,21 +29,19 @@ interface GoalApprovalHandlerProps {
  * @param props - The component props
  * @returns JSX element containing approval form and confirmation dialog
  */
-export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }: GoalApprovalHandlerProps) {
+export function GoalApprovalHandler({ goal, employeeName, onSuccess, review }: GoalApprovalHandlerProps) {
   // Reference to the ApprovalForm for form control
   const approvalFormRef = useRef<ApprovalFormRef>(null);
+  const reviewId = review?.id;
 
   // Determine goal type
   const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
 
-  // Get competency names for competency goals
-  const { competencyNames } = useCompetencyNames(
-    isCompetencyGoal ? goal.competencyIds : null
-  );
-
   // Auto-save hook - handles draft save, load, and before unload
   const { saveStatus, debouncedSave, save } = useAutoSave({
     reviewId,
+    initialComment: review?.comment,
+    initialStatus: review?.status,
     getComment: () => approvalFormRef.current?.getComment() || '',
     setComment: (comment) => approvalFormRef.current?.setComment(comment)
   });
@@ -75,10 +73,8 @@ export function GoalApprovalHandler({ goal, employeeName, onSuccess, reviewId }:
   // Generate appropriate goal title based on goal type
   const getGoalTitle = (): string => {
     if (isCompetencyGoal) {
-      // For competency goals, use competency names
-      if (competencyNames.length > 0) {
-        return competencyNames.join(', ');
-      }
+      const names = resolveCompetencyNamesForDisplay(optimisticGoal.competencyIds, optimisticGoal.competencyNames);
+      if (names) return names.join(', ');
       // Fallback to competency category
       return 'コンピテンシー目標';
     } else {

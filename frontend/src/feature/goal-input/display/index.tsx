@@ -47,6 +47,8 @@ export default function GoalInputPage() {
     goalTracking,
   } = useGoalData();
   
+  const { currentUser, isLoading: isUserLoading } = useUserRoles();
+
   // Period selection and goal loading
   const {
     selectedPeriod,
@@ -59,9 +61,7 @@ export default function GoalInputPage() {
     handlePeriodSelected,
     activateAutoSave,
     clearPeriodSelection,
-  } = usePeriodSelection();
-
-  const { currentUser, isLoading: isUserLoading, error: userError } = useUserRoles();
+  } = usePeriodSelection(currentUser?.id);
 
   const stageBudgets: StageWeightBudget = currentUser?.stage
     ? {
@@ -71,7 +71,7 @@ export default function GoalInputPage() {
         stageName: currentUser.stage.name,
       }
     : DEFAULT_STAGE_WEIGHT_BUDGET;
-  
+
   // Load existing goals into form when they're fetched - ensure it runs only once per period/goals set
   useEffect(() => {
     // Only proceed when loading has fully completed and we do have goals to inject
@@ -189,6 +189,7 @@ export default function GoalInputPage() {
             onNext={handleNext}
             onPrevious={handlePrevious}
             stageBudgets={stageBudgets}
+            userStageId={currentUser?.stage?.id}
           />
         );
       case 3:
@@ -197,6 +198,7 @@ export default function GoalInputPage() {
             performanceGoals={goalData.performanceGoals}
             competencyGoals={goalData.competencyGoals}
             periodId={selectedPeriod?.id}
+            currentUserId={currentUser?.id}
             onPrevious={handlePrevious}
             stageBudgets={stageBudgets}
           />

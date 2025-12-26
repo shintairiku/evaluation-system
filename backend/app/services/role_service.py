@@ -4,7 +4,10 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.role_repo import RoleRepository
-from ..database.repositories.permission_repo import PermissionRepository
+from ..database.repositories.permission_repo import (
+    PermissionRepository,
+    RolePermissionRepository,
+)
 from ..database.repositories.user_repo import UserRepository
 from ..database.models.user import Role as RoleModel
 from ..schemas.user import (
@@ -29,6 +32,7 @@ class RoleService:
         self.role_repo = RoleRepository(session)
         self.user_repo = UserRepository(session)
         self.permission_repo = PermissionRepository(session)
+        self.role_permission_repo = RolePermissionRepository(session)
     
     @require_permission(Permission.ROLE_MANAGE)
     async def create_role(
@@ -148,11 +152,25 @@ class RoleService:
             # Get all roles from repository (ordered by hierarchy_order)
             roles = await self.role_repo.get_all(current_user_context.organization_id)
 
+            role_ids = [role.id for role in roles]
+            permissions_by_role = {}
+            if role_ids:
+                assignments = await self.role_permission_repo.fetch_permissions_for_roles(
+                    role_ids,
+                    current_user_context.organization_id,
+                )
+                permissions_by_role = {
+                    UUID(role_id): perms for role_id, (perms, _version) in assignments.items()
+                }
+
             # Convert to response schemas
-            role_details = []
-            for role in roles:
-                role_detail = await self._enrich_role_data(role)
-                role_details.append(role_detail)
+            role_details = [
+                self._build_role_detail(
+                    role,
+                    permissions_by_role.get(role.id, []),
+                )
+                for role in roles
+            ]
 
             return role_details
 
@@ -321,18 +339,8 @@ class RoleService:
         if user_count > 0:
             raise BadRequestError(f"Cannot delete role '{role.name}' because it is assigned to {user_count} user(s)")
     
-    async def _enrich_role_data(self, role: RoleModel) -> RoleDetail:
-        """Convert role model to RoleDetail schema with additional metadata"""
-        # Count users with this role (simplified - could be optimized)
-        user_count = 0
-        try:
-            # This would require a method to count users with this role
-            # For now, we'll set it to None
-            user_count = None
-        except Exception as e:
-            logger.warning(f"Could not get user count for role {role.id}: {e}")
-        
-        # Convert basic role data
+    def _build_role_detail(self, role: RoleModel, permissions) -> RoleDetail:
+        """Convert role model and its permissions into RoleDetail schema."""
         role_detail = RoleDetail(
             id=role.id,
             name=role.name,
@@ -340,17 +348,16 @@ class RoleService:
             hierarchy_order=role.hierarchy_order,
             created_at=role.created_at.isoformat() if role.created_at else "",
             updated_at=role.updated_at.isoformat() if role.updated_at else "",
-            user_count=user_count
+            user_count=None,
         )
 
-        role_permissions = await self.permission_repo.list_for_role(role.id, role.organization_id)
-
-        if role_permissions:
-            role_detail.permissions = [
-                PermissionSchema(name=permission.code, description=permission.description or permission.code)
-                for permission in role_permissions
-            ]
-        else:
-            role_detail.permissions = []
-
+        role_detail.permissions = [
+            PermissionSchema(name=permission.code, description=permission.description or permission.code)
+            for permission in permissions
+        ]
         return role_detail
+
+    async def _enrich_role_data(self, role: RoleModel) -> RoleDetail:
+        """Backwards-compatible helper for single-role reads (create/update/get_by_id)."""
+        role_permissions = await self.permission_repo.list_for_role(role.id, role.organization_id)
+        return self._build_role_detail(role, role_permissions)

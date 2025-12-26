@@ -1,5 +1,5 @@
-import SetupPageClient from './SetupPageClient';
+import { SetupPage } from '@/feature/setup/display/SetupPage';
 
 export default function ProfilePage() {
-  return <SetupPageClient />;
+  return <SetupPage />;
 }

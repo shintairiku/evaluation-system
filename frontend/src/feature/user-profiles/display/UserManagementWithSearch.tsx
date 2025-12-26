@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import type { UserDetailResponse } from '@/api/types';
 import { useViewMode } from '../hooks/useViewMode';
-import ViewModeSelector from './ViewModeSelector';
+import ViewModeSelector from '../components/ViewModeSelector';
 import UserSearch from '../components/UserSearch';
-import UserTableView from './UserTableView';
-import UserGalleryView from './UserGalleryView';
+import UserTableView from './views/UserTableView';
+import UserGalleryView from './views/UserGalleryView';
 import OrganizationViewWithOrgChart from './OrganizationViewWithOrgChart';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';

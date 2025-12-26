@@ -3,6 +3,7 @@ import { getAdminGoalsAction } from '@/api/server-actions/goals';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getUsersAction } from '@/api/server-actions/users';
 import { getDepartmentsAction } from '@/api/server-actions/departments';
+import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
 import type {
   GoalResponse,
   EvaluationPeriod,
@@ -102,6 +103,8 @@ export interface UseAdminUsersGoalsDataParams {
 export function useAdminUsersGoalsData(
   params?: UseAdminUsersGoalsDataParams
 ): UseAdminUsersGoalsDataReturn {
+  const currentUserContext = useOptionalCurrentUserContext();
+
   // Data state
   const [goals, setGoals] = useState<GoalResponse[]>([]);
   const [users, setUsers] = useState<UserDetailResponse[]>([]);
@@ -148,67 +151,76 @@ export function useAdminUsersGoalsData(
     try {
       setIsLoading(true);
       setError(null);
+      const usersPromise = getUsersAction({
+        include: 'department,stage,supervisor',
+        withCount: false,
+      });
+      const departmentsPromise = getDepartmentsAction();
+      const hasContextPeriods = currentUserContext?.periods?.all && currentUserContext.periods.all.length > 0;
+      const requestedPeriodId = params?.selectedPeriodId;
+      const requestedPeriodMissingInContext =
+        hasContextPeriods &&
+        requestedPeriodId &&
+        !currentUserContext?.periods?.all?.some(period => period.id === requestedPeriodId);
 
-      // Step 1: Load evaluation periods, users, and departments in parallel
-      const [periodResult, usersResult, departmentsResult] = await Promise.all([
-        getCategorizedEvaluationPeriodsAction(),
-        getUsersAction(),
-        getDepartmentsAction(),
-      ]);
+      const periodsPromise = (!hasContextPeriods || requestedPeriodMissingInContext)
+        ? getCategorizedEvaluationPeriodsAction()
+        : Promise.resolve({ success: true, data: currentUserContext?.periods ?? undefined });
 
-      // Set users data
-      if (usersResult.success && usersResult.data?.items) {
-        setUsers(usersResult.data.items);
+      const periodResult = await periodsPromise;
+
+      if (!periodResult.success || !periodResult.data) {
+        setCurrentPeriod(null);
+        setAllPeriods([]);
+        setResolvedPeriodId(null);
+        setError('評価期間が設定されていません');
+        setGoals([]);
+        await Promise.allSettled([usersPromise, departmentsPromise]);
+        return;
       }
 
-      // Set departments data
-      if (
-        departmentsResult.success &&
-        Array.isArray(departmentsResult.data) &&
-        departmentsResult.data.length > 0
-      ) {
-        setDepartments(departmentsResult.data);
-      }
+      const allPeriodsArray = periodResult.data.all || [];
+      const resolvedCurrentPeriod = requestedPeriodMissingInContext
+        ? periodResult.data.current ?? null
+        : currentUserContext?.currentPeriod ?? periodResult.data.current ?? null;
 
-      // Set current period and all periods
-      if (periodResult.success && periodResult.data) {
-        const allPeriodsArray = periodResult.data.all || [];
-        setAllPeriods(allPeriodsArray);
-        setCurrentPeriod(periodResult.data.current || null);
+      setAllPeriods(allPeriodsArray);
+      setCurrentPeriod(resolvedCurrentPeriod);
 
-        // Determine which period to use: selected (if valid) > current active > first available
-        let periodToUse: EvaluationPeriod | undefined;
-        let requestedPeriodMissing = false;
+      // Determine which period to use: selected (if valid) > current active > first available
+      let periodToUse: EvaluationPeriod | undefined;
+      let requestedPeriodMissing = false;
 
-        if (params?.selectedPeriodId) {
-          periodToUse = allPeriodsArray.find(p => p.id === params.selectedPeriodId);
-          if (!periodToUse) {
-            requestedPeriodMissing = true;
-          }
-        }
-
-        const fallbackPeriod = periodResult.data.current ?? allPeriodsArray[0];
-        if (!periodToUse && fallbackPeriod) {
-          periodToUse = fallbackPeriod;
-        }
-
+      if (requestedPeriodId) {
+        periodToUse = allPeriodsArray.find(p => p.id === requestedPeriodId);
         if (!periodToUse) {
-          setResolvedPeriodId(null);
-          setError('評価期間が設定されていません');
-          setGoals([]);
-          return;
+          requestedPeriodMissing = true;
         }
+      }
 
-        const targetPeriodId = periodToUse.id;
-        setResolvedPeriodId(targetPeriodId);
+      const fallbackPeriod = (currentUserContext?.currentPeriod ?? periodResult.data.current) ?? allPeriodsArray[0];
+      if (!periodToUse && fallbackPeriod) {
+        periodToUse = fallbackPeriod;
+      }
 
-        if (requestedPeriodMissing) {
-          console.warn(
-            `Requested evaluation period (${params?.selectedPeriodId}) not found. Falling back to ${targetPeriodId}.`
-          );
-        }
+      if (!periodToUse) {
+        setResolvedPeriodId(null);
+        setError('評価期間が設定されていません');
+        setGoals([]);
+        await Promise.allSettled([usersPromise, departmentsPromise]);
+        return;
+      }
 
-        // Step 2: Fetch first page to determine total pages
+      const targetPeriodId = periodToUse.id;
+      setResolvedPeriodId(targetPeriodId);
+
+      if (requestedPeriodMissing) {
+        console.warn(
+          `Requested evaluation period (${requestedPeriodId}) not found. Falling back to ${targetPeriodId}.`
+        );
+      }
+
+      const goalsPromise = (async () => {
         const firstPageResult = await getAdminGoalsAction({
           periodId: targetPeriodId,
           page: 1,
@@ -218,15 +230,18 @@ export function useAdminUsersGoalsData(
         });
 
         if (!firstPageResult.success || !firstPageResult.data?.items) {
-          setError(firstPageResult.error || '目標の読み込みに失敗しました');
-          return;
+          return {
+            success: false,
+            error: firstPageResult.error || '目標の読み込みに失敗しました',
+            goals: [],
+          };
         }
 
         const allGoals: GoalResponse[] = [...firstPageResult.data.items];
         const totalPages = firstPageResult.data.pages ?? 1;
+        let failedPages = 0;
 
-        // Step 3: Fetch remaining pages CONCURRENTLY (PERFORMANCE IMPROVEMENT)
-        // This is 5x faster than sequential fetching!
+        // Step 2: Fetch remaining pages CONCURRENTLY (PERFORMANCE IMPROVEMENT)
         if (totalPages > 1) {
           const pagePromises = Array.from({ length: totalPages - 1 }, (_, i) =>
             getAdminGoalsAction({
@@ -241,7 +256,6 @@ export function useAdminUsersGoalsData(
           // Use Promise.allSettled to handle partial failures gracefully
           const results = await Promise.allSettled(pagePromises);
 
-          let failedPages = 0;
           results.forEach((result, index) => {
             if (result.status === 'fulfilled' && result.value.success && result.value.data?.items) {
               allGoals.push(...result.value.data.items);
@@ -250,30 +264,54 @@ export function useAdminUsersGoalsData(
               console.error(`Failed to load page ${index + 2}`);
             }
           });
-
-          if (failedPages > 0) {
-            setError(
-              `一部のデータの読み込みに失敗しました (${failedPages}ページ)。データは不完全な可能性があります。`
-            );
-          }
         }
 
-        // Reviews are already embedded in the goal objects (performance optimization)
-        setGoals(allGoals);
-      } else {
-        setCurrentPeriod(null);
-        setAllPeriods([]);
-        setResolvedPeriodId(null);
-        setError('評価期間が設定されていません');
-        setGoals([]);
+        return {
+          success: true,
+          goals: allGoals,
+          failedPages,
+        };
+      })();
+
+      const [usersResult, departmentsResult, goalsResult] = await Promise.all([
+        usersPromise,
+        departmentsPromise,
+        goalsPromise,
+      ]);
+
+      if (usersResult.success && usersResult.data?.items) {
+        setUsers(usersResult.data.items);
       }
+
+      if (
+        departmentsResult.success &&
+        Array.isArray(departmentsResult.data) &&
+        departmentsResult.data.length > 0
+      ) {
+        setDepartments(departmentsResult.data);
+      }
+
+      if (!goalsResult.success) {
+        setError(goalsResult.error || '目標の読み込みに失敗しました');
+        setGoals([]);
+        return;
+      }
+
+      if (goalsResult.failedPages && goalsResult.failedPages > 0) {
+        setError(
+          `一部のデータの読み込みに失敗しました (${goalsResult.failedPages}ページ)。データは不完全な可能性があります。`
+        );
+      }
+
+      // Reviews are already embedded in the goal objects (performance optimization)
+      setGoals(goalsResult.goals);
     } catch (err) {
       console.error('Error loading admin users goals data:', err);
       setError(err instanceof Error ? err.message : '予期しないエラーが発生しました');
     } finally {
       setIsLoading(false);
     }
-  }, [params?.selectedPeriodId]);
+  }, [currentUserContext?.currentPeriod, currentUserContext?.periods, params?.selectedPeriodId]);
 
   /**
    * Aggregate goals by user (CLIENT-SIDE AGGREGATION)

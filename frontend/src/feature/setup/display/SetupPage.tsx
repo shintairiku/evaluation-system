@@ -8,26 +8,35 @@ import ProfileForm from '@/feature/setup/display/ProfileForm';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import type { ProfileOptionsResponse } from '@/api/types';
 
-export default function SetupPageClient() {
+export function SetupPage() {
   const { orgId, isLoaded } = useAuth();
   const [profileOptions, setProfileOptions] = useState<ProfileOptionsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchProfileOptions() {
-      if (!isLoaded || !orgId) {
-        setIsLoading(false);
-        return;
-      }
+    if (!isLoaded) {
+      return;
+    }
 
+    if (!orgId) {
+      setIsLoading(false);
+      return;
+    }
+
+    const currentOrgId = orgId;
+    let isCancelled = false;
+
+    async function fetchProfileOptions(orgIdParam: string) {
       try {
         setIsLoading(true);
         setError(null);
 
-        console.log('Fetching profile options for orgId:', orgId);
-        const result = await getProfileOptionsAction(orgId);
+        console.log('Fetching profile options for orgId:', orgIdParam);
+        const result = await getProfileOptionsAction(orgIdParam);
         console.log('Profile options result:', result);
+
+        if (isCancelled) return;
 
         if (result.success && result.data) {
           setProfileOptions(result.data);
@@ -35,14 +44,21 @@ export default function SetupPageClient() {
           setError(result.error || 'Failed to fetch profile options');
         }
       } catch (err) {
+        if (isCancelled) return;
         console.error('Error fetching profile options:', err);
         setError('An unexpected error occurred');
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     }
 
-    fetchProfileOptions();
+    fetchProfileOptions(currentOrgId);
+
+    return () => {
+      isCancelled = true;
+    };
   }, [orgId, isLoaded]);
 
   if (!isLoaded || isLoading) {

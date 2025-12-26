@@ -51,12 +51,14 @@ export const supervisorReviewsApi = {
     pagination?: PaginationParams;
     periodId?: UUID;
     subordinateId?: UUID;
+    include?: string;
   }): Promise<ApiResponse<SupervisorReviewList>> => {
     const queryParams = new URLSearchParams();
     if (params?.pagination?.page) queryParams.append('page', params.pagination.page.toString());
     if (params?.pagination?.limit) queryParams.append('limit', params.pagination.limit.toString());
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
+    if (params?.include) queryParams.append('include', params.include);
 
     const endpoint = queryParams.toString()
       ? `${API_ENDPOINTS.SUPERVISOR_REVIEWS.PENDING}?${queryParams.toString()}`

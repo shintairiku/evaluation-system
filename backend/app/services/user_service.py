@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 # Cache for user search results (100 items, 30-second TTL for faster hierarchy updates)
 user_search_cache = TTLCache(maxsize=100, ttl=30)
+# Cache for user detail responses to reduce repeated detail lookups in dashboards
+user_detail_cache = TTLCache(maxsize=256, ttl=30)
 
 
 
@@ -211,6 +213,9 @@ class UserService:
         Get a specific user by ID and return UserDetailResponse with supervisor/subordinates
         """
         try:
+            cache_key = f"user_detail::{current_user_context.organization_id}::{user_id}::{','.join(sorted(current_user_context.role_names))}"
+            if cached := user_detail_cache.get(cache_key):
+                return cached
             # Check if user exists
             # Enforce organization scope on read
             org_id = current_user_context.organization_id
@@ -238,6 +243,7 @@ class UserService:
             
             # Enrich user data for detail response with supervisor/subordinates
             enriched_user = await self._enrich_detailed_user_data(user)
+            user_detail_cache[cache_key] = enriched_user
             return enriched_user
             
         except Exception as e:

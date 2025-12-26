@@ -1,10 +1,14 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from clerk_backend_api import Clerk
+import asyncio
+import hashlib
 import logging
-import httpx
-from jose import jwt, jwk, JWTError
+import time
 from typing import Dict, Any, Optional
+
+import httpx
 from cachetools import TTLCache
+from clerk_backend_api import Clerk
+from jose import JWTError, jwk, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.department_repo import DepartmentRepository
@@ -19,18 +23,48 @@ from ..core.exceptions import UnauthorizedError
 
 logger = logging.getLogger(__name__)
 
-# Global JWKS cache - 15 minutes TTL for security keys
-_jwks_cache: TTLCache = TTLCache(maxsize=10, ttl=900)
+# Global JWKS cache - 60 minutes TTL for security keys
+_jwks_cache: TTLCache = TTLCache(maxsize=10, ttl=3600)
+
+# Shared HTTP client for JWKS fetches to reuse keep-alive connections.
+_jwks_client: httpx.AsyncClient | None = None
+_jwks_client_lock = asyncio.Lock()
+
+# Short-lived cache for decoded AuthUser by token hash to avoid repeated JWT
+# verification work across rapid successive requests. Entries are also
+# validated against the token's exp claim on read.
+_token_cache: TTLCache = TTLCache(maxsize=512, ttl=300)
+
+
+async def _get_jwks_client() -> httpx.AsyncClient:
+    global _jwks_client
+    async with _jwks_client_lock:
+        if _jwks_client is None or _jwks_client.is_closed:
+            _jwks_client = httpx.AsyncClient(timeout=10.0)
+        return _jwks_client
+
+
+async def close_jwks_client() -> None:
+    global _jwks_client
+    async with _jwks_client_lock:
+        if _jwks_client is not None and not _jwks_client.is_closed:
+            await _jwks_client.aclose()
+        _jwks_client = None
+
+
+def _token_cache_key(token: str) -> str:
+    """Hash the token so we never keep the raw token string in memory."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 class AuthService:
     """Service for handling user authentication operations."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession | None):
         self.session = session
-        self.user_repo = UserRepository(session)
-        self.department_repo = DepartmentRepository(session)
-        self.stage_repo = StageRepository(session)
-        self.role_repo = RoleRepository(session)
+        self.user_repo = UserRepository(session) if session else None
+        self.department_repo = DepartmentRepository(session) if session else None
+        self.stage_repo = StageRepository(session) if session else None
+        self.role_repo = RoleRepository(session) if session else None
         
         # Initialize Clerk client
         clerk_config = get_clerk_config()
@@ -52,19 +86,23 @@ class AuthService:
         logger.info(f"Fetching JWKS from: {jwks_url}")
         
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(jwks_url, timeout=10.0)
-                response.raise_for_status()
-                jwks_data = response.json()
-                
-                # Cache the result
-                _jwks_cache[cache_key] = jwks_data
-                logger.info(f"Successfully cached JWKS for issuer: {issuer}")
-                return jwks_data
-                
+            client = await _get_jwks_client()
+            response = await client.get(jwks_url)
+            response.raise_for_status()
+            jwks_data = response.json()
+
+            # Cache the result
+            _jwks_cache[cache_key] = jwks_data
+            logger.info(f"Successfully cached JWKS for issuer: {issuer}")
+            return jwks_data
+
         except Exception as e:
             logger.error(f"Failed to fetch JWKS from {jwks_url}: {e}")
             raise Exception(f"JWKS fetch failed: {str(e)}")
+
+    def _require_session(self) -> None:
+        if self.session is None:
+            raise RuntimeError("AuthService requires a database session for this operation")
 
     def _select_key_from_jwks(self, jwks_data: Dict[str, Any], kid: str) -> Dict[str, Any]:
         """Select the appropriate key from JWKS based on kid."""
@@ -122,6 +160,17 @@ class AuthService:
             Exception: If token is invalid or verification fails
         """
         try:
+            cache_key = _token_cache_key(token)
+            cached_entry = _token_cache.get(cache_key)
+            if cached_entry:
+                cached_user, cached_exp = cached_entry
+                # Respect token expiry even while cached
+                if not cached_exp or cached_exp > time.time():
+                    logger.debug("Using cached AuthUser for token hash")
+                    return cached_user
+                # Drop stale entry
+                _token_cache.pop(cache_key, None)
+
             # Get environment variables for verification
             clerk_issuer = getattr(settings, 'CLERK_ISSUER', None)
             # Allow comma-separated audiences for dev/preview without changing Clerk JWT
@@ -167,6 +216,8 @@ class AuthService:
                     "verify_nbf": True,
                     "require_exp": True,
                     "require_iat": True,
+                    # Tolerate minor clock drift between services/containers.
+                    "leeway": settings.CLERK_JWT_LEEWAY_SECONDS,
                 }
 
                 # Build common kwargs (issuer always enforced when provided)
@@ -223,8 +274,8 @@ class AuthService:
             clerk_id = normalized.get("sub")
             if not clerk_id:
                 raise ValueError("User ID not found in token")
-                
-            return AuthUser(
+
+            auth_user = AuthUser(
                 clerk_id=clerk_id,
                 email=normalized.get("email", ""),
                 first_name=normalized.get("given_name", ""),
@@ -235,6 +286,16 @@ class AuthService:
                 organization_name=normalized.get("organization_slug"),  # Keep for backward compatibility
                 organization_slug=normalized.get("organization_slug")   # For organization-scoped routing
             )
+
+            # Cache with respect to token expiry if present
+            exp_ts = None
+            try:
+                exp_ts = payload.get("exp") if isinstance(payload, dict) else None
+            except Exception:
+                exp_ts = None
+            _token_cache[cache_key] = (auth_user, exp_ts)
+
+            return auth_user
             
         except JWTError as e:
             logger.error(f"JWT verification failed: {e}")
@@ -248,6 +309,9 @@ class AuthService:
     async def check_user_exists_by_clerk_id(self, clerk_user_id: str) -> UserExistsResponse:
         """Check if user exists in database with minimal info."""
         try:
+            self._require_session()
+            if not self.user_repo:
+                raise RuntimeError("User repository not available")
             user_data = await self.user_repo.check_user_exists_by_clerk_id(clerk_user_id)
 
             if user_data:
@@ -277,6 +341,9 @@ class AuthService:
             ProfileOptionsResponse: Contains departments, stages, roles, and users
         """
         try:
+            self._require_session()
+            if not self.department_repo or not self.stage_repo or not self.role_repo or not self.user_repo:
+                raise RuntimeError("Profile options repositories not available")
             if organization_id:
                 # User has organization context - return org-scoped data
                 logger.info(f"Fetching profile options for organization: {organization_id}")
