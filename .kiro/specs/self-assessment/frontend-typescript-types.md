@@ -137,6 +137,8 @@ import type {
   GoalCategory,
   PaginatedResponse
 } from './common';
+import type { GoalResponse } from './goal';
+import type { EvaluationPeriod, UserProfile } from './supervisor-feedback';
 
 /**
  * Base self-assessment fields (editable by employee)
@@ -177,6 +179,10 @@ export interface SelfAssessment extends SelfAssessmentBase {
  * Detailed self-assessment with additional context
  * Used for single item views (GET /self-assessments/:id)
  * @see api-contract.md Section 4.4
+ *
+ * NOTE: Goal title should be extracted using getGoalTitle() helper:
+ * - Performance goals: use goal.title
+ * - Competency goals: use competency names or fallback
  */
 export interface SelfAssessmentDetail extends SelfAssessment {
   // Assessment state information
@@ -187,17 +193,19 @@ export interface SelfAssessmentDetail extends SelfAssessment {
   /** Days remaining until assessment deadline */
   daysUntilDeadline?: number;
 
-  // Goal context (extracted from goal relationship)
+  // Goal context (convenience fields, extracted from goal relationship)
   /** Category of the goal being assessed */
   goalCategory?: GoalCategory;
   /** Current status of the goal */
   goalStatus?: string;
 
-  // Related information (optional, may be populated by backend)
-  /** The goal being assessed - use goal.title for Performance, calculate for Competency */
+  // Embedded relationships
+  /** The goal being assessed - use getGoalTitle() helper to extract title */
   goal?: GoalResponse;
-  evaluationPeriod?: unknown;
-  employee?: unknown;
+  /** The evaluation period this assessment belongs to */
+  evaluationPeriod?: EvaluationPeriod;
+  /** The employee who owns this assessment */
+  employee?: UserProfile;
 }
 
 /**
@@ -322,34 +330,46 @@ export interface SupervisorFeedback extends SupervisorFeedbackBase {
 /**
  * Detailed supervisor feedback with additional context
  * @see api-contract.md Section 5.3
+ *
+ * NOTE: Goal title/description should be extracted from selfAssessment.goal
+ * using getGoalTitle() and getGoalDescription() helpers.
+ * Period name should be extracted from evaluationPeriod.name.
  */
 export interface SupervisorFeedbackDetail extends SupervisorFeedback {
-  /** The self-assessment this feedback is for */
-  selfAssessment?: SelfAssessment;
+  /** The self-assessment this feedback is for (includes goal) */
+  selfAssessment?: SelfAssessmentWithGoal;
+  /** The evaluation period this feedback belongs to */
+  evaluationPeriod?: EvaluationPeriod;
   /** Whether this feedback can still be edited */
   isEditable: boolean;
   /** Whether this feedback is past the deadline */
   isOverdue: boolean;
   /** Days remaining until feedback deadline */
   daysUntilDeadline?: number;
-  /** Category of the goal being evaluated */
-  goalCategory?: GoalCategory;
-  /** Title of the goal being evaluated */
-  goalTitle?: string;
-  /** Name of the evaluation period */
-  evaluationPeriodName?: string;
-  /** Subordinate information */
-  subordinate?: {
-    id: UUID;
-    name: string;
-    email?: string;
-  };
-  /** Supervisor information */
-  supervisor?: {
-    id: UUID;
-    name: string;
-    email?: string;
-  };
+  /** Subordinate who created the self-assessment */
+  subordinate?: UserProfile;
+  /** Supervisor providing the feedback */
+  supervisor?: UserProfile;
+}
+
+/**
+ * Basic user profile for display purposes
+ */
+export interface UserProfile {
+  id: UUID;
+  name: string;
+  email?: string;
+}
+
+/**
+ * Basic evaluation period for display purposes
+ */
+export interface EvaluationPeriod {
+  id: UUID;
+  name: string;
+  startDate: string;
+  endDate: string;
+  deadline?: string;
 }
 
 /**

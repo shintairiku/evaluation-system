@@ -751,14 +751,30 @@ interface SelfAssessment {
   updatedAt: string;
 }
 
+/**
+ * Detailed self-assessment with embedded relationships.
+ *
+ * NOTE: Goal title should be extracted using getGoalTitle() helper:
+ * - Performance goals: use goal.title
+ * - Competency goals: use competency names or fallback
+ */
 interface SelfAssessmentDetail extends SelfAssessment {
+  /** Whether this assessment can still be edited */
   isEditable: boolean;
+  /** Whether this assessment is past the deadline */
   isOverdue: boolean;
+  /** Days remaining until assessment deadline */
   daysUntilDeadline?: number;
+  /** Category of the goal being assessed (convenience field) */
   goalCategory?: string;
+  /** Current status of the goal (convenience field) */
   goalStatus?: string;
-  /** Embedded goal - use getGoalTitle() helper to extract title */
+  /** The goal being assessed - use getGoalTitle() helper to extract title */
   goal?: GoalResponse;
+  /** The evaluation period this assessment belongs to */
+  evaluationPeriod?: EvaluationPeriod;
+  /** The employee who owns this assessment */
+  employee?: UserProfile;
 }
 
 interface SelfAssessmentList {
@@ -790,14 +806,46 @@ interface SupervisorFeedback {
   updatedAt: string;
 }
 
+/**
+ * Detailed supervisor feedback with embedded relationships.
+ *
+ * NOTE: Goal title/description should be extracted from selfAssessment.goal
+ * using getGoalTitle() and getGoalDescription() helpers.
+ * Period name should be extracted from evaluationPeriod.name.
+ */
 interface SupervisorFeedbackDetail extends SupervisorFeedback {
-  selfAssessment?: SelfAssessment;
+  /** The self-assessment this feedback is for (includes embedded goal) */
+  selfAssessment?: SelfAssessmentWithGoal;
+  /** The evaluation period this feedback belongs to */
+  evaluationPeriod?: EvaluationPeriod;
+  /** Whether this feedback can still be edited */
   isEditable: boolean;
+  /** Whether this feedback is past the deadline */
   isOverdue: boolean;
+  /** Days remaining until feedback deadline */
   daysUntilDeadline?: number;
-  goalCategory?: string;
-  goalTitle?: string;
-  evaluationPeriodName?: string;
+  /** Subordinate who created the self-assessment */
+  subordinate?: UserProfile;
+  /** Supervisor providing the feedback */
+  supervisor?: UserProfile;
+}
+
+interface SelfAssessmentWithGoal extends SelfAssessment {
+  goal: GoalResponse;
+}
+
+interface UserProfile {
+  id: UUID;
+  name: string;
+  email?: string;
+}
+
+interface EvaluationPeriod {
+  id: UUID;
+  name: string;
+  startDate: string;
+  endDate: string;
+  deadline?: string;
 }
 
 interface SupervisorFeedbackList {
