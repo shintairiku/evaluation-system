@@ -42,7 +42,7 @@ status: SubmissionStatus; // 'draft' | 'submitted'
 | Rating system | `selfRating: number (0-100)` | `selfRatingCode: RatingCode` + `selfRating: number (0-7)` |
 | Status enum | `draft \| submitted` | `draft \| submitted \| approved \| rejected` |
 | History tracking | ❌ Missing | `previousSelfAssessmentId?: UUID` |
-| Goal context | ❌ Missing | `goalTitle`, `goalDescription` |
+| Goal relation | `goal?: unknown` | `goal?: GoalResponse` (typed) |
 
 ---
 
@@ -187,29 +187,25 @@ export interface SelfAssessmentDetail extends SelfAssessment {
   /** Days remaining until assessment deadline */
   daysUntilDeadline?: number;
 
-  // Goal context
+  // Goal context (extracted from goal relationship)
   /** Category of the goal being assessed */
   goalCategory?: GoalCategory;
   /** Current status of the goal */
   goalStatus?: string;
-  /** Title of the goal */
-  goalTitle?: string;
-  /** Description of the goal */
-  goalDescription?: string;
 
   // Related information (optional, may be populated by backend)
-  goal?: unknown;
+  /** The goal being assessed - use goal.title for Performance, calculate for Competency */
+  goal?: GoalResponse;
   evaluationPeriod?: unknown;
   employee?: unknown;
 }
 
 /**
- * Self-assessment with goal information (for list views)
+ * Self-assessment with embedded goal information (for list views)
+ * Goal title should be extracted using getGoalTitle() helper
  */
 export interface SelfAssessmentWithGoal extends SelfAssessment {
-  goalTitle: string;
-  goalCategory: GoalCategory;
-  goalWeight?: number;
+  goal: GoalResponse;
 }
 
 /**
@@ -420,6 +416,39 @@ export interface SupervisorFeedbackQueryParams {
 // frontend/src/api/types/self-assessment-helpers.ts
 
 import type { SelfAssessment, SelfAssessmentStatus } from './self-assessment';
+
+import type { GoalResponse } from './goal';
+
+/**
+ * Extract goal title based on goal category
+ * - Performance goals: use goal.title
+ * - Competency goals: use competency names (requires competency lookup) or fallback
+ */
+export function getGoalTitle(goal: GoalResponse, competencyNames?: string[]): string {
+  if (goal.goalCategory === 'コンピテンシー') {
+    // For competency goals, use competency names if available
+    if (competencyNames && competencyNames.length > 0) {
+      return competencyNames.join(', ');
+    }
+    return 'コンピテンシー目標';
+  } else {
+    // For performance goals, use title
+    return goal.title || '業績目標';
+  }
+}
+
+/**
+ * Extract goal description based on goal category
+ * - Performance goals: use specificGoalText
+ * - Competency goals: use actionPlan
+ */
+export function getGoalDescription(goal: GoalResponse): string | undefined {
+  if (goal.goalCategory === 'コンピテンシー') {
+    return goal.actionPlan;
+  } else {
+    return goal.specificGoalText;
+  }
+}
 
 /**
  * Check if self-assessment is editable

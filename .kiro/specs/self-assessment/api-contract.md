@@ -757,8 +757,8 @@ interface SelfAssessmentDetail extends SelfAssessment {
   daysUntilDeadline?: number;
   goalCategory?: string;
   goalStatus?: string;
-  goalTitle?: string;
-  goalDescription?: string;
+  /** Embedded goal - use getGoalTitle() helper to extract title */
+  goal?: GoalResponse;
 }
 
 interface SelfAssessmentList {
