@@ -311,10 +311,11 @@ erDiagram
 ### 4.1. Creation Rules
 
 **Goal Prerequisites**:
-- ✅ Self-assessment can only be created for **approved** goals
+- ✅ Self-assessment is **automatically created** when goal status changes to **approved**
 - ✅ Goal must belong to the current user (employee)
 - ✅ Goal's evaluation period must be active
 - ✅ **One self-assessment per goal** (unique constraint on `goal_id`)
+- ✅ System creates self-assessment in `draft` status with empty `self_rating_code` and `self_comment`
 
 **Goal Category Sequential Rules**:
 - ✅ **Performance Goals** (`業績目標`): Can be self-assessed immediately after approval
@@ -394,7 +395,7 @@ CHECK ((status NOT IN ('submitted', 'approved', 'rejected')) OR (submitted_at IS
 ### 4.4. Permission Rules
 
 **Employee Permissions**:
-- ✅ Can **create** self-assessments for their own approved goals
+- ❌ **Cannot** manually create self-assessments (auto-created by system when goal approved)
 - ✅ Can **read** their own self-assessments
 - ✅ Can **update** their own self-assessments (only in draft state)
 - ✅ Can **delete** their own self-assessments (only in draft state)
@@ -450,7 +451,7 @@ CHECK ((status NOT IN ('submitted', 'approved', 'rejected')) OR (submitted_at IS
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Draft: Employee creates
+    [*] --> Draft: System auto-creates<br/>when goal approved
     Draft --> Submitted: Employee submits
     Submitted --> Rejected: Supervisor rejects
     Submitted --> Approved: Supervisor approves
@@ -458,7 +459,8 @@ stateDiagram-v2
     Approved --> [*]: Process complete
 
     note right of Draft
-        ✅ Editable
+        🤖 Auto-created by system when goal approved
+        ✅ Editable by employee
         ✅ Auto-save enabled
         ✅ Can delete
         ❌ Grade (rating_code) optional
@@ -492,7 +494,7 @@ stateDiagram-v2
 
 | From State | To State | Trigger | Who | Conditions |
 |------------|----------|---------|-----|------------|
-| (none) | Draft | Create | Employee | Goal is approved + period is active |
+| (none) | Draft | Create | **System** | Goal status changes to 'approved' → System auto-creates self-assessment in draft |
 | Draft | Submitted | Submit | Employee | `self_rating_code` AND `self_comment` are provided |
 | Draft | (deleted) | Delete | Employee | Still in draft state |
 | Submitted | Draft | Edit | Employee | SupervisorFeedback not yet reviewed (status = 'pending' or not created) |
