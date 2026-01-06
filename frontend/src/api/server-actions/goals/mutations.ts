@@ -122,6 +122,7 @@ export async function submitGoalAction(id: UUID, status: 'draft' | 'submitted'):
     }
 
     revalidateTag(CACHE_TAGS.GOALS);
+    revalidateTag(CACHE_TAGS.SUPERVISOR_REVIEWS);
 
     return {
       success: true,
@@ -195,4 +196,3 @@ export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{
     };
   }
 }
-
