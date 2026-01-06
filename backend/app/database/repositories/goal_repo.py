@@ -749,7 +749,8 @@ class GoalRepository(BaseRepository[Goal]):
         """Validate that the status transition is allowed."""
         valid_transitions = {
             "draft": ["submitted"],
-            "submitted": ["approved", "rejected"],
+            # Allow withdrawal back to draft. Service layer enforces business rules (e.g., untouched supervisor review).
+            "submitted": ["approved", "rejected", "draft"],
             "approved": [],  # Approved goals cannot be changed
             "rejected": ["draft", "submitted"]
         }
