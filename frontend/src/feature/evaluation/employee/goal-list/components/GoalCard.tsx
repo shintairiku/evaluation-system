@@ -7,8 +7,10 @@ import { Target, Brain, Calendar, Weight, AlertCircle, CheckCircle } from 'lucid
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import { GoalAuditHistory } from '@/components/evaluation/GoalAuditHistory';
 import { resolveCompetencyNamesForDisplay } from '@/utils/goal-competency-names';
+import { deleteGoalAction, submitGoalAction } from '@/api/server-actions/goals';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 /**
  * Props for GoalCard component
@@ -39,10 +41,10 @@ interface GoalCardProps {
  * - Shows all goal fields (similar to GoalApprovalCard)
  * - Shows supervisor comments (rejection or approval) if applicable
  * - Provides action buttons based on goal status:
- *   - draft: 編集
- *   - submitted: 確認 (read-only)
- *   - approved: 確認 (read-only)
- *   - rejected: 編集・再提出
+ *   - draft: 編集・削除
+ *   - submitted: 下書きに戻す (上司レビュー未着手の場合のみ)
+ *   - approved: (no action)
+ *   - rejected: (no action - new draft created automatically)
  *
  * @param props - Component props
  * @returns JSX element containing the goal card
@@ -55,6 +57,8 @@ interface GoalCardProps {
 export const GoalCard = React.memo<GoalCardProps>(
   function GoalCard({ goal, className, currentUserId, userName, supervisorName, approverName }: GoalCardProps) {
     const router = useRouter();
+    const [isDeleting, setIsDeleting] = React.useState(false);
+    const [isWithdrawing, setIsWithdrawing] = React.useState(false);
     const isPerformanceGoal = goal.goalCategory === '業績目標';
     const isCompetencyGoal = goal.goalCategory === 'コンピテンシー';
     const rejectionHistory = goal.rejectionHistory;
@@ -109,22 +113,94 @@ export const GoalCard = React.memo<GoalCardProps>(
       // Check if this is the current user's goal
       const isOwnGoal = currentUserId && currentUserId === goal.userId;
 
-      // Only show edit button for own goals in draft status
+      const canWithdraw = Boolean(
+        isOwnGoal
+        && goal.status === 'submitted'
+        && goal.supervisorReview
+        && goal.supervisorReview.status === 'draft'
+        && (goal.supervisorReview.comment ?? '').trim() === ''
+      );
+
+      const handleDelete = async () => {
+        if (isDeleting) return;
+        if (!confirm('この目標を削除しますか？')) return;
+
+        try {
+          setIsDeleting(true);
+          const result = await deleteGoalAction(goal.id);
+          if (result.success) {
+            toast.success('目標を削除しました');
+            router.refresh();
+            return;
+          }
+          toast.error(result.error || '目標の削除に失敗しました');
+        } catch (err) {
+          console.error('Error deleting goal:', err);
+          toast.error(err instanceof Error ? err.message : '目標の削除に失敗しました');
+        } finally {
+          setIsDeleting(false);
+        }
+      };
+
+      const handleWithdraw = async () => {
+        if (isWithdrawing || !canWithdraw) return;
+
+        try {
+          setIsWithdrawing(true);
+          const result = await submitGoalAction(goal.id, 'draft');
+          if (result.success) {
+            toast.success('下書きに戻しました');
+            router.refresh();
+            return;
+          }
+          toast.error(result.error || '下書きに戻せませんでした');
+        } catch (err) {
+          console.error('Error withdrawing goal submission:', err);
+          toast.error(err instanceof Error ? err.message : '下書きに戻せませんでした');
+        } finally {
+          setIsWithdrawing(false);
+        }
+      };
+
+      // Draft goals: can edit and delete (own goals only)
       if (isOwnGoal && goal.status === 'draft') {
         return (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => router.push(`/goal-edit/${goal.id}`)}
+              className="border-orange-500 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+              variant="outline"
+            >
+              編集
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="border-red-500 text-red-700 hover:bg-red-50 hover:text-red-800"
+              variant="outline"
+            >
+              {isDeleting ? '削除中...' : '削除'}
+            </Button>
+          </div>
+        );
+      }
+
+      // Submitted goals: allow withdraw to draft only if supervisor review is untouched (own goals only)
+      if (isOwnGoal && goal.status === 'submitted') {
+        return (
           <Button
-            onClick={() => router.push(`/goal-edit/${goal.id}`)}
+            onClick={handleWithdraw}
+            disabled={!canWithdraw || isWithdrawing}
             className="border-orange-500 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
             variant="outline"
           >
-            編集
+            {isWithdrawing ? '処理中...' : '下書きに戻す'}
           </Button>
         );
       }
 
       // No action for:
       // - Other users' goals (supervisor viewing subordinates)
-      // - Submitted goals (awaiting review)
       // - Approved goals (finalized)
       // - Rejected goals (read-only, new draft created automatically)
       return null;
