@@ -179,7 +179,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
                 </div>
                 <div className="text-sm text-gray-600 space-y-1">
                   <p><strong>具体的目標:</strong> {goal.specificGoal}</p>
-                  <p><strong>達成基準:</strong> {goal.achievementCriteria}</p>
+                  <p><strong>達成基準:</strong> <span className="whitespace-pre-wrap">{goal.achievementCriteria}</span></p>
                   <p><strong>実行方法:</strong> {goal.method}</p>
                 </div>
               </div>
