@@ -19,7 +19,7 @@ import { usePeriodSelection } from '@/hooks/usePeriodSelection';
 import { useGoalAutoSave } from '@/hooks/useGoalAutoSave';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import type { StageWeightBudget } from '../types';
-import { DEFAULT_STAGE_WEIGHT_BUDGET } from '../types';
+import { DEFAULT_ACHIEVEMENT_CRITERIA_EXAMPLE, DEFAULT_STAGE_WEIGHT_BUDGET } from '../types';
 // useLoading removed - using simpler approach
 import type { EvaluationPeriod } from '@/api/types';
 
@@ -127,7 +127,7 @@ export default function GoalInputPage() {
         type: 'quantitative' as const,
         title: '',
         specificGoal: '',
-        achievementCriteria: '',
+        achievementCriteria: DEFAULT_ACHIEVEMENT_CRITERIA_EXAMPLE,
         method: '',
         weight: 50,
       };
