@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, AlertCircle, TrendingUp, BarChart3, Zap } from 'lucide-react';
-import { DEFAULT_ACHIEVEMENT_CRITERIA_EXAMPLE, type StageWeightBudget } from '../types';
+import { getDefaultAchievementCriteria, type StageWeightBudget } from '../types';
 import { deleteGoalAction } from '@/api/server-actions/goals';
 import type { UseGoalTrackingReturn } from '@/hooks/useGoalTracking';
 
@@ -101,7 +101,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
       type: preferredType,
       title: '',
       specificGoal: '',
-      achievementCriteria: DEFAULT_ACHIEVEMENT_CRITERIA_EXAMPLE,
+      achievementCriteria: getDefaultAchievementCriteria(preferredType),
       method: '',
       weight: initialWeight > 0 ? initialWeight : 0
     };
@@ -180,10 +180,15 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
       } else if (field === 'type') {
         const newType = value as GoalType;
         const clamped = clampWeightForGoal(id, newType, goal.weight);
+        const shouldUpdateAchievementCriteria = !goal.achievementCriteria.trim()
+          || goal.achievementCriteria === getDefaultAchievementCriteria(goal.type);
         updatedGoal = {
           ...goal,
           type: newType,
           weight: clamped,
+          achievementCriteria: shouldUpdateAchievementCriteria
+            ? getDefaultAchievementCriteria(newType)
+            : goal.achievementCriteria,
         };
         didChangeWeights = true;
       } else {
