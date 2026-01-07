@@ -187,7 +187,10 @@ async def delete_evaluation_period(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception:
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in delete_evaluation_period: {e}", exc_info=True)
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
