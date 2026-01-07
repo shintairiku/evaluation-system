@@ -246,7 +246,7 @@ async def update_user_stage(
 async def delete_user(
     user_id: UUID,
     context: AuthContext = Depends(get_auth_context),
-    mode: str = Query("soft", regex="^(soft|hard)$", description="Delete mode: 'soft' (inactivate) or 'hard' (permanent)"),
+    mode: str = Query("soft", pattern="^(soft|hard)$", description="Delete mode: 'soft' (inactivate) or 'hard' (permanent)"),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Delete a user (admin only). Supports both soft delete (inactivation) and hard delete (permanent removal)."""
@@ -289,4 +289,3 @@ async def delete_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
-
