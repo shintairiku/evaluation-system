@@ -40,6 +40,7 @@ export default function DeleteConfirmationModal({
   const statusColor = getStatusColor(period.status);
   const periodTypeLabel = PERIOD_TYPE_LABELS[period.period_type] || period.period_type;
   const daysRemaining = period.status === 'active' ? getDaysRemaining(period.end_date) : null;
+  const canDelete = period.status === 'draft';
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -150,9 +151,14 @@ export default function DeleteConfirmationModal({
           {step === 'warning' && (
             <>
               {/* Warning Message */}
-              <Alert variant={isHighRisk ? "destructive" : "default"}>
+              <Alert variant={!canDelete || isHighRisk ? "destructive" : "default"}>
                 <AlertTriangle size={16} />
                 <AlertDescription className="space-y-2">
+                  {!canDelete && (
+                    <p className="font-medium">
+                      この評価期間は削除できません（削除できるのは「下書き」の評価期間のみです）。
+                    </p>
+                  )}
                   <p className="font-medium">
                     {getWarningMessage()}
                   </p>
@@ -250,7 +256,7 @@ export default function DeleteConfirmationModal({
               type="button"
               variant="destructive"
               onClick={handleFirstConfirm}
-              disabled={isDeleting}
+              disabled={isDeleting || !canDelete}
             >
               続行
             </Button>
