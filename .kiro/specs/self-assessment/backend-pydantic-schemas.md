@@ -39,7 +39,7 @@ status: SubmissionStatus
 
 | Change | Current | Updated |
 |--------|---------|---------|
-| Rating system | `self_rating: float (0-100)` | `self_rating_code: RatingCode` + `self_rating: Decimal (0-7)` |
+| Rating system | `self_rating: float (0-100)` | `self_rating_code: RatingCode` + `self_rating: float (0-7)` |
 | Status enum | `SubmissionStatus` | `SelfAssessmentStatus` (4 states) |
 | History tracking | ❌ Missing | `previous_self_assessment_id: UUID` |
 | Goal relation | ❌ Missing | `goal: Optional[GoalResponse]` |
@@ -136,7 +136,6 @@ class SubmissionStatus(str, Enum):
 
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
-from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
 from .common import (
@@ -145,6 +144,7 @@ from .common import (
     RATING_CODE_VALUES,
     PaginatedResponse
 )
+from .supervisor_review import SupervisorAction
 
 if TYPE_CHECKING:
     from .goal import GoalResponse
@@ -210,7 +210,7 @@ class SelfAssessmentInDB(SelfAssessmentBase):
         alias="previousSelfAssessmentId",
         description="Reference to previous self-assessment (for rejection history)"
     )
-    self_rating: Optional[Decimal] = Field(
+    self_rating: Optional[float] = Field(
         None,
         alias="selfRating",
         ge=0,
@@ -345,7 +345,7 @@ class SelfAssessmentHistoryItem(BaseModel):
         alias="supervisorComment",
         description="Supervisor's comment (from SupervisorFeedback)"
     )
-    supervisor_action: Optional[str] = Field(
+    supervisor_action: Optional[SupervisorAction] = Field(
         None,
         alias="supervisorAction",
         description="Supervisor's action (from SupervisorFeedback)"
@@ -371,7 +371,6 @@ class SelfAssessmentHistory(BaseModel):
 
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
-from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
 from .common import SubmissionStatus, RatingCode, PaginatedResponse
@@ -502,7 +501,7 @@ class SupervisorFeedbackInDB(SupervisorFeedbackBase):
     period_id: UUID = Field(..., alias="periodId")
     supervisor_id: UUID = Field(..., alias="supervisorId")
     subordinate_id: UUID = Field(..., alias="subordinateId")
-    supervisor_rating: Optional[Decimal] = Field(
+    supervisor_rating: Optional[float] = Field(
         None,
         alias="supervisorRating",
         ge=0,
@@ -725,7 +724,7 @@ def validate_self_assessment_submission(
 | `periodId` | `period_id` | `UUID` | ✅ Aligned |
 | `previousSelfAssessmentId` | `previous_self_assessment_id` | `UUID \| None` | ✅ **NEW** |
 | `selfRatingCode` | `self_rating_code` | `RatingCode` | ✅ **NEW** |
-| `selfRating` | `self_rating` | `Decimal (0-7)` | ✅ **UPDATED** |
+| `selfRating` | `self_rating` | `float (0-7)` | ✅ **UPDATED** |
 | `selfComment` | `self_comment` | `str \| None` | ✅ Aligned |
 | `status` | `status` | `SelfAssessmentStatus` | ✅ **UPDATED** (4 states) |
 | `submittedAt` | `submitted_at` | `datetime \| None` | ✅ Aligned |
@@ -742,7 +741,7 @@ def validate_self_assessment_submission(
 | `supervisorId` | `supervisor_id` | `UUID` | ✅ Aligned |
 | `subordinateId` | `subordinate_id` | `UUID` | ✅ **NEW** |
 | `supervisorRatingCode` | `supervisor_rating_code` | `RatingCode` | ✅ **NEW** |
-| `supervisorRating` | `supervisor_rating` | `Decimal (0-7)` | ✅ **UPDATED** |
+| `supervisorRating` | `supervisor_rating` | `float (0-7)` | ✅ **UPDATED** |
 | `supervisorComment` | `supervisor_comment` | `str \| None` | ✅ Aligned |
 | `action` | `action` | `SupervisorAction` | ✅ **NEW** |
 | `status` | `status` | `SubmissionStatus` | ✅ Aligned |
@@ -760,7 +759,7 @@ def validate_self_assessment_submission(
 | Pydantic (Backend) | TypeScript (Frontend) | Alias | Aligned? |
 |-------------------|----------------------|-------|----------|
 | `self_rating_code: RatingCode` | `selfRatingCode: RatingCode` | `selfRatingCode` | ✅ |
-| `self_rating: Decimal` | `selfRating: number` | `selfRating` | ✅ |
+| `self_rating: float` | `selfRating: number` | `selfRating` | ✅ |
 | `self_comment: str` | `selfComment: string` | `selfComment` | ✅ |
 | `previous_self_assessment_id: UUID` | `previousSelfAssessmentId: UUID` | `previousSelfAssessmentId` | ✅ |
 | `status: SelfAssessmentStatus` | `status: SelfAssessmentStatus` | - | ✅ |

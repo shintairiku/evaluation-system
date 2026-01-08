@@ -134,11 +134,12 @@ import type {
   UUID,
   RatingCode,
   SelfAssessmentStatus,
-  GoalCategory,
+  SupervisorFeedbackAction,
   PaginatedResponse
 } from './common';
 import type { GoalResponse } from './goal';
-import type { EvaluationPeriod, UserProfile } from './supervisor-feedback';
+import type { EvaluationPeriod } from './evaluation-period';
+import type { UserProfileOption } from './user';
 
 /**
  * Base self-assessment fields (editable by employee)
@@ -194,8 +195,8 @@ export interface SelfAssessmentDetail extends SelfAssessment {
   daysUntilDeadline?: number;
 
   // Goal context (convenience fields, extracted from goal relationship)
-  /** Category of the goal being assessed */
-  goalCategory?: GoalCategory;
+  /** Category of the goal being assessed (e.g., '業績目標', 'コンピテンシー') */
+  goalCategory?: string;
   /** Current status of the goal */
   goalStatus?: string;
 
@@ -205,7 +206,7 @@ export interface SelfAssessmentDetail extends SelfAssessment {
   /** The evaluation period this assessment belongs to */
   evaluationPeriod?: EvaluationPeriod;
   /** The employee who owns this assessment */
-  employee?: UserProfile;
+  employee?: UserProfileOption;
 }
 
 /**
@@ -240,7 +241,7 @@ export interface SelfAssessmentQueryParams {
   periodId?: UUID;
   userId?: UUID;
   status?: SelfAssessmentStatus;
-  goalCategory?: GoalCategory;
+  goalCategory?: string;
   page?: number;
   limit?: number;
 }
@@ -281,10 +282,11 @@ import type {
   RatingCode,
   SupervisorFeedbackAction,
   SupervisorFeedbackStatus,
-  GoalCategory,
   PaginatedResponse
 } from './common';
-import type { SelfAssessment } from './self-assessment';
+import type { SelfAssessmentWithGoal } from './self-assessment';
+import type { EvaluationPeriod } from './evaluation-period';
+import type { UserProfileOption } from './user';
 
 /**
  * Base supervisor feedback fields (editable by supervisor)
@@ -347,30 +349,14 @@ export interface SupervisorFeedbackDetail extends SupervisorFeedback {
   /** Days remaining until feedback deadline */
   daysUntilDeadline?: number;
   /** Subordinate who created the self-assessment */
-  subordinate?: UserProfile;
+  subordinate?: UserProfileOption;
   /** Supervisor providing the feedback */
-  supervisor?: UserProfile;
+  supervisor?: UserProfileOption;
 }
 
-/**
- * Basic user profile for display purposes
- */
-export interface UserProfile {
-  id: UUID;
-  name: string;
-  email?: string;
-}
-
-/**
- * Basic evaluation period for display purposes
- */
-export interface EvaluationPeriod {
-  id: UUID;
-  name: string;
-  startDate: string;
-  endDate: string;
-  deadline?: string;
-}
+// NOTE: EvaluationPeriod and UserProfileOption are imported from existing types:
+// - EvaluationPeriod from './evaluation-period'
+// - UserProfileOption from './user'
 
 /**
  * Request body for creating supervisor feedback
