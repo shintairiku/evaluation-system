@@ -5,6 +5,7 @@ import type {
   SupervisorFeedbackDetail,
   SupervisorFeedbackCreate,
   SupervisorFeedbackUpdate,
+  SupervisorFeedbackSubmit,
   SupervisorFeedbackList,
   PaginationParams,
   ApiResponse,
@@ -27,6 +28,7 @@ export const supervisorFeedbacksApi = {
     supervisorId?: UUID;
     subordinateId?: UUID;
     status?: string;
+    action?: string;
   }): Promise<ApiResponse<SupervisorFeedbackList>> => {
     const queryParams = new URLSearchParams();
     if (params?.pagination?.page) queryParams.append('page', params.pagination.page.toString());
@@ -35,6 +37,7 @@ export const supervisorFeedbacksApi = {
     if (params?.supervisorId) queryParams.append('supervisorId', params.supervisorId);
     if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
     if (params?.status) queryParams.append('status', params.status);
+    if (params?.action) queryParams.append('action', params.action);
     
     const endpoint = queryParams.toString() 
       ? `${API_ENDPOINTS.SUPERVISOR_FEEDBACKS.LIST}?${queryParams.toString()}`
@@ -86,10 +89,13 @@ export const supervisorFeedbacksApi = {
   },
 
   /**
-   * Submit a supervisor feedback
+   * Submit a supervisor feedback (approve or reject)
+   * This validates the required fields based on action type:
+   * - APPROVED: requires supervisorRatingCode
+   * - REJECTED: requires supervisorComment
    */
-  submitSupervisorFeedback: async (feedbackId: UUID): Promise<ApiResponse<SupervisorFeedback>> => {
-    return httpClient.post<SupervisorFeedback>(API_ENDPOINTS.SUPERVISOR_FEEDBACKS.SUBMIT(feedbackId), {});
+  submitSupervisorFeedback: async (feedbackId: UUID, data: SupervisorFeedbackSubmit): Promise<ApiResponse<SupervisorFeedback>> => {
+    return httpClient.post<SupervisorFeedback>(API_ENDPOINTS.SUPERVISOR_FEEDBACKS.SUBMIT(feedbackId), data);
   },
 
   /**
