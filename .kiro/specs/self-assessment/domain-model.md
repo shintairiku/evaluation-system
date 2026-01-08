@@ -331,18 +331,39 @@ erDiagram
 ### 4.2. Rating Validation
 
 **Self-Rating Code Rules**:
-- ✅ Rating code must be one of: **SS, S, A+, A, A-, B, C, D**
 - ✅ Rating code is **optional** in draft state
 - ✅ Rating code is **required** for submission
 - ✅ Database stores both:
   - `self_rating_code` (string): The letter grade (e.g., "A+")
   - `self_rating` (decimal): Numeric equivalent (e.g., 5.0) for calculations
 
-**Grade-to-Number Mapping**:
-```
-SS → 7.0 | S → 6.0 | A+ → 5.0 | A → 4.0
-A- → 3.0 | B → 2.0 | C → 1.0  | D → 0.0
-```
+**Rating Scale by Context**:
+
+**Individual Assessment (Per Goal) - User Input**: **SS | S | A | B | C | D** (up to 6 levels)
+- User selects one of these grades when evaluating each goal
+- **Performance Goals (業績目標)**: All 6 grades (SS, S, A, B, C, D)
+- **Competency Goals (コンピテンシー)**: All 6 grades (SS, S, A, B, C, D)
+- **Quantitative Goals (定量目標)**: All 6 grades (SS, S, A, B, C, D)
+- **Qualitative Goals (定性目標)**: Only 5 grades (SS, S, A, B, C) - NO D grade
+- Grade-to-Number Mapping:
+  ```
+  SS → 7.0 | S → 6.0 | A → 4.0
+  B → 2.0  | C → 1.0 | D → 0.0 (not available for 定性目標)
+  ```
+
+**Final Calculated Assessment - System Output**: **SS | S | A+ | A | A- | B | C | D** (8 levels)
+- System calculates final grade based on weighted average of all goal assessments
+- Includes intermediate grades A+, A- for more precise evaluation
+- Used for overall period performance rating
+- Grade-to-Number Mapping:
+  ```
+  SS → 7.0 | S → 6.0 | A+ → 5.0 | A → 4.0
+  A- → 3.0 | B → 2.0 | C → 1.0  | D → 0.0
+  ```
+
+**Key Distinction**:
+- **Input Scale (6 levels)**: What users select for each individual goal - SS, S, A, B, C, D
+- **Output Scale (8 levels)**: What system calculates for final evaluation - SS, S, A+, A, A-, B, C, D
 
 **Comment Rules**:
 - ✅ **Employee self-assessment comment**: **REQUIRED** (mandatory for submission)
