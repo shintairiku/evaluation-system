@@ -11,7 +11,9 @@
 This document defines the Pydantic schemas for the Self-Assessment feature, ensuring alignment with the API Contract and frontend TypeScript types. The schemas support:
 
 - **4-state system**: draft → submitted → approved/rejected
-- **Letter grade system**: SS, S, A+, A, A-, B, C, D (0.0-7.0)
+- **Letter grade system**:
+  - **Input Scale (Individual Goals)**: SS, S, A, B, C, D (6 levels) - for self-assessments and supervisor feedbacks
+  - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C, D (8 levels) - for overall period ratings
 - **Rejection history tracking**: via `previous_self_assessment_id`
 - **Supervisor feedback**: with action (PENDING/APPROVED/REJECTED) and status (incomplete/draft/submitted)
 
@@ -64,44 +66,78 @@ class SelfAssessmentStatus(str, Enum):
     REJECTED = "rejected"
 ```
 
-### 3.2. RatingCode (NEW)
+### 3.2. RatingCode (Individual Goal Input - 6 levels)
 
 ```python
 # backend/app/schemas/common.py (ADD)
 
 class RatingCode(str, Enum):
     """
-    Letter grade rating codes.
-    Maps to numeric values 0.0-7.0
-    @see domain-model.md Section 2.1 - Grading System
+    Individual goal rating codes (6-level input scale).
+    Used for self-assessments and supervisor feedbacks on individual goals.
+    @see domain-model.md Section 4.2 - Rating Validation
     """
     SS = "SS"   # 7.0 - Exceptional
     S = "S"     # 6.0 - Excellent
-    A_PLUS = "A+"  # 5.0 - Very Good+
-    A = "A"     # 4.0 - Very Good
-    A_MINUS = "A-"  # 3.0 - Good
+    A = "A"     # 4.0 - Good
     B = "B"     # 2.0 - Acceptable
     C = "C"     # 1.0 - Below Expectations
     D = "D"     # 0.0 - Unsatisfactory
 
-# Rating code to numeric value mapping
+# Rating code to numeric value mapping (6-level scale)
 RATING_CODE_VALUES: dict[RatingCode, float] = {
     RatingCode.SS: 7.0,
     RatingCode.S: 6.0,
-    RatingCode.A_PLUS: 5.0,
     RatingCode.A: 4.0,
-    RatingCode.A_MINUS: 3.0,
     RatingCode.B: 2.0,
     RatingCode.C: 1.0,
     RatingCode.D: 0.0,
 }
 
 def rating_code_to_value(code: RatingCode) -> float:
-    """Convert rating code to numeric value."""
+    """Convert rating code to numeric value (6-level scale)."""
     return RATING_CODE_VALUES.get(code, 0.0)
 ```
 
-### 3.3. SupervisorFeedbackAction (EXISTING)
+### 3.3. FinalRatingCode (Final Calculation Output - 8 levels)
+
+```python
+# backend/app/schemas/common.py (ADD)
+
+class FinalRatingCode(str, Enum):
+    """
+    Final calculated rating codes (8-level output scale).
+    Used for overall period performance ratings calculated by system.
+    Includes intermediate grades A+, A- for more precise evaluation.
+    @see domain-model.md Section 4.2 - Rating Validation
+    """
+    SS = "SS"       # 7.0 - Exceptional
+    S = "S"         # 6.0 - Excellent
+    A_PLUS = "A+"   # 5.0 - Very Good+
+    A = "A"         # 4.0 - Good
+    A_MINUS = "A-"  # 3.0 - Fairly Good
+    B = "B"         # 2.0 - Acceptable
+    C = "C"         # 1.0 - Below Expectations
+    D = "D"         # 0.0 - Unsatisfactory
+
+# Final rating code to numeric value mapping (8-level scale)
+FINAL_RATING_CODE_VALUES: dict[FinalRatingCode, float] = {
+    FinalRatingCode.SS: 7.0,
+    FinalRatingCode.S: 6.0,
+    FinalRatingCode.A_PLUS: 5.0,
+    FinalRatingCode.A: 4.0,
+    FinalRatingCode.A_MINUS: 3.0,
+    FinalRatingCode.B: 2.0,
+    FinalRatingCode.C: 1.0,
+    FinalRatingCode.D: 0.0,
+}
+
+def final_rating_code_to_value(code: FinalRatingCode) -> float:
+    """Convert final rating code to numeric value (8-level scale)."""
+    return FINAL_RATING_CODE_VALUES.get(code, 0.0)
+```
+
+### 3.4. SupervisorFeedbackAction (EXISTING)
 
 ```python
 # backend/app/schemas/supervisor_review.py (Already exists)
@@ -160,7 +196,7 @@ class SelfAssessmentBase(BaseModel):
     self_rating_code: Optional[RatingCode] = Field(
         None,
         alias="selfRatingCode",
-        description="Letter grade: SS, S, A+, A, A-, B, C, D"
+        description="Letter grade: SS, S, A, B, C, D (6-level input scale)"
     )
     self_comment: Optional[str] = Field(
         None,
@@ -182,7 +218,7 @@ class SelfAssessmentUpdate(BaseModel):
     self_rating_code: Optional[RatingCode] = Field(
         None,
         alias="selfRatingCode",
-        description="Letter grade: SS, S, A+, A, A-, B, C, D"
+        description="Letter grade: SS, S, A, B, C, D (6-level input scale)"
     )
     self_comment: Optional[str] = Field(
         None,
@@ -390,7 +426,7 @@ class SupervisorFeedbackBase(BaseModel):
     supervisor_rating_code: Optional[RatingCode] = Field(
         None,
         alias="supervisorRatingCode",
-        description="Supervisor's letter grade: SS, S, A+, A, A-, B, C, D"
+        description="Supervisor's letter grade: SS, S, A, B, C, D (6-level input scale)"
     )
     supervisor_comment: Optional[str] = Field(
         None,
@@ -458,7 +494,7 @@ class SupervisorFeedbackSubmit(BaseModel):
     supervisor_rating_code: Optional[RatingCode] = Field(
         None,
         alias="supervisorRatingCode",
-        description="Rating code (required for APPROVED)"
+        description="Rating code: SS, S, A, B, C, D (6-level input scale, required for APPROVED)"
     )
     supervisor_comment: Optional[str] = Field(
         None,

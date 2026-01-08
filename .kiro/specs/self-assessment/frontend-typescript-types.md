@@ -11,7 +11,9 @@
 This document defines the TypeScript types for the Self-Assessment feature, ensuring alignment with the API Contract and backend Pydantic schemas. The types support:
 
 - **4-state system**: draft → submitted → approved/rejected
-- **Letter grade system**: SS, S, A+, A, A-, B, C, D (0.0-7.0)
+- **Letter grade system**:
+  - **Input Scale (Individual Goals)**: SS, S, A, B, C, D (6 levels) - for self-assessments and supervisor feedbacks
+  - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C, D (8 levels) - for overall period ratings
 - **Rejection history tracking**: via `previousSelfAssessmentId`
 - **Supervisor feedback**: with action (PENDING/APPROVED/REJECTED) and status (incomplete/draft/submitted)
 
@@ -67,16 +69,49 @@ export enum SelfAssessmentStatus {
 }
 
 /**
- * Letter grade rating codes
+ * Individual goal rating codes (User Input Scale - 6 levels)
+ * Used when user evaluates each individual goal
  * Maps to numeric values 0.0-7.0
- * @see domain-model.md Section 2.1 - Grading System
+ * @see domain-model.md Section 4.2 - Rating Validation
  */
-export type RatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+export type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
 
 /**
- * Rating code to numeric value mapping
+ * Final calculated rating codes (System Output Scale - 8 levels)
+ * Includes intermediate grades A+, A- for precise final evaluation
+ * Used for overall period performance ratings
+ * @see domain-model.md Section 4.2 - Rating Validation
+ */
+export type FinalRatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+
+/**
+ * Qualitative goal rating codes (no D grade)
+ * Used for 定性目標 (Qualitative Performance Goals) assessments
+ */
+export type QualitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C';
+
+/**
+ * Quantitative goal rating codes (includes D grade)
+ * Used for 定量目標 (Quantitative Performance Goals) and コンピテンシー assessments
+ */
+export type QuantitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
+
+/**
+ * Rating code to numeric value mapping (6-level input scale)
  */
 export const RATING_CODE_VALUES: Record<RatingCode, number> = {
+  'SS': 7.0,
+  'S': 6.0,
+  'A': 4.0,
+  'B': 2.0,
+  'C': 1.0,
+  'D': 0.0,
+};
+
+/**
+ * Final rating code to numeric value mapping (8-level output scale)
+ */
+export const FINAL_RATING_CODE_VALUES: Record<FinalRatingCode, number> = {
   'SS': 7.0,
   'S': 6.0,
   'A+': 5.0,
@@ -88,18 +123,40 @@ export const RATING_CODE_VALUES: Record<RatingCode, number> = {
 };
 
 /**
- * Rating code display labels (Japanese)
+ * Rating code display labels - Japanese (6-level input scale)
  */
 export const RATING_CODE_LABELS: Record<RatingCode, string> = {
   'SS': 'SS - 卓越',
   'S': 'S - 優秀',
-  'A+': 'A+ - 非常に良い+',
-  'A': 'A - 非常に良い',
-  'A-': 'A- - 良い',
+  'A': 'A - 良好',
   'B': 'B - 標準',
-  'C': 'C - 期待以下',
+  'C': 'C - 要改善',
   'D': 'D - 不十分',
 };
+
+/**
+ * Final rating code display labels - Japanese (8-level output scale)
+ */
+export const FINAL_RATING_CODE_LABELS: Record<FinalRatingCode, string> = {
+  'SS': 'SS - 卓越',
+  'S': 'S - 優秀',
+  'A+': 'A+ - 非常に良い',
+  'A': 'A - 良好',
+  'A-': 'A- - やや良好',
+  'B': 'B - 標準',
+  'C': 'C - 要改善',
+  'D': 'D - 不十分',
+};
+
+/**
+ * Qualitative rating codes array (for 定性目標)
+ */
+export const QUALITATIVE_RATING_CODES: QualitativeRatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
+
+/**
+ * Quantitative rating codes array (for 定量目標 and コンピテンシー)
+ */
+export const QUANTITATIVE_RATING_CODES: QuantitativeRatingCode[] = ['SS', 'S', 'A', 'B', 'C', 'D'];
 
 /**
  * Supervisor feedback action enum
@@ -145,7 +202,7 @@ import type { UserProfileOption } from './user';
  * Base self-assessment fields (editable by employee)
  */
 export interface SelfAssessmentBase {
-  /** Letter grade: SS, S, A+, A, A-, B, C, D */
+  /** Letter grade: SS, S, A, B, C, D (6-level input scale) */
   selfRatingCode?: RatingCode;
   /** Employee's narrative self-assessment comment */
   selfComment?: string;
@@ -222,7 +279,7 @@ export interface SelfAssessmentWithGoal extends SelfAssessment {
  * @see api-contract.md Section 4.5
  */
 export interface SelfAssessmentUpdate {
-  /** Letter grade: SS, S, A+, A, A-, B, C, D */
+  /** Letter grade: SS, S, A, B, C, D (6-level input scale) */
   selfRatingCode?: RatingCode;
   /** Employee's narrative self-assessment comment */
   selfComment?: string;
@@ -292,7 +349,7 @@ import type { UserProfileOption } from './user';
  * Base supervisor feedback fields (editable by supervisor)
  */
 export interface SupervisorFeedbackBase {
-  /** Supervisor's letter grade: SS, S, A+, A, A-, B, C, D */
+  /** Supervisor's letter grade: SS, S, A, B, C, D (6-level input scale) */
   supervisorRatingCode?: RatingCode;
   /** Supervisor's feedback comment */
   supervisorComment?: string;
@@ -378,7 +435,7 @@ export interface SupervisorFeedbackCreate extends SupervisorFeedbackBase {
  * @see api-contract.md Section 5.4
  */
 export interface SupervisorFeedbackUpdate {
-  /** Supervisor's letter grade */
+  /** Supervisor's letter grade: SS, S, A, B, C, D (6-level input scale) */
   supervisorRatingCode?: RatingCode;
   /** Supervisor's feedback comment */
   supervisorComment?: string;
@@ -391,7 +448,7 @@ export interface SupervisorFeedbackUpdate {
 export interface SupervisorFeedbackSubmit {
   /** Decision: APPROVED or REJECTED */
   action: 'APPROVED' | 'REJECTED';
-  /** Rating code (required for APPROVED) */
+  /** Rating code: SS, S, A, B, C, D (6-level input scale, required for APPROVED) */
   supervisorRatingCode?: RatingCode;
   /** Comment (required for REJECTED, optional for APPROVED) */
   supervisorComment?: string;
@@ -633,7 +690,7 @@ import { updateSelfAssessmentAction } from '@/api/server-actions/self-assessment
 import type { SelfAssessmentUpdate, RatingCode } from '@/api/types';
 
 const update: SelfAssessmentUpdate = {
-  selfRatingCode: 'A+' as RatingCode,
+  selfRatingCode: 'A' as RatingCode, // 6-level input scale: SS, S, A, B, C, D
   selfComment: '目標を120%達成しました。具体的には...',
 };
 
