@@ -18,7 +18,12 @@ This document defines the API contract for the Self-Assessment feature, which al
 
 1. **Auto-creation**: Self-assessments are automatically created when a goal is approved by supervisor
 2. **4 Status States**: `draft` → `submitted` → `approved` OR `rejected`
-3. **Letter Grade System**: SS, S, A+, A, A-, B, C, D (mapped to 0.0-7.0)
+3. **Letter Grade System**:
+   - **Input Scale (Individual Goals)**: SS, S, A, B, C, D (6 levels) - what users select per goal
+     - 業績目標 with 定量目標: all 6 levels
+     - 業績目標 with 定性目標: only SS, S, A, B, C (no D)
+     - コンピテンシー: all 6 levels
+   - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C, D (8 levels) - system calculates from weighted average
 4. **Rejection History**: When rejected, original self-assessment becomes immutable, new draft is created with `previousSelfAssessmentId`
 5. **Sequential Flow**: Core Value self-assessments only available after ALL Performance + Competency are approved
 
@@ -679,6 +684,12 @@ DELETE /supervisor-feedbacks/{feedback_id}
 
 ## 6. Schemas
 
+**IMPORTANT - Rating Code Scales:**
+- **Individual Goal Input**: Use `RatingCode` (6-level scale: SS, S, A, B, C, D)
+  - For self-assessments and supervisor feedbacks on individual goals
+- **Final Calculation Output**: Use `FinalRatingCode` (8-level scale: SS, S, A+, A, A-, B, C, D)
+  - For overall period performance ratings calculated by system
+
 ### Request Schemas
 
 ```typescript
@@ -687,7 +698,7 @@ DELETE /supervisor-feedbacks/{feedback_id}
 // ========================================
 
 interface SelfAssessmentUpdate {
-  selfRatingCode?: 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+  selfRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale
   selfComment?: string;
 }
 
@@ -698,20 +709,20 @@ interface SelfAssessmentUpdate {
 interface SupervisorFeedbackCreate {
   selfAssessmentId: UUID;
   periodId: UUID;
-  supervisorRatingCode?: 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+  supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale
   supervisorComment?: string;
   action: 'PENDING' | 'APPROVED' | 'REJECTED';
   status: 'incomplete' | 'draft' | 'submitted';
 }
 
 interface SupervisorFeedbackUpdate {
-  supervisorRatingCode?: 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+  supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale
   supervisorComment?: string;
 }
 
 interface SupervisorFeedbackSubmit {
   action: 'APPROVED' | 'REJECTED';
-  supervisorRatingCode?: 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+  supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale
   supervisorComment?: string;
 }
 ```
@@ -727,7 +738,11 @@ type UUID = string;
 
 type SelfAssessmentStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 
-type RatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+// Individual goal input scale (6 levels)
+type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
+
+// Final calculated output scale (8 levels)
+type FinalRatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
 
 type SupervisorFeedbackAction = 'PENDING' | 'APPROVED' | 'REJECTED';
 
