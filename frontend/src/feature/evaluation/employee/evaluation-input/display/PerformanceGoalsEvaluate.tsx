@@ -1,10 +1,16 @@
 "use client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useState } from "react";
 
 // Rating types based on new specification
@@ -60,6 +66,7 @@ const initialPerformanceEvaluations: SelfAssessment[] = [
 
 export default function PerformanceGoalsEvaluate() {
   const [performanceEvaluations, setPerformanceEvaluations] = useState<SelfAssessment[]>(initialPerformanceEvaluations);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const updateAssessment = (index: number, field: keyof SelfAssessment, value: string | RatingCode | undefined) => {
     const updatedPerformanceEvaluations = [...performanceEvaluations];
@@ -71,21 +78,109 @@ export default function PerformanceGoalsEvaluate() {
     return type === "quantitative" ? QUANTITATIVE_RATINGS : QUALITATIVE_RATINGS;
   };
 
+  // Calculate overall rating based on weighted average
+  const calculateOverallRating = (): string | null => {
+    const allCompleted = performanceEvaluations.every(
+      (item) => item.ratingCode && item.comment.trim() !== ""
+    );
+
+    if (!allCompleted) return null;
+
+    const RATING_VALUES: Record<RatingCode, number> = {
+      'SS': 7.0,
+      'S': 6.0,
+      'A': 4.0,
+      'B': 2.0,
+      'C': 1.0,
+      'D': 0.0,
+    };
+
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
+
+    performanceEvaluations.forEach((item) => {
+      if (item.ratingCode) {
+        const value = RATING_VALUES[item.ratingCode];
+        totalWeightedScore += value * item.weight;
+        totalWeight += item.weight;
+      }
+    });
+
+    const averageScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
+
+    // Map average score to rating code
+    if (averageScore >= 6.5) return 'SS';
+    if (averageScore >= 5.5) return 'S';
+    if (averageScore >= 3.5) return 'A';
+    if (averageScore >= 1.5) return 'B';
+    if (averageScore >= 0.5) return 'C';
+    return 'D';
+  };
+
+  const overallRating = calculateOverallRating();
+
   return (
     <div className="max-w-3xl mx-auto py-6">
       <Card className="shadow-xl border-0 bg-white">
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-3">
+        <CardHeader className="pb-3">
+          {/* First Row: Icon, Title, Overall Rating, and Expand Button */}
+          <div className="flex items-start gap-3">
             <div className="p-2 rounded-full bg-blue-100 text-blue-700">
               <TrendingUp className="w-6 h-6" />
             </div>
-            <div>
-              <CardTitle className="text-lg font-bold tracking-tight">業績目標評価</CardTitle>
-              <p className="text-xs text-gray-500 mt-1">各目標ごとに自己評価を入力してください</p>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg font-bold tracking-tight">業績目標評価</CardTitle>
+                  <p className="text-xs text-gray-500 mt-1">各目標ごとに自己評価を入力してください</p>
+                </div>
+
+                {/* Overall Rating Display */}
+                <div className="flex items-center gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white cursor-help transition-colors hover:bg-gray-50">
+                          <span className="text-xs text-gray-500">総合評価</span>
+                          <div className={`text-xl font-bold ${
+                            overallRating
+                              ? 'text-blue-700'
+                              : 'text-gray-300'
+                          }`}>
+                            {overallRating || '−'}
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="text-xs">
+                          ※すべての業績目標評価を入力すると総合評価が表示されます。
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  {/* Expand/Collapse Button */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="p-2 hover:bg-blue-50"
+                  >
+                    {isExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-gray-600" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-600" />
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6 pt-2">
+
+        {isExpanded && (
+          <CardContent className="space-y-6 pt-2">
           {performanceEvaluations.map((evalItem, idx) => {
             const availableRatings = getRatingsForType(evalItem.type);
 
@@ -178,7 +273,8 @@ export default function PerformanceGoalsEvaluate() {
               </div>
             );
           })}
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
     </div>
   );
