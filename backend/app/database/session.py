@@ -109,11 +109,18 @@ async def get_db_session(request: Request = None) -> AsyncGenerator[AsyncSession
     if request is not None:
         existing_session = getattr(request.state, "db_session", None)
     if existing_session is not None:
-        yield existing_session
+        try:
+            yield existing_session
+            await existing_session.commit()
+        except Exception:
+            await existing_session.rollback()
+            raise
         return
 
     async with AsyncSessionLocal() as session:
         try:
             yield session
-        finally:
-            await session.close()
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise

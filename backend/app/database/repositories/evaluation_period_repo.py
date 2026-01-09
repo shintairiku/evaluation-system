@@ -3,7 +3,7 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, date
 
-from sqlalchemy import select, update, func, and_
+from sqlalchemy import select, update, func, and_, case
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,9 +63,46 @@ class EvaluationPeriodRepository(BaseRepository[EvaluationPeriod]):
     # READ OPERATIONS
     # ========================================
 
+    async def sync_derived_statuses(self, org_id: str, today: Optional[date] = None) -> int:
+        """
+        Keep evaluation period status in sync with dates.
+
+        Status is derived from the calendar:
+        - draft: today < start_date
+        - active: start_date <= today <= evaluation_deadline
+        - completed: today > evaluation_deadline
+        - cancelled: never auto-changed
+
+        This runs as a single SQL UPDATE and only touches rows whose status is outdated.
+        Returns the number of rows updated.
+        """
+        try:
+            effective_today = today or date.today()
+
+            computed_status = case(
+                (EvaluationPeriod.evaluation_deadline < effective_today, EvaluationPeriodStatus.COMPLETED.value),
+                (EvaluationPeriod.start_date <= effective_today, EvaluationPeriodStatus.ACTIVE.value),
+                else_=EvaluationPeriodStatus.DRAFT.value,
+            )
+
+            stmt = (
+                update(EvaluationPeriod)
+                .where(EvaluationPeriod.organization_id == org_id)
+                .where(EvaluationPeriod.status != EvaluationPeriodStatus.CANCELLED.value)
+                .where(EvaluationPeriod.status != computed_status)
+                .values(status=computed_status, updated_at=datetime.utcnow())
+            )
+
+            result = await self.session.execute(stmt)
+            return int(result.rowcount or 0)
+        except SQLAlchemyError as e:
+            logger.error(f"Database error syncing evaluation period statuses for org {org_id}: {e}")
+            raise
+
     async def get_by_id(self, period_id: UUID, org_id: str) -> Optional[EvaluationPeriod]:
         """Get evaluation period by ID within organization scope."""
         try:
+            await self.sync_derived_statuses(org_id)
             query = select(EvaluationPeriod).where(EvaluationPeriod.id == period_id)
             query = self.apply_org_scope_direct(query, EvaluationPeriod.organization_id, org_id)
             result = await self.session.execute(query)
@@ -77,6 +114,7 @@ class EvaluationPeriodRepository(BaseRepository[EvaluationPeriod]):
     async def get_all(self, org_id: str, pagination: Optional[PaginationParams] = None) -> List[EvaluationPeriod]:
         """Get all evaluation periods with optional pagination within organization scope."""
         try:
+            await self.sync_derived_statuses(org_id)
             query = select(EvaluationPeriod).order_by(EvaluationPeriod.start_date.desc())
             query = self.apply_org_scope_direct(query, EvaluationPeriod.organization_id, org_id)
             
@@ -92,6 +130,7 @@ class EvaluationPeriodRepository(BaseRepository[EvaluationPeriod]):
     async def get_by_status(self, status: EvaluationPeriodStatus, org_id: str) -> List[EvaluationPeriod]:
         """Get evaluation periods by status within organization scope."""
         try:
+            await self.sync_derived_statuses(org_id)
             query = select(EvaluationPeriod).where(EvaluationPeriod.status == status).order_by(EvaluationPeriod.start_date.desc())
             query = self.apply_org_scope_direct(query, EvaluationPeriod.organization_id, org_id)
             result = await self.session.execute(query)
@@ -103,6 +142,7 @@ class EvaluationPeriodRepository(BaseRepository[EvaluationPeriod]):
     async def get_active_period(self, org_id: str) -> Optional[EvaluationPeriod]:
         """Get the currently active evaluation period within organization scope."""
         try:
+            await self.sync_derived_statuses(org_id)
             query = select(EvaluationPeriod).where(EvaluationPeriod.status == EvaluationPeriodStatus.ACTIVE).order_by(EvaluationPeriod.start_date.desc())
             query = self.apply_org_scope_direct(query, EvaluationPeriod.organization_id, org_id)
             result = await self.session.execute(query)
