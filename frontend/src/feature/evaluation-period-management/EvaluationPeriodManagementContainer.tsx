@@ -154,12 +154,6 @@ export default function EvaluationPeriodManagementContainer({
 
       if (result.success) {
         toast.success('評価期間を削除しました');
-        setPeriods(prev => {
-          const remaining = prev.all.filter(p => p.id !== modalState.delete.period?.id);
-          const current = remaining.find(p => p.status === 'active') || null;
-          const upcoming = remaining.filter(p => p.status === 'draft');
-          return { current, upcoming, all: remaining };
-        });
         setModalState(prev => ({ ...prev, delete: { isOpen: false } }));
         router.refresh(); // Refresh server component data
       } else {
