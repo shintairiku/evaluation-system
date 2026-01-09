@@ -345,10 +345,18 @@ class UserRepository(BaseRepository[User]):
     async def get_user_supervisors(self, user_id: UUID, org_id: str) -> list[User]:
         """Get all supervisors for a specific user within organization scope."""
         try:
-            query = select(User).join(UserSupervisor, User.id == UserSupervisor.supervisor_id).filter(UserSupervisor.user_id == user_id)
+            query = (
+                select(User)
+                .join(UserSupervisor, User.id == UserSupervisor.supervisor_id)
+                .filter(
+                    UserSupervisor.user_id == user_id,
+                    UserSupervisor.valid_to.is_(None),
+                )
+                .order_by(UserSupervisor.valid_from.desc(), User.name)
+            )
             
             query = self.apply_org_scope_direct(query, User.clerk_organization_id, org_id)
-            query = query.filter(User.status == UserStatus.ACTIVE.value).order_by(User.name)
+            query = query.filter(User.status == UserStatus.ACTIVE.value)
             
             result = await self.session.execute(query)
             return result.scalars().all()

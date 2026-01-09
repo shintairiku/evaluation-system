@@ -40,9 +40,11 @@ class EvaluationPeriod(Base):
 
     # Relationships
     organization = relationship("Organization")
-    goals = relationship("Goal", back_populates="period")
-    self_assessments = relationship("SelfAssessment", back_populates="period")
-    supervisor_feedbacks = relationship("SupervisorFeedback", back_populates="period")
+    # Child tables use FK constraints with ON DELETE CASCADE. Rely on the database to
+    # cascade deletes and avoid SQLAlchemy attempting to NULL out non-nullable FKs.
+    goals = relationship("Goal", back_populates="period", passive_deletes=True)
+    self_assessments = relationship("SelfAssessment", back_populates="period", passive_deletes=True)
+    supervisor_feedbacks = relationship("SupervisorFeedback", back_populates="period", passive_deletes=True)
 
     def __repr__(self):
         return f"<EvaluationPeriod(id={self.id}, name='{self.name}', status='{self.status}')>"

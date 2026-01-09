@@ -247,7 +247,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
 # Custom handler for HTTP exceptions
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    logger.error(f"HTTP Exception: {exc.status_code} - {exc.detail}")
+    # Avoid treating expected 4xx client errors as server errors in logs.
+    # Request logging middleware already records >=400 responses.
+    if exc.status_code >= 500:
+        logger.error(f"HTTP Exception: {exc.status_code} - {exc.detail}")
+    else:
+        logger.debug(f"HTTP Exception: {exc.status_code} - {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={

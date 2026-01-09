@@ -30,7 +30,11 @@ from ..security.rbac_helper import RBACHelper
 from ..security.rbac_types import ResourceType
 from ..security.decorators import require_permission, require_any_permission
 from ..core.exceptions import (
-    NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
+    NotFoundError,
+    PermissionDeniedError,
+    BadRequestError,
+    ValidationError,
+    ConflictError,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -539,16 +543,13 @@ class GoalService:
             existing_goal = await self.goal_repo.get_goal_by_id(goal_id, org_id)
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
-            
-            # Permission check - only goal owner can update (unless admin)
-            can_update = await RBACHelper.can_access_resource(
-                auth_context=current_user_context,
-                resource_id=goal_id,
-                resource_type=ResourceType.GOAL,
-                owner_user_id=existing_goal.user_id
-            )
-            if not can_update:
+
+            is_admin_manage = current_user_context.has_permission(Permission.GOAL_MANAGE)
+            if not is_admin_manage and current_user_context.user_id != existing_goal.user_id:
                 raise PermissionDeniedError("You can only update your own goals")
+
+            if existing_goal.status != GoalStatus.DRAFT.value:
+                raise BadRequestError("Can only update draft goals")
             
             # Business validation
             await self._validate_goal_update(goal_data, existing_goal, org_id)
@@ -572,17 +573,6 @@ class GoalService:
                 performance_goal_type=updated_performance_type_value,
                 exclude_goal_id=goal_id
             )
-            
-            # Validate weight limits if weight is being changed and goal is in submitted status
-            if goal_data.weight is not None and existing_goal.status == GoalStatus.SUBMITTED.value:
-                await self._validate_weight_limits(
-                    existing_goal.user_id,
-                    existing_goal.period_id,
-                    existing_goal.goal_category,
-                    goal_data.weight,
-                    org_id,
-                    exclude_goal_id=goal_id
-                )
             
             # Update goal
             updated_goal = await self.goal_repo.update_goal(goal_id, goal_data, org_id)
@@ -623,20 +613,25 @@ class GoalService:
             existing_goal = await self.goal_repo.get_goal_by_id(goal_id, org_id)
             if not existing_goal:
                 raise NotFoundError(f"Goal with ID {goal_id} not found")
-            
-            # Permission check - only goal owner can delete (unless admin)
-            can_delete = await RBACHelper.can_access_resource(
-                auth_context=current_user_context,
-                resource_id=goal_id,
-                resource_type=ResourceType.GOAL,
-                owner_user_id=existing_goal.user_id
-            )
-            if not can_delete:
+
+            is_admin_manage = current_user_context.has_permission(Permission.GOAL_MANAGE)
+            if not is_admin_manage and current_user_context.user_id != existing_goal.user_id:
                 raise PermissionDeniedError("You can only delete your own goals")
-            
-            # Business rule: can only delete draft or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only delete draft or rejected goals")
+
+            if existing_goal.status != GoalStatus.DRAFT.value:
+                raise BadRequestError("Can only delete draft goals")
+
+            # Defensive cleanup: ensure supervisor review record is removed (should be none for drafts).
+            try:
+                reviews = await self.supervisor_review_repo.get_by_goal(goal_id, org_id)
+                for review in reviews:
+                    await self.supervisor_review_repo.delete(review.id, org_id)
+            except Exception as cleanup_error:
+                logger.warning(
+                    "Failed to cleanup supervisor_review records for goal %s before delete: %s",
+                    goal_id,
+                    cleanup_error,
+                )
             
             # Delete goal
             success = await self.goal_repo.delete_goal(goal_id, org_id)
@@ -664,8 +659,6 @@ class GoalService:
             # Validate status parameter
             if status not in ["draft", "submitted"]:
                 raise ValidationError("Status must be either 'draft' or 'submitted'")
-
-            target_status = GoalStatus.DRAFT if status == "draft" else GoalStatus.SUBMITTED
             
             # Check if goal exists and user can update it
             org_id = current_user_context.organization_id
@@ -678,28 +671,54 @@ class GoalService:
             # Permission check - only goal owner can submit (strict ownership, even admins cannot submit others' goals)
             if current_user_context.user_id != existing_goal.user_id:
                 raise PermissionDeniedError("You can only submit your own goals")
-            
-            # Business rule: can only submit draft or rejected goals
-            if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
-                raise BadRequestError("Can only submit draft or rejected goals")
 
-            # Note: Weight validation is now handled on frontend before submission starts
-            # Individual goal submission should not validate total weights
+            if status == "submitted":
+                # Business rule: can only submit draft or rejected goals
+                if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
+                    raise BadRequestError("Can only submit draft or rejected goals")
 
-            # Update status using dedicated method with validation
-            updated_goal = await self.goal_repo.update_goal_status(goal_id, target_status, org_id)
-            
-            # Commit transaction
-            await self.session.commit()
-            
-            # Auto-create draft supervisor review(s) only when submitting for approval
-            if target_status == GoalStatus.SUBMITTED:
+                # Note: Weight validation is now handled on frontend before submission starts
+                # Individual goal submission should not validate total weights
+
+                # Update status using dedicated method with validation
+                updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.SUBMITTED, org_id)
+
+                # Commit transaction
+                await self.session.commit()
+
+                # Auto-create draft supervisor review only when submitting for approval
                 try:
                     await self._create_related_assessment_records(updated_goal, org_id)
                     await self.session.commit()
                 except Exception as auto_create_error:
                     logger.error(f"Auto-create SupervisorReview failed for goal {goal_id}: {auto_create_error}")
                     # Do not rollback goal submission due to review auto-creation failure
+
+            else:
+                # Withdrawal: submitted -> draft (only if supervisor review is untouched).
+                if existing_goal.status != GoalStatus.SUBMITTED.value:
+                    raise BadRequestError("Can only withdraw submitted goals back to draft")
+
+                reviews = await self.supervisor_review_repo.get_by_goal(goal_id, org_id)
+                if not reviews:
+                    raise ConflictError("Supervisor review record not found for submitted goal")
+
+                untouched = all(
+                    review.status == "draft" and (review.comment or "").strip() == ""
+                    for review in reviews
+                )
+                if not untouched:
+                    raise BadRequestError(
+                        "Cannot withdraw: supervisor has already started reviewing this goal"
+                    )
+
+                # Delete the corresponding supervisor review row(s) immediately.
+                # Product expects a 1:1 relationship; if multiple exist, delete them all.
+                for review in reviews:
+                    await self.supervisor_review_repo.delete(review.id, org_id)
+
+                updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.DRAFT, org_id)
+                await self.session.commit()
 
             # Enrich response data with competency names (N+1 fix)
             competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
@@ -709,7 +728,7 @@ class GoalService:
                 competency_name_map=competency_name_map
             )
 
-            logger.info(f"Goal submitted with status '{status}': {goal_id} by {current_user_context.user_id}")
+            logger.info(f"Goal status changed to '{status}': {goal_id} by {current_user_context.user_id}")
             return enriched_goal
             
         except Exception as e:
@@ -1637,7 +1656,7 @@ class GoalService:
         detail_dict.update({
             "has_self_assessment": False,  # Placeholder for future assessment integration
             "has_supervisor_feedback": False,  # Placeholder for future feedback integration
-            "is_editable": goal_model.status in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value],
+            "is_editable": goal_model.status == GoalStatus.DRAFT.value,
             "is_assessment_open": False,  # Placeholder for future period status check
             "is_overdue": False,  # Placeholder for future deadline check
         })
@@ -1653,7 +1672,7 @@ class GoalService:
         """
         Create related supervisor review records when goal is submitted.
 
-        This method creates draft supervisor reviews for all supervisors of the goal owner.
+        This method creates a single draft supervisor review for the (current) supervisor of the goal owner.
         If no supervisors are found, logs a warning but continues (not an error condition).
         If creation fails, logs the error but does not raise to avoid breaking goal submission.
 
@@ -1671,32 +1690,28 @@ class GoalService:
                 )
                 return
 
-            logger.info(f"Creating {len(supervisors)} supervisor_review records for goal {goal.id}")
+            if len(supervisors) > 1:
+                logger.warning(
+                    "Multiple current supervisors found for user %s in org %s when submitting goal %s; "
+                    "creating a single supervisor review using the first supervisor: %s",
+                    goal.user_id,
+                    org_id,
+                    goal.id,
+                    supervisors[0].id,
+                )
 
-            created_count = 0
-            for supervisor in supervisors:
-                try:
-                    await self.supervisor_review_repo.create(
-                        goal_id=goal.id,
-                        period_id=goal.period_id,
-                        supervisor_id=supervisor.id,
-                        subordinate_id=goal.user_id,
-                        org_id=org_id,
-                        action="PENDING",
-                        comment=None,
-                        status="draft",
-                    )
-                    created_count += 1
-                except Exception as create_error:
-                    logger.error(
-                        f"Failed to create supervisor_review for supervisor {supervisor.id} "
-                        f"on goal {goal.id}: {create_error}"
-                    )
-                    # Continue creating for other supervisors
+            supervisor = supervisors[0]
+            logger.info("Creating supervisor_review record for goal %s (supervisor %s)", goal.id, supervisor.id)
 
-            logger.info(
-                f"Successfully created {created_count}/{len(supervisors)} "
-                f"supervisor_review records for goal {goal.id}"
+            await self.supervisor_review_repo.create(
+                goal_id=goal.id,
+                period_id=goal.period_id,
+                supervisor_id=supervisor.id,
+                subordinate_id=goal.user_id,
+                org_id=org_id,
+                action="PENDING",
+                comment=None,
+                status="draft",
             )
 
         except Exception as e:
