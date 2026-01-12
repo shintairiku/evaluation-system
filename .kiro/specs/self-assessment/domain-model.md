@@ -18,7 +18,7 @@ Employees need a structured way to evaluate their own performance against approv
 **Assessment Scope:**
 1. **業績目標 (Performance Goals)**: Created by employee → Approved by supervisor → Self-assessed by employee → Supervisor reviews self-assessment
 2. **コンピテンシー (Competency Goals)**: Created by employee → Approved by supervisor → Self-assessed by employee → Supervisor reviews self-assessment
-3. **コアバリュー (Core Value Goals)**: **Only available AFTER supervisor approves self-assessments for Performance and Competency goals**
+3. **コアバリュー (Core Value Goals)**: **Only available in end-of-period evaluations (期末). When available, unlocks AFTER supervisor approves self-assessments for Performance and Competency goals**
 
 **Sequential Flow:**
 ```
@@ -30,9 +30,11 @@ Employee completes self-assessments (Performance + Competency)
          ↓
 Supervisor reviews and approves self-assessments
          ↓
-Core Value goals become available
+Core Value goals become available (期末評価 only)
          ↓
 Employee completes Core Value self-assessment
+         ↓
+Supervisor reviews and approves Core Value self-assessment
 ```
 
 ### Business Value
@@ -320,7 +322,10 @@ erDiagram
 **Goal Category Sequential Rules**:
 - ✅ **Performance Goals** (`業績目標`): Can be self-assessed immediately after approval
 - ✅ **Competency Goals** (`コンピテンシー`): Can be self-assessed immediately after approval
-- ✅ **Core Value Goals** (`コアバリュー`): Can ONLY be self-assessed **after supervisor has approved** self-assessments for ALL Performance and Competency goals in the same period
+- ✅ **Core Value Goals** (`コアバリュー`):
+  - **Only available in end-of-period evaluations (期末評価)**
+  - Not available in mid-year or interim reviews
+  - Can ONLY be self-assessed **after supervisor has approved** self-assessments for ALL Performance and Competency goals in the same period
 
 **Period Constraints**:
 - ✅ Can only create self-assessments during active evaluation periods
@@ -581,6 +586,9 @@ stateDiagram-v2
 - ✅ **Rejected**: Comment is **REQUIRED** (must explain rejection reason to employee)
 
 **Core Value Unlock Logic**:
+- **Prerequisite**: Core Value goals are **only available in end-of-period evaluations (期末評価)**
+  - Not available in mid-year reviews or interim evaluations
+  - Period must be marked as `period_type = '期末'` or similar flag
 - Core Value goals become available when **ALL** Performance + Competency self-assessments have `status = 'approved'`
 - Query: `SELECT COUNT(*) FROM self_assessments WHERE status = 'approved' AND goal_category IN ('業績目標', 'コンピテンシー')`
 - If ANY self-assessment is not approved (draft/submitted/rejected), Core Value phase remains locked until resolution
@@ -739,7 +747,8 @@ const { rejectedSelfAssessmentsCount } = useSelfAssessmentListContext();
 - [ ] **UI localization**: Interface in Japanese? English? Both?
 
 ### 6.8. Core Value Sequential Flow
-- [ ] **Unlock trigger**: Does Core Value phase unlock automatically when all Performance+Competency self-assessments are approved?
+- [x] ~~**Period availability**~~ → ✅ **RESOLVED**: Core Value is **only available in end-of-period evaluations (期末評価)**, not in mid-year or interim reviews
+- [x] ~~**Unlock trigger**~~ → ✅ **RESOLVED**: Core Value phase unlocks automatically when all Performance+Competency self-assessments are approved (only in 期末 periods)
 - [ ] **Notification**: How is employee notified that Core Value goals are now available?
 - [ ] **Partial approval**: What if only some Performance/Competency self-assessments are approved? Does employee wait for all?
 - [ ] **Rejection handling**: If supervisor rejects a Performance self-assessment after Core Value is already completed, what happens?
@@ -747,7 +756,7 @@ const { rejectedSelfAssessmentsCount } = useSelfAssessmentListContext();
   - Lock Core Value in current state?
   - Allow Core Value to remain valid?
 - [ ] **Multiple Core Value goals**: Can employee have multiple Core Value goals, or just one?
-- [ ] **Core Value approval**: Does Core Value self-assessment also require supervisor approval, or is it final after employee submission?
+- [x] ~~**Core Value approval**~~ → ✅ **RESOLVED**: Yes, Core Value self-assessment requires supervisor approval like Performance and Competency
 
 ---
 

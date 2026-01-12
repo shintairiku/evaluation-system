@@ -25,7 +25,7 @@ This document defines the API contract for the Self-Assessment feature, which al
      - コンピテンシー: all 6 levels
    - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C, D (8 levels) - system calculates from weighted average
 4. **Rejection History**: When rejected, original self-assessment becomes immutable, new draft is created with `previousSelfAssessmentId`
-5. **Sequential Flow**: Core Value self-assessments only available after ALL Performance + Competency are approved
+5. **Sequential Flow**: Core Value self-assessments are **only available in end-of-period evaluations (期末評価)** and unlock after ALL Performance + Competency are approved
 
 ---
 
@@ -1012,7 +1012,7 @@ The following events may trigger webhooks:
 | `self_assessment.submitted` | Employee submitted self-assessment |
 | `self_assessment.approved` | Supervisor approved self-assessment |
 | `self_assessment.rejected` | Supervisor rejected self-assessment |
-| `core_value.unlocked` | All Performance + Competency approved, Core Value available |
+| `core_value.unlocked` | All Performance + Competency approved, Core Value available (期末評価 periods only) |
 
 ---
 
