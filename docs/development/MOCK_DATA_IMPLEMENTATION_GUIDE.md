@@ -76,10 +76,30 @@ graph TD
    ├─ Request/Response schemas
    └─ Error responses
 
-3. Frontend Development (3-5 days)
-   ├─ Generate TypeScript types from contract
-   ├─ Create mock data based on contract
-   └─ Implement UI with mocks
+3. Frontend Development (4-6 days)
+   │
+   ├─ Phase 1: UI Hardcoded (1-2 days)
+   │  ├─ Focus purely on UI/UX design
+   │  ├─ Hardcode mock data inline in components
+   │  ├─ Quick iterations on design and user feedback
+   │  └─ No concern for architecture yet
+   │
+   ├─ Phase 2: Mock Data Architecture (1-2 days)
+   │  ├─ Generate TypeScript types from contract
+   │  ├─ Extract hardcoded data to JSON files
+   │  ├─ Create TypeScript scenarios
+   │  ├─ Implement mock service layer
+   │  ├─ Create endpoint functions with USE_MOCK switch
+   │  └─ Create server actions for SSR
+   │
+   └─ Phase 3: Business Logic with Mocks (1-2 days)
+      ├─ Add form validations
+      ├─ Implement calculations (e.g., weighted averages)
+      ├─ Add state management (loading, error states)
+      ├─ Add auto-save, optimistic updates
+      └─ Test all business logic with mock data
+
+   Note: Real backend integration happens later in Step 7
 
 4. Stakeholder Approval (1-2 days)
    └─ Demo with mock data
