@@ -32,15 +32,6 @@ interface SelfAssessment {
 const QUANTITATIVE_RATINGS: QuantitativeRatingCode[] = ['SS', 'S', 'A', 'B', 'C', 'D'];
 const QUALITATIVE_RATINGS: QualitativeRatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
 
-const RATING_LABELS: Record<RatingCode, string> = {
-  'SS': 'SS - 卓越',
-  'S': 'S - 優秀',
-  'A': 'A - 良好',
-  'B': 'B - 標準',
-  'C': 'C - 要改善',
-  'D': 'D - 不十分',
-};
-
 const initialPerformanceEvaluations: SelfAssessment[] = [
   {
     id: "perf-1",
@@ -48,7 +39,7 @@ const initialPerformanceEvaluations: SelfAssessment[] = [
     weight: 60,
     specificGoal: "売上を前年比120%にする",
     achievementCriteria: "売上が前年比120%を超えた場合達成",
-    methods: "新規顧客の開拓と既存顧客への提案強化",
+    methods: "母集団形成の最大化\nほげほげほげほげ\n\n採用オペレーションの最適化\nほげおげほげほげ\nほげほげほげほげ",
     ratingCode: undefined,
     comment: ""
   },
@@ -58,7 +49,7 @@ const initialPerformanceEvaluations: SelfAssessment[] = [
     weight: 40,
     specificGoal: "顧客アンケートで満足度90%以上を獲得",
     achievementCriteria: "アンケート結果で90%以上の満足度を得る",
-    methods: "定期的なフォローアップと迅速な対応",
+    methods: "定期的なフォローアップと迅速な対応\nお客様の声を積極的に収集",
     ratingCode: undefined,
     comment: ""
   }
@@ -207,50 +198,55 @@ export default function PerformanceGoalsEvaluate() {
                 </div>
 
                 {/* Goal Details */}
-                <div className="flex flex-col gap-1 mb-2">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-semibold text-gray-500">達成基準：</span>
-                    {evalItem.achievementCriteria}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    <span className="font-semibold text-gray-500">手段・手法：</span>
-                    {evalItem.methods}
-                  </p>
-                </div>
-
-                {/* Rating Selection */}
-                <div>
-                  <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                    自己評価 {!evalItem.ratingCode && <span className="text-red-500">*</span>}
-                  </Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {availableRatings.map((rating) => {
-                      const isSelected = evalItem.ratingCode === rating;
-                      return (
-                        <Button
-                          key={rating}
-                          type="button"
-                          variant={isSelected ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => updateAssessment(idx, "ratingCode", rating)}
-                          className={`
-                            min-w-[60px] font-semibold transition-all
-                            ${isSelected
-                              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
-                              : 'bg-white hover:bg-blue-50 hover:border-blue-400'
-                            }
-                          `}
-                        >
-                          {rating}
-                        </Button>
-                      );
-                    })}
+                <div className="flex flex-col gap-5 mb-2">
+                  {/* 手段・手法 Section */}
+                  <div>
+                    <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                      手段・手法
+                    </Label>
+                    <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+                      {evalItem.methods.split('\n').map((line, i) => (
+                        <div key={i}>{line || '\u00A0'}</div>
+                      ))}
+                    </div>
                   </div>
-                  {evalItem.ratingCode && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      {RATING_LABELS[evalItem.ratingCode]}
-                    </p>
-                  )}
+
+                  {/* 評価基準 Section with Radio Buttons */}
+                  <div>
+                    <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                      評価基準 {!evalItem.ratingCode && <span className="text-red-500">*</span>}
+                    </Label>
+
+                    {/* Rating descriptions */}
+                    <div className="text-xs text-gray-500 space-y-0.5 mb-3">
+                      {availableRatings.map((rating) => (
+                        <div key={rating}>
+                          <span className="font-semibold">{rating}</span>
+                          <span className="mx-1">：</span>
+                          <span>上位3%以内に入っている</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Radio button style selectors */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {availableRatings.map((rating) => {
+                        const isSelected = evalItem.ratingCode === rating;
+                        return (
+                          <div
+                            key={rating}
+                            className="flex items-center gap-2 cursor-pointer"
+                            onClick={() => updateAssessment(idx, "ratingCode", rating)}
+                          >
+                            <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
+                              {isSelected && <div className="w-3 h-3 rounded-full bg-gray-800"></div>}
+                            </div>
+                            <span className="text-sm text-gray-700">{rating}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Comment Section */}
