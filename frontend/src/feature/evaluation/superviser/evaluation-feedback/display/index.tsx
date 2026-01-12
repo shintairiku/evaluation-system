@@ -22,10 +22,15 @@ import CompetencySupervisorEvaluation from "./CompetencySupervisorEvaluation";
 import CoreValueSelfAssessment from "./CoreValueSelfAssessment";
 import CoreValueSupervisorEvaluation from "./CoreValueSupervisorEvaluation";
 
-// Mock subordinates data with full UserDetailResponse structure
-const mockSubordinates: UserDetailResponse[] = [
+// Mock subordinates data with feedback submission status
+interface SubordinateWithStatus extends UserDetailResponse {
+  feedbackSubmitted: boolean;
+}
+
+const mockSubordinates: SubordinateWithStatus[] = [
   {
     id: "emp1",
+    clerk_user_id: "clerk_emp1",
     name: "山田 麻衣",
     email: "yamada.mai@example.com",
     employee_code: "EMP001",
@@ -45,9 +50,11 @@ const mockSubordinates: UserDetailResponse[] = [
         updated_at: new Date().toISOString(),
       },
     ],
+    feedbackSubmitted: false, // 未提出
   },
   {
     id: "emp2",
+    clerk_user_id: "clerk_emp2",
     name: "佐藤 太郎",
     email: "sato.taro@example.com",
     employee_code: "EMP002",
@@ -67,9 +74,11 @@ const mockSubordinates: UserDetailResponse[] = [
         updated_at: new Date().toISOString(),
       },
     ],
+    feedbackSubmitted: true, // 提出済み
   },
   {
     id: "emp3",
+    clerk_user_id: "clerk_emp3",
     name: "鈴木 花子",
     email: "suzuki.hanako@example.com",
     employee_code: "EMP003",
@@ -89,6 +98,7 @@ const mockSubordinates: UserDetailResponse[] = [
         updated_at: new Date().toISOString(),
       },
     ],
+    feedbackSubmitted: true, // 提出済み
   },
 ];
 
@@ -170,13 +180,30 @@ export default function EvaluationFeedbackDisplay() {
             <User className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">部下:</span>
             <Select value={selectedSubordinateId} onValueChange={handleSubordinateChange}>
-              <SelectTrigger className="w-[280px]">
+              <SelectTrigger className="w-[320px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {mockSubordinates.map((subordinate) => (
                   <SelectItem key={subordinate.id} value={subordinate.id}>
-                    {subordinate.name}
+                    <div className="flex items-center justify-between w-full gap-3">
+                      <span>{subordinate.name}</span>
+                      {subordinate.feedbackSubmitted ? (
+                        <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          提出済み
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs text-orange-600 font-medium">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                          未提出
+                        </span>
+                      )}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
