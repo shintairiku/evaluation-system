@@ -250,7 +250,7 @@ export default function PerformanceGoalsEvaluate() {
                 </div>
 
                 {/* Comment Section */}
-                <div>
+                <div className="mt-5">
                   <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                     自己評価コメント {evalItem.comment.trim() === "" && <span className="text-red-500">*</span>}
                   </Label>
