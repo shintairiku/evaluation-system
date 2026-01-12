@@ -2,6 +2,8 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Target, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -11,13 +13,53 @@ import {
 import { useState } from "react";
 
 const competencyEvaluation = {
-  name: "チームワーク・協調性",
-  score: 85,
-  comment: "チーム内での連携が良かった"
+  name: "責任感",
+  items: [
+    {
+      id: 1,
+      description: "他メンバーの業務状況を把握し、必要に応じてサポートしている",
+      rating: "A"
+    },
+    {
+      id: 2,
+      description: "自分の意見だけでなく、他者の意見を尊重して意思決定している",
+      rating: "B"
+    },
+    {
+      id: 3,
+      description: "チームの目標を個人目標より優先して行動している",
+      rating: "A"
+    },
+    {
+      id: 4,
+      description: "困っているメンバーに対して自発的に声をかけている",
+      rating: "A"
+    },
+    {
+      id: 5,
+      description: "チーム内の情報共有を積極的に行っている",
+      rating: "A"
+    }
+  ],
+  comment: ""
 };
 
 export default function CompetencyEvaluate() {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [itemRatings, setItemRatings] = useState<{[key: number]: string}>(
+    competencyEvaluation.items.reduce((acc, item) => ({
+      ...acc,
+      [item.id]: item.rating
+    }), {})
+  );
+  const [comment, setComment] = useState<string>(competencyEvaluation.comment);
+
+  const updateItemRating = (itemId: number, rating: string) => {
+    setItemRatings(prev => ({
+      ...prev,
+      [itemId]: rating
+    }));
+  };
 
   // Mock overall rating - será calculado dinamicamente no futuro
   const overallRating = null; // null para mostrar "−"
@@ -193,6 +235,80 @@ export default function CompetencyEvaluate() {
 
               {/* Right Column: Empty space for tooltips */}
               <div></div>
+            </div>
+
+            {/* Competency Evaluation Section */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
+              {/* Competency Name Display with Rating */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-xl font-bold text-green-800">
+                  {competencyEvaluation.name}
+                </div>
+
+                {/* Rating Display with Tooltip */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white cursor-help transition-colors hover:bg-gray-50">
+                        <span className="text-xs text-gray-500">評価</span>
+                        <div className="text-xl font-bold text-gray-300">
+                          −
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">
+                        ※すべての責任感評価を入力すると表示されます。
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+
+              {/* Competency Items */}
+              <div className="space-y-6">
+                {competencyEvaluation.items.map((item) => (
+                  <div key={item.id}>
+                    {/* Item Description */}
+                    <div className="text-sm text-gray-800 mb-3">
+                      {item.description}
+                    </div>
+
+                    {/* Rating Buttons for this item */}
+                    <div className="flex items-center gap-3">
+                      {['SS', 'S', 'A', 'B', 'C', 'D'].map((rating) => (
+                        <div
+                          key={rating}
+                          className="flex items-center gap-2 cursor-pointer"
+                          onClick={() => updateItemRating(item.id, rating)}
+                        >
+                          <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
+                            {rating === itemRatings[item.id] && <div className="w-3 h-3 rounded-full bg-gray-800"></div>}
+                          </div>
+                          <span className="text-sm text-gray-700">{rating}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Comment Section - Outside competency card */}
+            <div className="mt-6">
+              <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                自己評価コメント
+              </Label>
+              <Textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="各コンピテンシーの発揮状況や具体的なエピソードについて記入してください..."
+                className="mt-1 text-sm rounded-md border-gray-300 bg-white focus:ring-2 focus:ring-green-200 min-h-[100px]"
+                maxLength={5000}
+              />
+              <div className="flex justify-end items-center mt-1">
+                <p className="text-xs text-gray-400">{comment.length} / 5000</p>
+              </div>
             </div>
           </CardContent>
         )}
