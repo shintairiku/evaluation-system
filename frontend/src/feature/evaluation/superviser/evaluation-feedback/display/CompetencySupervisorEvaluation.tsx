@@ -80,17 +80,39 @@ export default function CompetencySupervisorEvaluation() {
             <Target className="w-6 h-6" />
           </div>
           <div className="flex-1">
-            <CardTitle className="text-lg font-bold tracking-tight">コンピテンシー評価</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">上長による評価入力</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold tracking-tight">コンピテンシー評価</CardTitle>
+                <p className="text-xs text-gray-500 mt-1">上長による評価入力</p>
+              </div>
+
+              {/* Overall Rating Display */}
+              <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+                <span className="text-xs text-gray-500">総合評価</span>
+                <div className="text-xl font-bold text-gray-300">
+                  −
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-6 pt-2">
         <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
-          {/* Competency Header */}
-          <div className="text-xl font-bold text-green-800 mb-4">
-            {competencyEvaluation.name}
+          {/* Competency Header with Rating */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-xl font-bold text-green-800">
+              {competencyEvaluation.name}
+            </div>
+
+            {/* Individual Competency Rating Display */}
+            <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+              <span className="text-xs text-gray-500">評価</span>
+              <div className="text-xl font-bold text-gray-300">
+                −
+              </div>
+            </div>
           </div>
 
           {/* Competency Items - Editable */}

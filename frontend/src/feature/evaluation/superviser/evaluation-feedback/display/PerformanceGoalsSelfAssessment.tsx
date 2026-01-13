@@ -52,8 +52,20 @@ export default function PerformanceGoalsSelfAssessment() {
             <TrendingUp className="w-6 h-6" />
           </div>
           <div className="flex-1">
-            <CardTitle className="text-lg font-bold tracking-tight">業績目標評価</CardTitle>
-            <p className="text-xs text-gray-500 mt-1">自己評価（参照のみ）</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold tracking-tight">業績目標評価</CardTitle>
+                <p className="text-xs text-gray-500 mt-1">自己評価（参照のみ）</p>
+              </div>
+
+              {/* Overall Rating Display */}
+              <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+                <span className="text-xs text-gray-500">総合評価</span>
+                <div className="text-xl font-bold text-blue-700">
+                  SS
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </CardHeader>
