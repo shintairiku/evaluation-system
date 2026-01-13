@@ -116,9 +116,15 @@ export const GoalCard = React.memo<GoalCardProps>(
       const canWithdraw = Boolean(
         isOwnGoal
         && goal.status === 'submitted'
-        && goal.supervisorReview
-        && goal.supervisorReview.status === 'draft'
-        && (goal.supervisorReview.comment ?? '').trim() === ''
+        && (
+          // Some employees can submit goals without any supervisors assigned.
+          // In that case, no supervisor review exists and the goal should still be withdrawable.
+          !goal.supervisorReview
+          || (
+            goal.supervisorReview.status === 'draft'
+            && (goal.supervisorReview.comment ?? '').trim() === ''
+          )
+        )
       );
 
       const handleDelete = async () => {

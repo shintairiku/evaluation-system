@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError, ConflictError, PermissionDeniedError
+from app.core.exceptions import BadRequestError, PermissionDeniedError
 from app.schemas.goal import GoalStatus
 from app.security.context import AuthContext, RoleInfo
 from app.security.permissions import Permission
@@ -154,13 +154,14 @@ async def test_withdraw_denied_when_goal_is_not_submitted():
 
 
 @pytest.mark.asyncio
-async def test_withdraw_conflict_when_review_record_is_missing():
+async def test_withdraw_allows_when_review_record_is_missing():
     session = AsyncMock(spec=AsyncSession)
     service = GoalService(session)
 
     org_id = "org_test"
     owner_id = uuid4()
     goal_id = uuid4()
+    period_id = uuid4()
 
     context = _employee_context(user_id=owner_id, org_id=org_id)
 
@@ -168,12 +169,28 @@ async def test_withdraw_conflict_when_review_record_is_missing():
     existing_goal.id = goal_id
     existing_goal.user_id = owner_id
     existing_goal.status = "submitted"
+    existing_goal.period_id = period_id
+
+    updated_goal = MagicMock()
+    updated_goal.id = goal_id
+    updated_goal.user_id = owner_id
+    updated_goal.status = "draft"
+    updated_goal.period_id = period_id
 
     service.goal_repo.get_goal_by_id = AsyncMock(return_value=existing_goal)
     service.supervisor_review_repo.get_by_goal = AsyncMock(return_value=[])
+    service.supervisor_review_repo.delete = AsyncMock(return_value=True)
+    service.goal_repo.update_goal_status = AsyncMock(return_value=updated_goal)
+    service._build_competency_name_map_for_goal = AsyncMock(return_value={})
+    enriched = MagicMock()
+    service._enrich_goal_data = AsyncMock(return_value=enriched)
 
-    with pytest.raises(ConflictError):
-        await service.submit_goal(goal_id, "draft", context)
+    result = await service.submit_goal(goal_id, "draft", context)
+
+    assert result is enriched
+    assert service.supervisor_review_repo.delete.await_count == 0
+    service.goal_repo.update_goal_status.assert_awaited_once_with(goal_id, GoalStatus.DRAFT, org_id)
+    session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
