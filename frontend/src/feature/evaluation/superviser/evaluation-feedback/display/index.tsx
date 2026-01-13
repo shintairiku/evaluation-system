@@ -216,33 +216,30 @@ export default function EvaluationFeedbackDisplay() {
           </Button>
         </div>
 
-        {/* Two Column Layout */}
+        {/* Headers Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: Self Assessment (Read-only) */}
-          <div className="space-y-6">
-            <div className="sticky top-4">
-              <h2 className="text-lg font-bold mb-4 text-blue-700">
-                {selectedSubordinate?.name}の自己評価
-              </h2>
-              <div className="space-y-6">
-                <PerformanceGoalsSelfAssessment />
-                <CompetencySelfAssessment />
-                <CoreValueSelfAssessment />
-              </div>
-            </div>
-          </div>
+          <h2 className="text-lg font-bold text-blue-700">
+            {selectedSubordinate?.name}の自己評価
+          </h2>
+          <h2 className="text-lg font-bold text-green-700">上長評価</h2>
+        </div>
 
-          {/* Right Column: Supervisor Evaluation (Editable) */}
-          <div className="space-y-6">
-            <div className="sticky top-4">
-              <h2 className="text-lg font-bold mb-4 text-green-700">上長評価</h2>
-              <div className="space-y-6">
-                <PerformanceGoalsSupervisorEvaluation />
-                <CompetencySupervisorEvaluation />
-                <CoreValueSupervisorEvaluation />
-              </div>
-            </div>
-          </div>
+        {/* Performance Goals Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
+          <PerformanceGoalsSelfAssessment />
+          <PerformanceGoalsSupervisorEvaluation />
+        </div>
+
+        {/* Competency Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
+          <CompetencySelfAssessment />
+          <CompetencySupervisorEvaluation />
+        </div>
+
+        {/* Core Value Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
+          <CoreValueSelfAssessment />
+          <CoreValueSupervisorEvaluation />
         </div>
       </div>
     </div>
