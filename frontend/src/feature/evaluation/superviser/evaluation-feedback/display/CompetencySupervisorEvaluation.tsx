@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Target } from "lucide-react";
+import { Target, ChevronDown, ChevronUp } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
 
@@ -55,6 +56,7 @@ const initialCompetencyEvaluation: CompetencyEvaluation = {
 
 export default function CompetencySupervisorEvaluation() {
   const [competencyEvaluation, setCompetencyEvaluation] = useState<CompetencyEvaluation>(initialCompetencyEvaluation);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const updateItemRating = (itemId: number, rating: RatingCode) => {
     setCompetencyEvaluation(prev => ({
@@ -86,19 +88,37 @@ export default function CompetencySupervisorEvaluation() {
                 <p className="text-xs text-gray-500 mt-1">上長による評価入力</p>
               </div>
 
-              {/* Overall Rating Display */}
-              <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
-                <span className="text-xs text-gray-500">総合評価</span>
-                <div className="text-xl font-bold text-gray-300">
-                  −
+              <div className="flex items-center gap-2">
+                {/* Overall Rating Display */}
+                <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+                  <span className="text-xs text-gray-500">総合評価</span>
+                  <div className="text-xl font-bold text-gray-300">
+                    −
+                  </div>
                 </div>
+
+                {/* Expand/Collapse Button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="p-2 hover:bg-green-50"
+                >
+                  {isExpanded ? (
+                    <ChevronUp className="w-5 h-5 text-gray-600" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-600" />
+                  )}
+                </Button>
               </div>
             </div>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6 pt-2">
+      {isExpanded && (
+        <CardContent className="space-y-6 pt-2">
         <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
           {/* Competency Header with Rating */}
           <div className="flex items-center justify-between mb-4">
@@ -163,7 +183,8 @@ export default function CompetencySupervisorEvaluation() {
             </div>
           </div>
         </div>
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   );
 }

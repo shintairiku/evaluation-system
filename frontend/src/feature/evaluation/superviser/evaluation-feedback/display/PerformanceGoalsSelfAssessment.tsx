@@ -1,8 +1,10 @@
 "use client";
+import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 // Rating types
 type QuantitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
@@ -44,6 +46,8 @@ const mockPerformanceEvaluations: SelfAssessment[] = [
 ];
 
 export default function PerformanceGoalsSelfAssessment() {
+  const [isExpanded, setIsExpanded] = useState(true);
+
   return (
     <Card className="shadow-xl border-0 bg-white">
       <CardHeader className="pb-3">
@@ -58,19 +62,37 @@ export default function PerformanceGoalsSelfAssessment() {
                 <p className="text-xs text-gray-500 mt-1">自己評価（参照のみ）</p>
               </div>
 
-              {/* Overall Rating Display */}
-              <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
-                <span className="text-xs text-gray-500">総合評価</span>
-                <div className="text-xl font-bold text-blue-700">
-                  SS
+              <div className="flex items-center gap-2">
+                {/* Overall Rating Display */}
+                <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+                  <span className="text-xs text-gray-500">総合評価</span>
+                  <div className="text-xl font-bold text-blue-700">
+                    SS
+                  </div>
                 </div>
+
+                {/* Expand/Collapse Button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="p-2 hover:bg-blue-50"
+                >
+                  {isExpanded ? (
+                    <ChevronUp className="w-5 h-5 text-gray-600" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-600" />
+                  )}
+                </Button>
               </div>
             </div>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6 pt-2">
+      {isExpanded && (
+        <CardContent className="space-y-6 pt-2">
         {mockPerformanceEvaluations.map((evalItem) => (
           <div
             key={evalItem.id}
@@ -131,7 +153,8 @@ export default function PerformanceGoalsSelfAssessment() {
             </div>
           </div>
         ))}
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   );
 }
