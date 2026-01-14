@@ -1261,6 +1261,7 @@ class UserService:
         """Enrich user data for UserDetailResponse with supervisor/subordinates using repository pattern"""
         # Get basic enriched user data first
         base_user = await self._enrich_user_data(user)
+        goal_weight_budget = self._build_goal_weight_budget(user, base_user.stage)
         
         # Get supervisor relationship
         supervisor_models = await self.user_repo.get_user_supervisors(user.id, user.clerk_organization_id)
@@ -1280,7 +1281,8 @@ class UserService:
         user_detail_data = base_user.model_dump()
         user_detail_data.update({
             'supervisor': supervisor,
-            'subordinates': subordinates if subordinates else None
+            'subordinates': subordinates if subordinates else None,
+            'goal_weight_budget': goal_weight_budget
         })
 
         return UserDetailResponse(**user_detail_data)
