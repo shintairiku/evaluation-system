@@ -85,7 +85,7 @@ export function UsersTab({
   onBulkStatusComplete,
   onUsersStateSync,
 }: UsersTabProps) {
-  const { hasRole } = useUserRoles();
+  const { hasRole, currentUser, refetch } = useUserRoles();
   const isAdmin = hasRole('admin');
   const canEditRoles = isAdmin;
   const roleEditDisabledMessage = 'ロールの編集は管理者のみ可能です。';
@@ -93,6 +93,17 @@ export function UsersTab({
   const [bulkResult, setBulkResult] = useState<BulkUserStatusUpdateResponse | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
   const [subordinateSearch, setSubordinateSearch] = useState<Record<string, string>>({});
+  const [goalWeightTarget, setGoalWeightTarget] = useState<UserDetailResponse | null>(null);
+  const [goalWeightInputs, setGoalWeightInputs] = useState({
+    quantitative: '',
+    qualitative: '',
+    competency: '',
+  });
+  const [goalWeightError, setGoalWeightError] = useState<string | null>(null);
+  const [goalWeightPending, setGoalWeightPending] = useState(false);
+  const [goalWeightHistory, setGoalWeightHistory] = useState<UserGoalWeightHistoryEntry[]>([]);
+  const [goalWeightHistoryLoading, setGoalWeightHistoryLoading] = useState(false);
+  const [goalWeightHistoryError, setGoalWeightHistoryError] = useState<string | null>(null);
 
   const selectedCount = selectedUserIds.length;
   const allSelected = users.length > 0 && selectedCount === users.length;
