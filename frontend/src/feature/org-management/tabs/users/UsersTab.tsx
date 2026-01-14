@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
   Table,
@@ -14,6 +14,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -23,6 +31,7 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, Users2, ChevronDown, Pencil } from 'lucide-react';
@@ -32,6 +41,9 @@ import {
   updateUserAction,
   updateUserStageAction,
   bulkUpdateUserStatusesAction,
+  updateUserGoalWeightsAction,
+  resetUserGoalWeightsAction,
+  getUserGoalWeightHistoryAction,
 } from '@/api/server-actions/users';
 import { Input } from '@/components/ui/input';
 import { useUserRoles } from '@/hooks/useUserRoles';
@@ -42,6 +54,7 @@ import type {
   Stage,
   BulkUserStatusUpdateResponse,
   UserUpdate,
+  UserGoalWeightHistoryEntry,
 } from '@/api/types';
 import { UserStatus } from '@/api/types';
 
