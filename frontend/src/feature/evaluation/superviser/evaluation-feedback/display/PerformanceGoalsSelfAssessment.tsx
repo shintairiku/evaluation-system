@@ -150,6 +150,9 @@ export default function PerformanceGoalsSelfAssessment() {
               <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 min-h-[100px]">
                 {evalItem.comment}
               </div>
+              <div className="flex justify-end items-center mt-1">
+                <p className="text-xs text-gray-400">部下による自己評価コメント</p>
+              </div>
             </div>
           </div>
         ))}

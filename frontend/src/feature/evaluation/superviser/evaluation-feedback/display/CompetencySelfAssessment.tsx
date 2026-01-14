@@ -245,22 +245,22 @@ export default function CompetencySelfAssessment() {
                   <p className="text-sm text-gray-700">{item.description}</p>
 
                   {/* Rating Display - Read only with visual feedback */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3 flex-wrap">
                     {RATINGS.map((rating) => {
                       const isSelected = item.rating === rating;
                       return (
                         <div
                           key={rating}
-                          className="flex items-center gap-1"
+                          className="flex items-center gap-2"
                         >
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
                             isSelected
                               ? 'border-blue-600 bg-blue-50'
                               : 'border-gray-300'
                           }`}>
-                            {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>}
+                            {isSelected && <div className="w-3 h-3 rounded-full bg-blue-600"></div>}
                           </div>
-                          <span className={`text-xs ${
+                          <span className={`text-sm ${
                             isSelected
                               ? 'text-blue-700 font-semibold'
                               : 'text-gray-400'
@@ -281,6 +281,9 @@ export default function CompetencySelfAssessment() {
             </Label>
             <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 min-h-[100px]">
               {mockCompetencyEvaluation.comment}
+            </div>
+            <div className="flex justify-end items-center mt-1">
+              <p className="text-xs text-gray-400">部下による自己評価コメント</p>
             </div>
           </div>
         </div>
