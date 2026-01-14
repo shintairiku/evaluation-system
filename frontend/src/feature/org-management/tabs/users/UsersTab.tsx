@@ -138,6 +138,20 @@ export function UsersTab({
   const setSubordinateSearchFor = useCallback((userId: string, value: string) => {
     setSubordinateSearch((prev) => ({ ...prev, [userId]: value }));
   }, []);
+
+  const openGoalWeightDialog = useCallback((user: UserDetailResponse) => {
+    const hasOverride = user.goalWeightBudget?.source === 'user';
+    setGoalWeightTarget(user);
+    setGoalWeightInputs({
+      quantitative: hasOverride && user.goalWeightBudget ? String(user.goalWeightBudget.quantitative) : '',
+      qualitative: hasOverride && user.goalWeightBudget ? String(user.goalWeightBudget.qualitative) : '',
+      competency: hasOverride && user.goalWeightBudget ? String(user.goalWeightBudget.competency) : '',
+    });
+    setGoalWeightError(null);
+    setGoalWeightHistory([]);
+    setGoalWeightHistoryError(null);
+  }, []);
+
   const closeGoalWeightDialog = useCallback(() => {
     if (goalWeightPending) return;
     setGoalWeightTarget(null);
@@ -683,25 +697,44 @@ export function UsersTab({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Select
-                      value={user.stage?.id ?? 'unset'}
-                      onValueChange={(value) => handleStageChange(user, value)}
-                      disabled={isFieldPending(user.id, 'stage')}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="未設定" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unset" disabled>
-                          未設定
-                        </SelectItem>
-                        {stages.map((stage) => (
-                          <SelectItem key={stage.id} value={stage.id}>
-                            {stage.name}
+                    <div className="space-y-2">
+                      <Select
+                        value={user.stage?.id ?? 'unset'}
+                        onValueChange={(value) => handleStageChange(user, value)}
+                        disabled={isFieldPending(user.id, 'stage')}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="未設定" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unset" disabled>
+                            未設定
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          {stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {isAdmin && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto px-0 text-primary"
+                            onClick={() => openGoalWeightDialog(user)}
+                          >
+                            目標の重み変更
+                          </Button>
+                          {user.goalWeightBudget?.source === 'user' && (
+                            <Badge variant="outline" className="text-xs">
+                              個別設定中
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Select
