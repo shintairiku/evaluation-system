@@ -142,6 +142,37 @@ export async function updateUserGoalWeightsAction(
   }
 }
 
+export async function resetUserGoalWeightsAction(userId: UUID): Promise<{
+  success: boolean;
+  data?: UserDetailResponse;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.resetUserGoalWeights(userId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to reset user goal weights',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.USERS);
+    revalidateTag(`${CACHE_TAGS.USERS}:${userId}`);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Reset user goal weights action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while resetting goal weights',
+    };
+  }
+}
+
 export async function updateUserStagesAction(changes: { userId: UUID; toStageId: UUID }[]): Promise<{
   success: boolean;
   error?: string;
@@ -266,4 +297,3 @@ export async function deleteUserAction(userId: UUID): Promise<{
     };
   }
 }
-
