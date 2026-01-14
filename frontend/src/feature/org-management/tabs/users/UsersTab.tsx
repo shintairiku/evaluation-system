@@ -833,6 +833,183 @@ export function UsersTab({
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!goalWeightTarget} onOpenChange={(open) => !open && closeGoalWeightDialog()}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>目標の重み変更</DialogTitle>
+            <DialogDescription>
+              {goalWeightTarget
+                ? `${goalWeightTarget.name} さんの目標ウェイトを設定します。`
+                : 'ユーザー別の目標ウェイトを設定します。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {goalWeightTarget && (
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <p className="font-medium">{goalWeightTarget.name}</p>
+                <p className="text-muted-foreground">{goalWeightTarget.email}</p>
+                <p className="text-muted-foreground">
+                  ステージ: {goalWeightTarget.stage?.name ?? '未設定'}
+                </p>
+              </div>
+            )}
+            {!goalWeightTarget?.stage && (
+              <p className="text-sm text-destructive">
+                ステージ未設定のため重みを変更できません。先にステージを設定してください。
+              </p>
+            )}
+            <div className="grid gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="goal-weight-quantitative">業績目標（定量）</Label>
+                <Input
+                  id="goal-weight-quantitative"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  placeholder={goalWeightDefaults ? String(goalWeightDefaults.quantitative) : '0'}
+                  value={goalWeightInputs.quantitative}
+                  onChange={(e) => handleGoalWeightInputChange('quantitative', e.target.value)}
+                  disabled={goalWeightPending}
+                />
+                {goalWeightDefaults && (
+                  <p className="text-xs text-muted-foreground">
+                    ステージ既定: {goalWeightDefaults.quantitative}%
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="goal-weight-qualitative">業績目標（定性）</Label>
+                <Input
+                  id="goal-weight-qualitative"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  placeholder={goalWeightDefaults ? String(goalWeightDefaults.qualitative) : '0'}
+                  value={goalWeightInputs.qualitative}
+                  onChange={(e) => handleGoalWeightInputChange('qualitative', e.target.value)}
+                  disabled={goalWeightPending}
+                />
+                {goalWeightDefaults && (
+                  <p className="text-xs text-muted-foreground">
+                    ステージ既定: {goalWeightDefaults.qualitative}%
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="goal-weight-competency">コンピテンシー</Label>
+                <Input
+                  id="goal-weight-competency"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  placeholder={goalWeightDefaults ? String(goalWeightDefaults.competency) : '0'}
+                  value={goalWeightInputs.competency}
+                  onChange={(e) => handleGoalWeightInputChange('competency', e.target.value)}
+                  disabled={goalWeightPending}
+                />
+                {goalWeightDefaults && (
+                  <p className="text-xs text-muted-foreground">
+                    ステージ既定: {goalWeightDefaults.competency}%
+                  </p>
+                )}
+              </div>
+            </div>
+            {goalWeightError && (
+              <p className="text-sm text-destructive">{goalWeightError}</p>
+            )}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">変更履歴</p>
+                {goalWeightHistoryLoading && (
+                  <span className="text-xs text-muted-foreground">読み込み中...</span>
+                )}
+              </div>
+              {goalWeightHistoryError && (
+                <p className="text-sm text-destructive">{goalWeightHistoryError}</p>
+              )}
+              {!goalWeightHistoryLoading && !goalWeightHistoryError && goalWeightHistory.length === 0 && (
+                <p className="text-sm text-muted-foreground">履歴がありません。</p>
+              )}
+              {goalWeightHistoryLoading && (
+                <div className="space-y-2">
+                  {[0, 1, 2].map((idx) => (
+                    <Skeleton key={idx} className="h-16 w-full" />
+                  ))}
+                </div>
+              )}
+              {!goalWeightHistoryLoading && goalWeightHistory.length > 0 && (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {goalWeightHistory.map((entry) => (
+                    <div key={entry.id} className="rounded-md border p-3 text-sm">
+                      <div className="text-xs text-muted-foreground">
+                        {formatHistoryTimestamp(entry.changedAt)}
+                      </div>
+                      <div className="mt-2 grid gap-1 text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <span>業績（定量）</span>
+                          <span>
+                            {formatHistoryValue(entry.quantitativeWeightBefore, goalWeightDefaults?.quantitative)} → {formatHistoryValue(entry.quantitativeWeightAfter, goalWeightDefaults?.quantitative)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>業績（定性）</span>
+                          <span>
+                            {formatHistoryValue(entry.qualitativeWeightBefore, goalWeightDefaults?.qualitative)} → {formatHistoryValue(entry.qualitativeWeightAfter, goalWeightDefaults?.qualitative)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>コンピテンシー</span>
+                          <span>
+                            {formatHistoryValue(entry.competencyWeightBefore, goalWeightDefaults?.competency)} → {formatHistoryValue(entry.competencyWeightAfter, goalWeightDefaults?.competency)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            {goalWeightTarget?.goalWeightBudget?.source === 'user' && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleGoalWeightReset}
+                disabled={goalWeightPending}
+              >
+                ステージの設定に戻す
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={closeGoalWeightDialog}
+              disabled={goalWeightPending}
+            >
+              キャンセル
+            </Button>
+            <Button
+              type="button"
+              onClick={handleGoalWeightSubmit}
+              disabled={!goalWeightCanSubmit}
+            >
+              {goalWeightPending ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  保存中...
+                </span>
+              ) : (
+                '保存/適用'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
