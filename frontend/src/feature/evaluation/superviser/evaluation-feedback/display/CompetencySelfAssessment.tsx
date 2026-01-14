@@ -13,6 +13,8 @@ import {
 
 type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
 
+const RATINGS: RatingCode[] = ['SS', 'S', 'A', 'B', 'C', 'D'];
+
 interface CompetencyItem {
   id: number;
   description: string;
@@ -238,15 +240,34 @@ export default function CompetencySelfAssessment() {
           {/* Competency Items - Read only */}
           <div className="space-y-4">
             {mockCompetencyEvaluation.items.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-700">{item.description}</p>
-                  </div>
+              <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[90px]">
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-gray-700">{item.description}</p>
+
+                  {/* Rating Display - Read only with visual feedback */}
                   <div className="flex items-center gap-2">
-                    <div className="text-2xl font-bold text-blue-700">
-                      {item.rating}
-                    </div>
+                    {RATINGS.map((rating) => {
+                      const isSelected = item.rating === rating;
+                      return (
+                        <div
+                          key={rating}
+                          className="flex items-center gap-1"
+                        >
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-300'
+                          }`}>
+                            {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>}
+                          </div>
+                          <span className={`text-xs ${
+                            isSelected
+                              ? 'text-blue-700 font-semibold'
+                              : 'text-gray-400'
+                          }`}>{rating}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
