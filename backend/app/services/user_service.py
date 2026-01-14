@@ -184,6 +184,8 @@ class UserService:
             org_id = current_user_context.organization_id
             if not org_id:
                 raise PermissionDeniedError("Organization context required")
+            if not current_user_context.user_id:
+                raise PermissionDeniedError("User context required")
             
             # Handle supervisor_id filtering
             user_ids_to_filter = None
@@ -222,6 +224,8 @@ class UserService:
             org_id = current_user_context.organization_id
             if not org_id:
                 raise PermissionDeniedError("Organization context required")
+            if not current_user_context.user_id:
+                raise PermissionDeniedError("User context required")
             user = await self.user_repo.get_user_by_id(user_id, org_id)
             if not user:
                 raise NotFoundError(f"User with ID {user_id} not found")
