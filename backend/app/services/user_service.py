@@ -18,7 +18,8 @@ from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB, SimpleUser,
     Department, Stage, Role, UserStatus, UserExistsResponse, UserClerkIdUpdate,
-    BulkUserStatusUpdateItem, BulkUserStatusUpdateResult, BulkUserStatusUpdateResponse
+    BulkUserStatusUpdateItem, BulkUserStatusUpdateResult, BulkUserStatusUpdateResponse,
+    UserGoalWeightUpdate, UserGoalWeightHistoryEntry, GoalWeightBudget
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
