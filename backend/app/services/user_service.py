@@ -1047,6 +1047,57 @@ class UserService:
 
     
     # Private helper methods
+
+    def _build_goal_weight_budget(
+        self,
+        user: UserModel,
+        stage: Optional[Stage]
+    ) -> Optional[GoalWeightBudget]:
+        override_values = (
+            user.quantitative_weight_override,
+            user.qualitative_weight_override,
+            user.competency_weight_override,
+        )
+        has_override = all(value is not None for value in override_values)
+
+        if has_override:
+            return GoalWeightBudget(
+                quantitative=float(user.quantitative_weight_override),
+                qualitative=float(user.qualitative_weight_override),
+                competency=float(user.competency_weight_override),
+                source="user",
+            )
+
+        if stage:
+            quantitative = getattr(stage, "quantitative_weight", None)
+            qualitative = getattr(stage, "qualitative_weight", None)
+            competency = getattr(stage, "competency_weight", None)
+            return GoalWeightBudget(
+                quantitative=float(quantitative or 0),
+                qualitative=float(qualitative or 0),
+                competency=float(competency or 0),
+                source="stage",
+            )
+
+        return None
+
+    def _invalidate_user_caches(self, org_id: str, user_id: UUID) -> None:
+        """Invalidate local user caches that might contain stale data."""
+        keys_to_delete = [
+            key for key in user_detail_cache.keys()
+            if key.startswith(f"user_detail::{org_id}::{user_id}")
+        ]
+        for key in keys_to_delete:
+            user_detail_cache.pop(key, None)
+        user_search_cache.clear()
+
+    def _invalidate_v2_user_caches(self, org_id: str) -> None:
+        """Invalidate v2 list caches for the given organization."""
+        try:
+            from .user_service_v2 import UserServiceV2
+            UserServiceV2.invalidate_caches(org_id)
+        except Exception as exc:
+            logger.warning(f"Failed to invalidate v2 user caches for org {org_id}: {exc}")
     
     def _generate_cache_key(
         self,
