@@ -721,6 +721,38 @@ class UserService:
             await self.session.rollback()
             logger.error(f"Error clearing goal weight overrides for user {user_id}: {str(e)}")
             raise
+
+    @require_permission(Permission.USER_MANAGE)
+    async def get_user_goal_weight_history(
+        self,
+        user_id: UUID,
+        current_user_context: AuthContext,
+        limit: int = 20
+    ) -> list[UserGoalWeightHistoryEntry]:
+        """Return recent user goal weight override history entries."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        entries = await self.user_repo.get_user_goal_weight_history(user_id, org_id, limit)
+        return [
+            UserGoalWeightHistoryEntry(
+                id=entry.id,
+                user_id=entry.user_id,
+                organization_id=entry.organization_id,
+                actor_user_id=entry.actor_user_id,
+                actor_name=actor_name,
+                actor_employee_code=actor_employee_code,
+                quantitative_weight_before=float(entry.quantitative_weight_before) if entry.quantitative_weight_before is not None else None,
+                quantitative_weight_after=float(entry.quantitative_weight_after) if entry.quantitative_weight_after is not None else None,
+                qualitative_weight_before=float(entry.qualitative_weight_before) if entry.qualitative_weight_before is not None else None,
+                qualitative_weight_after=float(entry.qualitative_weight_after) if entry.qualitative_weight_after is not None else None,
+                competency_weight_before=float(entry.competency_weight_before) if entry.competency_weight_before is not None else None,
+                competency_weight_after=float(entry.competency_weight_after) if entry.competency_weight_after is not None else None,
+                changed_at=entry.changed_at
+            )
+            for entry, actor_name, actor_employee_code in entries
+        ]
     
     @require_permission(Permission.USER_MANAGE)
     async def delete_user(
