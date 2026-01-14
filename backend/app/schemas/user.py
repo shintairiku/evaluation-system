@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING, Literal
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from uuid import UUID
 
@@ -195,6 +195,23 @@ class UserStageUpdate(BaseModel):
     """Schema for updating user's stage (admin only)"""
     stage_id: UUID = Field(..., description="New stage ID for the user")
 
+class UserGoalWeightUpdate(BaseModel):
+    """Schema for updating user-specific goal weight overrides"""
+    quantitative_weight: float = Field(..., ge=0, le=100, alias="quantitativeWeight")
+    qualitative_weight: float = Field(..., ge=0, le=100, alias="qualitativeWeight")
+    competency_weight: float = Field(..., ge=0, le=100, alias="competencyWeight")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class GoalWeightBudget(BaseModel):
+    quantitative: float
+    qualitative: float
+    competency: float
+    source: Literal["stage", "user"]
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class UserInDB(UserBase):
     """User model as stored in database"""
@@ -234,11 +251,12 @@ class UserDetailResponse(BaseModel):
     job_title: Optional[str] = None
     department: Optional[Department] = None
     stage: Optional[Stage] = None
+    goal_weight_budget: Optional[GoalWeightBudget] = Field(None, alias="goalWeightBudget")
     roles: List[Role] = []
     supervisor: Optional["User"] = None
     subordinates: Optional[List["User"]] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class UserExistsResponse(BaseModel):
@@ -258,3 +276,22 @@ class ProfileOptionsResponse(BaseModel):
     stages: List[Stage]
     roles: List[Role]
     users: List[UserProfileOption]  # Simple user options without complex relationships
+
+
+class UserGoalWeightHistoryEntry(BaseModel):
+    """Audit entry for user goal weight overrides"""
+    id: UUID
+    user_id: UUID = Field(..., alias="userId")
+    organization_id: str = Field(..., alias="organizationId")
+    actor_user_id: UUID = Field(..., alias="actorUserId")
+    actor_name: Optional[str] = Field(None, alias="actorName")
+    actor_employee_code: Optional[str] = Field(None, alias="actorEmployeeCode")
+    quantitative_weight_before: Optional[float] = Field(None, alias="quantitativeWeightBefore")
+    quantitative_weight_after: Optional[float] = Field(None, alias="quantitativeWeightAfter")
+    qualitative_weight_before: Optional[float] = Field(None, alias="qualitativeWeightBefore")
+    qualitative_weight_after: Optional[float] = Field(None, alias="qualitativeWeightAfter")
+    competency_weight_before: Optional[float] = Field(None, alias="competencyWeightBefore")
+    competency_weight_after: Optional[float] = Field(None, alias="competencyWeightAfter")
+    changed_at: datetime = Field(..., alias="changedAt")
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
