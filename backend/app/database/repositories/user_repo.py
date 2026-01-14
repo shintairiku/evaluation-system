@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.user import User, UserSupervisor, Role, user_roles
+from ..models.user_goal_weight_history import UserGoalWeightHistory
 from ..models.stage_competency import Stage
 from ...schemas.user import UserStatus, UserCreate, UserUpdate, UserClerkIdUpdate
 from ...schemas.common import PaginationParams
@@ -87,11 +88,13 @@ class UserRepository(BaseRepository[User]):
     # READ OPERATIONS
     # ========================================
 
-    async def get_user_by_id(self, user_id: UUID, org_id: str) -> Optional[User]:
-        """Get user by ID within organization scope."""
+    async def get_user_by_id(self, user_id: UUID, org_id: Optional[str] = None) -> Optional[User]:
+        """Get user by ID, optionally within organization scope."""
         try:
             query = select(User).filter(User.id == user_id)
-            query = self.apply_org_scope_direct(query, User.clerk_organization_id, org_id)
+            if org_id:
+                query = self.apply_org_scope_direct(query, User.clerk_organization_id, org_id)
+            self.ensure_org_filter_applied("get_user_by_id", org_id)
             
             result = await self.session.execute(query)
             return result.scalars().first()
@@ -206,7 +209,7 @@ class UserRepository(BaseRepository[User]):
             raise
 
     async def get_user_stage_with_weights(self, user_id: UUID, org_id: str) -> Optional[dict]:
-        """Fetch user's stage information along with configured weights."""
+        """Fetch user's stage information along with effective weights (override-aware)."""
         try:
             stmt = (
                 select(
@@ -214,7 +217,10 @@ class UserRepository(BaseRepository[User]):
                     User.stage_id,
                     Stage.quantitative_weight,
                     Stage.qualitative_weight,
-                    Stage.competency_weight
+                    Stage.competency_weight,
+                    User.quantitative_weight_override,
+                    User.qualitative_weight_override,
+                    User.competency_weight_override
                 )
                 .join(Stage, Stage.id == User.stage_id, isouter=True)
                 .where(User.id == user_id)
@@ -226,16 +232,120 @@ class UserRepository(BaseRepository[User]):
             if not row:
                 return None
 
+            has_override = (
+                row.quantitative_weight_override is not None
+                and row.qualitative_weight_override is not None
+                and row.competency_weight_override is not None
+            )
+
+            def to_float(value):
+                return float(value) if value is not None else None
+
+            quantitative = to_float(row.quantitative_weight_override if has_override else row.quantitative_weight)
+            qualitative = to_float(row.qualitative_weight_override if has_override else row.qualitative_weight)
+            competency = to_float(row.competency_weight_override if has_override else row.competency_weight)
+
             return {
                 "user_id": row.id,
                 "stage_id": row.stage_id,
-                "quantitative_weight": float(row.quantitative_weight) if row.quantitative_weight is not None else None,
-                "qualitative_weight": float(row.qualitative_weight) if row.qualitative_weight is not None else None,
-                "competency_weight": float(row.competency_weight) if row.competency_weight is not None else None,
+                "quantitative_weight": quantitative,
+                "qualitative_weight": qualitative,
+                "competency_weight": competency,
+                "has_override": has_override,
+                "source": "user" if has_override else "stage"
             }
         except SQLAlchemyError as e:
             logger.error(f"Error fetching stage weights for user {user_id} in org {org_id}: {e}")
             raise
+
+    async def set_user_goal_weight_override(
+        self,
+        user_id: UUID,
+        org_id: str,
+        *,
+        quantitative: float,
+        qualitative: float,
+        competency: float
+    ) -> Optional[User]:
+        """Set user-level goal weight overrides (all-or-none)."""
+        try:
+            existing_user = await self.get_user_by_id(user_id, org_id)
+            if not existing_user:
+                return None
+
+            existing_user.quantitative_weight_override = quantitative
+            existing_user.qualitative_weight_override = qualitative
+            existing_user.competency_weight_override = competency
+
+            self.session.add(existing_user)
+            logger.info(f"Updated user goal weight overrides in session: {existing_user.email}")
+            return existing_user
+        except SQLAlchemyError as e:
+            logger.error(f"Error setting goal weight overrides for user {user_id}: {e}")
+            raise
+
+    async def clear_user_goal_weight_override(self, user_id: UUID, org_id: str) -> Optional[User]:
+        """Clear user-level goal weight overrides (revert to stage defaults)."""
+        try:
+            existing_user = await self.get_user_by_id(user_id, org_id)
+            if not existing_user:
+                return None
+
+            existing_user.quantitative_weight_override = None
+            existing_user.qualitative_weight_override = None
+            existing_user.competency_weight_override = None
+
+            self.session.add(existing_user)
+            logger.info(f"Cleared user goal weight overrides in session: {existing_user.email}")
+            return existing_user
+        except SQLAlchemyError as e:
+            logger.error(f"Error clearing goal weight overrides for user {user_id}: {e}")
+            raise
+
+    async def add_user_goal_weight_history_entry(
+        self,
+        user_id: UUID,
+        org_id: str,
+        actor_user_id: UUID,
+        before_weights: dict,
+        after_weights: dict
+    ) -> UserGoalWeightHistory:
+        """Persist a user goal weight history entry for auditing."""
+        history_entry = UserGoalWeightHistory(
+            user_id=user_id,
+            organization_id=org_id,
+            actor_user_id=actor_user_id,
+            quantitative_weight_before=before_weights.get("quantitative_weight"),
+            quantitative_weight_after=after_weights.get("quantitative_weight"),
+            qualitative_weight_before=before_weights.get("qualitative_weight"),
+            qualitative_weight_after=after_weights.get("qualitative_weight"),
+            competency_weight_before=before_weights.get("competency_weight"),
+            competency_weight_after=after_weights.get("competency_weight"),
+        )
+        self.session.add(history_entry)
+        return history_entry
+
+    async def get_user_goal_weight_history(
+        self,
+        user_id: UUID,
+        org_id: str,
+        limit: int = 20
+    ):
+        """Retrieve recent goal weight history entries for a user within organization scope."""
+        query = (
+            select(
+                UserGoalWeightHistory,
+                User.name,
+                User.employee_code
+            )
+            .outerjoin(User, UserGoalWeightHistory.actor_user_id == User.id)
+            .where(UserGoalWeightHistory.user_id == user_id)
+            .order_by(UserGoalWeightHistory.changed_at.desc())
+            .limit(limit)
+        )
+        query = self.apply_org_scope_direct(query, UserGoalWeightHistory.organization_id, org_id)
+        result = await self.session.execute(query)
+        return result.all()
 
     async def get_user_by_employee_code(self, employee_code: str, org_id: str) -> Optional[User]:
         """Get user by employee code within organization scope."""
