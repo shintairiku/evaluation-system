@@ -241,7 +241,7 @@ export default function CompetencySelfAssessment() {
           <div className="space-y-4">
             {mockCompetencyEvaluation.items.map((item) => (
               <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[90px]">
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
                   <p className="text-sm text-gray-700">{item.description}</p>
 
                   {/* Rating Display - Read only with visual feedback */}

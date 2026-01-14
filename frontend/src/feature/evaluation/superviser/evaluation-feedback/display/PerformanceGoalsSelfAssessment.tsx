@@ -135,7 +135,7 @@ export default function PerformanceGoalsSelfAssessment() {
                   自己評価
                 </Label>
                 <div className="flex items-center gap-2">
-                  <div className="text-3xl font-bold text-blue-700">
+                  <div className="text-base font-bold text-blue-700">
                     {evalItem.ratingCode || '−'}
                   </div>
                 </div>
