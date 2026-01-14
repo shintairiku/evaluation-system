@@ -138,6 +138,80 @@ export function UsersTab({
   const setSubordinateSearchFor = useCallback((userId: string, value: string) => {
     setSubordinateSearch((prev) => ({ ...prev, [userId]: value }));
   }, []);
+  const closeGoalWeightDialog = useCallback(() => {
+    if (goalWeightPending) return;
+    setGoalWeightTarget(null);
+    setGoalWeightError(null);
+    setGoalWeightHistory([]);
+    setGoalWeightHistoryError(null);
+  }, [goalWeightPending]);
+
+  const goalWeightDefaults = useMemo(() => {
+    if (!goalWeightTarget?.stage) {
+      return null;
+    }
+    return {
+      quantitative: Number(goalWeightTarget.stage.quantitativeWeight ?? 0),
+      qualitative: Number(goalWeightTarget.stage.qualitativeWeight ?? 0),
+      competency: Number(goalWeightTarget.stage.competencyWeight ?? 0),
+    };
+  }, [goalWeightTarget]);
+
+  const parseGoalWeight = useCallback((value: string) => {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) return null;
+    return parsed;
+  }, []);
+
+  const goalWeightValues = useMemo(() => ({
+    quantitative: parseGoalWeight(goalWeightInputs.quantitative),
+    qualitative: parseGoalWeight(goalWeightInputs.qualitative),
+    competency: parseGoalWeight(goalWeightInputs.competency),
+  }), [goalWeightInputs, parseGoalWeight]);
+
+  const goalWeightAllSet = Object.values(goalWeightValues).every((value) => value !== null);
+  const goalWeightInRange = Object.values(goalWeightValues).every((value) => value !== null && value >= 0 && value <= 100);
+  const goalWeightCanSubmit = !!goalWeightTarget && goalWeightAllSet && goalWeightInRange && !goalWeightPending && !!goalWeightTarget.stage;
+
+  const loadGoalWeightHistory = useCallback(async (userId: string) => {
+    setGoalWeightHistoryLoading(true);
+    setGoalWeightHistoryError(null);
+    try {
+      const result = await getUserGoalWeightHistoryAction(userId, 10);
+      if (!result.success || !result.data) {
+        setGoalWeightHistoryError(result.error || '履歴の取得に失敗しました');
+        setGoalWeightHistory([]);
+        return;
+      }
+      setGoalWeightHistory(result.data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '履歴の取得に失敗しました';
+      setGoalWeightHistoryError(message);
+      setGoalWeightHistory([]);
+    } finally {
+      setGoalWeightHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!goalWeightTarget?.id) return;
+    loadGoalWeightHistory(goalWeightTarget.id);
+  }, [goalWeightTarget?.id, loadGoalWeightHistory]);
+
+  const formatHistoryValue = useCallback((value?: number | null, fallback?: number | null) => {
+    if (value === null || value === undefined) {
+      if (fallback === null || fallback === undefined) return '未設定';
+      return `${fallback}%`;
+    }
+    return `${value}%`;
+  }, []);
+
+  const formatHistoryTimestamp = useCallback((value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('ja-JP');
+  }, []);
 
   const syncUser = useCallback(
     (updatedUser: UserDetailResponse) => {
@@ -297,6 +371,80 @@ export function UsersTab({
         }),
       'ステータスを更新しました',
     );
+  };
+
+  const handleGoalWeightInputChange = (field: 'quantitative' | 'qualitative' | 'competency', value: string) => {
+    setGoalWeightInputs((prev) => ({ ...prev, [field]: value }));
+    if (goalWeightError) {
+      setGoalWeightError(null);
+    }
+  };
+
+  const handleGoalWeightSubmit = async () => {
+    if (!goalWeightTarget) return;
+    if (!goalWeightAllSet || !goalWeightInRange) {
+      setGoalWeightError('3つの重みをすべて入力し、0〜100の範囲で設定してください。');
+      return;
+    }
+
+    const quantitative = goalWeightValues.quantitative ?? 0;
+    const qualitative = goalWeightValues.qualitative ?? 0;
+    const competency = goalWeightValues.competency ?? 0;
+
+    setGoalWeightPending(true);
+    setGoalWeightError(null);
+    try {
+      const result = await updateUserGoalWeightsAction(goalWeightTarget.id, {
+        quantitativeWeight: quantitative,
+        qualitativeWeight: qualitative,
+        competencyWeight: competency,
+      });
+
+      if (!result.success || !result.data) {
+        toast.error(result.error || '目標の重み更新に失敗しました');
+        return;
+      }
+
+      syncUser(result.data);
+      if (currentUser?.id === result.data.id) {
+        await refetch();
+      }
+      toast.success('目標の重みを更新しました');
+      setGoalWeightTarget(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '目標の重み更新に失敗しました';
+      toast.error(message);
+    } finally {
+      setGoalWeightPending(false);
+    }
+  };
+
+  const handleGoalWeightReset = async () => {
+    if (!goalWeightTarget) return;
+    const confirmed = window.confirm('ユーザー固有の設定を解除してステージ設定に戻しますか？');
+    if (!confirmed) return;
+
+    setGoalWeightPending(true);
+    setGoalWeightError(null);
+    try {
+      const result = await resetUserGoalWeightsAction(goalWeightTarget.id);
+      if (!result.success || !result.data) {
+        toast.error(result.error || '目標の重みのリセットに失敗しました');
+        return;
+      }
+
+      syncUser(result.data);
+      if (currentUser?.id === result.data.id) {
+        await refetch();
+      }
+      toast.success('ステージ設定に戻しました');
+      setGoalWeightTarget(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '目標の重みのリセットに失敗しました';
+      toast.error(message);
+    } finally {
+      setGoalWeightPending(false);
+    }
   };
 
   const handleBulkStatusSubmit = (status: UserStatus) => {
