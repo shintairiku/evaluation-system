@@ -671,6 +671,56 @@ class UserService:
             logger.error(f"Error updating goal weight overrides for user {user_id}: {str(e)}")
             raise
 
+    @require_permission(Permission.USER_MANAGE)
+    async def clear_user_goal_weight_override(
+        self,
+        user_id: UUID,
+        current_user_context: AuthContext
+    ) -> UserDetailResponse:
+        """Clear user-specific goal weight overrides and log history."""
+        try:
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            existing_user = await self.user_repo.get_user_by_id(user_id, org_id)
+            if not existing_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
+
+            previous_weights = {
+                "quantitative_weight": float(existing_user.quantitative_weight_override) if existing_user.quantitative_weight_override is not None else None,
+                "qualitative_weight": float(existing_user.qualitative_weight_override) if existing_user.qualitative_weight_override is not None else None,
+                "competency_weight": float(existing_user.competency_weight_override) if existing_user.competency_weight_override is not None else None,
+            }
+
+            updated_user = await self.user_repo.clear_user_goal_weight_override(user_id, org_id)
+            if not updated_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
+
+            await self.user_repo.add_user_goal_weight_history_entry(
+                user_id=user_id,
+                org_id=org_id,
+                actor_user_id=current_user_context.user_id,
+                before_weights=previous_weights,
+                after_weights={
+                    "quantitative_weight": None,
+                    "qualitative_weight": None,
+                    "competency_weight": None,
+                }
+            )
+
+            await self.session.commit()
+            await self.session.refresh(updated_user)
+
+            self._invalidate_user_caches(org_id, user_id)
+            self._invalidate_v2_user_caches(org_id)
+
+            logger.info(f"User goal weight overrides cleared for user {user_id} by {current_user_context.user_id}")
+            return await self._enrich_detailed_user_data(updated_user)
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error clearing goal weight overrides for user {user_id}: {str(e)}")
+            raise
     
     @require_permission(Permission.USER_MANAGE)
     async def delete_user(
