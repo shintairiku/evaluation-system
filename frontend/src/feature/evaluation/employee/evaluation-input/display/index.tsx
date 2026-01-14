@@ -56,7 +56,7 @@ export default function EmployeeEvaluationInputDisplay() {
           <div>
             <h1 className="text-2xl font-bold">自己評価入力</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              業績目標とコンピテンシーの自己評価を入力してください
+              業績目標とコンピテンシーの自己評価を入力してください（コアバリュー評価は期末のみ）
             </p>
           </div>
           <EvaluationPeriodSelector
