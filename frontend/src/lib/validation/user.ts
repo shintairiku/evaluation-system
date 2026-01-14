@@ -170,6 +170,13 @@ export const userSchema = userInDBSchema.extend({
   roles: z.array(roleSchema),
 });
 
+export const goalWeightBudgetSchema = z.object({
+  quantitative: z.number(),
+  qualitative: z.number(),
+  competency: z.number(),
+  source: z.enum(['stage', 'user']),
+});
+
 // User detail response schema
 export const userDetailResponseSchema = z.object({
   id: uuidSchema,
@@ -181,6 +188,7 @@ export const userDetailResponseSchema = z.object({
   job_title: z.string().optional(),
   department: departmentSchema.optional(),
   stage: stageSchema.optional(),
+  goalWeightBudget: goalWeightBudgetSchema.optional(),
   roles: z.array(roleSchema),
   supervisor: z.lazy(() => userSchema).optional(),
   subordinates: z.array(z.lazy(() => userSchema)).optional(),
