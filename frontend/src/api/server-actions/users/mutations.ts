@@ -10,6 +10,7 @@ import type {
   UUID,
   BulkUserStatusUpdateItem,
   BulkUserStatusUpdateResponse,
+  UserGoalWeightUpdate,
 } from '../../types';
 
 export async function createUserAction(userData: UserCreate): Promise<{
@@ -103,6 +104,40 @@ export async function updateUserStageAction(userId: UUID, stageId: UUID): Promis
     return {
       success: false,
       error: 'An unexpected error occurred while updating user stage',
+    };
+  }
+}
+
+export async function updateUserGoalWeightsAction(
+  userId: UUID,
+  payload: UserGoalWeightUpdate,
+): Promise<{
+  success: boolean;
+  data?: UserDetailResponse;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.updateUserGoalWeights(userId, payload);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to update user goal weights',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.USERS);
+    revalidateTag(`${CACHE_TAGS.USERS}:${userId}`);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Update user goal weights action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating goal weights',
     };
   }
 }
