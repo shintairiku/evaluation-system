@@ -8,6 +8,7 @@ import {
 
 export default async function OrgManagementRoute() {
   const usersResult = await getUserDirectoryBasePageDataAction({
+    include: 'department,stage,roles,supervisor,subordinates',
     limit: 50,
     page: 1,
   });
@@ -61,10 +62,14 @@ export default async function OrgManagementRoute() {
     const matchingPermissions = (rolePermissionsResult.data ?? []).find(
       (rp) => rp.role_id === role.id || rp.roleId === role.id,
     );
+    const permissions = (matchingPermissions?.permissions ?? []).map((permission) => ({
+      name: permission.code,
+      description: permission.description ?? permission.code,
+    }));
 
     return {
       ...role,
-      permissions: matchingPermissions?.permissions ?? [],
+      permissions,
     };
   });
 
@@ -91,4 +96,3 @@ export default async function OrgManagementRoute() {
     </div>
   );
 }
-
