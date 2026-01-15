@@ -826,6 +826,11 @@ class TestUserRepository:
             user.qualitative_weight_override,
             user.competency_weight_override,
         )
+        (
+            previous_quantitative_override,
+            previous_qualitative_override,
+            previous_competency_override,
+        ) = previous_overrides
 
         try:
             await user_repo.set_user_goal_weight_override(
@@ -846,15 +851,15 @@ class TestUserRepository:
 
             log_assertion_success("User override weights returned correctly")
         finally:
-            if all(value is None for value in previous_overrides):
+            if any(value is None for value in previous_overrides):
                 await user_repo.clear_user_goal_weight_override(user_id, org_id)
             else:
                 await user_repo.set_user_goal_weight_override(
                     user_id,
                     org_id,
-                    quantitative=float(previous_overrides[0]),
-                    qualitative=float(previous_overrides[1]),
-                    competency=float(previous_overrides[2]),
+                    quantitative=float(previous_quantitative_override),
+                    qualitative=float(previous_qualitative_override),
+                    competency=float(previous_competency_override),
                 )
             await session.commit()
 
