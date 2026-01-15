@@ -94,8 +94,8 @@ class UserRepository(BaseRepository[User]):
             query = select(User).filter(User.id == user_id)
             if org_id:
                 query = self.apply_org_scope_direct(query, User.clerk_organization_id, org_id)
-            self.ensure_org_filter_applied("get_user_by_id", org_id)
-            
+                self.ensure_org_filter_applied("get_user_by_id", org_id)
+
             result = await self.session.execute(query)
             return result.scalars().first()
         except SQLAlchemyError as e:
