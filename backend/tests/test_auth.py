@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 from jose import jwt
 from datetime import datetime, timedelta
 
@@ -8,6 +8,7 @@ from app.schemas.auth import AuthUser
 from app.services.auth_service import AuthService
 from app.dependencies.auth import get_current_user, get_admin_user, get_supervisor_or_admin_user
 from app.schemas.auth import UserAuthResponse, TokenVerifyRequest, TokenVerifyResponse
+from app.schemas.user import UserExistsResponse
 from app.core.exceptions import UnauthorizedError
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
@@ -168,9 +169,10 @@ class TestAuthDependencies:
             scheme="Bearer",
             credentials=mock_jwt_token
         )
-        
-        with patch('app.dependencies.auth.clerk_auth') as mock_clerk_auth:
-            mock_user = AuthUser(
+
+        mock_service = AsyncMock()
+        mock_service.get_user_from_token = AsyncMock(
+            return_value=AuthUser(
                 clerk_id="user_123",
                 email="test@example.com",
                 first_name="Test",
@@ -178,13 +180,21 @@ class TestAuthDependencies:
                 roles=["employee"],
                 role="employee"
             )
-            mock_clerk_auth.verify_token.return_value = mock_user
+        )
+        mock_service.check_user_exists_by_clerk_id = AsyncMock(
+            return_value=UserExistsResponse(
+                exists=True,
+                user_id=None,
+                name="Test User",
+                email="test@example.com",
+                status=None,
+            )
+        )
 
-            result = await get_current_user(credentials)
+        result = await get_current_user(credentials, auth_service=mock_service)
 
-            assert result["sub"] == "user_123"
-            assert result["email"] == "test@example.com"
-            assert result["role"] == "employee"  # This still returns the legacy role field
+        assert result.exists is True
+        assert result.email == "test@example.com"
 
     @pytest.mark.asyncio
     async def test_get_current_user_invalid_token(self):
@@ -193,12 +203,12 @@ class TestAuthDependencies:
             scheme="Bearer",
             credentials="invalid_token"
         )
+
+        mock_service = AsyncMock()
+        mock_service.get_user_from_token = AsyncMock(side_effect=Exception("Invalid token"))
         
-        with patch('app.dependencies.auth.clerk_auth') as mock_clerk_auth:
-            mock_clerk_auth.verify_token.side_effect = Exception("Invalid token")
-            
-            with pytest.raises(UnauthorizedError):
-                await get_current_user(credentials)
+        with pytest.raises(UnauthorizedError):
+            await get_current_user(credentials, auth_service=mock_service)
 
     @pytest.mark.asyncio
     async def test_get_admin_user_success(self):

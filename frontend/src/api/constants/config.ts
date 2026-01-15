@@ -116,6 +116,8 @@ export const API_ENDPOINTS = {
     CREATE: '/users/',
     UPDATE: (id: string) => `/users/${id}`,
     UPDATE_STAGE: (id: string) => `/users/${id}/stage`,
+    GOAL_WEIGHTS: (id: string) => `/users/${id}/goal-weights`,
+    GOAL_WEIGHTS_HISTORY: (id: string) => `/users/${id}/goal-weights/history`,
     DELETE: (id: string) => `/users/${id}`,
     ORG_CHART: '/users/org-chart',
     BULK_STATUS_UPDATE: '/api/v2/users/bulk-status',

@@ -50,3 +50,44 @@ async def get_current_user(
         
     except Exception as e:
         raise UnauthorizedError(f"Invalid authentication credentials: {str(e)}")
+
+
+def _extract_role(user: object) -> str | None:
+    if isinstance(user, dict):
+        roles = user.get("roles")
+        if roles and isinstance(roles, list):
+            return roles[0] if roles else None
+        return user.get("role")
+    if hasattr(user, "roles"):
+        roles = getattr(user, "roles", None)
+        if roles:
+            return roles[0] if isinstance(roles, list) else roles
+    if hasattr(user, "role"):
+        return getattr(user, "role", None)
+    return None
+
+
+async def get_admin_user(
+    current_user: object = Depends(get_current_user),
+) -> object:
+    """Dependency to restrict access to admin users (legacy helper)."""
+    role = _extract_role(current_user)
+    if role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+
+async def get_supervisor_or_admin_user(
+    current_user: object = Depends(get_current_user),
+) -> object:
+    """Dependency to allow supervisors or admins (legacy helper)."""
+    role = _extract_role(current_user)
+    if role not in {"admin", "supervisor", "manager"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Supervisor or admin access required"
+        )
+    return current_user

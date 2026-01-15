@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
   Table,
@@ -14,6 +14,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -23,6 +31,7 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, Users2, ChevronDown, Pencil } from 'lucide-react';
@@ -32,6 +41,9 @@ import {
   updateUserAction,
   updateUserStageAction,
   bulkUpdateUserStatusesAction,
+  updateUserGoalWeightsAction,
+  resetUserGoalWeightsAction,
+  getUserGoalWeightHistoryAction,
 } from '@/api/server-actions/users';
 import { Input } from '@/components/ui/input';
 import { useUserRoles } from '@/hooks/useUserRoles';
@@ -42,6 +54,7 @@ import type {
   Stage,
   BulkUserStatusUpdateResponse,
   UserUpdate,
+  UserGoalWeightHistoryEntry,
 } from '@/api/types';
 import { UserStatus } from '@/api/types';
 
@@ -72,7 +85,7 @@ export function UsersTab({
   onBulkStatusComplete,
   onUsersStateSync,
 }: UsersTabProps) {
-  const { hasRole } = useUserRoles();
+  const { hasRole, currentUser, refetch } = useUserRoles();
   const isAdmin = hasRole('admin');
   const canEditRoles = isAdmin;
   const roleEditDisabledMessage = 'ロールの編集は管理者のみ可能です。';
@@ -80,6 +93,17 @@ export function UsersTab({
   const [bulkResult, setBulkResult] = useState<BulkUserStatusUpdateResponse | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
   const [subordinateSearch, setSubordinateSearch] = useState<Record<string, string>>({});
+  const [goalWeightTarget, setGoalWeightTarget] = useState<UserDetailResponse | null>(null);
+  const [goalWeightInputs, setGoalWeightInputs] = useState({
+    quantitative: '',
+    qualitative: '',
+    competency: '',
+  });
+  const [goalWeightError, setGoalWeightError] = useState<string | null>(null);
+  const [goalWeightPending, setGoalWeightPending] = useState(false);
+  const [goalWeightHistory, setGoalWeightHistory] = useState<UserGoalWeightHistoryEntry[]>([]);
+  const [goalWeightHistoryLoading, setGoalWeightHistoryLoading] = useState(false);
+  const [goalWeightHistoryError, setGoalWeightHistoryError] = useState<string | null>(null);
 
   const selectedCount = selectedUserIds.length;
   const allSelected = users.length > 0 && selectedCount === users.length;
@@ -95,14 +119,22 @@ export function UsersTab({
     [pendingFieldKey, fieldKey],
   );
 
-  const supervisorOptions = useMemo(
-    () =>
-      users.map((user) => ({
-        id: user.id,
-        label: `${user.name} (${user.employee_code})`,
-      })),
-    [users],
-  );
+  const supervisorOptions = useMemo(() => {
+    const optionMap = new Map<string, { id: string; label: string }>();
+    const addOption = (user?: { id: string; name: string; employee_code?: string }) => {
+      if (!user?.id) return;
+      const codeLabel = user.employee_code ? ` (${user.employee_code})` : '';
+      optionMap.set(user.id, { id: user.id, label: `${user.name}${codeLabel}` });
+    };
+
+    users.forEach((user) => {
+      addOption(user);
+      addOption(user.supervisor);
+      user.subordinates?.forEach(addOption);
+    });
+
+    return Array.from(optionMap.values()).sort((a, b) => a.label.localeCompare(b.label, 'ja'));
+  }, [users]);
 
   const subordinateOptions = supervisorOptions;
 
@@ -113,6 +145,94 @@ export function UsersTab({
 
   const setSubordinateSearchFor = useCallback((userId: string, value: string) => {
     setSubordinateSearch((prev) => ({ ...prev, [userId]: value }));
+  }, []);
+
+  const openGoalWeightDialog = useCallback((user: UserDetailResponse) => {
+    const hasOverride = user.goalWeightBudget?.source === 'user';
+    setGoalWeightTarget(user);
+    setGoalWeightInputs({
+      quantitative: hasOverride && user.goalWeightBudget ? String(user.goalWeightBudget.quantitative) : '',
+      qualitative: hasOverride && user.goalWeightBudget ? String(user.goalWeightBudget.qualitative) : '',
+      competency: hasOverride && user.goalWeightBudget ? String(user.goalWeightBudget.competency) : '',
+    });
+    setGoalWeightError(null);
+    setGoalWeightHistory([]);
+    setGoalWeightHistoryError(null);
+  }, []);
+
+  const closeGoalWeightDialog = useCallback(() => {
+    if (goalWeightPending) return;
+    setGoalWeightTarget(null);
+    setGoalWeightError(null);
+    setGoalWeightHistory([]);
+    setGoalWeightHistoryError(null);
+  }, [goalWeightPending]);
+
+  const goalWeightDefaults = useMemo(() => {
+    if (!goalWeightTarget?.stage) {
+      return null;
+    }
+    return {
+      quantitative: Number(goalWeightTarget.stage.quantitativeWeight ?? 0),
+      qualitative: Number(goalWeightTarget.stage.qualitativeWeight ?? 0),
+      competency: Number(goalWeightTarget.stage.competencyWeight ?? 0),
+    };
+  }, [goalWeightTarget]);
+
+  const parseGoalWeight = useCallback((value: string) => {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) return null;
+    return parsed;
+  }, []);
+
+  const goalWeightValues = useMemo(() => ({
+    quantitative: parseGoalWeight(goalWeightInputs.quantitative),
+    qualitative: parseGoalWeight(goalWeightInputs.qualitative),
+    competency: parseGoalWeight(goalWeightInputs.competency),
+  }), [goalWeightInputs, parseGoalWeight]);
+
+  const goalWeightAllSet = Object.values(goalWeightValues).every((value) => value !== null);
+  const goalWeightInRange = Object.values(goalWeightValues).every((value) => value !== null && value >= 0 && value <= 100);
+  const goalWeightCanSubmit = !!goalWeightTarget && goalWeightAllSet && goalWeightInRange && !goalWeightPending && !!goalWeightTarget.stage;
+
+  const loadGoalWeightHistory = useCallback(async (userId: string) => {
+    setGoalWeightHistoryLoading(true);
+    setGoalWeightHistoryError(null);
+    try {
+      const result = await getUserGoalWeightHistoryAction(userId, 10);
+      if (!result.success || !result.data) {
+        setGoalWeightHistoryError(result.error || '履歴の取得に失敗しました');
+        setGoalWeightHistory([]);
+        return;
+      }
+      setGoalWeightHistory(result.data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '履歴の取得に失敗しました';
+      setGoalWeightHistoryError(message);
+      setGoalWeightHistory([]);
+    } finally {
+      setGoalWeightHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!goalWeightTarget?.id) return;
+    loadGoalWeightHistory(goalWeightTarget.id);
+  }, [goalWeightTarget?.id, loadGoalWeightHistory]);
+
+  const formatHistoryValue = useCallback((value?: number | null, fallback?: number | null) => {
+    if (value === null || value === undefined) {
+      if (fallback === null || fallback === undefined) return '未設定';
+      return `${fallback}%`;
+    }
+    return `${value}%`;
+  }, []);
+
+  const formatHistoryTimestamp = useCallback((value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('ja-JP');
   }, []);
 
   const syncUser = useCallback(
@@ -275,6 +395,80 @@ export function UsersTab({
     );
   };
 
+  const handleGoalWeightInputChange = (field: 'quantitative' | 'qualitative' | 'competency', value: string) => {
+    setGoalWeightInputs((prev) => ({ ...prev, [field]: value }));
+    if (goalWeightError) {
+      setGoalWeightError(null);
+    }
+  };
+
+  const handleGoalWeightSubmit = async () => {
+    if (!goalWeightTarget) return;
+    if (!goalWeightAllSet || !goalWeightInRange) {
+      setGoalWeightError('3つの重みをすべて入力し、0〜100の範囲で設定してください。');
+      return;
+    }
+
+    const quantitative = goalWeightValues.quantitative ?? 0;
+    const qualitative = goalWeightValues.qualitative ?? 0;
+    const competency = goalWeightValues.competency ?? 0;
+
+    setGoalWeightPending(true);
+    setGoalWeightError(null);
+    try {
+      const result = await updateUserGoalWeightsAction(goalWeightTarget.id, {
+        quantitativeWeight: quantitative,
+        qualitativeWeight: qualitative,
+        competencyWeight: competency,
+      });
+
+      if (!result.success || !result.data) {
+        toast.error(result.error || '目標の重み更新に失敗しました');
+        return;
+      }
+
+      syncUser(result.data);
+      if (currentUser?.id === result.data.id) {
+        await refetch();
+      }
+      toast.success('目標の重みを更新しました');
+      setGoalWeightTarget(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '目標の重み更新に失敗しました';
+      toast.error(message);
+    } finally {
+      setGoalWeightPending(false);
+    }
+  };
+
+  const handleGoalWeightReset = async () => {
+    if (!goalWeightTarget) return;
+    const confirmed = window.confirm('ユーザー固有の設定を解除してステージ設定に戻しますか？');
+    if (!confirmed) return;
+
+    setGoalWeightPending(true);
+    setGoalWeightError(null);
+    try {
+      const result = await resetUserGoalWeightsAction(goalWeightTarget.id);
+      if (!result.success || !result.data) {
+        toast.error(result.error || '目標の重みのリセットに失敗しました');
+        return;
+      }
+
+      syncUser(result.data);
+      if (currentUser?.id === result.data.id) {
+        await refetch();
+      }
+      toast.success('ステージ設定に戻しました');
+      setGoalWeightTarget(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '目標の重みのリセットに失敗しました';
+      toast.error(message);
+    } finally {
+      setGoalWeightPending(false);
+    }
+  };
+
   const handleBulkStatusSubmit = (status: UserStatus) => {
     if (selectedUserIds.length === 0) return;
     setBulkPending(true);
@@ -409,7 +603,12 @@ export function UsersTab({
                   </TableCell>
                   <TableCell>
                     <div className="space-y-0.5">
-                      <p className="font-medium">{user.name}</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-medium">{user.name}</span>
+                        {user.employee_code && (
+                          <span className="text-xs text-muted-foreground">{user.employee_code}</span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
                   </TableCell>
@@ -511,25 +710,44 @@ export function UsersTab({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Select
-                      value={user.stage?.id ?? 'unset'}
-                      onValueChange={(value) => handleStageChange(user, value)}
-                      disabled={isFieldPending(user.id, 'stage')}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="未設定" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unset" disabled>
-                          未設定
-                        </SelectItem>
-                        {stages.map((stage) => (
-                          <SelectItem key={stage.id} value={stage.id}>
-                            {stage.name}
+                    <div className="space-y-2">
+                      <Select
+                        value={user.stage?.id ?? 'unset'}
+                        onValueChange={(value) => handleStageChange(user, value)}
+                        disabled={isFieldPending(user.id, 'stage')}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="未設定" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unset" disabled>
+                            未設定
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          {stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {isAdmin && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto px-0 text-primary"
+                            onClick={() => openGoalWeightDialog(user)}
+                          >
+                            目標の重み変更
+                          </Button>
+                          {user.goalWeightBudget?.source === 'user' && (
+                            <Badge variant="outline" className="text-xs">
+                              個別設定中
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Select
@@ -661,6 +879,213 @@ export function UsersTab({
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!goalWeightTarget} onOpenChange={(open) => !open && closeGoalWeightDialog()}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>目標の重み変更</DialogTitle>
+            <DialogDescription>
+              {goalWeightTarget
+                ? `${goalWeightTarget.name} さんの目標ウェイトを設定します。`
+                : 'ユーザー別の目標ウェイトを設定します。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {goalWeightTarget && (
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <p className="font-medium">{goalWeightTarget.name}</p>
+                <p className="text-muted-foreground">{goalWeightTarget.email}</p>
+                <p className="text-muted-foreground">
+                  ステージ: {goalWeightTarget.stage?.name ?? '未設定'}
+                </p>
+              </div>
+            )}
+            {!goalWeightTarget?.stage && (
+              <p className="text-sm text-destructive">
+                ステージ未設定のため重みを変更できません。先にステージを設定してください。
+              </p>
+            )}
+            <div className="grid gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="goal-weight-quantitative">業績目標（定量）</Label>
+                <Input
+                  id="goal-weight-quantitative"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  placeholder={goalWeightDefaults ? String(goalWeightDefaults.quantitative) : '0'}
+                  value={goalWeightInputs.quantitative}
+                  onChange={(e) => handleGoalWeightInputChange('quantitative', e.target.value)}
+                  disabled={goalWeightPending}
+                />
+                {goalWeightDefaults && (
+                  <p className="text-xs text-muted-foreground">
+                    ステージ既定: {goalWeightDefaults.quantitative}%
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="goal-weight-qualitative">業績目標（定性）</Label>
+                <Input
+                  id="goal-weight-qualitative"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  placeholder={goalWeightDefaults ? String(goalWeightDefaults.qualitative) : '0'}
+                  value={goalWeightInputs.qualitative}
+                  onChange={(e) => handleGoalWeightInputChange('qualitative', e.target.value)}
+                  disabled={goalWeightPending}
+                />
+                {goalWeightDefaults && (
+                  <p className="text-xs text-muted-foreground">
+                    ステージ既定: {goalWeightDefaults.qualitative}%
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="goal-weight-competency">コンピテンシー</Label>
+                <Input
+                  id="goal-weight-competency"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  placeholder={goalWeightDefaults ? String(goalWeightDefaults.competency) : '0'}
+                  value={goalWeightInputs.competency}
+                  onChange={(e) => handleGoalWeightInputChange('competency', e.target.value)}
+                  disabled={goalWeightPending}
+                />
+                {goalWeightDefaults && (
+                  <p className="text-xs text-muted-foreground">
+                    ステージ既定: {goalWeightDefaults.competency}%
+                  </p>
+                )}
+              </div>
+            </div>
+            {goalWeightError && (
+              <p className="text-sm text-destructive">{goalWeightError}</p>
+            )}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">変更履歴</p>
+                {goalWeightHistoryLoading && (
+                  <span className="text-xs text-muted-foreground">読み込み中...</span>
+                )}
+              </div>
+              {goalWeightHistoryError && (
+                <p className="text-sm text-destructive">{goalWeightHistoryError}</p>
+              )}
+              {!goalWeightHistoryLoading && !goalWeightHistoryError && goalWeightHistory.length === 0 && (
+                <p className="text-sm text-muted-foreground">履歴がありません。</p>
+              )}
+              {goalWeightHistoryLoading && (
+                <div className="space-y-2">
+                  {[0, 1, 2].map((idx) => (
+                    <Skeleton key={idx} className="h-16 w-full" />
+                  ))}
+                </div>
+              )}
+              {!goalWeightHistoryLoading && goalWeightHistory.length > 0 && (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {goalWeightHistory.map((entry) => (
+                    <div key={entry.id} className="rounded-md border p-3 text-sm">
+                      <div className="text-xs text-muted-foreground">
+                        {formatHistoryTimestamp(entry.changedAt)}
+                      </div>
+                      <div className="mt-2 grid gap-1 text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <span>業績（定量）</span>
+                          <span>
+                            {formatHistoryValue(
+                              entry.quantitativeWeightBefore,
+                              goalWeightDefaults?.quantitative,
+                            )}
+                            {' '}
+                            →
+                            {' '}
+                            {formatHistoryValue(
+                              entry.quantitativeWeightAfter,
+                              goalWeightDefaults?.quantitative,
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>業績（定性）</span>
+                          <span>
+                            {formatHistoryValue(
+                              entry.qualitativeWeightBefore,
+                              goalWeightDefaults?.qualitative,
+                            )}
+                            {' '}
+                            →
+                            {' '}
+                            {formatHistoryValue(
+                              entry.qualitativeWeightAfter,
+                              goalWeightDefaults?.qualitative,
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>コンピテンシー</span>
+                          <span>
+                            {formatHistoryValue(
+                              entry.competencyWeightBefore,
+                              goalWeightDefaults?.competency,
+                            )}
+                            {' '}
+                            →
+                            {' '}
+                            {formatHistoryValue(
+                              entry.competencyWeightAfter,
+                              goalWeightDefaults?.competency,
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    ))}
+                  </div>
+                )}
+            </div>
+          </div>
+          <DialogFooter>
+            {goalWeightTarget?.goalWeightBudget?.source === 'user' && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleGoalWeightReset}
+                disabled={goalWeightPending}
+              >
+                ステージの設定に戻す
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={closeGoalWeightDialog}
+              disabled={goalWeightPending}
+            >
+              キャンセル
+            </Button>
+            <Button
+              type="button"
+              onClick={handleGoalWeightSubmit}
+              disabled={!goalWeightCanSubmit}
+            >
+              {goalWeightPending ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  保存中...
+                </span>
+              ) : (
+                '保存/適用'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

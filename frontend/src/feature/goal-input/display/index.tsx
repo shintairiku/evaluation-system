@@ -63,14 +63,21 @@ export default function GoalInputPage() {
     clearPeriodSelection,
   } = usePeriodSelection(currentUser?.id);
 
-  const stageBudgets: StageWeightBudget = currentUser?.stage
+  const stageBudgets: StageWeightBudget = currentUser?.goalWeightBudget
     ? {
-        quantitative: Number(currentUser.stage.quantitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.quantitative),
-        qualitative: Number(currentUser.stage.qualitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.qualitative),
-        competency: Number(currentUser.stage.competencyWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.competency),
-        stageName: currentUser.stage.name,
+        quantitative: Number(currentUser.goalWeightBudget.quantitative ?? DEFAULT_STAGE_WEIGHT_BUDGET.quantitative),
+        qualitative: Number(currentUser.goalWeightBudget.qualitative ?? DEFAULT_STAGE_WEIGHT_BUDGET.qualitative),
+        competency: Number(currentUser.goalWeightBudget.competency ?? DEFAULT_STAGE_WEIGHT_BUDGET.competency),
+        stageName: currentUser.stage?.name,
       }
-    : DEFAULT_STAGE_WEIGHT_BUDGET;
+    : currentUser?.stage
+      ? {
+          quantitative: Number(currentUser.stage.quantitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.quantitative),
+          qualitative: Number(currentUser.stage.qualitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.qualitative),
+          competency: Number(currentUser.stage.competencyWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.competency),
+          stageName: currentUser.stage.name,
+        }
+      : DEFAULT_STAGE_WEIGHT_BUDGET;
 
   // Load existing goals into form when they're fetched - ensure it runs only once per period/goals set
   useEffect(() => {
