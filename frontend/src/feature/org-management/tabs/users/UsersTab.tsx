@@ -119,14 +119,22 @@ export function UsersTab({
     [pendingFieldKey, fieldKey],
   );
 
-  const supervisorOptions = useMemo(
-    () =>
-      users.map((user) => ({
-        id: user.id,
-        label: `${user.name} (${user.employee_code})`,
-      })),
-    [users],
-  );
+  const supervisorOptions = useMemo(() => {
+    const optionMap = new Map<string, { id: string; label: string }>();
+    const addOption = (user?: { id: string; name: string; employee_code?: string }) => {
+      if (!user?.id) return;
+      const codeLabel = user.employee_code ? ` (${user.employee_code})` : '';
+      optionMap.set(user.id, { id: user.id, label: `${user.name}${codeLabel}` });
+    };
+
+    users.forEach((user) => {
+      addOption(user);
+      addOption(user.supervisor);
+      user.subordinates?.forEach(addOption);
+    });
+
+    return Array.from(optionMap.values()).sort((a, b) => a.label.localeCompare(b.label, 'ja'));
+  }, [users]);
 
   const subordinateOptions = supervisorOptions;
 
