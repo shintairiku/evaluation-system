@@ -998,26 +998,56 @@ export function UsersTab({
                         <div className="flex items-center justify-between">
                           <span>業績（定量）</span>
                           <span>
-                            {formatHistoryValue(entry.quantitativeWeightBefore, goalWeightDefaults?.quantitative)} → {formatHistoryValue(entry.quantitativeWeightAfter, goalWeightDefaults?.quantitative)}
+                            {formatHistoryValue(
+                              entry.quantitativeWeightBefore,
+                              goalWeightDefaults?.quantitative,
+                            )}
+                            {' '}
+                            →
+                            {' '}
+                            {formatHistoryValue(
+                              entry.quantitativeWeightAfter,
+                              goalWeightDefaults?.quantitative,
+                            )}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>業績（定性）</span>
                           <span>
-                            {formatHistoryValue(entry.qualitativeWeightBefore, goalWeightDefaults?.qualitative)} → {formatHistoryValue(entry.qualitativeWeightAfter, goalWeightDefaults?.qualitative)}
+                            {formatHistoryValue(
+                              entry.qualitativeWeightBefore,
+                              goalWeightDefaults?.qualitative,
+                            )}
+                            {' '}
+                            →
+                            {' '}
+                            {formatHistoryValue(
+                              entry.qualitativeWeightAfter,
+                              goalWeightDefaults?.qualitative,
+                            )}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>コンピテンシー</span>
                           <span>
-                            {formatHistoryValue(entry.competencyWeightBefore, goalWeightDefaults?.competency)} → {formatHistoryValue(entry.competencyWeightAfter, goalWeightDefaults?.competency)}
+                            {formatHistoryValue(
+                              entry.competencyWeightBefore,
+                              goalWeightDefaults?.competency,
+                            )}
+                            {' '}
+                            →
+                            {' '}
+                            {formatHistoryValue(
+                              entry.competencyWeightAfter,
+                              goalWeightDefaults?.competency,
+                            )}
                           </span>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
             </div>
           </div>
           <DialogFooter>
