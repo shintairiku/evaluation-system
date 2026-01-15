@@ -482,6 +482,7 @@ class UserRepository(BaseRepository[User]):
                 .join(UserSupervisor, User.id == UserSupervisor.user_id)
                 .filter(
                     UserSupervisor.supervisor_id == supervisor_id,
+                    UserSupervisor.valid_to.is_(None),
                     User.status == UserStatus.ACTIVE.value,
                     User.clerk_organization_id == org_id,
                 )
