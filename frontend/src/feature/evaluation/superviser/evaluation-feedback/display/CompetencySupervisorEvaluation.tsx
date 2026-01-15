@@ -125,10 +125,11 @@ export default function CompetencySupervisorEvaluation() {
 
       {isExpanded && (
         <CardContent className="space-y-6 pt-2">
-        {/* Rating Criteria Descriptions - Two Column Layout */}
-        <div className="grid grid-cols-[auto_1fr] gap-16">
-          {/* Left Column: Rating descriptions */}
-          <div className="text-xs text-gray-500 space-y-0.5">
+        {/* Rating Criteria Descriptions - Two Column Layout with Sticky Position */}
+        <div className="sticky top-4 z-10 bg-white pb-4 pt-10 -mt-8 border-b border-gray-200 mb-2">
+          <div className="grid grid-cols-[auto_1fr] gap-16">
+            {/* Left Column: Rating descriptions */}
+            <div className="text-xs text-gray-500 space-y-0.5">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -235,8 +236,9 @@ export default function CompetencySupervisorEvaluation() {
             </TooltipProvider>
           </div>
 
-          {/* Right Column: Empty space for tooltips */}
-          <div></div>
+            {/* Right Column: Empty space for tooltips */}
+            <div></div>
+          </div>
         </div>
 
         <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
