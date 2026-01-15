@@ -603,7 +603,12 @@ export function UsersTab({
                   </TableCell>
                   <TableCell>
                     <div className="space-y-0.5">
-                      <p className="font-medium">{user.name}</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-medium">{user.name}</span>
+                        {user.employee_code && (
+                          <span className="text-xs text-muted-foreground">{user.employee_code}</span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
                   </TableCell>
