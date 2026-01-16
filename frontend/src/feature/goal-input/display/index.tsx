@@ -146,7 +146,7 @@ export default function GoalInputPage() {
   // These functions are stable within the scope of this effect
 
   // Auto-save functionality - will only be active when period is selected
-  useGoalAutoSave({
+  const { isAutoSaving } = useGoalAutoSave({
     goalData,
     selectedPeriod,
     isLoadingExistingGoals,
@@ -184,6 +184,7 @@ export default function GoalInputPage() {
             periodId={selectedPeriod?.id}
             onNext={handleNext}
             stageBudgets={stageBudgets}
+            isAutoSaving={isAutoSaving}
           />
         );
       case 2:
