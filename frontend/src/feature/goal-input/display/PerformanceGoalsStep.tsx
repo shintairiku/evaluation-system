@@ -32,6 +32,7 @@ interface PerformanceGoalsStepProps {
   onNext: () => void;
   periodId?: string;
   stageBudgets: StageWeightBudget;
+  isAutoSaving?: boolean;
 }
 
 type GoalType = 'quantitative' | 'qualitative';
@@ -55,7 +56,7 @@ const formatPercent = (value: number) => {
   return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
 };
 
-export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, stageBudgets }: PerformanceGoalsStepProps) {
+export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, stageBudgets, isAutoSaving }: PerformanceGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoals = goals;
   const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
@@ -258,8 +259,24 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
   const canProceed = () => {
     const budgetsSatisfied = typeStatuses.every(status => status.state === 'success');
     const hasGoals = currentGoals.length > 0;
-    const requiredFieldsSatisfied = currentGoals.every(goal => goal.title && goal.specificGoal && goal.achievementCriteria);
-    return budgetsSatisfied && hasGoals && requiredFieldsSatisfied;
+    const requiredFieldsSatisfied = currentGoals.every(goal => (
+      goal.title.trim() !== ''
+      && goal.specificGoal.trim() !== ''
+      && goal.achievementCriteria.trim() !== ''
+      && goal.method.trim() !== ''
+    ));
+    const hasTemporaryIds = currentGoals.some(goal => isTemporaryGoalId(goal.id));
+    const hasUnsavedChanges = currentGoals.some(goal => goalTracking?.isGoalDirty(goal.id) ?? false);
+    const autoSaveInFlight = !!isAutoSaving;
+
+    return (
+      budgetsSatisfied
+      && hasGoals
+      && requiredFieldsSatisfied
+      && !hasTemporaryIds
+      && !hasUnsavedChanges
+      && !autoSaveInFlight
+    );
   };
 
   const hasRemainingBudget = goalTypes.some(type => getMaxAllocatableWeight(type) > 0);
