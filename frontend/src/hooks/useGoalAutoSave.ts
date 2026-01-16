@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAutoSave } from './useAutoSave';
 import { createGoalAction, updateGoalAction } from '@/api/server-actions/goals';
@@ -30,6 +30,7 @@ export function useGoalAutoSave({
   onGoalReplaceWithServerData,
   stageBudgets,
 }: UseGoalAutoSaveOptions) {
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
   const isSavingRef = useRef(false);
   const {
     trackGoalLoad,
@@ -328,6 +329,7 @@ export function useGoalAutoSave({
     
     // Set saving flag to prevent concurrent operations
     isSavingRef.current = true;
+    setIsAutoSaving(true);
     
     try {
       let allSuccessful = true;
@@ -359,6 +361,7 @@ export function useGoalAutoSave({
     } finally {
       // Always clear the saving flag
       isSavingRef.current = false;
+      setIsAutoSaving(false);
     }
   }, [selectedPeriod?.id, isLoadingExistingGoals, isGoalDirty, isGoalReadyForSave, handlePerformanceGoalAutoSave, handleCompetencyGoalAutoSave]);
 
@@ -369,7 +372,7 @@ export function useGoalAutoSave({
   useAutoSave<GoalData>({
     data: goalData,
     onSave: handleAutoSave,
-    delay: 2000, // 2 seconds delay for responsive feedback while preventing excessive calls
+    delay: 1000, // 1 seconds delay for responsive feedback while preventing excessive calls
     enabled: !!selectedPeriod?.id, // Enable when period is selected
     autoSaveReady: isAutoSaveReady && !!selectedPeriod?.id, // Only activate when explicitly ready AND period selected
     changeDetector: detectChanges, // Only get changed goals
@@ -388,4 +391,6 @@ export function useGoalAutoSave({
       ready: isAutoSaveReady,
     }
   });
+
+  return { isAutoSaving };
 }

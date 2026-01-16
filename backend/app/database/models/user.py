@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text, Integer, UniqueConstraint
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Table, Date, text, Integer, UniqueConstraint, DECIMAL
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import relationship
 
@@ -21,6 +21,9 @@ class User(Base):
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     department_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("departments.id"))
     stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id"))
+    quantitative_weight_override = Column(DECIMAL(5, 2), nullable=True)
+    qualitative_weight_override = Column(DECIMAL(5, 2), nullable=True)
+    competency_weight_override = Column(DECIMAL(5, 2), nullable=True)
     clerk_user_id = Column(Text, unique=True, nullable=False)
     clerk_organization_id = Column(String(50), ForeignKey("organizations.id"), nullable=True)
     name = Column(Text, nullable=False)

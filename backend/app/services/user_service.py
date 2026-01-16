@@ -18,7 +18,8 @@ from ..database.models.user import User as UserModel, UserSupervisor
 from ..schemas.user import (
     UserCreate, UserUpdate, UserStageUpdate, User, UserDetailResponse, UserInDB, SimpleUser,
     Department, Stage, Role, UserStatus, UserExistsResponse, UserClerkIdUpdate,
-    BulkUserStatusUpdateItem, BulkUserStatusUpdateResult, BulkUserStatusUpdateResponse
+    BulkUserStatusUpdateItem, BulkUserStatusUpdateResult, BulkUserStatusUpdateResponse,
+    UserGoalWeightUpdate, UserGoalWeightHistoryEntry, GoalWeightBudget
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
 from ..security.context import AuthContext
@@ -183,6 +184,8 @@ class UserService:
             org_id = current_user_context.organization_id
             if not org_id:
                 raise PermissionDeniedError("Organization context required")
+            if not current_user_context.user_id:
+                raise PermissionDeniedError("User context required")
             
             # Handle supervisor_id filtering
             user_ids_to_filter = None
@@ -221,6 +224,8 @@ class UserService:
             org_id = current_user_context.organization_id
             if not org_id:
                 raise PermissionDeniedError("Organization context required")
+            if not current_user_context.user_id:
+                raise PermissionDeniedError("User context required")
             user = await self.user_repo.get_user_by_id(user_id, org_id)
             if not user:
                 raise NotFoundError(f"User with ID {user_id} not found")
@@ -611,6 +616,147 @@ class UserService:
             await self.session.rollback()
             logger.error(f"Error updating user stage {user_id}: {str(e)}")
             raise
+
+    @require_permission(Permission.USER_MANAGE)
+    async def set_user_goal_weight_override(
+        self,
+        user_id: UUID,
+        weight_update: UserGoalWeightUpdate,
+        current_user_context: AuthContext
+    ) -> UserDetailResponse:
+        """Set user-specific goal weight overrides and log history."""
+        try:
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            existing_user = await self.user_repo.get_user_by_id(user_id, org_id)
+            if not existing_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
+
+            previous_weights = {
+                "quantitative_weight": float(existing_user.quantitative_weight_override) if existing_user.quantitative_weight_override is not None else None,
+                "qualitative_weight": float(existing_user.qualitative_weight_override) if existing_user.qualitative_weight_override is not None else None,
+                "competency_weight": float(existing_user.competency_weight_override) if existing_user.competency_weight_override is not None else None,
+            }
+
+            updated_user = await self.user_repo.set_user_goal_weight_override(
+                user_id,
+                org_id,
+                quantitative=weight_update.quantitative_weight,
+                qualitative=weight_update.qualitative_weight,
+                competency=weight_update.competency_weight,
+            )
+            if not updated_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
+
+            await self.user_repo.add_user_goal_weight_history_entry(
+                user_id=user_id,
+                org_id=org_id,
+                actor_user_id=current_user_context.user_id,
+                before_weights=previous_weights,
+                after_weights={
+                    "quantitative_weight": weight_update.quantitative_weight,
+                    "qualitative_weight": weight_update.qualitative_weight,
+                    "competency_weight": weight_update.competency_weight,
+                }
+            )
+
+            await self.session.commit()
+            await self.session.refresh(updated_user)
+
+            self._invalidate_user_caches(org_id, user_id)
+            self._invalidate_v2_user_caches(org_id)
+
+            logger.info(f"User goal weight overrides updated for user {user_id} by {current_user_context.user_id}")
+            return await self._enrich_detailed_user_data(updated_user)
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error updating goal weight overrides for user {user_id}: {str(e)}")
+            raise
+
+    @require_permission(Permission.USER_MANAGE)
+    async def clear_user_goal_weight_override(
+        self,
+        user_id: UUID,
+        current_user_context: AuthContext
+    ) -> UserDetailResponse:
+        """Clear user-specific goal weight overrides and log history."""
+        try:
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            existing_user = await self.user_repo.get_user_by_id(user_id, org_id)
+            if not existing_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
+
+            previous_weights = {
+                "quantitative_weight": float(existing_user.quantitative_weight_override) if existing_user.quantitative_weight_override is not None else None,
+                "qualitative_weight": float(existing_user.qualitative_weight_override) if existing_user.qualitative_weight_override is not None else None,
+                "competency_weight": float(existing_user.competency_weight_override) if existing_user.competency_weight_override is not None else None,
+            }
+
+            updated_user = await self.user_repo.clear_user_goal_weight_override(user_id, org_id)
+            if not updated_user:
+                raise NotFoundError(f"User with ID {user_id} not found")
+
+            await self.user_repo.add_user_goal_weight_history_entry(
+                user_id=user_id,
+                org_id=org_id,
+                actor_user_id=current_user_context.user_id,
+                before_weights=previous_weights,
+                after_weights={
+                    "quantitative_weight": None,
+                    "qualitative_weight": None,
+                    "competency_weight": None,
+                }
+            )
+
+            await self.session.commit()
+            await self.session.refresh(updated_user)
+
+            self._invalidate_user_caches(org_id, user_id)
+            self._invalidate_v2_user_caches(org_id)
+
+            logger.info(f"User goal weight overrides cleared for user {user_id} by {current_user_context.user_id}")
+            return await self._enrich_detailed_user_data(updated_user)
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error clearing goal weight overrides for user {user_id}: {str(e)}")
+            raise
+
+    @require_permission(Permission.USER_MANAGE)
+    async def get_user_goal_weight_history(
+        self,
+        user_id: UUID,
+        current_user_context: AuthContext,
+        limit: int = 20
+    ) -> list[UserGoalWeightHistoryEntry]:
+        """Return recent user goal weight override history entries."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        entries = await self.user_repo.get_user_goal_weight_history(user_id, org_id, limit)
+        return [
+            UserGoalWeightHistoryEntry(
+                id=entry.id,
+                user_id=entry.user_id,
+                organization_id=entry.organization_id,
+                actor_user_id=entry.actor_user_id,
+                actor_name=actor_name,
+                actor_employee_code=actor_employee_code,
+                quantitative_weight_before=float(entry.quantitative_weight_before) if entry.quantitative_weight_before is not None else None,
+                quantitative_weight_after=float(entry.quantitative_weight_after) if entry.quantitative_weight_after is not None else None,
+                qualitative_weight_before=float(entry.qualitative_weight_before) if entry.qualitative_weight_before is not None else None,
+                qualitative_weight_after=float(entry.qualitative_weight_after) if entry.qualitative_weight_after is not None else None,
+                competency_weight_before=float(entry.competency_weight_before) if entry.competency_weight_before is not None else None,
+                competency_weight_after=float(entry.competency_weight_after) if entry.competency_weight_after is not None else None,
+                changed_at=entry.changed_at
+            )
+            for entry, actor_name, actor_employee_code in entries
+        ]
     
     @require_permission(Permission.USER_MANAGE)
     async def delete_user(
@@ -905,6 +1051,57 @@ class UserService:
 
     
     # Private helper methods
+
+    def _build_goal_weight_budget(
+        self,
+        user: UserModel,
+        stage: Optional[Stage]
+    ) -> Optional[GoalWeightBudget]:
+        override_values = (
+            user.quantitative_weight_override,
+            user.qualitative_weight_override,
+            user.competency_weight_override,
+        )
+        has_override = all(value is not None for value in override_values)
+
+        if has_override:
+            return GoalWeightBudget(
+                quantitative=float(user.quantitative_weight_override),
+                qualitative=float(user.qualitative_weight_override),
+                competency=float(user.competency_weight_override),
+                source="user",
+            )
+
+        if stage:
+            quantitative = getattr(stage, "quantitative_weight", None)
+            qualitative = getattr(stage, "qualitative_weight", None)
+            competency = getattr(stage, "competency_weight", None)
+            return GoalWeightBudget(
+                quantitative=float(quantitative or 0),
+                qualitative=float(qualitative or 0),
+                competency=float(competency or 0),
+                source="stage",
+            )
+
+        return None
+
+    def _invalidate_user_caches(self, org_id: str, user_id: UUID) -> None:
+        """Invalidate local user caches that might contain stale data."""
+        keys_to_delete = [
+            key for key in user_detail_cache.keys()
+            if key.startswith(f"user_detail::{org_id}::{user_id}")
+        ]
+        for key in keys_to_delete:
+            user_detail_cache.pop(key, None)
+        user_search_cache.clear()
+
+    def _invalidate_v2_user_caches(self, org_id: str) -> None:
+        """Invalidate v2 list caches for the given organization."""
+        try:
+            from .user_service_v2 import UserServiceV2
+            UserServiceV2.invalidate_caches(org_id)
+        except Exception as exc:
+            logger.warning(f"Failed to invalidate v2 user caches for org {org_id}: {exc}")
     
     def _generate_cache_key(
         self,
@@ -1068,6 +1265,7 @@ class UserService:
         """Enrich user data for UserDetailResponse with supervisor/subordinates using repository pattern"""
         # Get basic enriched user data first
         base_user = await self._enrich_user_data(user)
+        goal_weight_budget = self._build_goal_weight_budget(user, base_user.stage)
         
         # Get supervisor relationship
         supervisor_models = await self.user_repo.get_user_supervisors(user.id, user.clerk_organization_id)
@@ -1087,7 +1285,8 @@ class UserService:
         user_detail_data = base_user.model_dump()
         user_detail_data.update({
             'supervisor': supervisor,
-            'subordinates': subordinates if subordinates else None
+            'subordinates': subordinates if subordinates else None,
+            'goal_weight_budget': goal_weight_budget
         })
 
         return UserDetailResponse(**user_detail_data)

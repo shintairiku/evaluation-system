@@ -810,6 +810,59 @@ class TestUserRepository:
         assert missing is None
         log_assertion_success("Hard delete verified (user removed)")
 
+    @pytest.mark.asyncio
+    async def test_get_user_stage_with_weights_override(self, user_repo: UserRepository, session: AsyncSession):
+        """Test effective weights when user-level override is set."""
+        log_test_start("get_user_stage_with_weights with override")
+
+        user_id = self.SEED_USER_IDS["yamada"]
+        user = await user_repo.get_user_by_id(user_id)
+        assert user is not None, "Seed user should exist"
+        org_id = user.clerk_organization_id
+        assert org_id, "Organization ID should exist for seed user"
+
+        previous_overrides = (
+            user.quantitative_weight_override,
+            user.qualitative_weight_override,
+            user.competency_weight_override,
+        )
+        (
+            previous_quantitative_override,
+            previous_qualitative_override,
+            previous_competency_override,
+        ) = previous_overrides
+
+        try:
+            await user_repo.set_user_goal_weight_override(
+                user_id,
+                org_id,
+                quantitative=55,
+                qualitative=35,
+                competency=15,
+            )
+            await session.commit()
+
+            result = await user_repo.get_user_stage_with_weights(user_id, org_id)
+            assert result is not None
+            assert result["source"] == "user"
+            assert result["quantitative_weight"] == 55.0
+            assert result["qualitative_weight"] == 35.0
+            assert result["competency_weight"] == 15.0
+
+            log_assertion_success("User override weights returned correctly")
+        finally:
+            if any(value is None for value in previous_overrides):
+                await user_repo.clear_user_goal_weight_override(user_id, org_id)
+            else:
+                await user_repo.set_user_goal_weight_override(
+                    user_id,
+                    org_id,
+                    quantitative=float(previous_quantitative_override),
+                    qualitative=float(previous_qualitative_override),
+                    competency=float(previous_competency_override),
+                )
+            await session.commit()
+
 
 if __name__ == "__main__":
     import sys
@@ -849,6 +902,7 @@ if __name__ == "__main__":
                 ("create_user", "Create User", test_instance.test_create_user),
                 ("soft_delete_user", "Soft Delete User", test_instance.test_soft_delete_user),
                 ("hard_delete_temp_user", "Hard Delete Temp User", test_instance.test_hard_delete_temp_user),
+                ("get_user_stage_with_weights_override", "Get User Stage Weights Override", test_instance.test_get_user_stage_with_weights_override),
             ]
             
             # Filter tests if specific test requested

@@ -21,6 +21,7 @@ from ..schemas.user import (
     Role as RoleSchema,
     User as UserSchema,
     UserDetailResponse,
+    GoalWeightBudget,
     UserStatus,
 )
 from ..schemas.user_page import (
@@ -421,6 +422,7 @@ class UserServiceV2:
 
         department_models: Dict[UUID, DepartmentSchema] = {}
         stage_models: Dict[UUID, StageSchema] = {}
+        stage_models_for_budget: Dict[UUID, StageSchema] = {}
         role_models: Dict[UUID, List[RoleSchema]] = {}
 
         # Only fetch departments if explicitly requested or needed for related relations
@@ -431,13 +433,16 @@ class UserServiceV2:
                 for dep_id, model in raw_departments.items()
             }
 
-        # Only fetch stages if explicitly requested or needed for related relations
-        if "stage" in include or "supervisor" in include or "subordinates" in include:
+        # Fetch stages for budget computation; use include rules to decide response payload
+        if stage_ids:
             raw_stages = await self._timed(self.user_repo.fetch_stages, stage_ids)
-            stage_models = {
+            stage_models_for_budget = {
                 stage_id: StageSchema.model_validate(model, from_attributes=True)
                 for stage_id, model in raw_stages.items()
             }
+
+        if "stage" in include or "supervisor" in include or "subordinates" in include:
+            stage_models = stage_models_for_budget
 
         # Only fetch roles if explicitly requested or needed for supervisor/subordinate relations
         if "roles" in include or "supervisor" in include or "subordinates" in include:
@@ -487,6 +492,7 @@ class UserServiceV2:
                     job_title=user.job_title,
                     department=department_dtos.get(user.department_id),
                     stage=stage_dtos.get(user.stage_id),
+                    goal_weight_budget=self._build_goal_weight_budget(user, stage_models_for_budget.get(user.stage_id)),
                     roles=role_dtos.get(user.id, []),
                     supervisor=supervisor,
                     subordinates=subordinates,
@@ -518,6 +524,38 @@ class UserServiceV2:
             stage=stage_map.get(user.stage_id),
             roles=role_map.get(user.id, []),
         )
+
+    def _build_goal_weight_budget(
+        self,
+        user: UserModel,
+        stage: Optional[StageSchema],
+    ) -> Optional[GoalWeightBudget]:
+        override_values = (
+            user.quantitative_weight_override,
+            user.qualitative_weight_override,
+            user.competency_weight_override,
+        )
+        has_override = all(value is not None for value in override_values)
+        if has_override:
+            return GoalWeightBudget(
+                quantitative=float(user.quantitative_weight_override),
+                qualitative=float(user.qualitative_weight_override),
+                competency=float(user.competency_weight_override),
+                source="user",
+            )
+
+        if stage:
+            quantitative = getattr(stage, "quantitative_weight", None)
+            qualitative = getattr(stage, "qualitative_weight", None)
+            competency = getattr(stage, "competency_weight", None)
+            return GoalWeightBudget(
+                quantitative=float(quantitative or 0),
+                qualitative=float(qualitative or 0),
+                competency=float(competency or 0),
+                source="stage",
+            )
+
+        return None
 
     def _normalise_include(self, include: Optional[Iterable[str]]) -> Set[str]:
         if include is None:
@@ -643,3 +681,16 @@ class UserServiceV2:
         if limit <= 0:
             return 0
         return math.ceil(total / limit)
+
+    @classmethod
+    def invalidate_caches(cls, org_id: str) -> None:
+        """Invalidate cached list payloads and filters for a given organization."""
+        if not org_id:
+            return
+        cls._filters_cache.pop(org_id, None)
+        keys_to_remove = [
+            key for key in list(cls._global_page_cache.keys())
+            if key.startswith(f"{org_id}|")
+        ]
+        for key in keys_to_remove:
+            cls._global_page_cache.pop(key, None)

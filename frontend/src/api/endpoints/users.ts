@@ -13,6 +13,8 @@ import type {
   BulkUserStatusUpdateItem,
   BulkUserStatusUpdateResponse,
   UserListPageResponse,
+  UserGoalWeightUpdate,
+  UserGoalWeightHistoryEntry,
 } from '../types';
 
 const httpClient = getHttpClient();
@@ -148,6 +150,34 @@ export const usersApi = {
    */
   updateUserStage: async (userId: UUID, data: { stage_id: UUID }): Promise<ApiResponse<UserDetailResponse>> => {
     return httpClient.patch<UserDetailResponse>(API_ENDPOINTS.USERS.UPDATE_STAGE(userId), data);
+  },
+
+  /**
+   * Set user-specific goal weight overrides (admin only)
+   */
+  updateUserGoalWeights: async (
+    userId: UUID,
+    payload: UserGoalWeightUpdate,
+  ): Promise<ApiResponse<UserDetailResponse>> => {
+    return httpClient.patch<UserDetailResponse>(API_ENDPOINTS.USERS.GOAL_WEIGHTS(userId), payload);
+  },
+
+  /**
+   * Clear user-specific goal weight overrides (admin only)
+   */
+  resetUserGoalWeights: async (userId: UUID): Promise<ApiResponse<UserDetailResponse>> => {
+    return httpClient.delete<UserDetailResponse>(API_ENDPOINTS.USERS.GOAL_WEIGHTS(userId));
+  },
+
+  /**
+   * Get user-specific goal weight override history (admin only)
+   */
+  getUserGoalWeightHistory: async (
+    userId: UUID,
+    limit = 20,
+  ): Promise<ApiResponse<UserGoalWeightHistoryEntry[]>> => {
+    const endpoint = `${API_ENDPOINTS.USERS.GOAL_WEIGHTS_HISTORY(userId)}?limit=${limit}`;
+    return httpClient.get<UserGoalWeightHistoryEntry[]>(endpoint);
   },
 
   /**

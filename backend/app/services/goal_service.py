@@ -701,24 +701,28 @@ class GoalService:
 
                 reviews = await self.supervisor_review_repo.get_by_goal(goal_id, org_id)
                 if not reviews:
-                    raise ConflictError("Supervisor review record not found for submitted goal")
-
-                untouched = all(
-                    review.status == "draft" and (review.comment or "").strip() == ""
-                    for review in reviews
-                )
-                if not untouched:
-                    raise BadRequestError(
-                        "Cannot withdraw: supervisor has already started reviewing this goal"
+                    # Some users can submit goals without any supervisors assigned.
+                    # In that case we intentionally don't create supervisor review records,
+                    # and the goal should still be withdrawable back to draft.
+                    updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.DRAFT, org_id)
+                    await self.session.commit()
+                else:
+                    untouched = all(
+                        review.status == "draft" and (review.comment or "").strip() == ""
+                        for review in reviews
                     )
+                    if not untouched:
+                        raise BadRequestError(
+                            "Cannot withdraw: supervisor has already started reviewing this goal"
+                        )
 
-                # Delete the corresponding supervisor review row(s) immediately.
-                # Product expects a 1:1 relationship; if multiple exist, delete them all.
-                for review in reviews:
-                    await self.supervisor_review_repo.delete(review.id, org_id)
+                    # Delete the corresponding supervisor review row(s) immediately.
+                    # Product expects a 1:1 relationship; if multiple exist, delete them all.
+                    for review in reviews:
+                        await self.supervisor_review_repo.delete(review.id, org_id)
 
-                updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.DRAFT, org_id)
-                await self.session.commit()
+                    updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.DRAFT, org_id)
+                    await self.session.commit()
 
             # Enrich response data with competency names (N+1 fix)
             competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
