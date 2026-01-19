@@ -11,7 +11,7 @@ export function GuidelinesAlert() {
           <ul className="text-sm space-y-1 ml-4 list-disc">
             <li>目標が具体的で測定可能かを確認してください</li>
             <li>達成期限が明確に設定されているかを確認してください</li>
-            <li>目標が達成可能な道筋が設定されている</li>
+            <li>目標に対して達成可能な道筋が設定されているか確認してください</li>
             <li>差し戻し時は具体的な改善点をコメントに記載してください</li>
           </ul>
         </div>
