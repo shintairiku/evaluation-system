@@ -90,10 +90,10 @@ export function CompetencyGoalsStep({
     };
 
     loadCompetencies();
-  }, []);
+  }, [userStageId]);
 
   const updateGoal = (patch: Partial<CompetencyGoal>) => {
-    const baseGoal = currentGoalRef.current ?? draftGoalRef.current ?? (() => {
+    const baseGoal = draftGoalRef.current ?? currentGoalRef.current ?? (() => {
       const id = tempGoalIdRef.current ?? Date.now().toString();
       tempGoalIdRef.current = id;
       return {
