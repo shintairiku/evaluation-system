@@ -1,14 +1,13 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { useAutoSave } from './useAutoSave';
 import { createGoalAction, updateGoalAction } from '@/api/server-actions/goals';
 import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
 import type { EvaluationPeriod } from '@/api/types';
 import type { GoalData } from './useGoalData';
 import type { StageWeightBudget } from '@/feature/goal-input/types';
-import type { UseGoalTrackingReturn, GoalChangeInfo } from './useGoalTracking';
+import type { UseGoalTrackingReturn } from './useGoalTracking';
 
 interface UseGoalAutoSaveOptions {
   goalData: GoalData;
@@ -31,13 +30,41 @@ export function useGoalAutoSave({
   stageBudgets,
 }: UseGoalAutoSaveOptions) {
   const [isAutoSaving, setIsAutoSaving] = useState(false);
-  const isSavingRef = useRef(false);
+  const isUnmountedRef = useRef(false);
+  const isProcessingQueueRef = useRef(false);
+  const goalDataRef = useRef(goalData);
+  const debounceTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const lastSeenGoalDataRef = useRef<Map<string, string>>(new Map());
+  const saveQueueRef = useRef<Array<{ goalId: string; goalType: 'performance' | 'competency' }>>([]);
+  const saveQueueKeySetRef = useRef<Set<string>>(new Set());
+
   const {
     trackGoalLoad,
     clearChanges,
     isGoalDirty,
     getChangedGoals,
   } = goalTracking;
+
+  useEffect(() => {
+    goalDataRef.current = goalData;
+  }, [goalData]);
+
+  useEffect(() => {
+    return () => {
+      isUnmountedRef.current = true;
+      for (const timer of debounceTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      debounceTimersRef.current.clear();
+      lastSeenGoalDataRef.current.clear();
+      saveQueueRef.current = [];
+      saveQueueKeySetRef.current.clear();
+    };
+  }, []);
+
+  const getTrackingKey = useCallback((goalType: 'performance' | 'competency', goalId: string) => {
+    return `${goalType}:${goalId}`;
+  }, []);
 
   
   // Validation function to check if a goal has all required fields for saving
@@ -79,6 +106,13 @@ export function useGoalAutoSave({
       return hasAllFields;
     }
     return false;
+  }, []);
+
+  const getCurrentGoalData = useCallback((goalId: string, goalType: 'performance' | 'competency') => {
+    if (goalType === 'performance') {
+      return goalDataRef.current.performanceGoals.find(goal => goal.id === goalId);
+    }
+    return goalDataRef.current.competencyGoals.find(goal => goal.id === goalId);
   }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -279,118 +313,127 @@ export function useGoalAutoSave({
       }
     }
   }, [trackGoalLoad, clearChanges, onGoalReplaceWithServerData, stageBudgets]);
-  
-  const handleAutoSave = useCallback(async (changedGoals: GoalChangeInfo[]) => {
-    if (process.env.NODE_ENV !== 'production') console.debug('🔄 Auto-save: handleAutoSave called with changed goals:', changedGoals);
 
-    if (!selectedPeriod?.id) {
-      if (process.env.NODE_ENV !== 'production') console.debug('🚫 Auto-save: No period selected');
-      return false;
-    }
+  const processSaveQueue = useCallback(async () => {
+    if (isProcessingQueueRef.current) return;
+    if (!selectedPeriod?.id) return;
+    if (isLoadingExistingGoals) return;
 
-    // Prevent concurrent save operations
-    if (isSavingRef.current) {
-      if (process.env.NODE_ENV !== 'production') console.debug('🚫 Auto-save: already in progress, skipping');
-      return false;
-    }
+    isProcessingQueueRef.current = true;
+    if (!isUnmountedRef.current) setIsAutoSaving(true);
 
-    // Skip auto-save when we're loading existing goals
-    if (isLoadingExistingGoals) {
-      if (process.env.NODE_ENV !== 'production') console.debug('🚫 Auto-save: skipping during goal loading');
-      return false;
-    }
-
-    if (process.env.NODE_ENV !== 'production') console.debug(`📊 Auto-save: Found ${changedGoals.length} changed goals to process`);
-    
-    // EVENT-BASED CHECK 1: Filter out goals that aren't ready for saving (all fields filled)
-    const completeGoals = changedGoals.filter(changeInfo => {
-      const isComplete = isGoalReadyForSave(changeInfo.goalType, changeInfo.currentData);
-      if (!isComplete) {
-        if (process.env.NODE_ENV !== 'production') console.debug(`⏭️ Auto-save: Skipping ${changeInfo.goalType} goal ${changeInfo.goalId} - missing required fields`);
-      }
-      return isComplete;
-    });
-
-    // EVENT-BASED CHECK 2: Filter out goals that haven't actually changed from baseline
-    const actuallyChangedGoals = completeGoals.filter(changeInfo => {
-      const hasChanges = isGoalDirty(changeInfo.goalId);
-      if (!hasChanges) {
-        if (process.env.NODE_ENV !== 'production') console.debug(`⏭️ Auto-save: Skipping ${changeInfo.goalType} goal ${changeInfo.goalId} - no actual changes detected`);
-      }
-      return hasChanges;
-    });
-
-    if (actuallyChangedGoals.length === 0) {
-      if (process.env.NODE_ENV !== 'production') console.debug('⏭️ Auto-save: No changed complete goals to save');
-      return true; // Return true to avoid error state - this is normal for incomplete/unchanged goals
-    }
-    
-    if (process.env.NODE_ENV !== 'production') console.debug(`🎯 Auto-save: Saving ${actuallyChangedGoals.length} changed complete goals`);
-    
-    // Set saving flag to prevent concurrent operations
-    isSavingRef.current = true;
-    setIsAutoSaving(true);
-    
     try {
-      let allSuccessful = true;
+      while (saveQueueRef.current.length > 0) {
+        const next = saveQueueRef.current.shift();
+        if (!next) continue;
 
-      // Process each changed complete goal individually  
-      for (const changeInfo of actuallyChangedGoals) {
-        const { goalId, goalType, currentData } = changeInfo;
-        
-        if (process.env.NODE_ENV !== 'production') console.debug(`🎯 Auto-save: Processing ${goalType} goal ${goalId}`, {
-        goalId,
-        goalType,
-        currentData,
-        isComplete: isGoalReadyForSave(goalType, currentData)
-      });
+        const key = getTrackingKey(next.goalType, next.goalId);
+        saveQueueKeySetRef.current.delete(key);
 
-        if (goalType === 'performance') {
-          const success = await handlePerformanceGoalAutoSave(goalId, currentData, selectedPeriod.id);
-          if (!success) allSuccessful = false;
-        } else if (goalType === 'competency') {
-          const success = await handleCompetencyGoalAutoSave(goalId, currentData, selectedPeriod.id);
-          if (!success) allSuccessful = false;
+        const currentData = getCurrentGoalData(next.goalId, next.goalType);
+        if (!currentData) continue;
+
+        // Only save if still dirty and complete at execution time.
+        if (!isGoalDirty(next.goalId)) continue;
+        if (!isGoalReadyForSave(next.goalType, currentData)) continue;
+
+        if (next.goalType === 'performance') {
+          await handlePerformanceGoalAutoSave(next.goalId, currentData, selectedPeriod.id);
+        } else {
+          await handleCompetencyGoalAutoSave(next.goalId, currentData, selectedPeriod.id);
         }
       }
-
-      return allSuccessful;
-    } catch (error) {
-      console.error('❌ Auto-save failed:', error);
-      return false;
     } finally {
-      // Always clear the saving flag
-      isSavingRef.current = false;
-      setIsAutoSaving(false);
-    }
-  }, [selectedPeriod?.id, isLoadingExistingGoals, isGoalDirty, isGoalReadyForSave, handlePerformanceGoalAutoSave, handleCompetencyGoalAutoSave]);
+      isProcessingQueueRef.current = false;
+      if (!isUnmountedRef.current) setIsAutoSaving(false);
 
-  // Stable change detector to avoid re-renders due to new function identity
-  const detectChanges = useCallback(() => getChangedGoals(), [getChangedGoals]);
-
-  // Set up auto-save with change detection - ONLY when period is selected
-  useAutoSave<GoalData>({
-    data: goalData,
-    onSave: handleAutoSave,
-    delay: 1000, // 1 seconds delay for responsive feedback while preventing excessive calls
-    enabled: !!selectedPeriod?.id, // Enable when period is selected
-    autoSaveReady: isAutoSaveReady && !!selectedPeriod?.id, // Only activate when explicitly ready AND period selected
-    changeDetector: detectChanges, // Only get changed goals
-    // Use content-aware keys to detect changes in goal fields (maintain original order)
-    dataKey: {
-      perfCount: goalData.performanceGoals.length,
-      // Keep original order to match tracking system
-      perfContent: goalData.performanceGoals
-        .map(g => `${g.id}:${g.title}:${g.specificGoal}:${g.achievementCriteria}:${g.method}:${g.weight}:${g.type}`)
-        .join('|'),
-      compCount: goalData.competencyGoals.length,
-      // Keep original order to match tracking system
-      compContent: goalData.competencyGoals
-        .map(g => `${g.id}:${g.actionPlan}:${JSON.stringify(g.competencyIds)}:${JSON.stringify(g.selectedIdealActions)}`)
-        .join('|'),
-      ready: isAutoSaveReady,
+      // If items were enqueued while we were finishing, process them.
+      if (saveQueueRef.current.length > 0 && !isUnmountedRef.current) {
+        setTimeout(() => {
+          void processSaveQueue();
+        }, 0);
+      }
     }
-  });
+  }, [
+    getCurrentGoalData,
+    getTrackingKey,
+    handleCompetencyGoalAutoSave,
+    handlePerformanceGoalAutoSave,
+    isGoalDirty,
+    isGoalReadyForSave,
+    isLoadingExistingGoals,
+    selectedPeriod?.id,
+  ]);
+
+  const enqueueGoalSave = useCallback((goalId: string, goalType: 'performance' | 'competency') => {
+    const key = getTrackingKey(goalType, goalId);
+    if (saveQueueKeySetRef.current.has(key)) return;
+
+    saveQueueKeySetRef.current.add(key);
+    saveQueueRef.current.push({ goalId, goalType });
+    void processSaveQueue();
+  }, [getTrackingKey, processSaveQueue]);
+
+  useEffect(() => {
+    if (!selectedPeriod?.id) return;
+    if (isLoadingExistingGoals) return;
+    if (!isAutoSaveReady) return;
+
+    const changedGoals = getChangedGoals();
+    const activeKeys = new Set<string>();
+
+    for (const changeInfo of changedGoals) {
+      const { goalId, goalType, currentData } = changeInfo;
+      const key = getTrackingKey(goalType, goalId);
+      activeKeys.add(key);
+
+      if (!isGoalReadyForSave(goalType, currentData)) {
+        const existingTimer = debounceTimersRef.current.get(key);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+          debounceTimersRef.current.delete(key);
+        }
+        continue;
+      }
+
+      const serialized = JSON.stringify(currentData);
+      const lastSeen = lastSeenGoalDataRef.current.get(key);
+      if (lastSeen === serialized) {
+        continue;
+      }
+      lastSeenGoalDataRef.current.set(key, serialized);
+
+      const existingTimer = debounceTimersRef.current.get(key);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+
+      debounceTimersRef.current.set(key, setTimeout(() => {
+        if (isUnmountedRef.current) {
+          return;
+        }
+        enqueueGoalSave(goalId, goalType);
+      }, 1000));
+    }
+
+    // Clean up timers for goals that are no longer dirty.
+    for (const [key, timer] of debounceTimersRef.current.entries()) {
+      if (!activeKeys.has(key)) {
+        clearTimeout(timer);
+        debounceTimersRef.current.delete(key);
+        lastSeenGoalDataRef.current.delete(key);
+      }
+    }
+  }, [
+    enqueueGoalSave,
+    getChangedGoals,
+    getTrackingKey,
+    isAutoSaveReady,
+    isGoalReadyForSave,
+    isLoadingExistingGoals,
+    selectedPeriod?.id,
+    goalData,
+  ]);
 
   return { isAutoSaving };
 }
