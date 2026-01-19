@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, ArrowLeft, Loader2, Send } from 'lucide-react';
 import { SupervisorFeedbackBanner } from '../components/SupervisorFeedbackBanner';
 import { useGoalEdit } from '../hooks/useGoalEdit';
 import { useGoalAutoSave } from '../hooks/useGoalAutoSave';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
+import { useCurrentUserContext } from '@/context/CurrentUserContext';
+import { getGoalSubmissionRestriction } from '@/utils/goal-submission';
 import type { UUID, GoalUpdateRequest } from '@/api/types';
 
 /**
@@ -27,6 +29,9 @@ export default function GoalEditDisplay() {
   const params = useParams();
   const router = useRouter();
   const goalId = params?.goalId as UUID;
+  const currentUserContext = useCurrentUserContext();
+  const submissionRestriction = getGoalSubmissionRestriction(currentUserContext.user?.status);
+  const isSubmissionBlocked = Boolean(submissionRestriction);
 
   const {
     goal,
@@ -119,6 +124,7 @@ export default function GoalEditDisplay() {
   // Handle submit for review
   const handleSubmit = async () => {
     if (!goal) return;
+    if (isSubmissionBlocked) return;
 
     const success = await submitGoal(getFormData());
     if (success) {
@@ -294,11 +300,21 @@ export default function GoalEditDisplay() {
         </CardContent>
       </Card>
 
+      {submissionRestriction && (
+        <Alert className="mt-6 border-amber-200 bg-amber-50">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-900">{submissionRestriction.title}</AlertTitle>
+          <AlertDescription className="text-amber-800">
+            {submissionRestriction.description}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Action Buttons */}
       <div className="flex justify-end mt-6">
         <Button
           onClick={handleSubmit}
-          disabled={isSaving}
+          disabled={isSaving || isSubmissionBlocked}
         >
           {isSaving ? (
             <>

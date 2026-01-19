@@ -207,6 +207,7 @@ export default function GoalInputPage() {
             competencyGoals={goalData.competencyGoals}
             periodId={selectedPeriod?.id}
             currentUserId={currentUser?.id}
+            currentUserStatus={currentUser?.status}
             onPrevious={handlePrevious}
             stageBudgets={stageBudgets}
             userStageId={currentUser?.stage?.id}
