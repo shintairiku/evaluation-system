@@ -348,7 +348,7 @@ export function useGoalAutoSave({
       if (!isUnmountedRef.current) setIsAutoSaving(false);
 
       // If items were enqueued while we were finishing, process them.
-      if (saveQueueRef.current.length > 0) {
+      if (saveQueueRef.current.length > 0 && !isUnmountedRef.current) {
         setTimeout(() => {
           void processSaveQueue();
         }, 0);
