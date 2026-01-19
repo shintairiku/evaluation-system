@@ -208,13 +208,13 @@ export const API_ENDPOINTS = {
   SELF_ASSESSMENTS: {
     LIST: '/self-assessments/',
     BY_ID: (id: string) => `/self-assessments/${id}`,
-    CREATE: '/self-assessments/',
     UPDATE: (id: string) => `/self-assessments/${id}`,
     DELETE: (id: string) => `/self-assessments/${id}`,
     BY_USER: (userId: string) => `/self-assessments/user/${userId}`,
     BY_PERIOD: (periodId: string) => `/self-assessments/period/${periodId}`,
     BY_GOAL: (goalId: string) => `/self-assessments/goal/${goalId}`,
     SUBMIT: (id: string) => `/self-assessments/${id}/submit`,
+    HISTORY: (id: string) => `/self-assessments/${id}/history`,
   },
 
   // Supervisor Review endpoints

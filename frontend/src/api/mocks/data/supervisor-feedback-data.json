@@ -1,0 +1,120 @@
+{
+  "supervisorFeedbacks": [
+    {
+      "id": "sf-001",
+      "selfAssessmentId": "sa-001",
+      "periodId": "period-2024-h1",
+      "supervisorId": "user-supervisor-001",
+      "subordinateId": "user-employee-001",
+      "supervisorRatingCode": "A+",
+      "supervisorRating": 5.0,
+      "supervisorComment": "素晴らしい成果です。チームリーダーシップも発揮し、期待以上の結果を出しました。次期も引き続き期待しています。",
+      "action": "APPROVED",
+      "status": "submitted",
+      "submittedAt": "2024-06-16T10:30:00Z",
+      "reviewedAt": "2024-06-16T10:30:00Z",
+      "createdAt": "2024-06-15T15:00:00Z",
+      "updatedAt": "2024-06-16T10:30:00Z"
+    },
+    {
+      "id": "sf-002",
+      "selfAssessmentId": "sa-002",
+      "periodId": "period-2024-h1",
+      "supervisorId": "user-supervisor-001",
+      "subordinateId": "user-employee-001",
+      "supervisorRatingCode": "S",
+      "supervisorRating": 6.0,
+      "supervisorComment": "卓越した成果です。技術的な課題を独力で解決し、チーム全体のパフォーマンス向上に貢献しました。",
+      "action": "APPROVED",
+      "status": "submitted",
+      "submittedAt": "2024-06-20T11:00:00Z",
+      "reviewedAt": "2024-06-20T11:00:00Z",
+      "createdAt": "2024-06-15T15:00:00Z",
+      "updatedAt": "2024-06-20T11:00:00Z"
+    },
+    {
+      "id": "sf-003",
+      "selfAssessmentId": "sa-003",
+      "periodId": "period-2024-h1",
+      "supervisorId": "user-supervisor-001",
+      "subordinateId": "user-employee-001",
+      "supervisorRatingCode": null,
+      "supervisorRating": null,
+      "supervisorComment": "現在レビュー中です。もう少しお待ちください。",
+      "action": "PENDING",
+      "status": "draft",
+      "createdAt": "2024-06-10T17:00:00Z",
+      "updatedAt": "2024-06-12T09:15:00Z"
+    },
+    {
+      "id": "sf-004",
+      "selfAssessmentId": "sa-004",
+      "periodId": "period-2024-h1",
+      "supervisorId": "user-supervisor-001",
+      "subordinateId": "user-employee-001",
+      "supervisorRatingCode": null,
+      "supervisorRating": null,
+      "supervisorComment": "自己評価が低すぎます。達成した成果をより具体的に記載してください。技術的な課題はありましたが、最終的には目標を達成できています。再提出をお願いします。",
+      "action": "REJECTED",
+      "status": "submitted",
+      "submittedAt": "2024-06-18T11:20:00Z",
+      "reviewedAt": "2024-06-18T11:20:00Z",
+      "createdAt": "2024-06-15T15:00:00Z",
+      "updatedAt": "2024-06-18T11:20:00Z"
+    },
+    {
+      "id": "sf-005",
+      "selfAssessmentId": "sa-005",
+      "periodId": "period-2024-h1",
+      "supervisorId": "user-supervisor-001",
+      "subordinateId": "user-employee-001",
+      "supervisorRatingCode": null,
+      "supervisorRating": null,
+      "supervisorComment": null,
+      "action": "PENDING",
+      "status": "incomplete",
+      "createdAt": "2024-06-19T16:00:00Z",
+      "updatedAt": "2024-06-19T16:00:00Z"
+    },
+    {
+      "id": "sf-006",
+      "selfAssessmentId": "sa-006",
+      "periodId": "period-2024-h2",
+      "supervisorId": "user-supervisor-001",
+      "subordinateId": "user-employee-001",
+      "supervisorRatingCode": "S",
+      "supervisorRating": 6.0,
+      "supervisorComment": "技術的リーダーシップを発揮し、チーム全体の成長に貢献しました。",
+      "action": "PENDING",
+      "status": "draft",
+      "createdAt": "2024-12-15T10:30:00Z",
+      "updatedAt": "2024-12-16T14:20:00Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "user-employee-001",
+      "clerkId": "clerk_employee_001",
+      "email": "employee001@example.com",
+      "firstName": "太郎",
+      "lastName": "山田",
+      "displayName": "山田 太郎",
+      "roleId": "role-engineer",
+      "departmentId": "dept-engineering",
+      "supervisorId": "user-supervisor-001",
+      "stage": 3
+    },
+    {
+      "id": "user-supervisor-001",
+      "clerkId": "clerk_supervisor_001",
+      "email": "supervisor001@example.com",
+      "firstName": "花子",
+      "lastName": "佐藤",
+      "displayName": "佐藤 花子",
+      "roleId": "role-manager",
+      "departmentId": "dept-engineering",
+      "supervisorId": null,
+      "stage": 5
+    }
+  ]
+}

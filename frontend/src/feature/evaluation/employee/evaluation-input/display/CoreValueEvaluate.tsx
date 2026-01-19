@@ -1,11 +1,5 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Users } from "lucide-react";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-
-const coreValueEvaluation = {
-  comment: "会社のコアバリューを意識した行動ができていた"
-};
 
 export default function CoreValueEvaluate() {
   return (
@@ -18,20 +12,10 @@ export default function CoreValueEvaluate() {
             </div>
             <div>
               <CardTitle className="text-lg font-bold tracking-tight">コアバリュー評価</CardTitle>
-              <p className="text-xs text-gray-500 mt-1">期末評価のみ実施</p>
+              <p className="text-xs text-gray-500 mt-1">コアバリュー評価は期末のみ表示される</p>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6 pt-2">
-          <div>
-            <Label className="text-xs text-gray-500">自己評価コメント</Label>
-            <Textarea
-              value={coreValueEvaluation.comment}
-              readOnly
-              className="mt-1 text-sm rounded-md border-gray-300 bg-gray-100 focus:ring-2 focus:ring-purple-200"
-            />
-          </div>
-        </CardContent>
       </Card>
     </div>
   );

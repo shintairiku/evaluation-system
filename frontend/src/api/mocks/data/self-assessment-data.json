@@ -1,0 +1,147 @@
+{
+  "selfAssessments": [
+    {
+      "id": "sa-001",
+      "goalId": "goal-001",
+      "periodId": "period-2024-h1",
+      "selfRatingCode": "A",
+      "selfRating": 4.0,
+      "selfComment": "目標を達成し、期待以上の成果を出すことができました。チームと協力して新機能を実装し、品質も向上させました。",
+      "status": "submitted",
+      "submittedAt": "2024-06-15T14:30:00Z",
+      "createdAt": "2024-06-01T09:00:00Z",
+      "updatedAt": "2024-06-15T14:30:00Z"
+    },
+    {
+      "id": "sa-002",
+      "goalId": "goal-002",
+      "periodId": "period-2024-h1",
+      "selfRatingCode": "A+",
+      "selfRating": 5.0,
+      "selfComment": "目標を大幅に超える成果を達成しました。新しい技術スタックの導入により、パフォーマンスが50%向上しました。",
+      "status": "approved",
+      "submittedAt": "2024-06-15T14:30:00Z",
+      "createdAt": "2024-06-01T09:00:00Z",
+      "updatedAt": "2024-06-20T10:15:00Z"
+    },
+    {
+      "id": "sa-003",
+      "goalId": "goal-003",
+      "periodId": "period-2024-h1",
+      "selfRatingCode": "B",
+      "selfRating": 2.0,
+      "selfComment": "目標は達成しましたが、いくつかの課題が残りました。次期はより効率的なアプローチを検討します。",
+      "status": "draft",
+      "createdAt": "2024-06-01T09:00:00Z",
+      "updatedAt": "2024-06-10T16:45:00Z"
+    },
+    {
+      "id": "sa-004",
+      "goalId": "goal-004",
+      "periodId": "period-2024-h1",
+      "selfRatingCode": "C",
+      "selfRating": 1.0,
+      "selfComment": "技術的な課題により、目標達成が遅延しました。サポートを得て改善に取り組んでいます。",
+      "status": "rejected",
+      "previousSelfAssessmentId": null,
+      "submittedAt": "2024-06-15T14:30:00Z",
+      "createdAt": "2024-06-01T09:00:00Z",
+      "updatedAt": "2024-06-18T11:20:00Z"
+    },
+    {
+      "id": "sa-005",
+      "goalId": "goal-004",
+      "periodId": "period-2024-h1",
+      "selfRatingCode": "B",
+      "selfRating": 2.0,
+      "selfComment": "前回のフィードバックを踏まえて改善しました。技術的な課題を克服し、目標を達成できました。チームのサポートに感謝します。",
+      "status": "draft",
+      "previousSelfAssessmentId": "sa-004",
+      "createdAt": "2024-06-19T09:30:00Z",
+      "updatedAt": "2024-06-19T15:45:00Z"
+    },
+    {
+      "id": "sa-006",
+      "goalId": "goal-005",
+      "periodId": "period-2024-h2",
+      "selfRatingCode": "S",
+      "selfRating": 6.0,
+      "selfComment": "期待を大きく上回る成果を達成しました。新しいアーキテクチャの設計により、システムの拡張性が大幅に向上しました。",
+      "status": "submitted",
+      "submittedAt": "2024-12-15T10:00:00Z",
+      "createdAt": "2024-12-01T09:00:00Z",
+      "updatedAt": "2024-12-15T10:00:00Z"
+    },
+    {
+      "id": "sa-007",
+      "goalId": "goal-006",
+      "periodId": "period-2024-h2",
+      "selfRatingCode": null,
+      "selfRating": null,
+      "selfComment": null,
+      "status": "draft",
+      "createdAt": "2024-12-01T09:00:00Z",
+      "updatedAt": "2024-12-01T09:00:00Z"
+    }
+  ],
+  "goals": [
+    {
+      "id": "goal-001",
+      "title": "新機能の実装",
+      "description": "ユーザー認証機能を実装し、セキュリティを強化する",
+      "categoryId": "cat-001",
+      "status": "approved"
+    },
+    {
+      "id": "goal-002",
+      "title": "パフォーマンス最適化",
+      "description": "APIレスポンスタイムを50%改善する",
+      "categoryId": "cat-002",
+      "status": "approved"
+    },
+    {
+      "id": "goal-003",
+      "title": "テストカバレッジ向上",
+      "description": "ユニットテストカバレッジを80%以上にする",
+      "categoryId": "cat-003",
+      "status": "approved"
+    },
+    {
+      "id": "goal-004",
+      "title": "ドキュメント整備",
+      "description": "API仕様書とユーザーガイドを作成する",
+      "categoryId": "cat-004",
+      "status": "approved"
+    },
+    {
+      "id": "goal-005",
+      "title": "システムアーキテクチャ改善",
+      "description": "マイクロサービス化を実現し、スケーラビリティを向上させる",
+      "categoryId": "cat-001",
+      "status": "approved"
+    },
+    {
+      "id": "goal-006",
+      "title": "CI/CDパイプライン構築",
+      "description": "自動テストとデプロイメントの仕組みを確立する",
+      "categoryId": "cat-002",
+      "status": "approved"
+    }
+  ],
+  "evaluationPeriods": [
+    {
+      "id": "period-2024-h1",
+      "name": "2024年上半期",
+      "startDate": "2024-01-01",
+      "endDate": "2024-06-30",
+      "status": "completed"
+    },
+    {
+      "id": "period-2024-h2",
+      "name": "2024年下半期",
+      "startDate": "2024-07-01",
+      "endDate": "2024-12-31",
+      "status": "active"
+    }
+  ]
+}

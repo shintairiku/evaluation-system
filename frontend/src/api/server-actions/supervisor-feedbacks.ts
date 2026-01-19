@@ -4,11 +4,12 @@ import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { supervisorFeedbacksApi } from '../endpoints/supervisor-feedbacks';
 import { CACHE_TAGS } from '../utils/cache';
-import type { 
-  SupervisorFeedback, 
-  SupervisorFeedbackDetail, 
-  SupervisorFeedbackCreate, 
+import type {
+  SupervisorFeedback,
+  SupervisorFeedbackDetail,
+  SupervisorFeedbackCreate,
   SupervisorFeedbackUpdate,
+  SupervisorFeedbackSubmit,
   SupervisorFeedbackList,
   PaginationParams,
   UUID,
@@ -24,6 +25,7 @@ export const getSupervisorFeedbacksAction = cache(
     supervisorId?: string;
     subordinateId?: string;
     status?: string;
+    action?: string;
   }): Promise<{
     success: boolean;
     data?: SupervisorFeedbackList;
@@ -295,14 +297,20 @@ export const getSupervisorFeedbacksByAssessmentAction = cache(
 
 /**
  * Server action to submit a supervisor feedback with cache revalidation
+ * This validates the required fields based on action type:
+ * - APPROVED: requires supervisorRatingCode
+ * - REJECTED: requires supervisorComment
  */
-export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<{
+export async function submitSupervisorFeedbackAction(
+  feedbackId: UUID,
+  submitData: SupervisorFeedbackSubmit,
+): Promise<{
   success: boolean;
   data?: SupervisorFeedback;
   error?: string;
 }> {
   try {
-    const response = await supervisorFeedbacksApi.submitSupervisorFeedback(feedbackId);
+    const response = await supervisorFeedbacksApi.submitSupervisorFeedback(feedbackId, submitData);
 
     if (!response.success || !response.data) {
       return {
