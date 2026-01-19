@@ -409,6 +409,9 @@ export function useGoalAutoSave({
       }
 
       debounceTimersRef.current.set(key, setTimeout(() => {
+        if (isUnmountedRef.current) {
+          return;
+        }
         enqueueGoalSave(goalId, goalType);
       }, 1000));
     }
