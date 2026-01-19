@@ -7,6 +7,15 @@ export enum UserStatus {
   INACTIVE = 'inactive',
 }
 
+export type GoalWeightBudgetSource = 'stage' | 'user';
+
+export interface GoalWeightBudget {
+  quantitative: number;
+  qualitative: number;
+  competency: number;
+  source: GoalWeightBudgetSource;
+}
+
 export interface Department {
   id: UUID;
   name: string;
@@ -138,6 +147,7 @@ export interface UserDetailResponse {
   job_title?: string;
   department?: Department;
   stage?: Stage;
+  goalWeightBudget?: GoalWeightBudget;
   roles: Role[];
   supervisor?: User;
   subordinates?: User[];
@@ -220,4 +230,26 @@ export interface BulkUserStatusUpdateResponse {
   results: BulkUserStatusUpdateResult[];
   successCount: number;
   failureCount: number;
+}
+
+export interface UserGoalWeightUpdate {
+  quantitativeWeight: number;
+  qualitativeWeight: number;
+  competencyWeight: number;
+}
+
+export interface UserGoalWeightHistoryEntry {
+  id: UUID;
+  userId: UUID;
+  organizationId: string;
+  actorUserId: UUID;
+  actorName?: string;
+  actorEmployeeCode?: string;
+  quantitativeWeightBefore?: number;
+  quantitativeWeightAfter?: number;
+  qualitativeWeightBefore?: number;
+  qualitativeWeightAfter?: number;
+  competencyWeightBefore?: number;
+  competencyWeightAfter?: number;
+  changedAt: string;
 }

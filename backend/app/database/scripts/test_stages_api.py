@@ -6,14 +6,23 @@ import asyncio
 import asyncpg
 import os
 from dotenv import load_dotenv
+import pytest
 
 # Load environment variables
 load_dotenv('../../../../.env.local')
+DATABASE_URL = os.getenv('SUPABASE_DATABASE_URL')
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.skipif(
+        not DATABASE_URL,
+        reason="SUPABASE_DATABASE_URL is not configured",
+    ),
+]
 
 async def test_stages_api():
     """Test if the stages API works with the new data"""
     
-    database_url = os.getenv('SUPABASE_DATABASE_URL')
+    database_url = DATABASE_URL
     if not database_url:
         print("❌ SUPABASE_DATABASE_URL not found in environment")
         return False

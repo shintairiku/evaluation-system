@@ -623,6 +623,20 @@ class UnifiedHttpClient {
     let lastResponse: Response | undefined;
     let isTimeoutError = false;
     let totalDuration = 0;
+
+    // Fail fast: org-scoped APIs require an org slug (derived from the auth token).
+    // Without it, calling the unscoped endpoint will always 404 because the backend
+    // only exposes business routes under /api/org/{org_slug}/...
+    if (this.shouldApplyOrgScoping(endpoint)) {
+      const orgSlug = await this.getOrgSlug();
+      if (!orgSlug) {
+        return {
+          success: false,
+          errorMessage: 'Authentication required: organization context is missing',
+          error: 'Authentication required: organization context is missing',
+        };
+      }
+    }
     
     // Retry logic with exponential backoff
     for (let attempt = 1; attempt <= API_CONFIG.RETRY_ATTEMPTS; attempt++) {

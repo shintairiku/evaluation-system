@@ -1,5 +1,12 @@
-import IndexPage from "@/feature/evaluation/superviser/goal-review/display/index";
+import GoalReviewRoute from '@/feature/evaluation/superviser/goal-review/display/GoalReviewRoute';
 
-export default function Page() {
-  return <IndexPage />;
-} 
+interface GoalReviewPageProps {
+  searchParams: Promise<{
+    periodId?: string;
+  }>;
+}
+
+export default async function Page({ searchParams }: GoalReviewPageProps) {
+  const resolvedSearchParams = await searchParams;
+  return <GoalReviewRoute periodId={resolvedSearchParams.periodId} />;
+}

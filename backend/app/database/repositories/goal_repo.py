@@ -150,6 +150,33 @@ class GoalRepository(BaseRepository[Goal]):
             logger.error(f"Error fetching goal by ID {goal_id} in org {org_id}: {e}")
             raise
 
+    async def get_replacement_draft_by_previous_goal_id(
+        self,
+        previous_goal_id: UUID,
+        org_id: str,
+    ) -> Optional[Goal]:
+        """
+        Return the replacement draft goal created from a rejected goal, if it exists.
+
+        When a supervisor rejects a goal, the system may create a new draft copy
+        linked via goals.previous_goal_id for employee resubmission.
+        """
+        try:
+            query = select(Goal).filter(
+                and_(
+                    Goal.previous_goal_id == previous_goal_id,
+                    Goal.status == GoalStatus.DRAFT.value,
+                )
+            )
+            query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
+            result = await self.session.execute(query)
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Error fetching replacement draft for previous_goal_id {previous_goal_id} in org {org_id}: {e}"
+            )
+            raise
+
     async def get_goals_by_ids_batch(self, goal_ids: List[UUID], org_id: str) -> dict[UUID, Goal]:
         """
         Batch fetch multiple goals by IDs in a single SQL query.
@@ -249,9 +276,15 @@ class GoalRepository(BaseRepository[Goal]):
         department_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
         status: Optional[List[str]] = None,
+        has_previous_goal_id: Optional[bool] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[Goal]:
         """Search goals with various filters within organization scope."""
+        # IMPORTANT: Treat an explicit empty user_ids list as "no accessible users".
+        # This prevents accidental data leaks where an empty list would skip filtering.
+        if user_ids is not None and len(user_ids) == 0:
+            return []
+
         try:
             from ..models.user import User
 
@@ -263,7 +296,7 @@ class GoalRepository(BaseRepository[Goal]):
             self.ensure_org_filter_applied("search_goals", org_id)
 
             # Apply filters
-            if user_ids:
+            if user_ids is not None:
                 query = query.filter(Goal.user_id.in_(user_ids))
 
             if period_id:
@@ -282,6 +315,11 @@ class GoalRepository(BaseRepository[Goal]):
                 else:
                     # Backward compatibility for single status
                     query = query.filter(Goal.status == status)
+
+            if has_previous_goal_id is True:
+                query = query.filter(Goal.previous_goal_id.isnot(None))
+            elif has_previous_goal_id is False:
+                query = query.filter(Goal.previous_goal_id.is_(None))
 
             # Apply ordering
             query = query.order_by(Goal.created_at.desc())
@@ -305,6 +343,11 @@ class GoalRepository(BaseRepository[Goal]):
         pagination: Optional[PaginationParams],
     ) -> tuple[list[dict], int]:
         """Optimized read model for the goal list page with joins to user/period/department."""
+        # IMPORTANT: Treat an explicit empty user_ids list as "no accessible users".
+        # This prevents accidental data leaks where an empty list would skip filtering.
+        if user_ids is not None and len(user_ids) == 0:
+            return [], 0
+
         try:
             from ..models.user import Department
 
@@ -332,7 +375,7 @@ class GoalRepository(BaseRepository[Goal]):
             )
 
             # Apply filters
-            if user_ids:
+            if user_ids is not None:
                 base_query = base_query.filter(Goal.user_id.in_(user_ids))
             if period_id:
                 base_query = base_query.filter(Goal.period_id == period_id)
@@ -365,9 +408,15 @@ class GoalRepository(BaseRepository[Goal]):
         period_id: Optional[UUID] = None,
         department_id: Optional[UUID] = None,
         goal_category: Optional[str] = None,
-        status: Optional[List[str]] = None
+        status: Optional[List[str]] = None,
+        has_previous_goal_id: Optional[bool] = None,
     ) -> int:
         """Count goals matching the given filters within organization scope."""
+        # IMPORTANT: Treat an explicit empty user_ids list as "no accessible users".
+        # This prevents accidental data leaks where an empty list would skip filtering.
+        if user_ids is not None and len(user_ids) == 0:
+            return 0
+
         try:
             from ..models.user import User
 
@@ -377,7 +426,7 @@ class GoalRepository(BaseRepository[Goal]):
             query = self.apply_org_scope_via_user(query, Goal.user_id, org_id)
 
             # Apply same filters as search_goals
-            if user_ids:
+            if user_ids is not None:
                 query = query.filter(Goal.user_id.in_(user_ids))
 
             if period_id:
@@ -396,6 +445,11 @@ class GoalRepository(BaseRepository[Goal]):
                 else:
                     # Backward compatibility for single status
                     query = query.filter(Goal.status == status)
+
+            if has_previous_goal_id is True:
+                query = query.filter(Goal.previous_goal_id.isnot(None))
+            elif has_previous_goal_id is False:
+                query = query.filter(Goal.previous_goal_id.is_(None))
 
             result = await self.session.execute(query)
             return result.scalar() or 0
@@ -695,7 +749,8 @@ class GoalRepository(BaseRepository[Goal]):
         """Validate that the status transition is allowed."""
         valid_transitions = {
             "draft": ["submitted"],
-            "submitted": ["approved", "rejected"],
+            # Allow withdrawal back to draft. Service layer enforces business rules (e.g., untouched supervisor review).
+            "submitted": ["approved", "rejected", "draft"],
             "approved": [],  # Approved goals cannot be changed
             "rejected": ["draft", "submitted"]
         }

@@ -19,7 +19,7 @@ import { usePeriodSelection } from '@/hooks/usePeriodSelection';
 import { useGoalAutoSave } from '@/hooks/useGoalAutoSave';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import type { StageWeightBudget } from '../types';
-import { DEFAULT_STAGE_WEIGHT_BUDGET } from '../types';
+import { DEFAULT_STAGE_WEIGHT_BUDGET, getDefaultAchievementCriteria } from '../types';
 // useLoading removed - using simpler approach
 import type { EvaluationPeriod } from '@/api/types';
 
@@ -47,6 +47,8 @@ export default function GoalInputPage() {
     goalTracking,
   } = useGoalData();
   
+  const { currentUser, isLoading: isUserLoading } = useUserRoles();
+
   // Period selection and goal loading
   const {
     selectedPeriod,
@@ -59,18 +61,23 @@ export default function GoalInputPage() {
     handlePeriodSelected,
     activateAutoSave,
     clearPeriodSelection,
-  } = usePeriodSelection();
+  } = usePeriodSelection(currentUser?.id);
 
-  const { currentUser, isLoading: isUserLoading, error: userError } = useUserRoles();
-
-  const stageBudgets: StageWeightBudget = currentUser?.stage
+  const stageBudgets: StageWeightBudget = currentUser?.goalWeightBudget
     ? {
-        quantitative: Number(currentUser.stage.quantitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.quantitative),
-        qualitative: Number(currentUser.stage.qualitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.qualitative),
-        competency: Number(currentUser.stage.competencyWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.competency),
-        stageName: currentUser.stage.name,
+        quantitative: Number(currentUser.goalWeightBudget.quantitative ?? DEFAULT_STAGE_WEIGHT_BUDGET.quantitative),
+        qualitative: Number(currentUser.goalWeightBudget.qualitative ?? DEFAULT_STAGE_WEIGHT_BUDGET.qualitative),
+        competency: Number(currentUser.goalWeightBudget.competency ?? DEFAULT_STAGE_WEIGHT_BUDGET.competency),
+        stageName: currentUser.stage?.name,
       }
-    : DEFAULT_STAGE_WEIGHT_BUDGET;
+    : currentUser?.stage
+      ? {
+          quantitative: Number(currentUser.stage.quantitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.quantitative),
+          qualitative: Number(currentUser.stage.qualitativeWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.qualitative),
+          competency: Number(currentUser.stage.competencyWeight ?? DEFAULT_STAGE_WEIGHT_BUDGET.competency),
+          stageName: currentUser.stage.name,
+        }
+      : DEFAULT_STAGE_WEIGHT_BUDGET;
 
   // Load existing goals into form when they're fetched - ensure it runs only once per period/goals set
   useEffect(() => {
@@ -127,7 +134,7 @@ export default function GoalInputPage() {
         type: 'quantitative' as const,
         title: '',
         specificGoal: '',
-        achievementCriteria: '',
+        achievementCriteria: getDefaultAchievementCriteria('quantitative'),
         method: '',
         weight: 50,
       };
@@ -139,7 +146,7 @@ export default function GoalInputPage() {
   // These functions are stable within the scope of this effect
 
   // Auto-save functionality - will only be active when period is selected
-  useGoalAutoSave({
+  const { isAutoSaving } = useGoalAutoSave({
     goalData,
     selectedPeriod,
     isLoadingExistingGoals,
@@ -177,6 +184,7 @@ export default function GoalInputPage() {
             periodId={selectedPeriod?.id}
             onNext={handleNext}
             stageBudgets={stageBudgets}
+            isAutoSaving={isAutoSaving}
           />
         );
       case 2:
@@ -198,8 +206,10 @@ export default function GoalInputPage() {
             performanceGoals={goalData.performanceGoals}
             competencyGoals={goalData.competencyGoals}
             periodId={selectedPeriod?.id}
+            currentUserId={currentUser?.id}
             onPrevious={handlePrevious}
             stageBudgets={stageBudgets}
+            userStageId={currentUser?.stage?.id}
           />
         );
       default:

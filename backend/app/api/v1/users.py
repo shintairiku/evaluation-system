@@ -4,7 +4,16 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...schemas.user import UserCreate, UserUpdate, UserStageUpdate, UserDetailResponse, UserStatus, SimpleUser
+from ...schemas.user import (
+    UserCreate,
+    UserUpdate,
+    UserStageUpdate,
+    UserDetailResponse,
+    UserStatus,
+    SimpleUser,
+    UserGoalWeightUpdate,
+    UserGoalWeightHistoryEntry,
+)
 from ...schemas.common import PaginatedResponse, PaginationParams, BaseResponse
 from ...services.user_service import UserService
 from ...security import AuthContext, get_auth_context
@@ -242,6 +251,72 @@ async def update_user_stage(
         )
 
 
+@router.patch("/{user_id}/goal-weights", response_model=UserDetailResponse)
+async def update_user_goal_weights(
+    user_id: UUID,
+    weight_update: UserGoalWeightUpdate,
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Set user-specific goal weight overrides (admin only)."""
+    try:
+        service = UserService(session)
+        result = await service.set_user_goal_weight_override(user_id, weight_update, context)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+
+@router.delete("/{user_id}/goal-weights", response_model=UserDetailResponse)
+async def clear_user_goal_weights(
+    user_id: UUID,
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Clear user-specific goal weight overrides (admin only)."""
+    try:
+        service = UserService(session)
+        result = await service.clear_user_goal_weight_override(user_id, context)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+
+@router.get("/{user_id}/goal-weights/history", response_model=list[UserGoalWeightHistoryEntry])
+async def get_user_goal_weight_history(
+    user_id: UUID,
+    limit: int = Query(20, ge=1, le=100),
+    context: AuthContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get user-specific goal weight override history (admin only)."""
+    try:
+        service = UserService(session)
+        return await service.get_user_goal_weight_history(user_id, context, limit)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
 @router.delete("/{user_id}", response_model=BaseResponse)
 async def delete_user(
     user_id: UUID,
@@ -289,4 +364,3 @@ async def delete_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
-

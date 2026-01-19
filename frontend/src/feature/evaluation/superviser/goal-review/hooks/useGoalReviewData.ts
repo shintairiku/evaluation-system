@@ -112,7 +112,8 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
       // Load supervisor reviews and users first
       const [reviewsResult, usersResult] = await Promise.all([
         getPendingSupervisorReviewsAction({
-          pagination: { limit: 100 }
+          pagination: { limit: 100 },
+          periodId: targetPeriodId,
         }),
         getUsersAction()
       ]);

@@ -197,6 +197,7 @@ export const getPendingSupervisorReviewsAction = cache(
     pagination?: PaginationParams;
     periodId?: string;
     subordinateId?: string;
+    include?: string;
   }): Promise<{
     success: boolean;
     data?: SupervisorReviewList;
@@ -258,4 +259,3 @@ export async function submitSupervisorReviewAction(reviewId: UUID): Promise<{
     };
   }
 }
-

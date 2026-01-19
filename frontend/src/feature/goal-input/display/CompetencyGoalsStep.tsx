@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,6 +50,17 @@ export function CompetencyGoalsStep({
   const [competencies, setCompetencies] = useState<Competency[]>([]);
   const [isLoadingCompetencies, setIsLoadingCompetencies] = useState(true);
   const [competencyError, setCompetencyError] = useState<string | null>(null);
+  const currentGoalRef = useRef<CompetencyGoal | null>(null);
+  const draftGoalRef = useRef<CompetencyGoal | null>(null);
+  const tempGoalIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    currentGoalRef.current = currentGoal ?? null;
+    if (currentGoal?.id) {
+      tempGoalIdRef.current = currentGoal.id;
+      draftGoalRef.current = currentGoal;
+    }
+  }, [currentGoal]);
 
   // Load competencies from server on component mount
   useEffect(() => {
@@ -79,20 +90,39 @@ export function CompetencyGoalsStep({
     };
 
     loadCompetencies();
-  }, []);
+  }, [userStageId]);
 
-  const updateGoal = (field: keyof CompetencyGoal, value: string[] | Record<string, string[]> | string | null) => {
+  const updateGoal = (patch: Partial<CompetencyGoal>) => {
+    const baseGoal = draftGoalRef.current ?? currentGoalRef.current ?? (() => {
+      const id = tempGoalIdRef.current ?? Date.now().toString();
+      tempGoalIdRef.current = id;
+      return {
+        id,
+        competencyIds: null,
+        selectedIdealActions: null,
+        actionPlan: '',
+      };
+    })();
+
     const updatedGoal: CompetencyGoal = {
-      id: currentGoal?.id || Date.now().toString(),
-      competencyIds: field === 'competencyIds' ? (value as string[] | null) : selectedCompetencyIds.length > 0 ? selectedCompetencyIds : null,
-      selectedIdealActions: field === 'selectedIdealActions' ? (value as Record<string, string[]> | null) : Object.keys(selectedIdealActions).length > 0 ? selectedIdealActions : null,
-      actionPlan: field === 'actionPlan' ? (value as string) : actionPlan,
+      id: baseGoal.id,
+      competencyIds: baseGoal.competencyIds ?? null,
+      selectedIdealActions: baseGoal.selectedIdealActions ?? null,
+      actionPlan: baseGoal.actionPlan ?? '',
+      ...patch,
     };
 
+    if (!updatedGoal.competencyIds || updatedGoal.competencyIds.length === 0) {
+      updatedGoal.competencyIds = null;
+    }
+    if (!updatedGoal.selectedIdealActions || Object.keys(updatedGoal.selectedIdealActions).length === 0) {
+      updatedGoal.selectedIdealActions = null;
+    }
+
+    draftGoalRef.current = updatedGoal;
     onGoalsChange([updatedGoal]);
 
-    // Track the goal change for auto-save
-    if (goalTracking && updatedGoal) {
+    if (goalTracking) {
       goalTracking.trackGoalChange(updatedGoal.id, 'competency', updatedGoal);
     }
   };
@@ -108,11 +138,12 @@ export function CompetencyGoalsStep({
       // Remove ideal actions for this competency when deselected
       delete newSelectedActions[competencyId];
     }
+    const nextSelectedActions = checked ? selectedIdealActions : newSelectedActions;
 
-    updateGoal('competencyIds', newSelectedIds.length > 0 ? newSelectedIds : null);
-    if (!checked && competencyId in selectedIdealActions) {
-      updateGoal('selectedIdealActions', Object.keys(newSelectedActions).length > 0 ? newSelectedActions : null);
-    }
+    updateGoal({
+      competencyIds: newSelectedIds.length > 0 ? newSelectedIds : null,
+      selectedIdealActions: Object.keys(nextSelectedActions).length > 0 ? nextSelectedActions : null,
+    });
   };
 
   const handleIdealActionSelect = (competencyId: string, actionKey: string, checked: boolean) => {
@@ -139,11 +170,13 @@ export function CompetencyGoalsStep({
       delete newSelectedActions[competencyId];
     }
 
-    updateGoal('selectedIdealActions', Object.keys(newSelectedActions).length > 0 ? newSelectedActions : null);
+    updateGoal({
+      selectedIdealActions: Object.keys(newSelectedActions).length > 0 ? newSelectedActions : null,
+    });
   };
 
   const handleActionPlanChange = (value: string) => {
-    updateGoal('actionPlan', value);
+    updateGoal({ actionPlan: value });
   };
 
   const canProceed = () => {

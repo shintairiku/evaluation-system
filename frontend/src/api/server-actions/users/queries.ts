@@ -10,6 +10,7 @@ import type {
   UserExistsResponse,
   SimpleUser,
   UserListPageResponse,
+  UserGoalWeightHistoryEntry,
 } from '../../types';
 
 export interface SearchUsersParams extends PaginationParams {
@@ -117,7 +118,42 @@ export const getUserByIdAction = cache(
   },
 );
 
-export const getCurrentUserAction = async (): Promise<{
+export const getUsersByIdsAction = cache(
+  async (
+    params: {
+      userIds: UUID[];
+      include?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    data?: UserDetailResponse[];
+    error?: string;
+  }> => {
+    try {
+      const response = await usersApi.getUsersByIds(params);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.error || 'Failed to fetch users',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get users by ids action error:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred while fetching users',
+      };
+    }
+  },
+);
+
+export const getCurrentUserAction = cache(async (): Promise<{
   success: boolean;
   data?: UserDetailResponse | null;
   error?: string;
@@ -143,7 +179,40 @@ export const getCurrentUserAction = async (): Promise<{
       error: 'An unexpected error occurred while fetching current user',
     };
   }
-};
+});
+
+export const getUserGoalWeightHistoryAction = cache(
+  async (
+    userId: UUID,
+    limit = 20,
+  ): Promise<{
+    success: boolean;
+    data?: UserGoalWeightHistoryEntry[];
+    error?: string;
+  }> => {
+    try {
+      const response = await usersApi.getUserGoalWeightHistory(userId, limit);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.error || 'Failed to fetch user goal weight history',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get user goal weight history action error:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred while fetching goal weight history',
+      };
+    }
+  },
+);
 
 export const checkUserExistsAction = cache(
   async (

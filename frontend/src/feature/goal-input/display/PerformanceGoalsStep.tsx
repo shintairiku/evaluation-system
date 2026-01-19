@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, AlertCircle, TrendingUp, BarChart3, Zap } from 'lucide-react';
-import type { StageWeightBudget } from '../types';
+import { getDefaultAchievementCriteria, type StageWeightBudget } from '../types';
 import { deleteGoalAction } from '@/api/server-actions/goals';
 import type { UseGoalTrackingReturn } from '@/hooks/useGoalTracking';
 
@@ -32,6 +32,7 @@ interface PerformanceGoalsStepProps {
   onNext: () => void;
   periodId?: string;
   stageBudgets: StageWeightBudget;
+  isAutoSaving?: boolean;
 }
 
 type GoalType = 'quantitative' | 'qualitative';
@@ -55,7 +56,7 @@ const formatPercent = (value: number) => {
   return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
 };
 
-export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, stageBudgets }: PerformanceGoalsStepProps) {
+export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, stageBudgets, isAutoSaving }: PerformanceGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoals = goals;
   const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
@@ -101,7 +102,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
       type: preferredType,
       title: '',
       specificGoal: '',
-      achievementCriteria: '',
+      achievementCriteria: getDefaultAchievementCriteria(preferredType),
       method: '',
       weight: initialWeight > 0 ? initialWeight : 0
     };
@@ -180,10 +181,15 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
       } else if (field === 'type') {
         const newType = value as GoalType;
         const clamped = clampWeightForGoal(id, newType, goal.weight);
+        const shouldUpdateAchievementCriteria = !goal.achievementCriteria.trim()
+          || goal.achievementCriteria === getDefaultAchievementCriteria(goal.type);
         updatedGoal = {
           ...goal,
           type: newType,
           weight: clamped,
+          achievementCriteria: shouldUpdateAchievementCriteria
+            ? getDefaultAchievementCriteria(newType)
+            : goal.achievementCriteria,
         };
         didChangeWeights = true;
       } else {
@@ -253,8 +259,24 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
   const canProceed = () => {
     const budgetsSatisfied = typeStatuses.every(status => status.state === 'success');
     const hasGoals = currentGoals.length > 0;
-    const requiredFieldsSatisfied = currentGoals.every(goal => goal.title && goal.specificGoal && goal.achievementCriteria);
-    return budgetsSatisfied && hasGoals && requiredFieldsSatisfied;
+    const requiredFieldsSatisfied = currentGoals.every(goal => (
+      goal.title.trim() !== ''
+      && goal.specificGoal.trim() !== ''
+      && goal.achievementCriteria.trim() !== ''
+      && goal.method.trim() !== ''
+    ));
+    const hasTemporaryIds = currentGoals.some(goal => isTemporaryGoalId(goal.id));
+    const hasUnsavedChanges = currentGoals.some(goal => goalTracking?.isGoalDirty(goal.id) ?? false);
+    const autoSaveInFlight = !!isAutoSaving;
+
+    return (
+      budgetsSatisfied
+      && hasGoals
+      && requiredFieldsSatisfied
+      && !hasTemporaryIds
+      && !hasUnsavedChanges
+      && !autoSaveInFlight
+    );
   };
 
   const hasRemainingBudget = goalTypes.some(type => getMaxAllocatableWeight(type) > 0);
@@ -383,7 +405,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
               {/* 入力フィールド */}
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor={`title-${goal.id}`}>目標タイトル</Label>
+                  <Label htmlFor={`title-${goal.id}`} className="mb-2">目標タイトル</Label>
                   <Input
                     id={`title-${goal.id}`}
                     value={goal.title}
@@ -394,7 +416,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor={`specific-${goal.id}`}>具体的な目標</Label>
+                    <Label htmlFor={`specific-${goal.id}`} className="mb-2">具体的な目標</Label>
                     <Textarea
                       id={`specific-${goal.id}`}
                       value={goal.specificGoal}
@@ -404,7 +426,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
                     />
                   </div>
                   <div>
-                    <Label htmlFor={`criteria-${goal.id}`}>達成基準</Label>
+                    <Label htmlFor={`criteria-${goal.id}`} className="mb-2">達成基準</Label>
                     <Textarea
                       id={`criteria-${goal.id}`}
                       value={goal.achievementCriteria}
@@ -416,7 +438,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
                 </div>
 
                 <div>
-                  <Label htmlFor={`method-${goal.id}`}>実行方法・アプローチ</Label>
+                  <Label htmlFor={`method-${goal.id}`} className="mb-2">実行方法・アプローチ</Label>
                   <Textarea
                     id={`method-${goal.id}`}
                     value={goal.method}

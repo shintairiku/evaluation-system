@@ -287,6 +287,7 @@ class Goal(BaseModel):
     competency_ids: Optional[List[UUID]] = Field(None, alias="competencyIds")
     competency_names: Optional[Dict[str, str]] = Field(None, alias="competencyNames")  # UUID -> Name mapping
     selected_ideal_actions: Optional[Dict[str, List[str]]] = Field(None, alias="selectedIdealActions")
+    ideal_action_texts: Optional[Dict[str, List[str]]] = Field(None, alias="idealActionTexts")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
     # Core Value Goal fields (goal_category = "コアバリュー")
@@ -399,6 +400,14 @@ class GoalDetail(Goal):
     days_since_submission: Optional[int] = Field(None, alias="daysSinceSubmission", description="Days since goal was submitted for approval")
     
     model_config = {"from_attributes": True, "populate_by_name": True}
+
+
+class GoalsByIdsRequest(BaseModel):
+    goal_ids: List[UUID] = Field(..., alias="goalIds")
+    include_reviews: bool = Field(False, alias="includeReviews")
+    include_rejection_history: bool = Field(False, alias="includeRejectionHistory")
+
+    model_config = {"populate_by_name": True}
 
 
 class GoalList(PaginatedResponse[Goal]):

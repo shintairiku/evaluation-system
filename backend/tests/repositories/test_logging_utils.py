@@ -188,3 +188,18 @@ def log_test_summary(total_tests: int, passed_tests: int, failed_tests: int, rep
         logging.info(f"✅ Supabase connectivity and data fetching verified for {repo_name} repository")
     else:
         logging.error(f"❌ {failed_tests} test(s) failed in {repo_name} repository")
+
+
+def log_error(message: str) -> None:
+    """Log an error message."""
+    logging.error(f"❌ {message}")
+
+
+def log_warning(message: str) -> None:
+    """Log a warning message."""
+    logging.warning(f"⚠️ {message}")
+
+
+def log_info(message: str) -> None:
+    """Log an info message."""
+    logging.info(message)

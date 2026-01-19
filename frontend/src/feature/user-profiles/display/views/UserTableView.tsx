@@ -22,6 +22,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { UserDetailResponse } from '@/api/types';
 import UserEditViewModal from '../../components/UserEditViewModal';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -90,42 +96,123 @@ export default function UserTableView({ users, allUsers, onUserUpdate }: UserTab
               ) : (
                 users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">
-                      <div>
-                        <div className="font-semibold">{user.name}</div>
+                    <TableCell className="font-medium max-w-[180px]">
+                      <div className="truncate">
+                        <div className="font-semibold truncate">{user.name}</div>
                         {user.job_title && (
-                          <div className="text-sm text-muted-foreground">{user.job_title}</div>
+                          user.job_title.length > 20 ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="text-sm text-muted-foreground truncate cursor-help">
+                                    {user.job_title}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{user.job_title}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <div className="text-sm text-muted-foreground truncate">
+                              {user.job_title}
+                            </div>
+                          )
                         )}
                       </div>
                     </TableCell>
                     <TableCell>{user.employee_code}</TableCell>
                     <TableCell className="text-sm">{user.email}</TableCell>
-                    <TableCell>
+                    <TableCell className="max-w-[150px]">
                       {user.department ? (
-                        <Badge variant="outline">{user.department.name}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">未設定</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {user.stage ? (
-                        <Badge variant="secondary">{user.stage.name}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">未設定</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {user.roles.length > 0 ? (
-                          user.roles.map((role) => (
-                            <Badge key={role.id} variant="outline" className="text-xs">
-                              {role.description || role.name}
-                            </Badge>
-                          ))
+                        user.department.name.length > 15 ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="cursor-help">
+                                  <Badge variant="outline" className="max-w-full block">
+                                    <span className="truncate block">{user.department.name}</span>
+                                  </Badge>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{user.department.name}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         ) : (
-                          <span className="text-muted-foreground">未設定</span>
-                        )}
-                      </div>
+                          <Badge variant="outline">
+                            {user.department.name}
+                          </Badge>
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">未設定</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[180px]">
+                      {user.stage ? (
+                        user.stage.name.length > 15 ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="cursor-help">
+                                  <Badge variant="secondary" className="max-w-full block">
+                                    <span className="truncate block">{user.stage.name}</span>
+                                  </Badge>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{user.stage.name}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Badge variant="secondary">
+                            {user.stage.name}
+                          </Badge>
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">未設定</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[180px]">
+                      {user.roles.length > 0 ? (
+                        user.roles.length > 2 ? (
+                          // 3+ roles: Show first role + "+N" badge with tooltip
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex gap-1 cursor-help">
+                                  <Badge variant="outline" className="text-xs max-w-[120px] block">
+                                    <span className="truncate block">{user.roles[0].description || user.roles[0].name}</span>
+                                  </Badge>
+                                  <Badge variant="outline" className="text-xs whitespace-nowrap">
+                                    +{user.roles.length - 1}
+                                  </Badge>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="flex flex-col gap-1">
+                                  {user.roles.map((role) => (
+                                    <div key={role.id}>{role.description || role.name}</div>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          // 1-2 roles: Show badges stacked vertically
+                          <div className="flex flex-col gap-1">
+                            {user.roles.map((role) => (
+                              <Badge key={role.id} variant="outline" className="text-xs max-w-full block">
+                                <span className="truncate block">{role.description || role.name}</span>
+                              </Badge>
+                            ))}
+                          </div>
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">未設定</span>
+                      )}
                     </TableCell>
                     <TableCell>{getStatusBadge(user.status)}</TableCell>
                     <TableCell className="text-right">

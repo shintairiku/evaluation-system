@@ -24,9 +24,11 @@
   - `main` → `hr-evaluation-backend` (production)
   - `develop` → `hr-evaluation-backend-dev` (development)
 - ✅ Dynamic secret selection with `-dev` suffix for Clerk secrets
-- ✅ **IMPORTANT:** Both environments use the SAME `database-url` secret (no `-dev` suffix)
+- ✅ **IMPORTANT:** Both environments use the SAME `database-url` (transaction pooler) and `database-url-session` (session pooler) secrets (no `-dev` suffix)
+  - Toggle with `DB_POOL_MODE=session` via Secret Manager `db-pool-mode`.
 - ✅ Different resource limits (5 instances for prod, 3 for dev)
 - ✅ Separate Docker images for each environment
+- ✅ Optional `DB_POOL_MODE` via GitHub Actions secret for session pooler toggling
 
 ### 3. Architecture Decision: Single Production Database
 
@@ -55,11 +57,13 @@ ensure_secret() {
   fi
 }
 
-# --- 2) Dev secrets (no database-url-dev) ---
+# --- 2) Dev secrets (no database-url-dev or database-url-session-dev) ---
 ensure_secret clerk-secret-key-dev "sk_test_your_clerk_secret_key"
 ensure_secret clerk-issuer-dev "https://your-test-app.clerk.accounts.dev"
 ensure_secret clerk-audience-dev "evaluation-system-dev.vercel.app,localhost:3000"
 ensure_secret clerk-webhook-secret-dev "whsec_your_dev_webhook_secret"
+# Optional: set to "session" to use database-url-session
+ensure_secret db-pool-mode-dev "session"
 # App secret key (random)
 python3 -c "import secrets; print(secrets.token_urlsafe(32))" | while read SK; do ensure_secret app-secret-key-dev "$SK"; done
 
@@ -69,7 +73,7 @@ export SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 for SECRET in \
   clerk-secret-key-dev clerk-issuer-dev clerk-audience-dev \
   clerk-webhook-secret-dev app-secret-key-dev \
-  database-url; do
+  database-url database-url-session db-pool-mode-dev; do
   gcloud secrets add-iam-policy-binding "$SECRET" \
     --member="serviceAccount:$SERVICE_ACCOUNT" \
     --role="roles/secretmanager.secretAccessor" \
@@ -117,8 +121,10 @@ gcloud run deploy hr-evaluation-backend-dev \
   --cpu 1 \
   --port 8000 \
   --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,DEBUG=False" \
-  --set-secrets "CLERK_SECRET_KEY=clerk-secret-key-dev:latest,\
+  --set-secrets "DB_POOL_MODE=db-pool-mode-dev:latest,\
+CLERK_SECRET_KEY=clerk-secret-key-dev:latest,\
 SUPABASE_DATABASE_URL=database-url:latest,\
+SUPABASE_DATABASE_URL_SESSION=database-url-session:latest,\
 CLERK_ISSUER=clerk-issuer-dev:latest,\
 CLERK_AUDIENCE=clerk-audience-dev:latest,\
 CLERK_WEBHOOK_SECRET=clerk-webhook-secret-dev:latest,\
@@ -161,7 +167,9 @@ Required secrets for dev:
 - `clerk-audience-dev` (comma‑separated origins)
 - `clerk-webhook-secret-dev`
 - `app-secret-key-dev`
-- `database-url` (shared production DB)
+- `database-url` (shared production DB; transaction pooler 6543)
+- `database-url-session` (shared production DB; session pooler 5432)
+- `db-pool-mode-dev` (optional; set to `session` to use session pooler)
 
 ### Step 3: Configure Vercel — Preview on develop
 
