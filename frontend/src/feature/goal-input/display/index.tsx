@@ -209,6 +209,7 @@ export default function GoalInputPage() {
             currentUserId={currentUser?.id}
             onPrevious={handlePrevious}
             stageBudgets={stageBudgets}
+            userStageId={currentUser?.stage?.id}
           />
         );
       default:

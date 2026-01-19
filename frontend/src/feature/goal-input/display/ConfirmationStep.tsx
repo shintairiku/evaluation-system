@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,15 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ChevronLeft, Send, Target, Brain } from 'lucide-react';
 import { toast } from 'sonner';
 import { submitGoalAction, getGoalsAction } from '@/api/server-actions/goals';
-import { Competency, CompetencyDescription } from '@/api/types/competency';
-import stage1Competencies from '../data/stage1-competencies.json';
+import { getCompetenciesAction } from '@/api/server-actions/competencies';
+import { Competency } from '@/api/types/competency';
 import type { StageWeightBudget } from '../types';
-
-interface LegacyCompetency {
-  id: string;
-  title: string;
-  description: string;
-}
 
 interface PerformanceGoal {
   id: string;
@@ -42,41 +36,51 @@ interface ConfirmationStepProps {
   currentUserId?: string;
   onPrevious: () => void;
   stageBudgets?: StageWeightBudget;
-}
-
-// Convert legacy format to new format
-function convertLegacyCompetencies(legacyCompetencies: LegacyCompetency[]): Competency[] {
-  return legacyCompetencies.map((legacy) => {
-    const descriptionLines = legacy.description
-      .split(/\n|・/)
-      .filter(line => line.trim().length > 0)
-      .slice(0, 5);
-
-    const description: CompetencyDescription = {};
-    descriptionLines.forEach((line, index) => {
-      description[(index + 1).toString()] = line.trim();
-    });
-
-    return {
-      id: legacy.id,
-      name: legacy.title,
-      description,
-      stageId: 'stage-1',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  });
+  userStageId?: string;
 }
 
 export function ConfirmationStep(props: ConfirmationStepProps) {
-  const { performanceGoals, competencyGoals, periodId, currentUserId, onPrevious } = props;
+  const { performanceGoals, competencyGoals, periodId, currentUserId, onPrevious, userStageId } = props;
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
-  
-  // Convert legacy competencies to new format
-  const competencies = convertLegacyCompetencies(
-    (stage1Competencies as { competencies: LegacyCompetency[] }).competencies
-  );
+  const [competencies, setCompetencies] = useState<Competency[]>([]);
+  const [isLoadingCompetencies, setIsLoadingCompetencies] = useState(false);
+  const [competencyError, setCompetencyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    const loadCompetencies = async () => {
+      try {
+        setIsLoadingCompetencies(true);
+        setCompetencyError(null);
+        const result = await getCompetenciesAction({
+          limit: 100,
+          stageId: userStageId,
+        });
+
+        if (!isActive) return;
+
+        if (result.success && result.data?.items) {
+          setCompetencies(result.data.items);
+        } else {
+          setCompetencyError(result.error || 'コンピテンシーを読み込めませんでした。');
+        }
+      } catch (error) {
+        if (isActive) {
+          setCompetencyError('コンピテンシーを読み込めませんでした。');
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingCompetencies(false);
+        }
+      }
+    };
+
+    loadCompetencies();
+    return () => {
+      isActive = false;
+    };
+  }, [userStageId]);
   
   const handleSubmit = () => {
     startTransition(async () => {
@@ -142,16 +146,11 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
 
   const performanceTotal = performanceGoals.reduce((sum, goal) => sum + goal.weight, 0);
   
-  const getSelectedCompetencies = () => {
-    if (competencyGoals.length === 0 || !competencyGoals[0].competencyIds) return [];
-    
-    return competencyGoals[0].competencyIds
-      .map(id => competencies.find(comp => comp.id === id))
-      .filter(Boolean) as Competency[];
-  };
-
-  const selectedCompetencies = getSelectedCompetencies();
   const competencyGoal = competencyGoals[0];
+  const selectedCompetencyIds = competencyGoal?.competencyIds ?? [];
+  const selectedCompetencies = selectedCompetencyIds
+    .map(id => competencies.find(comp => comp.id === id))
+    .filter(Boolean) as Competency[];
 
   return (
     <div className="space-y-6">
@@ -200,33 +199,47 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
           {competencyGoal && competencyGoal.actionPlan ? (
             <div className="space-y-4">
               {/* Selected Competencies */}
-              {selectedCompetencies.length > 0 && (
+              {selectedCompetencyIds.length > 0 && (
                 <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
                   <h4 className="font-medium text-blue-900 mb-3">選択されたコンピテンシー</h4>
-                  <div className="space-y-3">
-                    {selectedCompetencies.map(competency => {
-                      const selectedActions = competencyGoal.selectedIdealActions?.[competency.id] || [];
-                      
-                      return (
-                        <div key={competency.id} className="border rounded-lg p-3 bg-white">
-                          <div className="font-medium text-gray-900 mb-2">{competency.name}</div>
-                          
-                          {selectedActions.length > 0 && (
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-700 mb-2">選択された理想的行動:</div>
-                              <div className="space-y-1">
-                                {selectedActions.map(actionKey => (
-                                  <div key={actionKey} className="text-sm text-gray-600">
-                                    <span className="font-medium">{actionKey}.</span> {competency.description?.[actionKey]}
-                                  </div>
-                                ))}
+                  {isLoadingCompetencies ? (
+                    <p className="text-sm text-muted-foreground">コンピテンシーを読み込み中...</p>
+                  ) : selectedCompetencies.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedCompetencies.map(competency => {
+                        const selectedActions = competencyGoal.selectedIdealActions?.[competency.id] || [];
+                        
+                        return (
+                          <div key={competency.id} className="border rounded-lg p-3 bg-white">
+                            <div className="font-medium text-gray-900 mb-2">{competency.name}</div>
+                            
+                            {selectedActions.length > 0 && (
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-700 mb-2">選択された理想的行動:</div>
+                                <div className="space-y-1">
+                                  {selectedActions.map(actionKey => (
+                                    <div key={actionKey} className="text-sm text-gray-600">
+                                      <span className="font-medium">{actionKey}.</span> {competency.description?.[actionKey] ?? '（説明未設定）'}
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      <p>選択されたコンピテンシーの詳細を表示できませんでした。</p>
+                      {competencyError && <p>{competencyError}</p>}
+                      <div className="space-y-1">
+                        {selectedCompetencyIds.map(id => (
+                          <div key={id} className="text-xs text-muted-foreground">ID: {id}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               
