@@ -24,6 +24,7 @@ from ..schemas.goal_page import (
     GoalListPageResponse,
 )
 from ..schemas.common import PaginationParams, PaginatedResponse
+from ..schemas.user import UserStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.rbac_helper import RBACHelper
@@ -673,6 +674,13 @@ class GoalService:
                 raise PermissionDeniedError("You can only submit your own goals")
 
             if status == "submitted":
+                current_user = await self.user_repo.get_user_by_id(current_user_context.user_id, org_id)
+                if not current_user:
+                    raise PermissionDeniedError("User context required")
+
+                if current_user.status != UserStatus.ACTIVE.value:
+                    raise BadRequestError("Only active users can submit goals")
+
                 # Business rule: can only submit draft or rejected goals
                 if existing_goal.status not in [GoalStatus.DRAFT.value, GoalStatus.REJECTED.value]:
                     raise BadRequestError("Can only submit draft or rejected goals")
