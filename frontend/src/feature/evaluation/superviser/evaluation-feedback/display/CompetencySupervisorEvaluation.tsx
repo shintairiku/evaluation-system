@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
+type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C';
 
 interface CompetencyItem {
   id: number;
@@ -26,7 +26,7 @@ interface CompetencyEvaluation {
   comment: string;
 }
 
-const RATINGS: RatingCode[] = ['SS', 'S', 'A', 'B', 'C', 'D'];
+const RATINGS: RatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
 
 const initialCompetencyEvaluation: CompetencyEvaluation = {
   name: "責任感",

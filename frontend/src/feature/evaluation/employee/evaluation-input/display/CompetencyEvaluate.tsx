@@ -278,7 +278,7 @@ export default function CompetencyEvaluate() {
 
                     {/* Rating Buttons for this item */}
                     <div className="flex items-center gap-3">
-                      {['SS', 'S', 'A', 'B', 'C', 'D'].map((rating) => (
+                      {['SS', 'S', 'A', 'B', 'C'].map((rating) => (
                         <div
                           key={rating}
                           className="flex items-center gap-2 cursor-pointer"

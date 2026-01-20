@@ -11,9 +11,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
+type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C';
 
-const RATINGS: RatingCode[] = ['SS', 'S', 'A', 'B', 'C', 'D'];
+const RATINGS: RatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
 
 interface CompetencyItem {
   id: number;
