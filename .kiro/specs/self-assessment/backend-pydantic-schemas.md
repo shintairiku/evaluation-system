@@ -66,14 +66,14 @@ class SelfAssessmentStatus(str, Enum):
     REJECTED = "rejected"
 ```
 
-### 3.2. RatingCode (Individual Goal Input - 6 levels)
+### 3.2. RatingCode (Individual Goal Input - 5 levels)
 
 ```python
 # backend/app/schemas/common.py (ADD)
 
 class RatingCode(str, Enum):
     """
-    Individual goal rating codes (6-level input scale).
+    Individual goal rating codes (5-level input scale).
     Used for self-assessments and supervisor feedbacks on individual goals.
     @see domain-model.md Section 4.2 - Rating Validation
     """
@@ -82,31 +82,29 @@ class RatingCode(str, Enum):
     A = "A"     # 4.0 - Good
     B = "B"     # 2.0 - Acceptable
     C = "C"     # 1.0 - Below Expectations
-    D = "D"     # 0.0 - Unsatisfactory
 
-# Rating code to numeric value mapping (6-level scale)
+# Rating code to numeric value mapping (5-level scale)
 RATING_CODE_VALUES: dict[RatingCode, float] = {
     RatingCode.SS: 7.0,
     RatingCode.S: 6.0,
     RatingCode.A: 4.0,
     RatingCode.B: 2.0,
     RatingCode.C: 1.0,
-    RatingCode.D: 0.0,
 }
 
 def rating_code_to_value(code: RatingCode) -> float:
-    """Convert rating code to numeric value (6-level scale)."""
+    """Convert rating code to numeric value (5-level scale)."""
     return RATING_CODE_VALUES.get(code, 0.0)
 ```
 
-### 3.3. FinalRatingCode (Final Calculation Output - 8 levels)
+### 3.3. FinalRatingCode (Final Calculation Output - 7 levels)
 
 ```python
 # backend/app/schemas/common.py (ADD)
 
 class FinalRatingCode(str, Enum):
     """
-    Final calculated rating codes (8-level output scale).
+    Final calculated rating codes (7-level output scale).
     Used for overall period performance ratings calculated by system.
     Includes intermediate grades A+, A- for more precise evaluation.
     @see domain-model.md Section 4.2 - Rating Validation
@@ -118,9 +116,8 @@ class FinalRatingCode(str, Enum):
     A_MINUS = "A-"  # 3.0 - Fairly Good
     B = "B"         # 2.0 - Acceptable
     C = "C"         # 1.0 - Below Expectations
-    D = "D"         # 0.0 - Unsatisfactory
 
-# Final rating code to numeric value mapping (8-level scale)
+# Final rating code to numeric value mapping (7-level scale)
 FINAL_RATING_CODE_VALUES: dict[FinalRatingCode, float] = {
     FinalRatingCode.SS: 7.0,
     FinalRatingCode.S: 6.0,
@@ -129,11 +126,10 @@ FINAL_RATING_CODE_VALUES: dict[FinalRatingCode, float] = {
     FinalRatingCode.A_MINUS: 3.0,
     FinalRatingCode.B: 2.0,
     FinalRatingCode.C: 1.0,
-    FinalRatingCode.D: 0.0,
 }
 
 def final_rating_code_to_value(code: FinalRatingCode) -> float:
-    """Convert final rating code to numeric value (8-level scale)."""
+    """Convert final rating code to numeric value (7-level scale)."""
     return FINAL_RATING_CODE_VALUES.get(code, 0.0)
 ```
 
@@ -918,12 +914,9 @@ class TestSelfAssessmentSchemas:
         """Test rating code to numeric value mapping."""
         assert RATING_CODE_VALUES[RatingCode.SS] == 7.0
         assert RATING_CODE_VALUES[RatingCode.S] == 6.0
-        assert RATING_CODE_VALUES[RatingCode.A_PLUS] == 5.0
         assert RATING_CODE_VALUES[RatingCode.A] == 4.0
-        assert RATING_CODE_VALUES[RatingCode.A_MINUS] == 3.0
         assert RATING_CODE_VALUES[RatingCode.B] == 2.0
         assert RATING_CODE_VALUES[RatingCode.C] == 1.0
-        assert RATING_CODE_VALUES[RatingCode.D] == 0.0
 
     def test_update_with_valid_rating_code(self):
         """Test SelfAssessmentUpdate with valid rating code."""
