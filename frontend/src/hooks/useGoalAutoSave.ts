@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { createGoalAction, updateGoalAction } from '@/api/server-actions/goals';
-import type { GoalCreateRequest, GoalResponse, GoalUpdateRequest } from '@/api/types/goal';
+import type { GoalCreateRequest, GoalUpdateRequest } from '@/api/types/goal';
 import type { EvaluationPeriod } from '@/api/types';
 import type { GoalData } from './useGoalData';
 import type { StageWeightBudget } from '@/feature/goal-input/types';
@@ -15,33 +15,10 @@ interface UseGoalAutoSaveOptions {
   isLoadingExistingGoals: boolean;
   isAutoSaveReady: boolean;
   goalTracking: UseGoalTrackingReturn;
-  onGoalReplaceWithServerData: (tempId: string, serverGoal: GoalResponse, goalType: 'performance' | 'competency') => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onGoalReplaceWithServerData: (tempId: string, serverGoal: any, goalType: 'performance' | 'competency') => void;
   stageBudgets: StageWeightBudget;
 }
-
-// Utility function to sanitize goal IDs by removing invisible characters
-const sanitizeGoalId = (id: string): string => {
-  return id.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim();
-};
-
-const isTemporaryGoalId = (goalId: string) => /^\d+$/.test(goalId);
-
-const toPerformanceGoalSnapshot = (goal: GoalResponse, idOverride?: string) => ({
-  id: idOverride ?? sanitizeGoalId(goal.id),
-  type: goal.performanceGoalType || 'quantitative',
-  title: goal.title || '',
-  specificGoal: goal.specificGoalText || '',
-  achievementCriteria: goal.achievementCriteriaText || '',
-  method: goal.meansMethodsText || '',
-  weight: goal.weight,
-});
-
-const toCompetencyGoalSnapshot = (goal: GoalResponse, idOverride?: string) => ({
-  id: idOverride ?? sanitizeGoalId(goal.id),
-  competencyIds: goal.competencyIds || null,
-  selectedIdealActions: goal.selectedIdealActions || null,
-  actionPlan: goal.actionPlan || '',
-});
 
 export function useGoalAutoSave({
   goalData,
@@ -150,7 +127,7 @@ export function useGoalAutoSave({
     };
 
     // Check if this is a new performance goal (temporary ID starts with timestamp)
-    const isNewGoal = isTemporaryGoalId(goalId);
+    const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
     
     if (isNewGoal) {
       // Create new performance goal
@@ -178,13 +155,11 @@ export function useGoalAutoSave({
           duration: 2000,
         });
 
-        const serverId = sanitizeGoalId(result.data.id);
-
         // Replace the temporary goal with server data (preserving ID immutability)
         onGoalReplaceWithServerData(goalId, result.data, 'performance');
 
-        // Track the new goal using the frontend goal shape (keeps dirty tracking consistent)
-        trackGoalLoad(serverId, 'performance', toPerformanceGoalSnapshot(result.data, serverId));
+        // Track the new goal with server ID
+        trackGoalLoad(result.data.id, 'performance', result.data);
         clearChanges(goalId); // Clear the temporary ID changes
         return true;
       } else {
@@ -216,20 +191,18 @@ export function useGoalAutoSave({
       };
       const result = await updateGoalAction(goalId, updateData);
       
-      if (result && result.success && result.data) {
+      if (result && result.success) {
         if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Performance goal ${goalId} updated successfully`);
 
         // Show success toast for goal update
         toast.success('業績目標を更新しました', {
-          description: result.data.title ? `「${result.data.title}」を自動保存しました` : '目標を自動保存しました',
+          description: currentData.title ? `「${currentData.title}」を自動保存しました` : '目標を自動保存しました',
           duration: 2000,
         });
 
-        // Sync local state with the server (prevents UI/backend drift)
-        onGoalReplaceWithServerData(goalId, result.data, 'performance');
-
-        // Update the baseline from the server payload (keeps dirty tracking consistent)
-        trackGoalLoad(goalId, 'performance', toPerformanceGoalSnapshot(result.data, goalId));
+        // Update the baseline with the current data after successful save
+        // This ensures that future changes are compared against the newly saved state
+        trackGoalLoad(goalId, 'performance', currentData);
 
         return true;
       } else {
@@ -253,9 +226,9 @@ export function useGoalAutoSave({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleCompetencyGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
-    if (process.env.NODE_ENV !== 'production') console.debug('🔧 handleCompetencyGoalAutoSave called with currentData:', currentData);
+    console.log('🔧 handleCompetencyGoalAutoSave called with currentData:', currentData);
     // Check if this is a new competency goal (temporary ID starts with timestamp)
-    const isNewGoal = isTemporaryGoalId(goalId);
+    const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
     
     if (isNewGoal) {
       const competencyWeight = Number.isFinite(stageBudgets?.competency) ? stageBudgets.competency : 0;
@@ -270,7 +243,7 @@ export function useGoalAutoSave({
         selectedIdealActions: currentData.selectedIdealActions && Object.keys(currentData.selectedIdealActions).length > 0 ? currentData.selectedIdealActions : null,
       };
       
-      if (process.env.NODE_ENV !== 'production') console.debug(`🚀 Auto-save: Creating competency goal with data:`, createData);
+      console.log(`🚀 Auto-save: Creating competency goal with data:`, JSON.stringify(createData, null, 2));
       const result = await createGoalAction(createData);
       
       if (result && result.success && result.data) {
@@ -282,13 +255,11 @@ export function useGoalAutoSave({
           duration: 2000,
         });
 
-        const serverId = sanitizeGoalId(result.data.id);
-
         // Replace the temporary goal with server data (preserving ID immutability)
         onGoalReplaceWithServerData(goalId, result.data, 'competency');
 
-        // Track the new goal using the frontend goal shape (keeps dirty tracking consistent)
-        trackGoalLoad(serverId, 'competency', toCompetencyGoalSnapshot(result.data, serverId));
+        // Track the new goal with server ID
+        trackGoalLoad(result.data.id, 'competency', result.data);
         clearChanges(goalId); // Clear the temporary ID changes
         return true;
       } else {
@@ -315,7 +286,7 @@ export function useGoalAutoSave({
       };
       const result = await updateGoalAction(goalId, updateData);
       
-      if (result && result.success && result.data) {
+      if (result && result.success) {
         if (process.env.NODE_ENV !== 'production') console.debug(`✅ Auto-save: Competency goal ${goalId} updated successfully`);
 
         // Show success toast for competency goal update
@@ -324,8 +295,9 @@ export function useGoalAutoSave({
           duration: 2000,
         });
 
-        onGoalReplaceWithServerData(goalId, result.data, 'competency');
-        trackGoalLoad(goalId, 'competency', toCompetencyGoalSnapshot(result.data, goalId));
+        // Update the baseline with the current data after successful save
+        // This ensures that future changes are compared against the newly saved state
+        trackGoalLoad(goalId, 'competency', currentData);
 
         return true;
       } else {

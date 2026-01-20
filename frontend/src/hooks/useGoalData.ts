@@ -114,15 +114,13 @@ export function useGoalData(): UseGoalDataReturn {
   const replaceGoalWithServerData = useCallback((tempId: string, serverGoal: GoalResponse, goalType: 'performance' | 'competency') => {
     // Sanitize the server goal ID to prevent invisible characters
     const sanitizedServerId = sanitizeGoalId(serverGoal.id);
-    const shouldReplaceId = /^\d+$/.test(tempId);
-    const nextId = shouldReplaceId ? sanitizedServerId : tempId;
 
     if (goalType === 'performance') {
       setGoalData(prev => ({
         ...prev,
         performanceGoals: prev.performanceGoals.map(goal =>
           goal.id === tempId ? {
-            id: nextId,
+            id: sanitizedServerId,
             type: serverGoal.performanceGoalType || 'quantitative',
             title: serverGoal.title || '',
             specificGoal: serverGoal.specificGoalText || '',
@@ -137,7 +135,7 @@ export function useGoalData(): UseGoalDataReturn {
         ...prev,
         competencyGoals: prev.competencyGoals.map(goal =>
           goal.id === tempId ? {
-            id: nextId,
+            id: sanitizedServerId,
             competencyIds: serverGoal.competencyIds || null,
             selectedIdealActions: serverGoal.selectedIdealActions || null,
             actionPlan: serverGoal.actionPlan || '',
