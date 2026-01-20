@@ -198,6 +198,7 @@ export default function GoalInputPage() {
             onPrevious={handlePrevious}
             stageBudgets={stageBudgets}
             userStageId={currentUser?.stage?.id}
+            isAutoSaving={isAutoSaving}
           />
         );
       case 3:
