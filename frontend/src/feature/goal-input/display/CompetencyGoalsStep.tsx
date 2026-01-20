@@ -30,7 +30,10 @@ interface CompetencyGoalsStepProps {
   periodId?: string;
   stageBudgets: StageWeightBudget;
   userStageId?: string;
+  isAutoSaving?: boolean;
 }
+
+const isTemporaryGoalId = (goalId: string) => /^\d+$/.test(goalId);
 
 export function CompetencyGoalsStep({
   goals,
@@ -39,7 +42,8 @@ export function CompetencyGoalsStep({
   onNext,
   onPrevious,
   stageBudgets,
-  userStageId
+  userStageId,
+  isAutoSaving
 }: CompetencyGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoal = goals[0];
@@ -92,7 +96,7 @@ export function CompetencyGoalsStep({
     loadCompetencies();
   }, [userStageId]);
 
-  const updateGoal = (patch: Partial<CompetencyGoal>) => {
+  const updateGoal = (patch: Partial<CompetencyGoal> | ((prev: CompetencyGoal) => Partial<CompetencyGoal>)) => {
     const baseGoal = draftGoalRef.current ?? currentGoalRef.current ?? (() => {
       const id = tempGoalIdRef.current ?? Date.now().toString();
       tempGoalIdRef.current = id;
@@ -104,12 +108,18 @@ export function CompetencyGoalsStep({
       };
     })();
 
-    const updatedGoal: CompetencyGoal = {
+    const baseGoalNormalized: CompetencyGoal = {
       id: baseGoal.id,
       competencyIds: baseGoal.competencyIds ?? null,
       selectedIdealActions: baseGoal.selectedIdealActions ?? null,
       actionPlan: baseGoal.actionPlan ?? '',
-      ...patch,
+    };
+
+    const nextPatch = typeof patch === 'function' ? patch(baseGoalNormalized) : patch;
+
+    const updatedGoal: CompetencyGoal = {
+      ...baseGoalNormalized,
+      ...nextPatch,
     };
 
     if (!updatedGoal.competencyIds || updatedGoal.competencyIds.length === 0) {
@@ -128,50 +138,51 @@ export function CompetencyGoalsStep({
   };
 
   const handleCompetencySelect = (competencyId: string, checked: boolean) => {
-    let newSelectedIds: string[];
-    const newSelectedActions = { ...selectedIdealActions };
-    
-    if (checked) {
-      newSelectedIds = [...selectedCompetencyIds, competencyId];
-    } else {
-      newSelectedIds = selectedCompetencyIds.filter(id => id !== competencyId);
-      // Remove ideal actions for this competency when deselected
-      delete newSelectedActions[competencyId];
-    }
-    const nextSelectedActions = checked ? selectedIdealActions : newSelectedActions;
+    updateGoal((prev) => {
+      const prevSelectedIds = prev.competencyIds ?? [];
+      const prevSelectedActions = prev.selectedIdealActions ?? {};
 
-    updateGoal({
-      competencyIds: newSelectedIds.length > 0 ? newSelectedIds : null,
-      selectedIdealActions: Object.keys(nextSelectedActions).length > 0 ? nextSelectedActions : null,
+      const nextSelectedIds = checked
+        ? Array.from(new Set([...prevSelectedIds, competencyId]))
+        : prevSelectedIds.filter(id => id !== competencyId);
+
+      const nextSelectedActions = { ...prevSelectedActions };
+      if (!checked) {
+        delete nextSelectedActions[competencyId];
+      }
+
+      return {
+        competencyIds: nextSelectedIds.length > 0 ? nextSelectedIds : null,
+        selectedIdealActions: Object.keys(nextSelectedActions).length > 0 ? nextSelectedActions : null,
+      };
     });
   };
 
   const handleIdealActionSelect = (competencyId: string, actionKey: string, checked: boolean) => {
-    if (!selectedCompetencyIds.includes(competencyId)) {
-      return; // Can't select ideal actions if competency isn't selected
-    }
+    updateGoal((prev) => {
+      const prevSelectedIds = prev.competencyIds ?? [];
+      if (!prevSelectedIds.includes(competencyId)) {
+        return {}; // Can't select ideal actions if competency isn't selected
+      }
 
-    const currentActions = selectedIdealActions[competencyId] || [];
-    let newActions: string[];
+      const prevSelectedActions = prev.selectedIdealActions ?? {};
+      const currentActions = prevSelectedActions[competencyId] ?? [];
+      const nextActions = checked
+        ? Array.from(new Set([...currentActions, actionKey]))
+        : currentActions.filter(key => key !== actionKey);
 
-    if (checked) {
-      newActions = [...currentActions, actionKey];
-    } else {
-      newActions = currentActions.filter(key => key !== actionKey);
-    }
+      const nextSelectedActions = {
+        ...prevSelectedActions,
+        [competencyId]: nextActions,
+      };
 
-    const newSelectedActions = {
-      ...selectedIdealActions,
-      [competencyId]: newActions,
-    };
+      if (nextActions.length === 0) {
+        delete nextSelectedActions[competencyId];
+      }
 
-    // Remove empty arrays
-    if (newActions.length === 0) {
-      delete newSelectedActions[competencyId];
-    }
-
-    updateGoal({
-      selectedIdealActions: Object.keys(newSelectedActions).length > 0 ? newSelectedActions : null,
+      return {
+        selectedIdealActions: Object.keys(nextSelectedActions).length > 0 ? nextSelectedActions : null,
+      };
     });
   };
 
@@ -180,7 +191,12 @@ export function CompetencyGoalsStep({
   };
 
   const canProceed = () => {
-    return actionPlan.trim() !== '';
+    if (!actionPlan.trim()) return false;
+    if (!currentGoal?.id) return false;
+    if (isTemporaryGoalId(currentGoal.id)) return false;
+    if (goalTracking?.isGoalDirty(currentGoal.id)) return false;
+    if (isAutoSaving) return false;
+    return true;
   };
 
   if ((stageBudgets?.competency ?? 0) === 0) {
@@ -342,6 +358,11 @@ export function CompetencyGoalsStep({
         >
           次へ進む
         </Button>
+        {actionPlan.trim() && !canProceed() && (
+          <p className="col-span-3 text-right text-sm text-muted-foreground">
+            保存中のため、保存完了後に次へ進めます。
+          </p>
+        )}
       </div>
     </div>
   );
