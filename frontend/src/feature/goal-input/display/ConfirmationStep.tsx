@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -46,7 +45,6 @@ interface ConfirmationStepProps {
 
 export function ConfirmationStep(props: ConfirmationStepProps) {
   const { performanceGoals, competencyGoals, periodId, currentUserId, currentUserStatus, onPrevious, userStageId } = props;
-  const router = useRouter();
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [competencies, setCompetencies] = useState<Competency[]>([]);
@@ -149,7 +147,6 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
         setShowSubmitDialog(false);
         if (allSubmitted) {
           toast.success('目標が正常に提出されました。承認をお待ちください。');
-          router.replace('/goal-list');
         } else {
           toast.error(submitErrors.join(', ') || '提出に失敗しました。やり直してください。');
         }
