@@ -582,6 +582,7 @@ class GoalService:
             
             # Commit transaction
             await self.session.commit()
+            await self.session.refresh(updated_goal)
 
             # Enrich response data with competency names (N+1 fix)
             competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
