@@ -100,19 +100,25 @@ export async function getSupervisorGoalReviewPageDataAction(
     }
 
     const supervisorId = currentUserContext.user?.id;
-    let subordinateUsers: UserDetailResponse[] = [];
-    if (supervisorId) {
-      const subordinatesResult = await getSubordinatesAction(supervisorId);
-      subordinateUsers = subordinatesResult.success && subordinatesResult.data?.items
+    const [subordinatesResult, reviewsResult] = await Promise.all([
+      supervisorId
+        ? getSubordinatesAction(supervisorId)
+        : Promise.resolve(
+            ({ success: true, data: undefined, error: undefined }) satisfies Awaited<
+              ReturnType<typeof getSubordinatesAction>
+            >,
+          ),
+      getPendingSupervisorReviewsAction({
+        pagination: { limit: 200 },
+        periodId: selectedPeriod.id,
+        include: 'goal,subordinate',
+      }),
+    ]);
+
+    const subordinateUsers: UserDetailResponse[] =
+      subordinatesResult.success && subordinatesResult.data?.items
         ? subordinatesResult.data.items
         : [];
-    }
-
-    const reviewsResult = await getPendingSupervisorReviewsAction({
-      pagination: { limit: 200 },
-      periodId: selectedPeriod.id,
-      include: 'goal,subordinate',
-    });
 
     if (!reviewsResult.success || !reviewsResult.data || !reviewsResult.data.items) {
       return {
