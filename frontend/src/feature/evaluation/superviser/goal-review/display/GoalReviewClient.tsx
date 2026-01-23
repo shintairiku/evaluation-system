@@ -264,7 +264,8 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
   const selectedGroup = groupedGoals.find(group => group.employee.id === selectedEmployeeId) ?? null;
   const approvedGoalsState = selectedEmployeeId ? approvedGoalsByEmployeeId[selectedEmployeeId] : undefined;
   const approvedGoals = approvedGoalsState?.items ?? [];
-  const isLoadingApprovedGoals = approvedGoalsState?.isLoading ?? false;
+  const isLoadingApprovedGoals =
+    Boolean(selectedEmployeeId) && !approvedGoalsState ? true : approvedGoalsState?.isLoading ?? false;
   const approvedGoalsError = approvedGoalsState?.error ?? null;
 
   return (
@@ -328,7 +329,7 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
                     <div className="flex items-center gap-2">
                       <h2 className="text-lg font-semibold">承認済みの目標</h2>
                       <Badge variant="secondary" className="text-sm">
-                        {approvedGoals.length}
+                        {isLoadingApprovedGoals ? '...' : approvedGoals.length}
                       </Badge>
                     </div>
 
