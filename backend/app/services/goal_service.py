@@ -11,6 +11,7 @@ from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.repositories.supervisor_review_repository import SupervisorReviewRepository
+from ..database.repositories.self_assessment_repo import SelfAssessmentRepository
 from ..database.models.goal import Goal as GoalModel
 from ..schemas.goal import (
     GoalCreate, GoalUpdate, Goal, GoalDetail, GoalStatus,
@@ -55,6 +56,7 @@ class GoalService:
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.competency_repo = CompetencyRepository(session)
         self.supervisor_review_repo = SupervisorReviewRepository(session)
+        self.self_assessment_repo = SelfAssessmentRepository(session)
         
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
@@ -833,8 +835,21 @@ class GoalService:
                 raise PermissionDeniedError("You can only reject goals for your subordinates")
             
             # Business validation
-            if goal.status != GoalStatus.SUBMITTED.value:
-                raise BadRequestError("Goal must be in pending approval status")
+            if goal.status not in (GoalStatus.SUBMITTED.value, GoalStatus.APPROVED.value):
+                raise BadRequestError("Goal must be in submitted or approved status")
+
+            # Guard rails: prevent remand/rejection once evaluation has progressed.
+            period = await self.evaluation_period_repo.get_by_id(goal.period_id, org_id)
+            if not period:
+                raise NotFoundError(f"Evaluation period with ID {goal.period_id} not found")
+
+            period_status = getattr(period.status, "value", period.status)
+            if period_status in ("completed", "cancelled"):
+                raise BadRequestError("Cannot reject goals in completed or cancelled evaluation periods")
+
+            existing_assessment = await self.self_assessment_repo.get_by_goal(goal_id, org_id)
+            if existing_assessment:
+                raise BadRequestError("Cannot reject goal after self-assessment has been created")
             
             # Update status
             updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.REJECTED, org_id)
