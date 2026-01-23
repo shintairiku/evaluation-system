@@ -4,6 +4,7 @@ import React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { getGoalsAction } from '@/api/server-actions/goals';
 import { EmployeeTabNavigation } from '../components/EmployeeTabNavigation';
 import { EmployeeInfoCard } from '@/components/evaluation/EmployeeInfoCard';
 import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
@@ -15,10 +16,17 @@ import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { createSkipLink, generateAccessibilityId } from '@/utils/accessibility';
 import type { SupervisorGoalReviewPageData } from '@/api/types/page-loaders';
+import type { GoalResponse } from '@/api/types';
 
 interface GoalReviewClientProps {
   pageData: SupervisorGoalReviewPageData;
 }
+
+type ApprovedGoalsState = {
+  items: GoalResponse[];
+  isLoading: boolean;
+  error: string | null;
+};
 
 export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
   const router = useRouter();
@@ -35,6 +43,9 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
 
   const groupedGoals = pageData.grouped;
   const totalPendingCount = pageData.totalPendingCount;
+
+  const [approvedGoalsByEmployeeId, setApprovedGoalsByEmployeeId] = React.useState<Record<string, ApprovedGoalsState>>({});
+  const [approvedGoalsVersion, setApprovedGoalsVersion] = React.useState(0);
 
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>(() => (
     groupedGoals[0]?.employee.id ?? ''
@@ -111,6 +122,72 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
     };
   }, [router]);
 
+  React.useEffect(() => {
+    setApprovedGoalsByEmployeeId({});
+  }, [selectedPeriodId]);
+
+  React.useEffect(() => {
+    if (!selectedPeriodId || !selectedEmployeeId) return;
+
+    let cancelled = false;
+
+    setApprovedGoalsByEmployeeId(prev => ({
+      ...prev,
+      [selectedEmployeeId]: {
+        items: prev[selectedEmployeeId]?.items ?? [],
+        isLoading: true,
+        error: null,
+      },
+    }));
+
+    getGoalsAction({
+      periodId: selectedPeriodId,
+      userId: selectedEmployeeId,
+      status: ['approved'],
+      includeReviews: true,
+      limit: 100,
+    }).then((result) => {
+      if (cancelled) return;
+
+      if (!result.success || !result.data?.items) {
+        setApprovedGoalsByEmployeeId(prev => ({
+          ...prev,
+          [selectedEmployeeId]: {
+            items: [],
+            isLoading: false,
+            error: result.error || '承認済み目標の読み込みに失敗しました',
+          },
+        }));
+        return;
+      }
+
+      setApprovedGoalsByEmployeeId(prev => ({
+        ...prev,
+        [selectedEmployeeId]: {
+          items: result.data?.items ?? [],
+          isLoading: false,
+          error: null,
+        },
+      }));
+    }).catch((error) => {
+      if (cancelled) return;
+
+      if (process.env.NODE_ENV !== 'production') console.error('Failed to load approved goals:', error);
+      setApprovedGoalsByEmployeeId(prev => ({
+        ...prev,
+        [selectedEmployeeId]: {
+          items: [],
+          isLoading: false,
+          error: '承認済み目標の読み込み中に予期しないエラーが発生しました',
+        },
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [approvedGoalsVersion, selectedEmployeeId, selectedPeriodId]);
+
   const handlePeriodChange = (periodId: string) => {
     const next = new URLSearchParams(searchParams.toString());
 
@@ -123,6 +200,11 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
     const qs = next.toString();
     router.push(qs.length > 0 ? `${pathname}?${qs}` : pathname);
   };
+
+  const handleGoalUpdate = React.useCallback(() => {
+    setApprovedGoalsVersion(prev => prev + 1);
+    router.refresh();
+  }, [router]);
 
   if (!pageData.selectedPeriod) {
     return (
@@ -180,6 +262,11 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
   }
 
   const selectedGroup = groupedGoals.find(group => group.employee.id === selectedEmployeeId) ?? null;
+  const approvedGoalsState = selectedEmployeeId ? approvedGoalsByEmployeeId[selectedEmployeeId] : undefined;
+  const approvedGoals = approvedGoalsState?.items ?? [];
+  const isLoadingApprovedGoals =
+    Boolean(selectedEmployeeId) && !approvedGoalsState ? true : approvedGoalsState?.isLoading ?? false;
+  const approvedGoalsError = approvedGoalsState?.error ?? null;
 
   return (
     <ErrorBoundary>
@@ -221,13 +308,55 @@ export default function GoalReviewClient({ pageData }: GoalReviewClientProps) {
                   <EmployeeInfoCard employee={selectedGroup.employee} />
 
                   <div className="space-y-4">
+                    {selectedGroup.goals.length === 0 && (
+                      <div className="text-center py-8 text-sm text-muted-foreground">
+                        承認待ちの目標はありません
+                      </div>
+                    )}
+
                     {selectedGroup.goals.map((goal) => (
                       <GoalApprovalCard
                         key={goal.id}
                         goal={goal}
                         employeeName={selectedGroup.employee.name}
-                        onGoalUpdate={() => router.refresh()}
+                        onGoalUpdate={handleGoalUpdate}
                         review={selectedGroup.reviewsByGoalId[goal.id]}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">承認済みの目標</h2>
+                      <Badge variant="secondary" className="text-sm">
+                        {isLoadingApprovedGoals ? '...' : approvedGoals.length}
+                      </Badge>
+                    </div>
+
+                    {isLoadingApprovedGoals && (
+                      <div className="text-center py-8 text-sm text-muted-foreground">
+                        読み込み中...
+                      </div>
+                    )}
+
+                    {!isLoadingApprovedGoals && approvedGoalsError && (
+                      <div className="text-center py-8 text-sm text-red-600">
+                        {approvedGoalsError}
+                      </div>
+                    )}
+
+                    {!isLoadingApprovedGoals && !approvedGoalsError && approvedGoals.length === 0 && (
+                      <div className="text-center py-8 text-sm text-muted-foreground">
+                        承認済みの目標はありません
+                      </div>
+                    )}
+
+                    {!isLoadingApprovedGoals && !approvedGoalsError && approvedGoals.map((goal) => (
+                      <GoalApprovalCard
+                        key={goal.id}
+                        goal={goal}
+                        employeeName={selectedGroup.employee.name}
+                        onGoalUpdate={handleGoalUpdate}
                       />
                     ))}
                   </div>
