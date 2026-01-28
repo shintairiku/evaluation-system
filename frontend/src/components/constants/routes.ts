@@ -84,6 +84,13 @@ export const groups = [
         permission: 'admin'
       },
       {
+        href: '/admin-eval-list',
+        label: '総合評価',
+        sublabel: 'Comprehensive Evaluation',
+        icon: 'clipboard',
+        permission: 'admin'
+      },
+      {
         href: '/stage-management',
         label: 'ステージ管理',
         sublabel: 'Stage Management',
