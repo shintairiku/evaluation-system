@@ -9,18 +9,36 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 
-import { computeComprehensiveEvaluationRow, computeEffectiveUserFlags } from "../logic";
+import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow, computeEffectiveUserFlags, type ComprehensiveEvaluationComputedRow } from "../logic";
+import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
 import { useComprehensiveEvaluationUserFlags } from "../hooks/useComprehensiveEvaluationUserFlags";
+import type { ComprehensiveEvaluationManualOverride } from "../manualOverride";
 import { mockComprehensiveEvaluationRows, mockEvaluationPeriods } from "../mock";
+import type { ComprehensiveEvaluationDecision, ComprehensiveEvaluationSettings } from "../settings";
 import type { ComprehensiveEvaluationRow, EmploymentType } from "../types";
 
 type CandidateFilter = "all" | "promotion" | "demotion";
+
+type ManualOverrideDraft = {
+  decision: ComprehensiveEvaluationDecision;
+  stageDelta: string;
+  levelDelta: string;
+  reason: string;
+  doubleCheckedBy: string;
+  confirmed: boolean;
+};
+
+const DECISIONS: ComprehensiveEvaluationDecision[] = ["昇格", "降格", "対象外"];
 
 function buildSearchText(row: ComprehensiveEvaluationRow): string {
   return [row.employeeCode, row.name, row.departmentName, row.currentStage ?? ""].join(" ").toLowerCase();
@@ -54,11 +72,18 @@ function getDecisionBadgeVariant(decision: "昇格" | "降格" | "対象外") {
   return "outline";
 }
 
+function getDefaultStageDelta(decision: ComprehensiveEvaluationDecision, settings: ComprehensiveEvaluationSettings): number {
+  if (decision === "昇格") return settings.promotion.stageDelta;
+  if (decision === "降格") return settings.demotion.stageDelta;
+  return 0;
+}
+
 export default function ComprehensiveEvaluationCandidatesPage() {
   const { hasRole } = useUserRoles();
-  const canEdit = hasRole("eval_admin");
+  const canEdit = hasRole("admin"); // TODO: eval_adminに変更
   const { settings } = useComprehensiveEvaluationSettings();
-  const { flagsByUserId, updateUserFlags, resetUserFlags } = useComprehensiveEvaluationUserFlags();
+  const { flagsByUserId, updateUserFlags } = useComprehensiveEvaluationUserFlags();
+  const { overridesByPeriodId, upsertOverride, clearOverride } = useComprehensiveEvaluationManualOverrides();
 
   const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(mockEvaluationPeriods[0]?.id ?? "all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
@@ -67,6 +92,8 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [candidateOnly, setCandidateOnly] = useState<boolean>(true);
   const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("all");
+  const [overrideRowId, setOverrideRowId] = useState<string | null>(null);
+  const [overrideDraft, setOverrideDraft] = useState<ManualOverrideDraft | null>(null);
 
   const departments = useMemo(() => {
     const unique = new Set<string>();
@@ -98,26 +125,93 @@ export default function ComprehensiveEvaluationCandidatesPage() {
 
   const computedRows = useMemo(() => {
     return filteredRows.map((row) => {
-      const computed = computeComprehensiveEvaluationRow(row, settings, flagsByUserId[row.userId]);
+      const base = computeComprehensiveEvaluationRow(row, settings, flagsByUserId[row.userId]);
+      const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
+      const applied = applyComprehensiveEvaluationManualOverride(row, base, settings, override);
       const effectiveFlags = computeEffectiveUserFlags(row, flagsByUserId[row.userId]);
-      return { row, computed, effectiveFlags };
+      return { row, base, applied, override, effectiveFlags };
     });
-  }, [filteredRows, flagsByUserId, settings]);
+  }, [filteredRows, flagsByUserId, overridesByPeriodId, settings]);
+
+  const selectedItem = useMemo(() => {
+    if (!overrideRowId) return null;
+    return computedRows.find((item) => item.row.id === overrideRowId) ?? null;
+  }, [computedRows, overrideRowId]);
+
+  const openOverrideDialog = (
+    row: ComprehensiveEvaluationRow,
+    base: ComprehensiveEvaluationComputedRow,
+    override: ComprehensiveEvaluationManualOverride | undefined
+  ) => {
+    setOverrideRowId(row.id);
+    setOverrideDraft({
+      decision: override?.decision ?? base.decision,
+      stageDelta: typeof override?.stageDelta === "number" ? String(override.stageDelta) : "",
+      levelDelta: typeof override?.levelDelta === "number" ? String(override.levelDelta) : "",
+      reason: override?.reason ?? "",
+      doubleCheckedBy: override?.doubleCheckedBy ?? "",
+      confirmed: false,
+    });
+  };
 
   const counts = useMemo(() => {
-    const promotion = computedRows.filter((item) => item.computed.decision === "昇格").length;
-    const demotion = computedRows.filter((item) => item.computed.decision === "降格").length;
+    const promotion = computedRows.filter((item) => item.applied.decision === "昇格").length;
+    const demotion = computedRows.filter((item) => item.applied.decision === "降格").length;
     return { promotion, demotion };
   }, [computedRows]);
 
   const visibleRows = useMemo(() => {
     return computedRows.filter((item) => {
-      if (candidateOnly && item.computed.decision === "対象外") return false;
-      if (candidateFilter === "promotion" && item.computed.decision !== "昇格") return false;
-      if (candidateFilter === "demotion" && item.computed.decision !== "降格") return false;
+      if (candidateOnly && item.applied.decision === "対象外") return false;
+      if (candidateFilter === "promotion" && item.applied.decision !== "昇格") return false;
+      if (candidateFilter === "demotion" && item.applied.decision !== "降格") return false;
       return true;
     });
   }, [candidateFilter, candidateOnly, computedRows]);
+
+  const closeOverrideDialog = () => {
+    setOverrideRowId(null);
+    setOverrideDraft(null);
+  };
+
+  const handleApplyOverride = () => {
+    if (!canEdit || !selectedItem || !overrideDraft) return;
+
+    const stageDeltaInput = overrideDraft.stageDelta.trim();
+    const stageDeltaValue = stageDeltaInput === "" ? undefined : Number(stageDeltaInput);
+    const stageDeltaValid =
+      stageDeltaInput === "" || (Number.isFinite(stageDeltaValue) && Number.isInteger(stageDeltaValue));
+
+    const levelDeltaInput = overrideDraft.levelDelta.trim();
+    const levelDeltaValue = levelDeltaInput === "" ? undefined : Number(levelDeltaInput);
+    const levelDeltaValid =
+      levelDeltaInput === "" || (Number.isFinite(levelDeltaValue) && Number.isInteger(levelDeltaValue));
+
+    if (!stageDeltaValid || !levelDeltaValid) return;
+    if (!overrideDraft.reason.trim()) return;
+    if (!overrideDraft.doubleCheckedBy.trim()) return;
+    if (!overrideDraft.confirmed) return;
+
+    upsertOverride(selectedItem.row.evaluationPeriodId, selectedItem.row.userId, {
+      decision: overrideDraft.decision,
+      stageDelta: stageDeltaInput === "" ? undefined : (stageDeltaValue as number),
+      levelDelta:
+        selectedItem.row.employmentType === "parttime" || levelDeltaInput === ""
+          ? undefined
+          : (levelDeltaValue as number),
+      reason: overrideDraft.reason.trim(),
+      doubleCheckedBy: overrideDraft.doubleCheckedBy.trim(),
+      appliedAt: new Date().toISOString(),
+    });
+
+    closeOverrideDialog();
+  };
+
+  const handleClearOverride = () => {
+    if (!canEdit || !selectedItem) return;
+    clearOverride(selectedItem.row.evaluationPeriodId, selectedItem.row.userId);
+    closeOverrideDialog();
+  };
 
   const handleClearFilters = () => {
     setEvaluationPeriodId(mockEvaluationPeriods[0]?.id ?? "all");
@@ -136,7 +230,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">昇格/降格 判定</h1>
             <p className="text-sm text-muted-foreground">
-              ルールに基づく候補者一覧（モック）。面談/プレゼン/CEO面談のクリア状況は`eval_admin`が更新できます。
+              ルールに基づく候補者一覧（モック）。`eval_admin`は面談フラグの更新と、特例による判定/ステージ/レベルの上書き（理由・ダブルチェック必須）ができます。
             </p>
           </div>
 
@@ -144,11 +238,6 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             <Button asChild variant="outline">
               <Link href="/admin-eval-list">総合評価テーブルへ</Link>
             </Button>
-            {canEdit && (
-              <Button variant="outline" onClick={resetUserFlags}>
-                面談フラグをリセット
-              </Button>
-            )}
           </div>
         </div>
 
@@ -299,8 +388,12 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  visibleRows.map(({ row, computed, effectiveFlags }) => {
-                    const isAlertLevel = computed.newLevel !== null && computed.newLevel >= 31;
+                  visibleRows.map(({ row, base, applied, override, effectiveFlags }) => {
+                    const isAlertLevel = applied.newLevel !== null && applied.newLevel >= 31;
+                    const stageChangedByOverride = !!override && applied.newStage !== base.newStage;
+                    const levelDeltaChangedByOverride = !!override && applied.levelDelta !== base.levelDelta;
+                    const levelChangedByOverride = !!override && applied.newLevel !== base.newLevel;
+                    const decisionChangedByOverride = !!override && applied.decision !== base.decision;
 
                     return (
                       <TableRow key={row.id}>
@@ -312,7 +405,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                             {getEmploymentTypeLabel(row.employmentType)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-center">{computed.overallRank ?? "-"}</TableCell>
+                        <TableCell className="text-center">{base.overallRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{row.competencyFinalRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{row.coreValueFinalRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{formatMboDFlag(row.mboDRatingFlag)}</TableCell>
@@ -346,19 +439,48 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         </TableCell>
 
                         <TableCell className="text-center">
-                          <Badge variant={getDecisionBadgeVariant(computed.decision)}>
-                            {computed.decision}
-                          </Badge>
+                          <div className="flex items-center justify-center gap-2">
+                            <Badge variant={getDecisionBadgeVariant(applied.decision)}>
+                              {applied.decision}
+                            </Badge>
+                            {override && <Badge variant="secondary">特例</Badge>}
+                            {canEdit && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2"
+                                onClick={() => openOverrideDialog(row, base, override)}
+                              >
+                                編集
+                              </Button>
+                            )}
+                          </div>
+                          {decisionChangedByOverride && (
+                            <div className="mt-1 text-xs text-muted-foreground">自動: {base.decision}</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">{row.currentStage ?? "-"}</TableCell>
-                        <TableCell className="text-center">{computed.newStage ?? "-"}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="font-medium">{applied.newStage ?? "-"}</div>
+                          {stageChangedByOverride && (
+                            <div className="mt-1 text-xs text-muted-foreground">自動: {base.newStage ?? "-"}</div>
+                          )}
+                        </TableCell>
                         <TableCell className="text-center">{row.currentLevel ?? "-"}</TableCell>
-                        <TableCell className="text-center">{formatDelta(computed.levelDelta)}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="font-medium">{formatDelta(applied.levelDelta)}</div>
+                          {levelDeltaChangedByOverride && (
+                            <div className="mt-1 text-xs text-muted-foreground">自動: {formatDelta(base.levelDelta)}</div>
+                          )}
+                        </TableCell>
                         <TableCell className={isAlertLevel ? "text-center font-semibold text-destructive" : "text-center"}>
-                          {computed.newLevel ?? "-"}
+                          <div className="font-medium">{applied.newLevel ?? "-"}</div>
+                          {levelChangedByOverride && (
+                            <div className="mt-1 text-xs text-muted-foreground">自動: {base.newLevel ?? "-"}</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {computed.totalScore !== null ? formatNumber(computed.totalScore) : "-"}
+                          {base.totalScore !== null ? formatNumber(base.totalScore) : "-"}
                         </TableCell>
                       </TableRow>
                     );
@@ -368,6 +490,196 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             </Table>
           </div>
         </div>
+
+        <Dialog open={overrideRowId !== null} onOpenChange={(open) => !open && closeOverrideDialog()}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>特例反映（手動で判定/ステージ/レベルを確定）</DialogTitle>
+              <DialogDescription>
+                ルールに該当しない場合でも、理由とダブルチェック情報を残して手動で反映できます（モックではブラウザ保存）。
+              </DialogDescription>
+            </DialogHeader>
+
+            {!selectedItem || !overrideDraft ? (
+              <div className="text-sm text-muted-foreground">対象データが見つかりません</div>
+            ) : (
+              <div className="space-y-5">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">
+                    {selectedItem.row.employeeCode} {selectedItem.row.name}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {selectedItem.row.departmentName} / {selectedItem.row.currentStage ?? "-"}
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="text-sm font-semibold">自動判定</div>
+                    <div className="text-sm">判定: {selectedItem.base.decision}</div>
+                    <div className="text-sm">新ステージ: {selectedItem.base.newStage ?? "-"}</div>
+                    <div className="text-sm">レベル増減: {formatDelta(selectedItem.base.levelDelta)}</div>
+                    <div className="text-sm">新レベル: {selectedItem.base.newLevel ?? "-"}</div>
+                  </div>
+
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="text-sm font-semibold">特例プレビュー</div>
+                    {(() => {
+                      const stageDeltaInput = overrideDraft.stageDelta.trim();
+                      const stageDeltaValue = stageDeltaInput === "" ? undefined : Number(stageDeltaInput);
+                      const stageDeltaValid =
+                        stageDeltaInput === "" || (Number.isFinite(stageDeltaValue) && Number.isInteger(stageDeltaValue));
+                      const stageDeltaOverride =
+                        stageDeltaValid && stageDeltaInput !== "" ? (stageDeltaValue as number) : undefined;
+
+                      const levelDeltaInput = overrideDraft.levelDelta.trim();
+                      const levelDeltaValue = levelDeltaInput === "" ? undefined : Number(levelDeltaInput);
+                      const levelDeltaValid =
+                        levelDeltaInput === "" || (Number.isFinite(levelDeltaValue) && Number.isInteger(levelDeltaValue));
+                      const levelDeltaOverride =
+                        levelDeltaValid && levelDeltaInput !== "" ? (levelDeltaValue as number) : undefined;
+
+                      const preview = applyComprehensiveEvaluationManualOverride(selectedItem.row, selectedItem.base, settings, {
+                        decision: overrideDraft.decision,
+                        stageDelta: stageDeltaOverride,
+                        levelDelta: selectedItem.row.employmentType === "parttime" ? undefined : levelDeltaOverride,
+                        reason: overrideDraft.reason,
+                        doubleCheckedBy: overrideDraft.doubleCheckedBy,
+                        appliedAt: selectedItem.override?.appliedAt ?? new Date().toISOString(),
+                      });
+
+                      return (
+                        <>
+                          <div className="text-sm">判定: {preview.decision}</div>
+                          <div className="text-sm">新ステージ: {preview.newStage ?? "-"}</div>
+                          <div className="text-sm">レベル増減: {formatDelta(preview.levelDelta)}</div>
+                          <div className="text-sm">新レベル: {preview.newLevel ?? "-"}</div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>判定（特例）</Label>
+                    <Select
+                      value={overrideDraft.decision}
+                      onValueChange={(value) => setOverrideDraft((prev) => (prev ? { ...prev, decision: value as ComprehensiveEvaluationDecision } : prev))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DECISIONS.map((decision) => (
+                          <SelectItem key={decision} value={decision}>
+                            {decision}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-muted-foreground">
+                      ステージ増減のデフォルト: {getDefaultStageDelta(overrideDraft.decision, settings)}（手動入力があれば優先）
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>ステージ増減（任意）</Label>
+                    <Input
+                      inputMode="numeric"
+                      placeholder={`${getDefaultStageDelta(overrideDraft.decision, settings)}`}
+                      value={overrideDraft.stageDelta}
+                      onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, stageDelta: e.target.value } : prev))}
+                      disabled={!canEdit}
+                    />
+                    {overrideDraft.stageDelta.trim() !== "" &&
+                      !(Number.isFinite(Number(overrideDraft.stageDelta)) && Number.isInteger(Number(overrideDraft.stageDelta))) && (
+                        <div className="text-xs text-destructive">整数で入力してください</div>
+                      )}
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>レベル増減（任意・正社員のみ）</Label>
+                    <Input
+                      inputMode="numeric"
+                      placeholder="例: 0 / +5 / -3"
+                      value={overrideDraft.levelDelta}
+                      onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, levelDelta: e.target.value } : prev))}
+                      disabled={!canEdit || selectedItem.row.employmentType === "parttime"}
+                    />
+                    {selectedItem.row.employmentType === "parttime" && (
+                      <div className="text-xs text-muted-foreground">パートはレベル概念がないため未適用です</div>
+                    )}
+                    {overrideDraft.levelDelta.trim() !== "" &&
+                      !(Number.isFinite(Number(overrideDraft.levelDelta)) && Number.isInteger(Number(overrideDraft.levelDelta))) && (
+                        <div className="text-xs text-destructive">整数で入力してください</div>
+                      )}
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>特例理由（必須）</Label>
+                    <Textarea
+                      value={overrideDraft.reason}
+                      onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, reason: e.target.value } : prev))}
+                      placeholder="例: 組織改編に伴う役割変更のため、ルール外でステージ変更を実施"
+                      disabled={!canEdit}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>ダブルチェック者（必須）</Label>
+                    <Input
+                      value={overrideDraft.doubleCheckedBy}
+                      onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, doubleCheckedBy: e.target.value } : prev))}
+                      placeholder="確認者氏名（例: 人事 太郎）"
+                      disabled={!canEdit}
+                    />
+                    <Label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={overrideDraft.confirmed}
+                        disabled={!canEdit}
+                        onCheckedChange={(checked) => setOverrideDraft((prev) => (prev ? { ...prev, confirmed: checked === true } : prev))}
+                      />
+                      入力内容をダブルチェックしたうえで反映します
+                    </Label>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <Button variant="outline" onClick={closeOverrideDialog}>
+                    キャンセル
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    {selectedItem.override && (
+                      <Button variant="outline" onClick={handleClearOverride} disabled={!canEdit}>
+                        特例を解除
+                      </Button>
+                    )}
+                    <Button
+                      onClick={handleApplyOverride}
+                      disabled={
+                        !canEdit ||
+                        !overrideDraft.confirmed ||
+                        !overrideDraft.reason.trim() ||
+                        !overrideDraft.doubleCheckedBy.trim() ||
+                        (overrideDraft.stageDelta.trim() !== "" &&
+                          !(Number.isFinite(Number(overrideDraft.stageDelta)) && Number.isInteger(Number(overrideDraft.stageDelta)))) ||
+                        (overrideDraft.levelDelta.trim() !== "" &&
+                          !(Number.isFinite(Number(overrideDraft.levelDelta)) && Number.isInteger(Number(overrideDraft.levelDelta))))
+                      }
+                    >
+                      反映
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </RolePermissionGuard>
   );

@@ -16,7 +16,8 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 import { mockComprehensiveEvaluationRows, mockEvaluationPeriods } from "../mock";
-import { computeComprehensiveEvaluationRow } from "../logic";
+import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow } from "../logic";
+import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
 import { useComprehensiveEvaluationUserFlags } from "../hooks/useComprehensiveEvaluationUserFlags";
 import { EVALUATION_RANKS } from "../settings";
@@ -57,9 +58,10 @@ function getEmploymentTypeBadgeVariant(value: EmploymentType) {
 
 export default function ComprehensiveEvaluationPage() {
   const { hasRole } = useUserRoles();
-  const canEditThresholds = hasRole("eval_admin");
+  const canEditThresholds = hasRole("admin"); // TODO: eval_adminに変更
   const { settings, setSettings, resetSettings } = useComprehensiveEvaluationSettings();
   const { flagsByUserId } = useComprehensiveEvaluationUserFlags();
+  const { overridesByPeriodId } = useComprehensiveEvaluationManualOverrides();
 
   const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(
     mockEvaluationPeriods[0]?.id ?? "all"
@@ -540,11 +542,13 @@ export default function ComprehensiveEvaluationPage() {
                   </TableRow>
                 ) : (
                   filteredRows.map((row) => {
-                    const computed = computeComprehensiveEvaluationRow(
+                    const base = computeComprehensiveEvaluationRow(
                       row,
                       settings,
                       flagsByUserId[row.userId]
                     );
+                    const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
+                    const computed = applyComprehensiveEvaluationManualOverride(row, base, settings, override);
                     const isAlertLevel = computed.newLevel !== null && computed.newLevel >= 31;
 
                     return (
@@ -577,7 +581,12 @@ export default function ComprehensiveEvaluationPage() {
                         </TableCell>
                         <TableCell className="text-center">{computed.overallRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{formatMboDFlag(row.mboDRatingFlag)}</TableCell>
-                        <TableCell className="text-center">{computed.decision}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <span>{computed.decision}</span>
+                            {override && <Badge variant="secondary">特例</Badge>}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-center">
                           {formatDelta(computed.levelDelta)}
                         </TableCell>
