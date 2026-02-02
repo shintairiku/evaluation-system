@@ -18,12 +18,20 @@ import { computeComprehensiveEvaluationRow, computeEffectiveUserFlags } from "..
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
 import { useComprehensiveEvaluationUserFlags } from "../hooks/useComprehensiveEvaluationUserFlags";
 import { mockComprehensiveEvaluationRows, mockEvaluationPeriods } from "../mock";
-import type { ComprehensiveEvaluationRow } from "../types";
+import type { ComprehensiveEvaluationRow, EmploymentType } from "../types";
 
 type CandidateFilter = "all" | "promotion" | "demotion";
 
 function buildSearchText(row: ComprehensiveEvaluationRow): string {
   return [row.employeeCode, row.name, row.departmentName, row.currentStage ?? ""].join(" ").toLowerCase();
+}
+
+function getEmploymentTypeLabel(value: EmploymentType): string {
+  return value === "employee" ? "正社員" : "パート";
+}
+
+function getEmploymentTypeBadgeVariant(value: EmploymentType) {
+  return value === "employee" ? "outline" : "secondary";
 }
 
 function formatNumber(value: number, digits = 2): string {
@@ -34,6 +42,10 @@ function formatDelta(value: number | null): string {
   if (value === null) return "-";
   if (value === 0) return "0";
   return value > 0 ? `+${value}` : `${value}`;
+}
+
+function formatMboDFlag(value: ComprehensiveEvaluationRow["mboDRatingFlag"]): string {
+  return value === "1" ? "1" : "-";
 }
 
 function getDecisionBadgeVariant(decision: "昇格" | "降格" | "対象外") {
@@ -51,6 +63,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(mockEvaluationPeriods[0]?.id ?? "all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedStage, setSelectedStage] = useState<string>("all");
+  const [selectedEmploymentType, setSelectedEmploymentType] = useState<EmploymentType | "all">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [candidateOnly, setCandidateOnly] = useState<boolean>(true);
   const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("all");
@@ -76,11 +89,12 @@ export default function ComprehensiveEvaluationCandidatesPage() {
       if (evaluationPeriodId !== "all" && row.evaluationPeriodId !== evaluationPeriodId) return false;
       if (selectedDepartment !== "all" && row.departmentName !== selectedDepartment) return false;
       if (selectedStage !== "all" && row.currentStage !== selectedStage) return false;
+      if (selectedEmploymentType !== "all" && row.employmentType !== selectedEmploymentType) return false;
 
       if (!normalizedQuery) return true;
       return buildSearchText(row).includes(normalizedQuery);
     });
-  }, [evaluationPeriodId, searchQuery, selectedDepartment, selectedStage]);
+  }, [evaluationPeriodId, searchQuery, selectedDepartment, selectedStage, selectedEmploymentType]);
 
   const computedRows = useMemo(() => {
     return filteredRows.map((row) => {
@@ -109,6 +123,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
     setEvaluationPeriodId(mockEvaluationPeriods[0]?.id ?? "all");
     setSelectedDepartment("all");
     setSelectedStage("all");
+    setSelectedEmploymentType("all");
     setSearchQuery("");
     setCandidateOnly(true);
     setCandidateFilter("all");
@@ -184,6 +199,17 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             </SelectContent>
           </Select>
 
+          <Select value={selectedEmploymentType} onValueChange={(value) => setSelectedEmploymentType(value as EmploymentType | "all")}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="雇用形態" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべての雇用形態</SelectItem>
+              <SelectItem value="employee">正社員</SelectItem>
+              <SelectItem value="parttime">パート</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={candidateFilter} onValueChange={(value) => setCandidateFilter(value as CandidateFilter)}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="表示" />
@@ -225,6 +251,15 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             size="sm"
             className="flex items-center gap-2"
             onClick={handleClearFilters}
+            disabled={
+              evaluationPeriodId === (mockEvaluationPeriods[0]?.id ?? "all") &&
+              selectedDepartment === "all" &&
+              selectedStage === "all" &&
+              selectedEmploymentType === "all" &&
+              candidateFilter === "all" &&
+              candidateOnly &&
+              !searchQuery
+            }
           >
             <X className="h-4 w-4" />
             クリア
@@ -239,10 +274,11 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                   <TableHead className="whitespace-nowrap">社員番号</TableHead>
                   <TableHead className="whitespace-nowrap">氏名</TableHead>
                   <TableHead className="whitespace-nowrap">部署</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">雇用形態</TableHead>
                   <TableHead className="whitespace-nowrap text-center">総合評価</TableHead>
                   <TableHead className="whitespace-nowrap text-center">コンピテンシー</TableHead>
                   <TableHead className="whitespace-nowrap text-center">クレド</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">MBO D</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">MBO Dフラグ</TableHead>
                   <TableHead className="whitespace-nowrap text-center">リーダー面談</TableHead>
                   <TableHead className="whitespace-nowrap text-center">事業部長プレゼン</TableHead>
                   <TableHead className="whitespace-nowrap text-center">CEO面談</TableHead>
@@ -258,7 +294,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
               <TableBody>
                 {visibleRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={17} className="h-24 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={18} className="h-24 text-center text-sm text-muted-foreground">
                       表示できるデータがありません
                     </TableCell>
                   </TableRow>
@@ -271,10 +307,15 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         <TableCell className="font-medium">{row.employeeCode}</TableCell>
                         <TableCell className="whitespace-nowrap">{row.name}</TableCell>
                         <TableCell className="whitespace-nowrap">{row.departmentName}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={getEmploymentTypeBadgeVariant(row.employmentType)}>
+                            {getEmploymentTypeLabel(row.employmentType)}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-center">{computed.overallRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{row.competencyFinalRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{row.coreValueFinalRank ?? "-"}</TableCell>
-                        <TableCell className="text-center">{row.mboDRatingFlag ?? "-"}</TableCell>
+                        <TableCell className="text-center">{formatMboDFlag(row.mboDRatingFlag)}</TableCell>
 
                         <TableCell className="text-center">
                           <Checkbox
