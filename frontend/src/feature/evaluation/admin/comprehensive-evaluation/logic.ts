@@ -1,4 +1,5 @@
 import { EVALUATION_RANKS, isRankAtLeast, isRankAtOrWorse, type ComprehensiveEvaluationSettings, type ComprehensiveEvaluationUserFlags, type ComprehensiveEvaluationDecision } from './settings';
+import type { ComprehensiveEvaluationManualOverride } from './manualOverride';
 import type { ComprehensiveEvaluationRow, EvaluationRank } from './types';
 
 export function computeTotalScore(performanceScore: number | null, competencyScore: number | null): number | null {
@@ -57,6 +58,44 @@ export interface ComprehensiveEvaluationComputedRow {
   newLevel: number | null;
   isPromotionCandidate: boolean;
   isDemotionCandidate: boolean;
+}
+
+export function applyComprehensiveEvaluationManualOverride(
+  row: ComprehensiveEvaluationRow,
+  base: ComprehensiveEvaluationComputedRow,
+  settings: ComprehensiveEvaluationSettings,
+  override: ComprehensiveEvaluationManualOverride | undefined
+): ComprehensiveEvaluationComputedRow {
+  if (!override) return base;
+
+  const decision: ComprehensiveEvaluationDecision = override.decision;
+  const stageDelta =
+    typeof override.stageDelta === 'number'
+      ? override.stageDelta
+      : decision === '昇格'
+        ? settings.promotion.stageDelta
+        : decision === '降格'
+          ? settings.demotion.stageDelta
+          : 0;
+
+  const levelDelta =
+    row.employmentType === 'parttime'
+      ? null
+      : typeof override.levelDelta === 'number'
+        ? override.levelDelta
+        : base.levelDelta;
+
+  const newStage = computeNewStage(row.currentStage, stageDelta);
+  const newLevel = row.currentLevel !== null && levelDelta !== null ? row.currentLevel + levelDelta : null;
+
+  return {
+    ...base,
+    decision,
+    stageDelta,
+    levelDelta,
+    newStage,
+    newLevel,
+  };
 }
 
 export function computeComprehensiveEvaluationRow(
