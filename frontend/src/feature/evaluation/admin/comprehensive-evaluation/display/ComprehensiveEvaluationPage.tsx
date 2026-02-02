@@ -6,6 +6,7 @@ import { Search, Settings, X } from "lucide-react";
 
 import RolePermissionGuard from "@/components/auth/RolePermissionGuard";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import { computeComprehensiveEvaluationRow } from "../logic";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
 import { useComprehensiveEvaluationUserFlags } from "../hooks/useComprehensiveEvaluationUserFlags";
 import { EVALUATION_RANKS } from "../settings";
-import type { ComprehensiveEvaluationRow, EvaluationRank } from "../types";
+import type { ComprehensiveEvaluationRow, EmploymentType, EvaluationRank, ProcessingStatus } from "../types";
 
 function formatNumber(value: number, digits = 2): string {
   return value.toFixed(digits);
@@ -29,6 +30,10 @@ function formatDelta(value: number | null): string {
   if (value === null) return "-";
   if (value === 0) return "0";
   return value > 0 ? `+${value}` : `${value}`;
+}
+
+function formatMboDFlag(value: ComprehensiveEvaluationRow["mboDRatingFlag"]): string {
+  return value === "1" ? "1" : "-";
 }
 
 function buildSearchText(row: ComprehensiveEvaluationRow): string {
@@ -42,10 +47,17 @@ function buildSearchText(row: ComprehensiveEvaluationRow): string {
     .toLowerCase();
 }
 
+function getEmploymentTypeLabel(value: EmploymentType): string {
+  return value === "employee" ? "正社員" : "パート";
+}
+
+function getEmploymentTypeBadgeVariant(value: EmploymentType) {
+  return value === "employee" ? "outline" : "secondary";
+}
+
 export default function ComprehensiveEvaluationPage() {
   const { hasRole } = useUserRoles();
-  // TODO: must change role to `eval_admin` after testing
-  const canEditThresholds = hasRole("admin");
+  const canEditThresholds = hasRole("eval_admin");
   const { settings, setSettings, resetSettings } = useComprehensiveEvaluationSettings();
   const { flagsByUserId } = useComprehensiveEvaluationUserFlags();
 
@@ -54,6 +66,8 @@ export default function ComprehensiveEvaluationPage() {
   );
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedStage, setSelectedStage] = useState<string>("all");
+  const [selectedEmploymentType, setSelectedEmploymentType] = useState<EmploymentType | "all">("all");
+  const [selectedProcessingStatus, setSelectedProcessingStatus] = useState<ProcessingStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const departments = useMemo(() => {
@@ -77,16 +91,20 @@ export default function ComprehensiveEvaluationPage() {
       if (evaluationPeriodId !== "all" && row.evaluationPeriodId !== evaluationPeriodId) return false;
       if (selectedDepartment !== "all" && row.departmentName !== selectedDepartment) return false;
       if (selectedStage !== "all" && row.currentStage !== selectedStage) return false;
+      if (selectedEmploymentType !== "all" && row.employmentType !== selectedEmploymentType) return false;
+      if (selectedProcessingStatus !== "all" && row.processingStatus !== selectedProcessingStatus) return false;
 
       if (!normalizedQuery) return true;
       return buildSearchText(row).includes(normalizedQuery);
     });
-  }, [evaluationPeriodId, searchQuery, selectedDepartment, selectedStage]);
+  }, [evaluationPeriodId, searchQuery, selectedDepartment, selectedStage, selectedEmploymentType, selectedProcessingStatus]);
 
   const handleClearFilters = () => {
     setEvaluationPeriodId(mockEvaluationPeriods[0]?.id ?? "all");
     setSelectedDepartment("all");
     setSelectedStage("all");
+    setSelectedEmploymentType("all");
+    setSelectedProcessingStatus("all");
     setSearchQuery("");
   };
 
@@ -308,7 +326,7 @@ export default function ComprehensiveEvaluationPage() {
                       </div>
 
                       <Label className="flex items-center justify-between rounded-md border px-3 py-2">
-                        半期目標が上期・下期ともにDの場合は総合評価をDで上書き（MBO D評価フラグ）
+                        同一年度の上期・下期MBOが両方Dの場合は総合評価をDで上書き（MBO Dフラグ）
                         <Switch
                           checked={settings.demotion.mboDOverrideEnabled}
                           onCheckedChange={(checked) =>
@@ -405,6 +423,28 @@ export default function ComprehensiveEvaluationPage() {
             </SelectContent>
           </Select>
 
+          <Select value={selectedEmploymentType} onValueChange={(value) => setSelectedEmploymentType(value as EmploymentType | "all")}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="雇用形態" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべての雇用形態</SelectItem>
+              <SelectItem value="employee">正社員</SelectItem>
+              <SelectItem value="parttime">パート</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedProcessingStatus} onValueChange={(value) => setSelectedProcessingStatus(value as ProcessingStatus | "all")}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="処理状態" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべて</SelectItem>
+              <SelectItem value="unprocessed">未処理</SelectItem>
+              <SelectItem value="processed">処理済</SelectItem>
+            </SelectContent>
+          </Select>
+
           <div className="relative flex-1 min-w-[260px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -434,6 +474,8 @@ export default function ComprehensiveEvaluationPage() {
               evaluationPeriodId === (mockEvaluationPeriods[0]?.id ?? "all") &&
               selectedDepartment === "all" &&
               selectedStage === "all" &&
+              selectedEmploymentType === "all" &&
+              selectedProcessingStatus === "all" &&
               !searchQuery
             }
           >
@@ -447,7 +489,7 @@ export default function ComprehensiveEvaluationPage() {
             <Table className="min-w-[1400px]">
               <TableHeader>
                 <TableRow className="bg-muted/40">
-                  <TableHead colSpan={3} className="text-center font-semibold">
+                  <TableHead colSpan={4} className="text-center font-semibold">
                     個人基本情報
                   </TableHead>
                   <TableHead colSpan={3} className="text-center font-semibold">
@@ -467,6 +509,7 @@ export default function ComprehensiveEvaluationPage() {
                   <TableHead className="whitespace-nowrap">社員番号</TableHead>
                   <TableHead className="whitespace-nowrap">氏名</TableHead>
                   <TableHead className="whitespace-nowrap">部署</TableHead>
+                  <TableHead className="whitespace-nowrap">雇用形態</TableHead>
 
                   <TableHead className="whitespace-nowrap">最終評価</TableHead>
                   <TableHead className="whitespace-nowrap">ウェイト（%）</TableHead>
@@ -491,7 +534,7 @@ export default function ComprehensiveEvaluationPage() {
               <TableBody>
                 {filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={18} className="h-24 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={19} className="h-24 text-center text-sm text-muted-foreground">
                       表示できるデータがありません
                     </TableCell>
                   </TableRow>
@@ -509,6 +552,11 @@ export default function ComprehensiveEvaluationPage() {
                         <TableCell className="font-medium">{row.employeeCode}</TableCell>
                         <TableCell className="whitespace-nowrap">{row.name}</TableCell>
                         <TableCell className="whitespace-nowrap">{row.departmentName}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <Badge variant={getEmploymentTypeBadgeVariant(row.employmentType)}>
+                            {getEmploymentTypeLabel(row.employmentType)}
+                          </Badge>
+                        </TableCell>
 
                         <TableCell className="text-center">{row.performanceFinalRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{row.performanceWeightPercent ?? "-"}</TableCell>
@@ -528,7 +576,7 @@ export default function ComprehensiveEvaluationPage() {
                           {computed.totalScore !== null ? formatNumber(computed.totalScore) : "-"}
                         </TableCell>
                         <TableCell className="text-center">{computed.overallRank ?? "-"}</TableCell>
-                        <TableCell className="text-center">{row.mboDRatingFlag ?? "-"}</TableCell>
+                        <TableCell className="text-center">{formatMboDFlag(row.mboDRatingFlag)}</TableCell>
                         <TableCell className="text-center">{computed.decision}</TableCell>
                         <TableCell className="text-center">
                           {formatDelta(computed.levelDelta)}
