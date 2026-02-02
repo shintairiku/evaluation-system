@@ -40,8 +40,5 @@ export function useComprehensiveEvaluationUserFlags() {
     });
   };
 
-  const resetUserFlags = () => setFlagsByUserId({});
-
-  return { flagsByUserId, updateUserFlags, resetUserFlags };
+  return { flagsByUserId, updateUserFlags };
 }
-
