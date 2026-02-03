@@ -1,8 +1,8 @@
 # Backend Pydantic Schemas: Self-Assessment
 
 **Status:** Updated
-**Last Updated:** 2025-01-05
-**Related Issues:** #417
+**Last Updated:** 2025-02-03
+**Related Issues:** #417, #453
 
 ---
 
@@ -68,15 +68,19 @@ class SelfAssessmentStatus(str, Enum):
     APPROVED = "approved"    # Approved by supervisor, locked from editing
 ```
 
-### 3.2. RatingCode (Individual Goal Input - 5 levels)
+### 3.2. RatingCode (Individual Goal Input - up to 6 levels)
 
 ```python
 # backend/app/schemas/common.py (ADD)
 
 class RatingCode(str, Enum):
     """
-    Individual goal rating codes (5-level input scale).
+    Individual goal rating codes (up to 6-level input scale).
     Used for self-assessments and supervisor feedbacks on individual goals.
+    DB stores all 6 values; service layer validates per goal type:
+      - 定量目標: SS, S, A, B, C, D (6 levels)
+      - 定性目標: SS, S, A, B, C (5 levels, no D)
+      - コンピテンシー: SS, S, A, B, C (5 levels, no D)
     @see domain-model.md Section 4.2 - Rating Validation
     """
     SS = "SS"   # 7.0 - Exceptional
@@ -84,18 +88,20 @@ class RatingCode(str, Enum):
     A = "A"     # 4.0 - Good
     B = "B"     # 2.0 - Acceptable
     C = "C"     # 1.0 - Below Expectations
+    D = "D"     # 0.0 - Unsatisfactory (定量目標 only)
 
-# Rating code to numeric value mapping (5-level scale)
+# Rating code to numeric value mapping (6-level scale)
 RATING_CODE_VALUES: dict[RatingCode, float] = {
     RatingCode.SS: 7.0,
     RatingCode.S: 6.0,
     RatingCode.A: 4.0,
     RatingCode.B: 2.0,
     RatingCode.C: 1.0,
+    RatingCode.D: 0.0,
 }
 
 def rating_code_to_value(code: RatingCode) -> float:
-    """Convert rating code to numeric value (5-level scale)."""
+    """Convert rating code to numeric value (6-level scale)."""
     return RATING_CODE_VALUES.get(code, 0.0)
 ```
 
@@ -227,6 +233,11 @@ class SelfAssessmentUpdate(BaseModel):
         max_length=5000,
         description="Employee's narrative self-assessment comment"
     )
+    rating_data: Optional[dict] = Field(
+        None,
+        alias="ratingData",
+        description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
+    )
 
     model_config = {"populate_by_name": True}
 ```
@@ -249,6 +260,11 @@ class SelfAssessmentInDB(SelfAssessmentBase):
         ge=0,
         le=7,
         description="Numeric rating (0.0-7.0), auto-calculated from selfRatingCode"
+    )
+    rating_data: Optional[dict] = Field(
+        None,
+        alias="ratingData",
+        description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
     )
     status: SelfAssessmentStatus = Field(
         default=SelfAssessmentStatus.DRAFT,
@@ -498,6 +514,11 @@ class SupervisorFeedbackInDB(SupervisorFeedbackBase):
         le=7,
         description="Numeric rating (0.0-7.0), auto-calculated"
     )
+    rating_data: Optional[dict] = Field(
+        None,
+        alias="ratingData",
+        description="Supervisor's per-action rating suggestions for コンピテンシー goals (JSONB). Rarely used. NULL for 業績目標."
+    )
     action: SupervisorAction = Field(
         default=SupervisorAction.PENDING,
         description="Decision: PENDING or APPROVED (REJECTED removed)"
@@ -713,6 +734,7 @@ def validate_self_assessment_submission(
 | `selfRatingCode` | `self_rating_code` | `RatingCode` | ✅ **NEW** |
 | `selfRating` | `self_rating` | `float (0-7)` | ✅ **UPDATED** |
 | `selfComment` | `self_comment` | `str \| None` | ✅ Aligned |
+| `ratingData` | `rating_data` | `dict \| None` | ✅ **NEW** (competency per-action JSONB) |
 | `status` | `status` | `SelfAssessmentStatus` | ✅ **UPDATED** (3 states: draft/submitted/approved) |
 | `submittedAt` | `submitted_at` | `datetime \| None` | ✅ Aligned |
 | `createdAt` | `created_at` | `datetime` | ✅ Aligned |
@@ -730,6 +752,7 @@ def validate_self_assessment_submission(
 | `supervisorRatingCode` | `supervisor_rating_code` | `RatingCode` | ✅ **NEW** |
 | `supervisorRating` | `supervisor_rating` | `float (0-7)` | ✅ **UPDATED** |
 | `supervisorComment` | `supervisor_comment` | `str \| None` | ✅ Aligned |
+| `ratingData` | `rating_data` | `dict \| None` | ✅ **NEW** (competency per-action JSONB) |
 | `action` | `action` | `SupervisorAction` | ✅ **NEW** |
 | `status` | `status` | `SubmissionStatus` | ✅ Aligned |
 | `submittedAt` | `submitted_at` | `datetime \| None` | ✅ Aligned |
@@ -748,6 +771,7 @@ def validate_self_assessment_submission(
 | `self_rating_code: RatingCode` | `selfRatingCode: RatingCode` | `selfRatingCode` | ✅ |
 | `self_rating: float` | `selfRating: number` | `selfRating` | ✅ |
 | `self_comment: str` | `selfComment: string` | `selfComment` | ✅ |
+| `rating_data: dict` | `ratingData: RatingData` | `ratingData` | ✅ |
 | `status: SelfAssessmentStatus` | `status: SelfAssessmentStatus` | - | ✅ |
 | `goal_id: UUID` | `goalId: UUID` | `goalId` | ✅ |
 | `period_id: UUID` | `periodId: UUID` | `periodId` | ✅ |
@@ -764,14 +788,30 @@ from app.schemas.common import RatingCode
 
 # Valid update - using rating code
 valid_update = SelfAssessmentUpdate(
-    self_rating_code=RatingCode.A_PLUS,
+    self_rating_code=RatingCode.A,
     self_comment="目標を120%達成しました。具体的には..."
 )
 
 # Using alias (from frontend)
 valid_update_alias = SelfAssessmentUpdate.model_validate({
-    "selfRatingCode": "A+",
+    "selfRatingCode": "A",
     "selfComment": "目標を120%達成しました。"
+})
+
+# With competency rating_data
+valid_competency_update = SelfAssessmentUpdate.model_validate({
+    "selfRatingCode": "S",
+    "selfComment": "コンピテンシー目標の振り返り...",
+    "ratingData": {
+        "action_ratings": {
+            "comp-uuid-1": {
+                "1": {"code": "S", "value": 6.0},
+                "2": {"code": "A", "value": 4.0}
+            }
+        },
+        "competency_averages": {"comp-uuid-1": 5.0},
+        "overall_average": 5.0
+    }
 })
 ```
 
@@ -784,7 +824,7 @@ try:
         "selfRatingCode": "X"  # Invalid code
     })
 except ValidationError as e:
-    print(e)  # "Input should be 'SS', 'S', 'A+', 'A', 'A-', 'B', 'C' or 'D'"
+    print(e)  # "Input should be 'SS', 'S', 'A', 'B', 'C' or 'D'"
 ```
 
 ### 10.3. Supervisor Feedback Submit - Approval
@@ -852,23 +892,24 @@ class TestSelfAssessmentSchemas:
         assert RATING_CODE_VALUES[RatingCode.A] == 4.0
         assert RATING_CODE_VALUES[RatingCode.B] == 2.0
         assert RATING_CODE_VALUES[RatingCode.C] == 1.0
+        assert RATING_CODE_VALUES[RatingCode.D] == 0.0
 
     def test_update_with_valid_rating_code(self):
         """Test SelfAssessmentUpdate with valid rating code."""
         update = SelfAssessmentUpdate(
-            self_rating_code=RatingCode.A_PLUS,
+            self_rating_code=RatingCode.A,
             self_comment="Great achievement"
         )
-        assert update.self_rating_code == RatingCode.A_PLUS
+        assert update.self_rating_code == RatingCode.A
         assert update.self_comment == "Great achievement"
 
     def test_update_with_alias(self):
         """Test SelfAssessmentUpdate using camelCase aliases."""
         update = SelfAssessmentUpdate.model_validate({
-            "selfRatingCode": "A+",
+            "selfRatingCode": "A",
             "selfComment": "Great achievement"
         })
-        assert update.self_rating_code == RatingCode.A_PLUS
+        assert update.self_rating_code == RatingCode.A
 
     def test_update_with_invalid_rating_code(self):
         """Test SelfAssessmentUpdate rejects invalid rating code."""
@@ -942,7 +983,12 @@ def upgrade():
     # Add new columns to self_assessments
     op.add_column('self_assessments', sa.Column(
         'self_rating_code',
-        sa.String(2),
+        sa.String(3),
+        nullable=True
+    ))
+    op.add_column('self_assessments', sa.Column(
+        'rating_data',
+        postgresql.JSONB,
         nullable=True
     ))
 
@@ -964,7 +1010,12 @@ def upgrade():
     ))
     op.add_column('supervisor_feedbacks', sa.Column(
         'supervisor_rating_code',
-        sa.String(2),
+        sa.String(3),
+        nullable=True
+    ))
+    op.add_column('supervisor_feedbacks', sa.Column(
+        'rating_data',
+        postgresql.JSONB,
         nullable=True
     ))
     op.add_column('supervisor_feedbacks', sa.Column(
@@ -983,8 +1034,10 @@ def upgrade():
 def downgrade():
     # Remove new columns
     op.drop_column('self_assessments', 'self_rating_code')
+    op.drop_column('self_assessments', 'rating_data')
     op.drop_column('supervisor_feedbacks', 'subordinate_id')
     op.drop_column('supervisor_feedbacks', 'supervisor_rating_code')
+    op.drop_column('supervisor_feedbacks', 'rating_data')
     op.drop_column('supervisor_feedbacks', 'action')
     op.drop_column('supervisor_feedbacks', 'reviewed_at')
 ```

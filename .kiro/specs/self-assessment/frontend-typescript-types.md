@@ -1,8 +1,8 @@
 # Frontend TypeScript Types: Self-Assessment
 
 **Status:** Updated
-**Last Updated:** 2025-01-05
-**Related Issues:** #416
+**Last Updated:** 2025-02-03
+**Related Issues:** #416, #453
 
 ---
 
@@ -178,6 +178,19 @@ export enum SupervisorFeedbackStatus {
  * Goal category types (Japanese)
  */
 export type GoalCategory = '業績目標' | 'コンピテンシー' | 'コアバリュー';
+
+/**
+ * Granular per-action ratings for コンピテンシー goals (JSONB).
+ * Each ideal action gets an individual rating, averaged per competency, then overall.
+ */
+export interface RatingData {
+  /** Individual rating per ideal action, keyed by competency UUID then action number (1-5) */
+  action_ratings: Record<string, Record<string, { code: RatingCode; value: number }>>;
+  /** Calculated average per competency */
+  competency_averages: Record<string, number>;
+  /** Calculated average across all competencies */
+  overall_average: number;
+}
 ```
 
 ### 3.2. Self-Assessment Types
@@ -217,11 +230,11 @@ export interface SelfAssessment extends SelfAssessmentBase {
   goalId: UUID;
   /** Reference to the evaluation period */
   periodId: UUID;
-  /** Reference to previous self-assessment (for rejection history) */
-  previousSelfAssessmentId?: UUID;
   /** Numeric rating (0.0-7.0), auto-calculated from selfRatingCode */
   selfRating?: number;
-  /** Current status: draft, submitted, approved, or rejected */
+  /** Granular per-action ratings for コンピテンシー goals (JSONB). null for 業績目標. */
+  ratingData?: RatingData | null;
+  /** Current status: draft, submitted, or approved */
   status: SelfAssessmentStatus;
   /** Timestamp when assessment was submitted */
   submittedAt?: string;
@@ -281,6 +294,8 @@ export interface SelfAssessmentUpdate {
   selfRatingCode?: RatingCode;
   /** Employee's narrative self-assessment comment */
   selfComment?: string;
+  /** Granular per-action ratings for コンピテンシー goals */
+  ratingData?: RatingData | null;
 }
 
 /**
@@ -301,30 +316,6 @@ export interface SelfAssessmentQueryParams {
   limit?: number;
 }
 
-/**
- * Rejection history item (for history chain display)
- * @see api-contract.md Section 4.8
- */
-export interface SelfAssessmentHistoryItem {
-  id: UUID;
-  status: SelfAssessmentStatus;
-  selfRatingCode?: RatingCode;
-  selfComment?: string;
-  previousSelfAssessmentId?: UUID;
-  submittedAt?: string;
-  /** Supervisor's comment (from SupervisorFeedback) */
-  supervisorComment?: string;
-  /** Supervisor's action (from SupervisorFeedback) */
-  supervisorAction?: SupervisorFeedbackAction;
-}
-
-/**
- * Rejection history response
- */
-export interface SelfAssessmentHistory {
-  items: SelfAssessmentHistoryItem[];
-  total: number;
-}
 ```
 
 ### 3.3. Supervisor Feedback Types
@@ -370,7 +361,9 @@ export interface SupervisorFeedback extends SupervisorFeedbackBase {
   subordinateId: UUID;
   /** Numeric rating (0.0-7.0), auto-calculated */
   supervisorRating?: number;
-  /** Decision: PENDING, APPROVED, or REJECTED */
+  /** Supervisor's per-action rating suggestions for コンピテンシー goals. Rarely used. null for 業績目標. */
+  ratingData?: RatingData | null;
+  /** Decision: PENDING or APPROVED */
   action: SupervisorFeedbackAction;
   /** Workflow status: incomplete, draft, or submitted */
   status: SupervisorFeedbackStatus;
@@ -437,6 +430,8 @@ export interface SupervisorFeedbackUpdate {
   supervisorRatingCode?: RatingCode;
   /** Supervisor's feedback comment */
   supervisorComment?: string;
+  /** Supervisor's per-action rating suggestions for コンピテンシー goals */
+  ratingData?: RatingData | null;
 }
 
 /**
@@ -444,12 +439,14 @@ export interface SupervisorFeedbackUpdate {
  * @see api-contract.md Section 5.5
  */
 export interface SupervisorFeedbackSubmit {
-  /** Decision: APPROVED or REJECTED */
-  action: 'APPROVED' | 'REJECTED';
+  /** Decision: APPROVED (no REJECTED - supervisor provides feedback via comments) */
+  action: 'APPROVED';
   /** Rating code: SS, S, A, B, C, D (6-level input scale, required for APPROVED) */
   supervisorRatingCode?: RatingCode;
-  /** Comment (required for REJECTED, optional for APPROVED) */
+  /** Comment (optional for APPROVED) */
   supervisorComment?: string;
+  /** Supervisor's per-action rating suggestions for コンピテンシー goals */
+  ratingData?: RatingData | null;
 }
 
 /**
@@ -513,17 +510,10 @@ export function getGoalDescription(goal: GoalResponse): string | undefined {
 
 /**
  * Check if self-assessment is editable
+ * Employee can edit until supervisor approves
  */
 export function isEditable(assessment: SelfAssessment): boolean {
-  return assessment.status === 'draft';
-}
-
-/**
- * Check if self-assessment is a resubmission (has rejection history)
- */
-export function isResubmission(assessment: SelfAssessment): boolean {
-  return assessment.previousSelfAssessmentId !== undefined &&
-         assessment.previousSelfAssessmentId !== null;
+  return assessment.status !== 'approved';
 }
 
 /**
@@ -534,10 +524,10 @@ export function isPendingReview(assessment: SelfAssessment): boolean {
 }
 
 /**
- * Check if self-assessment is finalized (approved or rejected)
+ * Check if self-assessment is finalized (approved and locked)
  */
 export function isFinalized(assessment: SelfAssessment): boolean {
-  return assessment.status === 'approved' || assessment.status === 'rejected';
+  return assessment.status === 'approved';
 }
 
 /**
@@ -545,7 +535,7 @@ export function isFinalized(assessment: SelfAssessment): boolean {
  */
 export function getStatusBadgeVariant(
   status: SelfAssessmentStatus
-): 'default' | 'secondary' | 'destructive' | 'outline' {
+): 'default' | 'secondary' | 'outline' {
   switch (status) {
     case 'draft':
       return 'secondary';
@@ -553,8 +543,6 @@ export function getStatusBadgeVariant(
       return 'outline';
     case 'approved':
       return 'default';
-    case 'rejected':
-      return 'destructive';
   }
 }
 
@@ -569,8 +557,6 @@ export function getStatusLabel(status: SelfAssessmentStatus): string {
       return '提出済み';
     case 'approved':
       return '承認済み';
-    case 'rejected':
-      return '差し戻し';
   }
 }
 
@@ -578,18 +564,12 @@ export function getStatusLabel(status: SelfAssessmentStatus): string {
  * Categorize self-assessments by status
  */
 export function categorizeSelfAssessments(assessments: SelfAssessment[]): {
-  rejected: SelfAssessment[];  // drafts with previousSelfAssessmentId (needs revision)
-  pending: SelfAssessment[];   // drafts without previousSelfAssessmentId (not started/in progress)
+  draft: SelfAssessment[];     // drafts (not yet submitted)
   submitted: SelfAssessment[]; // awaiting supervisor
   approved: SelfAssessment[];  // finalized
 } {
   return {
-    rejected: assessments.filter(
-      sa => sa.status === 'draft' && sa.previousSelfAssessmentId
-    ),
-    pending: assessments.filter(
-      sa => sa.status === 'draft' && !sa.previousSelfAssessmentId
-    ),
+    draft: assessments.filter(sa => sa.status === 'draft'),
     submitted: assessments.filter(sa => sa.status === 'submitted'),
     approved: assessments.filter(sa => sa.status === 'approved'),
   };
@@ -607,11 +587,11 @@ export function categorizeSelfAssessments(assessments: SelfAssessment[]): {
 | `id` | `UUID` | ✅ Aligned |
 | `goalId` | `UUID` | ✅ Aligned |
 | `periodId` | `UUID` | ✅ Aligned |
-| `previousSelfAssessmentId` | `UUID \| undefined` | ✅ **NEW** |
 | `selfRatingCode` | `RatingCode` | ✅ **NEW** |
 | `selfRating` | `number (0-7)` | ✅ **UPDATED** |
 | `selfComment` | `string \| undefined` | ✅ Aligned |
-| `status` | `SelfAssessmentStatus` | ✅ **UPDATED** (4 states) |
+| `ratingData` | `RatingData \| null` | ✅ **NEW** (competency per-action JSONB) |
+| `status` | `SelfAssessmentStatus` | ✅ **UPDATED** (3 states) |
 | `submittedAt` | `string \| undefined` | ✅ Aligned |
 | `createdAt` | `string` | ✅ Aligned |
 | `updatedAt` | `string` | ✅ Aligned |
@@ -628,6 +608,7 @@ export function categorizeSelfAssessments(assessments: SelfAssessment[]): {
 | `supervisorRatingCode` | `RatingCode` | ✅ **NEW** |
 | `supervisorRating` | `number (0-7)` | ✅ **UPDATED** |
 | `supervisorComment` | `string \| undefined` | ✅ Aligned |
+| `ratingData` | `RatingData \| null` | ✅ **NEW** (competency per-action JSONB) |
 | `action` | `SupervisorFeedbackAction` | ✅ **NEW** |
 | `status` | `SupervisorFeedbackStatus` | ✅ Aligned |
 | `submittedAt` | `string \| undefined` | ✅ Aligned |
@@ -646,7 +627,7 @@ export function categorizeSelfAssessments(assessments: SelfAssessment[]): {
 | `selfRatingCode: RatingCode` | `self_rating_code: str` | ✅ |
 | `selfRating: number` | `self_rating: Decimal` | ✅ |
 | `selfComment: string` | `self_comment: str` | ✅ |
-| `previousSelfAssessmentId: UUID` | `previous_self_assessment_id: UUID` | ✅ |
+| `ratingData: RatingData` | `rating_data: dict` | ✅ |
 | `status: SelfAssessmentStatus` | `status: SelfAssessmentStatus` | ✅ |
 | `supervisorRatingCode: RatingCode` | `supervisor_rating_code: str` | ✅ |
 | `action: SupervisorFeedbackAction` | `action: str` | ✅ |
@@ -671,11 +652,10 @@ const params: SelfAssessmentQueryParams = {
 const result = await getSelfAssessmentsAction(params);
 
 if (result.success && result.data) {
-  const { rejected, pending, submitted, approved } =
+  const { draft, submitted, approved } =
     categorizeSelfAssessments(result.data.items);
 
-  console.log(`Rejected (needs revision): ${rejected.length}`);
-  console.log(`Pending (to fill): ${pending.length}`);
+  console.log(`Draft (to fill): ${draft.length}`);
   console.log(`Submitted (awaiting review): ${submitted.length}`);
   console.log(`Approved: ${approved.length}`);
 }
@@ -716,32 +696,26 @@ if (result.success) {
 }
 ```
 
-### 6.4. Supervisor Approving/Rejecting
+### 6.4. Supervisor Approving
 
 ```typescript
 import { submitSupervisorFeedbackAction } from '@/api/server-actions/supervisor-feedbacks';
 import type { SupervisorFeedbackSubmit } from '@/api/types';
 
-// Approve
+// Approve (rating code required, comment optional)
 const approveData: SupervisorFeedbackSubmit = {
   action: 'APPROVED',
   supervisorRatingCode: 'A',
   supervisorComment: '良い成果です。', // Optional for approval
 };
 
-// Reject (comment is required)
-const rejectData: SupervisorFeedbackSubmit = {
-  action: 'REJECTED',
-  supervisorComment: '具体的な数字を追加してください。',
-};
-
-const result = await submitSupervisorFeedbackAction(feedbackId, rejectData);
+const result = await submitSupervisorFeedbackAction(feedbackId, approveData);
 
 if (result.success) {
   // Side effects:
-  // - SelfAssessment.status → 'rejected'
-  // - New draft created with previousSelfAssessmentId
-  // - Badge counter updated for employee
+  // - SelfAssessment.status → 'approved' (locked permanently)
+  // - SupervisorFeedback.reviewed_at set
+  // - Badge counter updated
 }
 ```
 
@@ -785,7 +759,7 @@ function RatingBadge({ ratingCode }: { ratingCode: RatingCode }) {
 ### 8.1. Breaking Changes
 
 1. **Status enum expanded**: `SubmissionStatus` → `SelfAssessmentStatus`
-   - Added: `approved`, `rejected`
+   - Added: `approved` (3-state: draft/submitted/approved, no rejected)
 
 2. **Rating system changed**: `selfRating (0-100)` → `selfRatingCode + selfRating (0-7)`
    - Need to update all components using `selfRating`
@@ -794,12 +768,12 @@ function RatingBadge({ ratingCode }: { ratingCode: RatingCode }) {
 
 ### 8.2. Migration Steps
 
-1. Update `common.ts` with new enums and types
-2. Update `self-assessment.ts` with new interface definitions
-3. Create `supervisor-feedback.ts` with feedback types
+1. Update `common.ts` with new enums, types, and `RatingData` interface
+2. Update `self-assessment.ts` with new interface definitions (remove `previousSelfAssessmentId`, add `ratingData`)
+3. Create `supervisor-feedback.ts` with feedback types (add `ratingData`)
 4. Update all components using old `selfRating` (0-100) to use `selfRatingCode`
 5. Update form validation to require `selfComment` on submission
-6. Add UI for displaying `previousSelfAssessmentId` (rejection indicator)
+6. Add UI for competency granular ratings (per-action rating inputs)
 
 ---
 

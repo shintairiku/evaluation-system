@@ -1,9 +1,9 @@
 # API Contract: Self-Assessment Feature
 
-**Version:** 2.0
-**Status:** Draft
-**Last Updated:** 2025-01-05
-**Related Issues:** #415
+**Version:** 3.0
+**Status:** Updated
+**Last Updated:** 2025-02-03
+**Related Issues:** #415, #453
 
 ---
 
@@ -66,7 +66,7 @@ GET /self-assessments
 |-----------|------|----------|-------------|
 | `periodId` | UUID | No | Filter by evaluation period ID |
 | `userId` | UUID | No | Filter by user ID (supervisor/admin only) |
-| `status` | string | No | Filter by status: `draft`, `submitted`, `approved`, `rejected` |
+| `status` | string | No | Filter by status: `draft`, `submitted`, `approved` |
 | `goalCategory` | string | No | Filter by goal category: `業績目標`, `コンピテンシー`, `コアバリュー` |
 | `page` | number | No | Page number (default: 1) |
 | `limit` | number | No | Items per page (default: 10, max: 100) |
@@ -79,10 +79,10 @@ GET /self-assessments
       "id": "uuid",
       "goalId": "uuid",
       "periodId": "uuid",
-      "previousSelfAssessmentId": null,
-      "selfRatingCode": "A+",
-      "selfRating": 5.0,
+      "selfRatingCode": "A",
+      "selfRating": 4.0,
       "selfComment": "I exceeded my targets by 20%...",
+      "ratingData": null,
       "status": "submitted",
       "submittedAt": "2025-01-05T10:30:00Z",
       "createdAt": "2025-01-01T09:00:00Z",
@@ -157,10 +157,10 @@ GET /self-assessments/goal/{goal_id}
   "id": "uuid",
   "goalId": "uuid",
   "periodId": "uuid",
-  "previousSelfAssessmentId": null,
   "selfRatingCode": "A",
   "selfRating": 4.0,
   "selfComment": "My assessment...",
+  "ratingData": null,
   "status": "draft",
   "submittedAt": null,
   "createdAt": "2025-01-01T09:00:00Z",
@@ -197,10 +197,10 @@ GET /self-assessments/{assessment_id}
   "id": "uuid",
   "goalId": "uuid",
   "periodId": "uuid",
-  "previousSelfAssessmentId": null,
   "selfRatingCode": "S",
   "selfRating": 6.0,
   "selfComment": "I exceeded expectations...",
+  "ratingData": null,
   "status": "approved",
   "submittedAt": "2025-01-05T10:30:00Z",
   "createdAt": "2025-01-01T09:00:00Z",
@@ -221,7 +221,7 @@ GET /self-assessments/{assessment_id}
 PUT /self-assessments/{assessment_id}
 ```
 
-**Description:** Update a self-assessment (draft status only).
+**Description:** Update a self-assessment (editable until supervisor approves).
 
 **Path Parameters:**
 
@@ -232,14 +232,16 @@ PUT /self-assessments/{assessment_id}
 **Request Body:**
 ```json
 {
-  "selfRatingCode": "A+",
-  "selfComment": "Updated assessment comment..."
+  "selfRatingCode": "A",
+  "selfComment": "Updated assessment comment...",
+  "ratingData": null
 }
 ```
 
 **Validation Rules:**
-- `selfRatingCode`: Must be one of `SS`, `S`, `A+`, `A`, `A-`, `B`, `C`, `D`
+- `selfRatingCode`: Must be one of `SS`, `S`, `A`, `B`, `C`, `D` (6-level input scale, service validates per goal type)
 - `selfComment`: String, max 5000 characters
+- `ratingData`: JSONB object (for コンピテンシー goals), null for 業績目標
 
 **Response 200:**
 ```json
@@ -247,9 +249,10 @@ PUT /self-assessments/{assessment_id}
   "id": "uuid",
   "goalId": "uuid",
   "periodId": "uuid",
-  "selfRatingCode": "A+",
-  "selfRating": 5.0,
+  "selfRatingCode": "A",
+  "selfRating": 4.0,
   "selfComment": "Updated assessment comment...",
+  "ratingData": null,
   "status": "draft",
   "submittedAt": null,
   "createdAt": "2025-01-01T09:00:00Z",
@@ -260,7 +263,7 @@ PUT /self-assessments/{assessment_id}
 **Response 400:**
 ```json
 {
-  "detail": "Cannot update self-assessment: Status is not draft"
+  "detail": "Cannot update self-assessment: Status is approved (locked)"
 }
 ```
 
@@ -274,7 +277,7 @@ PUT /self-assessments/{assessment_id}
 **Response 422:**
 ```json
 {
-  "detail": "Invalid rating code. Must be one of: SS, S, A+, A, A-, B, C, D"
+  "detail": "Invalid rating code. Must be one of: SS, S, A, B, C, D"
 }
 ```
 
@@ -305,9 +308,10 @@ POST /self-assessments/{assessment_id}/submit
   "id": "uuid",
   "goalId": "uuid",
   "periodId": "uuid",
-  "selfRatingCode": "A+",
-  "selfRating": 5.0,
+  "selfRatingCode": "A",
+  "selfRating": 4.0,
   "selfComment": "My assessment...",
+  "ratingData": null,
   "status": "submitted",
   "submittedAt": "2025-01-05T10:30:00Z",
   "createdAt": "2025-01-01T09:00:00Z",
@@ -318,7 +322,7 @@ POST /self-assessments/{assessment_id}/submit
 **Response 400:**
 ```json
 {
-  "detail": "Cannot submit self-assessment: Already submitted"
+  "detail": "Cannot submit self-assessment: Already approved"
 }
 ```
 
@@ -361,61 +365,6 @@ DELETE /self-assessments/{assessment_id}
 
 ---
 
-### 4.8. Get Rejection History
-
-```http
-GET /self-assessments/{assessment_id}/history
-```
-
-**Description:** Get the rejection history chain for a self-assessment.
-
-**Path Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `assessment_id` | UUID | Yes | Self-assessment ID (current or any in chain) |
-
-**Response 200:**
-```json
-{
-  "items": [
-    {
-      "id": "uuid-3",
-      "status": "approved",
-      "selfRatingCode": "A+",
-      "selfComment": "Final revised version...",
-      "previousSelfAssessmentId": "uuid-2",
-      "submittedAt": "2025-01-10T10:00:00Z",
-      "supervisorComment": "Approved, well documented",
-      "supervisorAction": "APPROVED"
-    },
-    {
-      "id": "uuid-2",
-      "status": "rejected",
-      "selfRatingCode": "A",
-      "selfComment": "Second attempt...",
-      "previousSelfAssessmentId": "uuid-1",
-      "submittedAt": "2025-01-07T10:00:00Z",
-      "supervisorComment": "Please add more details",
-      "supervisorAction": "REJECTED"
-    },
-    {
-      "id": "uuid-1",
-      "status": "rejected",
-      "selfRatingCode": "A-",
-      "selfComment": "Initial assessment...",
-      "previousSelfAssessmentId": null,
-      "submittedAt": "2025-01-03T10:00:00Z",
-      "supervisorComment": "Needs improvement",
-      "supervisorAction": "REJECTED"
-    }
-  ],
-  "total": 3
-}
-```
-
----
-
 ## 5. Supervisor Feedback Endpoints
 
 ### 5.1. List Supervisor Feedbacks
@@ -434,7 +383,7 @@ GET /supervisor-feedbacks
 | `supervisorId` | UUID | No | Filter by supervisor ID (feedback creator) |
 | `subordinateId` | UUID | No | Filter by subordinate ID (feedback recipient) |
 | `status` | string | No | Filter by status: `incomplete`, `draft`, `submitted` |
-| `action` | string | No | Filter by action: `PENDING`, `APPROVED`, `REJECTED` |
+| `action` | string | No | Filter by action: `PENDING`, `APPROVED` |
 | `page` | number | No | Page number |
 | `limit` | number | No | Items per page |
 
@@ -481,8 +430,9 @@ POST /supervisor-feedbacks
 {
   "selfAssessmentId": "uuid",
   "periodId": "uuid",
-  "supervisorRatingCode": "A+",
+  "supervisorRatingCode": "A",
   "supervisorComment": "Excellent work!",
+  "ratingData": null,
   "action": "PENDING",
   "status": "draft"
 }
@@ -490,8 +440,9 @@ POST /supervisor-feedbacks
 
 **Validation Rules:**
 - `selfAssessmentId`: Must reference a submitted self-assessment
-- `supervisorRatingCode`: Must be one of `SS`, `S`, `A+`, `A`, `A-`, `B`, `C`, `D`
-- `action`: Must be `PENDING`, `APPROVED`, or `REJECTED`
+- `supervisorRatingCode`: Must be one of `SS`, `S`, `A`, `B`, `C`, `D` (6-level input scale)
+- `ratingData`: JSONB object (for コンピテンシー goals), null for 業績目標
+- `action`: Must be `PENDING` or `APPROVED`
 - `status`: Must be `incomplete`, `draft`, or `submitted`
 
 **Response 201:**
@@ -501,9 +452,10 @@ POST /supervisor-feedbacks
   "selfAssessmentId": "uuid",
   "periodId": "uuid",
   "supervisorId": "uuid",
-  "supervisorRatingCode": "A+",
-  "supervisorRating": 5.0,
+  "supervisorRatingCode": "A",
+  "supervisorRating": 4.0,
   "supervisorComment": "Excellent work!",
+  "ratingData": null,
   "action": "PENDING",
   "status": "draft",
   "submittedAt": null,
@@ -576,8 +528,9 @@ PUT /supervisor-feedbacks/{feedback_id}
 **Request Body:**
 ```json
 {
-  "supervisorRatingCode": "A+",
-  "supervisorComment": "Updated feedback..."
+  "supervisorRatingCode": "A",
+  "supervisorComment": "Updated feedback...",
+  "ratingData": null
 }
 ```
 
@@ -585,13 +538,13 @@ PUT /supervisor-feedbacks/{feedback_id}
 
 ---
 
-### 5.5. Submit Supervisor Feedback (Approve/Reject)
+### 5.5. Submit Supervisor Feedback (Approve)
 
 ```http
 POST /supervisor-feedbacks/{feedback_id}/submit
 ```
 
-**Description:** Submit supervisor feedback and finalize the decision (approve or reject).
+**Description:** Submit supervisor feedback and approve the self-assessment.
 
 **Path Parameters:**
 
@@ -603,42 +556,32 @@ POST /supervisor-feedbacks/{feedback_id}/submit
 ```json
 {
   "action": "APPROVED",
-  "supervisorRatingCode": "A+",
-  "supervisorComment": "Great work!"
-}
-```
-
-**OR for rejection:**
-```json
-{
-  "action": "REJECTED",
-  "supervisorComment": "Please add more specific examples..."
+  "supervisorRatingCode": "A",
+  "supervisorComment": "Great work!",
+  "ratingData": null
 }
 ```
 
 **Validation Rules:**
 - **For APPROVED**: `supervisorRatingCode` is **required**, `supervisorComment` is optional
-- **For REJECTED**: `supervisorComment` is **required**, `supervisorRatingCode` is optional
+- No rejection action — supervisor provides feedback via comments, employee edits until approval
 
 **Side Effects:**
 - **APPROVED**:
   - SupervisorFeedback.status → `submitted`
   - SupervisorFeedback.action → `APPROVED`
-  - SelfAssessment.status → `approved`
-- **REJECTED**:
-  - SupervisorFeedback.status → `submitted`
-  - SupervisorFeedback.action → `REJECTED`
-  - SelfAssessment.status → `rejected`
-  - System creates NEW SelfAssessment with `previousSelfAssessmentId`
+  - SupervisorFeedback.reviewed_at → current timestamp
+  - SelfAssessment.status → `approved` (locked permanently)
 
 **Response 200:**
 ```json
 {
   "id": "uuid",
   "selfAssessmentId": "uuid",
-  "supervisorRatingCode": "A+",
-  "supervisorRating": 5.0,
+  "supervisorRatingCode": "A",
+  "supervisorRating": 4.0,
   "supervisorComment": "Great work!",
+  "ratingData": null,
   "action": "APPROVED",
   "status": "submitted",
   "submittedAt": "2025-01-06T10:00:00Z",
@@ -646,10 +589,10 @@ POST /supervisor-feedbacks/{feedback_id}/submit
 }
 ```
 
-**Response 422 (for rejection without comment):**
+**Response 422 (missing rating for approval):**
 ```json
 {
-  "detail": "supervisorComment is required when rejecting"
+  "detail": "supervisorRatingCode is required when approving"
 }
 ```
 
@@ -687,9 +630,9 @@ DELETE /supervisor-feedbacks/{feedback_id}
 ## 6. Schemas
 
 **IMPORTANT - Rating Code Scales:**
-- **Individual Goal Input**: Use `RatingCode` (6-level scale: SS, S, A, B, C, D)
+- **Individual Goal Input**: Use `RatingCode` (up to 6-level scale: SS, S, A, B, C, D — D only for 定量目標)
   - For self-assessments and supervisor feedbacks on individual goals
-- **Final Calculation Output**: Use `FinalRatingCode` (8-level scale: SS, S, A+, A, A-, B, C, D)
+- **Final Calculation Output**: Use `FinalRatingCode` (7-level scale: SS, S, A+, A, A-, B, C)
   - For overall period performance ratings calculated by system
 
 ### Request Schemas
@@ -702,6 +645,7 @@ DELETE /supervisor-feedbacks/{feedback_id}
 interface SelfAssessmentUpdate {
   selfRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale
   selfComment?: string;
+  ratingData?: RatingData | null;  // Competency per-action ratings (JSONB)
 }
 
 // ========================================
@@ -713,19 +657,22 @@ interface SupervisorFeedbackCreate {
   periodId: UUID;
   supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale
   supervisorComment?: string;
-  action: 'PENDING' | 'APPROVED' | 'REJECTED';
+  ratingData?: RatingData | null;  // Competency per-action ratings (JSONB)
+  action: 'PENDING' | 'APPROVED';
   status: 'incomplete' | 'draft' | 'submitted';
 }
 
 interface SupervisorFeedbackUpdate {
   supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale
   supervisorComment?: string;
+  ratingData?: RatingData | null;  // Competency per-action ratings (JSONB)
 }
 
 interface SupervisorFeedbackSubmit {
-  action: 'APPROVED' | 'REJECTED';
-  supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale
+  action: 'APPROVED';  // No REJECTED - supervisor provides feedback via comments
+  supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale, required for APPROVED
   supervisorComment?: string;
+  ratingData?: RatingData | null;  // Competency per-action ratings (JSONB)
 }
 ```
 
@@ -738,15 +685,22 @@ interface SupervisorFeedbackSubmit {
 
 type UUID = string;
 
-type SelfAssessmentStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+type SelfAssessmentStatus = 'draft' | 'submitted' | 'approved';
 
-// Individual goal input scale (6 levels)
+// Individual goal input scale (up to 6 levels, D only for 定量目標)
 type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
 
-// Final calculated output scale (8 levels)
-type FinalRatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+// Final calculated output scale (7 levels)
+type FinalRatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C';
 
-type SupervisorFeedbackAction = 'PENDING' | 'APPROVED' | 'REJECTED';
+type SupervisorFeedbackAction = 'PENDING' | 'APPROVED';
+
+/** Granular per-action ratings for コンピテンシー goals */
+interface RatingData {
+  action_ratings: Record<string, Record<string, { code: RatingCode; value: number }>>;
+  competency_averages: Record<string, number>;
+  overall_average: number;
+}
 
 type SupervisorFeedbackStatus = 'incomplete' | 'draft' | 'submitted';
 
@@ -758,10 +712,10 @@ interface SelfAssessment {
   id: UUID;
   goalId: UUID;
   periodId: UUID;
-  previousSelfAssessmentId?: UUID;
   selfRatingCode?: RatingCode;
   selfRating?: number; // 0.0-7.0, auto-calculated
   selfComment?: string;
+  ratingData?: RatingData; // Competency per-action ratings (JSONB), null for 業績目標
   status: SelfAssessmentStatus;
   submittedAt?: string; // ISO 8601 datetime
   createdAt: string;
@@ -815,6 +769,7 @@ interface SupervisorFeedback {
   supervisorRatingCode?: RatingCode;
   supervisorRating?: number; // 0.0-7.0, auto-calculated
   supervisorComment?: string;
+  ratingData?: RatingData; // Competency per-action ratings (JSONB), null for 業績目標
   action: SupervisorFeedbackAction;
   status: SupervisorFeedbackStatus;
   submittedAt?: string;
@@ -924,7 +879,7 @@ interface ApiError {
 | `MISSING_REQUIRED_FIELD` | Required field not provided |
 | `GOAL_NOT_APPROVED` | Cannot create self-assessment for non-approved goal |
 | `PERIOD_NOT_ACTIVE` | Evaluation period is not active |
-| `COMMENT_REQUIRED_FOR_REJECTION` | Supervisor comment required when rejecting |
+| `RATING_REQUIRED_FOR_APPROVAL` | Supervisor rating code required when approving |
 
 ---
 
@@ -934,17 +889,19 @@ interface ApiError {
 
 | Field | Rule |
 |-------|------|
-| `selfRatingCode` | Optional in draft, **REQUIRED** for submission. Must be valid code. |
+| `selfRatingCode` | Optional in draft, **REQUIRED** for submission. Must be valid code (SS, S, A, B, C, D). |
 | `selfComment` | Optional in draft, **REQUIRED** for submission. Max 5000 chars. |
-| `status` | Can only transition: draft → submitted. |
+| `ratingData` | Optional JSONB. Competency per-action ratings. NULL for 業績目標. |
+| `status` | Can transition: draft → submitted → approved. Employee can edit until approved. |
 
 ### Supervisor Feedback
 
 | Field | Rule |
 |-------|------|
 | `supervisorRatingCode` | Optional in draft, **REQUIRED** for approval. Must be valid code. |
-| `supervisorComment` | Optional in draft and approval, **REQUIRED** for rejection. Max 5000 chars. |
-| `action` | Must be PENDING, APPROVED, or REJECTED. |
+| `supervisorComment` | Always optional. Max 5000 chars. |
+| `ratingData` | Optional JSONB. Competency per-action ratings. NULL for 業績目標. |
+| `action` | Must be PENDING or APPROVED. |
 | `status` | Can transition: incomplete → draft → submitted. |
 
 ### Status Transition Rules
@@ -953,10 +910,9 @@ interface ApiError {
 ```
 (none) → draft       : System auto-creates when goal approved
 draft → submitted    : Employee submits (requires rating + comment)
+submitted → draft    : Employee edits (before supervisor approves)
 submitted → approved : System sets when SupervisorFeedback.action = APPROVED
-submitted → rejected : System sets when SupervisorFeedback.action = REJECTED
 approved → (none)    : Immutable, no transitions
-rejected → (none)    : Immutable, no transitions (new draft created instead)
 ```
 
 **Supervisor Feedback:**
@@ -1013,7 +969,6 @@ The following events may trigger webhooks:
 |-------|-------------|
 | `self_assessment.submitted` | Employee submitted self-assessment |
 | `self_assessment.approved` | Supervisor approved self-assessment |
-| `self_assessment.rejected` | Supervisor rejected self-assessment |
 | `core_value.unlocked` | All Performance + Competency approved, Core Value available (期末評価 periods only) |
 
 ---
@@ -1029,6 +984,16 @@ The following events may trigger webhooks:
 ---
 
 ## Changelog
+
+### Version 3.0 (2025-02-03)
+- Changed to 3-state system: draft, submitted, approved (removed rejected)
+- Removed `previousSelfAssessmentId` (no rejection history)
+- Removed rejection history endpoint (Section 4.8)
+- Fixed input rating scale: SS, S, A, B, C, D (6-level, no A+/A-)
+- Removed REJECTED from SupervisorFeedback action (only PENDING/APPROVED)
+- Added `ratingData` JSONB field for granular competency per-action ratings
+- Updated all response examples to include `ratingData`
+- Updated validation rules to match 3-state system
 
 ### Version 2.0 (2025-01-05)
 - Added 4-state system: draft, submitted, approved, rejected

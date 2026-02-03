@@ -125,6 +125,25 @@ Following the same pattern as goal-review:
 - **`self_rating_code`** (String) - Employee's grade: **SS | S | A | B | C | D** (optional in draft, **required** for submission). Allowed values depend on goal type (validated at service layer).
 - `self_rating` (Decimal) - Numeric equivalent for calculations (internal, auto-calculated from rating_code)
 - **`self_comment`** (String) - Employee's narrative self-assessment (optional in draft, **required** for submission)
+- **`rating_data`** (JSONB, nullable) - Granular per-action ratings for コンピテンシー goals. Structure:
+  ```json
+  {
+    "action_ratings": {
+      "<competency_id>": {
+        "<action_number>": {"code": "S", "value": 6.0}
+      }
+    },
+    "competency_averages": {
+      "<competency_id>": 4.0
+    },
+    "overall_average": 5.25
+  }
+  ```
+  - `action_ratings`: Individual rating per ideal action, keyed by competency UUID then action number (1-5)
+  - `competency_averages`: Calculated average per competency (from its action ratings)
+  - `overall_average`: Calculated average across all competencies
+  - **NULL** for 業績目標 goals (rating is direct via `self_rating_code`)
+  - For コンピテンシー: `self_rating_code` stores the final letter grade derived from `overall_average`
 - `status` (Enum) - Current state: `draft`, `submitted`, `approved`
 - `submitted_at` (DateTime) - Timestamp when assessment was submitted
 - `created_at` (DateTime) - Record creation timestamp
@@ -236,6 +255,7 @@ Following the same pattern as goal-review:
 - `supervisor_rating_code` (String) - Supervisor's grade: **SS | S | A | B | C | D** (required for approval). Same goal-type validation as self-assessment.
 - `supervisor_rating` (Decimal) - Numeric equivalent for calculations (0.0-7.0, auto-calculated)
 - **`supervisor_comment`** (String) - Supervisor's feedback comment (optional)
+- **`rating_data`** (JSONB, nullable) - Supervisor's granular per-action rating suggestions for コンピテンシー goals. Same structure as SelfAssessment.rating_data. Rarely used — most supervisors only provide an overall `supervisor_rating_code`. **NULL** for 業績目標 goals.
 - `action` (Enum) - Supervisor decision: `PENDING` or `APPROVED` (no REJECTED)
 - `status` (Enum) - Workflow status: `incomplete`, `draft`, `submitted` (uses `SubmissionStatus`)
 - `submitted_at` (DateTime) - Timestamp when feedback was submitted
@@ -306,6 +326,7 @@ erDiagram
         string self_rating_code "SS|S|A|B|C|D, nullable"
         decimal self_rating "0-7, nullable, auto-calculated"
         string self_comment "nullable"
+        jsonb rating_data "nullable, competency per-action ratings"
         string status "draft|submitted|approved"
         timestamp submitted_at "nullable"
         timestamp created_at
@@ -321,6 +342,7 @@ erDiagram
         string supervisor_rating_code "SS|S|A|B|C|D, nullable"
         decimal supervisor_rating "0-7, nullable, auto-calculated"
         string supervisor_comment "nullable"
+        jsonb rating_data "nullable, competency per-action ratings"
         string action "PENDING|APPROVED"
         string status "incomplete|draft|submitted"
         timestamp submitted_at "nullable"
@@ -490,6 +512,7 @@ CHECK ((status != 'submitted' AND status != 'approved') OR (submitted_at IS NOT 
 | `self_rating_code` | Draft: ❌ No<br>Submit: ✅ Yes | SS\|S\|A\|B\|C\|D | Service validates per goal type |
 | `self_rating` | Auto-calculated | 0.0-7.0 (decimal) | Numeric equivalent for calculations |
 | `self_comment` | Draft: ❌ No<br>Submit: ✅ Yes | String, non-empty | **REQUIRED for submission** |
+| `rating_data` | ❌ No | JSONB, nullable | Only for コンピテンシー goals; per-action granular ratings |
 | `status` | ✅ Yes | `draft`, `submitted`, `approved` | Default: `draft` |
 | `submitted_at` | Draft: ❌ No<br>Submit/Approved: ✅ Yes | Auto-set on submission | Required for submitted and approved states |
 
