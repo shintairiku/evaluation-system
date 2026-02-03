@@ -10,12 +10,15 @@
 
 This document defines the Pydantic schemas for the Self-Assessment feature, ensuring alignment with the API Contract and frontend TypeScript types. The schemas support:
 
-- **4-state system**: draft → submitted → approved/rejected
+- **3-state system**: draft → submitted → approved
+  - Employees can edit self-assessments until supervisor approves
+  - No formal rejection - supervisor provides feedback via comments
 - **Letter grade system**:
-  - **Input Scale (Individual Goals)**: SS, S, A, B, C, D (6 levels) - for self-assessments and supervisor feedbacks
-  - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C, D (8 levels) - for overall period ratings
-- **Rejection history tracking**: via `previous_self_assessment_id`
-- **Supervisor feedback**: with action (PENDING/APPROVED/REJECTED) and status (incomplete/draft/submitted)
+  - **Input Scale (Competency)**: SS, S, A, B, C (5 levels) - for competency evaluations
+  - **Input Scale (Quantitative Goals)**: SS, S, A, B, C, D (6 levels) - for quantitative performance goals
+  - **Input Scale (Qualitative Goals)**: SS, S, A, B, C (5 levels) - for qualitative performance goals
+  - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C (7 levels) - for overall period ratings
+- **Supervisor feedback**: with action (PENDING/APPROVED) and status (incomplete/draft/submitted)
 
 ---
 
@@ -32,9 +35,8 @@ self_rating: Optional[float] = Field(None, ge=0, le=100)
 # ❌ Current: Only SubmissionStatus (draft/submitted)
 status: SubmissionStatus
 
-# ❌ Missing: previous_self_assessment_id
 # ❌ Missing: self_rating_code (letter grade)
-# ❌ Missing: SelfAssessmentStatus (4 states)
+# ❌ Missing: SelfAssessmentStatus (3 states)
 ```
 
 ### 2.2. Required Changes
@@ -42,8 +44,8 @@ status: SubmissionStatus
 | Change | Current | Updated |
 |--------|---------|---------|
 | Rating system | `self_rating: float (0-100)` | `self_rating_code: RatingCode` + `self_rating: float (0-7)` |
-| Status enum | `SubmissionStatus` | `SelfAssessmentStatus` (4 states) |
-| History tracking | ❌ Missing | `previous_self_assessment_id: UUID` |
+| Status enum | `SubmissionStatus` | `SelfAssessmentStatus` (3 states: draft/submitted/approved) |
+| Editability | Fixed after submission | Editable until supervisor approves |
 | Goal relation | ❌ Missing | `goal: Optional[GoalResponse]` |
 
 ---
@@ -57,13 +59,13 @@ status: SubmissionStatus
 
 class SelfAssessmentStatus(str, Enum):
     """
-    4-state self-assessment status.
+    3-state self-assessment status.
+    Employees can edit until supervisor approves.
     @see domain-model.md Section 5 - State Transitions
     """
-    DRAFT = "draft"
-    SUBMITTED = "submitted"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+    DRAFT = "draft"          # Employee is still working on it
+    SUBMITTED = "submitted"  # Submitted for supervisor review, but still editable by employee
+    APPROVED = "approved"    # Approved by supervisor, locked from editing
 ```
 
 ### 3.2. RatingCode (Individual Goal Input - 5 levels)
@@ -133,16 +135,19 @@ def final_rating_code_to_value(code: FinalRatingCode) -> float:
     return FINAL_RATING_CODE_VALUES.get(code, 0.0)
 ```
 
-### 3.4. SupervisorFeedbackAction (EXISTING)
+### 3.4. SupervisorFeedbackAction (UPDATED)
 
 ```python
-# backend/app/schemas/supervisor_review.py (Already exists)
+# backend/app/schemas/supervisor_review.py (Update)
 
 class SupervisorAction(str, Enum):
-    """Supervisor decision action."""
-    APPROVED = "APPROVED"
-    REJECTED = "REJECTED"
-    PENDING = "PENDING"
+    """
+    Supervisor decision action.
+    Note: REJECTED removed - supervisor provides feedback via comments,
+    employee can edit until approval.
+    """
+    PENDING = "PENDING"      # Supervisor reviewing, no decision yet
+    APPROVED = "APPROVED"    # Supervisor approved, locks the self-assessment
 ```
 
 ### 3.4. SupervisorFeedbackStatus (EXISTING)
@@ -233,15 +238,11 @@ class SelfAssessmentInDB(SelfAssessmentBase):
     """
     Self-assessment as stored in database.
     Includes all system-managed fields.
+    Employee can edit until supervisor approves.
     """
     id: UUID
     goal_id: UUID = Field(..., alias="goalId")
     period_id: UUID = Field(..., alias="periodId")
-    previous_self_assessment_id: Optional[UUID] = Field(
-        None,
-        alias="previousSelfAssessmentId",
-        description="Reference to previous self-assessment (for rejection history)"
-    )
     self_rating: Optional[float] = Field(
         None,
         alias="selfRating",
@@ -251,7 +252,7 @@ class SelfAssessmentInDB(SelfAssessmentBase):
     )
     status: SelfAssessmentStatus = Field(
         default=SelfAssessmentStatus.DRAFT,
-        description="Current status: draft, submitted, approved, or rejected"
+        description="Current status: draft, submitted, or approved"
     )
     submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
     created_at: datetime = Field(..., alias="createdAt")
@@ -354,44 +355,6 @@ class SelfAssessmentList(PaginatedResponse[SelfAssessment]):
     pass
 ```
 
-### 4.8. History Item Schema
-
-```python
-class SelfAssessmentHistoryItem(BaseModel):
-    """
-    Rejection history item (for history chain display).
-    @see api-contract.md Section 4.8
-    """
-    id: UUID
-    status: SelfAssessmentStatus
-    self_rating_code: Optional[RatingCode] = Field(None, alias="selfRatingCode")
-    self_comment: Optional[str] = Field(None, alias="selfComment")
-    previous_self_assessment_id: Optional[UUID] = Field(
-        None,
-        alias="previousSelfAssessmentId"
-    )
-    submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
-    # From SupervisorFeedback
-    supervisor_comment: Optional[str] = Field(
-        None,
-        alias="supervisorComment",
-        description="Supervisor's comment (from SupervisorFeedback)"
-    )
-    supervisor_action: Optional[SupervisorAction] = Field(
-        None,
-        alias="supervisorAction",
-        description="Supervisor's action (from SupervisorFeedback)"
-    )
-
-    model_config = {"from_attributes": True, "populate_by_name": True}
-
-
-class SelfAssessmentHistory(BaseModel):
-    """Rejection history response."""
-    items: list[SelfAssessmentHistoryItem]
-    total: int
-```
-
 ---
 
 ## 5. Supervisor Feedback Schemas (Updated)
@@ -480,23 +443,24 @@ class SupervisorFeedbackUpdate(BaseModel):
 ```python
 class SupervisorFeedbackSubmit(BaseModel):
     """
-    Request schema for submitting supervisor feedback (approve/reject).
+    Request schema for submitting supervisor feedback (approval only).
+    Supervisor can only approve - provides feedback via comments for employee to adjust.
     @see api-contract.md Section 5.5
     """
     action: SupervisorAction = Field(
         ...,
-        description="Decision: APPROVED or REJECTED"
+        description="Decision: APPROVED (REJECTED removed - employee edits until approval)"
     )
     supervisor_rating_code: Optional[RatingCode] = Field(
         None,
         alias="supervisorRatingCode",
-        description="Rating code: SS, S, A, B, C, D (6-level input scale, required for APPROVED)"
+        description="Rating code (required for APPROVED)"
     )
     supervisor_comment: Optional[str] = Field(
         None,
         alias="supervisorComment",
         max_length=5000,
-        description="Comment (required for REJECTED, optional for APPROVED)"
+        description="Feedback comment (optional for APPROVED)"
     )
 
     model_config = {"populate_by_name": True}
@@ -504,19 +468,13 @@ class SupervisorFeedbackSubmit(BaseModel):
     @model_validator(mode='after')
     def validate_submit_requirements(self) -> 'SupervisorFeedbackSubmit':
         """
-        Validate submission requirements based on action.
+        Validate submission requirements.
         - APPROVED: supervisor_rating_code required
-        - REJECTED: supervisor_comment required
         """
         if self.action == SupervisorAction.APPROVED:
             if not self.supervisor_rating_code:
                 raise ValueError(
                     "supervisor_rating_code is required when approving"
-                )
-        elif self.action == SupervisorAction.REJECTED:
-            if not self.supervisor_comment:
-                raise ValueError(
-                    "supervisor_comment is required when rejecting"
                 )
         return self
 ```
@@ -542,7 +500,7 @@ class SupervisorFeedbackInDB(SupervisorFeedbackBase):
     )
     action: SupervisorAction = Field(
         default=SupervisorAction.PENDING,
-        description="Decision: PENDING, APPROVED, or REJECTED"
+        description="Decision: PENDING or APPROVED (REJECTED removed)"
     )
     status: SubmissionStatus = Field(
         default=SubmissionStatus.INCOMPLETE,
@@ -675,18 +633,16 @@ from .common import SelfAssessmentStatus
 
 
 def is_self_assessment_editable(status: SelfAssessmentStatus) -> bool:
-    """Check if self-assessment can be edited."""
-    return status == SelfAssessmentStatus.DRAFT
+    """
+    Check if self-assessment can be edited.
+    Employee can edit until supervisor approves.
+    """
+    return status != SelfAssessmentStatus.APPROVED
 
 
 def is_self_assessment_finalized(status: SelfAssessmentStatus) -> bool:
-    """Check if self-assessment is finalized (approved or rejected)."""
-    return status in (SelfAssessmentStatus.APPROVED, SelfAssessmentStatus.REJECTED)
-
-
-def is_resubmission(previous_id: Optional[str]) -> bool:
-    """Check if self-assessment is a resubmission (has rejection history)."""
-    return previous_id is not None
+    """Check if self-assessment is finalized (approved and locked)."""
+    return status == SelfAssessmentStatus.APPROVED
 ```
 
 ---
@@ -754,11 +710,10 @@ def validate_self_assessment_submission(
 | `id` | `id` | `UUID` | ✅ Aligned |
 | `goalId` | `goal_id` | `UUID` | ✅ Aligned |
 | `periodId` | `period_id` | `UUID` | ✅ Aligned |
-| `previousSelfAssessmentId` | `previous_self_assessment_id` | `UUID \| None` | ✅ **NEW** |
 | `selfRatingCode` | `self_rating_code` | `RatingCode` | ✅ **NEW** |
 | `selfRating` | `self_rating` | `float (0-7)` | ✅ **UPDATED** |
 | `selfComment` | `self_comment` | `str \| None` | ✅ Aligned |
-| `status` | `status` | `SelfAssessmentStatus` | ✅ **UPDATED** (4 states) |
+| `status` | `status` | `SelfAssessmentStatus` | ✅ **UPDATED** (3 states: draft/submitted/approved) |
 | `submittedAt` | `submitted_at` | `datetime \| None` | ✅ Aligned |
 | `createdAt` | `created_at` | `datetime` | ✅ Aligned |
 | `updatedAt` | `updated_at` | `datetime` | ✅ Aligned |
@@ -793,7 +748,6 @@ def validate_self_assessment_submission(
 | `self_rating_code: RatingCode` | `selfRatingCode: RatingCode` | `selfRatingCode` | ✅ |
 | `self_rating: float` | `selfRating: number` | `selfRating` | ✅ |
 | `self_comment: str` | `selfComment: string` | `selfComment` | ✅ |
-| `previous_self_assessment_id: UUID` | `previousSelfAssessmentId: UUID` | `previousSelfAssessmentId` | ✅ |
 | `status: SelfAssessmentStatus` | `status: SelfAssessmentStatus` | - | ✅ |
 | `goal_id: UUID` | `goalId: UUID` | `goalId` | ✅ |
 | `period_id: UUID` | `periodId: UUID` | `periodId` | ✅ |
@@ -856,25 +810,6 @@ try:
     )
 except ValidationError as e:
     print(e)  # "supervisor_rating_code is required when approving"
-```
-
-### 10.4. Supervisor Feedback Submit - Rejection
-
-```python
-# Valid rejection - comment required
-valid_rejection = SupervisorFeedbackSubmit(
-    action=SupervisorAction.REJECTED,
-    supervisor_comment="具体的な数字を追加してください。"
-)
-
-# Invalid rejection - missing comment
-try:
-    invalid_rejection = SupervisorFeedbackSubmit(
-        action=SupervisorAction.REJECTED
-        # Missing supervisor_comment
-    )
-except ValidationError as e:
-    print(e)  # "supervisor_comment is required when rejecting"
 ```
 
 ---
@@ -944,11 +879,10 @@ class TestSelfAssessmentSchemas:
         assert "Input should be" in str(exc_info.value)
 
     def test_self_assessment_status_enum(self):
-        """Test 4-state SelfAssessmentStatus enum."""
+        """Test 3-state SelfAssessmentStatus enum."""
         assert SelfAssessmentStatus.DRAFT.value == "draft"
         assert SelfAssessmentStatus.SUBMITTED.value == "submitted"
         assert SelfAssessmentStatus.APPROVED.value == "approved"
-        assert SelfAssessmentStatus.REJECTED.value == "rejected"
 
 
 class TestSupervisorFeedbackSchemas:
@@ -972,23 +906,6 @@ class TestSupervisorFeedbackSchemas:
         )
         assert submit.action == SupervisorAction.APPROVED
         assert submit.supervisor_rating_code == RatingCode.A
-
-    def test_submit_rejection_requires_comment(self):
-        """Test rejection requires comment."""
-        with pytest.raises(ValidationError) as exc_info:
-            SupervisorFeedbackSubmit(
-                action=SupervisorAction.REJECTED
-            )
-        assert "supervisor_comment is required" in str(exc_info.value)
-
-    def test_submit_rejection_valid(self):
-        """Test valid rejection submission."""
-        submit = SupervisorFeedbackSubmit(
-            action=SupervisorAction.REJECTED,
-            supervisor_comment="Please add more details"
-        )
-        assert submit.action == SupervisorAction.REJECTED
-        assert submit.supervisor_comment == "Please add more details"
 ```
 
 ---
@@ -998,12 +915,23 @@ class TestSupervisorFeedbackSchemas:
 ### 12.1. Breaking Changes
 
 1. **Status enum changed**: `SubmissionStatus` → `SelfAssessmentStatus` for self-assessments
-   - Added: `approved`, `rejected` states
+   - Changed to 3 states: `draft`, `submitted`, `approved`
+   - Removed: `rejected` state (employees edit until approval)
 
 2. **Rating system changed**: `self_rating (0-100)` → `self_rating_code + self_rating (0-7)`
    - Need to migrate existing data
+   - Competency: SS, S, A, B, C (5 levels)
+   - Quantitative Goals: SS, S, A, B, C, D (6 levels)
+   - Qualitative Goals: SS, S, A, B, C (5 levels)
 
-3. **New required field**: `subordinate_id` on SupervisorFeedback
+3. **SupervisorAction changed**: Removed `REJECTED`
+   - Only `PENDING` and `APPROVED` allowed
+   - Supervisor provides feedback via comments instead of formal rejection
+
+4. **Editability changed**: Employees can edit self-assessments until supervisor approves
+   - `isEditable = status !== 'approved'`
+
+5. **New required field**: `subordinate_id` on SupervisorFeedback
 
 ### 12.2. Database Migration
 
@@ -1011,26 +939,21 @@ class TestSupervisorFeedbackSchemas:
 # Alembic migration example
 
 def upgrade():
-    # Add new columns
-    op.add_column('self_assessments', sa.Column(
-        'previous_self_assessment_id',
-        postgresql.UUID(as_uuid=True),
-        nullable=True
-    ))
+    # Add new columns to self_assessments
     op.add_column('self_assessments', sa.Column(
         'self_rating_code',
         sa.String(2),
         nullable=True
     ))
 
-    # Update status column to support 4 states
+    # Update status column to support 3 states (draft, submitted, approved)
     op.execute("""
         ALTER TABLE self_assessments
         DROP CONSTRAINT IF EXISTS self_assessments_status_check;
 
         ALTER TABLE self_assessments
         ADD CONSTRAINT self_assessments_status_check
-        CHECK (status IN ('draft', 'submitted', 'approved', 'rejected'));
+        CHECK (status IN ('draft', 'submitted', 'approved'));
     """)
 
     # Add subordinate_id to supervisor_feedbacks
@@ -1059,7 +982,6 @@ def upgrade():
 
 def downgrade():
     # Remove new columns
-    op.drop_column('self_assessments', 'previous_self_assessment_id')
     op.drop_column('self_assessments', 'self_rating_code')
     op.drop_column('supervisor_feedbacks', 'subordinate_id')
     op.drop_column('supervisor_feedbacks', 'supervisor_rating_code')

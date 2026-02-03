@@ -17,14 +17,16 @@ This document defines the API contract for the Self-Assessment feature, which al
 ### Key Business Rules
 
 1. **Auto-creation**: Self-assessments are automatically created when a goal is approved by supervisor
-2. **4 Status States**: `draft` → `submitted` → `approved` OR `rejected`
+2. **3 Status States**: `draft` → `submitted` → `approved`
+   - Employees can edit self-assessments until supervisor approves
+   - No formal rejection - supervisor provides feedback via comments
 3. **Letter Grade System**:
-   - **Input Scale (Individual Goals)**: SS, S, A, B, C, D (6 levels) - what users select per goal
-     - 業績目標 with 定量目標: all 6 levels
-     - 業績目標 with 定性目標: only SS, S, A, B, C (no D)
-     - コンピテンシー: all 6 levels
-   - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C, D (8 levels) - system calculates from weighted average
-4. **Rejection History**: When rejected, original self-assessment becomes immutable, new draft is created with `previousSelfAssessmentId`
+   - **Input Scale (Individual Goals)**:
+     - 業績目標 with 定量目標 (Quantitative): SS, S, A, B, C, D (6 levels)
+     - 業績目標 with 定性目標 (Qualitative): SS, S, A, B, C (5 levels - no D)
+     - コンピテンシー (Competency): SS, S, A, B, C (5 levels - no D)
+   - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C (7 levels) - system calculates from weighted average
+4. **Continuous Editing**: Employees can update their self-assessments even after submission, until supervisor approves
 5. **Sequential Flow**: Core Value self-assessments are **only available in end-of-period evaluations (期末評価)** and unlock after ALL Performance + Competency are approved
 
 ---

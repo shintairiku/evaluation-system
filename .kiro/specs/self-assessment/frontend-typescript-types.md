@@ -10,12 +10,15 @@
 
 This document defines the TypeScript types for the Self-Assessment feature, ensuring alignment with the API Contract and backend Pydantic schemas. The types support:
 
-- **4-state system**: draft → submitted → approved/rejected
+- **3-state system**: draft → submitted → approved
+  - Employees can edit self-assessments until supervisor approves
+  - No formal rejection - supervisor provides feedback via comments
 - **Letter grade system**:
-  - **Input Scale (Individual Goals)**: SS, S, A, B, C, D (6 levels) - for self-assessments and supervisor feedbacks
-  - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C, D (8 levels) - for overall period ratings
-- **Rejection history tracking**: via `previousSelfAssessmentId`
-- **Supervisor feedback**: with action (PENDING/APPROVED/REJECTED) and status (incomplete/draft/submitted)
+  - **Input Scale (Competency)**: SS, S, A, B, C (5 levels) - for competency evaluations
+  - **Input Scale (Quantitative Goals)**: SS, S, A, B, C, D (6 levels) - for quantitative performance goals
+  - **Input Scale (Qualitative Goals)**: SS, S, A, B, C (5 levels) - for qualitative performance goals
+  - **Output Scale (Final Calculation)**: SS, S, A+, A, A-, B, C (7 levels) - for overall period ratings
+- **Supervisor feedback**: with action (PENDING/APPROVED) and status (incomplete/draft/submitted)
 
 ---
 
@@ -32,9 +35,8 @@ selfRating?: number; // 0-100
 // ❌ Current: Only 2 states
 status: SubmissionStatus; // 'draft' | 'submitted'
 
-// ❌ Missing: previousSelfAssessmentId
 // ❌ Missing: selfRatingCode (letter grade)
-// ❌ Missing: approved/rejected states
+// ❌ Missing: approved state
 ```
 
 ### 2.2. Required Changes
@@ -42,8 +44,8 @@ status: SubmissionStatus; // 'draft' | 'submitted'
 | Change | Current | Updated |
 |--------|---------|---------|
 | Rating system | `selfRating: number (0-100)` | `selfRatingCode: RatingCode` + `selfRating: number (0-7)` |
-| Status enum | `draft \| submitted` | `draft \| submitted \| approved \| rejected` |
-| History tracking | ❌ Missing | `previousSelfAssessmentId?: UUID` |
+| Status enum | `draft \| submitted` | `draft \| submitted \| approved` (3 states) |
+| Editability | Fixed after submission | Editable until supervisor approves |
 | Goal relation | `goal?: unknown` | `goal?: GoalResponse` (typed) |
 
 ---
@@ -58,48 +60,65 @@ status: SubmissionStatus; // 'draft' | 'submitted'
 export type UUID = string;
 
 /**
- * Self-Assessment status enum (4 states)
+ * Self-Assessment status enum (3 states)
+ * Employee can edit until supervisor approves
  * @see domain-model.md Section 5 - State Transitions
  */
 export enum SelfAssessmentStatus {
-  DRAFT = 'draft',
-  SUBMITTED = 'submitted',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
+  DRAFT = 'draft',          // Employee is still working on it
+  SUBMITTED = 'submitted',  // Submitted for supervisor review, but still editable by employee
+  APPROVED = 'approved',    // Approved by supervisor, locked from editing
 }
 
 /**
- * Individual goal rating codes (User Input Scale - 6 levels)
- * Used when user evaluates each individual goal
- * Maps to numeric values 0.0-7.0
+ * Competency rating codes (5 levels - no D grade)
+ * Used for コンピテンシー (Competency) evaluations
+ * Maps to numeric values 1.0-7.0
  * @see domain-model.md Section 4.2 - Rating Validation
  */
-export type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
+export type CompetencyRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C';
 
 /**
- * Final calculated rating codes (System Output Scale - 8 levels)
+ * Final calculated rating codes (System Output Scale - 7 levels)
  * Includes intermediate grades A+, A- for precise final evaluation
  * Used for overall period performance ratings
  * @see domain-model.md Section 4.2 - Rating Validation
  */
-export type FinalRatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
+export type FinalRatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C';
 
 /**
- * Qualitative goal rating codes (no D grade)
+ * Qualitative goal rating codes (5 levels - no D grade)
  * Used for 定性目標 (Qualitative Performance Goals) assessments
  */
 export type QualitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C';
 
 /**
- * Quantitative goal rating codes (includes D grade)
- * Used for 定量目標 (Quantitative Performance Goals) and コンピテンシー assessments
+ * Quantitative goal rating codes (6 levels - includes D grade)
+ * Used for 定量目標 (Quantitative Performance Goals) assessments
  */
 export type QuantitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
 
 /**
- * Rating code to numeric value mapping (6-level input scale)
+ * General rating code type (union of all rating codes)
+ * Use specific types (CompetencyRatingCode, QualitativeRatingCode, QuantitativeRatingCode) when possible
  */
-export const RATING_CODE_VALUES: Record<RatingCode, number> = {
+export type RatingCode = CompetencyRatingCode | QuantitativeRatingCode;
+
+/**
+ * Competency rating code to numeric value mapping (5 levels)
+ */
+export const COMPETENCY_RATING_VALUES: Record<CompetencyRatingCode, number> = {
+  'SS': 7.0,
+  'S': 6.0,
+  'A': 4.0,
+  'B': 2.0,
+  'C': 1.0,
+};
+
+/**
+ * Quantitative rating code to numeric value mapping (6 levels)
+ */
+export const QUANTITATIVE_RATING_VALUES: Record<QuantitativeRatingCode, number> = {
   'SS': 7.0,
   'S': 6.0,
   'A': 4.0,
@@ -109,7 +128,7 @@ export const RATING_CODE_VALUES: Record<RatingCode, number> = {
 };
 
 /**
- * Final rating code to numeric value mapping (8-level output scale)
+ * Final rating code to numeric value mapping (7-level output scale)
  */
 export const FINAL_RATING_CODE_VALUES: Record<FinalRatingCode, number> = {
   'SS': 7.0,
@@ -119,34 +138,12 @@ export const FINAL_RATING_CODE_VALUES: Record<FinalRatingCode, number> = {
   'A-': 3.0,
   'B': 2.0,
   'C': 1.0,
-  'D': 0.0,
 };
 
 /**
- * Rating code display labels - Japanese (6-level input scale)
+ * Competency rating codes array (for コンピテンシー)
  */
-export const RATING_CODE_LABELS: Record<RatingCode, string> = {
-  'SS': 'SS - 卓越',
-  'S': 'S - 優秀',
-  'A': 'A - 良好',
-  'B': 'B - 標準',
-  'C': 'C - 要改善',
-  'D': 'D - 不十分',
-};
-
-/**
- * Final rating code display labels - Japanese (8-level output scale)
- */
-export const FINAL_RATING_CODE_LABELS: Record<FinalRatingCode, string> = {
-  'SS': 'SS - 卓越',
-  'S': 'S - 優秀',
-  'A+': 'A+ - 非常に良い',
-  'A': 'A - 良好',
-  'A-': 'A- - やや良好',
-  'B': 'B - 標準',
-  'C': 'C - 要改善',
-  'D': 'D - 不十分',
-};
+export const COMPETENCY_RATING_CODES: CompetencyRatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
 
 /**
  * Qualitative rating codes array (for 定性目標)
@@ -154,17 +151,18 @@ export const FINAL_RATING_CODE_LABELS: Record<FinalRatingCode, string> = {
 export const QUALITATIVE_RATING_CODES: QualitativeRatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
 
 /**
- * Quantitative rating codes array (for 定量目標 and コンピテンシー)
+ * Quantitative rating codes array (for 定量目標)
  */
 export const QUANTITATIVE_RATING_CODES: QuantitativeRatingCode[] = ['SS', 'S', 'A', 'B', 'C', 'D'];
 
 /**
  * Supervisor feedback action enum
+ * Note: REJECTED removed - supervisor provides feedback via comments,
+ * employee can edit until approval
  */
 export enum SupervisorFeedbackAction {
-  PENDING = 'PENDING',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
+  PENDING = 'PENDING',      // Supervisor reviewing, no decision yet
+  APPROVED = 'APPROVED',    // Supervisor approved, locks the self-assessment
 }
 
 /**
