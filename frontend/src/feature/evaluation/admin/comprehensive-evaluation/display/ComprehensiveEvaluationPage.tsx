@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Search, Settings, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Search, Settings, Trash2, X } from "lucide-react";
 
 import RolePermissionGuard from "@/components/auth/RolePermissionGuard";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -20,7 +20,7 @@ import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluat
 import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
 import { useComprehensiveEvaluationUserFlags } from "../hooks/useComprehensiveEvaluationUserFlags";
-import { EVALUATION_RANKS } from "../settings";
+import { EVALUATION_RANKS, type PromotionRuleCondition } from "../settings";
 import type { ComprehensiveEvaluationRow, EmploymentType, EvaluationRank, ProcessingStatus } from "../types";
 
 function formatNumber(value: number, digits = 2): string {
@@ -35,6 +35,15 @@ function formatDelta(value: number | null): string {
 
 function formatMboDFlag(value: ComprehensiveEvaluationRow["mboDRatingFlag"]): string {
   return value === "1" ? "1" : "-";
+}
+
+const INTERMEDIATE_NUMBER_INPUTS = new Set(["", "-", ".", "-."]);
+
+function parseNumericInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (INTERMEDIATE_NUMBER_INPUTS.has(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function buildSearchText(row: ComprehensiveEvaluationRow): string {
@@ -56,12 +65,51 @@ function getEmploymentTypeBadgeVariant(value: EmploymentType) {
   return value === "employee" ? "outline" : "secondary";
 }
 
+type PromotionConditionTarget = PromotionRuleCondition["field"];
+type PromotionRankTarget = Extract<PromotionRuleCondition, { type: "rank_at_least" }>["field"];
+
+const PROMOTION_CONDITION_TARGETS: Array<{
+  value: PromotionConditionTarget;
+  label: string;
+  kind: "rank" | "flag";
+}> = [
+  { value: "overallRank", label: "総合評価が◯以上", kind: "rank" },
+  { value: "competencyFinalRank", label: "コンピテンシー最終評価が◯以上", kind: "rank" },
+  { value: "coreValueFinalRank", label: "クレド（コアバリュー）最終評価が◯以上", kind: "rank" },
+  { value: "leaderInterviewCleared", label: "リーダー面談クリア", kind: "flag" },
+  { value: "divisionHeadPresentationCleared", label: "事業部長プレゼンクリア", kind: "flag" },
+  { value: "ceoInterviewCleared", label: "CEO面談クリア", kind: "flag" },
+];
+
+function isPromotionRankTarget(target: PromotionConditionTarget): target is PromotionRankTarget {
+  return target === "overallRank" || target === "competencyFinalRank" || target === "coreValueFinalRank";
+}
+
+function createId(prefix: string): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createPromotionCondition(
+  target: PromotionConditionTarget,
+  fallbackRank: EvaluationRank = "A+"
+): PromotionRuleCondition {
+  if (isPromotionRankTarget(target)) {
+    return { type: "rank_at_least", field: target, minimumRank: fallbackRank };
+  }
+  return { type: "flag_cleared", field: target };
+}
+
 export default function ComprehensiveEvaluationPage() {
   const { hasRole } = useUserRoles();
-  const canEditThresholds = hasRole("admin"); // TODO: eval_adminに変更
+  const canEditThresholds = hasRole("eval_admin");
   const { settings, setSettings, resetSettings } = useComprehensiveEvaluationSettings();
   const { flagsByUserId } = useComprehensiveEvaluationUserFlags();
   const { overridesByPeriodId } = useComprehensiveEvaluationManualOverrides();
+
+  const evaluationRows = mockComprehensiveEvaluationRows;
 
   const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(
     mockEvaluationPeriods[0]?.id ?? "all"
@@ -71,25 +119,54 @@ export default function ComprehensiveEvaluationPage() {
   const [selectedEmploymentType, setSelectedEmploymentType] = useState<EmploymentType | "all">("all");
   const [selectedProcessingStatus, setSelectedProcessingStatus] = useState<ProcessingStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [promotionStageDeltaInput, setPromotionStageDeltaInput] = useState<string>(
+    String(settings.promotion.stageDelta)
+  );
+  const [demotionStageDeltaInput, setDemotionStageDeltaInput] = useState<string>(
+    String(settings.demotion.stageDelta)
+  );
+  const [levelDeltaInputs, setLevelDeltaInputs] = useState<Record<EvaluationRank, string>>(() =>
+    EVALUATION_RANKS.reduce((acc, rank) => {
+      acc[rank] = String(settings.levelDeltaByOverallRank[rank] ?? "");
+      return acc;
+    }, {} as Record<EvaluationRank, string>)
+  );
+
+  useEffect(() => {
+    setPromotionStageDeltaInput(String(settings.promotion.stageDelta));
+  }, [settings.promotion.stageDelta]);
+
+  useEffect(() => {
+    setDemotionStageDeltaInput(String(settings.demotion.stageDelta));
+  }, [settings.demotion.stageDelta]);
+
+  useEffect(() => {
+    setLevelDeltaInputs(
+      EVALUATION_RANKS.reduce((acc, rank) => {
+        acc[rank] = String(settings.levelDeltaByOverallRank[rank] ?? "");
+        return acc;
+      }, {} as Record<EvaluationRank, string>)
+    );
+  }, [settings.levelDeltaByOverallRank]);
 
   const departments = useMemo(() => {
     const unique = new Set<string>();
-    mockComprehensiveEvaluationRows.forEach((row) => unique.add(row.departmentName));
+    evaluationRows.forEach((row) => unique.add(row.departmentName));
     return Array.from(unique).sort((a, b) => a.localeCompare(b, "ja"));
-  }, []);
+  }, [evaluationRows]);
 
   const stages = useMemo(() => {
     const unique = new Set<string>();
-    mockComprehensiveEvaluationRows.forEach((row) => {
+    evaluationRows.forEach((row) => {
       if (row.currentStage) unique.add(row.currentStage);
     });
     return Array.from(unique).sort((a, b) => a.localeCompare(b, "ja"));
-  }, []);
+  }, [evaluationRows]);
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return mockComprehensiveEvaluationRows.filter((row) => {
+    return evaluationRows.filter((row) => {
       if (evaluationPeriodId !== "all" && row.evaluationPeriodId !== evaluationPeriodId) return false;
       if (selectedDepartment !== "all" && row.departmentName !== selectedDepartment) return false;
       if (selectedStage !== "all" && row.currentStage !== selectedStage) return false;
@@ -99,7 +176,15 @@ export default function ComprehensiveEvaluationPage() {
       if (!normalizedQuery) return true;
       return buildSearchText(row).includes(normalizedQuery);
     });
-  }, [evaluationPeriodId, searchQuery, selectedDepartment, selectedStage, selectedEmploymentType, selectedProcessingStatus]);
+  }, [
+    evaluationRows,
+    evaluationPeriodId,
+    searchQuery,
+    selectedDepartment,
+    selectedStage,
+    selectedEmploymentType,
+    selectedProcessingStatus,
+  ]);
 
   const handleClearFilters = () => {
     setEvaluationPeriodId(mockEvaluationPeriods[0]?.id ?? "all");
@@ -108,6 +193,122 @@ export default function ComprehensiveEvaluationPage() {
     setSelectedEmploymentType("all");
     setSelectedProcessingStatus("all");
     setSearchQuery("");
+  };
+
+  const addPromotionGroup = () => {
+    setSettings((prev) => ({
+      ...prev,
+      promotion: {
+        ...prev.promotion,
+        ruleGroups: [
+          ...prev.promotion.ruleGroups,
+          {
+            id: createId("promotion-group"),
+            conditions: [createPromotionCondition("overallRank")],
+          },
+        ],
+      },
+    }));
+  };
+
+  const removePromotionGroup = (groupId: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      promotion: {
+        ...prev.promotion,
+        ruleGroups: prev.promotion.ruleGroups.filter((group) => group.id !== groupId),
+      },
+    }));
+  };
+
+  const addPromotionCondition = (groupId: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      promotion: {
+        ...prev.promotion,
+        ruleGroups: prev.promotion.ruleGroups.map((group) => {
+          if (group.id !== groupId) return group;
+          return {
+            ...group,
+            conditions: [...group.conditions, createPromotionCondition("overallRank")],
+          };
+        }),
+      },
+    }));
+  };
+
+  const removePromotionCondition = (groupId: string, index: number) => {
+    setSettings((prev) => ({
+      ...prev,
+      promotion: {
+        ...prev.promotion,
+        ruleGroups: prev.promotion.ruleGroups.map((group) => {
+          if (group.id !== groupId) return group;
+          return {
+            ...group,
+            conditions: group.conditions.filter((_, i) => i !== index),
+          };
+        }),
+      },
+    }));
+  };
+
+  const updatePromotionConditionTarget = (groupId: string, index: number, target: PromotionConditionTarget) => {
+    setSettings((prev) => ({
+      ...prev,
+      promotion: {
+        ...prev.promotion,
+        ruleGroups: prev.promotion.ruleGroups.map((group) => {
+          if (group.id !== groupId) return group;
+          const existing = group.conditions[index];
+          const fallbackRank = existing?.type === "rank_at_least" ? existing.minimumRank : "A+";
+
+          return {
+            ...group,
+            conditions: group.conditions.map((condition, i) => {
+              if (i !== index) return condition;
+              return createPromotionCondition(target, fallbackRank);
+            }),
+          };
+        }),
+      },
+    }));
+  };
+
+  const updatePromotionConditionMinimumRank = (groupId: string, index: number, minimumRank: EvaluationRank) => {
+    setSettings((prev) => ({
+      ...prev,
+      promotion: {
+        ...prev.promotion,
+        ruleGroups: prev.promotion.ruleGroups.map((group) => {
+          if (group.id !== groupId) return group;
+          return {
+            ...group,
+            conditions: group.conditions.map((condition, i) => {
+              if (i !== index) return condition;
+              if (condition.type !== "rank_at_least") return condition;
+              return { ...condition, minimumRank };
+            }),
+          };
+        }),
+      },
+    }));
+  };
+
+  const commitNumericInput = (
+    rawValue: string,
+    fallback: number,
+    setInput: (value: string) => void,
+    onCommit: (value: number) => void
+  ) => {
+    const parsed = parseNumericInput(rawValue);
+    if (parsed === null) {
+      setInput(String(fallback));
+      return;
+    }
+    setInput(String(parsed));
+    if (parsed === fallback) return;
+    onCommit(parsed);
   };
 
   return (
@@ -136,7 +337,7 @@ export default function ComprehensiveEvaluationPage() {
                     判定ルール設定
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-2xl">
+                <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>判定ルール設定（モック）</DialogTitle>
                     <DialogDescription>
@@ -144,139 +345,152 @@ export default function ComprehensiveEvaluationPage() {
                     </DialogDescription>
                   </DialogHeader>
 
-                  <div className="space-y-8">
-                    <section className="space-y-4">
-                      <h3 className="text-sm font-semibold">昇格条件（該当ステージからステージアップ）</h3>
+                  <div className="flex-1 overflow-y-auto pr-2">
+		                  <div className="space-y-8">
+		                    <section className="space-y-4">
+		                      <h3 className="text-sm font-semibold">昇格条件（AND/OR対応）</h3>
+	                        <p className="text-sm text-muted-foreground">
+	                          ORグループのいずれかを満たせば「昇格」として扱います（グループ内はAND）。
+	                        </p>
 
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <div className="space-y-2">
-                          <Label>総合評価（最低ランク）</Label>
-                          <Select
-                            value={settings.promotion.overallMinimumRank}
-                            onValueChange={(value) =>
-                              setSettings((prev) => ({
-                                ...prev,
-                                promotion: { ...prev.promotion, overallMinimumRank: value as EvaluationRank },
-                              }))
-                            }
+                        <div className="space-y-4">
+                          {settings.promotion.ruleGroups.map((group, groupIndex) => (
+                            <div key={group.id} className="rounded-lg border p-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="text-sm font-medium">ORグループ {groupIndex + 1}</div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center gap-2"
+                                  onClick={() => removePromotionGroup(group.id)}
+                                  disabled={settings.promotion.ruleGroups.length <= 1}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  削除
+                                </Button>
+                              </div>
+
+                              <div className="mt-4 space-y-3">
+                                {group.conditions.map((condition, index) => {
+                                  const selectedTarget = condition.field;
+                                  const isRank = condition.type === "rank_at_least";
+
+                                  return (
+                                    <div key={`${group.id}-${index}`} className="grid gap-2 md:grid-cols-12">
+                                      <div className="md:col-span-7">
+                                        <Label className="sr-only">条件</Label>
+                                        <Select
+                                          value={selectedTarget}
+                                          onValueChange={(value) =>
+                                            updatePromotionConditionTarget(group.id, index, value as PromotionConditionTarget)
+                                          }
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {PROMOTION_CONDITION_TARGETS.map((item) => (
+                                              <SelectItem key={item.value} value={item.value}>
+                                                {item.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      <div className="md:col-span-3">
+                                        {isRank ? (
+                                          <>
+                                            <Label className="sr-only">最低ランク</Label>
+                                            <Select
+                                              value={condition.minimumRank}
+                                              onValueChange={(value) =>
+                                                updatePromotionConditionMinimumRank(group.id, index, value as EvaluationRank)
+                                              }
+                                            >
+                                              <SelectTrigger>
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {EVALUATION_RANKS.map((rank) => (
+                                                  <SelectItem key={rank} value={rank}>
+                                                    {rank}以上
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </>
+                                        ) : (
+                                          <div className="flex h-10 items-center text-sm text-muted-foreground">
+                                            クリアしている
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-end md:col-span-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="w-full"
+                                          onClick={() => removePromotionCondition(group.id, index)}
+                                          disabled={group.conditions.length <= 1}
+                                        >
+                                          削除
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="mt-4 flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-2"
+                                  onClick={() => addPromotionCondition(group.id)}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  条件を追加（AND）
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2"
+                            onClick={addPromotionGroup}
                           >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {EVALUATION_RANKS.map((rank) => (
-                                <SelectItem key={rank} value={rank}>
-                                  {rank}以上
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <Plus className="h-4 w-4" />
+                            ORグループを追加
+                          </Button>
                         </div>
 
+	                      <div className="grid gap-4 md:grid-cols-1">
                         <div className="space-y-2">
-                          <Label>コンピテンシー（最低ランク）</Label>
-                          <Select
-                            value={settings.promotion.competencyMinimumRank}
-                            onValueChange={(value) =>
-                              setSettings((prev) => ({
-                                ...prev,
-                                promotion: { ...prev.promotion, competencyMinimumRank: value as EvaluationRank },
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {EVALUATION_RANKS.map((rank) => (
-                                <SelectItem key={rank} value={rank}>
-                                  {rank}以上
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>クレド（最低ランク）</Label>
-                          <Select
-                            value={settings.promotion.coreValueMinimumRank}
-                            onValueChange={(value) =>
-                              setSettings((prev) => ({
-                                ...prev,
-                                promotion: { ...prev.promotion, coreValueMinimumRank: value as EvaluationRank },
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {EVALUATION_RANKS.map((rank) => (
-                                <SelectItem key={rank} value={rank}>
-                                  {rank}以上
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <Label className="flex items-center justify-between rounded-md border px-3 py-2">
-                          リーダー面談クリア
-                          <Switch
-                            checked={settings.promotion.requireLeaderInterview}
-                            onCheckedChange={(checked) =>
-                              setSettings((prev) => ({
-                                ...prev,
-                                promotion: { ...prev.promotion, requireLeaderInterview: checked },
-                              }))
-                            }
-                          />
-                        </Label>
-
-                        <Label className="flex items-center justify-between rounded-md border px-3 py-2">
-                          事業部長プレゼンクリア
-                          <Switch
-                            checked={settings.promotion.requireDivisionHeadPresentation}
-                            onCheckedChange={(checked) =>
-                              setSettings((prev) => ({
-                                ...prev,
-                                promotion: { ...prev.promotion, requireDivisionHeadPresentation: checked },
-                              }))
-                            }
-                          />
-                        </Label>
-
-                        <Label className="flex items-center justify-between rounded-md border px-3 py-2">
-                          CEO面談クリア
-                          <Switch
-                            checked={settings.promotion.requireCeoInterview}
-                            onCheckedChange={(checked) =>
-                              setSettings((prev) => ({
-                                ...prev,
-                                promotion: { ...prev.promotion, requireCeoInterview: checked },
-                              }))
-                            }
-                          />
-                        </Label>
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-1">
-                        <div className="space-y-2">
-                          <Label>ステージ増減（昇格）</Label>
-                          <Input
+	                          <Label>ステージ増減（昇格）</Label>
+	                          <Input
                             type="number"
-                            value={settings.promotion.stageDelta}
-                            onChange={(e) => {
-                              const next = Number(e.target.value);
-                              if (!Number.isFinite(next)) return;
-                              setSettings((prev) => ({
-                                ...prev,
-                                promotion: { ...prev.promotion, stageDelta: next },
-                              }));
-                            }}
+                            value={promotionStageDeltaInput}
+                            onChange={(e) => setPromotionStageDeltaInput(e.target.value)}
+                            onBlur={() =>
+                              commitNumericInput(
+                                promotionStageDeltaInput,
+                                settings.promotion.stageDelta,
+                                setPromotionStageDeltaInput,
+                                (next) =>
+                                  setSettings((prev) => ({
+                                    ...prev,
+                                    promotion: { ...prev.promotion, stageDelta: next },
+                                  }))
+                              )
+                            }
                           />
                         </div>
                       </div>
@@ -314,15 +528,20 @@ export default function ComprehensiveEvaluationPage() {
                           <Label>ステージ増減（降格）</Label>
                           <Input
                             type="number"
-                            value={settings.demotion.stageDelta}
-                            onChange={(e) => {
-                              const next = Number(e.target.value);
-                              if (!Number.isFinite(next)) return;
-                              setSettings((prev) => ({
-                                ...prev,
-                                demotion: { ...prev.demotion, stageDelta: next },
-                              }));
-                            }}
+                            value={demotionStageDeltaInput}
+                            onChange={(e) => setDemotionStageDeltaInput(e.target.value)}
+                            onBlur={() =>
+                              commitNumericInput(
+                                demotionStageDeltaInput,
+                                settings.demotion.stageDelta,
+                                setDemotionStageDeltaInput,
+                                (next) =>
+                                  setSettings((prev) => ({
+                                    ...prev,
+                                    demotion: { ...prev.demotion, stageDelta: next },
+                                  }))
+                              )
+                            }
                           />
                         </div>
                       </div>
@@ -353,18 +572,32 @@ export default function ComprehensiveEvaluationPage() {
                             <Label>{rank}</Label>
                             <Input
                               type="number"
-                              value={settings.levelDeltaByOverallRank[rank]}
-                              onChange={(e) => {
-                                const next = Number(e.target.value);
-                                if (!Number.isFinite(next)) return;
-                                setSettings((prev) => ({
+                              value={levelDeltaInputs[rank]}
+                              onChange={(e) =>
+                                setLevelDeltaInputs((prev) => ({
                                   ...prev,
-                                  levelDeltaByOverallRank: {
-                                    ...prev.levelDeltaByOverallRank,
-                                    [rank]: next,
-                                  },
-                                }));
-                              }}
+                                  [rank]: e.target.value,
+                                }))
+                              }
+                              onBlur={() =>
+                                commitNumericInput(
+                                  levelDeltaInputs[rank],
+                                  settings.levelDeltaByOverallRank[rank],
+                                  (value) =>
+                                    setLevelDeltaInputs((prev) => ({
+                                      ...prev,
+                                      [rank]: value,
+                                    })),
+                                  (next) =>
+                                    setSettings((prev) => ({
+                                      ...prev,
+                                      levelDeltaByOverallRank: {
+                                        ...prev.levelDeltaByOverallRank,
+                                        [rank]: next,
+                                      },
+                                    }))
+                                )
+                              }
                             />
                           </div>
                         ))}
@@ -372,10 +605,11 @@ export default function ComprehensiveEvaluationPage() {
                     </section>
 
                     <div className="flex justify-end">
-                      <Button variant="outline" onClick={resetSettings}>
-                        デフォルトに戻す
-                      </Button>
-                    </div>
+	                      <Button variant="outline" onClick={resetSettings}>
+	                        デフォルトに戻す
+	                      </Button>
+	                    </div>
+	                  </div>
                   </div>
                 </DialogContent>
               </Dialog>
