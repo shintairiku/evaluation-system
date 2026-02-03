@@ -2,7 +2,8 @@ from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 from pydantic import BaseModel, Field
 from datetime import datetime
-from .common import SubmissionStatus, PaginatedResponse
+from .common import SubmissionStatus, RatingCode, PaginatedResponse
+from .supervisor_review import SupervisorAction
 
 if TYPE_CHECKING:
     from .self_assessment import SelfAssessment
@@ -11,20 +12,86 @@ if TYPE_CHECKING:
 
 
 class SupervisorFeedbackBase(BaseModel):
-    rating: Optional[float] = Field(None, ge=0, le=100, description="Supervisor rating from 0-100")
-    comment: Optional[str] = Field(None, description="Supervisor feedback comment")
+    supervisor_rating_code: Optional[RatingCode] = Field(
+        None,
+        alias="supervisorRatingCode",
+        description="Supervisor's letter grade: SS, S, A, B, C, D (6-level input scale)"
+    )
+    supervisor_comment: Optional[str] = Field(
+        None,
+        alias="supervisorComment",
+        max_length=5000,
+        description="Supervisor's feedback comment"
+    )
 
 
 class SupervisorFeedbackCreate(SupervisorFeedbackBase):
-    """Request schema for creating a supervisor feedback, matches endpoints_v2.md."""
+    """Request schema for creating supervisor feedback."""
     self_assessment_id: UUID = Field(..., alias="selfAssessmentId")
     period_id: UUID = Field(..., alias="periodId")
-    status: SubmissionStatus = Field(..., description="Feedback status based on button clicked: 'draft' or 'submitted'")
+    rating_data: Optional[dict] = Field(
+        None,
+        alias="ratingData",
+        description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
+    )
+    action: SupervisorAction = Field(
+        default=SupervisorAction.PENDING,
+        description="Decision: PENDING or APPROVED"
+    )
+    status: SubmissionStatus = Field(
+        default=SubmissionStatus.DRAFT,
+        description="Workflow status: incomplete, draft, or submitted"
+    )
+
+    model_config = {"populate_by_name": True}
 
 
 class SupervisorFeedbackUpdate(BaseModel):
-    rating: Optional[float] = Field(None, ge=0, le=100, description="Supervisor rating from 0-100")
-    comment: Optional[str] = Field(None, description="Supervisor feedback comment")
+    """Request schema for updating supervisor feedback."""
+    supervisor_rating_code: Optional[RatingCode] = Field(
+        None,
+        alias="supervisorRatingCode",
+        description="Supervisor's letter grade: SS, S, A, B, C, D (6-level input scale)"
+    )
+    supervisor_comment: Optional[str] = Field(
+        None,
+        alias="supervisorComment",
+        max_length=5000,
+        description="Supervisor's feedback comment"
+    )
+    rating_data: Optional[dict] = Field(
+        None,
+        alias="ratingData",
+        description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class SupervisorFeedbackSubmit(BaseModel):
+    """Request schema for submitting supervisor feedback (approve)."""
+    action: SupervisorAction = Field(
+        ...,
+        description="Decision: APPROVED (no REJECTED)"
+    )
+    supervisor_rating_code: Optional[RatingCode] = Field(
+        None,
+        alias="supervisorRatingCode",
+        description="Supervisor's letter grade (required for APPROVED)"
+    )
+    supervisor_comment: Optional[str] = Field(
+        None,
+        alias="supervisorComment",
+        max_length=5000,
+        description="Supervisor's feedback comment (optional)"
+    )
+    rating_data: Optional[dict] = Field(
+        None,
+        alias="ratingData",
+        description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
+    )
+
+    model_config = {"populate_by_name": True}
 
 
 class SupervisorFeedbackInDB(SupervisorFeedbackBase):
@@ -32,68 +99,87 @@ class SupervisorFeedbackInDB(SupervisorFeedbackBase):
     self_assessment_id: UUID
     period_id: UUID
     supervisor_id: UUID
-    status: SubmissionStatus = SubmissionStatus.DRAFT
+    subordinate_id: Optional[UUID] = None
+    supervisor_rating: Optional[float] = Field(
+        None,
+        alias="supervisorRating",
+        ge=0,
+        le=7,
+        description="Numeric rating (0.0-7.0), auto-calculated"
+    )
+    rating_data: Optional[dict] = Field(
+        None,
+        alias="ratingData",
+        description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
+    )
+    action: SupervisorAction = Field(
+        default=SupervisorAction.PENDING,
+        description="Decision: PENDING or APPROVED"
+    )
+    status: SubmissionStatus = Field(
+        default=SubmissionStatus.INCOMPLETE,
+        description="Workflow status: incomplete, draft, or submitted"
+    )
     submitted_at: Optional[datetime] = None
+    reviewed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class SupervisorFeedback(SupervisorFeedbackInDB):
     """
     Basic supervisor feedback schema for API responses (list views, simple references).
-    Contains core supervisor feedback information without expensive joins.
     """
-    # Add aliases for API compatibility without duplicating fields
-    model_config = {
-        "from_attributes": True,
-        "populate_by_name": True
-    }
+    self_assessment_id: UUID = Field(..., alias="selfAssessmentId")
+    period_id: UUID = Field(..., alias="periodId")
+    supervisor_id: UUID = Field(..., alias="supervisorId")
+    subordinate_id: Optional[UUID] = Field(None, alias="subordinateId")
+    submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
+    reviewed_at: Optional[datetime] = Field(None, alias="reviewedAt")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
     """
     Detailed supervisor feedback schema for single item views.
-    Supervisor evaluation feedback on employee self-assessment.
     """
-    # Field aliases for API compatibility
     self_assessment_id: UUID = Field(..., alias="selfAssessmentId")
-    period_id: UUID = Field(..., alias="periodId") 
+    period_id: UUID = Field(..., alias="periodId")
     supervisor_id: UUID = Field(..., alias="supervisorId")
+    subordinate_id: Optional[UUID] = Field(None, alias="subordinateId")
     submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
+    reviewed_at: Optional[datetime] = Field(None, alias="reviewedAt")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
-    
-    # Related self-assessment information (the specific assessment this feedback is for)
-    self_assessment: Optional['SelfAssessment'] = Field(None, alias="selfAssessment", description="The self-assessment this feedback is for")
-    
+
+    # Related self-assessment information
+    self_assessment: Optional['SelfAssessment'] = Field(None, alias="selfAssessment")
+
     # Related evaluation period information
     evaluation_period: Optional['EvaluationPeriod'] = Field(
-        None, 
+        None,
         alias="evaluationPeriod",
-        description="The evaluation period this feedback belongs to"
     )
-    
+
     # User information
-    subordinate: Optional['UserProfileOption'] = Field(None, description="The subordinate who created the self-assessment")
-    supervisor: Optional['UserProfileOption'] = Field(None, description="The supervisor providing the feedback")
-    
+    subordinate_info: Optional['UserProfileOption'] = Field(None, alias="subordinateInfo")
+    supervisor_info: Optional['UserProfileOption'] = Field(None, alias="supervisorInfo")
+
     # Feedback state information
-    is_editable: bool = Field(True, alias="isEditable", description="Whether this feedback can still be edited")
-    is_overdue: bool = Field(False, alias="isOverdue", description="Whether this feedback is past the deadline")
-    days_until_deadline: Optional[int] = Field(None, alias="daysUntilDeadline", description="Days remaining until feedback deadline")
-    
+    is_editable: bool = Field(True, alias="isEditable")
+    is_overdue: bool = Field(False, alias="isOverdue")
+    days_until_deadline: Optional[int] = Field(None, alias="daysUntilDeadline")
+
     # Assessment context
-    goal_category: Optional[str] = Field(None, alias="goalCategory", description="Category of the goal being evaluated")
-    goal_title: Optional[str] = Field(None, alias="goalTitle", description="Title of the goal being evaluated")
-    goal_description: Optional[str] = Field(None, alias="goalDescription", description="Description of the goal for better context")
-    evaluation_period_name: Optional[str] = Field(None, alias="evaluationPeriodName", description="Name of the evaluation period")
-    
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    goal_category: Optional[str] = Field(None, alias="goalCategory")
+    goal_title: Optional[str] = Field(None, alias="goalTitle")
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class SupervisorFeedbackList(PaginatedResponse[SupervisorFeedback]):
@@ -105,27 +191,19 @@ class SupervisorFeedbackList(PaginatedResponse[SupervisorFeedback]):
 # FORWARD REFERENCES UPDATE
 # ========================================
 
-# Update forward references for models with forward references (Pydantic v2)
-# This needs to be done after all models are defined
 def rebuild_models():
     """Rebuild models with forward references when all schemas are loaded."""
     try:
-        # Import the actual classes to ensure they're available
         from .self_assessment import SelfAssessment
-        from .evaluation import EvaluationPeriod  
+        from .evaluation import EvaluationPeriod
         from .user import UserProfileOption
-        
-        # Use the imports to satisfy the linter
+
         _ = SelfAssessment, EvaluationPeriod, UserProfileOption
-        
-        # Rebuild the model
+
         SupervisorFeedbackDetail.model_rebuild()
     except ImportError:
-        # Models not available yet, will be rebuilt later
         pass
     except Exception as e:
-        # Log the error but don't fail the import
         print(f"Warning: Could not rebuild forward references in supervisor_feedback schemas: {e}")
 
-# Try to rebuild immediately
 rebuild_models()

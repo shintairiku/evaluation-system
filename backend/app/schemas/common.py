@@ -4,11 +4,70 @@ from enum import Enum
 
 T = TypeVar('T')
 
-# Submission Statues (used in self-assessment, supervisor review, and supervisor feedback)
+# Submission Status (used in supervisor review and supervisor feedback: incomplete/draft/submitted)
 class SubmissionStatus(str, Enum):
     INCOMPLETE = "incomplete"
     DRAFT = "draft"
     SUBMITTED = "submitted"
+
+
+# Self-Assessment Status (3-state: draft/submitted/approved)
+class SelfAssessmentStatus(str, Enum):
+    """
+    Self-assessment lifecycle status (3-state system).
+    Employees can edit until supervisor approves.
+    """
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    APPROVED = "approved"
+
+
+# Individual goal rating codes (up to 6-level input scale)
+class RatingCode(str, Enum):
+    """
+    Individual goal rating codes.
+    DB stores all 6 values; service layer validates per goal type:
+      - 定量目標: SS, S, A, B, C, D (6 levels)
+      - 定性目標: SS, S, A, B, C (5 levels, no D)
+      - コンピテンシー: SS, S, A, B, C (5 levels, no D)
+    """
+    SS = "SS"   # 7.0
+    S = "S"     # 6.0
+    A = "A"     # 4.0
+    B = "B"     # 2.0
+    C = "C"     # 1.0
+    D = "D"     # 0.0 (定量目標 only)
+
+
+# Rating code to numeric value mapping
+RATING_CODE_VALUES: dict[RatingCode, float] = {
+    RatingCode.SS: 7.0,
+    RatingCode.S: 6.0,
+    RatingCode.A: 4.0,
+    RatingCode.B: 2.0,
+    RatingCode.C: 1.0,
+    RatingCode.D: 0.0,
+}
+
+
+def rating_code_to_value(code: RatingCode) -> float:
+    """Convert rating code to numeric value."""
+    return RATING_CODE_VALUES.get(code, 0.0)
+
+
+# Final calculated output scale (7 levels, system-calculated)
+class FinalRatingCode(str, Enum):
+    """
+    Final overall period rating codes (7-level output scale).
+    Calculated by the system from weighted individual goal ratings.
+    """
+    SS = "SS"       # Exceptional
+    S = "S"         # Excellent
+    A_PLUS = "A+"   # Very Good
+    A = "A"         # Good
+    A_MINUS = "A-"  # Above Average
+    B = "B"         # Acceptable
+    C = "C"         # Below Expectations
 
 class Permission(BaseModel):
     """
