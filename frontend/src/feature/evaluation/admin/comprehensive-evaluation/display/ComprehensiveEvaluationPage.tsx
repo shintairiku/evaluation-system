@@ -12,14 +12,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 import { mockComprehensiveEvaluationRows, mockEvaluationPeriods } from "../mock";
 import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow } from "../logic";
 import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
-import { useComprehensiveEvaluationUserFlags } from "../hooks/useComprehensiveEvaluationUserFlags";
 import { EVALUATION_RANKS, type PromotionRuleCondition } from "../settings";
 import type { ComprehensiveEvaluationRow, EmploymentType, EvaluationRank, ProcessingStatus } from "../types";
 
@@ -31,10 +29,6 @@ function formatDelta(value: number | null): string {
   if (value === null) return "-";
   if (value === 0) return "0";
   return value > 0 ? `+${value}` : `${value}`;
-}
-
-function formatMboDFlag(value: ComprehensiveEvaluationRow["mboDRatingFlag"]): string {
-  return value === "1" ? "1" : "-";
 }
 
 const INTERMEDIATE_NUMBER_INPUTS = new Set(["", "-", ".", "-."]);
@@ -104,9 +98,8 @@ function createPromotionCondition(
 
 export default function ComprehensiveEvaluationPage() {
   const { hasRole } = useUserRoles();
-  const canEditThresholds = hasRole("eval_admin");
+  const canEditThresholds = hasRole("admin"); // TODO: eval_adminに変更
   const { settings, setSettings, resetSettings } = useComprehensiveEvaluationSettings();
-  const { flagsByUserId } = useComprehensiveEvaluationUserFlags();
   const { overridesByPeriodId } = useComprehensiveEvaluationManualOverrides();
 
   const evaluationRows = mockComprehensiveEvaluationRows;
@@ -321,13 +314,13 @@ export default function ComprehensiveEvaluationPage() {
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">総合評価</h1>
             <p className="text-sm text-muted-foreground">
-              添付スプレッドシート相当の総合評価テーブル（モック表示）
+              添付スプレッドシート相当の総合評価テーブル（モック表示）。昇格フラグは「正社員の新レベルが30以上」の場合に点灯します（ステージは自動更新しません）。昇格フラグ点灯行は、昇格フラグ対応ページでステージ変更と反映後レベルを手動確定してください。
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <Button asChild variant="outline">
-              <Link href="/admin-eval-list/candidates">昇格/降格候補</Link>
+              <Link href="/admin-eval-list/candidates">昇格/降格フラグ対応</Link>
             </Button>
             {canEditThresholds && (
               <Dialog>
@@ -546,18 +539,6 @@ export default function ComprehensiveEvaluationPage() {
                         </div>
                       </div>
 
-                      <Label className="flex items-center justify-between rounded-md border px-3 py-2">
-                        同一年度の上期・下期MBOが両方Dの場合は総合評価をDで上書き（MBO Dフラグ）
-                        <Switch
-                          checked={settings.demotion.mboDOverrideEnabled}
-                          onCheckedChange={(checked) =>
-                            setSettings((prev) => ({
-                              ...prev,
-                              demotion: { ...prev.demotion, mboDOverrideEnabled: checked },
-                            }))
-                          }
-                        />
-                      </Label>
                     </section>
 
                     <section className="space-y-4">
@@ -737,7 +718,7 @@ export default function ComprehensiveEvaluationPage() {
                   <TableHead colSpan={1} className="text-center font-semibold">
                     コアバリュー
                   </TableHead>
-                  <TableHead colSpan={8} className="text-center font-semibold">
+                  <TableHead colSpan={7} className="text-center font-semibold">
                     総合結果
                   </TableHead>
                 </TableRow>
@@ -759,8 +740,7 @@ export default function ComprehensiveEvaluationPage() {
 
                   <TableHead className="whitespace-nowrap">合計（点）</TableHead>
                   <TableHead className="whitespace-nowrap">総合評価</TableHead>
-                  <TableHead className="whitespace-nowrap">MBO D評価フラグ</TableHead>
-                  <TableHead className="whitespace-nowrap">昇格フラグ</TableHead>
+                  <TableHead className="whitespace-nowrap">昇格/降格フラグ</TableHead>
                   <TableHead className="whitespace-nowrap">レベル増減</TableHead>
                   <TableHead className="whitespace-nowrap">現在ステージ</TableHead>
                   <TableHead className="whitespace-nowrap">現在レベル</TableHead>
@@ -770,20 +750,16 @@ export default function ComprehensiveEvaluationPage() {
               <TableBody>
                 {filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={19} className="h-24 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={18} className="h-24 text-center text-sm text-muted-foreground">
                       表示できるデータがありません
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredRows.map((row) => {
-                    const base = computeComprehensiveEvaluationRow(
-                      row,
-                      settings,
-                      flagsByUserId[row.userId]
-                    );
+                    const base = computeComprehensiveEvaluationRow(row, settings);
                     const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
                     const computed = applyComprehensiveEvaluationManualOverride(row, base, settings, override);
-                    const isAlertLevel = computed.newLevel !== null && computed.newLevel >= 31;
+                    const isAlertLevel = computed.newLevel !== null && computed.newLevel >= 30;
 
                     return (
                       <TableRow key={row.id}>
@@ -814,10 +790,17 @@ export default function ComprehensiveEvaluationPage() {
                           {computed.totalScore !== null ? formatNumber(computed.totalScore) : "-"}
                         </TableCell>
                         <TableCell className="text-center">{computed.overallRank ?? "-"}</TableCell>
-                        <TableCell className="text-center">{formatMboDFlag(row.mboDRatingFlag)}</TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-2">
-                            <span>{computed.decision}</span>
+                            <span>
+                              {computed.promotionFlag && computed.demotionFlag
+                                ? "昇格/降格"
+                                : computed.promotionFlag
+                                  ? "昇格"
+                                  : computed.demotionFlag
+                                    ? "降格"
+                                    : "-"}
+                            </span>
                             {override && <Badge variant="secondary">特例</Badge>}
                           </div>
                         </TableCell>
