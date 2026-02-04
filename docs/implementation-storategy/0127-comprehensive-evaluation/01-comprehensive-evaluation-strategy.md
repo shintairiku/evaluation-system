@@ -19,6 +19,8 @@
 - ステージの重み（`stages.quantitative_weight`, `stages.qualitative_weight`, `stages.competency_weight`）は既に導入済み
   - デフォルト: 業績（定量+定性）合計100%、コンピテンシー10%（合計110%）
 - 現在レベル（数値）の保持場所が未確定な場合は、まずデータソースを確定する
+- 昇格/降格などの判定条件は、将来 **`AND`だけでなく`OR`条件**（例: 「A以上 **または** 面談全クリア」）も必要になる前提で設計する
+  - UI/Backendとも「条件式（`AND`/`OR`）」を扱えるデータモデルで実装し、後から作り直しにならないようにする
 
 ---
 
@@ -50,6 +52,10 @@
    - 仕様: `docs/implementation-storategy/0127-comprehensive-evaluation/04-stage-level-compensation.md`
 4. MBO D評価フラグの正式要件化
    - 「上期/下期」の評価期間紐付け（年次と半期の関係モデル）
+5. 判定ルール（昇格/降格/上書き）の仕様確定
+   - **`AND`/`OR`条件**をどう表現・保存するか（「ルールビルダー」要件）
+   - ルールが複数マッチする場合の優先順位（例: `priority`、同点時の決定規則）
+   - `evaluation_score_mapping`（点数→ランク/デフォルト増減）と、ルール（条件→判定/上書き）の責務分離
 
 ---
 
@@ -85,7 +91,11 @@ RBAC:
     - 対象ユーザー一覧（部署/ステージ等で絞り込み）
     - 目標・上司評価点の取得（カテゴリ別、期間別）
     - 点数算出（業績点/コンピテンシー点/合計点）
-    - `evaluation_score_mapping`でカテゴリ別の最終評価（目標達成/コンピテンシー）と、合計点からの総合評価・昇降格/昇給/レベル増減を決定
+    - `evaluation_score_mapping`でカテゴリ別の最終評価（目標達成/コンピテンシー）と、合計点からの総合評価（ランク）を決定
+    - **判定ルール（`AND`/`OR`条件）** に基づき、昇格/降格/対象外（判定）を決定（将来拡張前提）
+      - 例: 「総合評価A以上 **かつ** コンピテンシーA以上」だけでなく、「総合評価A以上 **または** 面談/プレゼン/CEO面談すべてクリア」など
+      - ルールは複数定義でき、`priority`順に評価して先勝ち（またはスコアリング）など、仕様に沿って決定する
+    - `evaluation_score_mapping`（または判定ルールのAction）で、レベル増減/ステージ増減のデフォルト値を決定
     - 欠損値（未評価）の扱いを統一（例: `null`で返す）
 - Schema（Pydantic）
   - `backend/app/schemas/comprehensive_evaluation.py`（新規）
@@ -99,6 +109,39 @@ RBAC:
 パフォーマンス:
 - 可能な限りDB集計（GROUP BY / JOIN）でN+1を回避
 - まずは「期間ID + 組織ID」で必要データをまとめて取得し、Python側で最終合成するのが現実的
+
+---
+
+### Step 2.5. Backend：判定ルール（AND/OR）管理・評価（推奨）
+
+目的: 昇格/降格/上書き等の判定条件を、`eval_admin`が **`AND`/`OR`を含む形** で編集し、Backendで一貫して評価できるようにする。
+
+設計方針（推奨）:
+- `evaluation_score_mapping`は「点数→ランク/デフォルト増減」に集中させる
+- 昇格/降格などの **複合条件（`AND`/`OR`）** は別テーブル（例: `comprehensive_evaluation_rules`）に分離する
+
+データモデル（案）:
+- `comprehensive_evaluation_rules`
+  - `id`, `organization_id`, `rule_type`（`promotion`/`demotion`/`override`等）
+  - `enabled`（bool）, `priority`（int）
+  - `condition_json`（JSON/JSONB: `AND`/`OR`のツリー、または「OR-of-AND」の簡易表現）
+  - `action_json`（判定=昇格/降格/対象外、ステージ増減、レベル増減上書き等）
+  - 監査用: `created_by`, `updated_by`, `created_at`, `updated_at`（必要なら履歴テーブルも追加）
+
+Service（案）:
+- `backend/app/services/comprehensive_evaluation_rule_service.py`（新規）
+  - ルールCRUD（`eval_admin`のみ）
+  - `condition_json`のバリデーション（空グループ禁止、未対応フィールド禁止、型整合性）
+  - ルール評価関数（row DTOに対して true/false を返す）
+
+API（案）:
+- `backend/app/api/v1/comprehensive_evaluation_rules.py`（新規）
+  - `GET`（閲覧: `admin`/`eval_admin`）
+  - `POST/PUT/DELETE`（編集: `eval_admin`）
+
+テスト（必須）:
+- `AND`/`OR`の組み合わせ（ネスト含む）での判定テスト
+- 優先順位（複数マッチ時）のテスト
 
 ---
 
@@ -119,6 +162,9 @@ RBAC:
 - 基準編集UI（案）
   - 同一ページ内のモーダル/ドロワーで`evaluation_score_mapping`を編集
   - レンジ重複や必須入力はフロントでもバリデーション（最終責務はバックエンド）
+  - 昇格/降格等の判定ルールは **`AND`/`OR`を扱えるルールビルダーUI** にする（将来要件の取りこぼし防止）
+    - 初期は「ORグループ（いずれか） × AND条件（すべて）」の2段階（DNF）でも可
+    - Backendはネスト可能な条件式（ツリー）を受け取れる設計にしておくと拡張が楽
 
 ---
 
