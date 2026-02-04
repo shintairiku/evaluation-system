@@ -25,8 +25,6 @@ export interface ComprehensiveEvaluationRow {
 
   coreValueFinalRank: EvaluationRank | null;
 
-  mboDRatingFlag: '0' | '1' | null;
-
   leaderInterviewCleared: boolean | null;
   divisionHeadPresentationCleared: boolean | null;
   ceoInterviewCleared: boolean | null;
