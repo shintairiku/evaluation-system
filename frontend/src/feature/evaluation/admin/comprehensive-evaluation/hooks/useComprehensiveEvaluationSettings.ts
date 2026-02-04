@@ -97,9 +97,6 @@ function parseStoredSettingsV2(value: string | null): ComprehensiveEvaluationSet
         stageDelta: typeof demotion.stageDelta === "number"
           ? demotion.stageDelta
           : mockDefaultComprehensiveEvaluationSettings.demotion.stageDelta,
-        mboDOverrideEnabled: typeof demotion.mboDOverrideEnabled === "boolean"
-          ? demotion.mboDOverrideEnabled
-          : mockDefaultComprehensiveEvaluationSettings.demotion.mboDOverrideEnabled,
       },
       overallScoreThresholds: {
         SS: typeof overallScoreThresholds.SS === "number"
@@ -215,9 +212,6 @@ function parseStoredSettingsV1(value: string | null): ComprehensiveEvaluationSet
         stageDelta: typeof demotion.stageDelta === "number"
           ? (demotion.stageDelta as number)
           : mockDefaultComprehensiveEvaluationSettings.demotion.stageDelta,
-        mboDOverrideEnabled: typeof demotion.mboDOverrideEnabled === "boolean"
-          ? (demotion.mboDOverrideEnabled as boolean)
-          : mockDefaultComprehensiveEvaluationSettings.demotion.mboDOverrideEnabled,
       },
       overallScoreThresholds: {
         SS: typeof overallScoreThresholds.SS === "number"

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { ComprehensiveEvaluationManualOverride } from "../manualOverride";
 
-const STORAGE_KEY = "comprehensive-evaluation:manual-overrides:v1";
+const STORAGE_KEY = "comprehensive-evaluation:manual-overrides:v2";
 
 type StoredOverrides = Record<string, Record<string, ComprehensiveEvaluationManualOverride | undefined> | undefined>;
 
