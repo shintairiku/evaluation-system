@@ -6,6 +6,7 @@
 | バージョン | 日付 | 変更者 | 変更内容 |
 |---|---|---|---|
 | v1.0 | 2026-02-02 | AI（Codex） | 「総合評価」起点のステージ/レベル変更をDBに監査ログとして永続化する計画を作成 |
+| v1.1 | 2026-02-04 | AI（Codex） | 昇格/降格（ステージ変更）は手動確定とし、ステージ変更時のレベルも手動確定（正社員は必須）に統一 |
 
 ---
 
@@ -17,6 +18,8 @@
 - ステージ/レベルの変更は **必ず履歴が残る**（抜け漏れ防止）
 - **理由** と **ダブルチェック**（確認者情報）を必須として記録する
 - 監査用途で「誰が・いつ・何を（Before/After）」が追える
+- 昇格フラグ/降格フラグ点灯者に対するステージ変更（アップ/ダウンの確定）は **`eval_admin` が手動で行う**
+  - 確定時は「反映後ステージ」と「反映後レベル（正社員のみ）」を **確定値として手動入力** する（増減入力はしない）
 
 ---
 
@@ -64,12 +67,13 @@
 ### 4.1 変更API（例）
 
 - `POST /api/org/{org_slug}/comprehensive-evaluation/users/{user_id}/stage-level`
-  - 入力: `evaluationPeriodId`, `stageId`, `level`（nullable）, `reason`（必須）, `doubleCheckedBy`（必須）
+  - 入力: `evaluationPeriodId`, `stageIdAfter`, `levelAfter`（nullable）, `reason`（必須）, `doubleCheckedBy`（必須）
   - 認可: `eval_admin` 相当（サーバ側で強制）
   - 処理:
     1) org/period/user/stage の存在確認
-    2) `level` バリデーション（`NULL` or `1..30`、パートは `NULL` 強制）
-    3) `users.stage_id` / `users.level` 更新
+    2) `levelAfter` バリデーション（`NULL` or `1..30`、パートは `NULL` 強制）
+       - 追加要件: `stageIdAfter` が変更される（昇格/降格）場合、**正社員は `levelAfter` 必須**（空のまま確定させない）
+    3) `users.stage_id` / `users.level` を「After値」で更新
     4) 履歴テーブルに before/after を INSERT
     5) コミット
 
@@ -102,4 +106,3 @@
 5) 運用ルール
    - 「手動反映は理由・ダブルチェック必須」
    - 例外的な直UPDATE禁止（必ず専用API経由）
-
