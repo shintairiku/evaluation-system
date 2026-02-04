@@ -24,12 +24,6 @@ const PROMOTION_RANK_FIELDS = new Set<PromotionRuleCondition["field"]>([
   "coreValueFinalRank",
 ]);
 
-const PROMOTION_FLAG_FIELDS = new Set<PromotionRuleCondition["field"]>([
-  "leaderInterviewCleared",
-  "divisionHeadPresentationCleared",
-  "ceoInterviewCleared",
-]);
-
 function isPromotionRuleCondition(value: unknown): value is PromotionRuleCondition {
   if (!value || typeof value !== "object") return false;
   const condition = value as PromotionRuleCondition;
@@ -39,10 +33,6 @@ function isPromotionRuleCondition(value: unknown): value is PromotionRuleConditi
       PROMOTION_RANK_FIELDS.has(condition.field) &&
       isEvaluationRank((condition as PromotionRuleCondition & { minimumRank?: unknown }).minimumRank)
     );
-  }
-
-  if (condition.type === "flag_cleared") {
-    return PROMOTION_FLAG_FIELDS.has(condition.field);
   }
 
   return false;
@@ -178,25 +168,11 @@ function parseStoredSettingsV1(value: string | null): ComprehensiveEvaluationSet
       ? (promotion.coreValueMinimumRank as EvaluationRank)
       : "A+";
 
-    const requireLeaderInterview = typeof promotion.requireLeaderInterview === "boolean"
-      ? (promotion.requireLeaderInterview as boolean)
-      : true;
-    const requireDivisionHeadPresentation = typeof promotion.requireDivisionHeadPresentation === "boolean"
-      ? (promotion.requireDivisionHeadPresentation as boolean)
-      : true;
-    const requireCeoInterview = typeof promotion.requireCeoInterview === "boolean"
-      ? (promotion.requireCeoInterview as boolean)
-      : true;
-
     const migratedConditions: PromotionRuleCondition[] = [
       { type: "rank_at_least", field: "overallRank", minimumRank: overallMinimumRank },
       { type: "rank_at_least", field: "competencyFinalRank", minimumRank: competencyMinimumRank },
       { type: "rank_at_least", field: "coreValueFinalRank", minimumRank: coreValueMinimumRank },
     ];
-
-    if (requireLeaderInterview) migratedConditions.push({ type: "flag_cleared", field: "leaderInterviewCleared" });
-    if (requireDivisionHeadPresentation) migratedConditions.push({ type: "flag_cleared", field: "divisionHeadPresentationCleared" });
-    if (requireCeoInterview) migratedConditions.push({ type: "flag_cleared", field: "ceoInterviewCleared" });
 
     return {
       promotion: {
