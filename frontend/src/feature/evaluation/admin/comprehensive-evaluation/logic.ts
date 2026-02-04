@@ -1,4 +1,4 @@
-import { EVALUATION_RANKS, isRankAtLeast, isRankAtOrWorse, type ComprehensiveEvaluationSettings, type ComprehensiveEvaluationUserFlags, type ComprehensiveEvaluationDecision } from './settings';
+import { EVALUATION_RANKS, type ComprehensiveEvaluationSettings, type ComprehensiveEvaluationUserFlags, type ComprehensiveEvaluationDecision } from './settings';
 import type { ComprehensiveEvaluationManualOverride } from './manualOverride';
 import type { ComprehensiveEvaluationRow, EvaluationRank } from './types';
 
@@ -52,12 +52,24 @@ export interface ComprehensiveEvaluationComputedRow {
   totalScore: number | null;
   overallRank: EvaluationRank | null;
   decision: ComprehensiveEvaluationDecision;
+  promotionFlag: boolean;
+  demotionFlag: boolean;
   stageDelta: number;
   levelDelta: number | null;
   newStage: string | null;
   newLevel: number | null;
   isPromotionCandidate: boolean;
   isDemotionCandidate: boolean;
+}
+
+function computePromotionFlag(row: ComprehensiveEvaluationRow, computedNewLevel: number | null): boolean {
+  if (row.employmentType !== 'employee') return false;
+  if (computedNewLevel === null) return false;
+  return computedNewLevel >= 30;
+}
+
+function computeDemotionFlag(overallRank: EvaluationRank | null): boolean {
+  return overallRank === 'D';
 }
 
 export function applyComprehensiveEvaluationManualOverride(
@@ -69,24 +81,30 @@ export function applyComprehensiveEvaluationManualOverride(
   if (!override) return base;
 
   const decision: ComprehensiveEvaluationDecision = override.decision;
-  const stageDelta =
-    typeof override.stageDelta === 'number'
-      ? override.stageDelta
-      : decision === '昇格'
-        ? settings.promotion.stageDelta
-        : decision === '降格'
-          ? settings.demotion.stageDelta
-          : 0;
+  const stageDeltaByDecision =
+    decision === '昇格' ? settings.promotion.stageDelta : decision === '降格' ? settings.demotion.stageDelta : 0;
+  const defaultNewStage = computeNewStage(row.currentStage, stageDeltaByDecision);
+  const shouldApplyStageLevel = decision !== '対象外';
+  const stageAfter =
+    shouldApplyStageLevel && typeof override.stageAfter === 'string' && override.stageAfter.trim() !== ''
+      ? override.stageAfter.trim()
+      : undefined;
+  const newStage = stageAfter ?? defaultNewStage;
 
-  const levelDelta =
-    row.employmentType === 'parttime'
-      ? null
-      : typeof override.levelDelta === 'number'
-        ? override.levelDelta
-        : base.levelDelta;
+  const stageDelta = (() => {
+    if (!newStage || !row.currentStage) return stageDeltaByDecision;
+    const currentNumber = parseStageNumber(row.currentStage);
+    const nextNumber = parseStageNumber(newStage);
+    if (currentNumber === null || nextNumber === null) return stageDeltaByDecision;
+    return nextNumber - currentNumber;
+  })();
 
-  const newStage = computeNewStage(row.currentStage, stageDelta);
-  const newLevel = row.currentLevel !== null && levelDelta !== null ? row.currentLevel + levelDelta : null;
+  const levelAfter =
+    shouldApplyStageLevel && row.employmentType !== 'parttime' && typeof override.levelAfter === 'number'
+      ? override.levelAfter
+      : undefined;
+  const newLevel = typeof levelAfter === 'number' ? levelAfter : base.newLevel;
+  const levelDelta = row.currentLevel !== null && newLevel !== null ? newLevel - row.currentLevel : null;
 
   return {
     ...base,
@@ -100,50 +118,31 @@ export function applyComprehensiveEvaluationManualOverride(
 
 export function computeComprehensiveEvaluationRow(
   row: ComprehensiveEvaluationRow,
-  settings: ComprehensiveEvaluationSettings,
-  userFlags: ComprehensiveEvaluationUserFlags | undefined
+  settings: ComprehensiveEvaluationSettings
 ): ComprehensiveEvaluationComputedRow {
-  const effectiveFlags = computeEffectiveUserFlags(row, userFlags);
   const totalScore = computeTotalScore(row.performanceScore, row.competencyScore);
   const baseOverallRank =
     totalScore !== null ? getOverallEvaluationRank(totalScore, settings.overallScoreThresholds) : null;
-  const overallRank =
-    settings.demotion.mboDOverrideEnabled && row.mboDRatingFlag === '1'
-      ? 'D'
-      : baseOverallRank;
+  const overallRank = baseOverallRank;
 
-  const meetsPromotionMinimums =
-    overallRank !== null &&
-    row.competencyFinalRank !== null &&
-    row.coreValueFinalRank !== null &&
-    isRankAtLeast(overallRank, settings.promotion.overallMinimumRank) &&
-    isRankAtLeast(row.competencyFinalRank, settings.promotion.competencyMinimumRank) &&
-    isRankAtLeast(row.coreValueFinalRank, settings.promotion.coreValueMinimumRank);
-
-  const meetsPromotionChecks =
-    (!settings.promotion.requireLeaderInterview || effectiveFlags.leaderInterviewCleared) &&
-    (!settings.promotion.requireDivisionHeadPresentation || effectiveFlags.divisionHeadPresentationCleared) &&
-    (!settings.promotion.requireCeoInterview || effectiveFlags.ceoInterviewCleared);
-
-  const isPromotionCandidate = meetsPromotionMinimums && meetsPromotionChecks;
-  const isDemotionCandidate = overallRank !== null && isRankAtOrWorse(overallRank, settings.demotion.yearlyThresholdRank);
-
-  let decision: ComprehensiveEvaluationDecision = '対象外';
-  if (isPromotionCandidate) decision = '昇格';
-  else if (isDemotionCandidate) decision = '降格';
-
-  const stageDelta =
-    decision === '昇格' ? settings.promotion.stageDelta : decision === '降格' ? settings.demotion.stageDelta : 0;
+  const isPromotionCandidate = false;
+  const isDemotionCandidate = false;
+  const decision: ComprehensiveEvaluationDecision = '対象外';
+  const stageDelta = 0;
   const levelDelta =
     row.employmentType === 'parttime' ? null : overallRank ? settings.levelDeltaByOverallRank[overallRank] : null;
 
   const newStage = computeNewStage(row.currentStage, stageDelta);
   const newLevel = row.currentLevel !== null && levelDelta !== null ? row.currentLevel + levelDelta : null;
+  const promotionFlag = computePromotionFlag(row, newLevel);
+  const demotionFlag = computeDemotionFlag(overallRank);
 
   return {
     totalScore,
     overallRank,
     decision,
+    promotionFlag,
+    demotionFlag,
     stageDelta,
     levelDelta,
     newStage,
