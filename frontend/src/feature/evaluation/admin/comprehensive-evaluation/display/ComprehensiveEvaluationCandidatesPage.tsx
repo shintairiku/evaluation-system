@@ -18,10 +18,9 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 
-import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow, computeEffectiveUserFlags, type ComprehensiveEvaluationComputedRow } from "../logic";
+import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow, type ComprehensiveEvaluationComputedRow } from "../logic";
 import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
-import { useComprehensiveEvaluationUserFlags } from "../hooks/useComprehensiveEvaluationUserFlags";
 import type { ComprehensiveEvaluationManualOverride } from "../manualOverride";
 import { mockComprehensiveEvaluationRows, mockEvaluationPeriods } from "../mock";
 import type { ComprehensiveEvaluationDecision } from "../settings";
@@ -78,7 +77,6 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   const { hasRole } = useUserRoles();
   const canEdit = hasRole("admin"); // TODO: eval_adminに変更
   const { settings } = useComprehensiveEvaluationSettings();
-  const { flagsByUserId, updateUserFlags } = useComprehensiveEvaluationUserFlags();
   const { overridesByPeriodId, upsertOverride, clearOverride } = useComprehensiveEvaluationManualOverrides();
 
   const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(mockEvaluationPeriods[0]?.id ?? "all");
@@ -124,10 +122,9 @@ export default function ComprehensiveEvaluationCandidatesPage() {
       const base = computeComprehensiveEvaluationRow(row, settings);
       const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
       const applied = applyComprehensiveEvaluationManualOverride(row, base, settings, override);
-      const effectiveFlags = computeEffectiveUserFlags(row, flagsByUserId[row.userId]);
-      return { row, base, applied, override, effectiveFlags };
+      return { row, base, applied, override };
     });
-  }, [filteredRows, flagsByUserId, overridesByPeriodId, settings]);
+  }, [filteredRows, overridesByPeriodId, settings]);
 
   const selectedItem = useMemo(() => {
     if (!overrideRowId) return null;
@@ -374,9 +371,9 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           </Button>
         </div>
 
-        <div className="rounded-lg border">
+          <div className="rounded-lg border">
           <div className="relative overflow-x-auto">
-            <Table className="min-w-[1700px]">
+            <Table className="min-w-[1400px]">
               <TableHeader>
                 <TableRow className="bg-muted/40">
                   <TableHead className="whitespace-nowrap">社員番号</TableHead>
@@ -385,10 +382,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                   <TableHead className="whitespace-nowrap text-center">雇用形態</TableHead>
                   <TableHead className="whitespace-nowrap text-center">総合評価</TableHead>
                   <TableHead className="whitespace-nowrap text-center">コンピテンシー</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">クレド</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">リーダー面談</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">事業部長プレゼン</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">CEO面談</TableHead>
+                  <TableHead className="whitespace-nowrap text-center">コアバリュー</TableHead>
                   <TableHead className="whitespace-nowrap text-center">判定</TableHead>
                   <TableHead className="whitespace-nowrap text-center">現在ステージ</TableHead>
                   <TableHead className="whitespace-nowrap text-center">反映後ステージ</TableHead>
@@ -401,12 +395,12 @@ export default function ComprehensiveEvaluationCandidatesPage() {
               <TableBody>
                 {visibleRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={17} className="h-24 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={14} className="h-24 text-center text-sm text-muted-foreground">
                       表示できるデータがありません
                     </TableCell>
                   </TableRow>
                 ) : (
-                  visibleRows.map(({ row, base, override, effectiveFlags }) => {
+                  visibleRows.map(({ row, base, override }) => {
                     const isAlertLevel = base.newLevel !== null && base.newLevel >= 31;
                     const showsPromotionFlag = base.promotionFlag;
                     const showsDemotionFlag = base.demotionFlag;
@@ -426,33 +420,6 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         <TableCell className="text-center">{base.overallRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{row.competencyFinalRank ?? "-"}</TableCell>
                         <TableCell className="text-center">{row.coreValueFinalRank ?? "-"}</TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={effectiveFlags.leaderInterviewCleared}
-                            disabled={!canEdit}
-                            onCheckedChange={(checked) =>
-                              updateUserFlags(row.userId, { leaderInterviewCleared: checked === true })
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={effectiveFlags.divisionHeadPresentationCleared}
-                            disabled={!canEdit}
-                            onCheckedChange={(checked) =>
-                              updateUserFlags(row.userId, { divisionHeadPresentationCleared: checked === true })
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={effectiveFlags.ceoInterviewCleared}
-                            disabled={!canEdit}
-                            onCheckedChange={(checked) =>
-                              updateUserFlags(row.userId, { ceoInterviewCleared: checked === true })
-                            }
-                          />
-                        </TableCell>
 
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-2">

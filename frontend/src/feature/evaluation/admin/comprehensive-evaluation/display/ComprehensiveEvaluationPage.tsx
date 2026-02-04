@@ -60,24 +60,15 @@ function getEmploymentTypeBadgeVariant(value: EmploymentType) {
 }
 
 type PromotionConditionTarget = PromotionRuleCondition["field"];
-type PromotionRankTarget = Extract<PromotionRuleCondition, { type: "rank_at_least" }>["field"];
 
 const PROMOTION_CONDITION_TARGETS: Array<{
   value: PromotionConditionTarget;
   label: string;
-  kind: "rank" | "flag";
 }> = [
-  { value: "overallRank", label: "総合評価が◯以上", kind: "rank" },
-  { value: "competencyFinalRank", label: "コンピテンシー最終評価が◯以上", kind: "rank" },
-  { value: "coreValueFinalRank", label: "クレド（コアバリュー）最終評価が◯以上", kind: "rank" },
-  { value: "leaderInterviewCleared", label: "リーダー面談クリア", kind: "flag" },
-  { value: "divisionHeadPresentationCleared", label: "事業部長プレゼンクリア", kind: "flag" },
-  { value: "ceoInterviewCleared", label: "CEO面談クリア", kind: "flag" },
+  { value: "overallRank", label: "総合評価が◯以上" },
+  { value: "competencyFinalRank", label: "コンピテンシー最終評価が◯以上" },
+  { value: "coreValueFinalRank", label: "コアバリュー最終評価が◯以上" },
 ];
-
-function isPromotionRankTarget(target: PromotionConditionTarget): target is PromotionRankTarget {
-  return target === "overallRank" || target === "competencyFinalRank" || target === "coreValueFinalRank";
-}
 
 function createId(prefix: string): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -90,10 +81,7 @@ function createPromotionCondition(
   target: PromotionConditionTarget,
   fallbackRank: EvaluationRank = "A+"
 ): PromotionRuleCondition {
-  if (isPromotionRankTarget(target)) {
-    return { type: "rank_at_least", field: target, minimumRank: fallbackRank };
-  }
-  return { type: "flag_cleared", field: target };
+  return { type: "rank_at_least", field: target, minimumRank: fallbackRank };
 }
 
 export default function ComprehensiveEvaluationPage() {
@@ -367,7 +355,6 @@ export default function ComprehensiveEvaluationPage() {
                               <div className="mt-4 space-y-3">
                                 {group.conditions.map((condition, index) => {
                                   const selectedTarget = condition.field;
-                                  const isRank = condition.type === "rank_at_least";
 
                                   return (
                                     <div key={`${group.id}-${index}`} className="grid gap-2 md:grid-cols-12">
@@ -393,32 +380,24 @@ export default function ComprehensiveEvaluationPage() {
                                       </div>
 
                                       <div className="md:col-span-3">
-                                        {isRank ? (
-                                          <>
-                                            <Label className="sr-only">最低ランク</Label>
-                                            <Select
-                                              value={condition.minimumRank}
-                                              onValueChange={(value) =>
-                                                updatePromotionConditionMinimumRank(group.id, index, value as EvaluationRank)
-                                              }
-                                            >
-                                              <SelectTrigger>
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                {EVALUATION_RANKS.map((rank) => (
-                                                  <SelectItem key={rank} value={rank}>
-                                                    {rank}以上
-                                                  </SelectItem>
-                                                ))}
-                                              </SelectContent>
-                                            </Select>
-                                          </>
-                                        ) : (
-                                          <div className="flex h-10 items-center text-sm text-muted-foreground">
-                                            クリアしている
-                                          </div>
-                                        )}
+                                        <Label className="sr-only">最低ランク</Label>
+                                        <Select
+                                          value={condition.minimumRank}
+                                          onValueChange={(value) =>
+                                            updatePromotionConditionMinimumRank(group.id, index, value as EvaluationRank)
+                                          }
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {EVALUATION_RANKS.map((rank) => (
+                                              <SelectItem key={rank} value={rank}>
+                                                {rank}以上
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
                                       </div>
 
                                       <div className="flex items-end md:col-span-2">
