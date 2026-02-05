@@ -1647,14 +1647,9 @@ class GoalService:
                             desc_map = competency_description_map.get(comp_id_str)
 
                         resolved: list[str] = []
-                        if isinstance(desc_map, dict):
-                            for action_id in action_ids:
-                                text = desc_map.get(str(action_id))
-                                if text:
-                                    resolved.append(text)
-
-                        if not resolved:
-                            resolved = [f"行動 {str(action_id)}" for action_id in action_ids]
+                        for action_id in action_ids:
+                            text = desc_map.get(str(action_id)) if isinstance(desc_map, dict) else None
+                            resolved.append(text or f"行動 {action_id}")
 
                         ideal_action_texts[comp_id_str] = resolved
 
