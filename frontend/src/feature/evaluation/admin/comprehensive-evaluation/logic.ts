@@ -75,27 +75,23 @@ function computeDemotionFlag(overallRank: EvaluationRank | null): boolean {
 export function applyComprehensiveEvaluationManualOverride(
   row: ComprehensiveEvaluationRow,
   base: ComprehensiveEvaluationComputedRow,
-  settings: ComprehensiveEvaluationSettings,
   override: ComprehensiveEvaluationManualOverride | undefined
 ): ComprehensiveEvaluationComputedRow {
   if (!override) return base;
 
   const decision: ComprehensiveEvaluationDecision = override.decision;
-  const stageDeltaByDecision =
-    decision === '昇格' ? settings.promotion.stageDelta : decision === '降格' ? settings.demotion.stageDelta : 0;
-  const defaultNewStage = computeNewStage(row.currentStage, stageDeltaByDecision);
   const shouldApplyStageLevel = decision !== '対象外';
   const stageAfter =
     shouldApplyStageLevel && typeof override.stageAfter === 'string' && override.stageAfter.trim() !== ''
       ? override.stageAfter.trim()
       : undefined;
-  const newStage = stageAfter ?? defaultNewStage;
+  const newStage = stageAfter ?? base.newStage;
 
   const stageDelta = (() => {
-    if (!newStage || !row.currentStage) return stageDeltaByDecision;
+    if (!newStage || !row.currentStage) return 0;
     const currentNumber = parseStageNumber(row.currentStage);
     const nextNumber = parseStageNumber(newStage);
-    if (currentNumber === null || nextNumber === null) return stageDeltaByDecision;
+    if (currentNumber === null || nextNumber === null) return 0;
     return nextNumber - currentNumber;
   })();
 
