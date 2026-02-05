@@ -19,7 +19,6 @@ import { useSelfAssessmentAutoSave, type SaveStatus } from "../hooks/useSelfAsse
 interface CompetencyEvaluateProps {
   goalsWithAssessments?: GoalWithAssessment[];
   isLoading?: boolean;
-  onUpdate?: () => void;
 }
 
 /**
@@ -77,7 +76,7 @@ function CompetencyGoalCard({
   );
   const [comment, setComment] = useState<string>(selfAssessment?.selfComment || "");
 
-  // Auto-save hook
+  // Auto-save hook (no parent notification to avoid reload flicker)
   const { saveStatus, debouncedSave, save, isEditable } = useSelfAssessmentAutoSave({
     assessmentId: selfAssessment?.id,
     initialRatingData: selfAssessment?.ratingData as CompetencyRatingData | undefined,
@@ -161,11 +160,11 @@ function CompetencyGoalCard({
             key={competencyId}
             className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5 transition hover:shadow-md"
           >
-            {/* Competency Name Display with Rating */}
+            {/* Competency Name Display with Rating - Grade only shows after submission */}
             <div className="flex items-center justify-between mb-4">
               <div className="text-xl font-bold text-green-800">{competencyName}</div>
 
-              {/* Rating Display with Tooltip */}
+              {/* Rating Display - Label always visible, grade only after submission */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -173,16 +172,22 @@ function CompetencyGoalCard({
                       <span className="text-xs text-gray-500">評価</span>
                       <div
                         className={`text-xl font-bold ${
-                          competencyRating ? "text-green-700" : "text-gray-300"
+                          selfAssessment?.status !== 'draft' && competencyRating
+                            ? "text-green-700"
+                            : "text-gray-300"
                         }`}
                       >
-                        {competencyRating || "−"}
+                        {selfAssessment?.status !== 'draft'
+                          ? (competencyRating || "−")
+                          : "−"}
                       </div>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
                     <p className="text-xs">
-                      ※すべての{competencyName}評価を入力すると表示されます。
+                      {selfAssessment?.status !== 'draft'
+                        ? `提出済みの${competencyName}評価から算出された評価です。`
+                        : "※提出後に評価が表示されます。"}
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -467,6 +472,12 @@ export default function CompetencyEvaluate({
 
   const overallRating = calculateOverallRating();
 
+  // Check if all assessments are submitted (not draft)
+  const allSubmitted = goalsWithAssessments.length > 0 &&
+    goalsWithAssessments.every((item) =>
+      item.selfAssessment?.status && item.selfAssessment.status !== 'draft'
+    );
+
   return (
     <div className="max-w-3xl mx-auto py-6">
       <Card className="shadow-xl border-0 bg-white">
@@ -482,7 +493,7 @@ export default function CompetencyEvaluate({
                   <p className="text-xs text-gray-500 mt-1">各コンピテンシーごとに自己評価を入力してください</p>
                 </div>
 
-                {/* Overall Rating Display with Tooltip */}
+                {/* Overall Rating Display - Grade only shows after submission */}
                 <div className="flex items-center gap-2">
                   <TooltipProvider>
                     <Tooltip>
@@ -490,15 +501,17 @@ export default function CompetencyEvaluate({
                         <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white cursor-help transition-colors hover:bg-gray-50">
                           <span className="text-xs text-gray-500">総合評価</span>
                           <div className={`text-xl font-bold ${
-                            overallRating ? 'text-green-700' : 'text-gray-300'
+                            allSubmitted && overallRating ? 'text-green-700' : 'text-gray-300'
                           }`}>
-                            {overallRating || '−'}
+                            {allSubmitted ? (overallRating || '−') : '−'}
                           </div>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         <p className="text-xs">
-                          ※すべてのコンピテンシー評価を入力すると総合評価が表示されます。
+                          {allSubmitted
+                            ? "提出済みのコンピテンシー評価から算出された総合評価です。"
+                            : "※提出後に総合評価が表示されます。"}
                         </p>
                       </TooltipContent>
                     </Tooltip>

@@ -25,7 +25,6 @@ import { useSelfAssessmentAutoSave, type SaveStatus } from "../hooks/useSelfAsse
 interface PerformanceGoalsEvaluateProps {
   goalsWithAssessments: GoalWithAssessment[];
   isLoading?: boolean;
-  onUpdate?: () => void;
 }
 
 /**
@@ -44,7 +43,7 @@ function PerformanceGoalCard({
   );
   const [comment, setComment] = useState<string>(selfAssessment?.selfComment || "");
 
-  // Auto-save hook
+  // Auto-save hook (no parent notification to avoid reload flicker)
   const { saveStatus, debouncedSave, save, isEditable } = useSelfAssessmentAutoSave({
     assessmentId: selfAssessment?.id,
     initialRatingCode: selfAssessment?.selfRatingCode as RatingCode | undefined,
@@ -259,6 +258,12 @@ export default function PerformanceGoalsEvaluate({
 
   const overallRating = calculateOverallRating();
 
+  // Check if all assessments are submitted (not draft)
+  const allSubmitted = goalsWithAssessments.length > 0 &&
+    goalsWithAssessments.every((item) =>
+      item.selfAssessment?.status && item.selfAssessment.status !== 'draft'
+    );
+
   return (
     <div className="max-w-3xl mx-auto py-6">
       <Card className="shadow-xl border-0 bg-white">
@@ -279,7 +284,7 @@ export default function PerformanceGoalsEvaluate({
                   </p>
                 </div>
 
-                {/* Overall Rating Display */}
+                {/* Overall Rating Display - Grade only shows after submission */}
                 <div className="flex items-center gap-2">
                   <TooltipProvider>
                     <Tooltip>
@@ -288,16 +293,18 @@ export default function PerformanceGoalsEvaluate({
                           <span className="text-xs text-gray-500">総合評価</span>
                           <div
                             className={`text-xl font-bold ${
-                              overallRating ? "text-blue-700" : "text-gray-300"
+                              allSubmitted && overallRating ? "text-blue-700" : "text-gray-300"
                             }`}
                           >
-                            {overallRating || "−"}
+                            {allSubmitted ? (overallRating || "−") : "−"}
                           </div>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         <p className="text-xs">
-                          ※すべての業績目標評価を入力すると総合評価が表示されます。
+                          {allSubmitted
+                            ? "提出済みの業績目標評価から算出された総合評価です。"
+                            : "※提出後に総合評価が表示されます。"}
                         </p>
                       </TooltipContent>
                     </Tooltip>
