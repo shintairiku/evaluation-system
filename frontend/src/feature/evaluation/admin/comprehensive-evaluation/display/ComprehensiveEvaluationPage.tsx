@@ -18,7 +18,7 @@ import { mockComprehensiveEvaluationRows, mockEvaluationPeriods } from "../mock"
 import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow } from "../logic";
 import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
-import { EVALUATION_RANKS, type PromotionRuleCondition } from "../settings";
+import { EVALUATION_RANKS, type DemotionRuleCondition, type PromotionRuleCondition } from "../settings";
 import type { ComprehensiveEvaluationRow, EmploymentType, EvaluationRank, ProcessingStatus } from "../types";
 
 function formatNumber(value: number, digits = 2): string {
@@ -60,6 +60,7 @@ function getEmploymentTypeBadgeVariant(value: EmploymentType) {
 }
 
 type PromotionConditionTarget = PromotionRuleCondition["field"];
+type DemotionConditionTarget = DemotionRuleCondition["field"];
 
 const PROMOTION_CONDITION_TARGETS: Array<{
   value: PromotionConditionTarget;
@@ -68,6 +69,15 @@ const PROMOTION_CONDITION_TARGETS: Array<{
   { value: "overallRank", label: "総合評価が◯以上" },
   { value: "competencyFinalRank", label: "コンピテンシー最終評価が◯以上" },
   { value: "coreValueFinalRank", label: "コアバリュー最終評価が◯以上" },
+];
+
+const DEMOTION_CONDITION_TARGETS: Array<{
+  value: DemotionConditionTarget;
+  label: string;
+}> = [
+  { value: "overallRank", label: "総合評価が◯以下" },
+  { value: "competencyFinalRank", label: "コンピテンシー最終評価が◯以下" },
+  { value: "coreValueFinalRank", label: "コアバリュー最終評価が◯以下" },
 ];
 
 function createId(prefix: string): string {
@@ -82,6 +92,13 @@ function createPromotionCondition(
   fallbackRank: EvaluationRank = "A+"
 ): PromotionRuleCondition {
   return { type: "rank_at_least", field: target, minimumRank: fallbackRank };
+}
+
+function createDemotionCondition(
+  target: DemotionConditionTarget,
+  fallbackRank: EvaluationRank = "D"
+): DemotionRuleCondition {
+  return { type: "rank_at_or_worse", field: target, thresholdRank: fallbackRank };
 }
 
 export default function ComprehensiveEvaluationPage() {
@@ -100,26 +117,12 @@ export default function ComprehensiveEvaluationPage() {
   const [selectedEmploymentType, setSelectedEmploymentType] = useState<EmploymentType | "all">("all");
   const [selectedProcessingStatus, setSelectedProcessingStatus] = useState<ProcessingStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [promotionStageDeltaInput, setPromotionStageDeltaInput] = useState<string>(
-    String(settings.promotion.stageDelta)
-  );
-  const [demotionStageDeltaInput, setDemotionStageDeltaInput] = useState<string>(
-    String(settings.demotion.stageDelta)
-  );
   const [levelDeltaInputs, setLevelDeltaInputs] = useState<Record<EvaluationRank, string>>(() =>
     EVALUATION_RANKS.reduce((acc, rank) => {
       acc[rank] = String(settings.levelDeltaByOverallRank[rank] ?? "");
       return acc;
     }, {} as Record<EvaluationRank, string>)
   );
-
-  useEffect(() => {
-    setPromotionStageDeltaInput(String(settings.promotion.stageDelta));
-  }, [settings.promotion.stageDelta]);
-
-  useEffect(() => {
-    setDemotionStageDeltaInput(String(settings.demotion.stageDelta));
-  }, [settings.demotion.stageDelta]);
 
   useEffect(() => {
     setLevelDeltaInputs(
@@ -276,6 +279,106 @@ export default function ComprehensiveEvaluationPage() {
     }));
   };
 
+  const addDemotionGroup = () => {
+    setSettings((prev) => ({
+      ...prev,
+      demotion: {
+        ...prev.demotion,
+        ruleGroups: [
+          ...prev.demotion.ruleGroups,
+          {
+            id: createId("demotion-group"),
+            conditions: [createDemotionCondition("overallRank")],
+          },
+        ],
+      },
+    }));
+  };
+
+  const removeDemotionGroup = (groupId: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      demotion: {
+        ...prev.demotion,
+        ruleGroups: prev.demotion.ruleGroups.filter((group) => group.id !== groupId),
+      },
+    }));
+  };
+
+  const addDemotionCondition = (groupId: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      demotion: {
+        ...prev.demotion,
+        ruleGroups: prev.demotion.ruleGroups.map((group) => {
+          if (group.id !== groupId) return group;
+          return {
+            ...group,
+            conditions: [...group.conditions, createDemotionCondition("overallRank")],
+          };
+        }),
+      },
+    }));
+  };
+
+  const removeDemotionCondition = (groupId: string, index: number) => {
+    setSettings((prev) => ({
+      ...prev,
+      demotion: {
+        ...prev.demotion,
+        ruleGroups: prev.demotion.ruleGroups.map((group) => {
+          if (group.id !== groupId) return group;
+          return {
+            ...group,
+            conditions: group.conditions.filter((_, i) => i !== index),
+          };
+        }),
+      },
+    }));
+  };
+
+  const updateDemotionConditionTarget = (groupId: string, index: number, target: DemotionConditionTarget) => {
+    setSettings((prev) => ({
+      ...prev,
+      demotion: {
+        ...prev.demotion,
+        ruleGroups: prev.demotion.ruleGroups.map((group) => {
+          if (group.id !== groupId) return group;
+          const existing = group.conditions[index];
+          const fallbackRank = existing?.type === "rank_at_or_worse" ? existing.thresholdRank : "D";
+
+          return {
+            ...group,
+            conditions: group.conditions.map((condition, i) => {
+              if (i !== index) return condition;
+              return createDemotionCondition(target, fallbackRank);
+            }),
+          };
+        }),
+      },
+    }));
+  };
+
+  const updateDemotionConditionThresholdRank = (groupId: string, index: number, thresholdRank: EvaluationRank) => {
+    setSettings((prev) => ({
+      ...prev,
+      demotion: {
+        ...prev.demotion,
+        ruleGroups: prev.demotion.ruleGroups.map((group) => {
+          if (group.id !== groupId) return group;
+          return {
+            ...group,
+            conditions: group.conditions.map((condition, i) => {
+              if (i !== index) return condition;
+              if (condition.type !== "rank_at_or_worse") return condition;
+              return { ...condition, thresholdRank };
+            }),
+          };
+        }),
+      },
+    }));
+  };
+
   const commitNumericInput = (
     rawValue: string,
     fallback: number,
@@ -328,11 +431,11 @@ export default function ComprehensiveEvaluationPage() {
 
                   <div className="flex-1 overflow-y-auto pr-2">
 		                  <div className="space-y-8">
-		                    <section className="space-y-4">
-		                      <h3 className="text-sm font-semibold">昇格条件（AND/OR対応）</h3>
-	                        <p className="text-sm text-muted-foreground">
-	                          ORグループのいずれかを満たせば「昇格」として扱います（グループ内はAND）。
-	                        </p>
+			                    <section className="space-y-4">
+			                      <h3 className="text-sm font-semibold">昇格フラグ（AND/OR対応）</h3>
+		                        <p className="text-sm text-muted-foreground">
+		                          ORグループのいずれかを満たせば「昇格フラグ」として扱います（グループ内はAND）。
+		                        </p>
 
                         <div className="space-y-4">
                           {settings.promotion.ruleGroups.map((group, groupIndex) => (
@@ -432,93 +535,135 @@ export default function ComprehensiveEvaluationPage() {
                             </div>
                           ))}
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-2"
-                            onClick={addPromotionGroup}
-                          >
-                            <Plus className="h-4 w-4" />
-                            ORグループを追加
-                          </Button>
-                        </div>
+	                          <Button
+	                            type="button"
+	                            variant="outline"
+	                            size="sm"
+	                            className="flex items-center gap-2"
+	                            onClick={addPromotionGroup}
+	                          >
+	                            <Plus className="h-4 w-4" />
+	                            ORグループを追加
+	                          </Button>
+	                        </div>
+	                    </section>
+	
+		                    <section className="space-y-4">
+		                      <h3 className="text-sm font-semibold">降格フラグ（AND/OR対応）</h3>
+		                      <p className="text-sm text-muted-foreground">
+		                        ORグループのいずれかを満たせば「降格フラグ」として扱います（グループ内はAND）。
+		                      </p>
 
-	                      <div className="grid gap-4 md:grid-cols-1">
-                        <div className="space-y-2">
-	                          <Label>ステージ増減（昇格）</Label>
-	                          <Input
-                            type="number"
-                            value={promotionStageDeltaInput}
-                            onChange={(e) => setPromotionStageDeltaInput(e.target.value)}
-                            onBlur={() =>
-                              commitNumericInput(
-                                promotionStageDeltaInput,
-                                settings.promotion.stageDelta,
-                                setPromotionStageDeltaInput,
-                                (next) =>
-                                  setSettings((prev) => ({
-                                    ...prev,
-                                    promotion: { ...prev.promotion, stageDelta: next },
-                                  }))
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    </section>
+		                      <div className="space-y-4">
+		                        {settings.demotion.ruleGroups.map((group, groupIndex) => (
+		                          <div key={group.id} className="rounded-lg border p-4">
+		                            <div className="flex items-center justify-between gap-2">
+		                              <div className="text-sm font-medium">ORグループ {groupIndex + 1}</div>
+		                              <Button
+		                                type="button"
+		                                variant="ghost"
+		                                size="sm"
+		                                className="flex items-center gap-2"
+		                                onClick={() => removeDemotionGroup(group.id)}
+		                                disabled={settings.demotion.ruleGroups.length <= 1}
+		                              >
+		                                <Trash2 className="h-4 w-4" />
+		                                削除
+		                              </Button>
+		                            </div>
 
-                    <section className="space-y-4">
-                      <h3 className="text-sm font-semibold">降格基準（該当ステージからステージダウン）</h3>
+		                            <div className="mt-4 space-y-3">
+		                              {group.conditions.map((condition, index) => {
+		                                const selectedTarget = condition.field;
 
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2 md:col-span-1">
-                          <Label>年間総合評価（降格しきい値）</Label>
-                          <Select
-                            value={settings.demotion.yearlyThresholdRank}
-                            onValueChange={(value) =>
-                              setSettings((prev) => ({
-                                ...prev,
-                                demotion: { ...prev.demotion, yearlyThresholdRank: value as EvaluationRank },
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {EVALUATION_RANKS.map((rank) => (
-                                <SelectItem key={rank} value={rank}>
-                                  {rank}以下
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+		                                return (
+		                                  <div key={`${group.id}-${index}`} className="grid gap-2 md:grid-cols-12">
+		                                    <div className="md:col-span-7">
+		                                      <Label className="sr-only">条件</Label>
+		                                      <Select
+		                                        value={selectedTarget}
+		                                        onValueChange={(value) =>
+		                                          updateDemotionConditionTarget(group.id, index, value as DemotionConditionTarget)
+		                                        }
+		                                      >
+		                                        <SelectTrigger>
+		                                          <SelectValue />
+		                                        </SelectTrigger>
+		                                        <SelectContent>
+		                                          {DEMOTION_CONDITION_TARGETS.map((item) => (
+		                                            <SelectItem key={item.value} value={item.value}>
+		                                              {item.label}
+		                                            </SelectItem>
+		                                          ))}
+		                                        </SelectContent>
+		                                      </Select>
+		                                    </div>
 
-                        <div className="space-y-2">
-                          <Label>ステージ増減（降格）</Label>
-                          <Input
-                            type="number"
-                            value={demotionStageDeltaInput}
-                            onChange={(e) => setDemotionStageDeltaInput(e.target.value)}
-                            onBlur={() =>
-                              commitNumericInput(
-                                demotionStageDeltaInput,
-                                settings.demotion.stageDelta,
-                                setDemotionStageDeltaInput,
-                                (next) =>
-                                  setSettings((prev) => ({
-                                    ...prev,
-                                    demotion: { ...prev.demotion, stageDelta: next },
-                                  }))
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
+		                                    <div className="md:col-span-3">
+		                                      <Label className="sr-only">しきい値ランク</Label>
+		                                      <Select
+		                                        value={condition.thresholdRank}
+		                                        onValueChange={(value) =>
+		                                          updateDemotionConditionThresholdRank(group.id, index, value as EvaluationRank)
+		                                        }
+		                                      >
+		                                        <SelectTrigger>
+		                                          <SelectValue />
+		                                        </SelectTrigger>
+		                                        <SelectContent>
+		                                          {EVALUATION_RANKS.map((rank) => (
+		                                            <SelectItem key={rank} value={rank}>
+		                                              {rank}以下
+		                                            </SelectItem>
+		                                          ))}
+		                                        </SelectContent>
+		                                      </Select>
+		                                    </div>
 
-                    </section>
+		                                    <div className="flex items-end md:col-span-2">
+		                                      <Button
+		                                        type="button"
+		                                        variant="outline"
+		                                        size="sm"
+		                                        className="w-full"
+		                                        onClick={() => removeDemotionCondition(group.id, index)}
+		                                        disabled={group.conditions.length <= 1}
+		                                      >
+		                                        削除
+		                                      </Button>
+		                                    </div>
+		                                  </div>
+		                                );
+		                              })}
+		                            </div>
+
+		                            <div className="mt-4 flex items-center gap-2">
+		                              <Button
+		                                type="button"
+		                                variant="outline"
+		                                size="sm"
+		                                className="flex items-center gap-2"
+		                                onClick={() => addDemotionCondition(group.id)}
+		                              >
+		                                <Plus className="h-4 w-4" />
+		                                条件を追加（AND）
+		                              </Button>
+		                            </div>
+		                          </div>
+		                        ))}
+
+		                        <Button
+		                          type="button"
+		                          variant="outline"
+		                          size="sm"
+		                          className="flex items-center gap-2"
+		                          onClick={addDemotionGroup}
+		                        >
+		                          <Plus className="h-4 w-4" />
+		                          ORグループを追加
+		                        </Button>
+		                      </div>
+		                    </section>
 
                     <section className="space-y-4">
                       <h3 className="text-sm font-semibold">レベル増減（総合評価別）</h3>
@@ -737,7 +882,7 @@ export default function ComprehensiveEvaluationPage() {
                   filteredRows.map((row) => {
                     const base = computeComprehensiveEvaluationRow(row, settings);
                     const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
-                    const computed = applyComprehensiveEvaluationManualOverride(row, base, settings, override);
+                    const computed = applyComprehensiveEvaluationManualOverride(row, base, override);
                     const isAlertLevel = computed.newLevel !== null && computed.newLevel >= 30;
 
                     return (
