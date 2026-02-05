@@ -10,73 +10,462 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { GoalWithAssessment } from "./index";
+import type { RatingCode, CompetencyRatingData } from "@/api/types";
+import { RATING_CODE_VALUES } from "@/api/types/common";
+import { useSelfAssessmentAutoSave, type SaveStatus } from "../hooks/useSelfAssessmentAutoSave";
 
 interface CompetencyEvaluateProps {
   goalsWithAssessments?: GoalWithAssessment[];
   isLoading?: boolean;
+  onUpdate?: () => void;
 }
 
-// TODO: Replace with real data from goalsWithAssessments
-const competencyEvaluation = {
-  name: "責任感",
-  items: [
-    {
-      id: 1,
-      description: "他メンバーの業務状況を把握し、必要に応じてサポートしている",
-      rating: "A"
-    },
-    {
-      id: 2,
-      description: "自分の意見だけでなく、他者の意見を尊重して意思決定している",
-      rating: "B"
-    },
-    {
-      id: 3,
-      description: "チームの目標を個人目標より優先して行動している",
-      rating: "A"
-    },
-    {
-      id: 4,
-      description: "困っているメンバーに対して自発的に声をかけている",
-      rating: "A"
-    },
-    {
-      id: 5,
-      description: "チーム内の情報共有を積極的に行っている",
-      rating: "A"
-    }
-  ],
-  comment: ""
-};
+/**
+ * Competency rating codes (5-level scale for input)
+ */
+const COMPETENCY_RATING_CODES: RatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
 
+/**
+ * Save status indicator component
+ */
+function SaveStatusIndicator({ status }: { status: SaveStatus }) {
+  if (status === "idle") return null;
+
+  return (
+    <>
+      {status === "saving" && (
+        <span className="text-xs text-blue-500 flex items-center gap-1 animate-pulse">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          保存中...
+        </span>
+      )}
+      {status === "saved" && (
+        <span className="text-xs text-green-600 flex items-center gap-1">
+          ✓ 一時保存済み
+        </span>
+      )}
+      {status === "error" && (
+        <span className="text-xs text-red-500 flex items-center gap-1">
+          ⚠ 保存失敗
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * Individual competency goal card with auto-save
+ */
+function CompetencyGoalCard({
+  goalWithAssessment,
+}: {
+  goalWithAssessment: GoalWithAssessment;
+}) {
+  const { goal, selfAssessment } = goalWithAssessment;
+
+  // Get competency data from goal
+  const competencyNames = goal.competencyNames || {};
+  const selectedIdealActions = goal.selectedIdealActions || {};
+  const idealActionTexts = goal.idealActionTexts || {};
+  const competencyIds = goal.competencyIds || [];
+
+  // Local state for form values
+  const [ratingData, setRatingData] = useState<CompetencyRatingData>(
+    (selfAssessment?.ratingData as CompetencyRatingData) || {}
+  );
+  const [comment, setComment] = useState<string>(selfAssessment?.selfComment || "");
+
+  // Auto-save hook
+  const { saveStatus, debouncedSave, save, isEditable } = useSelfAssessmentAutoSave({
+    assessmentId: selfAssessment?.id,
+    initialRatingData: selfAssessment?.ratingData as CompetencyRatingData | undefined,
+    initialComment: selfAssessment?.selfComment,
+    initialStatus: selfAssessment?.status,
+  });
+
+  // Handle action rating change
+  const handleActionRatingChange = useCallback(
+    (competencyId: string, actionIndex: string, rating: RatingCode) => {
+      if (!isEditable) return;
+
+      const newRatingData: CompetencyRatingData = {
+        ...ratingData,
+        [competencyId]: {
+          ...(ratingData[competencyId] || {}),
+          [actionIndex]: rating,
+        },
+      };
+      setRatingData(newRatingData);
+      debouncedSave({ ratingData: newRatingData, selfComment: comment });
+    },
+    [ratingData, comment, debouncedSave, isEditable]
+  );
+
+  // Handle comment change (debounced)
+  const handleCommentChange = useCallback(
+    (newComment: string) => {
+      if (!isEditable) return;
+      setComment(newComment);
+      debouncedSave({ ratingData, selfComment: newComment });
+    },
+    [ratingData, debouncedSave, isEditable]
+  );
+
+  // Handle comment blur (immediate save)
+  const handleCommentBlur = useCallback(() => {
+    if (!isEditable || !comment.trim()) return;
+    save({ ratingData, selfComment: comment });
+  }, [ratingData, comment, save, isEditable]);
+
+  // Calculate competency rating (average of action ratings)
+  const calculateCompetencyRating = (competencyId: string): string | null => {
+    const actionRatings = ratingData[competencyId];
+    const selectedActions = selectedIdealActions[competencyId] || [];
+
+    if (!actionRatings || selectedActions.length === 0) return null;
+
+    // Check if all selected actions have ratings
+    const allRated = selectedActions.every((idx) => actionRatings[idx]);
+    if (!allRated) return null;
+
+    // Calculate average
+    let totalScore = 0;
+    selectedActions.forEach((idx) => {
+      const rating = actionRatings[idx] as RatingCode;
+      totalScore += RATING_CODE_VALUES[rating] || 0;
+    });
+
+    const avgScore = totalScore / selectedActions.length;
+
+    // Map to rating code (5-level scale)
+    if (avgScore >= 6.5) return "SS";
+    if (avgScore >= 5.5) return "S";
+    if (avgScore >= 3.5) return "A";
+    if (avgScore >= 1.5) return "B";
+    return "C";
+  };
+
+  return (
+    <>
+      {/* Each competency as a separate card */}
+      {competencyIds.map((competencyId) => {
+        const competencyName = competencyNames[competencyId] || "コンピテンシー";
+        const actionIndexes = selectedIdealActions[competencyId] || [];
+        const actionTexts = idealActionTexts[competencyId] || [];
+        const competencyRating = calculateCompetencyRating(competencyId);
+
+        return (
+          <div
+            key={competencyId}
+            className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5 transition hover:shadow-md"
+          >
+            {/* Competency Name Display with Rating */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-xl font-bold text-green-800">{competencyName}</div>
+
+              {/* Rating Display with Tooltip */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white cursor-help transition-colors hover:bg-gray-50">
+                      <span className="text-xs text-gray-500">評価</span>
+                      <div
+                        className={`text-xl font-bold ${
+                          competencyRating ? "text-green-700" : "text-gray-300"
+                        }`}
+                      >
+                        {competencyRating || "−"}
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="text-xs">
+                      ※すべての{competencyName}評価を入力すると表示されます。
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            {/* Ideal Action Items */}
+            <div className="space-y-6">
+              {actionIndexes.map((actionIdx, index) => {
+                // Use loop index to access the array (texts are in same order as actionIndexes)
+                const actionText = actionTexts[index];
+                const currentRating = ratingData[competencyId]?.[actionIdx];
+
+                // Skip if no action text
+                if (!actionText) return null;
+
+                return (
+                  <div key={`${competencyId}-${actionIdx}`}>
+                    {/* Action Description */}
+                    <div className="text-sm text-gray-800 mb-3">{actionText}</div>
+
+                    {/* Rating Buttons for this action */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {COMPETENCY_RATING_CODES.map((rating) => {
+                        const isSelected = currentRating === rating;
+                        return (
+                          <div
+                            key={rating}
+                            className={`flex items-center gap-2 ${
+                              isEditable
+                                ? "cursor-pointer"
+                                : "cursor-not-allowed opacity-60"
+                            }`}
+                            onClick={() =>
+                              isEditable &&
+                              handleActionRatingChange(competencyId, actionIdx, rating)
+                            }
+                          >
+                            <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
+                              {isSelected && (
+                                <div className="w-3 h-3 rounded-full bg-gray-800"></div>
+                              )}
+                            </div>
+                            <span className="text-sm text-gray-700">{rating}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Comment Section - One comment for all competencies in this goal */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-sm font-semibold text-gray-700">
+            自己評価コメント{" "}
+            {!comment.trim() && <span className="text-red-500">*</span>}
+          </Label>
+          <SaveStatusIndicator status={saveStatus} />
+        </div>
+        <Textarea
+          value={comment}
+          onChange={(e) => handleCommentChange(e.target.value)}
+          onBlur={handleCommentBlur}
+          placeholder="各コンピテンシーの発揮状況や具体的なエピソードについて記入してください..."
+          className="mt-1 text-sm rounded-md border-gray-300 bg-white focus:ring-2 focus:ring-green-200 min-h-[100px]"
+          maxLength={5000}
+          disabled={!isEditable}
+        />
+        <div className="flex justify-between items-center mt-1">
+          <p className="text-xs text-gray-400">
+            具体的な成果や改善点を記載してください
+          </p>
+          <p className="text-xs text-gray-400">{comment.length} / 5000</p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Rating criteria legend component (original structure preserved)
+ */
+function RatingCriteriaLegend() {
+  return (
+    <div className="sticky top-4 z-10 bg-white pb-4 pt-10 -mt-8 border-b border-gray-200 mb-2">
+      <div className="grid grid-cols-2 gap-4">
+        {/* Left Column: Rating descriptions */}
+        <div className="text-xs text-gray-500 space-y-0.5">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
+                  <span className="font-semibold">SS</span>
+                  <span className="mx-1">：</span>
+                  <span>全社でも圧倒的なレベルで体現できている</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
+                <p className="text-xs">社内でもごく少数のレベルに達しており、あらゆる状況下で圧倒的に高い水準でスキルを発揮し、全社から高い信頼を得ると共に大きな影響力を与えている。</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
+                  <span className="font-semibold">S</span>
+                  <span className="mx-1">：</span>
+                  <span>全社的な模範人材として常に体現できている</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
+                <p className="text-xs">高いレベルで一貫してスキルを発揮しており、他者の模範として難易度の高い場面でも安定して体現できている。</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
+                  <span className="font-semibold">A+</span>
+                  <span className="mx-1">：</span>
+                  <span>周囲の手本となっている</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
+                <p className="text-xs">チーム内外から信頼されるレベルの安定したスキルを常に発揮しており、手本となる場面が多いと周囲からも認識されている。</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
+                  <span className="font-semibold">A</span>
+                  <span className="mx-1">：</span>
+                  <span>十分に身についている</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
+                <p className="text-xs">どのような場面や状況においても自立してスキルを実践できており、常に安定して日常業務の中で発揮できている。</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
+                  <span className="font-semibold">A-</span>
+                  <span className="mx-1">：</span>
+                  <span>おおむね身についている</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
+                <p className="text-xs">おおむねスキルは身についているが、場面や状況によって再現性にばらつきがあり、安定性に一部課題が見られる。</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
+                  <span className="font-semibold">B</span>
+                  <span className="mx-1">：</span>
+                  <span>もうひと頑張り</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
+                <p className="text-xs">スキルの基礎的な行動や姿勢は一部に見られるが、実務においてまだ安定して発揮されておらず、意識的な取り組みやフィードバックを通じた成長が求められる状態。</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
+                  <span className="font-semibold">C</span>
+                  <span className="mx-1">：</span>
+                  <span>不十分</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
+                <p className="text-xs">スキルの発揮が不十分であり、職務やチームへの影響が懸念される状態。本人の自覚と明確な改善行動が求められる。</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        {/* Right Column: Empty space for tooltips */}
+        <div></div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Main component: Competency Goals Evaluate
+ */
 export default function CompetencyEvaluate({
   goalsWithAssessments = [],
   isLoading = false,
 }: CompetencyEvaluateProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // TODO: Use goalsWithAssessments data when competency structure is defined
-  // For now, show placeholder if no competency goals
   const hasCompetencyGoals = goalsWithAssessments.length > 0;
-  const [itemRatings, setItemRatings] = useState<{[key: number]: string}>(
-    competencyEvaluation.items.reduce((acc, item) => ({
-      ...acc,
-      [item.id]: item.rating
-    }), {})
-  );
-  const [comment, setComment] = useState<string>(competencyEvaluation.comment);
 
-  const updateItemRating = (itemId: number, rating: string) => {
-    setItemRatings(prev => ({
-      ...prev,
-      [itemId]: rating
-    }));
+  // Calculate overall rating based on all competency goals
+  const calculateOverallRating = (): string | null => {
+    if (goalsWithAssessments.length === 0) return null;
+
+    // Check if all goals have complete ratings and comments
+    const allComplete = goalsWithAssessments.every((item) => {
+      if (!item.selfAssessment?.selfComment?.trim()) return false;
+      const ratingData = item.selfAssessment?.ratingData as CompetencyRatingData;
+      if (!ratingData) return false;
+
+      const selectedActions = item.goal.selectedIdealActions || {};
+      return Object.entries(selectedActions).every(([compId, actions]) => {
+        const actionRatings = ratingData[compId];
+        if (!actionRatings) return false;
+        return (actions as string[]).every((idx) => actionRatings[idx]);
+      });
+    });
+
+    if (!allComplete) return null;
+
+    // Calculate weighted average across all goals
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
+
+    goalsWithAssessments.forEach((item) => {
+      const weight = item.goal.weight || 0;
+      const ratingData = item.selfAssessment?.ratingData as CompetencyRatingData;
+      if (!ratingData) return;
+
+      let goalScore = 0;
+      let actionCount = 0;
+
+      const selectedActions = item.goal.selectedIdealActions || {};
+      Object.entries(selectedActions).forEach(([compId, actions]) => {
+        const actionRatings = ratingData[compId];
+        if (!actionRatings) return;
+
+        (actions as string[]).forEach((idx) => {
+          const rating = actionRatings[idx] as RatingCode;
+          if (rating) {
+            goalScore += RATING_CODE_VALUES[rating] || 0;
+            actionCount++;
+          }
+        });
+      });
+
+      if (actionCount > 0) {
+        totalWeightedScore += (goalScore / actionCount) * weight;
+        totalWeight += weight;
+      }
+    });
+
+    if (totalWeight === 0) return null;
+
+    const avgScore = totalWeightedScore / totalWeight;
+
+    // Map to rating code (5-level scale)
+    if (avgScore >= 6.5) return "SS";
+    if (avgScore >= 5.5) return "S";
+    if (avgScore >= 3.5) return "A";
+    if (avgScore >= 1.5) return "B";
+    return "C";
   };
 
-  // Mock overall rating - será calculado dinamicamente no futuro
-  const overallRating = null; // null para mostrar "−"
+  const overallRating = calculateOverallRating();
 
   return (
     <div className="max-w-3xl mx-auto py-6">
@@ -155,198 +544,20 @@ export default function CompetencyEvaluate({
               </div>
             )}
 
-            {/* Rating Criteria Descriptions - Two Column Layout with Sticky Position */}
+            {/* Content when competency goals exist */}
             {!isLoading && hasCompetencyGoals && (
-            <>
-            <div className="sticky top-4 z-10 bg-white pb-4 pt-10 -mt-8 border-b border-gray-200 mb-2">
-              <div className="grid grid-cols-2 gap-4">
-                {/* Left Column: Rating descriptions */}
-                <div className="text-xs text-gray-500 space-y-0.5">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
-                        <span className="font-semibold">SS</span>
-                        <span className="mx-1">：</span>
-                        <span>全社でも圧倒的なレベルで体現できている</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
-                      <p className="text-xs">社内でもごく少数のレベルに達しており、あらゆる状況下で圧倒的に高い水準でスキルを発揮し、全社から高い信頼を得ると共に大きな影響力を与えている。</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+              <>
+                {/* Rating Criteria Legend */}
+                <RatingCriteriaLegend />
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
-                        <span className="font-semibold">S</span>
-                        <span className="mx-1">：</span>
-                        <span>全社的な模範人材として常に体現できている</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
-                      <p className="text-xs">高いレベルで一貫してスキルを発揮しており、他者の模範として難易度の高い場面でも安定して体現できている。</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
-                        <span className="font-semibold">A+</span>
-                        <span className="mx-1">：</span>
-                        <span>周囲の手本となっている</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
-                      <p className="text-xs">チーム内外から信頼されるレベルの安定したスキルを常に発揮しており、手本となる場面が多いと周囲からも認識されている。</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
-                        <span className="font-semibold">A</span>
-                        <span className="mx-1">：</span>
-                        <span>十分に身についている</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
-                      <p className="text-xs">どのような場面や状況においても自立してスキルを実践できており、常に安定して日常業務の中で発揮できている。</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
-                        <span className="font-semibold">A-</span>
-                        <span className="mx-1">：</span>
-                        <span>おおむね身についている</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
-                      <p className="text-xs">おおむねスキルは身についているが、場面や状況によって再現性にばらつきがあり、安定性に一部課題が見られる。</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
-                        <span className="font-semibold">B</span>
-                        <span className="mx-1">：</span>
-                        <span>もうひと頑張り</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
-                      <p className="text-xs">スキルの基礎的な行動や姿勢は一部に見られるが、実務においてまだ安定して発揮されておらず、意識的な取り組みやフィードバックを通じた成長が求められる状態。</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="cursor-help hover:bg-gray-50 py-1 px-2 rounded transition-colors">
-                        <span className="font-semibold">C</span>
-                        <span className="mx-1">：</span>
-                        <span>不十分</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="start" sideOffset={10} className="max-w-sm">
-                      <p className="text-xs">スキルの発揮が不十分であり、職務やチームへの影響が懸念される状態。本人の自覚と明確な改善行動が求められる。</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-
-                {/* Right Column: Empty space for tooltips */}
-                <div></div>
-              </div>
-            </div>
-
-            {/* Competency Evaluation Section */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
-              {/* Competency Name Display with Rating */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-xl font-bold text-green-800">
-                  {competencyEvaluation.name}
-                </div>
-
-                {/* Rating Display with Tooltip */}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white cursor-help transition-colors hover:bg-gray-50">
-                        <span className="text-xs text-gray-500">評価</span>
-                        <div className="text-xl font-bold text-gray-300">
-                          −
-                        </div>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      <p className="text-xs">
-                        ※すべての責任感評価を入力すると表示されます。
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-
-              {/* Competency Items */}
-              <div className="space-y-6">
-                {competencyEvaluation.items.map((item) => (
-                  <div key={item.id}>
-                    {/* Item Description */}
-                    <div className="text-sm text-gray-800 mb-3">
-                      {item.description}
-                    </div>
-
-                    {/* Rating Buttons for this item */}
-                    <div className="flex items-center gap-3">
-                      {['SS', 'S', 'A', 'B', 'C'].map((rating) => (
-                        <div
-                          key={rating}
-                          className="flex items-center gap-2 cursor-pointer"
-                          onClick={() => updateItemRating(item.id, rating)}
-                        >
-                          <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
-                            {rating === itemRatings[item.id] && <div className="w-3 h-3 rounded-full bg-gray-800"></div>}
-                          </div>
-                          <span className="text-sm text-gray-700">{rating}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                {/* Competency Goal Cards */}
+                {goalsWithAssessments.map((item) => (
+                  <CompetencyGoalCard
+                    key={item.goal.id}
+                    goalWithAssessment={item}
+                  />
                 ))}
-              </div>
-            </div>
-
-            {/* Comment Section - Outside competency card */}
-            <div className="mt-6">
-              <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                自己評価コメント
-              </Label>
-              <Textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="各コンピテンシーの発揮状況や具体的なエピソードについて記入してください..."
-                className="mt-1 text-sm rounded-md border-gray-300 bg-white focus:ring-2 focus:ring-green-200 min-h-[100px]"
-                maxLength={5000}
-              />
-              <div className="flex justify-end items-center mt-1">
-                <p className="text-xs text-gray-400">{comment.length} / 5000</p>
-              </div>
-            </div>
-            </>
+              </>
             )}
           </CardContent>
         )}
