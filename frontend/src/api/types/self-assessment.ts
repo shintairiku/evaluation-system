@@ -16,6 +16,13 @@ import type { UserProfileOption } from './user';
  */
 
 /**
+ * Per-action ratings for competency goals
+ * Structure: { competencyId: { actionIndex: RatingCode } }
+ * Example: { "uuid-1": { "0": "A", "1": "B" }, "uuid-2": { "0": "S" } }
+ */
+export type CompetencyRatingData = Record<string, Record<string, RatingCode>>;
+
+/**
  * Base self-assessment fields (editable by employee)
  */
 export interface SelfAssessmentBase {
@@ -40,6 +47,8 @@ export interface SelfAssessment extends SelfAssessmentBase {
   previousSelfAssessmentId?: UUID;
   /** Numeric rating (0.0-7.0), auto-calculated from selfRatingCode */
   selfRating?: number;
+  /** Granular per-action ratings for コンピテンシー goals. NULL for 業績目標. */
+  ratingData?: CompetencyRatingData;
   /** Current status: draft, submitted, approved, or rejected */
   status: SelfAssessmentStatus;
   /** Timestamp when assessment was submitted */
@@ -100,6 +109,8 @@ export interface SelfAssessmentUpdate {
   selfRatingCode?: RatingCode;
   /** Employee's narrative self-assessment comment */
   selfComment?: string;
+  /** Granular per-action ratings for コンピテンシー goals. NULL for 業績目標. */
+  ratingData?: CompetencyRatingData;
 }
 
 /**

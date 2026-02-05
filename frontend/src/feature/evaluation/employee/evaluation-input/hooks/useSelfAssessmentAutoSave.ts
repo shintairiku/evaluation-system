@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { updateSelfAssessmentAction } from '@/api/server-actions/self-assessments';
-import type { RatingCode, SelfAssessmentStatus } from '@/api/types';
+import type { RatingCode, SelfAssessmentStatus, CompetencyRatingData } from '@/api/types';
 
 /**
  * Save status for auto-save functionality
@@ -13,6 +13,8 @@ export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 export interface SelfAssessmentSaveData {
   selfRatingCode?: RatingCode;
   selfComment?: string;
+  /** Per-action ratings for competency goals */
+  ratingData?: CompetencyRatingData;
 }
 
 /**
@@ -25,6 +27,8 @@ interface UseSelfAssessmentAutoSaveOptions {
   initialRatingCode?: RatingCode;
   /** Initial comment (from server) */
   initialComment?: string;
+  /** Initial per-action ratings for competency goals (from server) */
+  initialRatingData?: CompetencyRatingData;
   /** Initial status - only allow edits if draft */
   initialStatus?: SelfAssessmentStatus;
   /** Debounce delay in milliseconds (default: 2000) */
@@ -87,6 +91,7 @@ export function useSelfAssessmentAutoSave({
   assessmentId,
   initialRatingCode,
   initialComment,
+  initialRatingData,
   initialStatus,
   debounceDelay = 2000,
   statusClearTimeout = 3000
@@ -94,7 +99,8 @@ export function useSelfAssessmentAutoSave({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [lastSavedData, setLastSavedData] = useState<SelfAssessmentSaveData>({
     selfRatingCode: initialRatingCode,
-    selfComment: initialComment
+    selfComment: initialComment,
+    ratingData: initialRatingData
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,8 +113,10 @@ export function useSelfAssessmentAutoSave({
    * Check if data has changed from last saved
    */
   const hasDataChanged = useCallback((data: SelfAssessmentSaveData): boolean => {
-    return data.selfRatingCode !== lastSavedData.selfRatingCode ||
-           data.selfComment?.trim() !== lastSavedData.selfComment?.trim();
+    const ratingCodeChanged = data.selfRatingCode !== lastSavedData.selfRatingCode;
+    const commentChanged = data.selfComment?.trim() !== lastSavedData.selfComment?.trim();
+    const ratingDataChanged = JSON.stringify(data.ratingData) !== JSON.stringify(lastSavedData.ratingData);
+    return ratingCodeChanged || commentChanged || ratingDataChanged;
   }, [lastSavedData]);
 
   /**
@@ -139,13 +147,15 @@ export function useSelfAssessmentAutoSave({
     try {
       const result = await updateSelfAssessmentAction(assessmentId, {
         selfRatingCode: data.selfRatingCode,
-        selfComment: data.selfComment
+        selfComment: data.selfComment,
+        ratingData: data.ratingData
       });
 
       if (result.success) {
         setLastSavedData({
           selfRatingCode: data.selfRatingCode,
-          selfComment: data.selfComment?.trim()
+          selfComment: data.selfComment?.trim(),
+          ratingData: data.ratingData
         });
         setSaveStatus('saved');
 
@@ -187,11 +197,12 @@ export function useSelfAssessmentAutoSave({
     if (assessmentId && !isInitialized) {
       setLastSavedData({
         selfRatingCode: initialRatingCode,
-        selfComment: initialComment?.trim()
+        selfComment: initialComment?.trim(),
+        ratingData: initialRatingData
       });
       setIsInitialized(true);
     }
-  }, [assessmentId, initialRatingCode, initialComment, isInitialized]);
+  }, [assessmentId, initialRatingCode, initialComment, initialRatingData, isInitialized]);
 
   /**
    * Reset when assessment ID changes
