@@ -1,6 +1,6 @@
 "use client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Target, ChevronDown, ChevronUp } from "lucide-react";
+import { Target, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +11,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useState } from "react";
+import type { GoalWithAssessment } from "./index";
 
+interface CompetencyEvaluateProps {
+  goalsWithAssessments?: GoalWithAssessment[];
+  isLoading?: boolean;
+}
+
+// TODO: Replace with real data from goalsWithAssessments
 const competencyEvaluation = {
   name: "責任感",
   items: [
@@ -44,8 +51,15 @@ const competencyEvaluation = {
   comment: ""
 };
 
-export default function CompetencyEvaluate() {
+export default function CompetencyEvaluate({
+  goalsWithAssessments = [],
+  isLoading = false,
+}: CompetencyEvaluateProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+
+  // TODO: Use goalsWithAssessments data when competency structure is defined
+  // For now, show placeholder if no competency goals
+  const hasCompetencyGoals = goalsWithAssessments.length > 0;
   const [itemRatings, setItemRatings] = useState<{[key: number]: string}>(
     competencyEvaluation.items.reduce((acc, item) => ({
       ...acc,
@@ -123,7 +137,27 @@ export default function CompetencyEvaluate() {
 
         {isExpanded && (
           <CardContent className="space-y-6 pt-2">
+            {/* Loading state */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-green-500" />
+                <span className="ml-2 text-sm text-gray-500">読み込み中...</span>
+              </div>
+            )}
+
+            {/* Empty state - no competency goals */}
+            {!isLoading && !hasCompetencyGoals && (
+              <div className="text-center py-8 text-gray-500">
+                <p>承認済みのコンピテンシー目標がありません。</p>
+                <p className="text-sm mt-1">
+                  目標が承認されると、ここに自己評価フォームが表示されます。
+                </p>
+              </div>
+            )}
+
             {/* Rating Criteria Descriptions - Two Column Layout with Sticky Position */}
+            {!isLoading && hasCompetencyGoals && (
+            <>
             <div className="sticky top-4 z-10 bg-white pb-4 pt-10 -mt-8 border-b border-gray-200 mb-2">
               <div className="grid grid-cols-2 gap-4">
                 {/* Left Column: Rating descriptions */}
@@ -312,6 +346,8 @@ export default function CompetencyEvaluate() {
                 <p className="text-xs text-gray-400">{comment.length} / 5000</p>
               </div>
             </div>
+            </>
+            )}
           </CardContent>
         )}
       </Card>
