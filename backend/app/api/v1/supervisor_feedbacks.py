@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database.session import get_db_session
 from ...security.dependencies import get_auth_context, require_supervisor_or_above
 from ...security.context import AuthContext
-from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate
+from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedbackSubmit
 from ...schemas.common import PaginationParams, BaseResponse
 from ...services.supervisor_feedback_service import SupervisorFeedbackService
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
@@ -21,25 +21,26 @@ async def get_supervisor_feedbacks(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     supervisor_id: Optional[UUID] = Query(None, alias="supervisorId", description="Filter by supervisor ID (feedback creator)"),
     subordinate_id: Optional[UUID] = Query(None, alias="subordinateId", description="Filter by subordinate ID (feedback recipient)"),
-    status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
+    status: Optional[str] = Query(None, description="Filter by status (incomplete, draft, submitted)"),
+    action: Optional[str] = Query(None, description="Filter by action (PENDING, APPROVED)"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
     Get supervisor feedbacks based on current user's permissions and filters.
-    
+
     Supports filtering by:
     - supervisorId: Get feedbacks created by a specific supervisor
     - subordinateId: Get feedbacks received by a specific subordinate/employee
-    - userId: Legacy parameter (deprecated, use subordinateId instead)
     - periodId: Filter by evaluation period
-    - status: Filter by feedback status (draft/submitted)
-    
+    - status: Filter by workflow status (incomplete/draft/submitted)
+    - action: Filter by decision status (PENDING/APPROVED)
+
     Role-based default behavior when no supervisorId/subordinateId specified:
     - Admin: Shows all feedbacks
     - Manager/Supervisor: Shows feedbacks they created (supervisorId=self)
     - Employee/Part-time: Shows feedbacks they received (subordinateId=self)
-    
+
     Role-based filtering restrictions:
     - Admin: Can filter by any supervisorId or subordinateId
     - Manager/Supervisor: Can only use their own supervisorId, subordinateId limited to their subordinates
@@ -54,6 +55,7 @@ async def get_supervisor_feedbacks(
             supervisor_id=supervisor_id,
             subordinate_id=subordinate_id,
             status=status,
+            action=action,
             pagination=pagination
         )
         
@@ -185,16 +187,21 @@ async def update_supervisor_feedback(
 @router.post("/{feedback_id}/submit", response_model=SupervisorFeedback)
 async def submit_supervisor_feedback(
     feedback_id: UUID,
+    submit_data: SupervisorFeedbackSubmit,
     context: AuthContext = Depends(require_supervisor_or_above),
     session: AsyncSession = Depends(get_db_session)
 ):
-    """Submit supervisor feedback (feedback creator only)."""
+    """
+    Submit supervisor feedback with approval decision.
+
+    When action=APPROVED, the linked self-assessment is also approved (locked).
+    """
     try:
         service = SupervisorFeedbackService(session)
-        
-        # Submit feedback using dedicated method
-        result = await service.submit_feedback(feedback_id, context)
-        
+
+        # Submit feedback with approval data
+        result = await service.submit_feedback(feedback_id, submit_data, context)
+
         return result
     except NotFoundError as e:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
