@@ -563,7 +563,8 @@ POST /supervisor-feedbacks/{feedback_id}/submit
 ```
 
 **Validation Rules:**
-- **For APPROVED**: `supervisorRatingCode` is **required**, `supervisorComment` is optional
+- **For APPROVED**: `supervisorRatingCode` is **optional** (rare suggestion), `supervisorComment` is **optional** (occasional feedback)
+- The supervisor's primary role is to review and confirm correctness, then approve
 - No rejection action — supervisor provides feedback via comments, employee edits until approval
 
 **Side Effects:**
@@ -589,10 +590,19 @@ POST /supervisor-feedbacks/{feedback_id}/submit
 }
 ```
 
-**Response 422 (missing rating for approval):**
+**Response 200 (approve without rating/comment):**
 ```json
 {
-  "detail": "supervisorRatingCode is required when approving"
+  "id": "uuid",
+  "selfAssessmentId": "uuid",
+  "supervisorRatingCode": null,
+  "supervisorRating": null,
+  "supervisorComment": null,
+  "ratingData": null,
+  "action": "APPROVED",
+  "status": "submitted",
+  "submittedAt": "2025-01-06T10:00:00Z",
+  "reviewedAt": "2025-01-06T10:00:00Z"
 }
 ```
 
@@ -669,9 +679,9 @@ interface SupervisorFeedbackUpdate {
 }
 
 interface SupervisorFeedbackSubmit {
-  action: 'APPROVED';  // No REJECTED - supervisor provides feedback via comments
-  supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // 6-level input scale, required for APPROVED
-  supervisorComment?: string;
+  action: 'APPROVED';  // No REJECTED - supervisor reviews and approves
+  supervisorRatingCode?: 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';  // Optional rare suggestion
+  supervisorComment?: string;  // Optional occasional feedback
   ratingData?: RatingData | null;  // Competency per-action ratings (JSONB)
 }
 ```
@@ -879,7 +889,7 @@ interface ApiError {
 | `MISSING_REQUIRED_FIELD` | Required field not provided |
 | `GOAL_NOT_APPROVED` | Cannot create self-assessment for non-approved goal |
 | `PERIOD_NOT_ACTIVE` | Evaluation period is not active |
-| `RATING_REQUIRED_FOR_APPROVAL` | Supervisor rating code required when approving |
+| `RATING_REQUIRED_FOR_APPROVAL` | ~~Removed~~ — supervisor rating is always optional |
 
 ---
 
@@ -898,7 +908,7 @@ interface ApiError {
 
 | Field | Rule |
 |-------|------|
-| `supervisorRatingCode` | Optional in draft, **REQUIRED** for approval. Must be valid code. |
+| `supervisorRatingCode` | Always **optional** (rare suggestion). Must be valid code when provided. |
 | `supervisorComment` | Always optional. Max 5000 chars. |
 | `ratingData` | Optional JSONB. Competency per-action ratings. NULL for 業績目標. |
 | `action` | Must be PENDING or APPROVED. |
@@ -984,6 +994,12 @@ The following events may trigger webhooks:
 ---
 
 ## Changelog
+
+### Version 3.1 (2025-02-03)
+- Made `supervisorRatingCode` always optional (rare suggestion, not required for approval)
+- Supervisor's primary role is review + approve, not rate
+- Removed `RATING_REQUIRED_FOR_APPROVAL` error code
+- Updated submit endpoint examples to show approval without rating
 
 ### Version 3.0 (2025-02-03)
 - Changed to 3-state system: draft, submitted, approved (removed rejected)
