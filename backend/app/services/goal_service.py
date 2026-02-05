@@ -856,10 +856,23 @@ class GoalService:
             if period_status in ("completed", "cancelled"):
                 raise BadRequestError("Cannot reject goals in completed or cancelled evaluation periods")
 
+            # Guard rail: handle SelfAssessment based on status
+            # - draft: delete it and allow 差戻し (employee hasn't started yet)
+            # - submitted/approved: block 差戻し (evaluation has progressed)
             existing_assessment = await self.self_assessment_repo.get_by_goal(goal_id, org_id)
             if existing_assessment:
-                raise BadRequestError("Cannot reject goal after self-assessment has been created")
-            
+                from ..schemas.common import SelfAssessmentStatus
+                if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                    # Delete draft assessment to allow 差戻し
+                    await self.self_assessment_repo.delete_assessment(existing_assessment.id, org_id)
+                    logger.info(f"Deleted draft SelfAssessment {existing_assessment.id} for goal 差戻し: {goal_id}")
+                else:
+                    # Block 差戻し if assessment is submitted or approved
+                    raise BadRequestError(
+                        f"Cannot reject goal: self-assessment is already {existing_assessment.status}. "
+                        "差戻し is only allowed when self-assessment is still in draft status."
+                    )
+
             # Update status
             updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.REJECTED, org_id)
 
