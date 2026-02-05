@@ -37,7 +37,6 @@
 - 年間（1年）評価の集約（上期/下期を跨いだ判定）
 - スプレッドシートと同等の完全なデータ連携（#N/Aの発生条件含む）
 - ステージ/レベルと給与（基本給/時給）の自動算出・表示
-  - 仕様: `docs/implementation-storategy/0127-comprehensive-evaluation/04-stage-level-compensation.md`
 
 ---
 

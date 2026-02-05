@@ -8,7 +8,19 @@
 | v1.0 | 2026-01-27 | AI（Codex） | 初版作成（管理者向け総合評価テーブル要件・算出ルール・権限） | 🔄 レビュー中 | - | - |
 | v1.1 | 2026-02-04 | AI（Codex） | 昇格/降格（ステージ変更）は手動確定とし、確定時のレベル設定も手動（正社員必須）であることを明記 | 🔄 レビュー中 | - | - |
 | v1.2 | 2026-02-04 | AI（Codex） | コアバリュー表記に統一（旧: クレド） | 🔄 レビュー中 | - | - |
+| v1.3 | 2026-02-05 | AI（Codex） | 実装戦略/要件定義を整理し、ステージ/レベル/給与仕様（旧04）と監査ログ計画（旧05）を本書へ統合 | 🔄 レビュー中 | - | - |
 | - | - | - | - | - | - | - |
+
+---
+
+## TL;DR（結論）
+
+- 合計点 = 業績点 + コンピテンシー点（コアバリューは合計に含めない）
+- 昇格/降格フラグは固定ルールで点灯し、ステージ変更と反映後レベルは手動確定 + 監査ログ必須
+  - 昇格フラグ: 正社員のみ `新レベル >= 30`
+  - 降格フラグ: （単一の）評価期間の `総合評価 = D`
+- 判定基準（`evaluation_score_mapping`）の編集は `eval_admin` のみ（`admin` は閲覧のみ）
+- ステージ/レベル/給与（旧 `04-stage-level-compensation.md`）と監査ログ（旧 `05-stage-level-change-history.md`）は本書に統合（8章/9章）
 
 ---
 
@@ -137,7 +149,7 @@
 - 降格フラグは **「（単一の）評価期間における総合評価がD」の場合に常に点灯**する（年間集約は前提としない）
 - 昇格フラグ点灯者に対する `users.stage`（ステージ変更: アップ/ダウン）は **`eval_admin` が手動で判断して確定**する（自動更新しない）
 - ステージ変更を確定する場合、**反映後レベル（正社員のみ）も手動で確定**する（1〜30の範囲 / 増減入力ではなく確定値入力）
-  - 監査ログ方針: `docs/implementation-storategy/0127-comprehensive-evaluation/05-stage-level-change-history.md`
+  - 監査ログ方針: 本書「9. ステージ・レベル変更履歴（監査ログ）実装計画」
 
 ---
 
@@ -272,22 +284,107 @@
 
 ---
 
-## 8. 未決定事項 / 要確認
+## 8. ステージ・レベル・給与（基本給/時給）仕様（総合評価連携）
+
+目的: 総合評価（業績目標 + コンピテンシー）の結果で決まる **レベル増減（正社員）** を、給与改定（基本給/時給）に接続できるようにする。
+
+### 8.1 確定ルール
+
+- ステージ（グレード）は **正社員・パートタイム共通**
+- ステージ変更（昇格/降格等）は総合評価から **自動反映しない**（`eval_admin` が手動確定）
+- レベルは **正社員のみ** が持つ（1〜30）。パートタイムはレベルなし（`NULL`/非表示）
+
+### 8.2 正社員（基本給）
+
+- レベル増減は `evaluation_score_mapping`（「＜総合評価・点数対応表＞」）に従う（`eval_admin` が変更可能）
+- 新レベル = 現在レベル + レベル増減
+- 新レベルが範囲外（`<= 0` / `>= 31`）の場合:
+  - 管理者テーブル上はアラート表示
+  - 給与の自動算出は未確定（`null`）扱いとし、手動確認が必要な状態にする
+
+基本給算出（提案）:
+- ステージごとに `base_salary_level1_yen`（レベル1基本給）と `per_level_increment_yen`（レベルあたり増額）を保持
+- `base_salary_yen = base_salary_level1_yen(stage) + (level - 1) * per_level_increment_yen(stage)`
+
+### 8.3 パートタイム（時給）
+
+- 時給はステージごとの `hourly_wage_yen(stage)` を参照する
+- パートタイムはレベルの概念がないため、総合評価テーブル上のレベル関連（現在レベル/レベル増減/新レベル）は `-` 表示とする
+
+### 8.4 データモデル案（提案）
+
+- 方式A: `stages` に給与項目を追加（シンプルだが正社員/パートで `NULL` が増える）
+- 方式B（推奨）: 給与マスタを分離（例: `stage_compensation_rules`）
+  - `stage_id`, `employment_type`（`employee`/`part_time`）
+  - 正社員: `level_min`, `level_max`, `base_salary_level1_yen`, `per_level_increment_yen`
+  - パート: `hourly_wage_yen`
+
+---
+
+## 9. ステージ・レベル変更履歴（監査ログ）実装計画（Backend/DB）
+
+目的: 昇格/降格フラグ点灯者への「特例反映（手動確定）」を含め、ステージ/レベルの変更を **必ず監査ログとして永続化** する。
+
+### 9.1 監査ログの基本方針（必須）
+
+- append-only（原則UPDATE/DELETEしない）
+- 「ユーザー現在値の更新」と「履歴INSERT」を同一トランザクションで行う
+- ステージ/レベル更新は“必ず履歴を残す”専用のサービス/APIを経由する（直UPDATEを避ける）
+
+### 9.2 データモデル案（提案）
+
+- `users.stage_id`（既存）を利用
+- `users.level`（正社員のみ `1..30`、パートは `NULL`）を追加
+  - DB制約例: `CHECK (level IS NULL OR (level BETWEEN 1 AND 30))`
+
+履歴テーブル例: `comprehensive_evaluation_stage_level_history`
+- `id`（UUID）, `organization_id`, `evaluation_period_id`
+- `user_id`（対象）, `actor_user_id`（更新者）
+- `double_checked_by`（必須）, `reason`（必須）, `changed_at`
+- `stage_id_before`, `stage_id_after`, `level_before`, `level_after`
+
+索引例:
+- `(organization_id, user_id, changed_at DESC)`
+- `(organization_id, evaluation_period_id, changed_at DESC)`
+
+### 9.3 API/サービス（案）
+
+変更API例:
+- `POST /api/org/{org_slug}/comprehensive-evaluation/users/{user_id}/stage-level`
+  - 入力: `evaluationPeriodId`, `stageIdAfter`, `levelAfter`（nullable）, `reason`, `doubleCheckedBy`
+  - 認可: `eval_admin` のみ
+  - バリデーション:
+    - パートタイムは `levelAfter = NULL` を強制
+    - ステージ変更を確定する場合、正社員は `levelAfter` 必須（1〜30の範囲）
+
+履歴取得API例:
+- `GET /api/org/{org_slug}/comprehensive-evaluation/users/{user_id}/stage-level-history?evaluationPeriodId=...&limit=20`
+
+### 9.4 ロールアウト（実行順）
+
+1) DB migration（`users.level` + 履歴テーブル + index）
+2) Backend API/Service 実装（履歴必須の更新経路を用意）
+3) フロントの保存先を localStorage → API に切替
+4) （必要なら）監査UI（履歴表示）の追加
+
+---
+
+## 10. 未決定事項 / 要確認
 
 - `evaluation_score_mapping`の実際のスキーマ（点数レンジ、評価ランク、昇給/昇降格、レベル増減の保持形式）
   - 「＜最終評価・点数対応表＞」と「＜総合評価・点数対応表＞」を識別するカラム（例: `mapping_type`）の有無
 - 「現在レベル」「レベル増減」「新レベル」のデータソース（`users`に存在しない場合は追加方針）
-- ステージ/レベルと給与（基本給/時給）のマスタ・算出仕様
+- ステージ/給与マスタの具体値（正社員: `base_salary_level1_yen`/`per_level_increment_yen`、パート: `hourly_wage_yen`）と保持場所
 - 昇格/降格などの複合条件ルール（`AND`/`OR`）の表現方式（JSONツリー / OR-of-AND等）と、優先順位・競合解決の仕様
   - 正社員: ステージ内レベル（1〜30）と、ステージ別「レベルあたり増額」（例: ステージ1=2,000円/レベル、ステージ2=3,000円/レベル）
   - パートタイム: レベルなし、ステージに紐づく時給
-  - 仕様詳細: `docs/implementation-storategy/0127-comprehensive-evaluation/04-stage-level-compensation.md`
 - コアバリュー評価の「最終評価」データの取得方法（360評価の実装状況に依存）
 
 ---
 
-## 関連資料
+## 11. 関連資料
 
+- 実装戦略 / 実行計画: `docs/implementation-storategy/0127-comprehensive-evaluation/01-comprehensive-evaluation-strategy.md`
+- フロントモックまとめ（ステークホルダー確認用）: `docs/implementation-storategy/0127-comprehensive-evaluation/03-frontend-mock-summary.md`
 - 機能一覧: `docs/requirement-definition/04-feature/01-feature-list.md`（F404 総合評価算出）
 - 参考（議事録）: `docs/requirement-definition/06-reference/external-meeting/0602.md`
-- ステージ・レベル・給与仕様（総合評価連携）: `docs/implementation-storategy/0127-comprehensive-evaluation/04-stage-level-compensation.md`

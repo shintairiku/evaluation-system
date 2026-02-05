@@ -1,193 +1,78 @@
-# 総合評価（管理者向けテーブル）実装戦略書
+<!-- docs/implementation-storategy/0127-comprehensive-evaluation/01-comprehensive-evaluation-strategy.md -->
+# 総合評価（管理者向けテーブル）実装戦略 / 実行計画
 
-## 概要
+## TL;DR
 
-管理者が「総合評価（Comprehensive Evaluation）」をスプレッドシート同等の表形式で確認できるようにする。
+- Backendで集計した「行DTO」を返す一覧APIを作り、Frontendは表示/フィルタ/編集UIに専念する
+- 判定基準（`evaluation_score_mapping`）は `eval_admin` のみ編集可能（`admin` は閲覧のみ）
+- 昇格/降格フラグは固定ルールで点灯し、ステージ変更と反映後レベルは `eval_admin` が手動確定 + 監査ログ必須
+  - 昇格フラグ: 正社員のみ `新レベル >= 30`
+  - 降格フラグ: （単一の）評価期間の `総合評価 = D`
 
-- 業績（定量+定性）とコンピテンシーの点数を合算し、総合評価を算出
-- コアバリュー評価は合算対象外だが同一ビューに表示
-- 昇格/降格/昇給/レベル増減などの結果を表示
-- 判定基準（`evaluation_score_mapping`）は「総合評価アドミン（`eval_admin`）」ロールのみ編集可能（`admin`は閲覧のみ）
+## 関連ドキュメント（読む順）
 
-要件定義: `docs/requirement-definition/04-feature/02-comprehensive-evaluation.md`
-
----
-
-## 前提（重要）
-
-- `evaluation_score_mapping` テーブルは既に存在している（スキーマは実装前に必ず確認する）
-- ステージの重み（`stages.quantitative_weight`, `stages.qualitative_weight`, `stages.competency_weight`）は既に導入済み
-  - デフォルト: 業績（定量+定性）合計100%、コンピテンシー10%（合計110%）
-- 現在レベル（数値）の保持場所が未確定な場合は、まずデータソースを確定する
-- 昇格フラグは **「正社員の新レベルが30以上」の場合に常に点灯**する
-- 降格フラグは **「（単一の）評価期間における総合評価がD」の場合に常に点灯**する
-  - ステージ変更（アップ/ダウン）の確定は **自動では行わない**
-  - 昇格フラグ点灯者に対して `eval_admin` がステージ変更を判断し、`users.stage_id` を手動確定で更新する
-  - ステージ変更を確定する場合、**反映後レベル（正社員のみ）も手動で確定**する（1〜30の範囲 / 増減入力ではなく確定値入力）
-- 昇格/降格などの判定条件は、将来 **`AND`だけでなく`OR`条件**（例: 「A以上 **または** 面談全クリア」）も必要になる前提で設計する
-  - UI/Backendとも「条件式（`AND`/`OR`）」を扱えるデータモデルで実装し、後から作り直しにならないようにする
+1. 本書: 実行計画（何をいつ作るか）
+2. 要件・算出仕様・データモデル: `docs/implementation-storategy/0127-comprehensive-evaluation/02-comprehensive-evaluation.md`
+3. ステークホルダー確認用（フロントモックの現状）: `docs/implementation-storategy/0127-comprehensive-evaluation/03-frontend-mock-summary.md`
 
 ---
 
-## 実装方針（大枠）
+## 前提（確定ルール）
 
-### 方針A（推奨）：サーバー側で集計し、フロントは表示に専念
-
-- Backendで「総合評価テーブル1行分」のDTOを組み立て、一覧APIで返す
-- Frontendはフィルタ/並び替え/表示・編集UIのみ担当
-
-メリット:
-- 計算ロジックを一箇所（バックエンド）に集約でき、監査/テストしやすい
-- フロントのロジック肥大化を防げる
+- 合計点 = 業績点 + コンピテンシー点（コアバリューは合計に含めない）
+- 昇格/降格フラグの点灯は固定（上記 TL;DR の通り）
+- ステージ変更（アップ/ダウン）は自動反映しない
+  - フラグ点灯者に対して `eval_admin` が手動で確定し、理由 + ダブルチェック者 + 監査ログを必須とする
+  - 確定時の「反映後レベル（正社員のみ）」は 1〜30 を手動確定（増減入力ではなく確定値入力）
+- 将来拡張（任意）として、複合条件（`AND`/`OR`）のルールを持てる設計にする（ただし判定ロジックはBackendに集約）
 
 ---
 
-## 実装ステップ
+## マイルストーン
 
-### Step 0. 仕様確定・スキーマ確認（着手前に必須）
+### M1（完了）: フロントのみモック（localStorage）
 
-1. `evaluation_score_mapping`の実スキーマ確認
-   - 例: `min_score`, `max_score`, `rank`, `level_delta`, `promotion_flag`, `salary_action`等があるか
-   - 「＜最終評価・点数対応表＞」と「＜総合評価・点数対応表＞」を同一テーブルで保持する場合は、`mapping_type`等で識別できるか確認する
-2. 「現在レベル」のデータソース確認
-   - `users`にカラム追加が必要か、外部マスタ参照か
-3. ステージ/レベルと給与（基本給/時給）マスタの確定
-   - 正社員: ステージ内レベル（1〜30）と、ステージ別「レベルあたり増額」をどう保持するか
-   - パートタイム: レベルなし、ステージに紐づく時給をどう保持するか
-   - 仕様: `docs/implementation-storategy/0127-comprehensive-evaluation/04-stage-level-compensation.md`
-4. 判定ルール（昇格/降格/上書き）の仕様確定
-   - **`AND`/`OR`条件**をどう表現・保存するか（「ルールビルダー」要件）
-   - ルールが複数マッチする場合の優先順位（例: `priority`、同点時の決定規則）
-   - `evaluation_score_mapping`（点数→ランク/デフォルト増減）と、ルール（条件→判定/上書き）の責務分離
+- 参照: `docs/implementation-storategy/0127-comprehensive-evaluation/03-frontend-mock-summary.md`
 
----
+### M2: Backend集計API + Frontend実データ接続（閲覧）
 
-### Step 1. Backend：`evaluation_score_mapping`アクセス層
+- Backend: 総合評価一覧API（行DTO）を実装
+- Frontend: `/admin-eval-list` をAPI接続に切替（フィルタ/検索/表示）
 
-目的: 判定基準を読み書きできるようにする（編集は`eval_admin`のみ）。
+### M3: 判定基準の永続化（`evaluation_score_mapping` CRUD）
 
-- Model（SQLAlchemy）
-  - `backend/app/database/models/evaluation_score_mapping.py`（新規）
-- Repository
-  - `backend/app/database/repositories/evaluation_score_mapping_repo.py`（新規）
-  - orgスコープの適用（既存repoと同様の方針）
-- Service
-  - `backend/app/services/evaluation_score_mapping_service.py`（新規）
-  - レンジ重複チェック（同一`mapping_type`内）、境界ルール統一（`min <= score < max`等）
-- API
-  - `backend/app/api/v1/evaluation_score_mappings.py`（新規）
-  - `GET`（閲覧: `admin`/`eval_admin`）
-  - `POST/PUT/DELETE`（編集: `eval_admin`）
+- `evaluation_score_mapping` のCRUDを追加（`eval_admin` のみ編集可能）
+- 範囲重複などのバリデーションをBackendで強制
 
-RBAC:
-- Backendは `require_role(["eval_admin"])` を使用して編集を保護（`admin`は閲覧のみ）
+### M4: 特例反映（手動確定）の永続化 + 監査ログ
+
+- ステージ/レベル更新API（理由/ダブルチェック必須） + 履歴API
+- `/admin-eval-list/candidates` を localStorage → API に切替
+
+### M5（任意）: 給与表示/エクスポート/シミュレーション
+
+- 仕様は `docs/implementation-storategy/0127-comprehensive-evaluation/02-comprehensive-evaluation.md` の「ステージ・レベル・給与」節を前提に追加検討
 
 ---
 
-### Step 2. Backend：総合評価テーブル集計サービス
+## 実装チェックリスト
 
-目的: 画面に必要な「一覧の行データ」を1回のAPIで返す。
+### 着手前（決める）
 
-- Service
-  - `backend/app/services/comprehensive_evaluation_service.py`（新規）
-  - 主要責務:
-    - 対象ユーザー一覧（部署/ステージ等で絞り込み）
-    - 目標・上司評価点の取得（カテゴリ別、期間別）
-    - 点数算出（業績点/コンピテンシー点/合計点）
-    - `evaluation_score_mapping`でカテゴリ別の最終評価（目標達成/コンピテンシー）と、合計点からの総合評価（ランク）を決定
-    - （将来拡張）面談フラグ等を使った「ステージ変更の自動提案」を行う場合、`AND`/`OR`条件のルールを評価できる設計にする
-    - `evaluation_score_mapping`（または判定ルールのAction）で、レベル増減（正社員）のデフォルト値を決定
-    - 昇格フラグ（新レベル>=30）の点灯判定（正社員のみ）
-    - 降格フラグ（総合評価=D）の点灯判定（評価期間ごと）
-    - 重要: ステージ変更（アップ/ダウンの確定）は本サービスでは行わない（フラグの算出・表示のみ）
-    - 欠損値（未評価）の扱いを統一（例: `null`で返す）
-- Schema（Pydantic）
-  - `backend/app/schemas/comprehensive_evaluation.py`（新規）
-  - 行DTO: `ComprehensiveEvaluationRow`
-  - レスポンス: `ComprehensiveEvaluationListResponse`（ページング/合計件数も考慮）
-- API
-  - `backend/app/api/v1/reports.py` or `backend/app/api/v1/comprehensive_evaluation.py`（新規）
-  - `GET /reports/comprehensive-evaluation`
-  - アクセス: `admin`/`eval_admin`
+- [ ] `evaluation_score_mapping` の実スキーマ確認（`mapping_type` 等の有無）
+- [ ] 「現在レベル」のデータソース確定（`users.level` 追加の是非）
+- [ ] ステージ/給与マスタ確定（正社員: stage別レベル給、パート: stage別時給）
 
-パフォーマンス:
-- 可能な限りDB集計（GROUP BY / JOIN）でN+1を回避
-- まずは「期間ID + 組織ID」で必要データをまとめて取得し、Python側で最終合成するのが現実的
+### Backend
 
----
+- [ ] `evaluation_score_mapping` CRUD（RBAC: read `admin`/`eval_admin`, write `eval_admin`）
+- [ ] 総合評価集計サービス + `GET /reports/comprehensive-evaluation`
+- [ ] （M4）ステージ/レベル更新API + 履歴テーブル（append-only）
+- [ ] テスト: 点数算出/境界/欠損、範囲重複、権限、履歴
 
-### Step 2.5. Backend：判定ルール（AND/OR）管理・評価（推奨）
+### Frontend
 
-目的: 昇格/降格/上書き等の判定条件を、`eval_admin`が **`AND`/`OR`を含む形** で編集し、Backendで一貫して評価できるようにする。
+- [ ] `/admin-eval-list` をAPI接続に切替（列/表示はモックと同等）
+- [ ] 判定基準編集UIをAPI接続に切替（`eval_admin` のみ）
+- [ ] `/admin-eval-list/candidates` を特例反映APIに切替（理由/ダブルチェック必須）
 
-設計方針（推奨）:
-- `evaluation_score_mapping`は「点数→ランク/デフォルト増減」に集中させる
-- 昇格/降格などの **複合条件（`AND`/`OR`）** は別テーブル（例: `comprehensive_evaluation_rules`）に分離する
-
-データモデル（案）:
-- `comprehensive_evaluation_rules`
-  - `id`, `organization_id`, `rule_type`（`promotion`/`demotion`/`override`等）
-  - `enabled`（bool）, `priority`（int）
-  - `condition_json`（JSON/JSONB: `AND`/`OR`のツリー、または「OR-of-AND」の簡易表現）
-  - `action_json`（判定=昇格/降格/対象外、レベル増減上書き等）
-  - 監査用: `created_by`, `updated_by`, `created_at`, `updated_at`（必要なら履歴テーブルも追加）
-
-Service（案）:
-- `backend/app/services/comprehensive_evaluation_rule_service.py`（新規）
-  - ルールCRUD（`eval_admin`のみ）
-  - `condition_json`のバリデーション（空グループ禁止、未対応フィールド禁止、型整合性）
-  - ルール評価関数（row DTOに対して true/false を返す）
-
-API（案）:
-- `backend/app/api/v1/comprehensive_evaluation_rules.py`（新規）
-  - `GET`（閲覧: `admin`/`eval_admin`）
-  - `POST/PUT/DELETE`（編集: `eval_admin`）
-
-テスト（必須）:
-- `AND`/`OR`の組み合わせ（ネスト含む）での判定テスト
-- 優先順位（複数マッチ時）のテスト
-
----
-
-### Step 3. Frontend：管理者向けページ（単一ページ）
-
-目的: 添付スプレッドシート同等の一覧を表示し、必要に応じて基準編集UIを提供する。
-
-- Route（案）
-  - `frontend/src/app/(evaluation)/(admin)/admin-eval-list/page.tsx`
-- UI実装（案）
-  - フィルタバー（評価期間/部署/ステージ/検索）
-  - テーブル（固定ヘッダー/横スクロール）
-  - 未確定（`null`）表示の統一（例: `-`）
-  - 新レベル>=30の強調（アラート色/バッジ）
-- 権限制御
-  - `RolePermissionGuard`でページ閲覧を制御
-  - `eval_admin`のみ「基準編集」ボタン表示
-- 基準編集UI（案）
-  - 同一ページ内のモーダル/ドロワーで`evaluation_score_mapping`を編集
-  - レンジ重複や必須入力はフロントでもバリデーション（最終責務はバックエンド）
-  - 昇格/降格等の判定ルールは **`AND`/`OR`を扱えるルールビルダーUI** にする（将来要件の取りこぼし防止）
-    - 初期は「ORグループ（いずれか） × AND条件（すべて）」の2段階（DNF）でも可
-    - Backendはネスト可能な条件式（ツリー）を受け取れる設計にしておくと拡張が楽
-
----
-
-### Step 4. テスト / 検証
-
-Backend（優先）:
-- 点数算出のユニットテスト（境界値、欠損値、重み未満、丸め）
-- `evaluation_score_mapping`のレンジ判定テスト（重複禁止、境界ルール）
-- 権限テスト（`admin`は編集不可、`eval_admin`は編集可）
-
-Frontend（必要に応じて）:
-- 表示レンダリングのスナップショット/コンポーネントテスト
-- 権限に応じたボタン表示の切り替え
-
----
-
-## リリース順（推奨）
-
-1. 閲覧のみ（テーブル表示 + 合計点 + 総合評価 + 昇降格/レベル増減表示）
-2. `evaluation_score_mapping`の編集（`eval_admin`限定）
-3. 例外ルール（必要になったら拡張）
-4. エクスポート、シミュレーション等の拡張
