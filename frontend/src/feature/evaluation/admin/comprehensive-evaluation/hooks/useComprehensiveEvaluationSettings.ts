@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import {
   EVALUATION_RANKS,
   type ComprehensiveEvaluationSettings,
+  type DemotionRuleCondition,
+  type DemotionRuleGroup,
   type PromotionRuleCondition,
   type PromotionRuleGroup,
 } from "../settings";
@@ -38,6 +40,26 @@ function isPromotionRuleCondition(value: unknown): value is PromotionRuleConditi
   return false;
 }
 
+const DEMOTION_RANK_FIELDS = new Set<DemotionRuleCondition["field"]>([
+  "overallRank",
+  "competencyFinalRank",
+  "coreValueFinalRank",
+]);
+
+function isDemotionRuleCondition(value: unknown): value is DemotionRuleCondition {
+  if (!value || typeof value !== "object") return false;
+  const condition = value as DemotionRuleCondition;
+
+  if (condition.type === "rank_at_or_worse") {
+    return (
+      DEMOTION_RANK_FIELDS.has(condition.field) &&
+      isEvaluationRank((condition as DemotionRuleCondition & { thresholdRank?: unknown }).thresholdRank)
+    );
+  }
+
+  return false;
+}
+
 function parsePromotionRuleGroups(value: unknown): PromotionRuleGroup[] | null {
   if (!Array.isArray(value)) return null;
 
@@ -49,6 +71,24 @@ function parsePromotionRuleGroups(value: unknown): PromotionRuleGroup[] | null {
     const id = typeof group.id === "string" && group.id.trim() ? group.id : `promotion-group-${index + 1}`;
     const rawConditions = Array.isArray(group.conditions) ? group.conditions : [];
     const conditions = rawConditions.filter(isPromotionRuleCondition);
+    if (conditions.length === 0) return;
+    groups.push({ id, conditions });
+  });
+
+  return groups.length > 0 ? groups : null;
+}
+
+function parseDemotionRuleGroups(value: unknown): DemotionRuleGroup[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const groups: DemotionRuleGroup[] = [];
+
+  value.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    const group = item as Partial<DemotionRuleGroup>;
+    const id = typeof group.id === "string" && group.id.trim() ? group.id : `demotion-group-${index + 1}`;
+    const rawConditions = Array.isArray(group.conditions) ? group.conditions : [];
+    const conditions = rawConditions.filter(isDemotionRuleCondition);
     if (conditions.length === 0) return;
     groups.push({ id, conditions });
   });
@@ -72,21 +112,26 @@ function parseStoredSettingsV2(value: string | null): ComprehensiveEvaluationSet
     const ruleGroups =
       parsePromotionRuleGroups((promotion as { ruleGroups?: unknown }).ruleGroups) ??
       mockDefaultComprehensiveEvaluationSettings.promotion.ruleGroups;
+    const demotionRuleGroups =
+      parseDemotionRuleGroups((demotion as { ruleGroups?: unknown }).ruleGroups) ??
+      (() => {
+        const legacyThresholdRank = (demotion as { yearlyThresholdRank?: unknown }).yearlyThresholdRank;
+        if (!isEvaluationRank(legacyThresholdRank)) return null;
+        return [
+          {
+            id: "demotion-group-migrated",
+            conditions: [{ type: "rank_at_or_worse", field: "overallRank", thresholdRank: legacyThresholdRank }],
+          },
+        ] satisfies DemotionRuleGroup[];
+      })() ??
+      mockDefaultComprehensiveEvaluationSettings.demotion.ruleGroups;
 
     return {
       promotion: {
         ruleGroups,
-        stageDelta: typeof promotion.stageDelta === "number"
-          ? promotion.stageDelta
-          : mockDefaultComprehensiveEvaluationSettings.promotion.stageDelta,
       },
       demotion: {
-        yearlyThresholdRank: isEvaluationRank(demotion.yearlyThresholdRank)
-          ? demotion.yearlyThresholdRank
-          : mockDefaultComprehensiveEvaluationSettings.demotion.yearlyThresholdRank,
-        stageDelta: typeof demotion.stageDelta === "number"
-          ? demotion.stageDelta
-          : mockDefaultComprehensiveEvaluationSettings.demotion.stageDelta,
+        ruleGroups: demotionRuleGroups,
       },
       overallScoreThresholds: {
         SS: typeof overallScoreThresholds.SS === "number"
@@ -168,31 +213,33 @@ function parseStoredSettingsV1(value: string | null): ComprehensiveEvaluationSet
       ? (promotion.coreValueMinimumRank as EvaluationRank)
       : "A+";
 
-    const migratedConditions: PromotionRuleCondition[] = [
-      { type: "rank_at_least", field: "overallRank", minimumRank: overallMinimumRank },
-      { type: "rank_at_least", field: "competencyFinalRank", minimumRank: competencyMinimumRank },
-      { type: "rank_at_least", field: "coreValueFinalRank", minimumRank: coreValueMinimumRank },
-    ];
+	    const migratedConditions: PromotionRuleCondition[] = [
+	      { type: "rank_at_least", field: "overallRank", minimumRank: overallMinimumRank },
+	      { type: "rank_at_least", field: "competencyFinalRank", minimumRank: competencyMinimumRank },
+	      { type: "rank_at_least", field: "coreValueFinalRank", minimumRank: coreValueMinimumRank },
+	    ];
+	    const defaultDemotionThresholdRank =
+	      mockDefaultComprehensiveEvaluationSettings.demotion.ruleGroups[0]?.conditions[0]?.thresholdRank ?? "D";
+	    const demotionThresholdRank = isEvaluationRank(demotion.yearlyThresholdRank)
+	      ? (demotion.yearlyThresholdRank as EvaluationRank)
+	      : defaultDemotionThresholdRank;
 
-    return {
-      promotion: {
-        ruleGroups: [{ id: "promotion-group-migrated", conditions: migratedConditions }],
-        stageDelta: typeof promotion.stageDelta === "number"
-          ? (promotion.stageDelta as number)
-          : mockDefaultComprehensiveEvaluationSettings.promotion.stageDelta,
-      },
-      demotion: {
-        yearlyThresholdRank: isEvaluationRank(demotion.yearlyThresholdRank)
-          ? (demotion.yearlyThresholdRank as EvaluationRank)
-          : mockDefaultComprehensiveEvaluationSettings.demotion.yearlyThresholdRank,
-        stageDelta: typeof demotion.stageDelta === "number"
-          ? (demotion.stageDelta as number)
-          : mockDefaultComprehensiveEvaluationSettings.demotion.stageDelta,
-      },
-      overallScoreThresholds: {
-        SS: typeof overallScoreThresholds.SS === "number"
-          ? (overallScoreThresholds.SS as number)
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.SS,
+	    return {
+	      promotion: {
+	        ruleGroups: [{ id: "promotion-group-migrated", conditions: migratedConditions }],
+	      },
+	      demotion: {
+	        ruleGroups: [
+	          {
+	            id: "demotion-group-migrated",
+	            conditions: [{ type: "rank_at_or_worse", field: "overallRank", thresholdRank: demotionThresholdRank }],
+	          },
+	        ],
+	      },
+	      overallScoreThresholds: {
+	        SS: typeof overallScoreThresholds.SS === "number"
+	          ? (overallScoreThresholds.SS as number)
+	          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.SS,
         S: typeof overallScoreThresholds.S === "number"
           ? (overallScoreThresholds.S as number)
           : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.S,
