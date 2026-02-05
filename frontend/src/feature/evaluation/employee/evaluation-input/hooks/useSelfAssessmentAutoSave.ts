@@ -35,6 +35,8 @@ interface UseSelfAssessmentAutoSaveOptions {
   debounceDelay?: number;
   /** Status clear timeout in milliseconds (default: 3000) */
   statusClearTimeout?: number;
+  /** Callback when save succeeds - use to refresh parent data */
+  onSaveSuccess?: () => void;
 }
 
 /**
@@ -94,7 +96,8 @@ export function useSelfAssessmentAutoSave({
   initialRatingData,
   initialStatus,
   debounceDelay = 2000,
-  statusClearTimeout = 3000
+  statusClearTimeout = 3000,
+  onSaveSuccess
 }: UseSelfAssessmentAutoSaveOptions): UseSelfAssessmentAutoSaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [lastSavedData, setLastSavedData] = useState<SelfAssessmentSaveData>({
@@ -159,6 +162,9 @@ export function useSelfAssessmentAutoSave({
         });
         setSaveStatus('saved');
 
+        // Notify parent that data was saved (for refreshing validation state)
+        onSaveSuccess?.();
+
         // Clear status after timeout
         statusClearTimerRef.current = setTimeout(() => {
           setSaveStatus('idle');
@@ -171,7 +177,7 @@ export function useSelfAssessmentAutoSave({
       console.error('Error saving self-assessment:', error);
       setSaveStatus('error');
     }
-  }, [assessmentId, isEditable, hasDataChanged, saveStatus, statusClearTimeout]);
+  }, [assessmentId, isEditable, hasDataChanged, saveStatus, statusClearTimeout, onSaveSuccess]);
 
   /**
    * Debounced save function - use for onChange events
