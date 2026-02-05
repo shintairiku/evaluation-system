@@ -117,14 +117,14 @@ export default function ComprehensiveEvaluationCandidatesPage() {
     });
   }, [evaluationPeriodId, searchQuery, selectedDepartment, selectedStage, selectedEmploymentType]);
 
-  const computedRows = useMemo(() => {
-    return filteredRows.map((row) => {
-      const base = computeComprehensiveEvaluationRow(row, settings);
-      const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
-      const applied = applyComprehensiveEvaluationManualOverride(row, base, settings, override);
-      return { row, base, applied, override };
-    });
-  }, [filteredRows, overridesByPeriodId, settings]);
+	  const computedRows = useMemo(() => {
+	    return filteredRows.map((row) => {
+	      const base = computeComprehensiveEvaluationRow(row, settings);
+	      const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
+	      const applied = applyComprehensiveEvaluationManualOverride(row, base, override);
+	      return { row, base, applied, override };
+	    });
+	  }, [filteredRows, overridesByPeriodId, settings]);
 
   const selectedItem = useMemo(() => {
     if (!overrideRowId) return null;
@@ -537,12 +537,12 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                           ? (levelAfterValue as number)
                           : undefined;
 
-                      const preview = applyComprehensiveEvaluationManualOverride(selectedItem.row, selectedItem.base, settings, {
-                        decision: overrideDraft.decision,
-                        stageAfter: stageAfterOverride,
-                        levelAfter: levelAfterOverride,
-                        reason: overrideDraft.reason,
-                        doubleCheckedBy: overrideDraft.doubleCheckedBy,
+	                      const preview = applyComprehensiveEvaluationManualOverride(selectedItem.row, selectedItem.base, {
+	                        decision: overrideDraft.decision,
+	                        stageAfter: stageAfterOverride,
+	                        levelAfter: levelAfterOverride,
+	                        reason: overrideDraft.reason,
+	                        doubleCheckedBy: overrideDraft.doubleCheckedBy,
                         appliedAt: selectedItem.override?.appliedAt ?? new Date().toISOString(),
                       });
 
