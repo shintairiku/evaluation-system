@@ -11,12 +11,14 @@ from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.models.supervisor_feedback import SupervisorFeedback as SupervisorFeedbackModel
 from ..schemas.supervisor_feedback import (
-    SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedback, SupervisorFeedbackDetail
+    SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedbackSubmit,
+    SupervisorFeedback, SupervisorFeedbackDetail
 )
+from ..schemas.supervisor_review import SupervisorAction
 from ..schemas.self_assessment import SelfAssessment
 from ..schemas.evaluation import EvaluationPeriod
 from ..schemas.user import UserProfileOption
-from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
+from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus, SelfAssessmentStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.decorators import require_any_permission
@@ -55,6 +57,7 @@ class SupervisorFeedbackService:
         supervisor_id: Optional[UUID] = None,
         subordinate_id: Optional[UUID] = None,
         status: Optional[str] = None,
+        action: Optional[str] = None,
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[SupervisorFeedback]:
         """
@@ -138,6 +141,7 @@ class SupervisorFeedbackService:
                 user_ids=final_user_ids,
                 period_id=period_id,
                 status=status,
+                action=action,
                 pagination=pagination
             )
 
@@ -147,7 +151,8 @@ class SupervisorFeedbackService:
                 supervisor_ids=final_supervisor_ids,
                 user_ids=final_user_ids,
                 period_id=period_id,
-                status=status
+                status=status,
+                action=action
             )
             
             # Convert to response format
@@ -319,9 +324,14 @@ class SupervisorFeedbackService:
     async def submit_feedback(
         self,
         feedback_id: UUID,
+        submit_data: SupervisorFeedbackSubmit,
         current_user_context: AuthContext
     ) -> SupervisorFeedback:
-        """Submit a supervisor feedback by changing status to submitted."""
+        """
+        Submit a supervisor feedback with approval decision.
+
+        When action=APPROVED, the linked SelfAssessment is also approved (locked).
+        """
         try:
             # Check if feedback exists and user can update it
             org_id = current_user_context.organization_id
@@ -330,39 +340,41 @@ class SupervisorFeedbackService:
             existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id, org_id)
             if not existing_feedback:
                 raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
-            
+
             # Permission check - only feedback creator can submit
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
-            
-            # Business rule: can only submit draft feedbacks
-            if existing_feedback.status != SubmissionStatus.DRAFT.value:
-                raise BadRequestError("Can only submit draft feedbacks")
-            
-            # CRITICAL: Validate goal category rating rules before submission
-            assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id, org_id)
-            if assessment:
-                goal = await self.goal_repo.get_goal_by_id(assessment.goal_id, org_id)
-                if goal:
-                    # Create temp object for submission validation
-                    temp_feedback = SupervisorFeedbackUpdate(
-                        rating=float(existing_feedback.rating) if existing_feedback.rating else None,
-                        comment=existing_feedback.comment,
-                        status=SubmissionStatus.SUBMITTED
-                    )
-                    await self._validate_goal_category_rating_rules(goal, temp_feedback)
-            
-            # Update status using dedicated method
-            updated_feedback = await self.supervisor_feedback_repo.submit_feedback(feedback_id, org_id)
-            
+
+            # Business rule: cannot submit already approved feedback
+            if existing_feedback.action == SupervisorAction.APPROVED.value:
+                raise BadRequestError("Feedback has already been approved")
+
+            # Business rule: can only submit draft or incomplete feedbacks
+            if existing_feedback.status == SubmissionStatus.SUBMITTED.value:
+                raise BadRequestError("Feedback is already submitted")
+
+            # Update feedback using dedicated method with submit data
+            updated_feedback = await self.supervisor_feedback_repo.submit_feedback(
+                feedback_id, submit_data, org_id
+            )
+
+            # CRITICAL: If action is APPROVED, also approve the self-assessment
+            if submit_data.action == SupervisorAction.APPROVED:
+                from .self_assessment_service import SelfAssessmentService
+                self_assessment_service = SelfAssessmentService(self.session)
+                await self_assessment_service.approve_assessment(
+                    existing_feedback.self_assessment_id, org_id
+                )
+                logger.info(f"Self-assessment {existing_feedback.self_assessment_id} approved via feedback {feedback_id}")
+
             # Commit transaction
             await self.session.commit()
-            
+
             # Enrich response data
             enriched_feedback = await self._enrich_feedback_data(updated_feedback)
-            
-            logger.info(f"Supervisor feedback submitted: {feedback_id} by {current_user_context.user_id}")
+
+            logger.info(f"Supervisor feedback submitted: {feedback_id} by {current_user_context.user_id}, action={submit_data.action}")
             return enriched_feedback
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error submitting feedback {feedback_id}: {str(e)}")
@@ -387,9 +399,13 @@ class SupervisorFeedbackService:
             # Permission check - only feedback creator can change to draft
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
             
+            # Business rule: cannot revert approved feedbacks
+            if existing_feedback.action == SupervisorAction.APPROVED.value:
+                raise BadRequestError("Cannot revert approved feedback to draft")
+
             # Business rule: can only draft submitted feedbacks (to revert back to draft)
             if existing_feedback.status != SubmissionStatus.SUBMITTED.value:
-                raise BadRequestError("Can only draft submitted feedbacks")
+                raise BadRequestError("Can only revert submitted feedbacks to draft")
             
             # Update status using dedicated method
             updated_feedback = await self.supervisor_feedback_repo.draft_feedback(feedback_id, org_id)
@@ -554,10 +570,12 @@ class SupervisorFeedbackService:
             return
         
         # Assessment owner can view feedback on their assessments
-        assessment = await self.self_assessment_repo.get_by_id_with_details(feedback.self_assessment_id)
-        if assessment:
-            await self._check_assessment_access_permission(assessment, current_user_context)
-            return
+        org_id = current_user_context.organization_id
+        if org_id:
+            assessment = await self.self_assessment_repo.get_by_id_with_details(feedback.self_assessment_id, org_id)
+            if assessment:
+                await self._check_assessment_access_permission(assessment, current_user_context)
+                return
         
         raise PermissionDeniedError("You do not have permission to access this feedback")
 
@@ -574,7 +592,7 @@ class SupervisorFeedbackService:
     async def _validate_feedback_creation(self, assessment, feedback_data: SupervisorFeedbackCreate, current_user_context: AuthContext):
         """Validate supervisor feedback creation business rules using RBAC framework."""
         # Check if assessment is submitted (can only give feedback on submitted assessments)
-        if assessment.status != SubmissionStatus.SUBMITTED.value:
+        if assessment.status != SelfAssessmentStatus.SUBMITTED.value:
             raise BadRequestError("Can only create feedback for submitted self-assessments")
         
         # Check if current user has access to the assessment's goal
@@ -604,86 +622,79 @@ class SupervisorFeedbackService:
         if not period:
             raise BadRequestError(f"Evaluation period {feedback_data.period_id} not found")
         
-        # CRITICAL: Validate rating requirements based on goal category
-        await self._validate_goal_category_rating_rules(goal, feedback_data)
+        # Validate rating code rules based on goal category
+        if feedback_data.supervisor_rating_code:
+            await self._validate_goal_category_rating_rules(
+                goal, feedback_data.supervisor_rating_code.value if hasattr(feedback_data.supervisor_rating_code, 'value') else feedback_data.supervisor_rating_code
+            )
 
     async def _validate_feedback_update(self, feedback_data: SupervisorFeedbackUpdate, existing_feedback: SupervisorFeedbackModel):
         """Validate supervisor feedback update business rules."""
-        # CRITICAL: Validate rating rules for goal category during updates
-        if feedback_data.rating is not None:
-            # Get goal via assessment to validate category rules
-            org_id = existing_feedback.org_id # Assuming org_id is stored in the model
-            if not org_id:
-                raise PermissionDeniedError("Organization context required")
-            assessment = await self.self_assessment_repo.get_by_id_with_details(existing_feedback.self_assessment_id, org_id)
-            if assessment:
-                goal = await self.goal_repo.get_goal_by_id(assessment.goal_id, org_id)
-                if goal:
-                    # Create temp object for validation (without status field)
-                    temp_feedback = SupervisorFeedbackUpdate(
-                        rating=feedback_data.rating if feedback_data.rating is not None else existing_feedback.rating,
-                        comment=feedback_data.comment
-                    )
-                    await self._validate_goal_category_rating_rules(goal, temp_feedback)
+        # Cannot update approved feedback
+        if existing_feedback.action == SupervisorAction.APPROVED.value:
+            raise BadRequestError("Cannot update an approved feedback")
 
-    async def _validate_goal_category_rating_rules(self, goal, feedback_data):
+        # Cannot update submitted feedback (must be reverted to draft first)
+        if existing_feedback.status == SubmissionStatus.SUBMITTED.value:
+            raise BadRequestError("Cannot update submitted feedback. Revert to draft first.")
+
+    async def _validate_goal_category_rating_rules(self, goal, supervisor_rating_code: str = None):
         """
-        Validate rating requirements based on goal category.
-        
-        Business Rules from strategy document:
-        - コアバリュー (Core Values): rating MUST be null, only comment allowed
-        - 業績目標 (Performance): rating 0-100 REQUIRED when submitting
-        - コンピテンシー (Competency): rating 0-100 REQUIRED when submitting
+        Validate rating code based on goal category.
+
+        Business Rules:
+        - コアバリュー (Core Values): rating code MUST be null, only comment allowed
+        - 業績目標 (定量目標): D rating is allowed (for failed targets)
+        - コンピテンシー: D rating is NOT allowed (behavioral competencies)
+
+        Note: supervisor_rating_code is always optional per user requirement.
         """
         goal_category = goal.goal_category
-        
+
         if goal_category == "コアバリュー":  # Core Values
-            if feedback_data.rating is not None:
+            if supervisor_rating_code is not None:
                 raise ValidationError(
-                    f"Core Value goals (コアバリュー) cannot have numeric ratings. "
-                    f"Please remove the rating and provide only comments for goal category: {goal_category}"
+                    f"Core Value goals (コアバリュー) cannot have ratings. "
+                    f"Please remove the rating for goal category: {goal_category}"
                 )
-        
-        elif goal_category in ["業績目標", "コンピテンシー"]:  # Performance or Competency
-            # For submission validation, check if this is a submission context
-            is_submission_context = hasattr(feedback_data, 'status') and feedback_data.status == SubmissionStatus.SUBMITTED
-            
-            if is_submission_context and feedback_data.rating is None:
-                goal_type_name = "Performance" if goal_category == "業績目標" else "Competency"
+
+        elif goal_category == "コンピテンシー":  # Competency
+            # D rating not allowed for competency goals
+            if supervisor_rating_code == "D":
                 raise ValidationError(
-                    f"{goal_type_name} goals ({goal_category}) require a numeric rating (0-100) when submitting feedback. "
-                    f"Please provide a rating for goal category: {goal_category}"
+                    f"Competency goals (コンピテンシー) cannot have D rating. "
+                    f"D rating is only allowed for 定量目標 (quantitative performance goals)."
                 )
-                
-            # Additional validation: rating must be within 0-100 (handled by schema, but double-check)
-            if feedback_data.rating is not None and not (0 <= feedback_data.rating <= 100):
-                raise ValidationError(
-                    f"Rating for {goal_category} goals must be between 0 and 100, got: {feedback_data.rating}"
-                )
-        
+
+        elif goal_category in ["業績目標", "定量目標"]:  # Performance/Quantitative
+            # All rating codes (including D) are allowed
+            pass
+
         else:
-            # Unknown goal category
-            raise ValidationError(
-                f"Unknown goal category: {goal_category}. "
-                f"Valid categories are: 業績目標, コンピテンシー, コアバリュー"
-            )
+            # Unknown goal category - allow operation but log warning
+            logger.warning(f"Unknown goal category: {goal_category} for goal {goal.id}")
 
     async def _enrich_feedback_data(self, feedback_model: SupervisorFeedbackModel) -> SupervisorFeedback:
         """Convert SupervisorFeedbackModel to SupervisorFeedback response schema with enriched data."""
-        # Base feedback data
+        # Base feedback data with new fields
         feedback_dict = {
             "id": feedback_model.id,
             "self_assessment_id": feedback_model.self_assessment_id,
             "period_id": feedback_model.period_id,
             "supervisor_id": feedback_model.supervisor_id,
-            "rating": float(feedback_model.rating) if feedback_model.rating else None,
-            "comment": feedback_model.comment,
+            "subordinate_id": feedback_model.subordinate_id,
+            "supervisor_rating_code": feedback_model.supervisor_rating_code,
+            "supervisor_rating": float(feedback_model.supervisor_rating) if feedback_model.supervisor_rating else None,
+            "supervisor_comment": feedback_model.supervisor_comment,
+            "rating_data": feedback_model.rating_data,
+            "action": SupervisorAction(feedback_model.action) if feedback_model.action else SupervisorAction.PENDING,
             "status": SubmissionStatus(feedback_model.status),
             "submitted_at": feedback_model.submitted_at,
+            "reviewed_at": feedback_model.reviewed_at,
             "created_at": feedback_model.created_at,
             "updated_at": feedback_model.updated_at
         }
-        
+
         return SupervisorFeedback(**feedback_dict)
 
     async def _enrich_feedback_detail_data(self, feedback_model: SupervisorFeedbackModel) -> SupervisorFeedbackDetail:
@@ -717,24 +728,28 @@ class SupervisorFeedbackService:
         if feedback_model.supervisor:
             supervisor_data = await self._convert_user_to_profile_option(feedback_model.supervisor)
         
+        # Editable only if not submitted and not approved
+        is_editable = (
+            feedback_model.status != SubmissionStatus.SUBMITTED.value and
+            feedback_model.action != SupervisorAction.APPROVED.value
+        )
+
         # Add all enhanced detail fields
         detail_dict.update({
             # Related object data
             "self_assessment": assessment_data,
             "evaluation_period": evaluation_period_data,
-            "subordinate": subordinate_data,
-            "supervisor": supervisor_data,
-            
+            "subordinate_info": subordinate_data,
+            "supervisor_info": supervisor_data,
+
             # Status and editability
-            "is_editable": feedback_model.status == SubmissionStatus.DRAFT.value,
+            "is_editable": is_editable,
             "is_overdue": False,  # Placeholder for future deadline check
             "days_until_deadline": None,  # Placeholder for future deadline calculation
-            
+
             # Context fields
             "goal_category": goal.goal_category if goal else None,
             "goal_title": goal.title if goal else None,
-            "goal_description": goal.description if goal else None,
-            "evaluation_period_name": feedback_model.period.name if feedback_model.period else None,
         })
         
         return SupervisorFeedbackDetail(**detail_dict)
@@ -745,9 +760,11 @@ class SupervisorFeedbackService:
             id=assessment_model.id,
             goalId=assessment_model.goal_id,
             periodId=assessment_model.period_id,
+            selfRatingCode=assessment_model.self_rating_code,
             selfRating=float(assessment_model.self_rating) if assessment_model.self_rating else None,
             selfComment=assessment_model.self_comment,
-            status=SubmissionStatus(assessment_model.status),
+            ratingData=assessment_model.rating_data,
+            status=SelfAssessmentStatus(assessment_model.status),
             submittedAt=assessment_model.submitted_at,
             createdAt=assessment_model.created_at,
             updatedAt=assessment_model.updated_at

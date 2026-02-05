@@ -14,7 +14,7 @@ from ..schemas.self_assessment import (
     SelfAssessmentCreate, SelfAssessmentUpdate, SelfAssessment, SelfAssessmentDetail
 )
 from ..schemas.supervisor_feedback import SupervisorFeedbackCreate
-from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
+from ..schemas.common import PaginationParams, PaginatedResponse, SelfAssessmentStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.rbac_helper import RBACHelper
@@ -332,12 +332,16 @@ class SelfAssessmentService:
                 raise PermissionDeniedError("You can only submit your own assessments")
             
             # Business rule: can only submit draft assessments
-            if existing_assessment.status != SubmissionStatus.DRAFT.value:
-                raise BadRequestError("Can only submit draft assessments")
-            
-            # Validate required rating is provided for submission
-            if existing_assessment.self_rating is None:
-                raise ValidationError("Self-rating is required before submission")
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise BadRequestError("Cannot submit an approved assessment")
+            if existing_assessment.status == SelfAssessmentStatus.SUBMITTED.value:
+                raise BadRequestError("Assessment is already submitted")
+
+            # Validate required fields for submission
+            if existing_assessment.self_rating_code is None:
+                raise ValidationError("Self-rating code is required before submission")
+            if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
+                raise ValidationError("Self-comment is required before submission")
             
             # Update status using dedicated method
             updated_assessment = await self.self_assessment_repo.submit_assessment(assessment_id, org_id)
@@ -358,6 +362,40 @@ class SelfAssessmentService:
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error submitting assessment {assessment_id}: {str(e)}")
+            raise
+
+    async def approve_assessment(
+        self,
+        assessment_id: UUID,
+        org_id: str
+    ) -> SelfAssessment:
+        """
+        Approve a self-assessment (called by supervisor_feedback_service when supervisor approves).
+        This locks the assessment permanently.
+        """
+        try:
+            # Check if assessment exists
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
+            if not existing_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
+
+            # Business rule: can only approve submitted assessments
+            if existing_assessment.status != SelfAssessmentStatus.SUBMITTED.value:
+                raise BadRequestError("Can only approve submitted assessments")
+
+            # Update status to approved using repo method
+            updated_assessment = await self.self_assessment_repo.approve_assessment(assessment_id, org_id)
+            if not updated_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found after approval")
+
+            # Enrich response data
+            enriched_assessment = await self._enrich_assessment_data(updated_assessment)
+
+            logger.info(f"Self-assessment approved: {assessment_id}")
+            return enriched_assessment
+
+        except Exception as e:
+            logger.error(f"Error approving assessment {assessment_id}: {str(e)}")
             raise
 
     @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
@@ -388,7 +426,7 @@ class SelfAssessmentService:
                 raise PermissionDeniedError("You can only delete your own assessments")
             
             # Business rule: can only delete draft assessments
-            if existing_assessment.status != SubmissionStatus.DRAFT.value:
+            if existing_assessment.status != SelfAssessmentStatus.DRAFT.value:
                 raise BadRequestError("Can only delete draft assessments")
             
             # Delete assessment
@@ -459,11 +497,9 @@ class SelfAssessmentService:
 
     async def _validate_assessment_update(self, assessment_data: SelfAssessmentUpdate, existing_assessment: SelfAssessmentModel):
         """Validate self-assessment update business rules."""
-        # Validate rating requirements for submission
-        if (assessment_data.status == SubmissionStatus.SUBMITTED and 
-            assessment_data.self_rating is None and 
-            existing_assessment.self_rating is None):
-            raise ValidationError("Self-rating is required before submission")
+        # Cannot update approved assessments
+        if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+            raise BadRequestError("Cannot update an approved assessment")
 
     async def _enrich_assessment_data(self, assessment_model: SelfAssessmentModel) -> SelfAssessment:
         """Convert SelfAssessmentModel to SelfAssessment response schema with enriched data."""
@@ -472,14 +508,16 @@ class SelfAssessmentService:
             "id": assessment_model.id,
             "goal_id": assessment_model.goal_id,
             "period_id": assessment_model.period_id,
+            "self_rating_code": assessment_model.self_rating_code,
             "self_rating": assessment_model.self_rating if assessment_model.self_rating is not None else None,
             "self_comment": assessment_model.self_comment,
-            "status": SubmissionStatus(assessment_model.status),
+            "rating_data": assessment_model.rating_data,
+            "status": SelfAssessmentStatus(assessment_model.status),
             "submitted_at": assessment_model.submitted_at,
             "created_at": assessment_model.created_at,
             "updated_at": assessment_model.updated_at
         }
-        
+
         return SelfAssessment(**assessment_dict)
 
     async def _enrich_assessment_detail_data(self, assessment_model: SelfAssessmentModel, org_id: str) -> SelfAssessmentDetail:
@@ -492,8 +530,9 @@ class SelfAssessmentService:
         goal = await self.goal_repo.get_goal_by_id(assessment_model.goal_id, org_id)
         
         # Add detail fields
+        # Editable only if draft (not submitted or approved)
         detail_dict.update({
-            "is_editable": assessment_model.status == SubmissionStatus.DRAFT.value,
+            "is_editable": assessment_model.status == SelfAssessmentStatus.DRAFT.value,
             "is_overdue": False,  # Placeholder for future deadline check
             "days_until_deadline": None,  # Placeholder for future deadline calculation
             "goal_category": goal.goal_category if goal else None,
@@ -531,19 +570,25 @@ class SelfAssessmentService:
             # Use the primary supervisor (first in list)
             primary_supervisor = supervisors[0]
             
-            # Create draft supervisor feedback
+            # Create incomplete supervisor feedback (no data entered yet)
+            from ..schemas.supervisor_review import SupervisorAction
+            from ..schemas.common import SubmissionStatus
+
             feedback_create = SupervisorFeedbackCreate(
                 self_assessment_id=assessment.id,
                 period_id=assessment.period_id,
-                rating=None,  # Will be set based on goal category rules
-                comment=None,  # Empty initially
-                status=SubmissionStatus.DRAFT  # Start as draft
+                supervisor_rating_code=None,  # Optional, set by supervisor
+                supervisor_comment=None,  # Empty initially
+                rating_data=None,  # For competency per-action ratings
+                action=SupervisorAction.PENDING,  # Not yet approved
+                status=SubmissionStatus.INCOMPLETE  # No data entered yet
             )
-            
-            # Create the feedback
+
+            # Create the feedback (subordinate_id is auto-set from goal)
             created_feedback = await self.supervisor_feedback_repo.create_feedback(
-                feedback_create, 
-                primary_supervisor.id
+                feedback_create,
+                supervisor_id=primary_supervisor.id,
+                org_id=org_id
             )
             
             logger.info(f"Auto-created SupervisorFeedback {created_feedback.id} for assessment {assessment.id} assigned to supervisor {primary_supervisor.id}")
