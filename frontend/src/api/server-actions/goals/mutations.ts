@@ -183,6 +183,7 @@ export async function rejectGoalAction(goalId: UUID, reason: string): Promise<{
     }
 
     revalidateTag(CACHE_TAGS.GOALS);
+    revalidateTag(CACHE_TAGS.SUPERVISOR_REVIEWS);
 
     return {
       success: true,

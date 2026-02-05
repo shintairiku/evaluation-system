@@ -4,12 +4,15 @@ import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ChevronLeft, Send, Target, Brain } from 'lucide-react';
+import { AlertCircle, Brain, ChevronLeft, Send, Target } from 'lucide-react';
 import { toast } from 'sonner';
 import { submitGoalAction, getGoalsAction } from '@/api/server-actions/goals';
 import { getCompetenciesAction } from '@/api/server-actions/competencies';
 import { Competency } from '@/api/types/competency';
+import type { UserStatus } from '@/api/types';
+import { getGoalSubmissionRestriction } from '@/utils/goal-submission';
 import type { StageWeightBudget } from '../types';
 
 interface PerformanceGoal {
@@ -34,18 +37,21 @@ interface ConfirmationStepProps {
   competencyGoals: CompetencyGoal[];
   periodId?: string;
   currentUserId?: string;
+  currentUserStatus?: UserStatus;
   onPrevious: () => void;
   stageBudgets?: StageWeightBudget;
   userStageId?: string;
 }
 
 export function ConfirmationStep(props: ConfirmationStepProps) {
-  const { performanceGoals, competencyGoals, periodId, currentUserId, onPrevious, userStageId } = props;
+  const { performanceGoals, competencyGoals, periodId, currentUserId, currentUserStatus, onPrevious, userStageId } = props;
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [competencies, setCompetencies] = useState<Competency[]>([]);
   const [isLoadingCompetencies, setIsLoadingCompetencies] = useState(false);
   const [competencyError, setCompetencyError] = useState<string | null>(null);
+  const submissionRestriction = getGoalSubmissionRestriction(currentUserStatus);
+  const isSubmissionBlocked = Boolean(submissionRestriction);
 
   useEffect(() => {
     let isActive = true;
@@ -84,6 +90,13 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
   
   const handleSubmit = () => {
     startTransition(async () => {
+      if (submissionRestriction) {
+        toast.error(submissionRestriction.title, {
+          description: submissionRestriction.description,
+        });
+        return;
+      }
+
       if (!periodId) {
         toast.error('評価期間が選択されていません。');
         return;
@@ -259,6 +272,16 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
         </CardContent>
       </Card>
 
+      {submissionRestriction && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-900">{submissionRestriction.title}</AlertTitle>
+          <AlertDescription className="text-amber-800">
+            {submissionRestriction.description}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         <div className="flex gap-2 col-span-1">
           <Button onClick={onPrevious} variant="outline">
@@ -269,7 +292,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
         <div className="flex gap-2 col-span-2 justify-end">
           <Button
             onClick={() => setShowSubmitDialog(true)}
-            disabled={isPending}
+            disabled={isPending || isSubmissionBlocked}
             size="lg"
             >
             <Send className="h-4 w-4 mr-2" />
@@ -287,6 +310,15 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
               提出後は上司の承認を待つ状態になります。承認前であれば編集は可能です。
             </DialogDescription>
           </DialogHeader>
+          {submissionRestriction && (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-900">{submissionRestriction.title}</AlertTitle>
+              <AlertDescription className="text-amber-800">
+                {submissionRestriction.description}
+              </AlertDescription>
+            </Alert>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
@@ -297,7 +329,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isPending}
+              disabled={isPending || isSubmissionBlocked}
             >
               {isPending ? '提出中...' : '提出する'}
             </Button>

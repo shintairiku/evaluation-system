@@ -751,7 +751,9 @@ class GoalRepository(BaseRepository[Goal]):
             "draft": ["submitted"],
             # Allow withdrawal back to draft. Service layer enforces business rules (e.g., untouched supervisor review).
             "submitted": ["approved", "rejected", "draft"],
-            "approved": [],  # Approved goals cannot be changed
+            # Approved goals can be remanded (差戻し) back to rejected by supervisors/admins.
+            # Service layer enforces additional business rules (e.g., evaluation progress guard rails).
+            "approved": ["rejected"],
             "rejected": ["draft", "submitted"]
         }
         

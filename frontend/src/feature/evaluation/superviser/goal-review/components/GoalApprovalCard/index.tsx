@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Target, Brain, Calendar, Weight } from 'lucide-react';
 import type { GoalResponse, SupervisorReview } from '@/api/types';
 import { GoalApprovalHandler } from '../GoalApprovalHandler';
+import { GoalRemandHandler } from '../GoalRemandHandler';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
 import { useResponsiveBreakpoint } from '@/hooks/useResponsiveBreakpoint';
@@ -253,6 +254,19 @@ export const GoalApprovalCard = React.memo<GoalApprovalCardProps>(function GoalA
               employeeName={employeeName}
               onSuccess={onGoalUpdate}
               review={review}
+            />
+          </div>
+        )}
+
+        {/* Remand Handler - Only show for approved goals */}
+        {goal.status === 'approved' && (
+          <div className={`mt-6 pt-4 border-t ${isMobile ? 'mt-4 pt-3' : 'mt-6 pt-4'}`}
+               role="region"
+               aria-label="目標差戻し操作">
+            <GoalRemandHandler
+              goal={goal}
+              employeeName={employeeName}
+              onSuccess={onGoalUpdate}
             />
           </div>
         )}
