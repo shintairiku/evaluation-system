@@ -12,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.supervisor_feedback import SupervisorFeedback
 from ..models.self_assessment import SelfAssessment
 from ..models.goal import Goal
-from ...schemas.supervisor_feedback import SupervisorFeedbackCreate, SupervisorFeedbackUpdate
-from ...schemas.common import PaginationParams, SubmissionStatus
+from ...schemas.supervisor_feedback import SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedbackSubmit
+from ...schemas.common import PaginationParams, SubmissionStatus, RatingCode, RATING_CODE_VALUES
+from ...schemas.supervisor_review import SupervisorAction
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
@@ -46,14 +47,28 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             if existing:
                 raise ConflictError(f"Supervisor feedback already exists for self-assessment {feedback_data.self_assessment_id}")
             
+            # Auto-calculate supervisor_rating from rating_code
+            supervisor_rating = None
+            if feedback_data.supervisor_rating_code:
+                supervisor_rating = Decimal(str(RATING_CODE_VALUES.get(feedback_data.supervisor_rating_code, 0.0)))
+
+            # Get subordinate_id from the self-assessment's goal owner
+            subordinate_id = None
+            if self_assessment.goal:
+                subordinate_id = self_assessment.goal.user_id
+
             # Create feedback with validated data
             feedback = SupervisorFeedback(
                 self_assessment_id=feedback_data.self_assessment_id,
                 period_id=feedback_data.period_id,
                 supervisor_id=supervisor_id,
-                rating=Decimal(str(feedback_data.rating)) if feedback_data.rating is not None else None,
-                comment=feedback_data.comment,
-                status=feedback_data.status.value if feedback_data.status else SubmissionStatus.DRAFT.value
+                subordinate_id=subordinate_id,
+                supervisor_rating_code=feedback_data.supervisor_rating_code.value if feedback_data.supervisor_rating_code else None,
+                supervisor_rating=supervisor_rating,
+                supervisor_comment=feedback_data.supervisor_comment,
+                rating_data=feedback_data.rating_data,
+                action=feedback_data.action.value if feedback_data.action else SupervisorAction.PENDING.value,
+                status=feedback_data.status.value if feedback_data.status else SubmissionStatus.INCOMPLETE.value
             )
             
             self.session.add(feedback)
@@ -62,10 +77,14 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             
         except IntegrityError as e:
             logger.error(f"Integrity error creating supervisor feedback for assessment {feedback_data.self_assessment_id}: {e}")
-            if "check_feedback_rating_bounds" in str(e):
-                raise ValidationError("Feedback rating must be between 0 and 100")
-            elif "check_feedback_status_values" in str(e):
-                raise ValidationError("Invalid status value")
+            if "chk_supervisor_feedback_rating_bounds" in str(e):
+                raise ValidationError("Supervisor rating must be between 0 and 7")
+            elif "chk_supervisor_rating_code" in str(e):
+                raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
+            elif "chk_supervisor_feedback_status" in str(e):
+                raise ValidationError("Invalid status. Must be one of: incomplete, draft, submitted")
+            elif "chk_supervisor_feedback_action" in str(e):
+                raise ValidationError("Invalid action. Must be PENDING or APPROVED")
             elif "idx_supervisor_feedback_assessment_unique" in str(e):
                 raise ConflictError("Supervisor feedback already exists for this self-assessment")
             else:
@@ -279,21 +298,24 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         self,
         org_id: str,
         supervisor_ids: Optional[List[UUID]] = None,
+        subordinate_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
-        user_ids: Optional[List[UUID]] = None,  # For filtering by assessment owner
+        action: Optional[str] = None,
+        user_ids: Optional[List[UUID]] = None,  # For filtering by assessment owner (alias for subordinate_ids)
         pagination: Optional[PaginationParams] = None
     ) -> List[SupervisorFeedback]:
         """Search supervisor feedbacks with various filters within organization scope."""
         try:
             from ..models.goal import Goal
             from ..models.user import User
-            
+
             query = (
                 select(SupervisorFeedback)
                 .options(
                     joinedload(SupervisorFeedback.self_assessment).joinedload(SelfAssessment.goal).joinedload(Goal.user),
                     joinedload(SupervisorFeedback.supervisor),
+                    joinedload(SupervisorFeedback.subordinate),
                     joinedload(SupervisorFeedback.period)
                 )
                 .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
@@ -301,28 +323,34 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 .join(User, Goal.user_id == User.id)
                 .filter(User.clerk_organization_id == org_id)
             )
-            
+
             # Apply filters
             if supervisor_ids:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
-            
+
+            if subordinate_ids:
+                query = query.filter(SupervisorFeedback.subordinate_id.in_(subordinate_ids))
+
             if period_id:
                 query = query.filter(SupervisorFeedback.period_id == period_id)
-            
+
             if status:
                 query = query.filter(SupervisorFeedback.status == status)
-            
+
+            if action:
+                query = query.filter(SupervisorFeedback.action == action)
+
             if user_ids:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
-            
+
             # Apply ordering
             query = query.order_by(SupervisorFeedback.created_at.desc())
-            
+
             # Apply pagination
             if pagination:
                 query = query.offset(pagination.offset).limit(pagination.limit)
-            
+
             result = await self.session.execute(query)
             return result.scalars().unique().all()
         except SQLAlchemyError as e:
@@ -333,15 +361,17 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         self,
         org_id: str,
         supervisor_ids: Optional[List[UUID]] = None,
+        subordinate_ids: Optional[List[UUID]] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
+        action: Optional[str] = None,
         user_ids: Optional[List[UUID]] = None
     ) -> int:
         """Count supervisor feedbacks matching the given filters within organization scope."""
         try:
             from ..models.goal import Goal
             from ..models.user import User
-            
+
             query = (
                 select(func.count(SupervisorFeedback.id))
                 .join(SelfAssessment, SupervisorFeedback.self_assessment_id == SelfAssessment.id)
@@ -349,21 +379,27 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 .join(User, Goal.user_id == User.id)
                 .filter(User.clerk_organization_id == org_id)
             )
-            
+
             # Apply same filters as search_feedbacks
             if supervisor_ids:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
-            
+
+            if subordinate_ids:
+                query = query.filter(SupervisorFeedback.subordinate_id.in_(subordinate_ids))
+
             if period_id:
                 query = query.filter(SupervisorFeedback.period_id == period_id)
-            
+
             if status:
                 query = query.filter(SupervisorFeedback.status == status)
-            
+
+            if action:
+                query = query.filter(SupervisorFeedback.action == action)
+
             if user_ids:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
-            
+
             result = await self.session.execute(query)
             return result.scalar() or 0
         except SQLAlchemyError as e:
@@ -379,16 +415,29 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         try:
             # Validate feedback exists first within organization scope
             existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
-            
+
+            # Check if feedback can be updated (not submitted)
+            if existing_feedback.status == SubmissionStatus.SUBMITTED.value:
+                raise ValidationError("Cannot update submitted feedback")
+
             # Build update dictionary
             update_data = {}
-            
-            if feedback_data.rating is not None:
-                update_data["rating"] = Decimal(str(feedback_data.rating))
-            
-            if feedback_data.comment is not None:
-                update_data["comment"] = feedback_data.comment
-            
+
+            if feedback_data.supervisor_rating_code is not None:
+                update_data["supervisor_rating_code"] = feedback_data.supervisor_rating_code.value
+                # Auto-calculate supervisor_rating from code
+                update_data["supervisor_rating"] = Decimal(str(RATING_CODE_VALUES.get(feedback_data.supervisor_rating_code, 0.0)))
+
+            if feedback_data.supervisor_comment is not None:
+                update_data["supervisor_comment"] = feedback_data.supervisor_comment
+
+            if feedback_data.rating_data is not None:
+                update_data["rating_data"] = feedback_data.rating_data
+
+            # If any data was provided, change status to draft if still incomplete
+            if update_data and existing_feedback.status == SubmissionStatus.INCOMPLETE.value:
+                update_data["status"] = SubmissionStatus.DRAFT.value
+
             # Execute update if there are changes
             if update_data:
                 update_data["updated_at"] = datetime.now(timezone.utc)
@@ -397,17 +446,17 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                     .where(SupervisorFeedback.id == feedback_id)
                     .values(**update_data)
                 )
-            
+
             # Return updated feedback
             return await self.get_by_id(feedback_id, org_id)
-            
+
         except IntegrityError as e:
             logger.error(f"Integrity error updating supervisor feedback {feedback_id}: {e}")
-            if "check_feedback_rating_bounds" in str(e):
-                raise ValidationError("Feedback rating must be between 0 and 100")
-            elif "check_feedback_status_values" in str(e):
-                raise ValidationError("Invalid status value")
-            elif "check_feedback_submission_required" in str(e):
+            if "chk_supervisor_feedback_rating_bounds" in str(e):
+                raise ValidationError("Supervisor rating must be between 0 and 7")
+            elif "chk_supervisor_rating_code" in str(e):
+                raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
+            elif "chk_supervisor_feedback_submission" in str(e):
                 raise ValidationError("Submitted feedback must have submitted_at timestamp")
             else:
                 raise ConflictError(f"Database constraint violation: {e}")
@@ -418,31 +467,58 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             logger.error(f"Database error updating supervisor feedback {feedback_id}: {e}")
             raise
 
-    async def submit_feedback(self, feedback_id: UUID, org_id: str) -> Optional[SupervisorFeedback]:
-        """Submit a supervisor feedback by changing status to submitted within organization scope."""
+    async def submit_feedback(
+        self,
+        feedback_id: UUID,
+        submit_data: SupervisorFeedbackSubmit,
+        org_id: str
+    ) -> Optional[SupervisorFeedback]:
+        """
+        Submit supervisor feedback with approval.
+        Sets action=APPROVED, status=submitted, reviewed_at=now.
+        Rating and comment are optional.
+        """
         try:
-            # Validate feedback exists and is in draft status within organization scope
+            # Validate feedback exists within organization scope
             existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
-            
-            if existing_feedback.status != SubmissionStatus.DRAFT.value:
-                raise ValidationError("Can only submit draft feedbacks")
-            
-            # Update status and set submitted_at
+
+            # Check if already submitted
+            if existing_feedback.status == SubmissionStatus.SUBMITTED.value:
+                raise ValidationError("Feedback is already submitted")
+
+            now = datetime.now(timezone.utc)
+
+            # Build update dictionary
             update_data = {
+                "action": SupervisorAction.APPROVED.value,
                 "status": SubmissionStatus.SUBMITTED.value,
-                "submitted_at": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc)
+                "submitted_at": now,
+                "reviewed_at": now,
+                "updated_at": now
             }
-            
+
+            # Optional: update rating if provided
+            if submit_data.supervisor_rating_code is not None:
+                update_data["supervisor_rating_code"] = submit_data.supervisor_rating_code.value
+                update_data["supervisor_rating"] = Decimal(str(RATING_CODE_VALUES.get(submit_data.supervisor_rating_code, 0.0)))
+
+            # Optional: update comment if provided
+            if submit_data.supervisor_comment is not None:
+                update_data["supervisor_comment"] = submit_data.supervisor_comment
+
+            # Optional: update rating_data if provided
+            if submit_data.rating_data is not None:
+                update_data["rating_data"] = submit_data.rating_data
+
             await self.session.execute(
                 update(SupervisorFeedback)
                 .where(SupervisorFeedback.id == feedback_id)
                 .values(**update_data)
             )
-            
-            logger.info(f"Submitted supervisor feedback {feedback_id}")
+
+            logger.info(f"Submitted and approved supervisor feedback {feedback_id}")
             return await self.get_by_id(feedback_id, org_id)
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Database error submitting supervisor feedback {feedback_id}: {e}")
             raise
@@ -450,28 +526,31 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     async def draft_feedback(self, feedback_id: UUID, org_id: str) -> Optional[SupervisorFeedback]:
         """Change a supervisor feedback status to draft within organization scope."""
         try:
-            # Validate feedback exists and is in submitted status within organization scope
+            # Validate feedback exists within organization scope
             existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
-            
-            if existing_feedback.status != SubmissionStatus.SUBMITTED.value:
-                raise ValidationError("Can only draft submitted feedbacks")
-            
-            # Update status and clear submitted_at
+
+            # Can only change to draft if not yet submitted/approved
+            if existing_feedback.action == SupervisorAction.APPROVED.value:
+                raise ValidationError("Cannot change approved feedback to draft (self-assessment is already locked)")
+
+            # Update status to draft, reset approval fields
             update_data = {
                 "status": SubmissionStatus.DRAFT.value,
+                "action": SupervisorAction.PENDING.value,
                 "submitted_at": None,
+                "reviewed_at": None,
                 "updated_at": datetime.now(timezone.utc)
             }
-            
+
             await self.session.execute(
                 update(SupervisorFeedback)
                 .where(SupervisorFeedback.id == feedback_id)
                 .values(**update_data)
             )
-            
+
             logger.info(f"Changed supervisor feedback {feedback_id} to draft")
             return await self.get_by_id(feedback_id, org_id)
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Database error drafting supervisor feedback {feedback_id}: {e}")
             raise
@@ -485,21 +564,23 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         try:
             # Validate feedback exists first within organization scope
             existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
-            
-            # Check if feedback can be deleted (only draft feedbacks)
+
+            # Check if feedback can be deleted (not submitted/approved)
             if existing_feedback.status == SubmissionStatus.SUBMITTED.value:
-                raise ValidationError("Cannot delete submitted feedbacks")
-            
+                raise ValidationError("Cannot delete submitted feedback")
+            if existing_feedback.action == SupervisorAction.APPROVED.value:
+                raise ValidationError("Cannot delete approved feedback")
+
             result = await self.session.execute(
                 delete(SupervisorFeedback).where(SupervisorFeedback.id == feedback_id)
             )
-            
+
             deleted = result.rowcount > 0
             if deleted:
                 logger.info(f"Deleted supervisor feedback {feedback_id}")
-            
+
             return deleted
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Database error deleting supervisor feedback {feedback_id}: {e}")
             raise
@@ -509,11 +590,12 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     # ========================================
 
     async def _validate_self_assessment_exists(self, self_assessment_id: UUID, org_id: str) -> SelfAssessment:
-        """Validate self-assessment exists within organization scope and return it, raise NotFoundError if not."""
+        """Validate self-assessment exists within organization scope and return it with goal loaded."""
         from ..models.user import User
-        
+
         result = await self.session.execute(
             select(SelfAssessment)
+            .options(joinedload(SelfAssessment.goal))
             .join(Goal, SelfAssessment.goal_id == Goal.id)
             .join(User, Goal.user_id == User.id)
             .filter(
