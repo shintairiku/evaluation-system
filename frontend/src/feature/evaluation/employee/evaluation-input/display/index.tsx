@@ -132,6 +132,53 @@ export default function EmployeeEvaluationInputDisplay() {
     }
   }, [selectedPeriodId, fetchGoalsAndAssessments]);
 
+  /**
+   * Silent refresh for SubmitButton - fetches data without showing loading state
+   */
+  const handleSilentRefresh = useCallback(async () => {
+    if (!selectedPeriodId) return;
+
+    try {
+      const [goalsResult, assessmentsResult] = await Promise.all([
+        getGoalsAction({ periodId: selectedPeriodId, status: 'approved' }),
+        getSelfAssessmentsAction({ periodId: selectedPeriodId })
+      ]);
+
+      if (goalsResult.success && goalsResult.data) {
+        const goals = goalsResult.data.items || [];
+        const assessments = assessmentsResult.success && assessmentsResult.data
+          ? assessmentsResult.data.items || []
+          : [];
+
+        const assessmentMap = new Map<string, SelfAssessment>();
+        assessments.forEach(assessment => {
+          assessmentMap.set(assessment.goalId, assessment);
+        });
+
+        const performance: GoalWithAssessment[] = [];
+        const competency: GoalWithAssessment[] = [];
+
+        goals.forEach(goal => {
+          const combined: GoalWithAssessment = {
+            goal,
+            selfAssessment: assessmentMap.get(goal.id) || null
+          };
+
+          if (goal.goalCategory === '業績目標') {
+            performance.push(combined);
+          } else if (goal.goalCategory === 'コンピテンシー') {
+            competency.push(combined);
+          }
+        });
+
+        setPerformanceGoals(performance);
+        setCompetencyGoals(competency);
+      }
+    } catch (error) {
+      console.error('Failed to refresh goals and assessments:', error);
+    }
+  }, [selectedPeriodId]);
+
   return (
     <div className="container mx-auto p-4 md:p-6">
       <div className="space-y-6">
@@ -154,7 +201,13 @@ export default function EmployeeEvaluationInputDisplay() {
 
         {/* Submit Button */}
         <div className="flex justify-end">
-          <SubmitButton />
+          <SubmitButton
+            performanceGoals={performanceGoals}
+            competencyGoals={competencyGoals}
+            onSubmitSuccess={handleAssessmentUpdate}
+            onRefreshData={handleSilentRefresh}
+            disabled={isLoadingData}
+          />
         </div>
 
         {/* Evaluation Forms */}
@@ -162,7 +215,6 @@ export default function EmployeeEvaluationInputDisplay() {
           <PerformanceGoalsEvaluate
             goalsWithAssessments={performanceGoals}
             isLoading={isLoadingData}
-            onUpdate={handleAssessmentUpdate}
           />
           <CompetencyEvaluate
             goalsWithAssessments={competencyGoals}
