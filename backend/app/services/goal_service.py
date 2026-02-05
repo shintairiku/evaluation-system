@@ -790,6 +790,15 @@ class GoalService:
             # Commit transaction
             await self.session.commit()
 
+            # Auto-create draft SelfAssessment for the approved goal
+            # This triggers the self-assessment workflow for evaluation
+            try:
+                await self._auto_create_self_assessment(updated_goal, org_id)
+                await self.session.commit()
+            except Exception as auto_create_error:
+                logger.error(f"Auto-create SelfAssessment failed for goal {goal_id}: {auto_create_error}")
+                # Do not rollback goal approval due to auto-creation failure
+
             # Enrich response data with competency names (N+1 fix)
             competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
             enriched_goal = await self._enrich_goal_data(
@@ -800,7 +809,7 @@ class GoalService:
 
             logger.info(f"Goal approved successfully: {goal_id} by {current_user_context.user_id}")
             return enriched_goal
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error approving goal {goal_id}: {str(e)}")
@@ -1747,3 +1756,44 @@ class GoalService:
                 "Goal submission will continue, but manual review creation may be needed."
             )
             # Don't raise exception to avoid breaking goal submission flow
+
+    async def _auto_create_self_assessment(self, goal: GoalModel, org_id: str) -> None:
+        """
+        Auto-create draft SelfAssessment when Goal is approved.
+
+        This implements the automatic creation trigger for the evaluation workflow:
+        Goal (approved) → SelfAssessment (draft) → [employee fills] → submitted → SupervisorFeedback
+
+        Args:
+            goal: The approved goal model
+            org_id: Organization ID for scoping
+        """
+        try:
+            # Check if assessment already exists for this goal
+            existing = await self.self_assessment_repo.get_by_goal(goal.id, org_id)
+            if existing:
+                logger.info(f"SelfAssessment already exists for goal {goal.id}, skipping auto-creation")
+                return
+
+            # Create draft self-assessment (empty - to be filled by employee)
+            from ..schemas.self_assessment import SelfAssessmentCreate
+            from ..schemas.common import SelfAssessmentStatus
+
+            assessment_create = SelfAssessmentCreate(
+                self_rating_code=None,  # Empty - to be filled by employee
+                self_comment=None,  # Empty - to be filled by employee
+                status=SelfAssessmentStatus.DRAFT
+            )
+
+            created_assessment = await self.self_assessment_repo.create_assessment(
+                assessment_data=assessment_create,
+                goal_id=goal.id,
+                org_id=org_id
+            )
+
+            logger.info(f"Auto-created draft SelfAssessment {created_assessment.id} for approved goal {goal.id}")
+
+        except Exception as e:
+            logger.error(f"Error auto-creating SelfAssessment for goal {goal.id}: {str(e)}")
+            # Don't re-raise - failure shouldn't block Goal approval
+            # This follows the same pattern as _auto_create_supervisor_feedback in self_assessment_service.py
