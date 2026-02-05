@@ -20,7 +20,7 @@ async def get_self_assessments(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
-    status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
+    status: Optional[str] = Query(None, description="Filter by status (draft, submitted, approved)"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -102,7 +102,7 @@ async def get_self_assessments_by_period(
     period_id: UUID,
     pagination: PaginationParams = Depends(),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
-    status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
+    status: Optional[str] = Query(None, description="Filter by status (draft, submitted, approved)"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
