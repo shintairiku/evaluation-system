@@ -299,16 +299,15 @@ export default function SubmitButton({
                   </p>
                 </div>
                 <div
-                  className="p-3 rounded-md border-l-4 bg-muted/50 border-amber-500"
-                  role="alert"
-                  aria-live="polite"
+                  className="p-3 rounded-md border-l-4 bg-muted/50 border-blue-500"
+                  role="region"
+                  aria-label="補足情報"
                 >
-                  <p className="text-sm font-medium text-amber-700">
-                    重要な注意事項:
+                  <p className="text-sm font-medium text-foreground">
+                    補足情報:
                   </p>
                   <p className="text-sm mt-1">
-                    提出後は内容を変更できません。
-                    上司による確認が完了するまでお待ちください。
+                    提出後も、上司による承認が完了するまでは内容を変更できます。
                   </p>
                 </div>
               </>
