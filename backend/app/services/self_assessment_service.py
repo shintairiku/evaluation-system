@@ -51,24 +51,28 @@ class SelfAssessmentService:
         user_id: Optional[UUID] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
-        pagination: Optional[PaginationParams] = None
+        pagination: Optional[PaginationParams] = None,
+        self_only: bool = False
     ) -> PaginatedResponse[SelfAssessment]:
         """
         Get self-assessments based on current user's permissions and filters.
-        
+
         Access rules:
         - Employees: can only view their own assessments
         - Supervisors: can view their subordinates' assessments + their own
         - Admins: can view all assessments
+
+        Args:
+            self_only: If True, return only the current user's assessments (ignore subordinates)
         """
         org_id = current_user_context.organization_id
         if not org_id:
             raise PermissionDeniedError("Organization context required")
-        
+
         try:
             # Determine which users' assessments the current user can access
             accessible_user_ids = await self._get_accessible_assessment_user_ids(
-                current_user_context, user_id
+                current_user_context, user_id, self_only=self_only
             )
             
             # Search assessments with filters
@@ -518,35 +522,45 @@ class SelfAssessmentService:
     async def _get_accessible_assessment_user_ids(
         self,
         current_user_context: AuthContext,
-        requested_user_id: Optional[UUID] = None
+        requested_user_id: Optional[UUID] = None,
+        self_only: bool = False
     ) -> Optional[List[UUID]]:
-        """Determine which users' assessments the current user can access."""
-        
+        """Determine which users' assessments the current user can access.
+
+        Args:
+            current_user_context: The authentication context
+            requested_user_id: Specific user ID to filter by (optional)
+            self_only: If True, return only the current user's ID (ignore subordinates)
+        """
+        # If self_only is True, return only the current user's ID
+        if self_only:
+            return [current_user_context.user_id] if current_user_context.user_id else []
+
         if current_user_context.has_permission(Permission.ASSESSMENT_READ_ALL):
             # Admin: can see all assessments
             if requested_user_id:
                 return [requested_user_id]
             return None  # All users
-        
+
         accessible_ids = []
-        
+
         # Add self if user has ASSESSMENT_READ_SELF permission
         if current_user_context.has_permission(Permission.ASSESSMENT_READ_SELF):
             accessible_ids.append(current_user_context.user_id)
-        
+
         if current_user_context.has_permission(Permission.ASSESSMENT_READ_SUBORDINATES):
             # Supervisor: can see subordinates' assessments
             subordinate_ids = await RBACHelper._get_subordinate_user_ids(
                 current_user_context.user_id, self.user_repo, current_user_context.organization_id
             )
             accessible_ids.extend(subordinate_ids)
-        
+
         # If specific user requested, check if accessible
         if requested_user_id:
             if requested_user_id not in accessible_ids:
                 raise PermissionDeniedError(f"You do not have permission to access assessments for user {requested_user_id}")
             return [requested_user_id]
-        
+
         return accessible_ids
 
 
