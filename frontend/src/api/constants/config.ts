@@ -215,6 +215,8 @@ export const API_ENDPOINTS = {
     BY_PERIOD: (periodId: string) => `/self-assessments/period/${periodId}`,
     BY_GOAL: (goalId: string) => `/self-assessments/goal/${goalId}`,
     SUBMIT: (id: string) => `/self-assessments/${id}/submit`,
+    REOPEN: (id: string) => `/self-assessments/${id}/reopen`,
+    HISTORY: (id: string) => `/self-assessments/${id}/history`,
   },
 
   // Supervisor Review endpoints

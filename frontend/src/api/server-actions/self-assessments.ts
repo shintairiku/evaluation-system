@@ -327,3 +327,36 @@ export async function submitSelfAssessmentAction(assessmentId: UUID): Promise<{
     };
   }
 }
+
+/**
+ * Server action to reopen a submitted self-assessment with cache revalidation
+ */
+export async function reopenSelfAssessmentAction(assessmentId: UUID): Promise<{
+  success: boolean;
+  data?: SelfAssessment;
+  error?: string;
+}> {
+  try {
+    const response = await selfAssessmentsApi.reopenSelfAssessment(assessmentId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to reopen self-assessment',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Reopen self-assessment action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while reopening self-assessment',
+    };
+  }
+}
