@@ -332,12 +332,30 @@ class SelfAssessmentService:
                 raise PermissionDeniedError("You can only submit your own assessments")
             
             # Business rule: can only submit draft assessments
-            if existing_assessment.status != SubmissionStatus.DRAFT.value:
-                raise BadRequestError("Can only submit draft assessments")
-            
-            # Validate required rating is provided for submission
-            if existing_assessment.self_rating is None:
-                raise ValidationError("Self-rating is required before submission")
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise BadRequestError("Cannot submit an approved assessment")
+            if existing_assessment.status == SelfAssessmentStatus.SUBMITTED.value:
+                raise BadRequestError("Assessment is already submitted")
+
+            # Validate required fields for submission based on goal category
+            goal_category = existing_assessment.goal.goal_category
+
+            if goal_category == "業績目標":  # Performance goal
+                # Requires self_rating_code and self_comment
+                if existing_assessment.self_rating_code is None:
+                    raise ValidationError("Self-rating code is required before submission")
+                if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
+                    raise ValidationError("Self-comment is required before submission")
+            elif goal_category == "コンピテンシー":  # Competency goal
+                # Requires rating_data (per-action ratings) and self_comment
+                if not existing_assessment.rating_data:
+                    raise ValidationError("Action ratings are required before submission")
+                if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
+                    raise ValidationError("Self-comment is required before submission")
+            else:
+                # Other goal types (e.g., コアバリュー) - require at least self_comment
+                if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
+                    raise ValidationError("Self-comment is required before submission")
             
             # Update status using dedicated method
             updated_assessment = await self.self_assessment_repo.submit_assessment(assessment_id, org_id)
