@@ -423,9 +423,19 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             # Build update dictionary
             update_data = {}
 
-            if feedback_data.supervisor_rating_code is not None:
+            # Handle supervisor_rating_code - use model_fields_set to detect explicit null
+            if hasattr(feedback_data, 'model_fields_set') and 'supervisor_rating_code' in feedback_data.model_fields_set:
+                if feedback_data.supervisor_rating_code is not None:
+                    update_data["supervisor_rating_code"] = feedback_data.supervisor_rating_code.value
+                    # Auto-calculate supervisor_rating from code
+                    update_data["supervisor_rating"] = Decimal(str(RATING_CODE_VALUES.get(feedback_data.supervisor_rating_code, 0.0)))
+                else:
+                    # Explicitly clear the rating
+                    update_data["supervisor_rating_code"] = None
+                    update_data["supervisor_rating"] = None
+            elif feedback_data.supervisor_rating_code is not None:
+                # Fallback for when model_fields_set is not available
                 update_data["supervisor_rating_code"] = feedback_data.supervisor_rating_code.value
-                # Auto-calculate supervisor_rating from code
                 update_data["supervisor_rating"] = Decimal(str(RATING_CODE_VALUES.get(feedback_data.supervisor_rating_code, 0.0)))
 
             if feedback_data.supervisor_comment is not None:
