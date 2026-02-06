@@ -99,6 +99,13 @@ export const selfAssessmentsApi = {
   },
 
   /**
+   * Reopen a submitted self-assessment to allow editing
+   */
+  reopenSelfAssessment: async (assessmentId: UUID): Promise<ApiResponse<SelfAssessment>> => {
+    return httpClient.post<SelfAssessment>(API_ENDPOINTS.SELF_ASSESSMENTS.REOPEN(assessmentId), {});
+  },
+
+  /**
    * Delete a self-assessment
    */
   deleteSelfAssessment: async (assessmentId: UUID): Promise<ApiResponse<void>> => {
