@@ -110,9 +110,9 @@ function PerformanceGoalCard({
             <Label className="text-sm font-semibold text-gray-700 mb-2 block">
               手段・手法
             </Label>
-            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5 break-words overflow-hidden">
               {methods.split("\n").map((line, i) => (
-                <div key={i}>{line || "\u00A0"}</div>
+                <div key={i} className="break-words">{line || "\u00A0"}</div>
               ))}
             </div>
           </div>
@@ -124,9 +124,9 @@ function PerformanceGoalCard({
             <Label className="text-sm font-semibold text-gray-700 mb-2 block">
               達成基準
             </Label>
-            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5 break-words overflow-hidden">
               {achievementCriteria.split("\n").map((line, i) => (
-                <div key={i}>{line || "\u00A0"}</div>
+                <div key={i} className="break-words">{line || "\u00A0"}</div>
               ))}
             </div>
           </div>
