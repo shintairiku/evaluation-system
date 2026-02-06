@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Search, Settings, Trash2, X } from "lucide-react";
 
 import RolePermissionGuard from "@/components/auth/RolePermissionGuard";
@@ -14,11 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-import { mockComprehensiveEvaluationRows, mockEvaluationPeriods } from "../mock";
+import { mockComprehensiveEvaluationRows, mockDefaultComprehensiveEvaluationSettings, mockEvaluationPeriods } from "../mock";
 import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow } from "../logic";
 import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
-import { EVALUATION_RANKS, type DemotionRuleCondition, type PromotionRuleCondition } from "../settings";
+import { EVALUATION_RANKS, type ComprehensiveEvaluationSettings, type DemotionRuleCondition, type PromotionRuleCondition } from "../settings";
 import type { ComprehensiveEvaluationRow, EmploymentType, EvaluationRank, ProcessingStatus } from "../types";
 
 function formatNumber(value: number, digits = 2): string {
@@ -38,6 +38,13 @@ function parseNumericInput(value: string): number | null {
   if (INTERMEDIATE_NUMBER_INPUTS.has(trimmed)) return null;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildLevelDeltaInputs(settings: ComprehensiveEvaluationSettings): Record<EvaluationRank, string> {
+  return EVALUATION_RANKS.reduce((acc, rank) => {
+    acc[rank] = String(settings.levelDeltaByOverallRank[rank] ?? "");
+    return acc;
+  }, {} as Record<EvaluationRank, string>);
 }
 
 function buildSearchText(row: ComprehensiveEvaluationRow): string {
@@ -104,11 +111,13 @@ function createDemotionCondition(
 export default function ComprehensiveEvaluationPage() {
   const { hasRole } = useUserRoles();
   const canEditThresholds = hasRole("admin"); // TODO: eval_adminに変更
-  const { settings, setSettings, resetSettings } = useComprehensiveEvaluationSettings();
+  const { settings, setSettings } = useComprehensiveEvaluationSettings();
   const { overridesByPeriodId } = useComprehensiveEvaluationManualOverrides();
 
   const evaluationRows = mockComprehensiveEvaluationRows;
 
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState<boolean>(false);
+  const [draftSettings, setDraftSettings] = useState<ComprehensiveEvaluationSettings>(settings);
   const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(
     mockEvaluationPeriods[0]?.id ?? "all"
   );
@@ -118,20 +127,20 @@ export default function ComprehensiveEvaluationPage() {
   const [selectedProcessingStatus, setSelectedProcessingStatus] = useState<ProcessingStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [levelDeltaInputs, setLevelDeltaInputs] = useState<Record<EvaluationRank, string>>(() =>
-    EVALUATION_RANKS.reduce((acc, rank) => {
-      acc[rank] = String(settings.levelDeltaByOverallRank[rank] ?? "");
-      return acc;
-    }, {} as Record<EvaluationRank, string>)
+    buildLevelDeltaInputs(settings)
   );
 
-  useEffect(() => {
-    setLevelDeltaInputs(
-      EVALUATION_RANKS.reduce((acc, rank) => {
-        acc[rank] = String(settings.levelDeltaByOverallRank[rank] ?? "");
-        return acc;
-      }, {} as Record<EvaluationRank, string>)
-    );
-  }, [settings.levelDeltaByOverallRank]);
+  const handleSettingsDialogOpenChange = (nextOpen: boolean) => {
+    setSettingsDialogOpen(nextOpen);
+    if (!nextOpen) return;
+    setDraftSettings(settings);
+    setLevelDeltaInputs(buildLevelDeltaInputs(settings));
+  };
+
+  const resetDraftSettingsToDefault = () => {
+    setDraftSettings(mockDefaultComprehensiveEvaluationSettings);
+    setLevelDeltaInputs(buildLevelDeltaInputs(mockDefaultComprehensiveEvaluationSettings));
+  };
 
   const departments = useMemo(() => {
     const unique = new Set<string>();
@@ -179,8 +188,33 @@ export default function ComprehensiveEvaluationPage() {
     setSearchQuery("");
   };
 
+  const handleSaveSettings = () => {
+    const normalizedInputs: Record<EvaluationRank, string> = { ...levelDeltaInputs };
+    const normalizedLevelDeltaByOverallRank = { ...draftSettings.levelDeltaByOverallRank };
+
+    EVALUATION_RANKS.forEach((rank) => {
+      const parsed = parseNumericInput(levelDeltaInputs[rank]);
+      if (parsed === null) {
+        normalizedInputs[rank] = String(draftSettings.levelDeltaByOverallRank[rank] ?? "");
+        return;
+      }
+      normalizedInputs[rank] = String(parsed);
+      normalizedLevelDeltaByOverallRank[rank] = parsed;
+    });
+
+    const settingsToSave: ComprehensiveEvaluationSettings = {
+      ...draftSettings,
+      levelDeltaByOverallRank: normalizedLevelDeltaByOverallRank,
+    };
+
+    setLevelDeltaInputs(normalizedInputs);
+    setDraftSettings(settingsToSave);
+    setSettings(settingsToSave);
+    setSettingsDialogOpen(false);
+  };
+
   const addPromotionGroup = () => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       promotion: {
         ...prev.promotion,
@@ -196,7 +230,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const removePromotionGroup = (groupId: string) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       promotion: {
         ...prev.promotion,
@@ -206,7 +240,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const addPromotionCondition = (groupId: string) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       promotion: {
         ...prev.promotion,
@@ -222,7 +256,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const removePromotionCondition = (groupId: string, index: number) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       promotion: {
         ...prev.promotion,
@@ -238,7 +272,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const updatePromotionConditionTarget = (groupId: string, index: number, target: PromotionConditionTarget) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       promotion: {
         ...prev.promotion,
@@ -260,7 +294,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const updatePromotionConditionMinimumRank = (groupId: string, index: number, minimumRank: EvaluationRank) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       promotion: {
         ...prev.promotion,
@@ -280,7 +314,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const addDemotionGroup = () => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       demotion: {
         ...prev.demotion,
@@ -296,7 +330,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const removeDemotionGroup = (groupId: string) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       demotion: {
         ...prev.demotion,
@@ -306,7 +340,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const addDemotionCondition = (groupId: string) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       demotion: {
         ...prev.demotion,
@@ -322,7 +356,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const removeDemotionCondition = (groupId: string, index: number) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       demotion: {
         ...prev.demotion,
@@ -338,7 +372,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const updateDemotionConditionTarget = (groupId: string, index: number, target: DemotionConditionTarget) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       demotion: {
         ...prev.demotion,
@@ -360,7 +394,7 @@ export default function ComprehensiveEvaluationPage() {
   };
 
   const updateDemotionConditionThresholdRank = (groupId: string, index: number, thresholdRank: EvaluationRank) => {
-    setSettings((prev) => ({
+    setDraftSettings((prev) => ({
       ...prev,
       demotion: {
         ...prev.demotion,
@@ -395,6 +429,12 @@ export default function ComprehensiveEvaluationPage() {
     onCommit(parsed);
   };
 
+  const hasUnsavedSettingsChanges =
+    draftSettings !== settings ||
+    EVALUATION_RANKS.some(
+      (rank) => levelDeltaInputs[rank] !== String(draftSettings.levelDeltaByOverallRank[rank] ?? "")
+    );
+
   return (
     <RolePermissionGuard
       requiredHierarchyLevel={1}
@@ -414,7 +454,7 @@ export default function ComprehensiveEvaluationPage() {
               <Link href="/admin-eval-list/candidates">昇格/降格フラグ対応</Link>
             </Button>
             {canEditThresholds && (
-              <Dialog>
+              <Dialog open={settingsDialogOpen} onOpenChange={handleSettingsDialogOpenChange}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="flex items-center gap-2">
                     <Settings className="h-4 w-4" />
@@ -425,7 +465,7 @@ export default function ComprehensiveEvaluationPage() {
                   <DialogHeader>
                     <DialogTitle>判定ルール設定（モック）</DialogTitle>
                     <DialogDescription>
-                      `eval_admin`のみ編集できます。設定はブラウザ内（localStorage）に保存されます。
+                      `eval_admin`のみ編集できます。変更は「保存」で反映され、ブラウザ内（localStorage）に保存されます。
                     </DialogDescription>
                   </DialogHeader>
 
@@ -438,7 +478,7 @@ export default function ComprehensiveEvaluationPage() {
 		                        </p>
 
                         <div className="space-y-4">
-                          {settings.promotion.ruleGroups.map((group, groupIndex) => (
+                          {draftSettings.promotion.ruleGroups.map((group, groupIndex) => (
                             <div key={group.id} className="rounded-lg border p-4">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="text-sm font-medium">ORグループ {groupIndex + 1}</div>
@@ -448,7 +488,7 @@ export default function ComprehensiveEvaluationPage() {
                                   size="sm"
                                   className="flex items-center gap-2"
                                   onClick={() => removePromotionGroup(group.id)}
-                                  disabled={settings.promotion.ruleGroups.length <= 1}
+                                  disabled={draftSettings.promotion.ruleGroups.length <= 1}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                   削除
@@ -555,7 +595,7 @@ export default function ComprehensiveEvaluationPage() {
 		                      </p>
 
 		                      <div className="space-y-4">
-		                        {settings.demotion.ruleGroups.map((group, groupIndex) => (
+		                        {draftSettings.demotion.ruleGroups.map((group, groupIndex) => (
 		                          <div key={group.id} className="rounded-lg border p-4">
 		                            <div className="flex items-center justify-between gap-2">
 		                              <div className="text-sm font-medium">ORグループ {groupIndex + 1}</div>
@@ -565,7 +605,7 @@ export default function ComprehensiveEvaluationPage() {
 		                                size="sm"
 		                                className="flex items-center gap-2"
 		                                onClick={() => removeDemotionGroup(group.id)}
-		                                disabled={settings.demotion.ruleGroups.length <= 1}
+		                                disabled={draftSettings.demotion.ruleGroups.length <= 1}
 		                              >
 		                                <Trash2 className="h-4 w-4" />
 		                                削除
@@ -687,14 +727,14 @@ export default function ComprehensiveEvaluationPage() {
                               onBlur={() =>
                                 commitNumericInput(
                                   levelDeltaInputs[rank],
-                                  settings.levelDeltaByOverallRank[rank],
+                                  draftSettings.levelDeltaByOverallRank[rank],
                                   (value) =>
                                     setLevelDeltaInputs((prev) => ({
                                       ...prev,
                                       [rank]: value,
                                     })),
                                   (next) =>
-                                    setSettings((prev) => ({
+                                    setDraftSettings((prev) => ({
                                       ...prev,
                                       levelDeltaByOverallRank: {
                                         ...prev.levelDeltaByOverallRank,
@@ -709,13 +749,23 @@ export default function ComprehensiveEvaluationPage() {
                       </div>
                     </section>
 
-                    <div className="flex justify-end">
-	                      <Button variant="outline" onClick={resetSettings}>
-	                        デフォルトに戻す
+		                  </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-2 border-t pt-4">
+                    <Button type="button" variant="outline" onClick={resetDraftSettingsToDefault}>
+                      デフォルトに戻す
+                    </Button>
+
+	                    <div className="flex items-center gap-2">
+	                      <Button type="button" variant="outline" onClick={() => setSettingsDialogOpen(false)}>
+	                        キャンセル
+	                      </Button>
+	                      <Button type="button" onClick={handleSaveSettings} disabled={!hasUnsavedSettingsChanges}>
+	                        保存
 	                      </Button>
 	                    </div>
 	                  </div>
-                  </div>
                 </DialogContent>
               </Dialog>
             )}
