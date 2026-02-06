@@ -379,6 +379,93 @@ class SelfAssessmentService:
             raise
 
     @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
+    async def reopen_assessment(
+        self,
+        assessment_id: UUID,
+        current_user_context: AuthContext
+    ) -> SelfAssessment:
+        """
+        Reopen a submitted self-assessment by changing status back to draft.
+        This allows the employee to make corrections before re-submitting.
+        Only submitted (not approved) assessments can be reopened.
+        """
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        try:
+            # Check if assessment exists
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
+            if not existing_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
+
+            # Permission check - only assessment owner can reopen
+            can_reopen = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=assessment_id,
+                resource_type=ResourceType.ASSESSMENT,
+                owner_user_id=existing_assessment.goal.user_id
+            )
+            if not can_reopen:
+                raise PermissionDeniedError("You can only reopen your own assessments")
+
+            # Business rule: can only reopen submitted assessments (not draft or approved)
+            if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                raise BadRequestError("Assessment is already in draft status")
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise BadRequestError("Cannot reopen an approved assessment")
+
+            # Update status back to draft
+            updated_assessment = await self.self_assessment_repo.reopen_assessment(assessment_id, org_id)
+
+            # Commit transaction
+            await self.session.commit()
+
+            # Enrich response data
+            enriched_assessment = await self._enrich_assessment_data(updated_assessment)
+
+            logger.info(f"Self-assessment reopened: {assessment_id} by {current_user_context.user_id}")
+            return enriched_assessment
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error reopening assessment {assessment_id}: {str(e)}")
+            raise
+
+    async def approve_assessment(
+        self,
+        assessment_id: UUID,
+        org_id: str
+    ) -> SelfAssessment:
+        """
+        Approve a self-assessment (called by supervisor_feedback_service when supervisor approves).
+        This locks the assessment permanently.
+        """
+        try:
+            # Check if assessment exists
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
+            if not existing_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
+
+            # Business rule: can only approve submitted assessments
+            if existing_assessment.status != SelfAssessmentStatus.SUBMITTED.value:
+                raise BadRequestError("Can only approve submitted assessments")
+
+            # Update status to approved using repo method
+            updated_assessment = await self.self_assessment_repo.approve_assessment(assessment_id, org_id)
+            if not updated_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found after approval")
+
+            # Enrich response data
+            enriched_assessment = await self._enrich_assessment_data(updated_assessment)
+
+            logger.info(f"Self-assessment approved: {assessment_id}")
+            return enriched_assessment
+
+        except Exception as e:
+            logger.error(f"Error approving assessment {assessment_id}: {str(e)}")
+            raise
+    @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
     async def delete_assessment(
         self,
         assessment_id: UUID,
@@ -510,6 +597,7 @@ class SelfAssessmentService:
         goal = await self.goal_repo.get_goal_by_id(assessment_model.goal_id, org_id)
         
         # Add detail fields
+        # Editable only when draft (submitted/approved are locked)
         detail_dict.update({
             "is_editable": assessment_model.status == SelfAssessmentStatus.DRAFT.value,
             "is_overdue": False,  # Placeholder for future deadline check

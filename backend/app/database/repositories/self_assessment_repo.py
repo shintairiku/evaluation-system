@@ -432,6 +432,41 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             logger.error(f"Database error approving self-assessment {assessment_id}: {e}")
             raise
 
+    async def reopen_assessment(self, assessment_id: UUID, org_id: str) -> Optional[SelfAssessment]:
+        """Reopen a submitted self-assessment by changing status back to draft."""
+        try:
+            # Validate assessment exists (organization-scoped)
+            existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
+
+            # Check if already draft
+            if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                logger.info(f"Self-assessment {assessment_id} is already in draft status")
+                return existing_assessment
+
+            # Check if approved (cannot reopen)
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise ValidationError("Cannot reopen approved self-assessment (locked)")
+
+            # Update status back to draft and clear submitted_at
+            update_data = {
+                "status": SelfAssessmentStatus.DRAFT.value,
+                "submitted_at": None,
+                "updated_at": datetime.now(timezone.utc)
+            }
+
+            await self.session.execute(
+                update(SelfAssessment)
+                .where(SelfAssessment.id == assessment_id)
+                .values(**update_data)
+            )
+
+            logger.info(f"Reopened self-assessment {assessment_id} (back to draft)")
+            return await self.get_by_id(assessment_id, org_id)
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error reopening self-assessment {assessment_id}: {e}")
+            raise
+
     # ========================================
     # DELETE OPERATIONS
     # ========================================

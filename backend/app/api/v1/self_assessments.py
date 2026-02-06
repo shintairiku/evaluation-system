@@ -220,6 +220,34 @@ async def submit_self_assessment(
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting self-assessment: {str(e)}")
 
 
+@router.post("/{assessment_id}/reopen", response_model=SelfAssessment)
+async def reopen_self_assessment(
+    assessment_id: UUID,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Reopen a submitted self-assessment to allow editing (assessment owner only)."""
+    try:
+        service = SelfAssessmentService(session)
+
+        # Reopen assessment using dedicated method
+        result = await service.reopen_assessment(assessment_id, context)
+
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error reopening self-assessment: {str(e)}")
+
+
 @router.delete("/{assessment_id}", response_model=BaseResponse)
 async def delete_self_assessment(
     assessment_id: UUID,
