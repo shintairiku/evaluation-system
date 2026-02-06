@@ -39,9 +39,10 @@ export default function EmployeeEvaluationInputDisplay() {
     setIsLoadingData(true);
     try {
       // Fetch approved goals and self-assessments in parallel
+      // selfOnly: true ensures supervisors only see their own data, not subordinates'
       const [goalsResult, assessmentsResult] = await Promise.all([
-        getGoalsAction({ periodId, status: 'approved' }),
-        getSelfAssessmentsAction({ periodId })
+        getGoalsAction({ periodId, status: 'approved', selfOnly: true }),
+        getSelfAssessmentsAction({ periodId, selfOnly: true })
       ]);
 
       if (goalsResult.success && goalsResult.data) {
@@ -139,9 +140,10 @@ export default function EmployeeEvaluationInputDisplay() {
     if (!selectedPeriodId) return;
 
     try {
+      // selfOnly: true ensures supervisors only see their own data, not subordinates'
       const [goalsResult, assessmentsResult] = await Promise.all([
-        getGoalsAction({ periodId: selectedPeriodId, status: 'approved' }),
-        getSelfAssessmentsAction({ periodId: selectedPeriodId })
+        getGoalsAction({ periodId: selectedPeriodId, status: 'approved', selfOnly: true }),
+        getSelfAssessmentsAction({ periodId: selectedPeriodId, selfOnly: true })
       ]);
 
       if (goalsResult.success && goalsResult.data) {

@@ -31,6 +31,7 @@ export const goalsApi = {
     limit?: number;
     includeReviews?: boolean;
     includeRejectionHistory?: boolean;
+    selfOnly?: boolean;
   }): Promise<ApiResponse<GoalListResponse>> => {
     const queryParams = new URLSearchParams();
 
@@ -56,6 +57,9 @@ export const goalsApi = {
     // Performance optimization parameters
     if (params?.includeReviews) queryParams.append('includeReviews', 'true');
     if (params?.includeRejectionHistory) queryParams.append('includeRejectionHistory', 'true');
+
+    // Filter to only current user's data
+    if (params?.selfOnly) queryParams.append('selfOnly', 'true');
 
     const endpoint = queryParams.toString()
       ? `${API_ENDPOINTS.GOALS.LIST}?${queryParams.toString()}`

@@ -22,6 +22,7 @@ export const getSelfAssessmentsAction = cache(
     periodId?: string;
     userId?: string;
     status?: string;
+    selfOnly?: boolean;
   }): Promise<{
     success: boolean;
     data?: SelfAssessmentList;
