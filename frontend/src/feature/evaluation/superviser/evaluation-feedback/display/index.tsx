@@ -4,8 +4,12 @@ import { useState, useEffect } from "react";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
 import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
-import type { EvaluationPeriod, UserDetailResponse } from "@/api/types";
-import { UserStatus } from "@/api/types";
+import { getSubordinatesAction, getCurrentUserAction } from "@/api/server-actions/users";
+import { getSelfAssessmentsAction } from "@/api/server-actions/self-assessments";
+import type {
+  EvaluationPeriod,
+  UserDetailResponse,
+} from "@/api/types";
 import {
   Select,
   SelectContent,
@@ -13,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { User } from "lucide-react";
+import { User, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PerformanceGoalsSelfAssessment from "./PerformanceGoalsSelfAssessment";
 import PerformanceGoalsSupervisorEvaluation from "./PerformanceGoalsSupervisorEvaluation";
@@ -22,92 +26,34 @@ import CompetencySupervisorEvaluation from "./CompetencySupervisorEvaluation";
 import CoreValueSelfAssessment from "./CoreValueSelfAssessment";
 import CoreValueSupervisorEvaluation from "./CoreValueSupervisorEvaluation";
 
-// Mock subordinates data with feedback submission status
+// Subordinate with submission status
 interface SubordinateWithStatus extends UserDetailResponse {
-  feedbackSubmitted: boolean;
+  allAssessmentsSubmitted: boolean;
+  submittedCount: number;
+  totalCount: number;
 }
-
-const mockSubordinates: SubordinateWithStatus[] = [
-  {
-    id: "emp1",
-    clerk_user_id: "clerk_emp1",
-    name: "山田 麻衣",
-    email: "yamada.mai@example.com",
-    employee_code: "EMP001",
-    status: UserStatus.ACTIVE,
-    job_title: "主任",
-    department: {
-      id: "dept1",
-      name: "営業部",
-    },
-    roles: [
-      {
-        id: "role1",
-        name: "employee",
-        description: "一般社員",
-        hierarchy_order: 1,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ],
-    feedbackSubmitted: false, // 未提出
-  },
-  {
-    id: "emp2",
-    clerk_user_id: "clerk_emp2",
-    name: "佐藤 太郎",
-    email: "sato.taro@example.com",
-    employee_code: "EMP002",
-    status: UserStatus.ACTIVE,
-    job_title: "係長",
-    department: {
-      id: "dept2",
-      name: "企画部",
-    },
-    roles: [
-      {
-        id: "role1",
-        name: "employee",
-        description: "一般社員",
-        hierarchy_order: 1,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ],
-    feedbackSubmitted: true, // 提出済み
-  },
-  {
-    id: "emp3",
-    clerk_user_id: "clerk_emp3",
-    name: "鈴木 花子",
-    email: "suzuki.hanako@example.com",
-    employee_code: "EMP003",
-    status: UserStatus.ACTIVE,
-    job_title: "一般",
-    department: {
-      id: "dept3",
-      name: "開発部",
-    },
-    roles: [
-      {
-        id: "role1",
-        name: "employee",
-        description: "一般社員",
-        hierarchy_order: 1,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ],
-    feedbackSubmitted: true, // 提出済み
-  },
-];
 
 export default function EvaluationFeedbackDisplay() {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
   const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
   const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedSubordinateId, setSelectedSubordinateId] = useState<string>(mockSubordinates[0].id);
+  const [isLoadingSubordinates, setIsLoadingSubordinates] = useState(false);
+
+  const [currentUser, setCurrentUser] = useState<UserDetailResponse | null>(null);
+  const [subordinates, setSubordinates] = useState<SubordinateWithStatus[]>([]);
+  const [selectedSubordinateId, setSelectedSubordinateId] = useState<string>("");
+
+  // Fetch current user on mount
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const result = await getCurrentUserAction();
+      if (result.success && result.data) {
+        setCurrentUser(result.data);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   // Fetch evaluation periods on mount
   useEffect(() => {
@@ -127,8 +73,6 @@ export default function EvaluationFeedbackDisplay() {
             setSelectedPeriodId(activePeriod.id);
           }
         }
-      } catch (error) {
-        console.error('Failed to fetch evaluation periods:', error);
       } finally {
         setIsLoading(false);
       }
@@ -136,6 +80,55 @@ export default function EvaluationFeedbackDisplay() {
 
     fetchPeriods();
   }, []);
+
+  // Fetch subordinates when current user is available
+  useEffect(() => {
+    const fetchSubordinates = async () => {
+      if (!currentUser?.id || !selectedPeriodId) return;
+
+      try {
+        setIsLoadingSubordinates(true);
+        const result = await getSubordinatesAction(currentUser.id);
+
+        if (result.success && result.data?.items) {
+          // For each subordinate, check their assessment submission status
+          const subordinatesWithStatus = await Promise.all(
+            result.data.items.map(async (subordinate) => {
+              // Fetch self-assessments for this subordinate
+              const assessmentsResult = await getSelfAssessmentsAction({
+                periodId: selectedPeriodId,
+                userId: subordinate.id,
+              });
+
+              const assessments = assessmentsResult.data?.items || [];
+              const submittedCount = assessments.filter(
+                a => a.status === 'submitted' || a.status === 'approved'
+              ).length;
+              const totalCount = assessments.length;
+
+              return {
+                ...subordinate,
+                allAssessmentsSubmitted: totalCount > 0 && submittedCount === totalCount,
+                submittedCount,
+                totalCount,
+              };
+            })
+          );
+
+          setSubordinates(subordinatesWithStatus);
+
+          // Auto-select first subordinate if none selected
+          if (!selectedSubordinateId && subordinatesWithStatus.length > 0) {
+            setSelectedSubordinateId(subordinatesWithStatus[0].id);
+          }
+        }
+      } finally {
+        setIsLoadingSubordinates(false);
+      }
+    };
+
+    fetchSubordinates();
+  }, [currentUser?.id, selectedPeriodId, selectedSubordinateId]);
 
   // Handle period change
   const handlePeriodChange = (periodId: string) => {
@@ -147,7 +140,10 @@ export default function EvaluationFeedbackDisplay() {
     setSelectedSubordinateId(subordinateId);
   };
 
-  const selectedSubordinate = mockSubordinates.find(s => s.id === selectedSubordinateId);
+  const selectedSubordinate = subordinates.find(s => s.id === selectedSubordinateId);
+
+  // Check if subordinate has submitted all self-assessments
+  const canEvaluate = selectedSubordinate?.allAssessmentsSubmitted ?? false;
 
   return (
     <div className="container mx-auto p-4 md:p-6">
@@ -173,35 +169,43 @@ export default function EvaluationFeedbackDisplay() {
             <div className="flex items-center gap-2 w-full">
               <User className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium shrink-0">部下:</span>
-              <Select value={selectedSubordinateId} onValueChange={handleSubordinateChange}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {mockSubordinates.map((subordinate) => (
-                    <SelectItem key={subordinate.id} value={subordinate.id}>
-                      <div className="flex items-center justify-between w-full gap-3">
-                        <span>{subordinate.name}</span>
-                        {subordinate.feedbackSubmitted ? (
-                          <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            提出済み
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-xs text-orange-600 font-medium">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                            未提出
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {isLoadingSubordinates ? (
+                <div className="flex-1 flex items-center justify-center py-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : subordinates.length === 0 ? (
+                <span className="text-sm text-muted-foreground">部下がいません</span>
+              ) : (
+                <Select value={selectedSubordinateId} onValueChange={handleSubordinateChange}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="部下を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subordinates.map((subordinate) => (
+                      <SelectItem key={subordinate.id} value={subordinate.id}>
+                        <div className="flex items-center justify-between w-full gap-3">
+                          <span>{subordinate.name}</span>
+                          {subordinate.totalCount > 0 ? (
+                            subordinate.allAssessmentsSubmitted ? (
+                              <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                提出済み
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-xs text-orange-600 font-medium">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                {subordinate.submittedCount}/{subordinate.totalCount}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground">目標なし</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
         </div>
@@ -209,9 +213,28 @@ export default function EvaluationFeedbackDisplay() {
         {/* Subordinate Info */}
         {selectedSubordinate && <EmployeeInfoCard employee={selectedSubordinate} />}
 
+        {/* Warning if subordinate hasn't submitted all assessments */}
+        {selectedSubordinate && !canEvaluate && selectedSubordinate.totalCount > 0 && (
+          <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800">自己評価が未提出です</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  {selectedSubordinate.name}さんは{selectedSubordinate.totalCount}件中{selectedSubordinate.submittedCount}件の自己評価を提出しています。
+                  すべての自己評価が提出されるまでお待ちください。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Submit Button */}
         <div className="flex justify-end">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+            disabled={!canEvaluate}
+          >
             最終提出
           </Button>
         </div>
@@ -219,7 +242,7 @@ export default function EvaluationFeedbackDisplay() {
         {/* Headers Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <h2 className="text-lg font-bold text-blue-700">
-            {selectedSubordinate?.name}の自己評価
+            {selectedSubordinate?.name || '部下'}の自己評価
           </h2>
           <h2 className="text-lg font-bold text-green-700">上長評価</h2>
         </div>
