@@ -2,7 +2,8 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TrendingUp, ChevronDown, ChevronUp, Loader2, CheckCircle, MessageSquare } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -180,6 +181,9 @@ function PerformanceGoalCard({
           <p className="text-xs text-gray-400">{comment.length} / 5000</p>
         </div>
       </div>
+
+      {/* Supervisor Feedback Section */}
+      <SupervisorFeedbackAlert goalWithAssessment={goalWithAssessment} />
     </div>
   );
 }
@@ -209,6 +213,70 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
         </span>
       )}
     </>
+  );
+}
+
+/**
+ * Supervisor feedback alert component
+ * Displays feedback from supervisor when status is 'submitted'
+ */
+function SupervisorFeedbackAlert({ goalWithAssessment }: { goalWithAssessment: GoalWithAssessment }) {
+  const { supervisorFeedback } = goalWithAssessment;
+
+  // Only show if feedback exists
+  if (!supervisorFeedback) {
+    return null;
+  }
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const feedbackDate = supervisorFeedback.reviewedAt || supervisorFeedback.submittedAt || supervisorFeedback.updatedAt;
+
+  return (
+    <Alert variant="default" className="border-green-200 bg-green-50">
+      <CheckCircle className="h-4 w-4 text-green-600" />
+      <AlertDescription className="ml-2">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-semibold text-green-900 flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              上司からのフィードバック
+            </p>
+            <div className="flex items-center gap-3">
+              {supervisorFeedback.supervisorRatingCode && (
+                <Badge className="bg-green-600 text-white text-xs">
+                  評価: {supervisorFeedback.supervisorRatingCode}
+                </Badge>
+              )}
+              {feedbackDate && (
+                <p className="text-sm text-green-800">
+                  {formatDate(feedbackDate)}
+                </p>
+              )}
+            </div>
+          </div>
+          {supervisorFeedback.supervisorComment && (
+            <div className="bg-white p-3 rounded border border-green-200">
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                {supervisorFeedback.supervisorComment}
+              </p>
+            </div>
+          )}
+          {!supervisorFeedback.supervisorComment && (
+            <p className="text-sm text-green-700 italic">
+              コメントはありません
+            </p>
+          )}
+        </div>
+      </AlertDescription>
+    </Alert>
   );
 }
 
