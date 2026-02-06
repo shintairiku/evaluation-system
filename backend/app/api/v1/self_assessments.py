@@ -21,19 +21,25 @@ async def get_self_assessments(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
     status: Optional[str] = Query(None, description="Filter by status (draft, submitted, approved)"),
+    self_only: bool = Query(
+        False,
+        alias="selfOnly",
+        description="Return only current user's assessments (ignore subordinates even for supervisors)"
+    ),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Get self-assessments for the current user or filtered assessments for supervisors/admins."""
     try:
         service = SelfAssessmentService(session)
-        
+
         result = await service.get_assessments(
             current_user_context=context,
             user_id=user_id,
             period_id=period_id,
             status=status,
-            pagination=pagination
+            pagination=pagination,
+            self_only=self_only
         )
         
         return result

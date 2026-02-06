@@ -71,7 +71,8 @@ class GoalService:
         has_previous_goal_id: Optional[bool] = None,
         pagination: Optional[PaginationParams] = None,
         include_reviews: bool = False,
-        include_rejection_history: bool = False
+        include_rejection_history: bool = False,
+        self_only: bool = False
     ) -> PaginatedResponse[Goal]:
         """
         Get goals based on current user's permissions and filters.
@@ -84,11 +85,14 @@ class GoalService:
         Performance optimization:
         - include_reviews: Batch fetch supervisor reviews (eliminates N+1 queries)
         - include_rejection_history: Fetch rejection history chain (requires include_reviews=True)
+
+        Args:
+            self_only: If True, return only the current user's goals (ignore subordinates)
         """
         try:
             # Determine which users' goals the current user can access
             accessible_user_ids = await self._get_accessible_goal_user_ids(
-                current_user_context, user_id
+                current_user_context, user_id, self_only=self_only
             )
             org_id = current_user_context.organization_id
             if not org_id:
@@ -1158,9 +1162,19 @@ class GoalService:
     async def _get_accessible_goal_user_ids(
         self,
         current_user_context: AuthContext,
-        requested_user_id: Optional[UUID] = None
+        requested_user_id: Optional[UUID] = None,
+        self_only: bool = False
     ) -> Optional[List[UUID]]:
-        """Determine which users' goals the current user can access."""
+        """Determine which users' goals the current user can access.
+
+        Args:
+            current_user_context: The authentication context
+            requested_user_id: Specific user ID to filter by (optional)
+            self_only: If True, return only the current user's ID (ignore subordinates)
+        """
+        # If self_only is True, return only the current user's ID
+        if self_only:
+            return [current_user_context.user_id] if current_user_context.user_id else []
 
         if current_user_context.has_permission(Permission.GOAL_READ_ALL) or current_user_context.has_permission(Permission.GOAL_MANAGE):
             # Admin: can read any user's goals when explicitly requested
@@ -1169,9 +1183,9 @@ class GoalService:
             # Safe default: admin sees only their own goals unless explicitly requesting others
             # For org-wide view, use get_all_goals_for_admin() endpoint instead
             return [current_user_context.user_id] if current_user_context.user_id else []
-        
+
         accessible_ids = []
-        
+
         # Add self when the user can either read or manage their own goals.
         can_access_self = (
             current_user_context.has_permission(Permission.GOAL_READ_SELF)
@@ -1179,7 +1193,7 @@ class GoalService:
         )
         if can_access_self and current_user_context.user_id:
             accessible_ids.append(current_user_context.user_id)
-        
+
         # Supervisors: can see subordinates' goals.
         # Approvers must also be able to view the goals they act on.
         can_access_subordinates = (
@@ -1201,13 +1215,13 @@ class GoalService:
                 seen.add(uid)
                 deduped.append(uid)
         accessible_ids = deduped
-        
+
         # If specific user requested, check if accessible
         if requested_user_id:
             if requested_user_id not in accessible_ids:
                 raise PermissionDeniedError(f"You do not have permission to access goals for user {requested_user_id}")
             return [requested_user_id]
-        
+
         return accessible_ids
 
     async def _validate_goal_creation(self, goal_data: GoalCreate, user_id: UUID, org_id: UUID):
