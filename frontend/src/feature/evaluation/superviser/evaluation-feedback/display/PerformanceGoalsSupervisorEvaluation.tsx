@@ -141,7 +141,7 @@ export default function PerformanceGoalsSupervisorEvaluation() {
                     手段・手法
                   </Label>
                   <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
-                    {evalItem.methods.split('\n').map((line, i) => (
+                    {evalItem.methods.split('\n').map((line: string, i: number) => (
                       <div key={i}>{line || '\u00A0'}</div>
                     ))}
                   </div>
