@@ -170,11 +170,9 @@ export function useSelfAssessmentAutoSave({
           setSaveStatus('idle');
         }, statusClearTimeout);
       } else {
-        console.error('Failed to save self-assessment:', result.error);
         setSaveStatus('error');
       }
-    } catch (error) {
-      console.error('Error saving self-assessment:', error);
+    } catch {
       setSaveStatus('error');
     }
   }, [assessmentId, isEditable, hasDataChanged, saveStatus, statusClearTimeout, onSaveSuccess]);
