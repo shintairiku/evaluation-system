@@ -23,10 +23,12 @@ export interface CompetencyActionDisplayItem {
 // Display data structure for a competency with its actions
 export interface CompetencyDisplayData {
   competencyId: string;
+  goalId: string;
   name: string;
   items: CompetencyActionDisplayItem[];
   comment: string;
   competencyRating?: string;
+  isLastInGoal: boolean;
 }
 
 interface CompetencySelfAssessmentProps {
@@ -59,7 +61,8 @@ export function transformCompetencyGoalsForDisplay(
     const idealActionTexts = goal.idealActionTexts || {};
     const selectedIdealActions = goal.selectedIdealActions || {};
 
-    for (const competencyId of competencyIds) {
+    for (let i = 0; i < competencyIds.length; i++) {
+      const competencyId = competencyIds[i];
       const competencyName = competencyNames[competencyId] || `コンピテンシー`;
       const actionTexts = idealActionTexts[competencyId] || [];
       const selectedActions = selectedIdealActions[competencyId] || [];
@@ -81,10 +84,12 @@ export function transformCompetencyGoalsForDisplay(
 
       result.push({
         competencyId,
+        goalId: goal.id,
         name: competencyName,
         items,
         comment: assessment?.selfComment || '',
         competencyRating,
+        isLastInGoal: i === competencyIds.length - 1,
       });
     }
   }
@@ -308,74 +313,91 @@ export default function CompetencySelfAssessment({
               </div>
             </div>
 
-            {displayCompetencies.map((competency) => (
-          <div key={competency.competencyId} className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
-            {/* Competency Header with Rating */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xl font-bold text-green-800">
-                {competency.name}
-              </div>
+            {/* Group competencies by goalId and render with comment outside cards */}
+            {(() => {
+              // Group competencies by goalId
+              const groupedByGoal = displayCompetencies.reduce((acc, comp) => {
+                if (!acc[comp.goalId]) {
+                  acc[comp.goalId] = [];
+                }
+                acc[comp.goalId].push(comp);
+                return acc;
+              }, {} as Record<string, CompetencyDisplayData[]>);
 
-              {/* Individual Competency Rating Display */}
-              <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
-                <span className="text-xs text-gray-500">評価</span>
-                <div className="text-xl font-bold text-blue-700">
-                  {competency.competencyRating || '−'}
-                </div>
-              </div>
-            </div>
+              return Object.entries(groupedByGoal).map(([goalId, competencies]) => (
+                <div key={goalId} className="space-y-5">
+                  {/* Competency cards */}
+                  {competencies.map((competency) => (
+                    <div key={competency.competencyId} className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
+                      {/* Competency Header with Rating */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="text-xl font-bold text-green-800 break-words overflow-hidden flex-1 mr-3">
+                          {competency.name}
+                        </div>
 
-            {/* Competency Items - Read only */}
-            <div className="space-y-4">
-              {competency.items.map((item) => (
-                <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[90px]">
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm text-gray-700">{item.description}</p>
-
-                    {/* Rating Display - Read only with visual feedback */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {QUALITATIVE_RATING_CODES.map((rating) => {
-                        const isSelected = item.rating === rating;
-                        return (
-                          <div
-                            key={rating}
-                            className="flex items-center gap-2"
-                          >
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                              isSelected
-                                ? 'border-blue-600 bg-blue-50'
-                                : 'border-gray-300'
-                            }`}>
-                              {isSelected && <div className="w-3 h-3 rounded-full bg-blue-600"></div>}
-                            </div>
-                            <span className={`text-sm ${
-                              isSelected
-                                ? 'text-blue-700 font-semibold'
-                                : 'text-gray-400'
-                            }`}>{rating}</span>
+                        {/* Individual Competency Rating Display */}
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+                          <span className="text-xs text-gray-500">評価</span>
+                          <div className="text-xl font-bold text-blue-700">
+                            {competency.competencyRating || '−'}
                           </div>
-                        );
-                      })}
+                        </div>
+                      </div>
+
+                      {/* Competency Items - Read only */}
+                      <div className="space-y-4">
+                        {competency.items.map((item) => (
+                          <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[90px]">
+                            <div className="flex flex-col gap-2">
+                              <p className="text-sm text-gray-700 break-words overflow-hidden">{item.description}</p>
+
+                              {/* Rating Display - Read only with visual feedback */}
+                              <div className="flex items-center gap-3 flex-wrap">
+                                {QUALITATIVE_RATING_CODES.map((rating) => {
+                                  const isSelected = item.rating === rating;
+                                  return (
+                                    <div
+                                      key={rating}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                        isSelected
+                                          ? 'border-blue-600 bg-blue-50'
+                                          : 'border-gray-300'
+                                      }`}>
+                                        {isSelected && <div className="w-3 h-3 rounded-full bg-blue-600"></div>}
+                                      </div>
+                                      <span className={`text-sm ${
+                                        isSelected
+                                          ? 'text-blue-700 font-semibold'
+                                          : 'text-gray-400'
+                                      }`}>{rating}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Comment Section - Read only, outside the cards */}
+                  <div className="mt-6">
+                    <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                      自己評価コメント
+                    </Label>
+                    <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 min-h-[100px]">
+                      {competencies[0]?.comment || <span className="text-gray-400">コメントなし</span>}
+                    </div>
+                    <div className="flex justify-start items-center mt-1">
+                      <p className="text-xs text-gray-400">部下による自己評価コメント</p>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Comment Section - Read only */}
-            <div className="mt-5">
-              <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                自己評価コメント
-              </Label>
-              <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 min-h-[100px]">
-                {competency.comment || <span className="text-gray-400">コメントなし</span>}
-              </div>
-              <div className="flex justify-start items-center mt-1">
-                <p className="text-xs text-gray-400">部下による自己評価コメント</p>
-              </div>
-            </div>
-          </div>
-        ))}
+              ));
+            })()}
           </>
         )}
         </CardContent>

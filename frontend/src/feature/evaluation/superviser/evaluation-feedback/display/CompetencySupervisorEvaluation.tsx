@@ -35,6 +35,7 @@ export interface CompetencySupervisorData {
   competencyRating?: string;
   // Local state for ratings
   ratingData: CompetencyRatingData;
+  isLastInGoal: boolean;
 }
 
 interface CompetencySupervisorEvaluationProps {
@@ -72,7 +73,8 @@ export function transformCompetencyGoalsForSupervisor(
     // Use supervisor's rating data if exists, otherwise empty
     const supervisorRatingData: CompetencyRatingData = (feedback as unknown as { ratingData?: CompetencyRatingData })?.ratingData || {};
 
-    for (const competencyId of competencyIds) {
+    for (let i = 0; i < competencyIds.length; i++) {
+      const competencyId = competencyIds[i];
       const competencyName = competencyNames[competencyId] || `コンピテンシー`;
       const actionTexts = idealActionTexts[competencyId] || [];
       const selectedActions = selectedIdealActions[competencyId] || [];
@@ -102,6 +104,7 @@ export function transformCompetencyGoalsForSupervisor(
         supervisorComment: feedback?.supervisorComment || '',
         competencyRating,
         ratingData: { [competencyId]: competencyRatings },
+        isLastInGoal: i === competencyIds.length - 1,
       });
     }
   }
@@ -172,69 +175,33 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
 }
 
 /**
- * Individual competency card component with auto-save
+ * Individual competency card component (ratings only, no comment)
  */
-function CompetencySupervisorCard({
+function CompetencyItemCard({
   competency,
+  onRatingChange,
+  isEditable,
 }: {
   competency: CompetencySupervisorData;
+  onRatingChange: (competencyId: string, actionIndex: string, rating: RatingCode) => void;
+  isEditable: boolean;
 }) {
-  // Local state for form values
   const [items, setItems] = useState(competency.items);
-  const [comment, setComment] = useState<string>(competency.supervisorComment || "");
 
-  // Build initial rating data from items
-  const buildRatingData = useCallback((currentItems: CompetencyActionSupervisorItem[]): CompetencyRatingData => {
-    const ratings: Record<string, RatingCode> = {};
-    currentItems.forEach(item => {
-      if (item.rating) {
-        ratings[item.actionIndex] = item.rating;
-      }
-    });
-    return { [competency.competencyId]: ratings };
-  }, [competency.competencyId]);
-
-  // Auto-save hook
-  const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
-    feedbackId: competency.feedbackId,
-    initialComment: competency.supervisorComment,
-    initialRatingData: competency.ratingData,
-  });
-
-  // Handle rating change for an action item
   const handleRatingChange = useCallback((actionIndex: string, rating: RatingCode) => {
     if (!isEditable) return;
-
     const newItems = items.map(item =>
       item.actionIndex === actionIndex ? { ...item, rating } : item
     );
     setItems(newItems);
-
-    // Build new rating data and save
-    const newRatingData = buildRatingData(newItems);
-    debouncedSave({ supervisorComment: comment, ratingData: newRatingData });
-  }, [items, comment, debouncedSave, isEditable, buildRatingData]);
-
-  // Handle comment change (debounced)
-  const handleCommentChange = useCallback((newComment: string) => {
-    if (!isEditable) return;
-    setComment(newComment);
-    const currentRatingData = buildRatingData(items);
-    debouncedSave({ supervisorComment: newComment, ratingData: currentRatingData });
-  }, [items, debouncedSave, isEditable, buildRatingData]);
-
-  // Handle comment blur (immediate save)
-  const handleCommentBlur = useCallback(() => {
-    if (!isEditable) return;
-    const currentRatingData = buildRatingData(items);
-    save({ supervisorComment: comment, ratingData: currentRatingData });
-  }, [items, comment, save, isEditable, buildRatingData]);
+    onRatingChange(competency.competencyId, actionIndex, rating);
+  }, [items, competency.competencyId, onRatingChange, isEditable]);
 
   return (
     <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
       {/* Competency Header with Rating */}
       <div className="flex items-center justify-between mb-4">
-        <div className="text-xl font-bold text-green-800">
+        <div className="text-xl font-bold text-green-800 break-words overflow-hidden flex-1 mr-3">
           {competency.name}
         </div>
 
@@ -252,7 +219,7 @@ function CompetencySupervisorCard({
         {items.map((item) => (
           <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[80px]">
             <div className="flex flex-col gap-3">
-              <p className="text-sm text-gray-700">{item.description}</p>
+              <p className="text-sm text-gray-700 break-words overflow-hidden">{item.description}</p>
 
               {/* Rating Selector */}
               <div className="flex items-center gap-3 flex-wrap">
@@ -276,9 +243,76 @@ function CompetencySupervisorCard({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-      {/* Comment Section */}
-      <div className="mt-5">
+/**
+ * Goal group component - groups competencies and handles comment
+ */
+function CompetencyGoalGroup({
+  competencies,
+}: {
+  competencies: CompetencySupervisorData[];
+}) {
+  const firstCompetency = competencies[0];
+  const [comment, setComment] = useState<string>(firstCompetency?.supervisorComment || "");
+  const [allRatingData, setAllRatingData] = useState<CompetencyRatingData>(() => {
+    // Merge all rating data from competencies
+    const merged: CompetencyRatingData = {};
+    competencies.forEach(c => {
+      Object.assign(merged, c.ratingData);
+    });
+    return merged;
+  });
+
+  // Auto-save hook
+  const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
+    feedbackId: firstCompetency?.feedbackId,
+    initialComment: firstCompetency?.supervisorComment,
+    initialRatingData: allRatingData,
+  });
+
+  // Handle rating change for any competency in the group
+  const handleRatingChange = useCallback((competencyId: string, actionIndex: string, rating: RatingCode) => {
+    const newRatingData: CompetencyRatingData = {
+      ...allRatingData,
+      [competencyId]: {
+        ...(allRatingData[competencyId] || {}),
+        [actionIndex]: rating,
+      },
+    };
+    setAllRatingData(newRatingData);
+    debouncedSave({ supervisorComment: comment, ratingData: newRatingData });
+  }, [allRatingData, comment, debouncedSave]);
+
+  // Handle comment change (debounced)
+  const handleCommentChange = useCallback((newComment: string) => {
+    if (!isEditable) return;
+    setComment(newComment);
+    debouncedSave({ supervisorComment: newComment, ratingData: allRatingData });
+  }, [allRatingData, debouncedSave, isEditable]);
+
+  // Handle comment blur (immediate save)
+  const handleCommentBlur = useCallback(() => {
+    if (!isEditable) return;
+    save({ supervisorComment: comment, ratingData: allRatingData });
+  }, [allRatingData, comment, save, isEditable]);
+
+  return (
+    <div className="space-y-5">
+      {/* Competency cards */}
+      {competencies.map((competency) => (
+        <CompetencyItemCard
+          key={competency.competencyId}
+          competency={competency}
+          onRatingChange={handleRatingChange}
+          isEditable={isEditable}
+        />
+      ))}
+
+      {/* Comment Section - outside the cards */}
+      <div className="mt-6">
         <div className="flex items-center justify-between mb-2">
           <Label className="text-sm font-semibold text-gray-700">
             上長評価コメント
@@ -487,12 +521,23 @@ export default function CompetencySupervisorEvaluation({
           </div>
         </div>
 
-        {displayCompetencies.map((competency) => (
-          <CompetencySupervisorCard
-            key={competency.competencyId}
-            competency={competency}
-          />
-        ))}
+        {/* Group competencies by goalId */}
+        {(() => {
+          const groupedByGoal = displayCompetencies.reduce((acc, comp) => {
+            if (!acc[comp.goalId]) {
+              acc[comp.goalId] = [];
+            }
+            acc[comp.goalId].push(comp);
+            return acc;
+          }, {} as Record<string, CompetencySupervisorData[]>);
+
+          return Object.entries(groupedByGoal).map(([goalId, competencies]) => (
+            <CompetencyGoalGroup
+              key={goalId}
+              competencies={competencies}
+            />
+          ));
+        })()}
         </>
         )}
         </CardContent>
