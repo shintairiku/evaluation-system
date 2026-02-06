@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Target, ChevronDown, ChevronUp } from "lucide-react";
+import { Target, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,57 +10,132 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { GoalResponse, SelfAssessment as APISelfAssessment, RatingCode, CompetencyRatingData } from "@/api/types";
+import { QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
 
-type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C';
-
-const RATINGS: RatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
-
-interface CompetencyItem {
-  id: number;
+// Display data structure for competency action item
+export interface CompetencyActionDisplayItem {
+  id: string;
   description: string;
-  rating: RatingCode;
+  rating?: RatingCode;
 }
 
-interface CompetencyEvaluation {
+// Display data structure for a competency with its actions
+export interface CompetencyDisplayData {
+  competencyId: string;
   name: string;
-  items: CompetencyItem[];
+  items: CompetencyActionDisplayItem[];
   comment: string;
+  competencyRating?: string;
 }
 
-const mockCompetencyEvaluation: CompetencyEvaluation = {
-  name: "責任感",
-  items: [
-    {
-      id: 1,
-      description: "他メンバーの業務状況を把握し、必要に応じてサポートしている",
-      rating: "SS"
-    },
-    {
-      id: 2,
-      description: "締切や約束を守り、期日までに業務を完遂している",
-      rating: "S"
-    },
-    {
-      id: 3,
-      description: "問題が発生した際に、自ら解決策を考え実行している",
-      rating: "A"
-    },
-    {
-      id: 4,
-      description: "業務の優先順位を適切に判断し、効率的に進めている",
-      rating: "A"
-    },
-    {
-      id: 5,
-      description: "チーム目標達成のために、積極的に貢献している",
-      rating: "S"
-    }
-  ],
-  comment: "責任感を持って業務に取り組みました。特にチームメンバーのサポートと期日管理に注力しました。"
-};
+interface CompetencySelfAssessmentProps {
+  competencies?: CompetencyDisplayData[];
+  overallRating?: string;
+  isLoading?: boolean;
+}
 
-export default function CompetencySelfAssessment() {
+// Helper function to transform API data to display format
+export function transformCompetencyGoalsForDisplay(
+  goals: GoalResponse[],
+  selfAssessments: APISelfAssessment[]
+): CompetencyDisplayData[] {
+  // Create a map of goalId -> selfAssessment for quick lookup
+  const assessmentMap = new Map(selfAssessments.map(sa => [sa.goalId, sa]));
+
+  const competencyGoals = goals.filter(
+    goal => goal.goalCategory === 'コンピテンシー' && goal.status === 'approved'
+  );
+
+  const result: CompetencyDisplayData[] = [];
+
+  for (const goal of competencyGoals) {
+    const assessment = assessmentMap.get(goal.id);
+    const ratingData: CompetencyRatingData = assessment?.ratingData || {};
+
+    // Get competency IDs and names from the goal
+    const competencyIds = goal.competencyIds || [];
+    const competencyNames = goal.competencyNames || {};
+    const idealActionTexts = goal.idealActionTexts || {};
+    const selectedIdealActions = goal.selectedIdealActions || {};
+
+    for (const competencyId of competencyIds) {
+      const competencyName = competencyNames[competencyId] || `コンピテンシー`;
+      const actionTexts = idealActionTexts[competencyId] || [];
+      const selectedActions = selectedIdealActions[competencyId] || [];
+      const competencyRatings = ratingData[competencyId] || {};
+
+      // Build items from selected ideal actions
+      const items: CompetencyActionDisplayItem[] = selectedActions.map((actionIndex) => {
+        const actionIdxStr = actionIndex.toString();
+        const actionIdxNum = parseInt(actionIndex, 10);
+        return {
+          id: `${competencyId}-${actionIndex}`,
+          description: actionTexts[actionIdxNum] || `アクション ${parseInt(actionIndex) + 1}`,
+          rating: competencyRatings[actionIdxStr] as RatingCode | undefined,
+        };
+      });
+
+      // Calculate average rating for this competency
+      const competencyRating = calculateAverageRating(items.map(i => i.rating).filter(Boolean) as RatingCode[]);
+
+      result.push({
+        competencyId,
+        name: competencyName,
+        items,
+        comment: assessment?.selfComment || '',
+        competencyRating,
+      });
+    }
+  }
+
+  return result;
+}
+
+// Calculate average rating from a list of competency ratings (5-level scale: SS, S, A, B, C)
+function calculateAverageRating(ratings: RatingCode[]): string {
+  if (ratings.length === 0) return '−';
+
+  let sum = 0;
+  let count = 0;
+
+  for (const rating of ratings) {
+    if (RATING_CODE_VALUES[rating] !== undefined) {
+      sum += RATING_CODE_VALUES[rating];
+      count++;
+    }
+  }
+
+  if (count === 0) return '−';
+
+  const avg = sum / count;
+
+  // Map to rating code (5-level scale)
+  if (avg >= 6.5) return 'SS';
+  if (avg >= 5.5) return 'S';
+  if (avg >= 3.5) return 'A';
+  if (avg >= 1.5) return 'B';
+  return 'C';
+}
+
+// Calculate overall competency rating
+export function calculateCompetencyOverallRating(competencies: CompetencyDisplayData[]): string {
+  const allRatings = competencies.flatMap(c =>
+    c.items.map(i => i.rating).filter(Boolean) as RatingCode[]
+  );
+  return calculateAverageRating(allRatings);
+}
+
+export default function CompetencySelfAssessment({
+  competencies,
+  overallRating,
+  isLoading = false,
+}: CompetencySelfAssessmentProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+
+  // Use provided data or show empty state
+  const displayCompetencies = competencies || [];
+  const displayOverallRating = overallRating || (displayCompetencies.length > 0 ? calculateCompetencyOverallRating(displayCompetencies) : '−');
 
   return (
     <Card className="shadow-xl border-0 bg-white">
@@ -81,7 +156,7 @@ export default function CompetencySelfAssessment() {
                 <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
                   <span className="text-xs text-gray-500">総合評価</span>
                   <div className="text-xl font-bold text-blue-700">
-                    S
+                    {displayOverallRating}
                   </div>
                 </div>
 
@@ -223,72 +298,82 @@ export default function CompetencySelfAssessment() {
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
-          {/* Competency Header with Rating */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-xl font-bold text-green-800">
-              {mockCompetencyEvaluation.name}
-            </div>
-
-            {/* Individual Competency Rating Display */}
-            <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
-              <span className="text-xs text-gray-500">評価</span>
-              <div className="text-xl font-bold text-blue-700">
-                S
-              </div>
-            </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : displayCompetencies.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>コンピテンシー目標がありません</p>
+          </div>
+        ) : displayCompetencies.map((competency) => (
+          <div key={competency.competencyId} className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
+            {/* Competency Header with Rating */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-xl font-bold text-green-800">
+                {competency.name}
+              </div>
 
-          {/* Competency Items - Read only */}
-          <div className="space-y-4">
-            {mockCompetencyEvaluation.items.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[90px]">
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm text-gray-700">{item.description}</p>
-
-                  {/* Rating Display - Read only with visual feedback */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {RATINGS.map((rating) => {
-                      const isSelected = item.rating === rating;
-                      return (
-                        <div
-                          key={rating}
-                          className="flex items-center gap-2"
-                        >
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                            isSelected
-                              ? 'border-blue-600 bg-blue-50'
-                              : 'border-gray-300'
-                          }`}>
-                            {isSelected && <div className="w-3 h-3 rounded-full bg-blue-600"></div>}
-                          </div>
-                          <span className={`text-sm ${
-                            isSelected
-                              ? 'text-blue-700 font-semibold'
-                              : 'text-gray-400'
-                          }`}>{rating}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+              {/* Individual Competency Rating Display */}
+              <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+                <span className="text-xs text-gray-500">評価</span>
+                <div className="text-xl font-bold text-blue-700">
+                  {competency.competencyRating || '−'}
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
 
-          {/* Comment Section - Read only */}
-          <div className="mt-5">
-            <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-              自己評価コメント
-            </Label>
-            <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 min-h-[100px]">
-              {mockCompetencyEvaluation.comment}
+            {/* Competency Items - Read only */}
+            <div className="space-y-4">
+              {competency.items.map((item) => (
+                <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[90px]">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-gray-700">{item.description}</p>
+
+                    {/* Rating Display - Read only with visual feedback */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {QUALITATIVE_RATING_CODES.map((rating) => {
+                        const isSelected = item.rating === rating;
+                        return (
+                          <div
+                            key={rating}
+                            className="flex items-center gap-2"
+                          >
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                              isSelected
+                                ? 'border-blue-600 bg-blue-50'
+                                : 'border-gray-300'
+                            }`}>
+                              {isSelected && <div className="w-3 h-3 rounded-full bg-blue-600"></div>}
+                            </div>
+                            <span className={`text-sm ${
+                              isSelected
+                                ? 'text-blue-700 font-semibold'
+                                : 'text-gray-400'
+                            }`}>{rating}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="flex justify-start items-center mt-1">
-              <p className="text-xs text-gray-400">部下による自己評価コメント</p>
+
+            {/* Comment Section - Read only */}
+            <div className="mt-5">
+              <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                自己評価コメント
+              </Label>
+              <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 min-h-[100px]">
+                {competency.comment || <span className="text-gray-400">コメントなし</span>}
+              </div>
+              <div className="flex justify-start items-center mt-1">
+                <p className="text-xs text-gray-400">部下による自己評価コメント</p>
+              </div>
             </div>
           </div>
-        </div>
+        ))}
         </CardContent>
       )}
     </Card>

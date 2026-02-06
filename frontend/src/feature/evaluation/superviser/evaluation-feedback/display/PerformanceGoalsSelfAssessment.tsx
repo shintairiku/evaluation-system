@@ -2,16 +2,14 @@
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
+import { TrendingUp, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import type { GoalResponse, SelfAssessment as APISelfAssessment, RatingCode } from "@/api/types";
+import { RATING_CODE_VALUES } from "@/api/types/common";
 
-// Rating types
-type QuantitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
-type QualitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C';
-type RatingCode = QuantitativeRatingCode | QualitativeRatingCode;
-
-interface SelfAssessment {
+// Display data structure for a performance goal with its self-assessment
+export interface PerformanceGoalDisplayData {
   id: string;
   type: "quantitative" | "qualitative";
   weight: number;
@@ -22,31 +20,72 @@ interface SelfAssessment {
   comment: string;
 }
 
-const mockPerformanceEvaluations: SelfAssessment[] = [
-  {
-    id: "perf-1",
-    type: "quantitative",
-    weight: 60,
-    specificGoal: "売上を前年比120%にする",
-    achievementCriteria: "売上が前年比120%を超えた場合達成",
-    methods: "母集団形成の最大化\nほげほげほげほげ\n\n採用オペレーションの最適化\nほげおげほげほげ\nほげほげほげほげ",
-    ratingCode: "SS",
-    comment: "目標を大幅に超過達成しました。新規顧客開拓により売上130%を実現できました。"
-  },
-  {
-    id: "perf-2",
-    type: "qualitative",
-    weight: 40,
-    specificGoal: "顧客アンケートで満足度90%以上を獲得",
-    achievementCriteria: "アンケート結果で90%以上の満足度を得る",
-    methods: "定期的なフォローアップと迅速な対応\nお客様の声を積極的に収集",
-    ratingCode: "S",
-    comment: "顧客満足度調査で92%を達成しました。特にアフターサービスの改善が評価されました。"
-  }
-];
+interface PerformanceGoalsSelfAssessmentProps {
+  goals?: PerformanceGoalDisplayData[];
+  overallRating?: string;
+  isLoading?: boolean;
+}
 
-export default function PerformanceGoalsSelfAssessment() {
+// Helper function to transform API data to display format
+export function transformPerformanceGoalsForDisplay(
+  goals: GoalResponse[],
+  selfAssessments: APISelfAssessment[]
+): PerformanceGoalDisplayData[] {
+  // Create a map of goalId -> selfAssessment for quick lookup
+  const assessmentMap = new Map(selfAssessments.map(sa => [sa.goalId, sa]));
+
+  return goals
+    .filter(goal => goal.goalCategory === '業績目標' && goal.status === 'approved')
+    .map(goal => {
+      const assessment = assessmentMap.get(goal.id);
+      return {
+        id: goal.id,
+        type: goal.performanceGoalType || 'qualitative',
+        weight: goal.weight,
+        specificGoal: goal.specificGoalText || goal.title || '',
+        achievementCriteria: goal.achievementCriteriaText || '',
+        methods: goal.meansMethodsText || '',
+        ratingCode: assessment?.selfRatingCode,
+        comment: assessment?.selfComment || '',
+      };
+    });
+}
+
+// Calculate overall rating based on weighted average
+export function calculatePerformanceOverallRating(goals: PerformanceGoalDisplayData[]): string {
+  let totalWeight = 0;
+  let weightedSum = 0;
+
+  goals.forEach(goal => {
+    if (goal.ratingCode && RATING_CODE_VALUES[goal.ratingCode] !== undefined) {
+      weightedSum += RATING_CODE_VALUES[goal.ratingCode] * goal.weight;
+      totalWeight += goal.weight;
+    }
+  });
+
+  if (totalWeight === 0) return '−';
+
+  const avgValue = weightedSum / totalWeight;
+
+  // Map average score to rating code (same thresholds as evaluation-input)
+  if (avgValue >= 6.5) return 'SS';
+  if (avgValue >= 5.5) return 'S';
+  if (avgValue >= 3.5) return 'A';
+  if (avgValue >= 1.5) return 'B';
+  if (avgValue >= 0.5) return 'C';
+  return 'D';
+}
+
+export default function PerformanceGoalsSelfAssessment({
+  goals,
+  overallRating,
+  isLoading = false,
+}: PerformanceGoalsSelfAssessmentProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+
+  // Use provided goals or show empty state
+  const displayGoals = goals || [];
+  const displayOverallRating = overallRating || (displayGoals.length > 0 ? calculatePerformanceOverallRating(displayGoals) : '−');
 
   return (
     <Card className="shadow-xl border-0 bg-white">
@@ -67,7 +106,7 @@ export default function PerformanceGoalsSelfAssessment() {
                 <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
                   <span className="text-xs text-gray-500">総合評価</span>
                   <div className="text-xl font-bold text-blue-700">
-                    SS
+                    {displayOverallRating}
                   </div>
                 </div>
 
@@ -93,7 +132,15 @@ export default function PerformanceGoalsSelfAssessment() {
 
       {isExpanded && (
         <CardContent className="space-y-6 pt-2">
-        {mockPerformanceEvaluations.map((evalItem) => (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : displayGoals.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>業績目標がありません</p>
+          </div>
+        ) : displayGoals.map((evalItem) => (
           <div
             key={evalItem.id}
             className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-5"
@@ -118,18 +165,34 @@ export default function PerformanceGoalsSelfAssessment() {
             {/* Goal Details */}
             <div className="flex flex-col gap-5 mb-2">
               {/* 手段・手法 Section */}
-              <div>
-                <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                  手段・手法
-                </Label>
-                <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
-                  {evalItem.methods.split('\n').map((line: string, i: number) => (
-                    <div key={i}>{line || '\u00A0'}</div>
-                  ))}
+              {evalItem.methods && (
+                <div>
+                  <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                    手段・手法
+                  </Label>
+                  <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+                    {evalItem.methods.split('\n').map((line: string, i: number) => (
+                      <div key={i}>{line || '\u00A0'}</div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* 評価基準 Section - Display only */}
+              {/* 達成基準 Section */}
+              {evalItem.achievementCriteria && (
+                <div>
+                  <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                    達成基準
+                  </Label>
+                  <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+                    {evalItem.achievementCriteria.split('\n').map((line: string, i: number) => (
+                      <div key={i}>{line || '\u00A0'}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 自己評価 Section - Display only */}
               <div>
                 <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                   自己評価
@@ -148,7 +211,7 @@ export default function PerformanceGoalsSelfAssessment() {
                 自己評価コメント
               </Label>
               <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 min-h-[100px]">
-                {evalItem.comment}
+                {evalItem.comment || <span className="text-gray-400">コメントなし</span>}
               </div>
               <div className="flex justify-start items-center mt-1">
                 <p className="text-xs text-gray-400">部下による自己評価コメント</p>

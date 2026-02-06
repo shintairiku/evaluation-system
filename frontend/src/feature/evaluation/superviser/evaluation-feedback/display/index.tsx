@@ -6,9 +6,12 @@ import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
 import { getSubordinatesAction, getCurrentUserAction } from "@/api/server-actions/users";
 import { getSelfAssessmentsAction } from "@/api/server-actions/self-assessments";
+import { getGoalsAction } from "@/api/server-actions/goals";
 import type {
   EvaluationPeriod,
   UserDetailResponse,
+  GoalResponse,
+  SelfAssessment,
 } from "@/api/types";
 import {
   Select,
@@ -19,9 +22,15 @@ import {
 } from "@/components/ui/select";
 import { User, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import PerformanceGoalsSelfAssessment from "./PerformanceGoalsSelfAssessment";
+import PerformanceGoalsSelfAssessment, {
+  transformPerformanceGoalsForDisplay,
+  type PerformanceGoalDisplayData,
+} from "./PerformanceGoalsSelfAssessment";
 import PerformanceGoalsSupervisorEvaluation from "./PerformanceGoalsSupervisorEvaluation";
-import CompetencySelfAssessment from "./CompetencySelfAssessment";
+import CompetencySelfAssessment, {
+  transformCompetencyGoalsForDisplay,
+  type CompetencyDisplayData,
+} from "./CompetencySelfAssessment";
 import CompetencySupervisorEvaluation from "./CompetencySupervisorEvaluation";
 import CoreValueSelfAssessment from "./CoreValueSelfAssessment";
 import CoreValueSupervisorEvaluation from "./CoreValueSupervisorEvaluation";
@@ -43,6 +52,11 @@ export default function EvaluationFeedbackDisplay() {
   const [currentUser, setCurrentUser] = useState<UserDetailResponse | null>(null);
   const [subordinates, setSubordinates] = useState<SubordinateWithStatus[]>([]);
   const [selectedSubordinateId, setSelectedSubordinateId] = useState<string>("");
+
+  // Evaluation data state
+  const [performanceGoals, setPerformanceGoals] = useState<PerformanceGoalDisplayData[]>([]);
+  const [competencyData, setCompetencyData] = useState<CompetencyDisplayData[]>([]);
+  const [isLoadingEvaluationData, setIsLoadingEvaluationData] = useState(false);
 
   // Fetch current user on mount
   useEffect(() => {
@@ -129,6 +143,57 @@ export default function EvaluationFeedbackDisplay() {
 
     fetchSubordinates();
   }, [currentUser?.id, selectedPeriodId, selectedSubordinateId]);
+
+  // Fetch evaluation data when subordinate is selected
+  useEffect(() => {
+    const fetchEvaluationData = async () => {
+      if (!selectedSubordinateId || !selectedPeriodId) {
+        setPerformanceGoals([]);
+        setCompetencyData([]);
+        return;
+      }
+
+      try {
+        setIsLoadingEvaluationData(true);
+
+        // Fetch goals and self-assessments in parallel
+        const [goalsResult, assessmentsResult] = await Promise.all([
+          getGoalsAction({
+            periodId: selectedPeriodId,
+            userId: selectedSubordinateId,
+            status: 'approved', // Only approved goals
+            limit: 100,
+          }),
+          getSelfAssessmentsAction({
+            periodId: selectedPeriodId,
+            userId: selectedSubordinateId,
+          }),
+        ]);
+
+        const goals: GoalResponse[] = goalsResult.success && goalsResult.data?.items
+          ? goalsResult.data.items
+          : [];
+        const selfAssessments: SelfAssessment[] = assessmentsResult.success && assessmentsResult.data?.items
+          ? assessmentsResult.data.items
+          : [];
+
+        // Transform data for display components
+        const performanceDisplayData = transformPerformanceGoalsForDisplay(goals, selfAssessments);
+        const competencyDisplayData = transformCompetencyGoalsForDisplay(goals, selfAssessments);
+
+        setPerformanceGoals(performanceDisplayData);
+        setCompetencyData(competencyDisplayData);
+      } catch (error) {
+        console.error('Error fetching evaluation data:', error);
+        setPerformanceGoals([]);
+        setCompetencyData([]);
+      } finally {
+        setIsLoadingEvaluationData(false);
+      }
+    };
+
+    fetchEvaluationData();
+  }, [selectedSubordinateId, selectedPeriodId]);
 
   // Handle period change
   const handlePeriodChange = (periodId: string) => {
@@ -249,13 +314,19 @@ export default function EvaluationFeedbackDisplay() {
 
         {/* Performance Goals Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
-          <PerformanceGoalsSelfAssessment />
+          <PerformanceGoalsSelfAssessment
+            goals={performanceGoals}
+            isLoading={isLoadingEvaluationData}
+          />
           <PerformanceGoalsSupervisorEvaluation />
         </div>
 
         {/* Competency Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
-          <CompetencySelfAssessment />
+          <CompetencySelfAssessment
+            competencies={competencyData}
+            isLoading={isLoadingEvaluationData}
+          />
           <CompetencySupervisorEvaluation />
         </div>
 
