@@ -484,7 +484,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
         </div>
 
         <Dialog open={overrideRowId !== null} onOpenChange={(open) => !open && closeOverrideDialog()}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>特例反映（手動で判定/反映後ステージ/反映後レベルを確定）</DialogTitle>
               <DialogDescription>
@@ -495,190 +495,194 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             {!selectedItem || !overrideDraft ? (
               <div className="text-sm text-muted-foreground">対象データが見つかりません</div>
             ) : (
-              <div className="space-y-5">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">
-                    {selectedItem.row.employeeCode} {selectedItem.row.name}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {selectedItem.row.departmentName} / {selectedItem.row.currentStage ?? "-"}
+              <>
+                <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+                  <div className="space-y-5">
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium">
+                        {selectedItem.row.employeeCode} {selectedItem.row.name}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {selectedItem.row.departmentName} / {selectedItem.row.currentStage ?? "-"}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-2 rounded-md border p-3">
+                        <div className="text-sm font-semibold">自動判定</div>
+                        <div className="text-sm">判定: {selectedItem.base.decision}</div>
+                        <div className="text-sm">新ステージ: {selectedItem.base.newStage ?? "-"}</div>
+                        <div className="text-sm">レベル増減: {formatDelta(selectedItem.base.levelDelta)}</div>
+                        <div className="text-sm">新レベル: {selectedItem.base.newLevel ?? "-"}</div>
+                      </div>
+
+                      <div className="space-y-2 rounded-md border p-3">
+                        <div className="text-sm font-semibold">特例プレビュー</div>
+                        {(() => {
+                          const requiresStageAfter = overrideDraft.decision !== "対象外";
+                          const requiresLevelAfter =
+                            requiresStageAfter && selectedItem.row.employmentType === "employee";
+
+                          const stageAfterInput = overrideDraft.stageAfter.trim();
+                          const stageAfterOverride =
+                            requiresStageAfter && stageAfterInput !== "" ? stageAfterInput : undefined;
+
+                          const levelAfterInput = overrideDraft.levelAfter.trim();
+                          const levelAfterValue = levelAfterInput === "" ? undefined : Number(levelAfterInput);
+                          const levelAfterOverride =
+                            requiresLevelAfter &&
+                            levelAfterInput !== "" &&
+                            Number.isFinite(levelAfterValue) &&
+                            Number.isInteger(levelAfterValue)
+                              ? (levelAfterValue as number)
+                              : undefined;
+
+                          const preview = applyComprehensiveEvaluationManualOverride(selectedItem.row, selectedItem.base, {
+                            decision: overrideDraft.decision,
+                            stageAfter: stageAfterOverride,
+                            levelAfter: levelAfterOverride,
+                            reason: overrideDraft.reason,
+                            doubleCheckedBy: overrideDraft.doubleCheckedBy,
+                            appliedAt: selectedItem.override?.appliedAt ?? new Date().toISOString(),
+                          });
+
+                          return (
+                            <>
+                              <div className="text-sm">判定: {preview.decision}</div>
+                              <div className="text-sm">反映後ステージ: {preview.newStage ?? "-"}</div>
+                              <div className="text-sm">レベル増減: {formatDelta(preview.levelDelta)}</div>
+                              <div className="text-sm">反映後レベル: {preview.newLevel ?? "-"}</div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>判定（特例）</Label>
+                        <Select
+                          value={overrideDraft.decision}
+                          onValueChange={(value) =>
+                            setOverrideDraft((prev) => {
+                              if (!prev) return prev;
+                              const decision = value as ComprehensiveEvaluationDecision;
+                              return {
+                                ...prev,
+                                decision,
+                                stageAfter: decision === "対象外" ? "" : prev.stageAfter,
+                                levelAfter: decision === "対象外" ? "" : prev.levelAfter,
+                              };
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DECISIONS.map((decision) => (
+                              <SelectItem key={decision} value={decision}>
+                                {decision}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>反映後ステージ{requiresStageAfter ? "（必須）" : ""}</Label>
+                        <Select
+                          value={overrideDraft.stageAfter || "unset"}
+                          onValueChange={(value) =>
+                            setOverrideDraft((prev) => (prev ? { ...prev, stageAfter: value === "unset" ? "" : value } : prev))
+                          }
+                          disabled={!canEdit || !requiresStageAfter}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="反映後ステージ" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unset">未指定</SelectItem>
+                            {stages.map((stage) => (
+                              <SelectItem key={stage} value={stage}>
+                                {stage}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {requiresStageAfter && overrideDraft.stageAfter.trim() === "" && (
+                          <div className="text-xs text-destructive">反映後ステージを選択してください</div>
+                        )}
+                        {!requiresStageAfter && (
+                          <div className="text-xs text-muted-foreground">判定が対象外のため入力不要です</div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>
+                          反映後レベル（正社員のみ{requiresLevelAfter ? "・必須" : ""}）
+                        </Label>
+                        <Input
+                          inputMode="numeric"
+                          placeholder="例: 10"
+                          value={overrideDraft.levelAfter}
+                          onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, levelAfter: e.target.value } : prev))}
+                          disabled={!canEdit || !requiresLevelAfter}
+                        />
+                        {selectedItem.row.employmentType === "parttime" && (
+                          <div className="text-xs text-muted-foreground">パートはレベル概念がないため未適用です</div>
+                        )}
+                        {requiresLevelAfter && overrideDraft.levelAfter.trim() === "" && (
+                          <div className="text-xs text-destructive">反映後レベルを入力してください</div>
+                        )}
+                        {overrideDraft.levelAfter.trim() !== "" &&
+                          !(Number.isFinite(Number(overrideDraft.levelAfter)) && Number.isInteger(Number(overrideDraft.levelAfter))) && (
+                            <div className="text-xs text-destructive">整数で入力してください</div>
+                          )}
+                        {overrideDraft.levelAfter.trim() !== "" &&
+                          Number.isFinite(Number(overrideDraft.levelAfter)) &&
+                          Number.isInteger(Number(overrideDraft.levelAfter)) &&
+                          (Number(overrideDraft.levelAfter) < 1 || Number(overrideDraft.levelAfter) > 30) && (
+                            <div className="text-xs text-destructive">1〜30の範囲で入力してください</div>
+                          )}
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>特例理由（必須）</Label>
+                        <Textarea
+                          value={overrideDraft.reason}
+                          onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, reason: e.target.value } : prev))}
+                          placeholder="例: 組織改編に伴う役割変更のため、ルール外でステージ変更を実施"
+                          disabled={!canEdit}
+                        />
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>ダブルチェック者（必須）</Label>
+                        <Input
+                          value={overrideDraft.doubleCheckedBy}
+                          onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, doubleCheckedBy: e.target.value } : prev))}
+                          placeholder="確認者氏名（例: 人事 太郎）"
+                          disabled={!canEdit}
+                        />
+                        <Label className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={overrideDraft.confirmed}
+                            disabled={!canEdit}
+                            onCheckedChange={(checked) => setOverrideDraft((prev) => (prev ? { ...prev, confirmed: checked === true } : prev))}
+                          />
+                          入力内容をダブルチェックしたうえで反映します
+                        </Label>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <Separator />
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-2 rounded-md border p-3">
-                    <div className="text-sm font-semibold">自動判定</div>
-                    <div className="text-sm">判定: {selectedItem.base.decision}</div>
-                    <div className="text-sm">新ステージ: {selectedItem.base.newStage ?? "-"}</div>
-                    <div className="text-sm">レベル増減: {formatDelta(selectedItem.base.levelDelta)}</div>
-                    <div className="text-sm">新レベル: {selectedItem.base.newLevel ?? "-"}</div>
-                  </div>
-
-                  <div className="space-y-2 rounded-md border p-3">
-                    <div className="text-sm font-semibold">特例プレビュー</div>
-                    {(() => {
-                      const requiresStageAfter = overrideDraft.decision !== "対象外";
-                      const requiresLevelAfter =
-                        requiresStageAfter && selectedItem.row.employmentType === "employee";
-
-                      const stageAfterInput = overrideDraft.stageAfter.trim();
-                      const stageAfterOverride =
-                        requiresStageAfter && stageAfterInput !== "" ? stageAfterInput : undefined;
-
-                      const levelAfterInput = overrideDraft.levelAfter.trim();
-                      const levelAfterValue = levelAfterInput === "" ? undefined : Number(levelAfterInput);
-                      const levelAfterOverride =
-                        requiresLevelAfter &&
-                        levelAfterInput !== "" &&
-                        Number.isFinite(levelAfterValue) &&
-                        Number.isInteger(levelAfterValue)
-                          ? (levelAfterValue as number)
-                          : undefined;
-
-	                      const preview = applyComprehensiveEvaluationManualOverride(selectedItem.row, selectedItem.base, {
-	                        decision: overrideDraft.decision,
-	                        stageAfter: stageAfterOverride,
-	                        levelAfter: levelAfterOverride,
-	                        reason: overrideDraft.reason,
-	                        doubleCheckedBy: overrideDraft.doubleCheckedBy,
-                        appliedAt: selectedItem.override?.appliedAt ?? new Date().toISOString(),
-                      });
-
-                      return (
-                        <>
-                          <div className="text-sm">判定: {preview.decision}</div>
-                          <div className="text-sm">反映後ステージ: {preview.newStage ?? "-"}</div>
-                          <div className="text-sm">レベル増減: {formatDelta(preview.levelDelta)}</div>
-                          <div className="text-sm">反映後レベル: {preview.newLevel ?? "-"}</div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>判定（特例）</Label>
-                    <Select
-                      value={overrideDraft.decision}
-                      onValueChange={(value) =>
-                        setOverrideDraft((prev) => {
-                          if (!prev) return prev;
-                          const decision = value as ComprehensiveEvaluationDecision;
-                          return {
-                            ...prev,
-                            decision,
-                            stageAfter: decision === "対象外" ? "" : prev.stageAfter,
-                            levelAfter: decision === "対象外" ? "" : prev.levelAfter,
-                          };
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DECISIONS.map((decision) => (
-                          <SelectItem key={decision} value={decision}>
-                            {decision}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>反映後ステージ{requiresStageAfter ? "（必須）" : ""}</Label>
-                    <Select
-                      value={overrideDraft.stageAfter || "unset"}
-                      onValueChange={(value) =>
-                        setOverrideDraft((prev) => (prev ? { ...prev, stageAfter: value === "unset" ? "" : value } : prev))
-                      }
-                      disabled={!canEdit || !requiresStageAfter}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="反映後ステージ" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unset">未指定</SelectItem>
-                        {stages.map((stage) => (
-                          <SelectItem key={stage} value={stage}>
-                            {stage}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {requiresStageAfter && overrideDraft.stageAfter.trim() === "" && (
-                      <div className="text-xs text-destructive">反映後ステージを選択してください</div>
-                    )}
-                    {!requiresStageAfter && (
-                      <div className="text-xs text-muted-foreground">判定が対象外のため入力不要です</div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>
-                      反映後レベル（正社員のみ{requiresLevelAfter ? "・必須" : ""}）
-                    </Label>
-                    <Input
-                      inputMode="numeric"
-                      placeholder="例: 10"
-                      value={overrideDraft.levelAfter}
-                      onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, levelAfter: e.target.value } : prev))}
-                      disabled={!canEdit || !requiresLevelAfter}
-                    />
-                    {selectedItem.row.employmentType === "parttime" && (
-                      <div className="text-xs text-muted-foreground">パートはレベル概念がないため未適用です</div>
-                    )}
-                    {requiresLevelAfter && overrideDraft.levelAfter.trim() === "" && (
-                      <div className="text-xs text-destructive">反映後レベルを入力してください</div>
-                    )}
-                    {overrideDraft.levelAfter.trim() !== "" &&
-                      !(Number.isFinite(Number(overrideDraft.levelAfter)) && Number.isInteger(Number(overrideDraft.levelAfter))) && (
-                        <div className="text-xs text-destructive">整数で入力してください</div>
-                      )}
-                    {overrideDraft.levelAfter.trim() !== "" &&
-                      Number.isFinite(Number(overrideDraft.levelAfter)) &&
-                      Number.isInteger(Number(overrideDraft.levelAfter)) &&
-                      (Number(overrideDraft.levelAfter) < 1 || Number(overrideDraft.levelAfter) > 30) && (
-                        <div className="text-xs text-destructive">1〜30の範囲で入力してください</div>
-                      )}
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>特例理由（必須）</Label>
-                    <Textarea
-                      value={overrideDraft.reason}
-                      onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, reason: e.target.value } : prev))}
-                      placeholder="例: 組織改編に伴う役割変更のため、ルール外でステージ変更を実施"
-                      disabled={!canEdit}
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>ダブルチェック者（必須）</Label>
-                    <Input
-                      value={overrideDraft.doubleCheckedBy}
-                      onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, doubleCheckedBy: e.target.value } : prev))}
-                      placeholder="確認者氏名（例: 人事 太郎）"
-                      disabled={!canEdit}
-                    />
-                    <Label className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={overrideDraft.confirmed}
-                        disabled={!canEdit}
-                        onCheckedChange={(checked) => setOverrideDraft((prev) => (prev ? { ...prev, confirmed: checked === true } : prev))}
-                      />
-                      入力内容をダブルチェックしたうえで反映します
-                    </Label>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-2">
+                <div className="mt-4 flex items-center justify-between gap-2 border-t pt-4">
                   <Button variant="outline" onClick={closeOverrideDialog}>
                     キャンセル
                   </Button>
@@ -708,7 +712,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                     </Button>
                   </div>
                 </div>
-              </div>
+              </>
             )}
           </DialogContent>
         </Dialog>
