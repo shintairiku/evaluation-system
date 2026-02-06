@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
 import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { User, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import SupervisorSubmitButton from "../components/SupervisorSubmitButton";
 import PerformanceGoalsSelfAssessment, {
   transformPerformanceGoalsForDisplay,
   type PerformanceGoalDisplayData,
@@ -157,73 +157,77 @@ export default function EvaluationFeedbackDisplay() {
     fetchSubordinates();
   }, [currentUser?.id, selectedPeriodId, selectedSubordinateId]);
 
+  // Fetch evaluation data function (can be called manually for refresh)
+  const fetchEvaluationData = useCallback(async () => {
+    if (!selectedSubordinateId || !selectedPeriodId) {
+      setPerformanceGoals([]);
+      setCompetencyData([]);
+      setSupervisorPerformanceGoals([]);
+      setSupervisorCompetencyData([]);
+      return;
+    }
+
+    try {
+      setIsLoadingEvaluationData(true);
+
+      // Fetch goals, self-assessments, and supervisor feedbacks in parallel
+      const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
+        getGoalsAction({
+          periodId: selectedPeriodId,
+          userId: selectedSubordinateId,
+          status: 'approved', // Only approved goals
+          limit: 100,
+        }),
+        getSelfAssessmentsAction({
+          periodId: selectedPeriodId,
+          userId: selectedSubordinateId,
+        }),
+        getSupervisorFeedbacksAction({
+          periodId: selectedPeriodId,
+          subordinateId: selectedSubordinateId,
+        }),
+      ]);
+
+      const goals: GoalResponse[] = goalsResult.success && goalsResult.data?.items
+        ? goalsResult.data.items
+        : [];
+      const selfAssessments: SelfAssessment[] = assessmentsResult.success && assessmentsResult.data?.items
+        ? assessmentsResult.data.items
+        : [];
+      const supervisorFeedbacks: SupervisorFeedback[] = feedbacksResult.success && feedbacksResult.data?.items
+        ? feedbacksResult.data.items
+        : [];
+
+      // NOTE: SupervisorFeedback is auto-created by the backend when self-assessment is submitted.
+      // No need to create here - just fetch and display.
+
+      // Transform data for self-assessment display components (read-only)
+      const performanceDisplayData = transformPerformanceGoalsForDisplay(goals, selfAssessments);
+      const competencyDisplayData = transformCompetencyGoalsForDisplay(goals, selfAssessments);
+
+      // Transform data for supervisor evaluation components (editable)
+      const supervisorPerformanceData = transformPerformanceGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
+      const supervisorCompetencyDisplayData = transformCompetencyGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
+
+      setPerformanceGoals(performanceDisplayData);
+      setCompetencyData(competencyDisplayData);
+      setSupervisorPerformanceGoals(supervisorPerformanceData);
+      setSupervisorCompetencyData(supervisorCompetencyDisplayData);
+    } catch (error) {
+      console.error('Error fetching evaluation data:', error);
+      setPerformanceGoals([]);
+      setCompetencyData([]);
+      setSupervisorPerformanceGoals([]);
+      setSupervisorCompetencyData([]);
+    } finally {
+      setIsLoadingEvaluationData(false);
+    }
+  }, [selectedSubordinateId, selectedPeriodId]);
+
   // Fetch evaluation data when subordinate is selected
   useEffect(() => {
-    const fetchEvaluationData = async () => {
-      if (!selectedSubordinateId || !selectedPeriodId) {
-        setPerformanceGoals([]);
-        setCompetencyData([]);
-        setSupervisorPerformanceGoals([]);
-        setSupervisorCompetencyData([]);
-        return;
-      }
-
-      try {
-        setIsLoadingEvaluationData(true);
-
-        // Fetch goals, self-assessments, and supervisor feedbacks in parallel
-        const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
-          getGoalsAction({
-            periodId: selectedPeriodId,
-            userId: selectedSubordinateId,
-            status: 'approved', // Only approved goals
-            limit: 100,
-          }),
-          getSelfAssessmentsAction({
-            periodId: selectedPeriodId,
-            userId: selectedSubordinateId,
-          }),
-          getSupervisorFeedbacksAction({
-            periodId: selectedPeriodId,
-            subordinateId: selectedSubordinateId,
-          }),
-        ]);
-
-        const goals: GoalResponse[] = goalsResult.success && goalsResult.data?.items
-          ? goalsResult.data.items
-          : [];
-        const selfAssessments: SelfAssessment[] = assessmentsResult.success && assessmentsResult.data?.items
-          ? assessmentsResult.data.items
-          : [];
-        const supervisorFeedbacks: SupervisorFeedback[] = feedbacksResult.success && feedbacksResult.data?.items
-          ? feedbacksResult.data.items
-          : [];
-
-        // Transform data for self-assessment display components (read-only)
-        const performanceDisplayData = transformPerformanceGoalsForDisplay(goals, selfAssessments);
-        const competencyDisplayData = transformCompetencyGoalsForDisplay(goals, selfAssessments);
-
-        // Transform data for supervisor evaluation components (editable)
-        const supervisorPerformanceData = transformPerformanceGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
-        const supervisorCompetencyDisplayData = transformCompetencyGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
-
-        setPerformanceGoals(performanceDisplayData);
-        setCompetencyData(competencyDisplayData);
-        setSupervisorPerformanceGoals(supervisorPerformanceData);
-        setSupervisorCompetencyData(supervisorCompetencyDisplayData);
-      } catch (error) {
-        console.error('Error fetching evaluation data:', error);
-        setPerformanceGoals([]);
-        setCompetencyData([]);
-        setSupervisorPerformanceGoals([]);
-        setSupervisorCompetencyData([]);
-      } finally {
-        setIsLoadingEvaluationData(false);
-      }
-    };
-
     fetchEvaluationData();
-  }, [selectedSubordinateId, selectedPeriodId]);
+  }, [fetchEvaluationData]);
 
   // Handle period change
   const handlePeriodChange = (periodId: string) => {
@@ -293,7 +297,7 @@ export default function EvaluationFeedbackDisplay() {
                               </span>
                             )
                           ) : (
-                            <span className="text-xs text-muted-foreground">目標なし</span>
+                            <span className="text-xs text-muted-foreground">未提出</span>
                           )}
                         </div>
                       </SelectItem>
@@ -326,12 +330,13 @@ export default function EvaluationFeedbackDisplay() {
 
         {/* Submit Button */}
         <div className="flex justify-end">
-          <Button
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+          <SupervisorSubmitButton
+            performanceGoals={supervisorPerformanceGoals}
+            competencyGoals={supervisorCompetencyData}
+            onSubmitSuccess={fetchEvaluationData}
+            onRefreshData={fetchEvaluationData}
             disabled={!canEvaluate}
-          >
-            最終提出
-          </Button>
+          />
         </div>
 
         {/* Headers Row */}
