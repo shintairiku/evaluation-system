@@ -10,9 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Send, Loader2, AlertCircle } from "lucide-react";
+import { Send, Loader2, AlertCircle, CheckCircle2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { submitSelfAssessmentAction } from "@/api/server-actions/self-assessments";
+import { submitSelfAssessmentAction, reopenSelfAssessmentAction } from "@/api/server-actions/self-assessments";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
@@ -34,7 +34,8 @@ interface SubmitButtonProps {
 function isPerformanceAssessmentComplete(item: GoalWithAssessment): boolean {
   const assessment = item.selfAssessment;
   if (!assessment) return false;
-  if (assessment.status !== 'draft') return false; // Already submitted
+  // Approved assessments are locked and complete
+  if (assessment.status === 'approved') return true;
 
   return !!(assessment.selfRatingCode && assessment.selfComment?.trim());
 }
@@ -45,7 +46,8 @@ function isPerformanceAssessmentComplete(item: GoalWithAssessment): boolean {
 function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   const assessment = item.selfAssessment;
   if (!assessment) return false;
-  if (assessment.status !== 'draft') return false; // Already submitted
+  // Approved assessments are locked and complete
+  if (assessment.status === 'approved') return true;
 
   // Must have comment
   if (!assessment.selfComment?.trim()) return false;
@@ -79,6 +81,7 @@ export default function SubmitButton({
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
 
   // Accessibility and responsive hooks
   const { containerRef } = useKeyboardNavigation({
@@ -110,36 +113,52 @@ export default function SubmitButton({
     }
   }, [isOpen]);
 
-  // Get all draft assessments that need to be submitted
-  const draftPerformanceAssessments = performanceGoals.filter(
-    (item) => item.selfAssessment?.status === 'draft'
+  // Get all editable assessments (draft or submitted, not approved)
+  const editablePerformanceAssessments = performanceGoals.filter(
+    (item) => item.selfAssessment?.status === 'draft' || item.selfAssessment?.status === 'submitted'
   );
-  const draftCompetencyAssessments = competencyGoals.filter(
-    (item) => item.selfAssessment?.status === 'draft'
+  const editableCompetencyAssessments = competencyGoals.filter(
+    (item) => item.selfAssessment?.status === 'draft' || item.selfAssessment?.status === 'submitted'
   );
 
   // Check completion status
-  const incompletePerformance = draftPerformanceAssessments.filter(
+  const incompletePerformance = editablePerformanceAssessments.filter(
     (item) => !isPerformanceAssessmentComplete(item)
   );
-  const incompleteCompetency = draftCompetencyAssessments.filter(
+  const incompleteCompetency = editableCompetencyAssessments.filter(
     (item) => !isCompetencyAssessmentComplete(item)
   );
 
   const hasIncomplete = incompletePerformance.length > 0 || incompleteCompetency.length > 0;
-  const hasDraftAssessments = draftPerformanceAssessments.length > 0 || draftCompetencyAssessments.length > 0;
+  const hasEditableAssessments = editablePerformanceAssessments.length > 0 || editableCompetencyAssessments.length > 0;
 
-  // Get IDs of assessments to submit
+  // Check if all editable assessments are already submitted (no drafts left)
+  const allAlreadySubmitted = hasEditableAssessments &&
+    editablePerformanceAssessments.every((item) => item.selfAssessment?.status === 'submitted') &&
+    editableCompetencyAssessments.every((item) => item.selfAssessment?.status === 'submitted');
+
+  // Get IDs of assessments to submit (only draft ones need submission)
   const assessmentIdsToSubmit = [
-    ...draftPerformanceAssessments
-      .filter((item) => isPerformanceAssessmentComplete(item))
+    ...editablePerformanceAssessments
+      .filter((item) => item.selfAssessment?.status === 'draft' && isPerformanceAssessmentComplete(item))
       .map((item) => item.selfAssessment!.id),
-    ...draftCompetencyAssessments
-      .filter((item) => isCompetencyAssessmentComplete(item))
+    ...editableCompetencyAssessments
+      .filter((item) => item.selfAssessment?.status === 'draft' && isCompetencyAssessmentComplete(item))
+      .map((item) => item.selfAssessment!.id),
+  ];
+
+  // Get IDs of submitted assessments that can be reopened
+  const assessmentIdsToReopen = [
+    ...editablePerformanceAssessments
+      .filter((item) => item.selfAssessment?.status === 'submitted')
+      .map((item) => item.selfAssessment!.id),
+    ...editableCompetencyAssessments
+      .filter((item) => item.selfAssessment?.status === 'submitted')
       .map((item) => item.selfAssessment!.id),
   ];
 
   const canSubmit = assessmentIdsToSubmit.length > 0 && !hasIncomplete;
+  const canReopen = assessmentIdsToReopen.length > 0;
 
   const handleCancel = () => {
     if (!isSubmitting) {
@@ -193,14 +212,55 @@ export default function SubmitButton({
           description: 'もう一度お試しください。',
         });
       }
-    } catch (error) {
-      console.error('Submit error:', error);
+    } catch {
       setIsOpen(false);
       toast.error('予期せぬエラーが発生しました', {
         description: 'しばらく時間をおいて再度お試しください。',
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    if (assessmentIdsToReopen.length === 0) return;
+
+    announceToScreenReader('自己評価の編集を再開します', 'assertive');
+    setIsReopening(true);
+
+    try {
+      // Reopen all submitted assessments
+      const results = await Promise.all(
+        assessmentIdsToReopen.map((id) => reopenSelfAssessmentAction(id))
+      );
+
+      const failedCount = results.filter((r) => !r.success).length;
+      const successCount = results.filter((r) => r.success).length;
+
+      setIsOpen(false);
+
+      if (failedCount === 0) {
+        toast.success(`${successCount}件の自己評価の編集を再開しました`, {
+          description: '内容を修正後、再度提出してください。',
+        });
+        onSubmitSuccess?.();
+      } else if (successCount > 0) {
+        toast.error(`${successCount}件成功、${failedCount}件失敗しました`, {
+          description: '失敗した項目は再度お試しください。',
+        });
+        onSubmitSuccess?.();
+      } else {
+        toast.error('編集の再開に失敗しました', {
+          description: 'もう一度お試しください。',
+        });
+      }
+    } catch {
+      setIsOpen(false);
+      toast.error('予期せぬエラーが発生しました', {
+        description: 'しばらく時間をおいて再度お試しください。',
+      });
+    } finally {
+      setIsReopening(false);
     }
   };
 
@@ -224,7 +284,7 @@ export default function SubmitButton({
     <div className="flex items-center gap-3">
       <Button
         variant={canSubmit ? "default" : "outline"}
-        disabled={disabled || isSubmitting || isRefreshing || !hasDraftAssessments}
+        disabled={disabled || isSubmitting || isRefreshing || !hasEditableAssessments}
         onClick={handleButtonClick}
         className="flex items-center space-x-2"
         aria-label="自己評価を最終提出する"
@@ -254,13 +314,15 @@ export default function SubmitButton({
             <DialogTitle className="flex items-center gap-2">
               {hasIncomplete ? (
                 <AlertCircle className="h-5 w-5 text-amber-600" aria-hidden="true" />
+              ) : allAlreadySubmitted ? (
+                <CheckCircle2 className="h-5 w-5 text-green-600" aria-hidden="true" />
               ) : (
                 <Send className="h-5 w-5 text-blue-600" aria-hidden="true" />
               )}
-              自己評価を提出しますか？
+              {allAlreadySubmitted ? '提出状況' : '自己評価を提出しますか？'}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              提出内容を確認してください。
+              {allAlreadySubmitted ? '現在の提出状況を確認してください。' : '提出内容を確認してください。'}
             </DialogDescription>
           </DialogHeader>
           <div
@@ -287,6 +349,22 @@ export default function SubmitButton({
                   すべての項目を入力してから提出してください。
                 </p>
               </div>
+            ) : allAlreadySubmitted ? (
+              <div
+                className="p-3 rounded-md border-l-4 bg-green-50 border-green-500"
+                role="region"
+                aria-label="提出状況"
+              >
+                <p className="text-sm font-medium text-green-700">
+                  すべての自己評価は提出済みです
+                </p>
+                <p className="text-sm mt-1 text-green-700">
+                  上司による承認をお待ちください。
+                </p>
+                <p className="text-sm mt-2 text-muted-foreground">
+                  内容を修正する場合は「編集を再開」をクリックしてください。
+                </p>
+              </div>
             ) : (
               <>
                 <div
@@ -307,7 +385,7 @@ export default function SubmitButton({
                     補足情報:
                   </p>
                   <p className="text-sm mt-1">
-                    提出後も、上司による承認が完了するまでは内容を変更できます。
+                    提出後に修正が必要な場合は「編集を再開」から再編集できます。
                   </p>
                 </div>
               </>
@@ -317,13 +395,36 @@ export default function SubmitButton({
             <Button
               variant="outline"
               onClick={handleCancel}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isReopening}
               className={`focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all ${isMobile ? 'w-full h-12 text-base touch-manipulation' : ''}`}
               aria-label="操作をキャンセルしてダイアログを閉じます"
               tabIndex={0}
             >
-              キャンセル
+              {allAlreadySubmitted ? '閉じる' : 'キャンセル'}
             </Button>
+            {allAlreadySubmitted && canReopen && (
+            <Button
+              onClick={handleReopen}
+              disabled={isReopening}
+              variant="outline"
+              className={`border-amber-500 text-amber-700 hover:bg-amber-50 focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-all ${isMobile ? 'w-full h-12 text-base touch-manipulation' : ''}`}
+              aria-label="編集を再開して自己評価を修正します"
+              tabIndex={0}
+            >
+              {isReopening ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
+                  <span aria-live="polite">処理中...</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4 mr-2" aria-hidden="true" />
+                  編集を再開
+                </>
+              )}
+            </Button>
+            )}
+            {!allAlreadySubmitted && (
             <Button
               onClick={handleSubmit}
               disabled={!canSubmit || isSubmitting}
@@ -346,6 +447,7 @@ export default function SubmitButton({
                 </>
               )}
             </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
