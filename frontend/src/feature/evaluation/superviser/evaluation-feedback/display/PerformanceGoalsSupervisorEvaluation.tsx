@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode } from "@/api/types";
-import { QUANTITATIVE_RATING_CODES, QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
+import { QUANTITATIVE_RATING_CODES, QUALITATIVE_RATING_CODES } from "@/api/types/common";
+import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
 // Display data structure for supervisor evaluation
 export interface PerformanceGoalSupervisorData {
@@ -28,8 +29,6 @@ interface PerformanceGoalsSupervisorEvaluationProps {
   goals?: PerformanceGoalSupervisorData[];
   overallRating?: string;
   isLoading?: boolean;
-  onRatingChange?: (goalId: string, ratingCode: RatingCode) => void;
-  onCommentChange?: (goalId: string, comment: string) => void;
 }
 
 // Transform API data to display format
@@ -64,67 +63,203 @@ export function transformPerformanceGoalsForSupervisor(
     });
 }
 
-// Calculate overall rating based on weighted average
+// NOTE: Overall rating is not shown during supervisor evaluation.
+// Rating will only be displayed after all self-assessments are approved,
+// and will be based on the subordinate's self-rating, not the supervisor's.
+// This function is kept for backward compatibility but always returns '−'.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function calculateSupervisorOverallRating(goals: PerformanceGoalSupervisorData[]): string {
-  let totalWeight = 0;
-  let weightedSum = 0;
-
-  goals.forEach(goal => {
-    if (goal.supervisorRatingCode && RATING_CODE_VALUES[goal.supervisorRatingCode] !== undefined) {
-      weightedSum += RATING_CODE_VALUES[goal.supervisorRatingCode] * goal.weight;
-      totalWeight += goal.weight;
-    }
-  });
-
-  if (totalWeight === 0) return '−';
-
-  const avgValue = weightedSum / totalWeight;
-
-  if (avgValue >= 6.5) return 'SS';
-  if (avgValue >= 5.5) return 'S';
-  if (avgValue >= 3.5) return 'A';
-  if (avgValue >= 1.5) return 'B';
-  if (avgValue >= 0.5) return 'C';
-  return 'D';
+  // Always return '−' during evaluation - rating is shown after approval
+  return '−';
 }
 
+/**
+ * Save status indicator component
+ */
+function SaveStatusIndicator({ status }: { status: SaveStatus }) {
+  if (status === "idle") return null;
+
+  return (
+    <>
+      {status === "saving" && (
+        <span className="text-xs text-green-500 flex items-center gap-1 animate-pulse">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          保存中...
+        </span>
+      )}
+      {status === "saved" && (
+        <span className="text-xs text-green-600 flex items-center gap-1">
+          ✓ 一時保存済み
+        </span>
+      )}
+      {status === "error" && (
+        <span className="text-xs text-red-500 flex items-center gap-1">
+          ⚠ 保存失敗
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * Individual goal card component with auto-save
+ */
+function PerformanceGoalSupervisorCard({
+  goal,
+}: {
+  goal: PerformanceGoalSupervisorData;
+}) {
+  // Local state for form values
+  const [ratingCode, setRatingCode] = useState<RatingCode | undefined>(
+    goal.supervisorRatingCode
+  );
+  const [comment, setComment] = useState<string>(goal.supervisorComment || "");
+
+  // Auto-save hook
+  const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
+    feedbackId: goal.feedbackId,
+    initialRatingCode: goal.supervisorRatingCode,
+    initialComment: goal.supervisorComment,
+  });
+
+  // Determine goal type
+  const isQuantitative = goal.type === "quantitative";
+  const availableRatings = isQuantitative ? QUANTITATIVE_RATING_CODES : QUALITATIVE_RATING_CODES;
+
+  // Handle rating change
+  const handleRatingChange = useCallback((newRating: RatingCode) => {
+    if (!isEditable) return;
+    setRatingCode(newRating);
+    debouncedSave({ supervisorRatingCode: newRating, supervisorComment: comment });
+  }, [comment, debouncedSave, isEditable]);
+
+  // Handle comment change (debounced)
+  const handleCommentChange = useCallback((newComment: string) => {
+    if (!isEditable) return;
+    setComment(newComment);
+    debouncedSave({ supervisorRatingCode: ratingCode, supervisorComment: newComment });
+  }, [ratingCode, debouncedSave, isEditable]);
+
+  // Handle comment blur (immediate save)
+  const handleCommentBlur = useCallback(() => {
+    if (!isEditable) return;
+    save({ supervisorRatingCode: ratingCode, supervisorComment: comment });
+  }, [ratingCode, comment, save, isEditable]);
+
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
+      {/* Goal Header */}
+      <div className="flex items-center gap-3 mb-2">
+        <div className="text-xl font-bold text-green-800 flex-1">{goal.specificGoal}</div>
+        <Badge className="bg-green-600 text-white text-sm px-3 py-1">
+          ウエイト {goal.weight}%
+        </Badge>
+        <span
+          className="text-xs font-medium px-2 py-1 rounded-full"
+          style={{
+            background: isQuantitative ? "#2563eb22" : "#a21caf22",
+            color: isQuantitative ? "#2563eb" : "#a21caf"
+          }}
+        >
+          {isQuantitative ? "定量目標" : "定性目標"}
+        </span>
+      </div>
+
+      {/* Goal Details */}
+      <div className="flex flex-col gap-5 mb-2">
+        {/* 手段・手法 Section */}
+        {goal.methods && (
+          <div>
+            <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+              手段・手法
+            </Label>
+            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+              {goal.methods.split('\n').map((line: string, i: number) => (
+                <div key={i}>{line || '\u00A0'}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 達成基準 Section */}
+        {goal.achievementCriteria && (
+          <div>
+            <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+              達成基準
+            </Label>
+            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+              {goal.achievementCriteria.split('\n').map((line: string, i: number) => (
+                <div key={i}>{line || '\u00A0'}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 上長評価 Section with Radio Buttons */}
+        <div>
+          <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+            上長評価
+          </Label>
+
+          {/* Radio button style selectors */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {availableRatings.map((rating) => {
+              const isSelected = ratingCode === rating;
+              return (
+                <div
+                  key={rating}
+                  className={`flex items-center gap-2 ${isEditable ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+                  onClick={() => isEditable && handleRatingChange(rating)}
+                >
+                  <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
+                    {isSelected && <div className="w-3 h-3 rounded-full bg-gray-800"></div>}
+                  </div>
+                  <span className="text-sm text-gray-700">{rating}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Comment Section */}
+      <div className="mt-5">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-sm font-semibold text-gray-700">
+            上長評価コメント
+          </Label>
+          <SaveStatusIndicator status={saveStatus} />
+        </div>
+        <Textarea
+          value={comment}
+          onChange={(e) => handleCommentChange(e.target.value)}
+          onBlur={handleCommentBlur}
+          placeholder="上長としてのフィードバックを記入してください..."
+          className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 min-h-[100px]"
+          maxLength={5000}
+          disabled={!isEditable}
+        />
+        <div className="flex justify-between items-center mt-1">
+          <p className="text-xs text-gray-400">具体的なフィードバックを記載してください</p>
+          <p className="text-xs text-gray-400">{comment.length} / 5000</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Main component: Performance Goals Supervisor Evaluation
+ */
 export default function PerformanceGoalsSupervisorEvaluation({
   goals,
   overallRating,
   isLoading = false,
-  onRatingChange,
-  onCommentChange,
 }: PerformanceGoalsSupervisorEvaluationProps) {
-  const [localEvaluations, setLocalEvaluations] = useState<PerformanceGoalSupervisorData[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // Sync local state with props
-  useEffect(() => {
-    if (goals) {
-      setLocalEvaluations(goals);
-    }
-  }, [goals]);
-
-  const displayGoals = localEvaluations;
+  const displayGoals = goals || [];
   const displayOverallRating = overallRating || (displayGoals.length > 0 ? calculateSupervisorOverallRating(displayGoals) : '−');
-
-  const handleRatingChange = useCallback((goalId: string, rating: RatingCode) => {
-    setLocalEvaluations(prev => prev.map(item =>
-      item.goalId === goalId ? { ...item, supervisorRatingCode: rating } : item
-    ));
-    onRatingChange?.(goalId, rating);
-  }, [onRatingChange]);
-
-  const handleCommentChange = useCallback((goalId: string, comment: string) => {
-    setLocalEvaluations(prev => prev.map(item =>
-      item.goalId === goalId ? { ...item, supervisorComment: comment } : item
-    ));
-    onCommentChange?.(goalId, comment);
-  }, [onCommentChange]);
-
-  const getRatingsForType = (type: "quantitative" | "qualitative"): RatingCode[] => {
-    return type === "quantitative" ? QUANTITATIVE_RATING_CODES : QUALITATIVE_RATING_CODES;
-  };
 
   return (
     <Card className="shadow-xl border-0 bg-white">
@@ -179,108 +314,14 @@ export default function PerformanceGoalsSupervisorEvaluation({
           <div className="text-center py-8 text-muted-foreground">
             <p>業績目標がありません</p>
           </div>
-        ) : displayGoals.map((evalItem) => {
-          const availableRatings = getRatingsForType(evalItem.type);
-
-          return (
-            <div
-              key={evalItem.id}
-              className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5"
-            >
-              {/* Goal Header */}
-              <div className="flex items-center gap-3 mb-2">
-                <div className="text-xl font-bold text-green-800 flex-1">{evalItem.specificGoal}</div>
-                <Badge className="bg-green-600 text-white text-sm px-3 py-1">
-                  ウエイト {evalItem.weight}%
-                </Badge>
-                <span
-                  className="text-xs font-medium px-2 py-1 rounded-full"
-                  style={{
-                    background: evalItem.type === "quantitative" ? "#2563eb22" : "#a21caf22",
-                    color: evalItem.type === "quantitative" ? "#2563eb" : "#a21caf"
-                  }}
-                >
-                  {evalItem.type === "quantitative" ? "定量目標" : "定性目標"}
-                </span>
-              </div>
-
-              {/* Goal Details */}
-              <div className="flex flex-col gap-5 mb-2">
-                {/* 手段・手法 Section */}
-                {evalItem.methods && (
-                  <div>
-                    <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                      手段・手法
-                    </Label>
-                    <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
-                      {evalItem.methods.split('\n').map((line: string, i: number) => (
-                        <div key={i}>{line || '\u00A0'}</div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 達成基準 Section */}
-                {evalItem.achievementCriteria && (
-                  <div>
-                    <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                      達成基準
-                    </Label>
-                    <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
-                      {evalItem.achievementCriteria.split('\n').map((line: string, i: number) => (
-                        <div key={i}>{line || '\u00A0'}</div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 上長評価 Section with Radio Buttons */}
-                <div>
-                  <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                    上長評価 {!evalItem.supervisorRatingCode && <span className="text-red-500">*</span>}
-                  </Label>
-
-                  {/* Radio button style selectors */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {availableRatings.map((rating) => {
-                      const isSelected = evalItem.supervisorRatingCode === rating;
-                      return (
-                        <div
-                          key={rating}
-                          className="flex items-center gap-2 cursor-pointer"
-                          onClick={() => handleRatingChange(evalItem.goalId, rating)}
-                        >
-                          <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
-                            {isSelected && <div className="w-3 h-3 rounded-full bg-gray-800"></div>}
-                          </div>
-                          <span className="text-sm text-gray-700">{rating}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Comment Section */}
-              <div className="mt-5">
-                <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                  上長評価コメント {evalItem.supervisorComment.trim() === "" && <span className="text-red-500">*</span>}
-                </Label>
-                <Textarea
-                  value={evalItem.supervisorComment}
-                  onChange={(e) => handleCommentChange(evalItem.goalId, e.target.value)}
-                  placeholder="上長としてのフィードバックを記入してください..."
-                  className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 min-h-[100px]"
-                  maxLength={5000}
-                />
-                <div className="flex justify-between items-center mt-1">
-                  <p className="text-xs text-gray-400">具体的なフィードバックを記載してください</p>
-                  <p className="text-xs text-gray-400">{evalItem.supervisorComment.length} / 5000</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        ) : (
+          displayGoals.map((goal) => (
+            <PerformanceGoalSupervisorCard
+              key={goal.id}
+              goal={goal}
+            />
+          ))
+        )}
         </CardContent>
       )}
     </Card>

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Target, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, CompetencyRatingData } from "@/api/types";
 import { QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
+import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
 // Display data structure for competency action item
 export interface CompetencyActionSupervisorItem {
@@ -40,8 +41,6 @@ interface CompetencySupervisorEvaluationProps {
   competencies?: CompetencySupervisorData[];
   overallRating?: string;
   isLoading?: boolean;
-  onRatingChange?: (competencyId: string, actionIndex: string, rating: RatingCode) => void;
-  onCommentChange?: (competencyId: string, comment: string) => void;
 }
 
 // Transform API data to display format for supervisor
@@ -135,60 +134,187 @@ function calculateAverageRating(ratings: RatingCode[]): string {
   return 'C';
 }
 
-// Calculate overall competency rating
+// NOTE: Overall rating is not shown during supervisor evaluation.
+// Rating will only be displayed after all self-assessments are approved,
+// and will be based on the subordinate's self-rating, not the supervisor's.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function calculateCompetencySupervisorOverallRating(competencies: CompetencySupervisorData[]): string {
-  const allRatings = competencies.flatMap(c =>
-    c.items.map(i => i.rating).filter(Boolean) as RatingCode[]
-  );
-  return calculateAverageRating(allRatings);
+  // Always return '−' during evaluation - rating is shown after approval
+  return '−';
 }
 
+/**
+ * Save status indicator component
+ */
+function SaveStatusIndicator({ status }: { status: SaveStatus }) {
+  if (status === "idle") return null;
+
+  return (
+    <>
+      {status === "saving" && (
+        <span className="text-xs text-green-500 flex items-center gap-1 animate-pulse">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          保存中...
+        </span>
+      )}
+      {status === "saved" && (
+        <span className="text-xs text-green-600 flex items-center gap-1">
+          ✓ 一時保存済み
+        </span>
+      )}
+      {status === "error" && (
+        <span className="text-xs text-red-500 flex items-center gap-1">
+          ⚠ 保存失敗
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * Individual competency card component with auto-save
+ */
+function CompetencySupervisorCard({
+  competency,
+}: {
+  competency: CompetencySupervisorData;
+}) {
+  // Local state for form values
+  const [items, setItems] = useState(competency.items);
+  const [comment, setComment] = useState<string>(competency.supervisorComment || "");
+
+  // Build initial rating data from items
+  const buildRatingData = useCallback((currentItems: CompetencyActionSupervisorItem[]): CompetencyRatingData => {
+    const ratings: Record<string, RatingCode> = {};
+    currentItems.forEach(item => {
+      if (item.rating) {
+        ratings[item.actionIndex] = item.rating;
+      }
+    });
+    return { [competency.competencyId]: ratings };
+  }, [competency.competencyId]);
+
+  // Auto-save hook
+  const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
+    feedbackId: competency.feedbackId,
+    initialComment: competency.supervisorComment,
+    initialRatingData: competency.ratingData,
+  });
+
+  // Handle rating change for an action item
+  const handleRatingChange = useCallback((actionIndex: string, rating: RatingCode) => {
+    if (!isEditable) return;
+
+    const newItems = items.map(item =>
+      item.actionIndex === actionIndex ? { ...item, rating } : item
+    );
+    setItems(newItems);
+
+    // Build new rating data and save
+    const newRatingData = buildRatingData(newItems);
+    debouncedSave({ supervisorComment: comment, ratingData: newRatingData });
+  }, [items, comment, debouncedSave, isEditable, buildRatingData]);
+
+  // Handle comment change (debounced)
+  const handleCommentChange = useCallback((newComment: string) => {
+    if (!isEditable) return;
+    setComment(newComment);
+    const currentRatingData = buildRatingData(items);
+    debouncedSave({ supervisorComment: newComment, ratingData: currentRatingData });
+  }, [items, debouncedSave, isEditable, buildRatingData]);
+
+  // Handle comment blur (immediate save)
+  const handleCommentBlur = useCallback(() => {
+    if (!isEditable) return;
+    const currentRatingData = buildRatingData(items);
+    save({ supervisorComment: comment, ratingData: currentRatingData });
+  }, [items, comment, save, isEditable, buildRatingData]);
+
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
+      {/* Competency Header with Rating */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-xl font-bold text-green-800">
+          {competency.name}
+        </div>
+
+        {/* Individual Competency Rating Display - Always show '−' during evaluation */}
+        <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+          <span className="text-xs text-gray-500">評価</span>
+          <div className="text-xl font-bold text-gray-300">
+            −
+          </div>
+        </div>
+      </div>
+
+      {/* Competency Items - Editable */}
+      <div className="space-y-4">
+        {items.map((item) => (
+          <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[80px]">
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-gray-700">{item.description}</p>
+
+              {/* Rating Selector */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {QUALITATIVE_RATING_CODES.map((rating) => {
+                  const isSelected = item.rating === rating;
+                  return (
+                    <div
+                      key={rating}
+                      className={`flex items-center gap-2 ${isEditable ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+                      onClick={() => isEditable && handleRatingChange(item.actionIndex, rating)}
+                    >
+                      <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
+                        {isSelected && <div className="w-3 h-3 rounded-full bg-gray-800"></div>}
+                      </div>
+                      <span className="text-sm text-gray-700">{rating}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Comment Section */}
+      <div className="mt-5">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-sm font-semibold text-gray-700">
+            上長評価コメント
+          </Label>
+          <SaveStatusIndicator status={saveStatus} />
+        </div>
+        <Textarea
+          value={comment}
+          onChange={(e) => handleCommentChange(e.target.value)}
+          onBlur={handleCommentBlur}
+          placeholder="上長としてのフィードバックを記入してください..."
+          className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 min-h-[100px]"
+          maxLength={5000}
+          disabled={!isEditable}
+        />
+        <div className="flex justify-between items-center mt-1">
+          <p className="text-xs text-gray-400">具体的なフィードバックを記載してください</p>
+          <p className="text-xs text-gray-400">{comment.length} / 5000</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Main component: Competency Supervisor Evaluation
+ */
 export default function CompetencySupervisorEvaluation({
   competencies,
   overallRating,
   isLoading = false,
-  onRatingChange,
-  onCommentChange,
 }: CompetencySupervisorEvaluationProps) {
-  const [localCompetencies, setLocalCompetencies] = useState<CompetencySupervisorData[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // Sync local state with props
-  useEffect(() => {
-    if (competencies) {
-      setLocalCompetencies(competencies);
-    }
-  }, [competencies]);
-
-  const displayCompetencies = localCompetencies;
+  const displayCompetencies = competencies || [];
   const displayOverallRating = overallRating || (displayCompetencies.length > 0 ? calculateCompetencySupervisorOverallRating(displayCompetencies) : '−');
-
-  const handleRatingChange = useCallback((competencyId: string, actionIndex: string, rating: RatingCode) => {
-    setLocalCompetencies(prev => prev.map(comp => {
-      if (comp.competencyId === competencyId) {
-        return {
-          ...comp,
-          items: comp.items.map(item =>
-            item.actionIndex === actionIndex ? { ...item, rating } : item
-          ),
-          competencyRating: calculateAverageRating(
-            comp.items.map(item =>
-              item.actionIndex === actionIndex ? rating : item.rating
-            ).filter(Boolean) as RatingCode[]
-          ),
-        };
-      }
-      return comp;
-    }));
-    onRatingChange?.(competencyId, actionIndex, rating);
-  }, [onRatingChange]);
-
-  const handleCommentChange = useCallback((competencyId: string, comment: string) => {
-    setLocalCompetencies(prev => prev.map(comp =>
-      comp.competencyId === competencyId ? { ...comp, supervisorComment: comment } : comp
-    ));
-    onCommentChange?.(competencyId, comment);
-  }, [onCommentChange]);
 
   return (
     <Card className="shadow-xl border-0 bg-white">
@@ -362,70 +488,10 @@ export default function CompetencySupervisorEvaluation({
         </div>
 
         {displayCompetencies.map((competency) => (
-          <div key={competency.competencyId} className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
-            {/* Competency Header with Rating */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xl font-bold text-green-800">
-                {competency.name}
-              </div>
-
-              {/* Individual Competency Rating Display */}
-              <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
-                <span className="text-xs text-gray-500">評価</span>
-                <div className={`text-xl font-bold ${competency.competencyRating && competency.competencyRating !== '−' ? 'text-green-700' : 'text-gray-300'}`}>
-                  {competency.competencyRating || '−'}
-                </div>
-              </div>
-            </div>
-
-            {/* Competency Items - Editable */}
-            <div className="space-y-4">
-              {competency.items.map((item) => (
-                <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[80px]">
-                  <div className="flex flex-col gap-3">
-                    <p className="text-sm text-gray-700">{item.description}</p>
-
-                    {/* Rating Selector */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {QUALITATIVE_RATING_CODES.map((rating) => {
-                        const isSelected = item.rating === rating;
-                        return (
-                          <div
-                            key={rating}
-                            className="flex items-center gap-2 cursor-pointer"
-                            onClick={() => handleRatingChange(competency.competencyId, item.actionIndex, rating)}
-                          >
-                            <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
-                              {isSelected && <div className="w-3 h-3 rounded-full bg-gray-800"></div>}
-                            </div>
-                            <span className="text-sm text-gray-700">{rating}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Comment Section */}
-            <div className="mt-5">
-              <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                上長評価コメント {competency.supervisorComment.trim() === "" && <span className="text-red-500">*</span>}
-              </Label>
-              <Textarea
-                value={competency.supervisorComment}
-                onChange={(e) => handleCommentChange(competency.competencyId, e.target.value)}
-                placeholder="上長としてのフィードバックを記入してください..."
-                className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 min-h-[100px]"
-                maxLength={5000}
-              />
-              <div className="flex justify-between items-center mt-1">
-                <p className="text-xs text-gray-400">具体的なフィードバックを記載してください</p>
-                <p className="text-xs text-gray-400">{competency.supervisorComment.length} / 5000</p>
-              </div>
-            </div>
-          </div>
+          <CompetencySupervisorCard
+            key={competency.competencyId}
+            competency={competency}
+          />
         ))}
         </>
         )}
