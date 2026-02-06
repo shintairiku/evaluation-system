@@ -3,7 +3,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TrendingUp, ChevronDown, ChevronUp, Loader2, CheckCircle, MessageSquare } from "lucide-react";
+import { TrendingUp, ChevronDown, ChevronUp, Loader2, CheckCircle, Clock, MessageSquare } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -218,7 +218,9 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
 
 /**
  * Supervisor feedback alert component
- * Displays feedback from supervisor when status is 'submitted'
+ * Displays feedback from supervisor
+ * - Orange/amber when PENDING (waiting for approval)
+ * - Green when APPROVED
  */
 function SupervisorFeedbackAlert({ goalWithAssessment }: { goalWithAssessment: GoalWithAssessment }) {
   const { supervisorFeedback } = goalWithAssessment;
@@ -227,6 +229,8 @@ function SupervisorFeedbackAlert({ goalWithAssessment }: { goalWithAssessment: G
   if (!supervisorFeedback) {
     return null;
   }
+
+  const isApproved = supervisorFeedback.action === 'APPROVED';
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
@@ -239,38 +243,52 @@ function SupervisorFeedbackAlert({ goalWithAssessment }: { goalWithAssessment: G
 
   const feedbackDate = supervisorFeedback.reviewedAt || supervisorFeedback.submittedAt || supervisorFeedback.updatedAt;
 
+  // Color classes based on approval status
+  const alertClasses = isApproved
+    ? "border-green-200 bg-green-50"
+    : "border-amber-200 bg-amber-50";
+  const iconColor = isApproved ? "text-green-600" : "text-amber-600";
+  const titleColor = isApproved ? "text-green-900" : "text-amber-900";
+  const badgeClasses = isApproved ? "bg-green-600 text-white" : "bg-amber-600 text-white";
+  const dateColor = isApproved ? "text-green-800" : "text-amber-800";
+  const commentBorderColor = isApproved ? "border-green-200" : "border-amber-200";
+  const noCommentColor = isApproved ? "text-green-700" : "text-amber-700";
+
+  const Icon = isApproved ? CheckCircle : Clock;
+  const statusText = isApproved ? "上司からのフィードバック（承認済み）" : "上司からのフィードバック（確認中）";
+
   return (
-    <Alert variant="default" className="border-green-200 bg-green-50">
-      <CheckCircle className="h-4 w-4 text-green-600" />
+    <Alert variant="default" className={alertClasses}>
+      <Icon className={`h-4 w-4 ${iconColor}`} />
       <AlertDescription className="ml-2">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-semibold text-green-900 flex items-center gap-2">
+            <p className={`font-semibold ${titleColor} flex items-center gap-2`}>
               <MessageSquare className="h-4 w-4" />
-              上司からのフィードバック
+              {statusText}
             </p>
             <div className="flex items-center gap-3">
               {supervisorFeedback.supervisorRatingCode && (
-                <Badge className="bg-green-600 text-white text-xs">
+                <Badge className={`${badgeClasses} text-xs`}>
                   評価: {supervisorFeedback.supervisorRatingCode}
                 </Badge>
               )}
               {feedbackDate && (
-                <p className="text-sm text-green-800">
+                <p className={`text-sm ${dateColor}`}>
                   {formatDate(feedbackDate)}
                 </p>
               )}
             </div>
           </div>
           {supervisorFeedback.supervisorComment && (
-            <div className="bg-white p-3 rounded border border-green-200">
+            <div className={`bg-white p-3 rounded border ${commentBorderColor}`}>
               <p className="text-sm text-gray-800 whitespace-pre-wrap">
                 {supervisorFeedback.supervisorComment}
               </p>
             </div>
           )}
           {!supervisorFeedback.supervisorComment && (
-            <p className="text-sm text-green-700 italic">
+            <p className={`text-sm ${noCommentColor} italic`}>
               コメントはありません
             </p>
           )}
