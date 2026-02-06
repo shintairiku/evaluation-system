@@ -360,11 +360,8 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
                 raise ValidationError("Cannot submit approved self-assessment (locked)")
 
-            # Validate required fields for submission
-            if not existing_assessment.self_rating_code:
-                raise ValidationError("selfRatingCode is required for submission")
-            if not existing_assessment.self_comment or existing_assessment.self_comment.strip() == "":
-                raise ValidationError("selfComment is required for submission")
+            # Note: Field validation is handled at the service layer (goal-type-aware)
+            # Performance goals require self_rating_code, Competency goals require rating_data
 
             # Update status and set submitted_at
             update_data = {
