@@ -93,6 +93,16 @@ export default function SupervisorSubmitButton({
 
   const hasSubmittableFeedbacks = submittablePerformanceGoals.length > 0 || submittableCompetencyGoals.length > 0;
 
+  // Deduplicate competency goals by feedbackId (multiple competencies share the same feedback)
+  const uniqueCompetencyFeedbacks = useMemo(() => {
+    const seen = new Set<string>();
+    return submittableCompetencyGoals.filter(c => {
+      if (seen.has(c.feedbackId!)) return false;
+      seen.add(c.feedbackId!);
+      return true;
+    });
+  }, [submittableCompetencyGoals]);
+
   // All feedbacks with feedbackId can be submitted (rating/comment are optional)
   const feedbacksToSubmit = [
     ...submittablePerformanceGoals.map(g => ({
@@ -100,7 +110,7 @@ export default function SupervisorSubmitButton({
       supervisorRatingCode: g.supervisorRatingCode, // Optional
       supervisorComment: g.supervisorComment, // Optional
     })),
-    ...submittableCompetencyGoals.map(c => ({
+    ...uniqueCompetencyFeedbacks.map(c => ({
       feedbackId: c.feedbackId!,
       // For competency, we don't have a single rating code
       // The rating is stored in ratingData per action
