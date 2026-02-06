@@ -643,7 +643,7 @@ class SelfAssessmentService:
                 return
             
             # Get employee's current supervisor(s)
-            supervisors = await self.user_repo.get_supervisors(goal.user_id)
+            supervisors = await self.user_repo.get_user_supervisors(goal.user_id, org_id)
             if not supervisors:
                 logger.warning(f"Cannot auto-create feedback: No supervisors found for user {goal.user_id}")
                 return
