@@ -105,6 +105,8 @@ export interface SupervisorFeedbackUpdate {
   supervisorRatingCode?: RatingCode;
   /** Supervisor's feedback comment */
   supervisorComment?: string;
+  /** Per-action ratings for competency goals (JSONB) */
+  ratingData?: Record<string, Record<string, RatingCode>>;
 }
 
 /**

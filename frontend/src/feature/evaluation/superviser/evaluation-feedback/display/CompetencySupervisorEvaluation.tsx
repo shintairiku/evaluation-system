@@ -183,18 +183,23 @@ function CompetencyItemCard({
   isEditable,
 }: {
   competency: CompetencySupervisorData;
-  onRatingChange: (competencyId: string, actionIndex: string, rating: RatingCode) => void;
+  onRatingChange: (competencyId: string, actionIndex: string, rating: RatingCode | undefined) => void;
   isEditable: boolean;
 }) {
   const [items, setItems] = useState(competency.items);
 
+  // Handle rating change (toggle - click again to deselect)
   const handleRatingChange = useCallback((actionIndex: string, rating: RatingCode) => {
     if (!isEditable) return;
+    // Find current item and check if clicking same rating
+    const currentItem = items.find(item => item.actionIndex === actionIndex);
+    const updatedRating = currentItem?.rating === rating ? undefined : rating;
+
     const newItems = items.map(item =>
-      item.actionIndex === actionIndex ? { ...item, rating } : item
+      item.actionIndex === actionIndex ? { ...item, rating: updatedRating } : item
     );
     setItems(newItems);
-    onRatingChange(competency.competencyId, actionIndex, rating);
+    onRatingChange(competency.competencyId, actionIndex, updatedRating);
   }, [items, competency.competencyId, onRatingChange, isEditable]);
 
   return (
@@ -273,14 +278,20 @@ function CompetencyGoalGroup({
     initialRatingData: allRatingData,
   });
 
-  // Handle rating change for any competency in the group
-  const handleRatingChange = useCallback((competencyId: string, actionIndex: string, rating: RatingCode) => {
+  // Handle rating change for any competency in the group (supports toggle/deselect)
+  const handleRatingChange = useCallback((competencyId: string, actionIndex: string, rating: RatingCode | undefined) => {
+    const currentCompetencyRatings = { ...(allRatingData[competencyId] || {}) };
+
+    if (rating === undefined) {
+      // Remove the rating if deselected
+      delete currentCompetencyRatings[actionIndex];
+    } else {
+      currentCompetencyRatings[actionIndex] = rating;
+    }
+
     const newRatingData: CompetencyRatingData = {
       ...allRatingData,
-      [competencyId]: {
-        ...(allRatingData[competencyId] || {}),
-        [actionIndex]: rating,
-      },
+      [competencyId]: currentCompetencyRatings,
     };
     setAllRatingData(newRatingData);
     debouncedSave({ supervisorComment: comment, ratingData: newRatingData });

@@ -131,6 +131,7 @@ export function useSupervisorFeedbackAutoSave({
       const result = await updateSupervisorFeedbackAction(feedbackId, {
         supervisorRatingCode: data.supervisorRatingCode,
         supervisorComment: data.supervisorComment,
+        ratingData: data.ratingData,
       });
 
       if (result.success) {
