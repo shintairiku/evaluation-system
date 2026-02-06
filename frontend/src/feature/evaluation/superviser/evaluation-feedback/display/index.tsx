@@ -7,11 +7,13 @@ import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/eval
 import { getSubordinatesAction, getCurrentUserAction } from "@/api/server-actions/users";
 import { getSelfAssessmentsAction } from "@/api/server-actions/self-assessments";
 import { getGoalsAction } from "@/api/server-actions/goals";
+import { getSupervisorFeedbacksAction } from "@/api/server-actions/supervisor-feedbacks";
 import type {
   EvaluationPeriod,
   UserDetailResponse,
   GoalResponse,
   SelfAssessment,
+  SupervisorFeedback,
 } from "@/api/types";
 import {
   Select,
@@ -26,12 +28,18 @@ import PerformanceGoalsSelfAssessment, {
   transformPerformanceGoalsForDisplay,
   type PerformanceGoalDisplayData,
 } from "./PerformanceGoalsSelfAssessment";
-import PerformanceGoalsSupervisorEvaluation from "./PerformanceGoalsSupervisorEvaluation";
+import PerformanceGoalsSupervisorEvaluation, {
+  transformPerformanceGoalsForSupervisor,
+  type PerformanceGoalSupervisorData,
+} from "./PerformanceGoalsSupervisorEvaluation";
 import CompetencySelfAssessment, {
   transformCompetencyGoalsForDisplay,
   type CompetencyDisplayData,
 } from "./CompetencySelfAssessment";
-import CompetencySupervisorEvaluation from "./CompetencySupervisorEvaluation";
+import CompetencySupervisorEvaluation, {
+  transformCompetencyGoalsForSupervisor,
+  type CompetencySupervisorData,
+} from "./CompetencySupervisorEvaluation";
 import CoreValueSelfAssessment from "./CoreValueSelfAssessment";
 import CoreValueSupervisorEvaluation from "./CoreValueSupervisorEvaluation";
 
@@ -53,9 +61,14 @@ export default function EvaluationFeedbackDisplay() {
   const [subordinates, setSubordinates] = useState<SubordinateWithStatus[]>([]);
   const [selectedSubordinateId, setSelectedSubordinateId] = useState<string>("");
 
-  // Evaluation data state
+  // Evaluation data state - Self assessment (read-only)
   const [performanceGoals, setPerformanceGoals] = useState<PerformanceGoalDisplayData[]>([]);
   const [competencyData, setCompetencyData] = useState<CompetencyDisplayData[]>([]);
+
+  // Evaluation data state - Supervisor feedback (editable)
+  const [supervisorPerformanceGoals, setSupervisorPerformanceGoals] = useState<PerformanceGoalSupervisorData[]>([]);
+  const [supervisorCompetencyData, setSupervisorCompetencyData] = useState<CompetencySupervisorData[]>([]);
+
   const [isLoadingEvaluationData, setIsLoadingEvaluationData] = useState(false);
 
   // Fetch current user on mount
@@ -150,14 +163,16 @@ export default function EvaluationFeedbackDisplay() {
       if (!selectedSubordinateId || !selectedPeriodId) {
         setPerformanceGoals([]);
         setCompetencyData([]);
+        setSupervisorPerformanceGoals([]);
+        setSupervisorCompetencyData([]);
         return;
       }
 
       try {
         setIsLoadingEvaluationData(true);
 
-        // Fetch goals and self-assessments in parallel
-        const [goalsResult, assessmentsResult] = await Promise.all([
+        // Fetch goals, self-assessments, and supervisor feedbacks in parallel
+        const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
           getGoalsAction({
             periodId: selectedPeriodId,
             userId: selectedSubordinateId,
@@ -168,6 +183,10 @@ export default function EvaluationFeedbackDisplay() {
             periodId: selectedPeriodId,
             userId: selectedSubordinateId,
           }),
+          getSupervisorFeedbacksAction({
+            periodId: selectedPeriodId,
+            subordinateId: selectedSubordinateId,
+          }),
         ]);
 
         const goals: GoalResponse[] = goalsResult.success && goalsResult.data?.items
@@ -176,17 +195,28 @@ export default function EvaluationFeedbackDisplay() {
         const selfAssessments: SelfAssessment[] = assessmentsResult.success && assessmentsResult.data?.items
           ? assessmentsResult.data.items
           : [];
+        const supervisorFeedbacks: SupervisorFeedback[] = feedbacksResult.success && feedbacksResult.data?.items
+          ? feedbacksResult.data.items
+          : [];
 
-        // Transform data for display components
+        // Transform data for self-assessment display components (read-only)
         const performanceDisplayData = transformPerformanceGoalsForDisplay(goals, selfAssessments);
         const competencyDisplayData = transformCompetencyGoalsForDisplay(goals, selfAssessments);
 
+        // Transform data for supervisor evaluation components (editable)
+        const supervisorPerformanceData = transformPerformanceGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
+        const supervisorCompetencyDisplayData = transformCompetencyGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
+
         setPerformanceGoals(performanceDisplayData);
         setCompetencyData(competencyDisplayData);
+        setSupervisorPerformanceGoals(supervisorPerformanceData);
+        setSupervisorCompetencyData(supervisorCompetencyDisplayData);
       } catch (error) {
         console.error('Error fetching evaluation data:', error);
         setPerformanceGoals([]);
         setCompetencyData([]);
+        setSupervisorPerformanceGoals([]);
+        setSupervisorCompetencyData([]);
       } finally {
         setIsLoadingEvaluationData(false);
       }
@@ -318,7 +348,10 @@ export default function EvaluationFeedbackDisplay() {
             goals={performanceGoals}
             isLoading={isLoadingEvaluationData}
           />
-          <PerformanceGoalsSupervisorEvaluation />
+          <PerformanceGoalsSupervisorEvaluation
+            goals={supervisorPerformanceGoals}
+            isLoading={isLoadingEvaluationData}
+          />
         </div>
 
         {/* Competency Row */}
@@ -327,7 +360,10 @@ export default function EvaluationFeedbackDisplay() {
             competencies={competencyData}
             isLoading={isLoadingEvaluationData}
           />
-          <CompetencySupervisorEvaluation />
+          <CompetencySupervisorEvaluation
+            competencies={supervisorCompetencyData}
+            isLoading={isLoadingEvaluationData}
+          />
         </div>
 
         {/* Core Value Row */}
