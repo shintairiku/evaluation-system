@@ -150,7 +150,7 @@ function PerformanceGoalSupervisorCard({
     <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
       {/* Goal Header */}
       <div className="flex items-center gap-3 mb-2">
-        <div className="text-xl font-bold text-green-800 flex-1">{goal.specificGoal}</div>
+        <div className="text-xl font-bold text-green-800 flex-1 break-words overflow-hidden">{goal.specificGoal}</div>
         <Badge className="bg-green-600 text-white text-sm px-3 py-1">
           ウエイト {goal.weight}%
         </Badge>
@@ -173,9 +173,9 @@ function PerformanceGoalSupervisorCard({
             <Label className="text-sm font-semibold text-gray-700 mb-2 block">
               手段・手法
             </Label>
-            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5 break-words overflow-hidden">
               {goal.methods.split('\n').map((line: string, i: number) => (
-                <div key={i}>{line || '\u00A0'}</div>
+                <div key={i} className="break-words">{line || '\u00A0'}</div>
               ))}
             </div>
           </div>
@@ -187,9 +187,9 @@ function PerformanceGoalSupervisorCard({
             <Label className="text-sm font-semibold text-gray-700 mb-2 block">
               達成基準
             </Label>
-            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+            <div className="text-xs text-gray-500 leading-relaxed space-y-0.5 break-words overflow-hidden">
               {goal.achievementCriteria.split('\n').map((line: string, i: number) => (
-                <div key={i}>{line || '\u00A0'}</div>
+                <div key={i} className="break-words">{line || '\u00A0'}</div>
               ))}
             </div>
           </div>

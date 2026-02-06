@@ -147,7 +147,7 @@ export default function PerformanceGoalsSelfAssessment({
           >
             {/* Goal Header */}
             <div className="flex items-center gap-3 mb-2">
-              <div className="text-xl font-bold text-blue-800 flex-1">{evalItem.specificGoal}</div>
+              <div className="text-xl font-bold text-blue-800 flex-1 break-words overflow-hidden">{evalItem.specificGoal}</div>
               <Badge className="bg-blue-600 text-white text-sm px-3 py-1">
                 ウエイト {evalItem.weight}%
               </Badge>
@@ -170,9 +170,9 @@ export default function PerformanceGoalsSelfAssessment({
                   <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                     手段・手法
                   </Label>
-                  <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+                  <div className="text-xs text-gray-500 leading-relaxed space-y-0.5 break-words overflow-hidden">
                     {evalItem.methods.split('\n').map((line: string, i: number) => (
-                      <div key={i}>{line || '\u00A0'}</div>
+                      <div key={i} className="break-words">{line || '\u00A0'}</div>
                     ))}
                   </div>
                 </div>
@@ -184,9 +184,9 @@ export default function PerformanceGoalsSelfAssessment({
                   <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                     達成基準
                   </Label>
-                  <div className="text-xs text-gray-500 leading-relaxed space-y-0.5">
+                  <div className="text-xs text-gray-500 leading-relaxed space-y-0.5 break-words overflow-hidden">
                     {evalItem.achievementCriteria.split('\n').map((line: string, i: number) => (
-                      <div key={i}>{line || '\u00A0'}</div>
+                      <div key={i} className="break-words">{line || '\u00A0'}</div>
                     ))}
                   </div>
                 </div>
