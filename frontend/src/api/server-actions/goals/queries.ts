@@ -18,6 +18,7 @@ async function _getGoalsAction(params?: {
   limit?: number;
   includeReviews?: boolean;
   includeRejectionHistory?: boolean;
+  selfOnly?: boolean;
 }): Promise<{ success: boolean; data?: GoalListResponse; error?: string }> {
   try {
     const response = await goalsApi.getGoals(params);

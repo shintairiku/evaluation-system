@@ -26,6 +26,7 @@ export const selfAssessmentsApi = {
     periodId?: UUID;
     userId?: UUID;
     status?: string;
+    selfOnly?: boolean;
   }): Promise<ApiResponse<SelfAssessmentList>> => {
     const queryParams = new URLSearchParams();
     if (params?.pagination?.page) queryParams.append('page', params.pagination.page.toString());
@@ -33,11 +34,12 @@ export const selfAssessmentsApi = {
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.userId) queryParams.append('userId', params.userId);
     if (params?.status) queryParams.append('status', params.status);
-    
-    const endpoint = queryParams.toString() 
+    if (params?.selfOnly) queryParams.append('selfOnly', 'true');
+
+    const endpoint = queryParams.toString()
       ? `${API_ENDPOINTS.SELF_ASSESSMENTS.LIST}?${queryParams.toString()}`
       : API_ENDPOINTS.SELF_ASSESSMENTS.LIST;
-    
+
     return httpClient.get<SelfAssessmentList>(endpoint);
   },
 
