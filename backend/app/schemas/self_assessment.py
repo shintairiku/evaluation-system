@@ -111,6 +111,8 @@ class SubordinateAssessmentStatus(BaseModel):
     total_count: int = Field(..., alias="totalCount", description="Total number of assessments")
     submitted_count: int = Field(..., alias="submittedCount", description="Number of submitted/approved assessments")
     all_submitted: bool = Field(..., alias="allSubmitted", description="Whether all assessments are submitted")
+    approved_count: int = Field(..., alias="approvedCount", description="Number of approved assessments")
+    all_approved: bool = Field(..., alias="allApproved", description="Whether all assessments are approved (evaluation complete)")
 
     model_config = {"populate_by_name": True}
 

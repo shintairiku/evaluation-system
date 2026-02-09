@@ -683,7 +683,7 @@ class SelfAssessmentService:
         Get assessment submission status for all subordinates of the current user.
         Returns status in a single query instead of N+1 queries.
 
-        Returns list of dicts with userId, totalCount, submittedCount, allSubmitted.
+        Returns list of dicts with userId, totalCount, submittedCount, allSubmitted, approvedCount, allApproved.
         """
         org_id = current_user_context.organization_id
         if not org_id:
@@ -705,11 +705,13 @@ class SelfAssessmentService:
                 org_id=org_id
             )
 
-            # Add allSubmitted field
+            # Add calculated boolean fields
             for status in status_list:
                 total = status['totalCount']
                 submitted = status['submittedCount']
+                approved = status['approvedCount']
                 status['allSubmitted'] = total > 0 and submitted == total
+                status['allApproved'] = total > 0 and approved == total
 
             return status_list
 

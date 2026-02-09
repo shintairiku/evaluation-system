@@ -88,7 +88,9 @@ async def get_subordinates_assessment_status(
                 user_id=s['userId'],
                 total_count=s['totalCount'],
                 submitted_count=s['submittedCount'],
-                all_submitted=s['allSubmitted']
+                all_submitted=s['allSubmitted'],
+                approved_count=s['approvedCount'],
+                all_approved=s['allApproved']
             )
             for s in status_list
         ]
