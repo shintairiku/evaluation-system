@@ -7,9 +7,7 @@ import CoreValueEvaluate from "./CoreValueEvaluate";
 import SubmitButton from "../components/SubmitButton";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
-import { getGoalsAction } from "@/api/server-actions/goals";
-import { getSelfAssessmentsAction } from "@/api/server-actions/self-assessments";
-import { getSupervisorFeedbacksAction } from "@/api/server-actions/supervisor-feedbacks";
+import { fetchAndCategorizeGoals } from "./utils";
 import type { EvaluationPeriod, GoalResponse, SelfAssessment, SupervisorFeedback } from "@/api/types";
 
 /**
@@ -40,59 +38,9 @@ export default function EmployeeEvaluationInputDisplay() {
 
     setIsLoadingData(true);
     try {
-      // Fetch approved goals, self-assessments, and supervisor feedbacks in parallel
-      // selfOnly: true ensures supervisors only see their own data, not subordinates'
-      const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
-        getGoalsAction({ periodId, status: 'approved', selfOnly: true }),
-        getSelfAssessmentsAction({ periodId, selfOnly: true }),
-        getSupervisorFeedbacksAction({ periodId })
-      ]);
-
-      if (goalsResult.success && goalsResult.data) {
-        const goals = goalsResult.data.items || [];
-        const assessments = assessmentsResult.success && assessmentsResult.data
-          ? assessmentsResult.data.items || []
-          : [];
-        const feedbacks = feedbacksResult.success && feedbacksResult.data
-          ? feedbacksResult.data.items || []
-          : [];
-
-        // Create a map of goalId -> SelfAssessment for quick lookup
-        const assessmentMap = new Map<string, SelfAssessment>();
-        assessments.forEach(assessment => {
-          assessmentMap.set(assessment.goalId, assessment);
-        });
-
-        // Create a map of selfAssessmentId -> SupervisorFeedback for quick lookup
-        const feedbackMap = new Map<string, SupervisorFeedback>();
-        feedbacks.forEach(feedback => {
-          feedbackMap.set(feedback.selfAssessmentId, feedback);
-        });
-
-        // Separate goals by category and combine with their assessments and feedbacks
-        const performance: GoalWithAssessment[] = [];
-        const competency: GoalWithAssessment[] = [];
-
-        goals.forEach(goal => {
-          const selfAssessment = assessmentMap.get(goal.id) || null;
-          const supervisorFeedback = selfAssessment ? feedbackMap.get(selfAssessment.id) || null : null;
-
-          const combined: GoalWithAssessment = {
-            goal,
-            selfAssessment,
-            supervisorFeedback
-          };
-
-          if (goal.goalCategory === '業績目標') {
-            performance.push(combined);
-          } else if (goal.goalCategory === 'コンピテンシー') {
-            competency.push(combined);
-          }
-        });
-
-        setPerformanceGoals(performance);
-        setCompetencyGoals(competency);
-      }
+      const { performance, competency } = await fetchAndCategorizeGoals(periodId);
+      setPerformanceGoals(performance);
+      setCompetencyGoals(competency);
     } catch (error) {
       console.error('Failed to fetch goals and assessments:', error);
     } finally {
@@ -156,55 +104,9 @@ export default function EmployeeEvaluationInputDisplay() {
     if (!selectedPeriodId) return;
 
     try {
-      // selfOnly: true ensures supervisors only see their own data, not subordinates'
-      const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
-        getGoalsAction({ periodId: selectedPeriodId, status: 'approved', selfOnly: true }),
-        getSelfAssessmentsAction({ periodId: selectedPeriodId, selfOnly: true }),
-        getSupervisorFeedbacksAction({ periodId: selectedPeriodId })
-      ]);
-
-      if (goalsResult.success && goalsResult.data) {
-        const goals = goalsResult.data.items || [];
-        const assessments = assessmentsResult.success && assessmentsResult.data
-          ? assessmentsResult.data.items || []
-          : [];
-        const feedbacks = feedbacksResult.success && feedbacksResult.data
-          ? feedbacksResult.data.items || []
-          : [];
-
-        const assessmentMap = new Map<string, SelfAssessment>();
-        assessments.forEach(assessment => {
-          assessmentMap.set(assessment.goalId, assessment);
-        });
-
-        const feedbackMap = new Map<string, SupervisorFeedback>();
-        feedbacks.forEach(feedback => {
-          feedbackMap.set(feedback.selfAssessmentId, feedback);
-        });
-
-        const performance: GoalWithAssessment[] = [];
-        const competency: GoalWithAssessment[] = [];
-
-        goals.forEach(goal => {
-          const selfAssessment = assessmentMap.get(goal.id) || null;
-          const supervisorFeedback = selfAssessment ? feedbackMap.get(selfAssessment.id) || null : null;
-
-          const combined: GoalWithAssessment = {
-            goal,
-            selfAssessment,
-            supervisorFeedback
-          };
-
-          if (goal.goalCategory === '業績目標') {
-            performance.push(combined);
-          } else if (goal.goalCategory === 'コンピテンシー') {
-            competency.push(combined);
-          }
-        });
-
-        setPerformanceGoals(performance);
-        setCompetencyGoals(competency);
-      }
+      const { performance, competency } = await fetchAndCategorizeGoals(selectedPeriodId);
+      setPerformanceGoals(performance);
+      setCompetencyGoals(competency);
     } catch (error) {
       console.error('Failed to refresh goals and assessments:', error);
     }
