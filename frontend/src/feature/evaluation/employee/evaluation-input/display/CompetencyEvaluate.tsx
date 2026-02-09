@@ -13,7 +13,7 @@ import {
 import { useState, useCallback } from "react";
 import type { GoalWithAssessment } from "./index";
 import type { RatingCode, CompetencyRatingData } from "@/api/types";
-import { RATING_CODE_VALUES } from "@/api/types/common";
+import { calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSelfAssessmentAutoSave } from "../hooks/useSelfAssessmentAutoSave";
 import { SaveStatusIndicator, SupervisorFeedbackAlert } from "./components";
 
@@ -102,24 +102,15 @@ function CompetencyGoalCard({
     const allRated = selectedActions.every((idx) => actionRatings[idx]);
     if (!allRated) return null;
 
-    // Calculate average
-    let totalScore = 0;
-    selectedActions.forEach((idx) => {
-      const rating = actionRatings[idx] as RatingCode;
-      totalScore += RATING_CODE_VALUES[rating] || 0;
-    });
+    // Get ratings for selected actions
+    const ratings = selectedActions
+      .map((idx) => actionRatings[idx] as RatingCode)
+      .filter(Boolean);
 
-    const avgScore = totalScore / selectedActions.length;
+    const avg = calculateRatingAverage(ratings);
+    if (avg === null) return null;
 
-    // Map to rating code (8-level scale)
-    if (avgScore >= 6.5) return "SS";
-    if (avgScore >= 5.5) return "S";
-    if (avgScore >= 4.5) return "A+";
-    if (avgScore >= 3.7) return "A";
-    if (avgScore >= 2.7) return "A-";
-    if (avgScore >= 1.7) return "B";
-    if (avgScore >= 1.0) return "C";
-    return "D";
+    return scoreToFinalRating(avg);
   };
 
   return (
@@ -416,9 +407,8 @@ export default function CompetencyEvaluate({
       const ratingData = item.selfAssessment?.ratingData as CompetencyRatingData;
       if (!ratingData) return;
 
-      let goalScore = 0;
-      let actionCount = 0;
-
+      // Collect all ratings for this goal
+      const allRatings: RatingCode[] = [];
       const selectedActions = item.goal.selectedIdealActions || {};
       Object.entries(selectedActions).forEach(([compId, actions]) => {
         const actionRatings = ratingData[compId];
@@ -427,14 +417,14 @@ export default function CompetencyEvaluate({
         (actions as string[]).forEach((idx) => {
           const rating = actionRatings[idx] as RatingCode;
           if (rating) {
-            goalScore += RATING_CODE_VALUES[rating] || 0;
-            actionCount++;
+            allRatings.push(rating);
           }
         });
       });
 
-      if (actionCount > 0) {
-        totalWeightedScore += (goalScore / actionCount) * weight;
+      const goalAvg = calculateRatingAverage(allRatings);
+      if (goalAvg !== null) {
+        totalWeightedScore += goalAvg * weight;
         totalWeight += weight;
       }
     });
@@ -442,16 +432,7 @@ export default function CompetencyEvaluate({
     if (totalWeight === 0) return null;
 
     const avgScore = totalWeightedScore / totalWeight;
-
-    // Map to rating code (8-level scale)
-    if (avgScore >= 6.5) return "SS";
-    if (avgScore >= 5.5) return "S";
-    if (avgScore >= 4.5) return "A+";
-    if (avgScore >= 3.7) return "A";
-    if (avgScore >= 2.7) return "A-";
-    if (avgScore >= 1.7) return "B";
-    if (avgScore >= 1.0) return "C";
-    return "D";
+    return scoreToFinalRating(avgScore);
   };
 
   const overallRating = calculateOverallRating();

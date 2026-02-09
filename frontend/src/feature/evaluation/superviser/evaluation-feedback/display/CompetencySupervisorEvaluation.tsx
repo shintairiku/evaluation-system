@@ -12,7 +12,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, CompetencyRatingData, SupervisorFeedbackStatus } from "@/api/types";
-import { QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
+import { QUALITATIVE_RATING_CODES } from "@/api/types/common";
+import { calculateAverageRatingCode } from "@/utils/rating";
 import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
 // Display data structure for competency action item
@@ -93,7 +94,7 @@ export function transformCompetencyGoalsForSupervisor(
       });
 
       // Calculate average rating for this competency
-      const competencyRating = calculateAverageRating(items.map(i => i.rating).filter(Boolean) as RatingCode[]);
+      const competencyRating = calculateAverageRatingCode(items.map(i => i.rating).filter(Boolean) as RatingCode[]);
 
       result.push({
         competencyId,
@@ -112,35 +113,6 @@ export function transformCompetencyGoalsForSupervisor(
   }
 
   return result;
-}
-
-// Calculate average rating from a list of ratings (8-level scale output)
-function calculateAverageRating(ratings: RatingCode[]): string {
-  if (ratings.length === 0) return '−';
-
-  let sum = 0;
-  let count = 0;
-
-  for (const rating of ratings) {
-    if (RATING_CODE_VALUES[rating] !== undefined) {
-      sum += RATING_CODE_VALUES[rating];
-      count++;
-    }
-  }
-
-  if (count === 0) return '−';
-
-  const avg = sum / count;
-
-  // Map to rating code (8-level scale)
-  if (avg >= 6.5) return 'SS';
-  if (avg >= 5.5) return 'S';
-  if (avg >= 4.5) return 'A+';
-  if (avg >= 3.7) return 'A';
-  if (avg >= 2.7) return 'A-';
-  if (avg >= 1.7) return 'B';
-  if (avg >= 1.0) return 'C';
-  return 'D';
 }
 
 // NOTE: Overall rating is not shown during supervisor evaluation.

@@ -18,8 +18,8 @@ import type { RatingCode, PerformanceGoalType } from "@/api/types";
 import {
   QUANTITATIVE_RATING_CODES,
   QUALITATIVE_RATING_CODES,
-  RATING_CODE_VALUES,
 } from "@/api/types/common";
+import { calculateWeightedRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSelfAssessmentAutoSave } from "../hooks/useSelfAssessmentAutoSave";
 import { SaveStatusIndicator, SupervisorFeedbackAlert } from "./components";
 
@@ -209,29 +209,15 @@ export default function PerformanceGoalsEvaluate({
 
     if (!allCompleted) return null;
 
-    let totalWeightedScore = 0;
-    let totalWeight = 0;
+    const items = goalsWithAssessments.map((item) => ({
+      rating: item.selfAssessment?.selfRatingCode as RatingCode | undefined,
+      weight: item.goal.weight || 0,
+    }));
 
-    goalsWithAssessments.forEach((item) => {
-      const ratingCode = item.selfAssessment?.selfRatingCode as RatingCode | undefined;
-      if (ratingCode && item.goal.weight) {
-        const value = RATING_CODE_VALUES[ratingCode];
-        totalWeightedScore += value * item.goal.weight;
-        totalWeight += item.goal.weight;
-      }
-    });
+    const avg = calculateWeightedRatingAverage(items);
+    if (avg === null) return null;
 
-    const averageScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
-
-    // Map average score to rating code (8-level scale)
-    if (averageScore >= 6.5) return "SS";
-    if (averageScore >= 5.5) return "S";
-    if (averageScore >= 4.5) return "A+";
-    if (averageScore >= 3.7) return "A";
-    if (averageScore >= 2.7) return "A-";
-    if (averageScore >= 1.7) return "B";
-    if (averageScore >= 1.0) return "C";
-    return "D";
+    return scoreToFinalRating(avg);
   };
 
   const overallRating = calculateOverallRating();

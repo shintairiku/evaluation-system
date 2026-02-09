@@ -11,7 +11,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { GoalResponse, SelfAssessment as APISelfAssessment, RatingCode, CompetencyRatingData } from "@/api/types";
-import { QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
+import { QUALITATIVE_RATING_CODES } from "@/api/types/common";
+import { calculateAverageRatingCode } from "@/utils/rating";
 
 // Display data structure for competency action item
 export interface CompetencyActionDisplayItem {
@@ -80,7 +81,7 @@ export function transformCompetencyGoalsForDisplay(
       });
 
       // Calculate average rating for this competency
-      const competencyRating = calculateAverageRating(items.map(i => i.rating).filter(Boolean) as RatingCode[]);
+      const competencyRating = calculateAverageRatingCode(items.map(i => i.rating).filter(Boolean) as RatingCode[]);
 
       result.push({
         competencyId,
@@ -97,41 +98,12 @@ export function transformCompetencyGoalsForDisplay(
   return result;
 }
 
-// Calculate average rating from a list of competency ratings (8-level scale output)
-function calculateAverageRating(ratings: RatingCode[]): string {
-  if (ratings.length === 0) return '−';
-
-  let sum = 0;
-  let count = 0;
-
-  for (const rating of ratings) {
-    if (RATING_CODE_VALUES[rating] !== undefined) {
-      sum += RATING_CODE_VALUES[rating];
-      count++;
-    }
-  }
-
-  if (count === 0) return '−';
-
-  const avg = sum / count;
-
-  // Map to rating code (8-level scale)
-  if (avg >= 6.5) return 'SS';
-  if (avg >= 5.5) return 'S';
-  if (avg >= 4.5) return 'A+';
-  if (avg >= 3.7) return 'A';
-  if (avg >= 2.7) return 'A-';
-  if (avg >= 1.7) return 'B';
-  if (avg >= 1.0) return 'C';
-  return 'D';
-}
-
 // Calculate overall competency rating
 export function calculateCompetencyOverallRating(competencies: CompetencyDisplayData[]): string {
   const allRatings = competencies.flatMap(c =>
     c.items.map(i => i.rating).filter(Boolean) as RatingCode[]
   );
-  return calculateAverageRating(allRatings);
+  return calculateAverageRatingCode(allRatings);
 }
 
 export default function CompetencySelfAssessment({
