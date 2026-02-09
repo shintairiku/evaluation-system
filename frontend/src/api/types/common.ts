@@ -6,14 +6,13 @@ export enum SubmissionStatus {
 }
 
 /**
- * Self-Assessment status enum (4 states)
+ * Self-Assessment status enum (3 states)
  * @see .kiro/specs/self-assessment/domain-model.md Section 5
  */
 export enum SelfAssessmentStatus {
   DRAFT = 'draft',
   SUBMITTED = 'submitted',
   APPROVED = 'approved',
-  REJECTED = 'rejected',
 }
 
 /**
@@ -108,11 +107,12 @@ export const QUANTITATIVE_RATING_CODES: QuantitativeRatingCode[] = ['SS', 'S', '
 
 /**
  * Supervisor feedback action enum
+ * Note: Only PENDING and APPROVED are valid actions for supervisor feedback.
+ * REJECTED is not applicable to supervisor feedback workflow.
  */
 export enum SupervisorFeedbackAction {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
 }
 
 /**

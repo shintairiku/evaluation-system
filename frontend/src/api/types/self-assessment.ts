@@ -2,7 +2,6 @@ import type {
   UUID,
   RatingCode,
   SelfAssessmentStatus,
-  SupervisorFeedbackAction,
   PaginatedResponse,
 } from './common';
 import type { GoalResponse } from './goal';
@@ -43,13 +42,11 @@ export interface SelfAssessment extends SelfAssessmentBase {
   goalId: UUID;
   /** Reference to the evaluation period */
   periodId: UUID;
-  /** Reference to previous self-assessment (for rejection history) */
-  previousSelfAssessmentId?: UUID;
   /** Numeric rating (0.0-7.0), auto-calculated from selfRatingCode */
   selfRating?: number;
   /** Granular per-action ratings for コンピテンシー goals. NULL for 業績目標. */
   ratingData?: CompetencyRatingData;
-  /** Current status: draft, submitted, approved, or rejected */
+  /** Current status: draft, submitted, or approved */
   status: SelfAssessmentStatus;
   /** Timestamp when assessment was submitted */
   submittedAt?: string;
@@ -131,27 +128,3 @@ export interface SelfAssessmentQueryParams {
   limit?: number;
 }
 
-/**
- * Rejection history item (for history chain display)
- * @see .kiro/specs/self-assessment/api-contract.md Section 4.8
- */
-export interface SelfAssessmentHistoryItem {
-  id: UUID;
-  status: SelfAssessmentStatus;
-  selfRatingCode?: RatingCode;
-  selfComment?: string;
-  previousSelfAssessmentId?: UUID;
-  submittedAt?: string;
-  /** Supervisor's comment (from SupervisorFeedback) */
-  supervisorComment?: string;
-  /** Supervisor's action (from SupervisorFeedback) */
-  supervisorAction?: SupervisorFeedbackAction;
-}
-
-/**
- * Rejection history response
- */
-export interface SelfAssessmentHistory {
-  items: SelfAssessmentHistoryItem[];
-  total: number;
-}
