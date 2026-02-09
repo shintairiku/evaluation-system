@@ -525,3 +525,74 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         if not assessment:
             raise NotFoundError(f"Self-assessment not found: {assessment_id}")
         return assessment
+
+    async def get_assessment_status_by_users(
+        self,
+        user_ids: List[UUID],
+        period_id: UUID,
+        org_id: str
+    ) -> List[dict]:
+        """
+        Get assessment submission status for multiple users in a single query.
+        Returns a list of dicts with userId, totalCount, submittedCount.
+        """
+        try:
+            if not user_ids:
+                return []
+
+            goal_alias = aliased(Goal)
+
+            # Query to count total and submitted assessments per user
+            query = (
+                select(
+                    goal_alias.user_id.label('user_id'),
+                    func.count(SelfAssessment.id).label('total_count'),
+                    func.count(
+                        func.nullif(
+                            SelfAssessment.status.in_([
+                                SelfAssessmentStatus.SUBMITTED.value,
+                                SelfAssessmentStatus.APPROVED.value
+                            ]),
+                            False
+                        )
+                    ).label('submitted_count')
+                )
+                .join(goal_alias, SelfAssessment.goal_id == goal_alias.id)
+                .filter(
+                    and_(
+                        goal_alias.user_id.in_(user_ids),
+                        SelfAssessment.period_id == period_id
+                    )
+                )
+                .group_by(goal_alias.user_id)
+            )
+
+            # Apply organization scope
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
+
+            result = await self.session.execute(query)
+            rows = result.all()
+
+            # Build result list with all user_ids (including those with 0 assessments)
+            status_map = {
+                str(row.user_id): {
+                    'userId': str(row.user_id),
+                    'totalCount': row.total_count,
+                    'submittedCount': row.submitted_count
+                }
+                for row in rows
+            }
+
+            # Include users with no assessments
+            return [
+                status_map.get(str(uid), {
+                    'userId': str(uid),
+                    'totalCount': 0,
+                    'submittedCount': 0
+                })
+                for uid in user_ids
+            ]
+
+        except SQLAlchemyError as e:
+            logger.error(f"Error getting assessment status by users in org {org_id}: {e}")
+            raise

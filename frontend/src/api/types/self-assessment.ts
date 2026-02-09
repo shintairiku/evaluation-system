@@ -128,3 +128,25 @@ export interface SelfAssessmentQueryParams {
   limit?: number;
 }
 
+/**
+ * Assessment status for a single subordinate
+ * Used by supervisors to quickly see submission status of all subordinates
+ */
+export interface SubordinateAssessmentStatus {
+  /** Subordinate user ID */
+  userId: UUID;
+  /** Total number of assessments */
+  totalCount: number;
+  /** Number of submitted/approved assessments */
+  submittedCount: number;
+  /** Whether all assessments are submitted */
+  allSubmitted: boolean;
+}
+
+/**
+ * Response for subordinates assessment status endpoint
+ */
+export interface SubordinatesAssessmentStatusResponse {
+  items: SubordinateAssessmentStatus[];
+}
+

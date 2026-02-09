@@ -105,6 +105,23 @@ class SelfAssessmentList(PaginatedResponse[SelfAssessment]):
     pass
 
 
+class SubordinateAssessmentStatus(BaseModel):
+    """Assessment status for a single subordinate."""
+    user_id: UUID = Field(..., alias="userId")
+    total_count: int = Field(..., alias="totalCount", description="Total number of assessments")
+    submitted_count: int = Field(..., alias="submittedCount", description="Number of submitted/approved assessments")
+    all_submitted: bool = Field(..., alias="allSubmitted", description="Whether all assessments are submitted")
+
+    model_config = {"populate_by_name": True}
+
+
+class SubordinatesAssessmentStatusResponse(BaseModel):
+    """Response schema for subordinates assessment status endpoint."""
+    items: list[SubordinateAssessmentStatus] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
 # ========================================
 # FORWARD REFERENCES UPDATE
 # ========================================
