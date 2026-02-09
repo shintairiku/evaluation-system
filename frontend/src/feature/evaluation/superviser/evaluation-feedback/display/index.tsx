@@ -229,6 +229,55 @@ export default function EvaluationFeedbackDisplay() {
     fetchEvaluationData();
   }, [fetchEvaluationData]);
 
+  /**
+   * Silent refresh - fetches data without showing loading state
+   * Used by SupervisorSubmitButton to refresh data before opening dialog
+   */
+  const silentRefreshData = useCallback(async () => {
+    if (!selectedSubordinateId || !selectedPeriodId) return;
+
+    try {
+      const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
+        getGoalsAction({
+          periodId: selectedPeriodId,
+          userId: selectedSubordinateId,
+          status: 'approved',
+          limit: 100,
+        }),
+        getSelfAssessmentsAction({
+          periodId: selectedPeriodId,
+          userId: selectedSubordinateId,
+        }),
+        getSupervisorFeedbacksAction({
+          periodId: selectedPeriodId,
+          subordinateId: selectedSubordinateId,
+        }),
+      ]);
+
+      const goals: GoalResponse[] = goalsResult.success && goalsResult.data?.items
+        ? goalsResult.data.items
+        : [];
+      const selfAssessments: SelfAssessment[] = assessmentsResult.success && assessmentsResult.data?.items
+        ? assessmentsResult.data.items
+        : [];
+      const supervisorFeedbacks: SupervisorFeedback[] = feedbacksResult.success && feedbacksResult.data?.items
+        ? feedbacksResult.data.items
+        : [];
+
+      const performanceDisplayData = transformPerformanceGoalsForDisplay(goals, selfAssessments);
+      const competencyDisplayData = transformCompetencyGoalsForDisplay(goals, selfAssessments);
+      const supervisorPerformanceData = transformPerformanceGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
+      const supervisorCompetencyDisplayData = transformCompetencyGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
+
+      setPerformanceGoals(performanceDisplayData);
+      setCompetencyData(competencyDisplayData);
+      setSupervisorPerformanceGoals(supervisorPerformanceData);
+      setSupervisorCompetencyData(supervisorCompetencyDisplayData);
+    } catch (error) {
+      console.error('Error refreshing evaluation data:', error);
+    }
+  }, [selectedSubordinateId, selectedPeriodId]);
+
   // Handle period change
   const handlePeriodChange = (periodId: string) => {
     setSelectedPeriodId(periodId);
@@ -333,8 +382,8 @@ export default function EvaluationFeedbackDisplay() {
           <SupervisorSubmitButton
             performanceGoals={supervisorPerformanceGoals}
             competencyGoals={supervisorCompetencyData}
-            onSubmitSuccess={fetchEvaluationData}
-            onRefreshData={fetchEvaluationData}
+            onSubmitSuccess={silentRefreshData}
+            onRefreshData={silentRefreshData}
             disabled={!canEvaluate}
           />
         </div>
