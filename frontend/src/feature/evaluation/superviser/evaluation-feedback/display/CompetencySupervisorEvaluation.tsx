@@ -114,7 +114,7 @@ export function transformCompetencyGoalsForSupervisor(
   return result;
 }
 
-// Calculate average rating from a list of ratings
+// Calculate average rating from a list of ratings (8-level scale output)
 function calculateAverageRating(ratings: RatingCode[]): string {
   if (ratings.length === 0) return '−';
 
@@ -132,11 +132,15 @@ function calculateAverageRating(ratings: RatingCode[]): string {
 
   const avg = sum / count;
 
+  // Map to rating code (8-level scale)
   if (avg >= 6.5) return 'SS';
   if (avg >= 5.5) return 'S';
-  if (avg >= 3.5) return 'A';
-  if (avg >= 1.5) return 'B';
-  return 'C';
+  if (avg >= 4.5) return 'A+';
+  if (avg >= 3.7) return 'A';
+  if (avg >= 2.7) return 'A-';
+  if (avg >= 1.7) return 'B';
+  if (avg >= 1.0) return 'C';
+  return 'D';
 }
 
 // NOTE: Overall rating is not shown during supervisor evaluation.

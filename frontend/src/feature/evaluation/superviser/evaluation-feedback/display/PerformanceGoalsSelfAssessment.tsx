@@ -51,7 +51,7 @@ export function transformPerformanceGoalsForDisplay(
     });
 }
 
-// Calculate overall rating based on weighted average
+// Calculate overall rating based on weighted average (8-level scale)
 export function calculatePerformanceOverallRating(goals: PerformanceGoalDisplayData[]): string {
   let totalWeight = 0;
   let weightedSum = 0;
@@ -67,12 +67,14 @@ export function calculatePerformanceOverallRating(goals: PerformanceGoalDisplayD
 
   const avgValue = weightedSum / totalWeight;
 
-  // Map average score to rating code (same thresholds as evaluation-input)
+  // Map average score to rating code (8-level scale)
   if (avgValue >= 6.5) return 'SS';
   if (avgValue >= 5.5) return 'S';
-  if (avgValue >= 3.5) return 'A';
-  if (avgValue >= 1.5) return 'B';
-  if (avgValue >= 0.5) return 'C';
+  if (avgValue >= 4.5) return 'A+';
+  if (avgValue >= 3.7) return 'A';
+  if (avgValue >= 2.7) return 'A-';
+  if (avgValue >= 1.7) return 'B';
+  if (avgValue >= 1.0) return 'C';
   return 'D';
 }
 
