@@ -141,6 +141,10 @@ export interface SubordinateAssessmentStatus {
   submittedCount: number;
   /** Whether all assessments are submitted */
   allSubmitted: boolean;
+  /** Number of approved assessments (evaluation complete) */
+  approvedCount: number;
+  /** Whether all assessments are approved (evaluation complete) */
+  allApproved: boolean;
 }
 
 /**

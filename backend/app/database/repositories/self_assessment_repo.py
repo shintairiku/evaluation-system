@@ -519,7 +519,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     ) -> List[dict]:
         """
         Get assessment submission status for multiple users in a single query.
-        Returns a list of dicts with userId, totalCount, submittedCount.
+        Returns a list of dicts with userId, totalCount, submittedCount, approvedCount.
         """
         try:
             if not user_ids:
@@ -527,7 +527,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
 
             goal_alias = aliased(Goal)
 
-            # Query to count total and submitted assessments per user
+            # Query to count total, submitted, and approved assessments per user
             query = (
                 select(
                     goal_alias.user_id.label('user_id'),
@@ -540,7 +540,13 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                             ]),
                             False
                         )
-                    ).label('submitted_count')
+                    ).label('submitted_count'),
+                    func.count(
+                        func.nullif(
+                            SelfAssessment.status == SelfAssessmentStatus.APPROVED.value,
+                            False
+                        )
+                    ).label('approved_count')
                 )
                 .join(goal_alias, SelfAssessment.goal_id == goal_alias.id)
                 .filter(
@@ -563,7 +569,8 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                 str(row.user_id): {
                     'userId': str(row.user_id),
                     'totalCount': row.total_count,
-                    'submittedCount': row.submitted_count
+                    'submittedCount': row.submitted_count,
+                    'approvedCount': row.approved_count
                 }
                 for row in rows
             }
@@ -573,7 +580,8 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                 status_map.get(str(uid), {
                     'userId': str(uid),
                     'totalCount': 0,
-                    'submittedCount': 0
+                    'submittedCount': 0,
+                    'approvedCount': 0
                 })
                 for uid in user_ids
             ]

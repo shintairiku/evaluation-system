@@ -37,6 +37,8 @@ interface SubordinateWithStatus extends UserDetailResponse {
   allAssessmentsSubmitted: boolean;
   submittedCount: number;
   totalCount: number;
+  allAssessmentsApproved: boolean;
+  approvedCount: number;
 }
 
 export default function EvaluationFeedbackDisplay() {
@@ -127,6 +129,8 @@ export default function EvaluationFeedbackDisplay() {
                 allAssessmentsSubmitted: status?.allSubmitted ?? false,
                 submittedCount: status?.submittedCount ?? 0,
                 totalCount: status?.totalCount ?? 0,
+                allAssessmentsApproved: status?.allApproved ?? false,
+                approvedCount: status?.approvedCount ?? 0,
               };
             }
           );
@@ -253,7 +257,12 @@ export default function EvaluationFeedbackDisplay() {
                         <div className="flex items-center justify-between w-full gap-3">
                           <span>{subordinate.name}</span>
                           {subordinate.totalCount > 0 ? (
-                            subordinate.allAssessmentsSubmitted ? (
+                            subordinate.allAssessmentsApproved ? (
+                              <span className="flex items-center gap-1 text-xs text-blue-600 font-medium">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                評価完了
+                              </span>
+                            ) : subordinate.allAssessmentsSubmitted ? (
                               <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 提出済み
