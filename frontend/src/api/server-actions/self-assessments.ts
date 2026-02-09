@@ -9,6 +9,7 @@ import type {
   SelfAssessmentDetail,
   SelfAssessmentUpdate,
   SelfAssessmentList,
+  SubordinatesAssessmentStatusResponse,
   PaginationParams,
   UUID,
 } from '../types';
@@ -326,3 +327,39 @@ export async function reopenSelfAssessmentAction(assessmentId: UUID): Promise<{
     };
   }
 }
+
+/**
+ * Server action to get assessment submission status for all subordinates
+ * Optimized single query instead of N+1 queries
+ */
+export const getSubordinatesAssessmentStatusAction = cache(
+  async (
+    periodId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SubordinatesAssessmentStatusResponse;
+    error?: string;
+  }> => {
+    try {
+      const response = await selfAssessmentsApi.getSubordinatesAssessmentStatus(periodId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch subordinates assessment status',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get subordinates assessment status action error:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred while fetching subordinates assessment status',
+      };
+    }
+  },
+);

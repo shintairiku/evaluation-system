@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database.session import get_db_session
 from ...security.dependencies import get_auth_context
 from ...security.context import AuthContext
-from ...schemas.self_assessment import SelfAssessment, SelfAssessmentDetail, SelfAssessmentList, SelfAssessmentCreate, SelfAssessmentUpdate
+from ...schemas.self_assessment import (
+    SelfAssessment, SelfAssessmentDetail, SelfAssessmentList, SelfAssessmentCreate, SelfAssessmentUpdate,
+    SubordinatesAssessmentStatusResponse, SubordinateAssessmentStatus
+)
 from ...schemas.common import PaginationParams, BaseResponse
 from ...services.self_assessment_service import SelfAssessmentService
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
@@ -58,6 +61,49 @@ async def get_self_assessments(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching self-assessments: {str(e)}"
+        )
+
+
+@router.get("/subordinates-status", response_model=SubordinatesAssessmentStatusResponse)
+async def get_subordinates_assessment_status(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get assessment submission status for all subordinates of the current user.
+    Returns status counts in a single optimized query (avoids N+1 queries).
+    """
+    try:
+        service = SelfAssessmentService(session)
+
+        status_list = await service.get_subordinates_assessment_status(
+            period_id=period_id,
+            current_user_context=context
+        )
+
+        # Convert to response schema
+        items = [
+            SubordinateAssessmentStatus(
+                user_id=s['userId'],
+                total_count=s['totalCount'],
+                submitted_count=s['submittedCount'],
+                all_submitted=s['allSubmitted']
+            )
+            for s in status_list
+        ]
+
+        return SubordinatesAssessmentStatusResponse(items=items)
+
+    except PermissionDeniedError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching subordinates assessment status: {str(e)}"
         )
 
 

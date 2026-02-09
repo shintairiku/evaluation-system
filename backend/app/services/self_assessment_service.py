@@ -674,8 +674,51 @@ class SelfAssessmentService:
             )
             
             logger.info(f"Auto-created SupervisorFeedback {created_feedback.id} for assessment {assessment.id} assigned to supervisor {primary_supervisor.id}")
-            
+
         except Exception as e:
             logger.error(f"Error auto-creating supervisor feedback for assessment {assessment.id}: {str(e)}")
             # Don't re-raise - we don't want auto-creation failure to block assessment submission
             # This follows the pattern from goal_service.py: "Do not rollback goal submission due to review auto-creation failure"
+
+    async def get_subordinates_assessment_status(
+        self,
+        period_id: UUID,
+        current_user_context: AuthContext
+    ) -> List[dict]:
+        """
+        Get assessment submission status for all subordinates of the current user.
+        Returns status in a single query instead of N+1 queries.
+
+        Returns list of dicts with userId, totalCount, submittedCount, allSubmitted.
+        """
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        try:
+            # Get subordinate IDs for the current user
+            subordinate_ids = await RBACHelper._get_subordinate_user_ids(
+                current_user_context.user_id, self.user_repo, org_id
+            )
+
+            if not subordinate_ids:
+                return []
+
+            # Get assessment status for all subordinates in one query
+            status_list = await self.self_assessment_repo.get_assessment_status_by_users(
+                user_ids=subordinate_ids,
+                period_id=period_id,
+                org_id=org_id
+            )
+
+            # Add allSubmitted field
+            for status in status_list:
+                total = status['totalCount']
+                submitted = status['submittedCount']
+                status['allSubmitted'] = total > 0 and submitted == total
+
+            return status_list
+
+        except Exception as e:
+            logger.error(f"Error getting subordinates assessment status: {e}")
+            raise

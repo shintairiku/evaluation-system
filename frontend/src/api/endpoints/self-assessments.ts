@@ -5,6 +5,7 @@ import type {
   SelfAssessmentDetail,
   SelfAssessmentUpdate,
   SelfAssessmentList,
+  SubordinatesAssessmentStatusResponse,
   PaginationParams,
   ApiResponse,
   UUID,
@@ -112,5 +113,15 @@ export const selfAssessmentsApi = {
    */
   deleteSelfAssessment: async (assessmentId: UUID): Promise<ApiResponse<void>> => {
     return httpClient.delete<void>(API_ENDPOINTS.SELF_ASSESSMENTS.DELETE(assessmentId));
+  },
+
+  /**
+   * Get assessment submission status for all subordinates (optimized single query)
+   * Used by supervisors to quickly see which subordinates have submitted their assessments
+   */
+  getSubordinatesAssessmentStatus: async (periodId: UUID): Promise<ApiResponse<SubordinatesAssessmentStatusResponse>> => {
+    return httpClient.get<SubordinatesAssessmentStatusResponse>(
+      `/self-assessments/subordinates-status?periodId=${periodId}`
+    );
   },
 };
