@@ -1,7 +1,8 @@
 'use client';
 
-import { OrganizationSwitcher, OrganizationProfile } from '@clerk/nextjs';
-import { useAuth } from '@clerk/nextjs';
+import { OrganizationSwitcher, OrganizationProfile, SignOutButton, useAuth } from '@clerk/nextjs';
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
 import { useState } from 'react';
 
 export default function OrgPage() {
@@ -27,6 +28,12 @@ export default function OrgPage() {
             </button>
           )}
           <p className="text-sm text-muted-foreground">組織アカウントのみサポートされています。</p>
+          <SignOutButton redirectUrl="/sign-in">
+            <Button variant="outline">
+              <LogOut />
+              ログアウト
+            </Button>
+          </SignOutButton>
         </>
       ) : (
         <>
@@ -38,6 +45,12 @@ export default function OrgPage() {
               ← 戻る
             </button>
             <h1 className="text-2xl font-semibold">組織設定</h1>
+            <SignOutButton redirectUrl="/sign-in">
+              <Button variant="outline" size="sm" className="ml-auto">
+                <LogOut />
+                ログアウト
+              </Button>
+            </SignOutButton>
           </div>
           <OrganizationProfile
             afterLeaveOrganizationUrl="/org"
@@ -47,5 +60,3 @@ export default function OrgPage() {
     </div>
   );
 }
-
-
