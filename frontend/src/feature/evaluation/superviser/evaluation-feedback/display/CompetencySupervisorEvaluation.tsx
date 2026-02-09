@@ -11,7 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, CompetencyRatingData } from "@/api/types";
+import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, CompetencyRatingData, SupervisorFeedbackStatus } from "@/api/types";
 import { QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
 import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
@@ -29,6 +29,7 @@ export interface CompetencySupervisorData {
   goalId: string;
   selfAssessmentId: string;
   feedbackId?: string;
+  feedbackStatus?: SupervisorFeedbackStatus;
   name: string;
   items: CompetencyActionSupervisorItem[];
   supervisorComment: string;
@@ -99,6 +100,7 @@ export function transformCompetencyGoalsForSupervisor(
         goalId: goal.id,
         selfAssessmentId: assessment?.id || '',
         feedbackId: feedback?.id,
+        feedbackStatus: feedback?.status,
         name: competencyName,
         items,
         supervisorComment: feedback?.supervisorComment || '',
@@ -276,6 +278,7 @@ function CompetencyGoalGroup({
     feedbackId: firstCompetency?.feedbackId,
     initialComment: firstCompetency?.supervisorComment,
     initialRatingData: allRatingData,
+    initialStatus: firstCompetency?.feedbackStatus,
   });
 
   // Handle rating change for any competency in the group (supports toggle/deselect)
