@@ -129,15 +129,14 @@ function PerformanceGoalSupervisorCard({
   // Handle rating change (toggle - click again to deselect)
   const handleRatingChange = useCallback((newRating: RatingCode) => {
     if (!isEditable) return;
-    // If clicking the same rating, deselect it (send null to clear in DB)
+    // If clicking the same rating, deselect it (send undefined to clear in DB)
     const isDeselecting = ratingCode === newRating;
     const updatedRating = isDeselecting ? undefined : newRating;
     setRatingCode(updatedRating);
-    // Send null explicitly to clear the rating in the database
     debouncedSave({
-      supervisorRatingCode: isDeselecting ? null : newRating,
+      supervisorRatingCode: updatedRating,
       supervisorComment: comment
-    } as { supervisorRatingCode: RatingCode | null; supervisorComment: string });
+    });
   }, [ratingCode, comment, debouncedSave, isEditable]);
 
   // Handle comment change (debounced)
