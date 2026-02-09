@@ -111,12 +111,15 @@ function CompetencyGoalCard({
 
     const avgScore = totalScore / selectedActions.length;
 
-    // Map to rating code (5-level scale)
+    // Map to rating code (8-level scale)
     if (avgScore >= 6.5) return "SS";
     if (avgScore >= 5.5) return "S";
-    if (avgScore >= 3.5) return "A";
-    if (avgScore >= 1.5) return "B";
-    return "C";
+    if (avgScore >= 4.5) return "A+";
+    if (avgScore >= 3.7) return "A";
+    if (avgScore >= 2.7) return "A-";
+    if (avgScore >= 1.7) return "B";
+    if (avgScore >= 1.0) return "C";
+    return "D";
   };
 
   return (
@@ -440,12 +443,15 @@ export default function CompetencyEvaluate({
 
     const avgScore = totalWeightedScore / totalWeight;
 
-    // Map to rating code (5-level scale)
+    // Map to rating code (8-level scale)
     if (avgScore >= 6.5) return "SS";
     if (avgScore >= 5.5) return "S";
-    if (avgScore >= 3.5) return "A";
-    if (avgScore >= 1.5) return "B";
-    return "C";
+    if (avgScore >= 4.5) return "A+";
+    if (avgScore >= 3.7) return "A";
+    if (avgScore >= 2.7) return "A-";
+    if (avgScore >= 1.7) return "B";
+    if (avgScore >= 1.0) return "C";
+    return "D";
   };
 
   const overallRating = calculateOverallRating();

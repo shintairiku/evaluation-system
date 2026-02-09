@@ -223,12 +223,14 @@ export default function PerformanceGoalsEvaluate({
 
     const averageScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
 
-    // Map average score to rating code
+    // Map average score to rating code (8-level scale)
     if (averageScore >= 6.5) return "SS";
     if (averageScore >= 5.5) return "S";
-    if (averageScore >= 3.5) return "A";
-    if (averageScore >= 1.5) return "B";
-    if (averageScore >= 0.5) return "C";
+    if (averageScore >= 4.5) return "A+";
+    if (averageScore >= 3.7) return "A";
+    if (averageScore >= 2.7) return "A-";
+    if (averageScore >= 1.7) return "B";
+    if (averageScore >= 1.0) return "C";
     return "D";
   };
 
