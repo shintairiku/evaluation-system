@@ -6,7 +6,7 @@ import { TrendingUp, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode } from "@/api/types";
+import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, SupervisorFeedbackStatus } from "@/api/types";
 import { QUANTITATIVE_RATING_CODES, QUALITATIVE_RATING_CODES } from "@/api/types/common";
 import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
@@ -16,6 +16,7 @@ export interface PerformanceGoalSupervisorData {
   goalId: string;
   selfAssessmentId: string;
   feedbackId?: string;
+  feedbackStatus?: SupervisorFeedbackStatus;
   type: "quantitative" | "qualitative";
   weight: number;
   specificGoal: string;
@@ -52,6 +53,7 @@ export function transformPerformanceGoalsForSupervisor(
         goalId: goal.id,
         selfAssessmentId: assessment?.id || '',
         feedbackId: feedback?.id,
+        feedbackStatus: feedback?.status,
         type: goal.performanceGoalType || 'qualitative',
         weight: goal.weight,
         specificGoal: goal.specificGoalText || goal.title || '',
@@ -120,6 +122,7 @@ function PerformanceGoalSupervisorCard({
     feedbackId: goal.feedbackId,
     initialRatingCode: goal.supervisorRatingCode,
     initialComment: goal.supervisorComment,
+    initialStatus: goal.feedbackStatus,
   });
 
   // Determine goal type

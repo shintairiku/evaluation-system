@@ -29,21 +29,21 @@ interface SupervisorSubmitButtonProps {
 }
 
 /**
- * Check if a performance goal feedback can be submitted (has feedbackId)
+ * Check if a performance goal feedback can be submitted (has feedbackId and not already submitted)
  * Note: Rating and comment are OPTIONAL - supervisor can submit without filling them
  */
 function canSubmitPerformanceFeedback(goal: PerformanceGoalSupervisorData): boolean {
-  // Only need feedbackId to submit - rating/comment are optional
-  return !!goal.feedbackId;
+  // Need feedbackId and not already submitted - rating/comment are optional
+  return !!goal.feedbackId && goal.feedbackStatus !== 'submitted';
 }
 
 /**
- * Check if a competency goal feedback can be submitted (has feedbackId)
+ * Check if a competency goal feedback can be submitted (has feedbackId and not already submitted)
  * Note: Ratings and comment are OPTIONAL - supervisor can submit without filling them
  */
 function canSubmitCompetencyFeedback(competency: CompetencySupervisorData): boolean {
-  // Only need feedbackId to submit - ratings/comment are optional
-  return !!competency.feedbackId;
+  // Need feedbackId and not already submitted - ratings/comment are optional
+  return !!competency.feedbackId && competency.feedbackStatus !== 'submitted';
 }
 
 export default function SupervisorSubmitButton({
