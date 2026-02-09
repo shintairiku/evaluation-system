@@ -5,16 +5,8 @@ import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeri
 import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
 import { getSubordinatesAction, getCurrentUserAction } from "@/api/server-actions/users";
-import { getSelfAssessmentsAction } from "@/api/server-actions/self-assessments";
-import { getGoalsAction } from "@/api/server-actions/goals";
-import { getSupervisorFeedbacksAction } from "@/api/server-actions/supervisor-feedbacks";
-import type {
-  EvaluationPeriod,
-  UserDetailResponse,
-  GoalResponse,
-  SelfAssessment,
-  SupervisorFeedback,
-} from "@/api/types";
+import { getSubordinatesAssessmentStatusAction } from "@/api/server-actions/self-assessments";
+import type { EvaluationPeriod, UserDetailResponse } from "@/api/types";
 import {
   Select,
   SelectContent,
@@ -25,23 +17,20 @@ import {
 import { User, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import SupervisorSubmitButton from "../components/SupervisorSubmitButton";
 import PerformanceGoalsSelfAssessment, {
-  transformPerformanceGoalsForDisplay,
   type PerformanceGoalDisplayData,
 } from "./PerformanceGoalsSelfAssessment";
 import PerformanceGoalsSupervisorEvaluation, {
-  transformPerformanceGoalsForSupervisor,
   type PerformanceGoalSupervisorData,
 } from "./PerformanceGoalsSupervisorEvaluation";
 import CompetencySelfAssessment, {
-  transformCompetencyGoalsForDisplay,
   type CompetencyDisplayData,
 } from "./CompetencySelfAssessment";
 import CompetencySupervisorEvaluation, {
-  transformCompetencyGoalsForSupervisor,
   type CompetencySupervisorData,
 } from "./CompetencySupervisorEvaluation";
 import CoreValueSelfAssessment from "./CoreValueSelfAssessment";
 import CoreValueSupervisorEvaluation from "./CoreValueSupervisorEvaluation";
+import { fetchSubordinateEvaluationData } from "./utils";
 
 // Subordinate with submission status
 interface SubordinateWithStatus extends UserDetailResponse {
@@ -109,53 +98,50 @@ export default function EvaluationFeedbackDisplay() {
   }, []);
 
   // Fetch subordinates when current user is available
+  // Uses optimized single query for assessment status
   useEffect(() => {
     const fetchSubordinates = async () => {
       if (!currentUser?.id || !selectedPeriodId) return;
 
       try {
         setIsLoadingSubordinates(true);
-        const result = await getSubordinatesAction(currentUser.id);
 
-        if (result.success && result.data?.items) {
-          // For each subordinate, check their assessment submission status
-          const subordinatesWithStatus = await Promise.all(
-            result.data.items.map(async (subordinate) => {
-              // Fetch self-assessments for this subordinate
-              const assessmentsResult = await getSelfAssessmentsAction({
-                periodId: selectedPeriodId,
-                userId: subordinate.id,
-              });
+        // Fetch subordinates and their assessment status in parallel
+        const [subordinatesResult, statusResult] = await Promise.all([
+          getSubordinatesAction(currentUser.id),
+          getSubordinatesAssessmentStatusAction(selectedPeriodId),
+        ]);
 
-              const assessments = assessmentsResult.data?.items || [];
-              const submittedCount = assessments.filter(
-                a => a.status === 'submitted' || a.status === 'approved'
-              ).length;
-              const totalCount = assessments.length;
+        if (subordinatesResult.success && subordinatesResult.data?.items) {
+          // Build status map for quick lookup
+          const statusMap = new Map(
+            (statusResult.data?.items || []).map(s => [s.userId, s])
+          );
 
+          // Merge subordinates with their assessment status
+          const subordinatesWithStatus: SubordinateWithStatus[] = subordinatesResult.data.items.map(
+            (subordinate) => {
+              const status = statusMap.get(subordinate.id);
               return {
                 ...subordinate,
-                allAssessmentsSubmitted: totalCount > 0 && submittedCount === totalCount,
-                submittedCount,
-                totalCount,
+                allAssessmentsSubmitted: status?.allSubmitted ?? false,
+                submittedCount: status?.submittedCount ?? 0,
+                totalCount: status?.totalCount ?? 0,
               };
-            })
+            }
           );
 
           setSubordinates(subordinatesWithStatus);
-
-          // Auto-select first subordinate if none selected
-          if (!selectedSubordinateId && subordinatesWithStatus.length > 0) {
-            setSelectedSubordinateId(subordinatesWithStatus[0].id);
-          }
         }
+      } catch (error) {
+        console.error('Error fetching subordinates:', error);
       } finally {
         setIsLoadingSubordinates(false);
       }
     };
 
     fetchSubordinates();
-  }, [currentUser?.id, selectedPeriodId, selectedSubordinateId]);
+  }, [currentUser?.id, selectedPeriodId]);
 
   // Fetch evaluation data function (can be called manually for refresh)
   const fetchEvaluationData = useCallback(async () => {
@@ -170,49 +156,12 @@ export default function EvaluationFeedbackDisplay() {
     try {
       setIsLoadingEvaluationData(true);
 
-      // Fetch goals, self-assessments, and supervisor feedbacks in parallel
-      const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
-        getGoalsAction({
-          periodId: selectedPeriodId,
-          userId: selectedSubordinateId,
-          status: 'approved', // Only approved goals
-          limit: 100,
-        }),
-        getSelfAssessmentsAction({
-          periodId: selectedPeriodId,
-          userId: selectedSubordinateId,
-        }),
-        getSupervisorFeedbacksAction({
-          periodId: selectedPeriodId,
-          subordinateId: selectedSubordinateId,
-        }),
-      ]);
+      const data = await fetchSubordinateEvaluationData(selectedPeriodId, selectedSubordinateId);
 
-      const goals: GoalResponse[] = goalsResult.success && goalsResult.data?.items
-        ? goalsResult.data.items
-        : [];
-      const selfAssessments: SelfAssessment[] = assessmentsResult.success && assessmentsResult.data?.items
-        ? assessmentsResult.data.items
-        : [];
-      const supervisorFeedbacks: SupervisorFeedback[] = feedbacksResult.success && feedbacksResult.data?.items
-        ? feedbacksResult.data.items
-        : [];
-
-      // NOTE: SupervisorFeedback is auto-created by the backend when self-assessment is submitted.
-      // No need to create here - just fetch and display.
-
-      // Transform data for self-assessment display components (read-only)
-      const performanceDisplayData = transformPerformanceGoalsForDisplay(goals, selfAssessments);
-      const competencyDisplayData = transformCompetencyGoalsForDisplay(goals, selfAssessments);
-
-      // Transform data for supervisor evaluation components (editable)
-      const supervisorPerformanceData = transformPerformanceGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
-      const supervisorCompetencyDisplayData = transformCompetencyGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
-
-      setPerformanceGoals(performanceDisplayData);
-      setCompetencyData(competencyDisplayData);
-      setSupervisorPerformanceGoals(supervisorPerformanceData);
-      setSupervisorCompetencyData(supervisorCompetencyDisplayData);
+      setPerformanceGoals(data.performanceGoals);
+      setCompetencyData(data.competencyData);
+      setSupervisorPerformanceGoals(data.supervisorPerformanceGoals);
+      setSupervisorCompetencyData(data.supervisorCompetencyData);
     } catch (error) {
       console.error('Error fetching evaluation data:', error);
       setPerformanceGoals([]);
@@ -237,42 +186,12 @@ export default function EvaluationFeedbackDisplay() {
     if (!selectedSubordinateId || !selectedPeriodId) return;
 
     try {
-      const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
-        getGoalsAction({
-          periodId: selectedPeriodId,
-          userId: selectedSubordinateId,
-          status: 'approved',
-          limit: 100,
-        }),
-        getSelfAssessmentsAction({
-          periodId: selectedPeriodId,
-          userId: selectedSubordinateId,
-        }),
-        getSupervisorFeedbacksAction({
-          periodId: selectedPeriodId,
-          subordinateId: selectedSubordinateId,
-        }),
-      ]);
+      const data = await fetchSubordinateEvaluationData(selectedPeriodId, selectedSubordinateId);
 
-      const goals: GoalResponse[] = goalsResult.success && goalsResult.data?.items
-        ? goalsResult.data.items
-        : [];
-      const selfAssessments: SelfAssessment[] = assessmentsResult.success && assessmentsResult.data?.items
-        ? assessmentsResult.data.items
-        : [];
-      const supervisorFeedbacks: SupervisorFeedback[] = feedbacksResult.success && feedbacksResult.data?.items
-        ? feedbacksResult.data.items
-        : [];
-
-      const performanceDisplayData = transformPerformanceGoalsForDisplay(goals, selfAssessments);
-      const competencyDisplayData = transformCompetencyGoalsForDisplay(goals, selfAssessments);
-      const supervisorPerformanceData = transformPerformanceGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
-      const supervisorCompetencyDisplayData = transformCompetencyGoalsForSupervisor(goals, selfAssessments, supervisorFeedbacks);
-
-      setPerformanceGoals(performanceDisplayData);
-      setCompetencyData(competencyDisplayData);
-      setSupervisorPerformanceGoals(supervisorPerformanceData);
-      setSupervisorCompetencyData(supervisorCompetencyDisplayData);
+      setPerformanceGoals(data.performanceGoals);
+      setCompetencyData(data.competencyData);
+      setSupervisorPerformanceGoals(data.supervisorPerformanceGoals);
+      setSupervisorCompetencyData(data.supervisorCompetencyData);
     } catch (error) {
       console.error('Error refreshing evaluation data:', error);
     }
