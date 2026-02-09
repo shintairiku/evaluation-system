@@ -42,7 +42,7 @@ export interface SupervisorFeedback extends SupervisorFeedbackBase {
   subordinateId: UUID;
   /** Numeric rating (0.0-7.0), auto-calculated */
   supervisorRating?: number;
-  /** Decision: PENDING, APPROVED, or REJECTED */
+  /** Decision: PENDING or APPROVED */
   action: SupervisorFeedbackAction;
   /** Workflow status: incomplete, draft, or submitted */
   status: SupervisorFeedbackStatus;
@@ -110,15 +110,15 @@ export interface SupervisorFeedbackUpdate {
 }
 
 /**
- * Request body for submitting supervisor feedback (approve/reject)
+ * Request body for submitting supervisor feedback (approve)
  * @see .kiro/specs/self-assessment/api-contract.md Section 5.5
  */
 export interface SupervisorFeedbackSubmit {
-  /** Decision: APPROVED or REJECTED */
-  action: 'APPROVED' | 'REJECTED';
+  /** Decision: APPROVED (only valid action for submission) */
+  action: 'APPROVED';
   /** Rating code (required for APPROVED) */
   supervisorRatingCode?: RatingCode;
-  /** Comment (required for REJECTED, optional for APPROVED) */
+  /** Optional comment */
   supervisorComment?: string;
 }
 
