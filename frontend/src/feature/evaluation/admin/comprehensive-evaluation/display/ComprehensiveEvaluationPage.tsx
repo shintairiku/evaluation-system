@@ -973,7 +973,7 @@ export default function ComprehensiveEvaluationPage() {
                                     ? "降格"
                                     : "-"}
                             </span>
-                            {override && <Badge variant="secondary">特例</Badge>}
+                            {override && <Badge variant="secondary">手動</Badge>}
                           </div>
                         </TableCell>
                       </TableRow>
