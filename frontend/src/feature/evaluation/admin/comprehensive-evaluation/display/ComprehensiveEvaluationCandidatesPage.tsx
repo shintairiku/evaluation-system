@@ -8,7 +8,6 @@ import RolePermissionGuard from "@/components/auth/RolePermissionGuard";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,8 +38,6 @@ type ManualOverrideDraft = {
   stageAfter: string;
   levelAfter: string;
   reason: string;
-  doubleCheckedBy: string;
-  confirmed: boolean;
 };
 
 const DECISIONS: ComprehensiveEvaluationDecision[] = ["昇格", "降格", "対象外"];
@@ -147,8 +144,6 @@ export default function ComprehensiveEvaluationCandidatesPage() {
       stageAfter: typeof override?.stageAfter === "string" ? override.stageAfter : "",
       levelAfter: typeof override?.levelAfter === "number" ? String(override.levelAfter) : "",
       reason: override?.reason ?? "",
-      doubleCheckedBy: override?.doubleCheckedBy ?? "",
-      confirmed: false,
     });
   };
 
@@ -200,17 +195,13 @@ export default function ComprehensiveEvaluationCandidatesPage() {
         (levelAfterValue as number) <= 30);
 
     if (!stageAfterValid || !levelAfterValid) return;
-    if (!overrideDraft.reason.trim()) return;
-    if (!overrideDraft.doubleCheckedBy.trim()) return;
-    if (!overrideDraft.confirmed) return;
 
     upsertOverride(selectedItem.row.evaluationPeriodId, selectedItem.row.userId, {
       decision: overrideDraft.decision,
       stageAfter: requiresStageAfter ? stageAfter : undefined,
       levelAfter:
         requiresLevelAfter && typeof levelAfterValue === "number" ? (levelAfterValue as number) : undefined,
-      reason: overrideDraft.reason.trim(),
-      doubleCheckedBy: overrideDraft.doubleCheckedBy.trim(),
+      reason: overrideDraft.reason.trim() ? overrideDraft.reason.trim() : undefined,
       appliedAt: new Date().toISOString(),
     });
 
@@ -234,13 +225,13 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   };
 
   return (
-    <RolePermissionGuard requiredHierarchyLevel={1} deniedMessage="このページは管理者のみ閲覧できます">
+    <RolePermissionGuard requiredRole="admin" deniedMessage="このページはeval_adminのみ閲覧できます">
       <div className="container mx-auto space-y-6 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">昇格/降格フラグ対応</h1>
             <p className="text-sm text-muted-foreground">
-              昇格フラグ（正社員の新レベルが30以上）または降格フラグ（総合評価がD）が点灯した行を起点に、`eval_admin`がステージ変更（アップ/ダウン）と反映後レベル（正社員のみ）を手動で確定します（理由・ダブルチェック必須 / モックではブラウザ保存）。
+              昇格フラグ（正社員の新レベルが30以上）または降格フラグ（総合評価がD）が点灯した行を起点に、`eval_admin`がステージ変更（アップ/ダウン）と反映後レベル（正社員のみ）を手動で確定します（理由は任意 / モックではブラウザ保存）。
             </p>
           </div>
 
@@ -486,9 +477,9 @@ export default function ComprehensiveEvaluationCandidatesPage() {
         <Dialog open={overrideRowId !== null} onOpenChange={(open) => !open && closeOverrideDialog()}>
           <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>特例反映（手動で判定/反映後ステージ/反映後レベルを確定）</DialogTitle>
+              <DialogTitle>手動確定（判定/反映後ステージ/反映後レベルを確定）</DialogTitle>
               <DialogDescription>
-                ルールに該当しない場合でも、理由とダブルチェック情報を残して手動で反映できます（モックではブラウザ保存）。
+                ルールに該当しない場合でも、必要に応じて理由を残して手動で確定できます（モックではブラウザ保存）。
               </DialogDescription>
             </DialogHeader>
 
@@ -519,7 +510,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                       </div>
 
                       <div className="space-y-2 rounded-md border p-3">
-                        <div className="text-sm font-semibold">特例プレビュー</div>
+                        <div className="text-sm font-semibold">手動確定プレビュー</div>
                         {(() => {
                           const requiresStageAfter = overrideDraft.decision !== "対象外";
                           const requiresLevelAfter =
@@ -544,7 +535,6 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                             stageAfter: stageAfterOverride,
                             levelAfter: levelAfterOverride,
                             reason: overrideDraft.reason,
-                            doubleCheckedBy: overrideDraft.doubleCheckedBy,
                             appliedAt: selectedItem.override?.appliedAt ?? new Date().toISOString(),
                           });
 
@@ -564,7 +554,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>判定（特例）</Label>
+                        <Label>判定（手動）</Label>
                         <Select
                           value={overrideDraft.decision}
                           onValueChange={(value) =>
@@ -652,31 +642,13 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
-                        <Label>特例理由（必須）</Label>
+                        <Label>理由（任意）</Label>
                         <Textarea
                           value={overrideDraft.reason}
                           onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, reason: e.target.value } : prev))}
                           placeholder="例: 組織改編に伴う役割変更のため、ルール外でステージ変更を実施"
                           disabled={!canEdit}
                         />
-                      </div>
-
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>ダブルチェック者（必須）</Label>
-                        <Input
-                          value={overrideDraft.doubleCheckedBy}
-                          onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, doubleCheckedBy: e.target.value } : prev))}
-                          placeholder="確認者氏名（例: 人事 太郎）"
-                          disabled={!canEdit}
-                        />
-                        <Label className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={overrideDraft.confirmed}
-                            disabled={!canEdit}
-                            onCheckedChange={(checked) => setOverrideDraft((prev) => (prev ? { ...prev, confirmed: checked === true } : prev))}
-                          />
-                          入力内容をダブルチェックしたうえで反映します
-                        </Label>
                       </div>
                     </div>
                   </div>
@@ -689,16 +661,13 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                   <div className="flex items-center gap-2">
                     {selectedItem.override && (
                       <Button variant="outline" onClick={handleClearOverride} disabled={!canEdit}>
-                        特例を解除
+                        手動確定を解除
                       </Button>
                     )}
                     <Button
                       onClick={handleApplyOverride}
                       disabled={
                         !canEdit ||
-                        !overrideDraft.confirmed ||
-                        !overrideDraft.reason.trim() ||
-                        !overrideDraft.doubleCheckedBy.trim() ||
                         (requiresStageAfter && overrideDraft.stageAfter.trim() === "") ||
                         (requiresLevelAfter &&
                           (overrideDraft.levelAfter.trim() === "" ||
@@ -708,7 +677,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                             Number(overrideDraft.levelAfter) > 30))
                       }
                     >
-                      反映
+                      確定
                     </Button>
                   </div>
                 </div>
