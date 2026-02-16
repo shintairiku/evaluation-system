@@ -23,6 +23,7 @@ from ..security.decorators import require_permission
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
+from .rating_rules import validate_rating_code_for_goal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,16 @@ class SelfAssessmentService:
             accessible_user_ids = await self._get_accessible_assessment_user_ids(
                 current_user_context, user_id, self_only=self_only
             )
+
+            if accessible_user_ids is not None and len(accessible_user_ids) == 0:
+                empty_limit = pagination.limit if pagination else 0
+                return PaginatedResponse(
+                    items=[],
+                    total=0,
+                    page=pagination.page if pagination else 1,
+                    limit=empty_limit,
+                    pages=1
+                )
             
             # Search assessments with filters
             assessments = await self.self_assessment_repo.search_assessments(
@@ -360,6 +371,14 @@ class SelfAssessmentService:
                 # Other goal types (e.g., コアバリュー) - require at least self_comment
                 if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
                     raise ValidationError("Self-comment is required before submission")
+
+            if existing_assessment.self_rating_code is not None:
+                validate_rating_code_for_goal(
+                    goal_category=existing_assessment.goal.goal_category if existing_assessment.goal else None,
+                    target_data=existing_assessment.goal.target_data if existing_assessment.goal else None,
+                    rating_code=existing_assessment.self_rating_code,
+                    actor_name="self-assessment"
+                )
             
             # Update status using dedicated method
             updated_assessment = await self.self_assessment_repo.submit_assessment(assessment_id, org_id)
@@ -583,6 +602,14 @@ class SelfAssessmentService:
             assessment_data.self_rating is None and 
             existing_assessment.self_rating is None):
             raise ValidationError("Self-rating is required before submission")
+
+        if assessment_data.self_rating_code is not None:
+            validate_rating_code_for_goal(
+                goal_category=existing_assessment.goal.goal_category if existing_assessment.goal else None,
+                target_data=existing_assessment.goal.target_data if existing_assessment.goal else None,
+                rating_code=assessment_data.self_rating_code.value,
+                actor_name="self-assessment"
+            )
 
     async def _enrich_assessment_data(self, assessment_model: SelfAssessmentModel) -> SelfAssessment:
         """Convert SelfAssessmentModel to SelfAssessment response schema with enriched data."""
