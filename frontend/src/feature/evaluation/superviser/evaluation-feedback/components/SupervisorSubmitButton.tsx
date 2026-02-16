@@ -13,6 +13,7 @@ import {
 import { Send, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { submitSupervisorFeedbackAction } from "@/api/server-actions/supervisor-feedbacks";
+import { flushSupervisorFeedbackAutoSaves } from "../hooks/useSupervisorFeedbackAutoSave";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
@@ -105,18 +106,8 @@ export default function SupervisorSubmitButton({
 
   // All feedbacks with feedbackId can be submitted (rating/comment are optional)
   const feedbacksToSubmit = [
-    ...submittablePerformanceGoals.map(g => ({
-      feedbackId: g.feedbackId!,
-      supervisorRatingCode: g.supervisorRatingCode, // Optional
-      supervisorComment: g.supervisorComment, // Optional
-    })),
-    ...uniqueCompetencyFeedbacks.map(c => ({
-      feedbackId: c.feedbackId!,
-      // For competency, we don't have a single rating code
-      // The rating is stored in ratingData per action
-      supervisorRatingCode: undefined,
-      supervisorComment: c.supervisorComment, // Optional
-    })),
+    ...submittablePerformanceGoals.map((g) => g.feedbackId!),
+    ...uniqueCompetencyFeedbacks.map((c) => c.feedbackId!),
   ];
 
   const canSubmit = feedbacksToSubmit.length > 0;
@@ -130,15 +121,21 @@ export default function SupervisorSubmitButton({
 
   // Handle button click - refresh data first, then open dialog
   const handleButtonClick = async () => {
-    if (onRefreshData) {
-      setIsRefreshing(true);
-      try {
+    setIsRefreshing(true);
+    try {
+      await flushSupervisorFeedbackAutoSaves();
+      if (onRefreshData) {
         await onRefreshData();
-      } finally {
-        setIsRefreshing(false);
       }
+      setIsOpen(true);
+    } catch {
+      toast.error('自動保存に失敗しました', {
+        description: '保存完了後に再度お試しください。',
+      });
+      return;
+    } finally {
+      setIsRefreshing(false);
     }
-    setIsOpen(true);
   };
 
   const handleSubmit = async () => {
@@ -150,11 +147,9 @@ export default function SupervisorSubmitButton({
     try {
       // Submit all feedbacks with APPROVED action
       const results = await Promise.all(
-        feedbacksToSubmit.map((feedback) =>
-          submitSupervisorFeedbackAction(feedback.feedbackId, {
+        feedbacksToSubmit.map((feedbackId) =>
+          submitSupervisorFeedbackAction(feedbackId, {
             action: 'APPROVED',
-            supervisorRatingCode: feedback.supervisorRatingCode,
-            supervisorComment: feedback.supervisorComment,
           })
         )
       );
