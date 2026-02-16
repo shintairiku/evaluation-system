@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Target, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -157,14 +157,23 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
  */
 function CompetencyItemCard({
   competency,
+  ratingData,
   onRatingChange,
   isEditable,
 }: {
   competency: CompetencySupervisorData;
+  ratingData: CompetencyRatingData;
   onRatingChange: (competencyId: string, actionIndex: string, rating: RatingCode | undefined) => void;
   isEditable: boolean;
 }) {
-  const [items, setItems] = useState(competency.items);
+  const items = useMemo(
+    () =>
+      competency.items.map((item) => ({
+        ...item,
+        rating: ratingData[competency.competencyId]?.[item.actionIndex] as RatingCode | undefined,
+      })),
+    [competency.competencyId, competency.items, ratingData]
+  );
 
   // Handle rating change (toggle - click again to deselect)
   const handleRatingChange = useCallback((actionIndex: string, rating: RatingCode) => {
@@ -173,10 +182,6 @@ function CompetencyItemCard({
     const currentItem = items.find(item => item.actionIndex === actionIndex);
     const updatedRating = currentItem?.rating === rating ? undefined : rating;
 
-    const newItems = items.map(item =>
-      item.actionIndex === actionIndex ? { ...item, rating: updatedRating } : item
-    );
-    setItems(newItems);
     onRatingChange(competency.competencyId, actionIndex, updatedRating);
   }, [items, competency.competencyId, onRatingChange, isEditable]);
 
@@ -239,21 +244,26 @@ function CompetencyGoalGroup({
   competencies: CompetencySupervisorData[];
 }) {
   const firstCompetency = competencies[0];
-  const [comment, setComment] = useState<string>(firstCompetency?.supervisorComment || "");
-  const [allRatingData, setAllRatingData] = useState<CompetencyRatingData>(() => {
-    // Merge all rating data from competencies
+  const mergedRatingData = useMemo<CompetencyRatingData>(() => {
     const merged: CompetencyRatingData = {};
-    competencies.forEach(c => {
-      Object.assign(merged, c.ratingData);
+    competencies.forEach((competency) => {
+      Object.assign(merged, competency.ratingData);
     });
     return merged;
-  });
+  }, [competencies]);
+  const [comment, setComment] = useState<string>(firstCompetency?.supervisorComment || "");
+  const [allRatingData, setAllRatingData] = useState<CompetencyRatingData>(mergedRatingData);
+
+  useEffect(() => {
+    setComment(firstCompetency?.supervisorComment || "");
+    setAllRatingData(mergedRatingData);
+  }, [firstCompetency?.feedbackId, firstCompetency?.supervisorComment, mergedRatingData]);
 
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
     feedbackId: firstCompetency?.feedbackId,
     initialComment: firstCompetency?.supervisorComment,
-    initialRatingData: allRatingData,
+    initialRatingData: mergedRatingData,
     initialStatus: firstCompetency?.feedbackStatus,
   });
 
@@ -296,6 +306,7 @@ function CompetencyGoalGroup({
         <CompetencyItemCard
           key={competency.competencyId}
           competency={competency}
+          ratingData={allRatingData}
           onRatingChange={handleRatingChange}
           isEditable={isEditable}
         />
