@@ -889,19 +889,19 @@ export default function ComprehensiveEvaluationPage() {
             <Table className="min-w-[1400px]">
               <TableHeader>
                 <TableRow className="bg-muted/40">
-                  <TableHead colSpan={personalInfoColumns} className="text-center font-semibold">
+                  <TableHead colSpan={personalInfoColumns} className="font-semibold border-r">
                     個人基本情報
                   </TableHead>
-                  <TableHead colSpan={performanceColumns} className="text-center font-semibold">
+                  <TableHead colSpan={performanceColumns} className="font-semibold border-r">
                     目標達成（定量+定性）
                   </TableHead>
-                  <TableHead colSpan={competencyColumns} className="text-center font-semibold">
+                  <TableHead colSpan={competencyColumns} className="font-semibold border-r">
                     コンピテンシー
                   </TableHead>
-                  <TableHead colSpan={coreValueColumns} className="text-center font-semibold">
+                  <TableHead colSpan={coreValueColumns} className="font-semibold border-r">
                     コアバリュー
                   </TableHead>
-                  <TableHead colSpan={overallColumns} className="text-center font-semibold">
+                  <TableHead colSpan={overallColumns} className="font-semibold">
                     総合結果
                   </TableHead>
                 </TableRow>
@@ -910,15 +910,15 @@ export default function ComprehensiveEvaluationPage() {
                   <TableHead className="whitespace-nowrap">氏名</TableHead>
                   <TableHead className="whitespace-nowrap">部署</TableHead>
                   <TableHead className="whitespace-nowrap">雇用形態</TableHead>
-                  <TableHead className="whitespace-nowrap">現在ステージ</TableHead>
+                  <TableHead className="whitespace-nowrap border-r">現在ステージ</TableHead>
 
                   <TableHead className="whitespace-nowrap">最終評価</TableHead>
-                  <TableHead className="whitespace-nowrap">ウェイト（%）</TableHead>
+                  <TableHead className="whitespace-nowrap border-r">ウェイト（%）</TableHead>
 
                   <TableHead className="whitespace-nowrap">最終評価</TableHead>
-                  <TableHead className="whitespace-nowrap">ウェイト（%）</TableHead>
+                  <TableHead className="whitespace-nowrap border-r">ウェイト（%）</TableHead>
 
-                  <TableHead className="whitespace-nowrap">最終評価</TableHead>
+                  <TableHead className="whitespace-nowrap border-r">最終評価</TableHead>
 
                   <TableHead className="whitespace-nowrap">合計（点）</TableHead>
                   <TableHead className="whitespace-nowrap">総合評価</TableHead>
@@ -948,15 +948,15 @@ export default function ComprehensiveEvaluationPage() {
                             {getEmploymentTypeLabel(row.employmentType)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-center">{row.currentStage ?? "-"}</TableCell>
+                        <TableCell className="text-center border-r">{row.currentStage ?? "-"}</TableCell>
 
                         <TableCell className="text-center">{row.performanceFinalRank ?? "-"}</TableCell>
-                        <TableCell className="text-center">{row.performanceWeightPercent ?? "-"}</TableCell>
+                        <TableCell className="text-center border-r">{row.performanceWeightPercent ?? "-"}</TableCell>
 
                         <TableCell className="text-center">{row.competencyFinalRank ?? "-"}</TableCell>
-                        <TableCell className="text-center">{row.competencyWeightPercent ?? "-"}</TableCell>
+                        <TableCell className="text-center border-r">{row.competencyWeightPercent ?? "-"}</TableCell>
 
-                        <TableCell className="text-center">{row.coreValueFinalRank ?? "-"}</TableCell>
+                        <TableCell className="text-center border-r">{row.coreValueFinalRank ?? "-"}</TableCell>
 
                         <TableCell className="text-right">
                           {computed.totalScore !== null ? formatNumber(computed.totalScore) : "-"}
