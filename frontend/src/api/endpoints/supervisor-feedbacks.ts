@@ -27,6 +27,7 @@ export const supervisorFeedbacksApi = {
     periodId?: UUID;
     supervisorId?: UUID;
     subordinateId?: UUID;
+    selfOnly?: boolean;
     status?: string;
     action?: string;
   }): Promise<ApiResponse<SupervisorFeedbackList>> => {
@@ -36,6 +37,7 @@ export const supervisorFeedbacksApi = {
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.supervisorId) queryParams.append('supervisorId', params.supervisorId);
     if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
+    if (params?.selfOnly) queryParams.append('selfOnly', 'true');
     if (params?.status) queryParams.append('status', params.status);
     if (params?.action) queryParams.append('action', params.action);
     
@@ -89,10 +91,8 @@ export const supervisorFeedbacksApi = {
   },
 
   /**
-   * Submit a supervisor feedback (approve or reject)
-   * This validates the required fields based on action type:
-   * - APPROVED: requires supervisorRatingCode
-   * - REJECTED: requires supervisorComment
+   * Submit a supervisor feedback
+   * Action must be PENDING or APPROVED.
    */
   submitSupervisorFeedback: async (feedbackId: UUID, data: SupervisorFeedbackSubmit): Promise<ApiResponse<SupervisorFeedback>> => {
     return httpClient.post<SupervisorFeedback>(API_ENDPOINTS.SUPERVISOR_FEEDBACKS.SUBMIT(feedbackId), data);
