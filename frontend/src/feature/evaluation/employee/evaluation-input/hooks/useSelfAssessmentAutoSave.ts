@@ -29,7 +29,7 @@ interface UseSelfAssessmentAutoSaveOptions {
   initialComment?: string;
   /** Initial per-action ratings for competency goals (from server) */
   initialRatingData?: CompetencyRatingData;
-  /** Initial status - only allow edits if draft */
+  /** Initial status - allow edits until supervisor approval */
   initialStatus?: SelfAssessmentStatus;
   /** Debounce delay in milliseconds (default: 2000) */
   debounceDelay?: number;
@@ -53,7 +53,7 @@ interface UseSelfAssessmentAutoSaveReturn {
   debouncedSave: (data: SelfAssessmentSaveData) => void;
   /** Whether initial data has been loaded */
   isInitialized: boolean;
-  /** Whether the assessment is editable (draft status) */
+  /** Whether the assessment is editable (existing record and not approved) */
   isEditable: boolean;
 }
 
@@ -72,7 +72,7 @@ export async function flushSelfAssessmentAutoSaves(): Promise<void> {
  * - Debounced auto-save (2 seconds default)
  * - Manual save on blur
  * - Visual save status indicators
- * - Only editable when status is 'draft'
+ * - Editable while status is 'draft' or 'submitted' (locked only when 'approved')
  * - Save before page unload
  *
  * @param options - Configuration options
@@ -124,8 +124,8 @@ export function useSelfAssessmentAutoSave({
   const debouncedDataRef = useRef<SelfAssessmentSaveData | null>(null);
   const lastSavedDataRef = useRef<SelfAssessmentSaveData>(initialData);
 
-  // Determine if assessment is editable (only draft status)
-  const isEditable = initialStatus === 'draft';
+  // Keep assessments editable until supervisor approval.
+  const isEditable = Boolean(assessmentId) && initialStatus !== 'approved';
 
   /**
    * Check if data has changed from last saved
