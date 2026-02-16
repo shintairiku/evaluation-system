@@ -13,6 +13,7 @@ import {
 import { Send, Loader2, AlertCircle, CheckCircle2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { submitSelfAssessmentAction, reopenSelfAssessmentAction } from "@/api/server-actions/self-assessments";
+import { flushSelfAssessmentAutoSaves } from "../hooks/useSelfAssessmentAutoSave";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
@@ -169,13 +170,14 @@ export default function SubmitButton({
 
   // Handle button click - refresh data first, then open dialog
   const handleButtonClick = async () => {
-    if (onRefreshData) {
-      setIsRefreshing(true);
-      try {
+    setIsRefreshing(true);
+    try {
+      await flushSelfAssessmentAutoSaves();
+      if (onRefreshData) {
         await onRefreshData();
-      } finally {
-        setIsRefreshing(false);
       }
+    } finally {
+      setIsRefreshing(false);
     }
     setIsOpen(true);
   };
