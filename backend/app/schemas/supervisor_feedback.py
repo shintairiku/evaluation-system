@@ -1,6 +1,6 @@
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from .common import SubmissionStatus, RatingCode, PaginatedResponse
 from .supervisor_review import SupervisorAction
@@ -69,15 +69,15 @@ class SupervisorFeedbackUpdate(BaseModel):
 
 
 class SupervisorFeedbackSubmit(BaseModel):
-    """Request schema for submitting supervisor feedback (approve)."""
+    """Request schema for submitting supervisor feedback."""
     action: SupervisorAction = Field(
         ...,
-        description="Decision: APPROVED (no REJECTED)"
+        description="Decision: PENDING or APPROVED (REJECTED is not supported)"
     )
     supervisor_rating_code: Optional[RatingCode] = Field(
         None,
         alias="supervisorRatingCode",
-        description="Supervisor's letter grade (required for APPROVED)"
+        description="Supervisor's letter grade (optional)"
     )
     supervisor_comment: Optional[str] = Field(
         None,
@@ -90,6 +90,13 @@ class SupervisorFeedbackSubmit(BaseModel):
         alias="ratingData",
         description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
     )
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, value: SupervisorAction) -> SupervisorAction:
+        if value not in (SupervisorAction.PENDING, SupervisorAction.APPROVED):
+            raise ValueError("action must be PENDING or APPROVED")
+        return value
 
     model_config = {"populate_by_name": True}
 
