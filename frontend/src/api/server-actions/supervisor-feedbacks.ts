@@ -24,6 +24,7 @@ export const getSupervisorFeedbacksAction = cache(
     periodId?: string;
     supervisorId?: string;
     subordinateId?: string;
+    selfOnly?: boolean;
     status?: string;
     action?: string;
   }): Promise<{
@@ -297,9 +298,7 @@ export const getSupervisorFeedbacksByAssessmentAction = cache(
 
 /**
  * Server action to submit a supervisor feedback with cache revalidation
- * This validates the required fields based on action type:
- * - APPROVED: requires supervisorRatingCode
- * - REJECTED: requires supervisorComment
+ * Action must be PENDING or APPROVED.
  */
 export async function submitSupervisorFeedbackAction(
   feedbackId: UUID,
