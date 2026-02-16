@@ -1,5 +1,8 @@
 import { getGoalsAction } from "@/api/server-actions/goals";
-import { getSelfAssessmentsAction } from "@/api/server-actions/self-assessments";
+import {
+  createSelfAssessmentAction,
+  getSelfAssessmentsAction,
+} from "@/api/server-actions/self-assessments";
 import { getSupervisorFeedbacksAction } from "@/api/server-actions/supervisor-feedbacks";
 import type { SelfAssessment, SupervisorFeedback } from "@/api/types";
 import type { GoalWithAssessment } from "./index";
@@ -19,11 +22,13 @@ export interface CategorizedGoals {
 export async function fetchAndCategorizeGoals(
   periodId: string
 ): Promise<CategorizedGoals> {
+  const assessmentCacheBuster = `${periodId}-${Date.now()}`;
+
   // Fetch approved goals, self-assessments, and supervisor feedbacks in parallel
   // selfOnly: true ensures supervisors only see their own data, not subordinates'
   const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
     getGoalsAction({ periodId, status: 'approved', selfOnly: true }),
-    getSelfAssessmentsAction({ periodId, selfOnly: true }),
+    getSelfAssessmentsAction({ periodId, selfOnly: true, cacheBuster: assessmentCacheBuster }),
     getSupervisorFeedbacksAction({ periodId, selfOnly: true })
   ]);
 
@@ -47,6 +52,46 @@ export async function fetchAndCategorizeGoals(
   assessments.forEach(assessment => {
     assessmentMap.set(assessment.goalId, assessment);
   });
+
+  // Recovery path: if approved goals have no self-assessment (legacy/inconsistent data),
+  // create missing draft records so employees can edit immediately.
+  const goalsMissingAssessments = goals.filter(
+    (goal) => goal.status === "approved" && !assessmentMap.has(goal.id),
+  );
+
+  if (goalsMissingAssessments.length > 0) {
+    const creationResults = await Promise.all(
+      goalsMissingAssessments.map((goal) => createSelfAssessmentAction(goal.id)),
+    );
+
+    creationResults.forEach((result, index) => {
+      if (result.success && result.data) {
+        assessmentMap.set(result.data.goalId, result.data);
+      } else {
+        const missingGoal = goalsMissingAssessments[index];
+        console.warn(
+          "Failed to create missing self-assessment for goal:",
+          missingGoal?.id,
+          result.error,
+        );
+      }
+    });
+
+    // If any creation failed (e.g. conflict from stale data), refresh assessments once.
+    if (creationResults.some((result) => !result.success)) {
+      const refreshedAssessments = await getSelfAssessmentsAction({
+        periodId,
+        selfOnly: true,
+        cacheBuster: `${periodId}-${Date.now()}-recovery`,
+      });
+
+      if (refreshedAssessments.success && refreshedAssessments.data?.items) {
+        refreshedAssessments.data.items.forEach((assessment) => {
+          assessmentMap.set(assessment.goalId, assessment);
+        });
+      }
+    }
+  }
 
   // Create a map of selfAssessmentId -> SupervisorFeedback for quick lookup
   const feedbackMap = new Map<string, SupervisorFeedback>();
