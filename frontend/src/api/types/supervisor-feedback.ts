@@ -114,19 +114,20 @@ export interface SupervisorFeedbackUpdate {
  * @see .kiro/specs/self-assessment/api-contract.md Section 5.5
  */
 export interface SupervisorFeedbackSubmit {
-  /** Decision: APPROVED (only valid action for submission) */
-  action: 'APPROVED';
-  /** Rating code (required for APPROVED) */
+  /** Decision: PENDING or APPROVED */
+  action: 'PENDING' | 'APPROVED';
+  /** Optional rating code */
   supervisorRatingCode?: RatingCode;
   /** Optional comment */
   supervisorComment?: string;
+  /** Per-action ratings for competency goals (JSONB) */
+  ratingData?: Record<string, Record<string, RatingCode>>;
 }
 
 /**
  * Paginated list of supervisor feedbacks
  */
-export interface SupervisorFeedbackList
-  extends PaginatedResponse<SupervisorFeedback> {}
+export type SupervisorFeedbackList = PaginatedResponse<SupervisorFeedback>;
 
 /**
  * Query parameters for fetching supervisor feedbacks
@@ -135,6 +136,7 @@ export interface SupervisorFeedbackQueryParams {
   periodId?: UUID;
   supervisorId?: UUID;
   subordinateId?: UUID;
+  selfOnly?: boolean;
   status?: SupervisorFeedbackStatus;
   action?: SupervisorFeedbackAction;
   page?: number;
