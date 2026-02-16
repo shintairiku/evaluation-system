@@ -27,6 +27,7 @@ from ..security.rbac_types import ResourceType
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
+from .rating_rules import validate_rating_code_for_goal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ class SupervisorFeedbackService:
         period_id: Optional[UUID] = None,
         supervisor_id: Optional[UUID] = None,
         subordinate_id: Optional[UUID] = None,
+        self_only: bool = False,
         status: Optional[str] = None,
         action: Optional[str] = None,
         pagination: Optional[PaginationParams] = None
@@ -69,6 +71,7 @@ class SupervisorFeedbackService:
             user_id: Legacy parameter - filter by assessment owner (subordinate)
             supervisor_id: Filter by specific supervisor who created feedbacks
             subordinate_id: Filter by specific subordinate who received feedbacks
+            self_only: If True, force subordinate_id=current_user (received feedbacks only)
             status: Filter by feedback status (draft/submitted)
             pagination: Pagination parameters
         
@@ -105,6 +108,10 @@ class SupervisorFeedbackService:
             actual_supervisor_id = supervisor_id
             actual_subordinate_id = subordinate_id
 
+            if self_only:
+                actual_supervisor_id = None
+                actual_subordinate_id = current_user_context.user_id
+
             if actual_supervisor_id is None and actual_subordinate_id is None:
                 if accessible_user_ids is None:
                     # Admin: no defaults
@@ -126,7 +133,8 @@ class SupervisorFeedbackService:
                 final_supervisor_ids = [actual_supervisor_id]
 
             if actual_subordinate_id is not None:
-                if accessible_user_ids is not None and actual_subordinate_id not in accessible_user_ids:
+                is_self_feedback = actual_subordinate_id == current_user_context.user_id
+                if accessible_user_ids is not None and actual_subordinate_id not in accessible_user_ids and not is_self_feedback:
                     raise PermissionDeniedError(f"You do not have permission to access feedbacks for user {actual_subordinate_id}")
                 final_user_ids = [actual_subordinate_id]
             else:
@@ -351,6 +359,18 @@ class SupervisorFeedbackService:
             # Business rule: can only submit draft or incomplete feedbacks
             if existing_feedback.status == SubmissionStatus.SUBMITTED.value:
                 raise BadRequestError("Feedback is already submitted")
+
+            if submit_data.action not in (SupervisorAction.PENDING, SupervisorAction.APPROVED):
+                raise ValidationError("Submit action must be PENDING or APPROVED")
+
+            if submit_data.supervisor_rating_code is not None:
+                goal = existing_feedback.self_assessment.goal if existing_feedback.self_assessment else None
+                if goal is None:
+                    raise BadRequestError("Related goal not found")
+                await self._validate_goal_category_rating_rules(
+                    goal,
+                    submit_data.supervisor_rating_code.value
+                )
 
             # Update feedback using dedicated method with submit data
             updated_feedback = await self.supervisor_feedback_repo.submit_feedback(
@@ -638,6 +658,18 @@ class SupervisorFeedbackService:
         if existing_feedback.status == SubmissionStatus.SUBMITTED.value:
             raise BadRequestError("Cannot update submitted feedback. Revert to draft first.")
 
+        model_fields = getattr(feedback_data, "model_fields_set", set())
+        is_rating_code_provided = "supervisor_rating_code" in model_fields if model_fields else feedback_data.supervisor_rating_code is not None
+
+        if is_rating_code_provided and feedback_data.supervisor_rating_code is not None:
+            goal = existing_feedback.self_assessment.goal if existing_feedback.self_assessment else None
+            if goal is None:
+                raise BadRequestError("Related goal not found")
+            await self._validate_goal_category_rating_rules(
+                goal,
+                feedback_data.supervisor_rating_code.value
+            )
+
     async def _validate_goal_category_rating_rules(self, goal, supervisor_rating_code: str = None):
         """
         Validate rating code based on goal category.
@@ -649,30 +681,12 @@ class SupervisorFeedbackService:
 
         Note: supervisor_rating_code is always optional per user requirement.
         """
-        goal_category = goal.goal_category
-
-        if goal_category == "コアバリュー":  # Core Values
-            if supervisor_rating_code is not None:
-                raise ValidationError(
-                    f"Core Value goals (コアバリュー) cannot have ratings. "
-                    f"Please remove the rating for goal category: {goal_category}"
-                )
-
-        elif goal_category == "コンピテンシー":  # Competency
-            # D rating not allowed for competency goals
-            if supervisor_rating_code == "D":
-                raise ValidationError(
-                    f"Competency goals (コンピテンシー) cannot have D rating. "
-                    f"D rating is only allowed for 定量目標 (quantitative performance goals)."
-                )
-
-        elif goal_category in ["業績目標", "定量目標"]:  # Performance/Quantitative
-            # All rating codes (including D) are allowed
-            pass
-
-        else:
-            # Unknown goal category - allow operation but log warning
-            logger.warning(f"Unknown goal category: {goal_category} for goal {goal.id}")
+        validate_rating_code_for_goal(
+            goal_category=goal.goal_category if goal else None,
+            target_data=goal.target_data if goal else None,
+            rating_code=supervisor_rating_code,
+            actor_name="supervisor"
+        )
 
     async def _enrich_feedback_data(self, feedback_model: SupervisorFeedbackModel) -> SupervisorFeedback:
         """Convert SupervisorFeedbackModel to SupervisorFeedback response schema with enriched data."""
