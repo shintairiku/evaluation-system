@@ -21,6 +21,7 @@ async def get_supervisor_feedbacks(
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     supervisor_id: Optional[UUID] = Query(None, alias="supervisorId", description="Filter by supervisor ID (feedback creator)"),
     subordinate_id: Optional[UUID] = Query(None, alias="subordinateId", description="Filter by subordinate ID (feedback recipient)"),
+    self_only: bool = Query(False, alias="selfOnly", description="Force subordinateId to current user (received feedbacks only)"),
     status: Optional[str] = Query(None, description="Filter by status (incomplete, draft, submitted)"),
     action: Optional[str] = Query(None, description="Filter by action (PENDING, APPROVED)"),
     context: AuthContext = Depends(get_auth_context),
@@ -54,6 +55,7 @@ async def get_supervisor_feedbacks(
             period_id=period_id,
             supervisor_id=supervisor_id,
             subordinate_id=subordinate_id,
+            self_only=self_only,
             status=status,
             action=action,
             pagination=pagination
