@@ -57,6 +57,19 @@ interface UseSupervisorFeedbackAutoSaveReturn {
   isEditable: boolean;
 }
 
+const supervisorFeedbackSaveFlushers = new Set<() => Promise<void>>();
+
+export async function flushSupervisorFeedbackAutoSaves(): Promise<void> {
+  const results = await Promise.allSettled(
+    Array.from(supervisorFeedbackSaveFlushers, (flush) => flush())
+  );
+
+  const failedFlushes = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (failedFlushes.length > 0) {
+    throw new Error('Failed to flush supervisor feedback auto-saves');
+  }
+}
+
 /**
  * Custom hook to handle auto-save functionality for supervisor feedback ratings and comments.
  *
@@ -80,14 +93,22 @@ export function useSupervisorFeedbackAutoSave({
   onSaveSuccess
 }: UseSupervisorFeedbackAutoSaveOptions): UseSupervisorFeedbackAutoSaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const [lastSavedData, setLastSavedData] = useState<SupervisorFeedbackSaveData>({
+  const initialData: SupervisorFeedbackSaveData = {
     supervisorRatingCode: initialRatingCode,
     supervisorComment: initialComment,
     ratingData: initialRatingData
+  };
+  const [lastSavedData, setLastSavedData] = useState<SupervisorFeedbackSaveData>({
+    ...initialData
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const statusClearTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const inFlightSaveRef = useRef<Promise<void> | null>(null);
+  const pendingSaveRef = useRef<SupervisorFeedbackSaveData | null>(null);
+  const debouncedDataRef = useRef<SupervisorFeedbackSaveData | null>(null);
+  const lastSavedDataRef = useRef<SupervisorFeedbackSaveData>(initialData);
+  const saveStatusRef = useRef<SaveStatus>('idle');
 
   // Determine if feedback is editable (incomplete or draft, not submitted)
   const isEditable = initialStatus !== 'submitted';
@@ -96,11 +117,17 @@ export function useSupervisorFeedbackAutoSave({
    * Check if data has changed from last saved
    */
   const hasDataChanged = useCallback((data: SupervisorFeedbackSaveData): boolean => {
-    const ratingCodeChanged = data.supervisorRatingCode !== lastSavedData.supervisorRatingCode;
-    const commentChanged = data.supervisorComment?.trim() !== lastSavedData.supervisorComment?.trim();
-    const ratingDataChanged = JSON.stringify(data.ratingData) !== JSON.stringify(lastSavedData.ratingData);
+    const last = lastSavedDataRef.current;
+    const ratingCodeChanged = data.supervisorRatingCode !== last.supervisorRatingCode;
+    const commentChanged = data.supervisorComment?.trim() !== last.supervisorComment?.trim();
+    const ratingDataChanged = JSON.stringify(data.ratingData) !== JSON.stringify(last.ratingData);
     return ratingCodeChanged || commentChanged || ratingDataChanged;
-  }, [lastSavedData]);
+  }, []);
+
+  const updateSaveStatus = useCallback((status: SaveStatus) => {
+    saveStatusRef.current = status;
+    setSaveStatus(status);
+  }, []);
 
   /**
    * Core save function - saves rating and comment to supervisor feedback
@@ -110,58 +137,72 @@ export function useSupervisorFeedbackAutoSave({
       return;
     }
 
-    // Don't save if no changes
-    if (!hasDataChanged(data)) {
+    pendingSaveRef.current = data;
+
+    if (inFlightSaveRef.current) {
+      await inFlightSaveRef.current;
       return;
     }
 
-    // Prevent concurrent saves
-    if (saveStatus === 'saving') {
-      return;
-    }
+    const runSaveLoop = async () => {
+      while (pendingSaveRef.current) {
+        const nextData = pendingSaveRef.current;
+        pendingSaveRef.current = null;
 
-    setSaveStatus('saving');
+        if (!hasDataChanged(nextData)) {
+          continue;
+        }
 
-    // Clear any pending status clear timer
-    if (statusClearTimerRef.current) {
-      clearTimeout(statusClearTimerRef.current);
-    }
+        updateSaveStatus('saving');
 
-    try {
-      const result = await updateSupervisorFeedbackAction(feedbackId, {
-        supervisorRatingCode: data.supervisorRatingCode,
-        supervisorComment: data.supervisorComment,
-        ratingData: data.ratingData,
-      });
+        if (statusClearTimerRef.current) {
+          clearTimeout(statusClearTimerRef.current);
+        }
 
-      if (result.success) {
-        setLastSavedData({
-          supervisorRatingCode: data.supervisorRatingCode,
-          supervisorComment: data.supervisorComment?.trim(),
-          ratingData: data.ratingData
-        });
-        setSaveStatus('saved');
+        try {
+          const result = await updateSupervisorFeedbackAction(feedbackId, {
+            supervisorRatingCode: nextData.supervisorRatingCode,
+            supervisorComment: nextData.supervisorComment,
+            ratingData: nextData.ratingData,
+          });
 
-        // Notify parent that data was saved
-        onSaveSuccess?.();
+          if (result.success) {
+            const normalizedData: SupervisorFeedbackSaveData = {
+              supervisorRatingCode: nextData.supervisorRatingCode,
+              supervisorComment: nextData.supervisorComment?.trim(),
+              ratingData: nextData.ratingData
+            };
+            lastSavedDataRef.current = normalizedData;
+            setLastSavedData(normalizedData);
+            updateSaveStatus('saved');
+            onSaveSuccess?.();
 
-        // Clear status after timeout
-        statusClearTimerRef.current = setTimeout(() => {
-          setSaveStatus('idle');
-        }, statusClearTimeout);
-      } else {
-        setSaveStatus('error');
+            statusClearTimerRef.current = setTimeout(() => {
+              updateSaveStatus('idle');
+            }, statusClearTimeout);
+          } else {
+            updateSaveStatus('error');
+          }
+        } catch {
+          updateSaveStatus('error');
+        }
       }
-    } catch {
-      setSaveStatus('error');
-    }
-  }, [feedbackId, isEditable, hasDataChanged, saveStatus, statusClearTimeout, onSaveSuccess]);
+    };
+
+    inFlightSaveRef.current = runSaveLoop().finally(() => {
+      inFlightSaveRef.current = null;
+    });
+
+    await inFlightSaveRef.current;
+  }, [feedbackId, isEditable, hasDataChanged, statusClearTimeout, onSaveSuccess, updateSaveStatus]);
 
   /**
    * Debounced save function - use for onChange events
    */
   const debouncedSave = useCallback((data: SupervisorFeedbackSaveData) => {
     if (!isEditable) return;
+
+    debouncedDataRef.current = data;
 
     // Clear existing timer
     if (debounceTimerRef.current) {
@@ -170,20 +211,49 @@ export function useSupervisorFeedbackAutoSave({
 
     // Set new timer
     debounceTimerRef.current = setTimeout(() => {
-      save(data);
+      const queuedData = debouncedDataRef.current;
+      debouncedDataRef.current = null;
+      debounceTimerRef.current = null;
+      if (queuedData) {
+        void save(queuedData).catch(() => {});
+      }
     }, debounceDelay);
   }, [save, debounceDelay, isEditable]);
+
+  const flushPendingSave = useCallback(async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    const queuedData = debouncedDataRef.current;
+    debouncedDataRef.current = null;
+
+    if (queuedData) {
+      await save(queuedData);
+    }
+
+    if (inFlightSaveRef.current) {
+      await inFlightSaveRef.current;
+    }
+
+    if (saveStatusRef.current === 'error') {
+      throw new Error('Supervisor feedback auto-save failed');
+    }
+  }, [save]);
 
   /**
    * Initialize with server data
    */
   useEffect(() => {
     if (feedbackId && !isInitialized) {
-      setLastSavedData({
+      const data = {
         supervisorRatingCode: initialRatingCode,
         supervisorComment: initialComment?.trim(),
         ratingData: initialRatingData
-      });
+      };
+      lastSavedDataRef.current = data;
+      setLastSavedData(data);
       setIsInitialized(true);
     }
   }, [feedbackId, initialRatingCode, initialComment, initialRatingData, isInitialized]);
@@ -193,8 +263,21 @@ export function useSupervisorFeedbackAutoSave({
    */
   useEffect(() => {
     setIsInitialized(false);
-    setSaveStatus('idle');
-  }, [feedbackId]);
+    updateSaveStatus('idle');
+    pendingSaveRef.current = null;
+    debouncedDataRef.current = null;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, [feedbackId, updateSaveStatus]);
+
+  useEffect(() => {
+    supervisorFeedbackSaveFlushers.add(flushPendingSave);
+    return () => {
+      supervisorFeedbackSaveFlushers.delete(flushPendingSave);
+    };
+  }, [flushPendingSave]);
 
   /**
    * Cleanup timers on unmount
@@ -203,10 +286,13 @@ export function useSupervisorFeedbackAutoSave({
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
       if (statusClearTimerRef.current) {
         clearTimeout(statusClearTimerRef.current);
+        statusClearTimerRef.current = null;
       }
+      debouncedDataRef.current = null;
     };
   }, []);
 
