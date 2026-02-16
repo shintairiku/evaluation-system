@@ -178,6 +178,34 @@ class GoalService:
             except Exception as e:
                 logger.warning(f"Failed to batch load competency names: {e}")
 
+            # Batch load ALL stage competencies for competency goals (evaluation scope)
+            stage_competency_data: dict[str, dict] = {}
+            try:
+                # Collect unique user_ids from competency goals
+                comp_user_ids: set[UUID] = set()
+                for goal_model in goals:
+                    if goal_model.goal_category == "コンピテンシー":
+                        comp_user_ids.add(goal_model.user_id)
+
+                if comp_user_ids:
+                    # Get stage_id for each user, then all competencies per stage
+                    stage_cache: dict[UUID, list] = {}  # stage_id -> competencies
+                    for uid in comp_user_ids:
+                        stage_id = await self.user_repo.get_user_stage_id(uid, org_id)
+                        if not stage_id:
+                            continue
+                        if stage_id not in stage_cache:
+                            stage_cache[stage_id] = await self.competency_repo.get_by_stage_id(stage_id, org_id)
+
+                        comps = stage_cache[stage_id]
+                        stage_competency_data[str(uid)] = {
+                            "competency_ids": [c.id for c in comps],
+                            "competency_names": {str(c.id): c.name for c in comps},
+                            "ideal_action_texts": {str(c.id): (c.description or {}) for c in comps},
+                        }
+            except Exception as e:
+                logger.warning(f"Failed to batch load stage competencies: {e}")
+
             # Convert to response format
             enriched_goals = []
             for goal_model in goals:
@@ -190,6 +218,7 @@ class GoalService:
                     org_id=org_id,
                     competency_name_map=competency_name_map,
                     competency_description_map=competency_description_map,
+                    stage_competency_data=stage_competency_data,
                 )
                 enriched_goals.append(enriched_goal)
             
@@ -317,6 +346,32 @@ class GoalService:
         except Exception as e:
             logger.warning(f"Failed to batch load competency names: {e}")
 
+        # Batch load ALL stage competencies for competency goals (evaluation scope)
+        stage_competency_data: dict[str, dict] = {}
+        try:
+            comp_user_ids: set[UUID] = set()
+            for goal_model in ordered_goals:
+                if goal_model.goal_category == "コンピテンシー":
+                    comp_user_ids.add(goal_model.user_id)
+
+            if comp_user_ids:
+                stage_cache: dict[UUID, list] = {}
+                for uid in comp_user_ids:
+                    stage_id = await self.user_repo.get_user_stage_id(uid, org_id)
+                    if not stage_id:
+                        continue
+                    if stage_id not in stage_cache:
+                        stage_cache[stage_id] = await self.competency_repo.get_by_stage_id(stage_id, org_id)
+
+                    comps = stage_cache[stage_id]
+                    stage_competency_data[str(uid)] = {
+                        "competency_ids": [c.id for c in comps],
+                        "competency_names": {str(c.id): c.name for c in comps},
+                        "ideal_action_texts": {str(c.id): (c.description or {}) for c in comps},
+                    }
+        except Exception as e:
+            logger.warning(f"Failed to batch load stage competencies: {e}")
+
         enriched_goals: list[Goal] = []
         for goal_model in ordered_goals:
             enriched_goal = await self._enrich_goal_data(
@@ -328,6 +383,7 @@ class GoalService:
                 org_id=org_id,
                 competency_name_map=competency_name_map,
                 competency_description_map=competency_description_map,
+                stage_competency_data=stage_competency_data,
             )
             enriched_goals.append(enriched_goal)
 
@@ -1583,6 +1639,7 @@ class GoalService:
         *,
         competency_name_map: dict[str, str] | None = None,
         competency_description_map: dict[str, dict[str, str]] | None = None,
+        stage_competency_data: dict[str, dict] | None = None,
     ) -> Goal:
         """
         Convert GoalModel to Goal response schema with enriched data.
@@ -1671,6 +1728,18 @@ class GoalService:
                         goal_dict["ideal_action_texts"] = ideal_action_texts
             except Exception as e:
                 logger.warning(f"Failed to resolve ideal action texts for goal {goal_model.id}: {str(e)}")
+
+        # Add ALL stage competencies for evaluation scope
+        if (
+            goal_model.goal_category == "コンピテンシー"
+            and stage_competency_data is not None
+        ):
+            user_id_str = str(goal_model.user_id)
+            stage_data = stage_competency_data.get(user_id_str)
+            if stage_data:
+                goal_dict["all_stage_competency_ids"] = stage_data["competency_ids"]
+                goal_dict["all_stage_competency_names"] = stage_data["competency_names"]
+                goal_dict["all_stage_ideal_action_texts"] = stage_data["ideal_action_texts"]
 
         # Performance optimization: Embed supervisor review if requested
         if include_reviews and reviews_map is not None:

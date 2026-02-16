@@ -290,6 +290,12 @@ class Goal(BaseModel):
     ideal_action_texts: Optional[Dict[str, List[str]]] = Field(None, alias="idealActionTexts")
     action_plan: Optional[str] = Field(None, alias="actionPlan")
     
+    # All stage competencies for evaluation scope (populated for competency goals)
+    # These include ALL competencies from the employee's stage, not just the focused ones
+    all_stage_competency_ids: Optional[List[UUID]] = Field(None, alias="allStageCompetencyIds")
+    all_stage_competency_names: Optional[Dict[str, str]] = Field(None, alias="allStageCompetencyNames")
+    all_stage_ideal_action_texts: Optional[Dict[str, Dict[str, str]]] = Field(None, alias="allStageIdealActionTexts")
+
     # Core Value Goal fields (goal_category = "コアバリュー")
     core_value_plan: Optional[str] = Field(None, alias="coreValuePlan")
 
