@@ -230,13 +230,16 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     ) -> List[SelfAssessment]:
         """Search self-assessments within organization scope with various filters."""
         try:
+            if user_ids is not None and len(user_ids) == 0:
+                return []
+
             query = select(SelfAssessment).options(
                 joinedload(SelfAssessment.goal).joinedload(Goal.user),
                 joinedload(SelfAssessment.period)
             )
             
             # Apply filters
-            if user_ids:
+            if user_ids is not None:
                 goal_alias = aliased(Goal)
                 query = query.join(goal_alias, SelfAssessment.goal_id == goal_alias.id).filter(goal_alias.user_id.in_(user_ids))
             
@@ -271,10 +274,13 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     ) -> int:
         """Count self-assessments within organization scope matching the given filters."""
         try:
+            if user_ids is not None and len(user_ids) == 0:
+                return 0
+
             query = select(func.count(SelfAssessment.id))
             
             # Apply same filters as search_assessments
-            if user_ids:
+            if user_ids is not None:
                 goal_alias = aliased(Goal)
                 query = query.join(goal_alias, SelfAssessment.goal_id == goal_alias.id).filter(goal_alias.user_id.in_(user_ids))
             
