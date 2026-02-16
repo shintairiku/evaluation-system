@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../constants/config';
 import type {
   SelfAssessment,
   SelfAssessmentDetail,
+  SelfAssessmentCreate,
   SelfAssessmentUpdate,
   SelfAssessmentList,
   SubordinatesAssessmentStatusResponse,
@@ -18,6 +19,17 @@ const httpClient = getHttpClient();
  * All functions follow the standardized pattern with proper error handling
  */
 export const selfAssessmentsApi = {
+  /**
+   * Create a self-assessment for a specific goal
+   */
+  createSelfAssessment: async (
+    goalId: UUID,
+    data: SelfAssessmentCreate,
+  ): Promise<ApiResponse<SelfAssessment>> => {
+    const endpoint = `${API_ENDPOINTS.SELF_ASSESSMENTS.LIST}?goalId=${goalId}`;
+    return httpClient.post<SelfAssessment>(endpoint, data);
+  },
+
   /**
    * Get self-assessments with optional filters and pagination
    */
