@@ -24,7 +24,7 @@ export async function fetchAndCategorizeGoals(
   const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
     getGoalsAction({ periodId, status: 'approved', selfOnly: true }),
     getSelfAssessmentsAction({ periodId, selfOnly: true }),
-    getSupervisorFeedbacksAction({ periodId })
+    getSupervisorFeedbacksAction({ periodId, selfOnly: true })
   ]);
 
   const performance: GoalWithAssessment[] = [];
