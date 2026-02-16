@@ -8,6 +8,8 @@ import { auth } from '@clerk/nextjs/server';
 import { getCurrentUserContextAction } from '@/api/server-actions/current-user-context';
 import { CurrentUserProvider } from '@/context/CurrentUserContext';
 
+export const dynamic = 'force-dynamic';
+
 export default async function EvaluationLayout({
   children,
 }: {
