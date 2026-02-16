@@ -111,10 +111,20 @@ export interface SelfAssessmentUpdate {
 }
 
 /**
+ * Request body for creating a self-assessment
+ * NOTE: Usually auto-created by backend when goal is approved.
+ * This is used as a recovery path when legacy data has approved goals without assessments.
+ */
+export interface SelfAssessmentCreate extends SelfAssessmentBase {
+  /** Initial workflow status (defaults to draft in backend if omitted) */
+  status?: SelfAssessmentStatus;
+}
+
+/**
  * Paginated list of self-assessments
  * @see .kiro/specs/self-assessment/api-contract.md Section 4.1
  */
-export interface SelfAssessmentList extends PaginatedResponse<SelfAssessment> {}
+export type SelfAssessmentList = PaginatedResponse<SelfAssessment>;
 
 /**
  * Query parameters for fetching self-assessments
@@ -153,4 +163,3 @@ export interface SubordinateAssessmentStatus {
 export interface SubordinatesAssessmentStatusResponse {
   items: SubordinateAssessmentStatus[];
 }
-
