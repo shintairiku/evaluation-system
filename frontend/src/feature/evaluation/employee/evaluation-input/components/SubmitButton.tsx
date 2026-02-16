@@ -16,7 +16,6 @@ import { submitSelfAssessmentAction, reopenSelfAssessmentAction } from "@/api/se
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
-import type { CompetencyRatingData } from "@/api/types";
 import type { GoalWithAssessment } from "../display/index";
 
 interface SubmitButtonProps {
@@ -42,6 +41,7 @@ function isPerformanceAssessmentComplete(item: GoalWithAssessment): boolean {
 
 /**
  * Check if a competency goal assessment is complete
+ * Only comment is required — action ratings can be partial
  */
 function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   const assessment = item.selfAssessment;
@@ -49,26 +49,8 @@ function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   // Approved assessments are locked and complete
   if (assessment.status === 'approved') return true;
 
-  // Must have comment
-  if (!assessment.selfComment?.trim()) return false;
-
-  // Must have all action ratings
-  const ratingData = assessment.ratingData as CompetencyRatingData | undefined;
-  if (!ratingData) return false;
-
-  const selectedActions = item.goal.selectedIdealActions || {};
-
-  // Check each competency has all actions rated
-  for (const [competencyId, actionIndexes] of Object.entries(selectedActions)) {
-    const competencyRatings = ratingData[competencyId];
-    if (!competencyRatings) return false;
-
-    for (const actionIdx of actionIndexes) {
-      if (!competencyRatings[actionIdx]) return false;
-    }
-  }
-
-  return true;
+  // Only comment is required for submission
+  return !!assessment.selfComment?.trim();
 }
 
 export default function SubmitButton({
