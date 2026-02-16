@@ -38,10 +38,11 @@ function CompetencyGoalCard({
   const { goal, selfAssessment } = goalWithAssessment;
 
   // Get competency data from goal
-  const competencyNames = goal.competencyNames || {};
+  // Use allStage* fields (all competencies from employee's stage) with fallback to focused-only fields
+  const competencyIds = goal.allStageCompetencyIds || goal.competencyIds || [];
+  const competencyNames = goal.allStageCompetencyNames || goal.competencyNames || {};
+  const allActionTexts = goal.allStageIdealActionTexts || {};
   const selectedIdealActions = goal.selectedIdealActions || {};
-  const idealActionTexts = goal.idealActionTexts || {};
-  const competencyIds = goal.competencyIds || [];
 
   // Local state for form values
   const [ratingData, setRatingData] = useState<CompetencyRatingData>(
@@ -91,21 +92,14 @@ function CompetencyGoalCard({
     save({ ratingData, selfComment: comment });
   }, [ratingData, comment, save, isEditable]);
 
-  // Calculate competency rating (average of action ratings)
+  // Calculate competency rating (average of rated actions)
   const calculateCompetencyRating = (competencyId: string): string | null => {
     const actionRatings = ratingData[competencyId];
-    const selectedActions = selectedIdealActions[competencyId] || [];
+    if (!actionRatings) return null;
 
-    if (!actionRatings || selectedActions.length === 0) return null;
-
-    // Check if all selected actions have ratings
-    const allRated = selectedActions.every((idx) => actionRatings[idx]);
-    if (!allRated) return null;
-
-    // Get ratings for selected actions
-    const ratings = selectedActions
-      .map((idx) => actionRatings[idx] as RatingCode)
-      .filter(Boolean);
+    // Collect all ratings that have been filled in (partial ratings allowed)
+    const ratings = Object.values(actionRatings).filter(Boolean) as RatingCode[];
+    if (ratings.length === 0) return null;
 
     const avg = calculateRatingAverage(ratings);
     if (avg === null) return null;
@@ -118,8 +112,10 @@ function CompetencyGoalCard({
       {/* Each competency as a separate card */}
       {competencyIds.map((competencyId) => {
         const competencyName = competencyNames[competencyId] || "コンピテンシー";
-        const actionIndexes = selectedIdealActions[competencyId] || [];
-        const actionTexts = idealActionTexts[competencyId] || [];
+        // Get action indexes and texts from allStageIdealActionTexts (dynamic keys per competency)
+        const compActionTexts = allActionTexts[competencyId] || {};
+        const actionIndexes = Object.keys(compActionTexts);
+        const isFocused = competencyId in selectedIdealActions;
         const competencyRating = calculateCompetencyRating(competencyId);
 
         return (
@@ -129,7 +125,14 @@ function CompetencyGoalCard({
           >
             {/* Competency Name Display with Rating - Grade only shows after submission */}
             <div className="flex items-center justify-between mb-4">
-              <div className="text-xl font-bold text-green-800">{competencyName}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-xl font-bold text-green-800">{competencyName}</div>
+                {isFocused && (
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200">
+                    注力
+                  </span>
+                )}
+              </div>
 
               {/* Rating Display - Label always visible, grade only after submission */}
               <TooltipProvider>
@@ -163,10 +166,10 @@ function CompetencyGoalCard({
 
             {/* Ideal Action Items */}
             <div className="space-y-6">
-              {actionIndexes.map((actionIdx, index) => {
-                // Use loop index to access the array (texts are in same order as actionIndexes)
-                const actionText = actionTexts[index];
+              {actionIndexes.map((actionIdx) => {
+                const actionText = compActionTexts[actionIdx];
                 const currentRating = ratingData[competencyId]?.[actionIdx];
+                const isFocusedAction = selectedIdealActions[competencyId]?.includes(actionIdx);
 
                 // Skip if no action text
                 if (!actionText) return null;
@@ -174,7 +177,9 @@ function CompetencyGoalCard({
                 return (
                   <div key={`${competencyId}-${actionIdx}`}>
                     {/* Action Description */}
-                    <div className="text-sm text-gray-800 mb-3">{actionText}</div>
+                    <div className={`text-sm mb-3 ${isFocusedAction ? 'text-gray-800 font-medium' : 'text-gray-600'}`}>
+                      {actionText}
+                    </div>
 
                     {/* Rating Buttons for this action */}
                     <div className="flex items-center gap-3 flex-wrap">
@@ -382,21 +387,11 @@ export default function CompetencyEvaluate({
   const calculateOverallRating = (): string | null => {
     if (goalsWithAssessments.length === 0) return null;
 
-    // Check if all goals have complete ratings and comments
-    const allComplete = goalsWithAssessments.every((item) => {
-      if (!item.selfAssessment?.selfComment?.trim()) return false;
-      const ratingData = item.selfAssessment?.ratingData as CompetencyRatingData;
-      if (!ratingData) return false;
-
-      const selectedActions = item.goal.selectedIdealActions || {};
-      return Object.entries(selectedActions).every(([compId, actions]) => {
-        const actionRatings = ratingData[compId];
-        if (!actionRatings) return false;
-        return (actions as string[]).every((idx) => actionRatings[idx]);
-      });
-    });
-
-    if (!allComplete) return null;
+    // Check if all goals have comments (ratings can be partial)
+    const allHaveComments = goalsWithAssessments.every((item) =>
+      item.selfAssessment?.selfComment?.trim()
+    );
+    if (!allHaveComments) return null;
 
     // Calculate weighted average across all goals
     let totalWeightedScore = 0;
@@ -404,21 +399,17 @@ export default function CompetencyEvaluate({
 
     goalsWithAssessments.forEach((item) => {
       const weight = item.goal.weight || 0;
-      const ratingData = item.selfAssessment?.ratingData as CompetencyRatingData;
-      if (!ratingData) return;
+      const goalRatingData = item.selfAssessment?.ratingData as CompetencyRatingData;
+      if (!goalRatingData) return;
 
-      // Collect all ratings for this goal
+      // Collect all filled ratings across all competencies
       const allRatings: RatingCode[] = [];
-      const selectedActions = item.goal.selectedIdealActions || {};
-      Object.entries(selectedActions).forEach(([compId, actions]) => {
-        const actionRatings = ratingData[compId];
+      const compIds = item.goal.allStageCompetencyIds || item.goal.competencyIds || [];
+      compIds.forEach((compId) => {
+        const actionRatings = goalRatingData[compId];
         if (!actionRatings) return;
-
-        (actions as string[]).forEach((idx) => {
-          const rating = actionRatings[idx] as RatingCode;
-          if (rating) {
-            allRatings.push(rating);
-          }
+        Object.values(actionRatings).forEach((rating) => {
+          if (rating) allRatings.push(rating as RatingCode);
         });
       });
 

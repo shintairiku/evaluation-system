@@ -38,6 +38,7 @@ export interface CompetencySupervisorData {
   // Local state for ratings
   ratingData: CompetencyRatingData;
   isLastInGoal: boolean;
+  isFocused: boolean;
 }
 
 interface CompetencySupervisorEvaluationProps {
@@ -66,10 +67,10 @@ export function transformCompetencyGoalsForSupervisor(
     const assessment = assessmentMap.get(goal.id);
     const feedback = assessment ? feedbackMap.get(assessment.id) : undefined;
 
-    // Get competency data from goal
-    const competencyIds = goal.competencyIds || [];
-    const competencyNames = goal.competencyNames || {};
-    const idealActionTexts = goal.idealActionTexts || {};
+    // Use allStage* fields (all competencies from employee's stage) with fallback
+    const competencyIds = goal.allStageCompetencyIds || goal.competencyIds || [];
+    const competencyNames = goal.allStageCompetencyNames || goal.competencyNames || {};
+    const allActionTexts = goal.allStageIdealActionTexts || {};
     const selectedIdealActions = goal.selectedIdealActions || {};
 
     // Use supervisor's rating data if exists, otherwise empty
@@ -78,20 +79,18 @@ export function transformCompetencyGoalsForSupervisor(
     for (let i = 0; i < competencyIds.length; i++) {
       const competencyId = competencyIds[i];
       const competencyName = competencyNames[competencyId] || `コンピテンシー`;
-      const actionTexts = idealActionTexts[competencyId] || [];
-      const selectedActions = selectedIdealActions[competencyId] || [];
+      const compActionTexts = allActionTexts[competencyId] || {};
+      const actionIndexes = Object.keys(compActionTexts);
+      const isFocused = competencyId in selectedIdealActions;
       const competencyRatings = supervisorRatingData[competencyId] || {};
 
-      // Build items from selected ideal actions
-      const items: CompetencyActionSupervisorItem[] = selectedActions.map((actionIndex) => {
-        const actionIdxNum = parseInt(actionIndex, 10);
-        return {
-          id: `${competencyId}-${actionIndex}`,
-          actionIndex: actionIndex.toString(),
-          description: actionTexts[actionIdxNum] || `アクション ${actionIdxNum + 1}`,
-          rating: competencyRatings[actionIndex] as RatingCode | undefined,
-        };
-      });
+      // Build items from all actions (dynamic keys per competency)
+      const items: CompetencyActionSupervisorItem[] = actionIndexes.map((actionIdx) => ({
+        id: `${competencyId}-${actionIdx}`,
+        actionIndex: actionIdx,
+        description: compActionTexts[actionIdx] || `アクション ${parseInt(actionIdx) + 1}`,
+        rating: competencyRatings[actionIdx] as RatingCode | undefined,
+      }));
 
       // Calculate average rating for this competency
       const competencyRating = calculateAverageRatingCode(items.map(i => i.rating).filter(Boolean) as RatingCode[]);
@@ -108,6 +107,7 @@ export function transformCompetencyGoalsForSupervisor(
         competencyRating,
         ratingData: { [competencyId]: competencyRatings },
         isLastInGoal: i === competencyIds.length - 1,
+        isFocused,
       });
     }
   }
@@ -184,8 +184,15 @@ function CompetencyItemCard({
     <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
       {/* Competency Header with Rating */}
       <div className="flex items-center justify-between mb-4">
-        <div className="text-xl font-bold text-green-800 break-words overflow-hidden flex-1 mr-3">
-          {competency.name}
+        <div className="flex items-center gap-2 flex-1 mr-3">
+          <div className="text-xl font-bold text-green-800 break-words overflow-hidden">
+            {competency.name}
+          </div>
+          {competency.isFocused && (
+            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200 shrink-0">
+              注力
+            </span>
+          )}
         </div>
 
         {/* Individual Competency Rating Display - Always show '−' during evaluation */}
