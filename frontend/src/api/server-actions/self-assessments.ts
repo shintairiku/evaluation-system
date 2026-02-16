@@ -25,13 +25,28 @@ export const getSelfAssessmentsAction = cache(
     userId?: string;
     status?: string;
     selfOnly?: boolean;
+    /**
+     * Cache buster for React cache() memoization.
+     * Not sent to API; only used to force fresh server action execution.
+     */
+    cacheBuster?: string;
   }): Promise<{
     success: boolean;
     data?: SelfAssessmentList;
     error?: string;
   }> => {
     try {
-      const response = await selfAssessmentsApi.getSelfAssessments(params);
+      const response = await selfAssessmentsApi.getSelfAssessments(
+        params
+          ? {
+              pagination: params.pagination,
+              periodId: params.periodId,
+              userId: params.userId,
+              status: params.status,
+              selfOnly: params.selfOnly,
+            }
+          : undefined,
+      );
 
       if (!response.success || !response.data) {
         return {
@@ -53,6 +68,42 @@ export const getSelfAssessmentsAction = cache(
     }
   },
 );
+
+/**
+ * Server action to create a self-assessment with cache revalidation
+ */
+export async function createSelfAssessmentAction(
+  goalId: UUID,
+  createData: SelfAssessmentCreate = {},
+): Promise<{
+  success: boolean;
+  data?: SelfAssessment;
+  error?: string;
+}> {
+  try {
+    const response = await selfAssessmentsApi.createSelfAssessment(goalId, createData);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to create self-assessment',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Create self-assessment action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while creating self-assessment',
+    };
+  }
+}
 
 /**
  * Server action to get a specific self-assessment by ID
@@ -88,42 +139,6 @@ export const getSelfAssessmentByIdAction = cache(
     }
   },
 );
-
-/**
- * Server action to create a new self-assessment with cache revalidation
- */
-export async function createSelfAssessmentAction(
-  assessmentData: SelfAssessmentCreate,
-  goalId: UUID,
-): Promise<{
-  success: boolean;
-  data?: SelfAssessment;
-  error?: string;
-}> {
-  try {
-    const response = await selfAssessmentsApi.createSelfAssessment(assessmentData, goalId);
-
-    if (!response.success || !response.data) {
-      return {
-        success: false,
-        error: response.errorMessage || 'Failed to create self-assessment',
-      };
-    }
-
-    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
-
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    console.error('Create self-assessment action error:', error);
-    return {
-      success: false,
-      error: 'An unexpected error occurred while creating self-assessment',
-    };
-  }
-}
 
 /**
  * Server action to update an existing self-assessment with cache revalidation
