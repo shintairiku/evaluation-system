@@ -26,6 +26,7 @@ export const supervisorFeedbacksApi = {
     periodId?: UUID;
     supervisorId?: UUID;
     subordinateId?: UUID;
+    selfOnly?: boolean;
     status?: string;
   }): Promise<ApiResponse<SupervisorFeedbackList>> => {
     const queryParams = new URLSearchParams();
@@ -34,6 +35,7 @@ export const supervisorFeedbacksApi = {
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.supervisorId) queryParams.append('supervisorId', params.supervisorId);
     if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
+    if (params?.selfOnly) queryParams.append('selfOnly', 'true');
     if (params?.status) queryParams.append('status', params.status);
     
     const endpoint = queryParams.toString() 
@@ -86,7 +88,8 @@ export const supervisorFeedbacksApi = {
   },
 
   /**
-   * Submit a supervisor feedback
+   * Submit a supervisor feedback.
+   * Action must be PENDING or APPROVED.
    */
   submitSupervisorFeedback: async (feedbackId: UUID): Promise<ApiResponse<SupervisorFeedback>> => {
     return httpClient.post<SupervisorFeedback>(API_ENDPOINTS.SUPERVISOR_FEEDBACKS.SUBMIT(feedbackId), {});
