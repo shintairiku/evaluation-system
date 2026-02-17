@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { User, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import SupervisorSubmitButton from "../components/SupervisorSubmitButton";
+import ReturnButton from "../components/ReturnButton";
 import PerformanceGoalsSelfAssessment, {
   type PerformanceGoalDisplayData,
 } from "./PerformanceGoalsSelfAssessment";
@@ -305,8 +306,15 @@ export default function EvaluationFeedbackDisplay() {
           </div>
         )}
 
-        {/* Submit Button */}
-        <div className="flex justify-end">
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-3">
+          <ReturnButton
+            performanceGoals={supervisorPerformanceGoals}
+            competencyGoals={supervisorCompetencyData}
+            onReturnSuccess={silentRefreshData}
+            onRefreshData={silentRefreshData}
+            disabled={!canEvaluate}
+          />
           <SupervisorSubmitButton
             performanceGoals={supervisorPerformanceGoals}
             competencyGoals={supervisorCompetencyData}
