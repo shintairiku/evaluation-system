@@ -74,7 +74,7 @@ export const getSelfAssessmentsAction = cache(
  */
 export async function createSelfAssessmentAction(
   goalId: UUID,
-  createData: SelfAssessmentCreate = {},
+  createData: SelfAssessmentCreate = { status: 'draft' },
 ): Promise<{
   success: boolean;
   data?: SelfAssessment;
