@@ -10,6 +10,33 @@ class SubmissionStatus(str, Enum):
     DRAFT = "draft"
     SUBMITTED = "submitted"
 
+
+# Backward-compatible status enum for self-assessment repositories.
+class SelfAssessmentStatus(str, Enum):
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    APPROVED = "approved"
+
+
+# Rating code enum and numeric mapping used by legacy repository logic.
+class RatingCode(str, Enum):
+    SS = "SS"
+    S = "S"
+    A = "A"
+    B = "B"
+    C = "C"
+    D = "D"
+
+
+RATING_CODE_VALUES = {
+    RatingCode.SS: 7.0,
+    RatingCode.S: 6.0,
+    RatingCode.A: 5.0,
+    RatingCode.B: 4.0,
+    RatingCode.C: 3.0,
+    RatingCode.D: 2.0,
+}
+
 class Permission(BaseModel):
     """
     Permission for a role.
