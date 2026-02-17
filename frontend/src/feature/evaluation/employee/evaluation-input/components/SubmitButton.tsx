@@ -17,12 +17,13 @@ import { flushSelfAssessmentAutoSaves } from "../hooks/useSelfAssessmentAutoSave
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
-import type { CompetencyRatingData } from "@/api/types";
+import type { CompetencyRatingData, Competency } from "@/api/types";
 import type { GoalWithAssessment } from "../display/index";
 
 interface SubmitButtonProps {
   performanceGoals: GoalWithAssessment[];
   competencyGoals: GoalWithAssessment[];
+  stageCompetencies?: Competency[];
   onSubmitSuccess?: () => void;
   /** Called before opening dialog to refresh data for accurate validation */
   onRefreshData?: () => Promise<void>;
@@ -44,7 +45,10 @@ function isPerformanceAssessmentComplete(item: GoalWithAssessment): boolean {
 /**
  * Check if a competency goal assessment is complete
  */
-function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
+function isCompetencyAssessmentComplete(
+  item: GoalWithAssessment,
+  stageCompetencies: Competency[]
+): boolean {
   const assessment = item.selfAssessment;
   if (!assessment) return false;
   // Approved assessments are locked and complete
@@ -57,10 +61,26 @@ function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   const ratingData = assessment.ratingData as CompetencyRatingData | undefined;
   if (!ratingData) return false;
 
-  const selectedActions = item.goal.selectedIdealActions || {};
+  const actionsByCompetencyFromStage: Record<string, string[]> = stageCompetencies.reduce(
+    (acc, competency) => {
+      const actionIndexes = Object.keys(competency.description || {}).sort(
+        (a, b) => Number(a) - Number(b)
+      );
+      if (actionIndexes.length > 0) {
+        acc[competency.id] = actionIndexes;
+      }
+      return acc;
+    },
+    {} as Record<string, string[]>
+  );
+
+  const requiredActions =
+    Object.keys(actionsByCompetencyFromStage).length > 0
+      ? actionsByCompetencyFromStage
+      : item.goal.selectedIdealActions || {};
 
   // Check each competency has all actions rated
-  for (const [competencyId, actionIndexes] of Object.entries(selectedActions)) {
+  for (const [competencyId, actionIndexes] of Object.entries(requiredActions)) {
     const competencyRatings = ratingData[competencyId];
     if (!competencyRatings) return false;
 
@@ -75,6 +95,7 @@ function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
 export default function SubmitButton({
   performanceGoals,
   competencyGoals,
+  stageCompetencies = [],
   onSubmitSuccess,
   onRefreshData,
   disabled = false,
@@ -127,7 +148,7 @@ export default function SubmitButton({
     (item) => !isPerformanceAssessmentComplete(item)
   );
   const incompleteCompetency = editableCompetencyAssessments.filter(
-    (item) => !isCompetencyAssessmentComplete(item)
+    (item) => !isCompetencyAssessmentComplete(item, stageCompetencies)
   );
 
   const hasIncomplete = incompletePerformance.length > 0 || incompleteCompetency.length > 0;
@@ -144,7 +165,11 @@ export default function SubmitButton({
       .filter((item) => item.selfAssessment?.status === 'draft' && isPerformanceAssessmentComplete(item))
       .map((item) => item.selfAssessment!.id),
     ...editableCompetencyAssessments
-      .filter((item) => item.selfAssessment?.status === 'draft' && isCompetencyAssessmentComplete(item))
+      .filter(
+        (item) =>
+          item.selfAssessment?.status === 'draft' &&
+          isCompetencyAssessmentComplete(item, stageCompetencies)
+      )
       .map((item) => item.selfAssessment!.id),
   ];
 
