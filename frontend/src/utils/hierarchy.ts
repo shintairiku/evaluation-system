@@ -113,6 +113,7 @@ export function getPotentialSubordinates(
 export function getRoleHierarchyLevel(roleName: string): number {
   const hierarchyMap: Record<string, number> = {
     'admin': 1,      // 管理者 - highest authority
+    'eval_admin': 1, // 評価基準アドミン - feature admin authority
     'manager': 2,    // 部門マネジャー
     'supervisor': 3, // 上司・チームリーダー  
     'employee': 4,   // 従業員
@@ -187,4 +188,3 @@ export function getRoleBasedPotentialSubordinates(
     return subordinateHierarchy > currentUserHierarchy;
   });
 }
-
