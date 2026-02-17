@@ -345,14 +345,17 @@ class SupervisorFeedbackService:
                 if goal:
                     # Create temp object for submission validation
                     temp_feedback = SupervisorFeedbackUpdate(
-                        rating=float(existing_feedback.rating) if existing_feedback.rating else None,
-                        comment=existing_feedback.comment,
+                        rating=float(existing_feedback.supervisor_rating) if existing_feedback.supervisor_rating is not None else None,
+                        comment=existing_feedback.supervisor_comment,
                         status=SubmissionStatus.SUBMITTED
                     )
                     await self._validate_goal_category_rating_rules(goal, temp_feedback)
             
             # Update status using dedicated method
             updated_feedback = await self.supervisor_feedback_repo.submit_feedback(feedback_id, org_id)
+
+            # Lock the linked self-assessment once feedback is approved/submitted.
+            await self.self_assessment_repo.approve_assessment(existing_feedback.self_assessment_id, org_id)
             
             # Commit transaction
             await self.session.commit()
@@ -621,7 +624,7 @@ class SupervisorFeedbackService:
                 if goal:
                     # Create temp object for validation (without status field)
                     temp_feedback = SupervisorFeedbackUpdate(
-                        rating=feedback_data.rating if feedback_data.rating is not None else existing_feedback.rating,
+                        rating=feedback_data.rating if feedback_data.rating is not None else existing_feedback.supervisor_rating,
                         comment=feedback_data.comment
                     )
                     await self._validate_goal_category_rating_rules(goal, temp_feedback)
@@ -676,8 +679,8 @@ class SupervisorFeedbackService:
             "self_assessment_id": feedback_model.self_assessment_id,
             "period_id": feedback_model.period_id,
             "supervisor_id": feedback_model.supervisor_id,
-            "rating": float(feedback_model.rating) if feedback_model.rating else None,
-            "comment": feedback_model.comment,
+            "rating": float(feedback_model.supervisor_rating) if feedback_model.supervisor_rating is not None else None,
+            "comment": feedback_model.supervisor_comment,
             "status": SubmissionStatus(feedback_model.status),
             "submitted_at": feedback_model.submitted_at,
             "created_at": feedback_model.created_at,
