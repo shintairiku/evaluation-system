@@ -326,7 +326,7 @@ function CompetencyGoalGroup({
           disabled={!isEditable}
         />
         <div className="flex justify-between items-center mt-1">
-          <p className="text-xs text-gray-400">具体的なフィードバックを記載してください</p>
+          <p className="text-xs text-gray-400">メモ（部下には表示されません）</p>
           <p className="text-xs text-gray-400">{comment.length} / 5000</p>
         </div>
       </div>
