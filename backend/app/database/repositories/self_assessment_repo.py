@@ -2,6 +2,7 @@ import logging
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.orm import joinedload, aliased
@@ -54,6 +55,9 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                     organization_id=org_id,
                     rating_code=assessment_data.self_rating_code
                 )
+            elif assessment_data.self_rating is not None:
+                # Backward compatibility: accept legacy numeric-only selfRating payloads.
+                self_rating = Decimal(str(assessment_data.self_rating))
 
             assessment = SelfAssessment(
                 goal_id=goal_id,
@@ -61,6 +65,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                 self_rating_code=assessment_data.self_rating_code.value if assessment_data.self_rating_code else None,
                 self_rating=self_rating,
                 self_comment=assessment_data.self_comment,
+                rating_data=assessment_data.rating_data,
                 status=assessment_data.status.value if assessment_data.status else SelfAssessmentStatus.DRAFT.value
             )
             
@@ -321,6 +326,9 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                     organization_id=org_id,
                     rating_code=assessment_data.self_rating_code
                 )
+            elif assessment_data.self_rating is not None:
+                # Backward compatibility: honor legacy numeric-only selfRating updates.
+                update_data["self_rating"] = Decimal(str(assessment_data.self_rating))
 
             if assessment_data.self_comment is not None:
                 update_data["self_comment"] = assessment_data.self_comment
@@ -368,8 +376,8 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                 raise ValidationError("Cannot submit approved self-assessment (locked)")
 
             # Validate required fields for submission
-            if not existing_assessment.self_rating_code:
-                raise ValidationError("selfRatingCode is required for submission")
+            if existing_assessment.self_rating is None:
+                raise ValidationError("selfRating is required for submission")
             if not existing_assessment.self_comment or existing_assessment.self_comment.strip() == "":
                 raise ValidationError("selfComment is required for submission")
 
