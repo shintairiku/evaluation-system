@@ -10,15 +10,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { GoalWithAssessment } from "./index";
-import type { RatingCode, CompetencyRatingData } from "@/api/types";
+import type { RatingCode, CompetencyRatingData, Competency } from "@/api/types";
 import { calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSelfAssessmentAutoSave } from "../hooks/useSelfAssessmentAutoSave";
+import {
+  createSelfAssessmentAction,
+  getSelfAssessmentsByGoalAction,
+} from "@/api/server-actions/self-assessments";
 import { SaveStatusIndicator, SupervisorFeedbackAlert } from "./components";
 
 interface CompetencyEvaluateProps {
   goalsWithAssessments?: GoalWithAssessment[];
+  stageCompetencies?: Competency[];
   isLoading?: boolean;
 }
 
@@ -32,35 +37,100 @@ const COMPETENCY_RATING_CODES: RatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
  */
 function CompetencyGoalCard({
   goalWithAssessment,
+  stageCompetencies,
 }: {
   goalWithAssessment: GoalWithAssessment;
+  stageCompetencies: Competency[];
 }) {
   const { goal, selfAssessment } = goalWithAssessment;
+  const [activeAssessment, setActiveAssessment] = useState(selfAssessment);
+  const [isEnsuringAssessment, setIsEnsuringAssessment] = useState(false);
+  const [hasAttemptedEnsure, setHasAttemptedEnsure] = useState(false);
 
   // Get competency data from goal
   const competencyNames = goal.competencyNames || {};
   const selectedIdealActions = goal.selectedIdealActions || {};
   const idealActionTexts = goal.idealActionTexts || {};
-  const competencyIds = goal.competencyIds || [];
+  const selectedCompetencyIds = goal.competencyIds || [];
+  const stageCompetencyMap = new Map(stageCompetencies.map((competency) => [competency.id, competency]));
+  const competencyIds =
+    stageCompetencies.length > 0
+      ? stageCompetencies.map((competency) => competency.id)
+      : selectedCompetencyIds;
+  const selectedCompetencyNamesForReference = selectedCompetencyIds.map(
+    (competencyId) =>
+      competencyNames[competencyId] ||
+      stageCompetencyMap.get(competencyId)?.name ||
+      competencyId
+  );
 
   // Local state for form values
   const [ratingData, setRatingData] = useState<CompetencyRatingData>(
-    (selfAssessment?.ratingData as CompetencyRatingData) || {}
+    (activeAssessment?.ratingData as CompetencyRatingData) || {}
   );
-  const [comment, setComment] = useState<string>(selfAssessment?.selfComment || "");
+  const [comment, setComment] = useState<string>(activeAssessment?.selfComment || "");
+  const canEdit = activeAssessment?.status !== "approved";
+
+  useEffect(() => {
+    setActiveAssessment(selfAssessment);
+  }, [selfAssessment]);
+
+  useEffect(() => {
+    setHasAttemptedEnsure(false);
+  }, [goal.id]);
+
+  useEffect(() => {
+    setRatingData((activeAssessment?.ratingData as CompetencyRatingData) || {});
+    setComment(activeAssessment?.selfComment || "");
+  }, [activeAssessment?.id, activeAssessment?.ratingData, activeAssessment?.selfComment]);
+
+  useEffect(() => {
+    const ensureAssessment = async () => {
+      if (
+        activeAssessment?.id ||
+        goal.status !== "approved" ||
+        isEnsuringAssessment ||
+        hasAttemptedEnsure
+      ) {
+        return;
+      }
+
+      setIsEnsuringAssessment(true);
+      setHasAttemptedEnsure(true);
+      try {
+        const createResult = await createSelfAssessmentAction(goal.id, { status: "draft" });
+        if (createResult.success && createResult.data) {
+          setActiveAssessment(createResult.data);
+          return;
+        }
+
+        // Fallback for race/conflict: fetch existing record by goal.
+        const existingResult = await getSelfAssessmentsByGoalAction(goal.id);
+        if (existingResult.success && existingResult.data) {
+          setActiveAssessment(existingResult.data);
+        }
+      } catch (error) {
+        console.error("Failed to ensure self-assessment:", error);
+      } finally {
+        setIsEnsuringAssessment(false);
+      }
+    };
+
+    void ensureAssessment();
+  }, [activeAssessment?.id, goal.id, goal.status, isEnsuringAssessment, hasAttemptedEnsure]);
 
   // Auto-save hook (no parent notification to avoid reload flicker)
   const { saveStatus, debouncedSave, save, isEditable } = useSelfAssessmentAutoSave({
-    assessmentId: selfAssessment?.id,
-    initialRatingData: selfAssessment?.ratingData as CompetencyRatingData | undefined,
-    initialComment: selfAssessment?.selfComment,
-    initialStatus: selfAssessment?.status,
+    assessmentId: activeAssessment?.id,
+    initialRatingData: activeAssessment?.ratingData as CompetencyRatingData | undefined,
+    initialComment: activeAssessment?.selfComment,
+    initialStatus: activeAssessment?.status,
   });
 
   // Handle action rating change
   const handleActionRatingChange = useCallback(
     (competencyId: string, actionIndex: string, rating: RatingCode) => {
-      if (!isEditable) return;
+      if (!canEdit) return;
 
       const newRatingData: CompetencyRatingData = {
         ...ratingData,
@@ -70,40 +140,60 @@ function CompetencyGoalCard({
         },
       };
       setRatingData(newRatingData);
-      debouncedSave({ ratingData: newRatingData, selfComment: comment });
+      if (isEditable) {
+        debouncedSave({ ratingData: newRatingData, selfComment: comment });
+      } else if (!activeAssessment?.id) {
+        setHasAttemptedEnsure(false);
+      }
     },
-    [ratingData, comment, debouncedSave, isEditable]
+    [ratingData, comment, debouncedSave, isEditable, canEdit, activeAssessment?.id]
   );
 
   // Handle comment change (debounced)
   const handleCommentChange = useCallback(
     (newComment: string) => {
-      if (!isEditable) return;
+      if (!canEdit) return;
       setComment(newComment);
-      debouncedSave({ ratingData, selfComment: newComment });
+      if (isEditable) {
+        debouncedSave({ ratingData, selfComment: newComment });
+      } else if (!activeAssessment?.id) {
+        setHasAttemptedEnsure(false);
+      }
     },
-    [ratingData, debouncedSave, isEditable]
+    [ratingData, debouncedSave, isEditable, canEdit, activeAssessment?.id]
   );
 
   // Handle comment blur (immediate save)
   const handleCommentBlur = useCallback(() => {
-    if (!isEditable || !comment.trim()) return;
+    if (!canEdit || !comment.trim()) return;
+    if (!isEditable) {
+      if (!activeAssessment?.id) {
+        setHasAttemptedEnsure(false);
+      }
+      return;
+    }
     save({ ratingData, selfComment: comment });
-  }, [ratingData, comment, save, isEditable]);
+  }, [ratingData, comment, save, isEditable, canEdit, activeAssessment?.id]);
+
+  useEffect(() => {
+    if (!isEditable || !activeAssessment?.id) return;
+    if (Object.keys(ratingData).length === 0 && !comment.trim()) return;
+
+    debouncedSave({ ratingData, selfComment: comment });
+  }, [isEditable, activeAssessment?.id, debouncedSave, ratingData, comment]);
 
   // Calculate competency rating (average of action ratings)
-  const calculateCompetencyRating = (competencyId: string): string | null => {
+  const calculateCompetencyRating = (competencyId: string, actionIndexes: string[]): string | null => {
     const actionRatings = ratingData[competencyId];
-    const selectedActions = selectedIdealActions[competencyId] || [];
 
-    if (!actionRatings || selectedActions.length === 0) return null;
+    if (!actionRatings || actionIndexes.length === 0) return null;
 
     // Check if all selected actions have ratings
-    const allRated = selectedActions.every((idx) => actionRatings[idx]);
+    const allRated = actionIndexes.every((idx) => actionRatings[idx]);
     if (!allRated) return null;
 
     // Get ratings for selected actions
-    const ratings = selectedActions
+    const ratings = actionIndexes
       .map((idx) => actionRatings[idx] as RatingCode)
       .filter(Boolean);
 
@@ -115,12 +205,39 @@ function CompetencyGoalCard({
 
   return (
     <>
+      {/* Goal Reference */}
+      {(goal.actionPlan || selectedCompetencyNamesForReference.length > 0) && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 space-y-3">
+          {selectedCompetencyNamesForReference.length > 0 && (
+            <div>
+              <p className="text-sm font-semibold text-blue-900">参考: 選択されたコンピテンシー</p>
+              <p className="text-sm text-blue-800 mt-1">
+                {selectedCompetencyNamesForReference.join(", ")}
+              </p>
+            </div>
+          )}
+          {goal.actionPlan && (
+            <div>
+              <p className="text-sm font-semibold text-blue-900">参考: アクションプラン</p>
+              <p className="text-sm text-blue-800 mt-1 whitespace-pre-wrap">{goal.actionPlan}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Each competency as a separate card */}
       {competencyIds.map((competencyId) => {
-        const competencyName = competencyNames[competencyId] || "コンピテンシー";
-        const actionIndexes = selectedIdealActions[competencyId] || [];
-        const actionTexts = idealActionTexts[competencyId] || [];
-        const competencyRating = calculateCompetencyRating(competencyId);
+        const stageCompetency = stageCompetencyMap.get(competencyId);
+        const stageActionTexts = stageCompetency?.description || {};
+        const stageActionIndexes = Object.keys(stageActionTexts).sort(
+          (a, b) => Number(a) - Number(b)
+        );
+        const fallbackActionIndexes = selectedIdealActions[competencyId] || [];
+        const actionIndexes = stageActionIndexes.length > 0 ? stageActionIndexes : fallbackActionIndexes;
+        const fallbackActionTexts = idealActionTexts[competencyId] || [];
+        const competencyName =
+          stageCompetency?.name || competencyNames[competencyId] || "コンピテンシー";
+        const competencyRating = calculateCompetencyRating(competencyId, actionIndexes);
 
         return (
           <div
@@ -139,12 +256,12 @@ function CompetencyGoalCard({
                       <span className="text-xs text-gray-500">評価</span>
                       <div
                         className={`text-xl font-bold ${
-                          selfAssessment?.status !== 'draft' && competencyRating
+                          activeAssessment?.status !== 'draft' && competencyRating
                             ? "text-green-700"
                             : "text-gray-300"
                         }`}
                       >
-                        {selfAssessment?.status !== 'draft'
+                        {activeAssessment?.status !== 'draft'
                           ? (competencyRating || "−")
                           : "−"}
                       </div>
@@ -152,7 +269,7 @@ function CompetencyGoalCard({
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
                     <p className="text-xs">
-                      {selfAssessment?.status !== 'draft'
+                      {activeAssessment?.status !== 'draft'
                         ? `提出済みの${competencyName}評価から算出された評価です。`
                         : "※提出後に評価が表示されます。"}
                     </p>
@@ -164,8 +281,7 @@ function CompetencyGoalCard({
             {/* Ideal Action Items */}
             <div className="space-y-6">
               {actionIndexes.map((actionIdx, index) => {
-                // Use loop index to access the array (texts are in same order as actionIndexes)
-                const actionText = actionTexts[index];
+                const actionText = stageActionTexts[actionIdx] || fallbackActionTexts[index];
                 const currentRating = ratingData[competencyId]?.[actionIdx];
 
                 // Skip if no action text
@@ -174,7 +290,10 @@ function CompetencyGoalCard({
                 return (
                   <div key={`${competencyId}-${actionIdx}`}>
                     {/* Action Description */}
-                    <div className="text-sm text-gray-800 mb-3">{actionText}</div>
+                    <div className="text-sm text-gray-800 mb-3">
+                      <span className="font-semibold mr-1">{actionIdx}.</span>
+                      {actionText}
+                    </div>
 
                     {/* Rating Buttons for this action */}
                     <div className="flex items-center gap-3 flex-wrap">
@@ -184,12 +303,12 @@ function CompetencyGoalCard({
                           <div
                             key={rating}
                             className={`flex items-center gap-2 ${
-                              isEditable
+                              canEdit
                                 ? "cursor-pointer"
                                 : "cursor-not-allowed opacity-60"
                             }`}
                             onClick={() =>
-                              isEditable &&
+                              canEdit &&
                               handleActionRatingChange(competencyId, actionIdx, rating)
                             }
                           >
@@ -207,6 +326,14 @@ function CompetencyGoalCard({
                 );
               })}
             </div>
+
+            {!activeAssessment?.id && (
+              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                {isEnsuringAssessment
+                  ? "自己評価レコードを準備中です..."
+                  : "自己評価レコードの準備に失敗しました。再読み込みしてください。"}
+              </div>
+            )}
           </div>
         );
       })}
@@ -227,7 +354,7 @@ function CompetencyGoalCard({
           placeholder="各コンピテンシーの発揮状況や具体的なエピソードについて記入してください..."
           className="mt-1 text-sm rounded-md border-gray-300 bg-white focus:ring-2 focus:ring-green-200 min-h-[100px]"
           maxLength={5000}
-          disabled={!isEditable}
+          disabled={!canEdit}
         />
         <div className="flex justify-between items-center mt-1">
           <p className="text-xs text-gray-400">
@@ -372,6 +499,7 @@ function RatingCriteriaLegend() {
  */
 export default function CompetencyEvaluate({
   goalsWithAssessments = [],
+  stageCompetencies = [],
   isLoading = false,
 }: CompetencyEvaluateProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -382,14 +510,34 @@ export default function CompetencyEvaluate({
   const calculateOverallRating = (): string | null => {
     if (goalsWithAssessments.length === 0) return null;
 
+    const requiredActionsByStageCompetency: Record<string, string[]> = stageCompetencies.reduce(
+      (acc, competency) => {
+        const actionIndexes = Object.keys(competency.description || {}).sort(
+          (a, b) => Number(a) - Number(b)
+        );
+        if (actionIndexes.length > 0) {
+          acc[competency.id] = actionIndexes;
+        }
+        return acc;
+      },
+      {} as Record<string, string[]>
+    );
+
+    const getRequiredActions = (item: GoalWithAssessment): Record<string, string[]> => {
+      if (Object.keys(requiredActionsByStageCompetency).length > 0) {
+        return requiredActionsByStageCompetency;
+      }
+      return item.goal.selectedIdealActions || {};
+    };
+
     // Check if all goals have complete ratings and comments
     const allComplete = goalsWithAssessments.every((item) => {
       if (!item.selfAssessment?.selfComment?.trim()) return false;
       const ratingData = item.selfAssessment?.ratingData as CompetencyRatingData;
       if (!ratingData) return false;
 
-      const selectedActions = item.goal.selectedIdealActions || {};
-      return Object.entries(selectedActions).every(([compId, actions]) => {
+      const requiredActions = getRequiredActions(item);
+      return Object.entries(requiredActions).every(([compId, actions]) => {
         const actionRatings = ratingData[compId];
         if (!actionRatings) return false;
         return (actions as string[]).every((idx) => actionRatings[idx]);
@@ -409,8 +557,8 @@ export default function CompetencyEvaluate({
 
       // Collect all ratings for this goal
       const allRatings: RatingCode[] = [];
-      const selectedActions = item.goal.selectedIdealActions || {};
-      Object.entries(selectedActions).forEach(([compId, actions]) => {
+      const requiredActions = getRequiredActions(item);
+      Object.entries(requiredActions).forEach(([compId, actions]) => {
         const actionRatings = ratingData[compId];
         if (!actionRatings) return;
 
@@ -533,6 +681,7 @@ export default function CompetencyEvaluate({
                   <CompetencyGoalCard
                     key={item.goal.id}
                     goalWithAssessment={item}
+                    stageCompetencies={stageCompetencies}
                   />
                 ))}
               </>
