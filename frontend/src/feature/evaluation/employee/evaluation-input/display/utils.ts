@@ -27,9 +27,18 @@ export async function fetchAndCategorizeGoals(
   // Fetch approved goals, self-assessments, and supervisor feedbacks in parallel
   // selfOnly: true ensures supervisors only see their own data, not subordinates'
   const [goalsResult, assessmentsResult, feedbacksResult] = await Promise.all([
-    getGoalsAction({ periodId, status: 'approved', selfOnly: true }),
-    getSelfAssessmentsAction({ periodId, selfOnly: true, cacheBuster: assessmentCacheBuster }),
-    getSupervisorFeedbacksAction({ periodId, selfOnly: true })
+    getGoalsAction({ periodId, status: 'approved', selfOnly: true, page: 1, limit: 200 }),
+    getSelfAssessmentsAction({
+      periodId,
+      selfOnly: true,
+      pagination: { page: 1, limit: 200 },
+      cacheBuster: assessmentCacheBuster,
+    }),
+    getSupervisorFeedbacksAction({
+      periodId,
+      selfOnly: true,
+      pagination: { page: 1, limit: 200 },
+    })
   ]);
 
   const performance: GoalWithAssessment[] = [];
@@ -61,7 +70,9 @@ export async function fetchAndCategorizeGoals(
 
   if (goalsMissingAssessments.length > 0) {
     const creationResults = await Promise.all(
-      goalsMissingAssessments.map((goal) => createSelfAssessmentAction(goal.id)),
+      goalsMissingAssessments.map((goal) =>
+        createSelfAssessmentAction(goal.id, { status: "draft" }),
+      ),
     );
 
     creationResults.forEach((result, index) => {
@@ -82,6 +93,7 @@ export async function fetchAndCategorizeGoals(
       const refreshedAssessments = await getSelfAssessmentsAction({
         periodId,
         selfOnly: true,
+        pagination: { page: 1, limit: 200 },
         cacheBuster: `${periodId}-${Date.now()}-recovery`,
       });
 
