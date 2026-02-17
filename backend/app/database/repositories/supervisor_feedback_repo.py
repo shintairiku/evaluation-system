@@ -323,6 +323,13 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     ) -> List[SupervisorFeedback]:
         """Search supervisor feedbacks with various filters within organization scope."""
         try:
+            if supervisor_ids is not None and len(supervisor_ids) == 0:
+                return []
+            if subordinate_ids is not None and len(subordinate_ids) == 0:
+                return []
+            if user_ids is not None and len(user_ids) == 0:
+                return []
+
             from ..models.goal import Goal
             from ..models.user import User
 
@@ -341,10 +348,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             )
 
             # Apply filters
-            if supervisor_ids:
+            if supervisor_ids is not None:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
 
-            if subordinate_ids:
+            if subordinate_ids is not None:
                 query = query.filter(SupervisorFeedback.subordinate_id.in_(subordinate_ids))
 
             if period_id:
@@ -356,7 +363,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             if action:
                 query = query.filter(SupervisorFeedback.action == action)
 
-            if user_ids:
+            if user_ids is not None:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
 
@@ -385,6 +392,13 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     ) -> int:
         """Count supervisor feedbacks matching the given filters within organization scope."""
         try:
+            if supervisor_ids is not None and len(supervisor_ids) == 0:
+                return 0
+            if subordinate_ids is not None and len(subordinate_ids) == 0:
+                return 0
+            if user_ids is not None and len(user_ids) == 0:
+                return 0
+
             from ..models.goal import Goal
             from ..models.user import User
 
@@ -397,10 +411,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             )
 
             # Apply same filters as search_feedbacks
-            if supervisor_ids:
+            if supervisor_ids is not None:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
 
-            if subordinate_ids:
+            if subordinate_ids is not None:
                 query = query.filter(SupervisorFeedback.subordinate_id.in_(subordinate_ids))
 
             if period_id:
@@ -412,7 +426,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             if action:
                 query = query.filter(SupervisorFeedback.action == action)
 
-            if user_ids:
+            if user_ids is not None:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
 
@@ -513,8 +527,8 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     ) -> Optional[SupervisorFeedback]:
         """
         Submit supervisor feedback with approval.
-        Sets action=APPROVED, status=submitted, reviewed_at=now.
-        Rating and comment are optionally updated if submit_data is provided.
+        Persists requested action, sets status=submitted.
+        Rating and comment are optional.
         """
         try:
             # Validate feedback exists within organization scope
@@ -527,13 +541,18 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             now = datetime.now(timezone.utc)
 
             # Build update dictionary
+            action_value = submit_data.action.value
             update_data = {
-                "action": SupervisorAction.APPROVED.value,
+                "action": action_value,
                 "status": SubmissionStatus.SUBMITTED.value,
                 "submitted_at": now,
-                "reviewed_at": now,
                 "updated_at": now
             }
+
+            if action_value == SupervisorAction.APPROVED.value:
+                update_data["reviewed_at"] = now
+            else:
+                update_data["reviewed_at"] = None
 
             # Optional: update rating if provided
             if submit_data and submit_data.supervisor_rating_code is not None:
@@ -557,7 +576,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 .values(**update_data)
             )
 
-            logger.info(f"Submitted and approved supervisor feedback {feedback_id}")
+            logger.info(f"Submitted supervisor feedback {feedback_id} with action={action_value}")
             return await self.get_by_id(feedback_id, org_id)
 
         except SQLAlchemyError as e:
