@@ -2,7 +2,7 @@ from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 from pydantic import BaseModel, Field
 from datetime import datetime
-from .common import SubmissionStatus, PaginatedResponse, RatingCode
+from .common import SubmissionStatus, SelfAssessmentStatus, PaginatedResponse, RatingCode
 
 if TYPE_CHECKING:
     pass
@@ -37,7 +37,7 @@ class SelfAssessmentInDB(SelfAssessmentBase):
     id: UUID
     goal_id: UUID
     period_id: UUID
-    status: SubmissionStatus = SubmissionStatus.DRAFT
+    status: SelfAssessmentStatus = SelfAssessmentStatus.DRAFT
     submitted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
