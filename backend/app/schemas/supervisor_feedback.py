@@ -2,7 +2,8 @@ from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 from pydantic import BaseModel, Field
 from datetime import datetime
-from .common import SubmissionStatus, PaginatedResponse
+from .common import SubmissionStatus, PaginatedResponse, RatingCode
+from .supervisor_review import SupervisorAction
 
 if TYPE_CHECKING:
     from .self_assessment import SelfAssessment
@@ -13,6 +14,13 @@ if TYPE_CHECKING:
 class SupervisorFeedbackBase(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=100, description="Supervisor rating from 0-100")
     comment: Optional[str] = Field(None, description="Supervisor feedback comment")
+    # Backward-compatible fields consumed by repository layer
+    supervisor_rating_code: Optional[RatingCode] = Field(None, alias="supervisorRatingCode", description="Letter grade (SS/S/A/B/C/D)")
+    supervisor_comment: Optional[str] = Field(None, alias="supervisorComment", description="Supervisor feedback comment")
+    rating_data: Optional[dict] = Field(None, alias="ratingData", description="Competency per-action ratings")
+    action: Optional[SupervisorAction] = Field(None, description="Supervisor action state")
+
+    model_config = {"populate_by_name": True}
 
 
 class SupervisorFeedbackCreate(SupervisorFeedbackBase):
@@ -25,6 +33,20 @@ class SupervisorFeedbackCreate(SupervisorFeedbackBase):
 class SupervisorFeedbackUpdate(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=100, description="Supervisor rating from 0-100")
     comment: Optional[str] = Field(None, description="Supervisor feedback comment")
+    supervisor_rating_code: Optional[RatingCode] = Field(None, alias="supervisorRatingCode", description="Letter grade (SS/S/A/B/C/D)")
+    supervisor_comment: Optional[str] = Field(None, alias="supervisorComment", description="Supervisor feedback comment")
+    rating_data: Optional[dict] = Field(None, alias="ratingData", description="Competency per-action ratings")
+    action: Optional[SupervisorAction] = Field(None, description="Supervisor action state")
+
+    model_config = {"populate_by_name": True}
+
+
+class SupervisorFeedbackSubmit(BaseModel):
+    supervisor_rating_code: Optional[RatingCode] = Field(None, alias="supervisorRatingCode", description="Letter grade (SS/S/A/B/C/D)")
+    supervisor_comment: Optional[str] = Field(None, alias="supervisorComment", description="Supervisor feedback comment")
+    rating_data: Optional[dict] = Field(None, alias="ratingData", description="Competency per-action ratings")
+
+    model_config = {"populate_by_name": True}
 
 
 class SupervisorFeedbackInDB(SupervisorFeedbackBase):
