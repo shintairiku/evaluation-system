@@ -14,7 +14,7 @@ from ..schemas.self_assessment import (
     SelfAssessmentCreate, SelfAssessmentUpdate, SelfAssessment, SelfAssessmentDetail
 )
 from ..schemas.supervisor_feedback import SupervisorFeedbackCreate
-from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
+from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus, SelfAssessmentStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.rbac_helper import RBACHelper
@@ -474,7 +474,7 @@ class SelfAssessmentService:
             "period_id": assessment_model.period_id,
             "self_rating": assessment_model.self_rating if assessment_model.self_rating is not None else None,
             "self_comment": assessment_model.self_comment,
-            "status": SubmissionStatus(assessment_model.status),
+            "status": SelfAssessmentStatus(assessment_model.status),
             "submitted_at": assessment_model.submitted_at,
             "created_at": assessment_model.created_at,
             "updated_at": assessment_model.updated_at
@@ -493,7 +493,7 @@ class SelfAssessmentService:
         
         # Add detail fields
         detail_dict.update({
-            "is_editable": assessment_model.status == SubmissionStatus.DRAFT.value,
+            "is_editable": assessment_model.status == SelfAssessmentStatus.DRAFT.value,
             "is_overdue": False,  # Placeholder for future deadline check
             "days_until_deadline": None,  # Placeholder for future deadline calculation
             "goal_category": goal.goal_category if goal else None,

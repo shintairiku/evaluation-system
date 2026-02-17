@@ -2,7 +2,7 @@ from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 from pydantic import BaseModel, Field
 from datetime import datetime
-from .common import SubmissionStatus, PaginatedResponse
+from .common import SubmissionStatus, SelfAssessmentStatus, PaginatedResponse, RatingCode
 
 if TYPE_CHECKING:
     pass
@@ -11,6 +11,11 @@ if TYPE_CHECKING:
 class SelfAssessmentBase(BaseModel):
     self_rating: Optional[float] = Field(None, ge=0, le=100, alias="selfRating", description="Self-rating from 0-100")
     self_comment: Optional[str] = Field(None, alias="selfComment", description="Self-assessment comment")
+    # Backward-compatible fields consumed by repository layer
+    self_rating_code: Optional[RatingCode] = Field(None, alias="selfRatingCode", description="Letter grade (SS/S/A/B/C/D)")
+    rating_data: Optional[dict] = Field(None, alias="ratingData", description="Competency per-action ratings")
+
+    model_config = {"populate_by_name": True}
 
 
 class SelfAssessmentCreate(SelfAssessmentBase):
@@ -21,14 +26,18 @@ class SelfAssessmentCreate(SelfAssessmentBase):
 class SelfAssessmentUpdate(BaseModel):
     self_rating: Optional[float] = Field(None, ge=0, le=100, alias="selfRating", description="Self-rating from 0-100")
     self_comment: Optional[str] = Field(None, alias="selfComment", description="Self-assessment comment")
+    self_rating_code: Optional[RatingCode] = Field(None, alias="selfRatingCode", description="Letter grade (SS/S/A/B/C/D)")
+    rating_data: Optional[dict] = Field(None, alias="ratingData", description="Competency per-action ratings")
     status: Optional[SubmissionStatus] = Field(None, description="Assessment status based on button clicked: 'draft' or 'submitted'")
+
+    model_config = {"populate_by_name": True}
 
 
 class SelfAssessmentInDB(SelfAssessmentBase):
     id: UUID
     goal_id: UUID
     period_id: UUID
-    status: SubmissionStatus = SubmissionStatus.DRAFT
+    status: SelfAssessmentStatus = SelfAssessmentStatus.DRAFT
     submitted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

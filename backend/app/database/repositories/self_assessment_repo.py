@@ -12,10 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.self_assessment import SelfAssessment
 from ..models.goal import Goal
 from ...schemas.self_assessment import SelfAssessmentCreate, SelfAssessmentUpdate
-from ...schemas.common import PaginationParams, SubmissionStatus
+from ...schemas.common import PaginationParams, SelfAssessmentStatus
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
+from .evaluation_score_mapping_repo import EvaluationScoreMappingRepository
 from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, SelfAssessment)
+        self.score_mapping_repo = EvaluationScoreMappingRepository(session)
 
     # ========================================
     # CREATE OPERATIONS
@@ -46,12 +48,25 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                 raise ConflictError(f"Self-assessment already exists for goal {goal_id}")
             
             # Create assessment with validated data
+            # Auto-calculate self_rating from self_rating_code
+            self_rating = None
+            if assessment_data.self_rating_code:
+                self_rating = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=assessment_data.self_rating_code
+                )
+            elif assessment_data.self_rating is not None:
+                # Backward compatibility: accept legacy numeric-only selfRating payloads.
+                self_rating = Decimal(str(assessment_data.self_rating))
+
             assessment = SelfAssessment(
                 goal_id=goal_id,
                 period_id=goal.period_id,  # Inherit from goal
-                self_rating=Decimal(str(assessment_data.self_rating)) if assessment_data.self_rating is not None else None,
+                self_rating_code=assessment_data.self_rating_code.value if assessment_data.self_rating_code else None,
+                self_rating=self_rating,
                 self_comment=assessment_data.self_comment,
-                status=assessment_data.status.value if assessment_data.status else SubmissionStatus.DRAFT.value
+                rating_data=assessment_data.rating_data,
+                status=assessment_data.status.value if assessment_data.status else SelfAssessmentStatus.DRAFT.value
             )
             
             self.session.add(assessment)
@@ -60,10 +75,12 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             
         except IntegrityError as e:
             logger.error(f"Integrity error creating self-assessment for goal {goal_id}: {e}")
-            if "check_self_rating_bounds" in str(e):
+            if "chk_self_rating_bounds" in str(e):
                 raise ValidationError("Self rating must be between 0 and 100")
-            elif "check_status_values" in str(e):
-                raise ValidationError("Invalid status value")
+            elif "chk_self_rating_code" in str(e):
+                raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
+            elif "chk_self_assessment_status" in str(e):
+                raise ValidationError("Invalid status. Must be one of: draft, submitted, approved")
             elif "idx_self_assessments_goal_unique" in str(e):
                 raise ConflictError("Self-assessment already exists for this goal")
             else:
@@ -294,25 +311,31 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         try:
             # Validate assessment exists first (organization-scoped)
             existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
-            
+
+            # Check if assessment is editable (not approved)
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise ValidationError("Cannot update approved self-assessment (locked)")
+
             # Build update dictionary
             update_data = {}
-            
-            if assessment_data.self_rating is not None:
+
+            if assessment_data.self_rating_code is not None:
+                update_data["self_rating_code"] = assessment_data.self_rating_code.value
+                # Auto-calculate self_rating from code
+                update_data["self_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=assessment_data.self_rating_code
+                )
+            elif assessment_data.self_rating is not None:
+                # Backward compatibility: honor legacy numeric-only selfRating updates.
                 update_data["self_rating"] = Decimal(str(assessment_data.self_rating))
-            
+
             if assessment_data.self_comment is not None:
                 update_data["self_comment"] = assessment_data.self_comment
-            
-            if assessment_data.status is not None:
-                update_data["status"] = assessment_data.status.value
-                
-                # Set submitted_at when status changes to submitted
-                if assessment_data.status == SubmissionStatus.SUBMITTED:
-                    update_data["submitted_at"] = datetime.now(timezone.utc)
-                elif assessment_data.status == SubmissionStatus.DRAFT:
-                    update_data["submitted_at"] = None
-            
+
+            if assessment_data.rating_data is not None:
+                update_data["rating_data"] = assessment_data.rating_data
+
             # Execute update if there are changes
             if update_data:
                 update_data["updated_at"] = datetime.now(timezone.utc)
@@ -321,18 +344,18 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                     .where(SelfAssessment.id == assessment_id)
                     .values(**update_data)
                 )
-            
+
             # Return updated assessment
             return await self.get_by_id(assessment_id, org_id)
-            
+
         except IntegrityError as e:
             logger.error(f"Integrity error updating self-assessment {assessment_id}: {e}")
-            if "check_self_rating_bounds" in str(e):
+            if "chk_self_rating_bounds" in str(e):
                 raise ValidationError("Self rating must be between 0 and 100")
-            elif "check_status_values" in str(e):
-                raise ValidationError("Invalid status value")
-            elif "check_submission_required" in str(e):
-                raise ValidationError("Submitted assessments must have submitted_at timestamp")
+            elif "chk_self_rating_code" in str(e):
+                raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
+            elif "chk_self_assessment_submission" in str(e):
+                raise ValidationError("Submitted/approved assessments must have submitted_at timestamp")
             else:
                 raise ConflictError(f"Database constraint violation: {e}")
         except ValueError as e:
@@ -345,30 +368,71 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     async def submit_assessment(self, assessment_id: UUID, org_id: str) -> Optional[SelfAssessment]:
         """Submit a self-assessment by changing status to submitted."""
         try:
-            # Validate assessment exists and is in draft status (organization-scoped)
+            # Validate assessment exists (organization-scoped)
             existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
-            
-            if existing_assessment.status != SubmissionStatus.DRAFT.value:
-                raise ValidationError("Can only submit draft assessments")
-            
+
+            # Check if already approved (locked)
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise ValidationError("Cannot submit approved self-assessment (locked)")
+
+            # Validate required fields for submission
+            if existing_assessment.self_rating is None:
+                raise ValidationError("selfRating is required for submission")
+            if not existing_assessment.self_comment or existing_assessment.self_comment.strip() == "":
+                raise ValidationError("selfComment is required for submission")
+
             # Update status and set submitted_at
             update_data = {
-                "status": SubmissionStatus.SUBMITTED.value,
+                "status": SelfAssessmentStatus.SUBMITTED.value,
                 "submitted_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc)
             }
-            
+
             await self.session.execute(
                 update(SelfAssessment)
                 .where(SelfAssessment.id == assessment_id)
                 .values(**update_data)
             )
-            
+
             logger.info(f"Submitted self-assessment {assessment_id}")
             return await self.get_by_id(assessment_id, org_id)
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Database error submitting self-assessment {assessment_id}: {e}")
+            raise
+
+    async def approve_assessment(self, assessment_id: UUID, org_id: str) -> Optional[SelfAssessment]:
+        """Approve a self-assessment (called when supervisor approves feedback)."""
+        try:
+            # Validate assessment exists (organization-scoped)
+            existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
+
+            # Check if already approved
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                logger.info(f"Self-assessment {assessment_id} is already approved")
+                return existing_assessment
+
+            # Update status to approved
+            update_data = {
+                "status": SelfAssessmentStatus.APPROVED.value,
+                "updated_at": datetime.now(timezone.utc)
+            }
+
+            # Ensure submitted_at is set
+            if not existing_assessment.submitted_at:
+                update_data["submitted_at"] = datetime.now(timezone.utc)
+
+            await self.session.execute(
+                update(SelfAssessment)
+                .where(SelfAssessment.id == assessment_id)
+                .values(**update_data)
+            )
+
+            logger.info(f"Approved self-assessment {assessment_id} (locked)")
+            return await self.get_by_id(assessment_id, org_id)
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error approving self-assessment {assessment_id}: {e}")
             raise
 
     # ========================================
@@ -382,8 +446,8 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
 
             # Check if assessment can be deleted (only draft assessments)
-            if existing_assessment.status == SubmissionStatus.SUBMITTED.value:
-                raise ValidationError("Cannot delete submitted assessments")
+            if existing_assessment.status != SelfAssessmentStatus.DRAFT.value:
+                raise ValidationError(f"Cannot delete {existing_assessment.status} assessments. Only draft assessments can be deleted.")
 
             result = await self.session.execute(
                 delete(SelfAssessment)
