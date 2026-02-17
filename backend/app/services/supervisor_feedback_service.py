@@ -16,7 +16,7 @@ from ..schemas.supervisor_feedback import (
 from ..schemas.self_assessment import SelfAssessment
 from ..schemas.evaluation import EvaluationPeriod
 from ..schemas.user import UserProfileOption
-from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
+from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus, SelfAssessmentStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.decorators import require_any_permission
@@ -750,7 +750,7 @@ class SupervisorFeedbackService:
             periodId=assessment_model.period_id,
             selfRating=float(assessment_model.self_rating) if assessment_model.self_rating else None,
             selfComment=assessment_model.self_comment,
-            status=SubmissionStatus(assessment_model.status),
+            status=SelfAssessmentStatus(assessment_model.status),
             submittedAt=assessment_model.submitted_at,
             createdAt=assessment_model.created_at,
             updatedAt=assessment_model.updated_at
