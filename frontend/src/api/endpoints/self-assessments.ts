@@ -98,14 +98,6 @@ export const selfAssessmentsApi = {
   },
 
   /**
-   * Create a new self-assessment
-   */
-  createSelfAssessment: async (data: SelfAssessmentCreate, goalId: UUID): Promise<ApiResponse<SelfAssessment>> => {
-    const endpoint = `${API_ENDPOINTS.SELF_ASSESSMENTS.CREATE}?goalId=${goalId}`;
-    return httpClient.post<SelfAssessment>(endpoint, data);
-  },
-
-  /**
    * Update an existing self-assessment
    */
   updateSelfAssessment: async (assessmentId: UUID, data: SelfAssessmentUpdate): Promise<ApiResponse<SelfAssessment>> => {
