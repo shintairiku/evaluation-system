@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, ForeignKey, text, DECIMAL, CheckConstraint
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, text, DECIMAL, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID, JSONB
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.schema import Index
@@ -31,6 +31,7 @@ class SupervisorFeedback(Base):
     supervisor_rating_code = Column(String(3), nullable=True)  # SS, S, A, B, C, D
     supervisor_rating = Column(DECIMAL(5, 2), nullable=True)  # 0-7 numeric value, auto-calculated
     supervisor_comment = Column(String, nullable=True)
+    return_comment = Column(Text, nullable=True)  # Feedback visible to subordinate for corrections
     rating_data = Column(JSONB, nullable=True)  # Competency per-action ratings
 
     # Decision and workflow

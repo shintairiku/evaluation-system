@@ -470,6 +470,40 @@ class SelfAssessmentService:
             logger.error(f"Error approving assessment {assessment_id}: {str(e)}")
             raise
 
+    async def revert_to_draft(
+        self,
+        assessment_id: UUID,
+        org_id: str
+    ) -> SelfAssessment:
+        """
+        Revert a submitted assessment to draft (called by supervisor_feedback_service when returning).
+        Internal method — no permission decorator (similar to approve_assessment).
+        """
+        try:
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
+            if not existing_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
+
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise BadRequestError("Cannot revert approved assessment to draft")
+
+            if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                logger.info(f"Self-assessment {assessment_id} is already in draft status")
+                return await self._enrich_assessment_data(existing_assessment)
+
+            updated_assessment = await self.self_assessment_repo.reopen_assessment(assessment_id, org_id)
+            if not updated_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found after revert")
+
+            enriched_assessment = await self._enrich_assessment_data(updated_assessment)
+
+            logger.info(f"Self-assessment reverted to draft: {assessment_id}")
+            return enriched_assessment
+
+        except Exception as e:
+            logger.error(f"Error reverting assessment {assessment_id} to draft: {str(e)}")
+            raise
+
     @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
     async def delete_assessment(
         self,
@@ -634,6 +668,10 @@ class SelfAssessmentService:
             # Check if feedback already exists (avoid duplicates)
             existing_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment.id, org_id)
             if existing_feedback:
+                # Clear return_comment if present (employee resubmitting after supervisor return)
+                if existing_feedback.return_comment:
+                    await self.supervisor_feedback_repo.clear_return_comment(assessment.id, org_id)
+                    logger.info(f"Cleared return_comment for feedback {existing_feedback.id} on resubmission")
                 logger.info(f"SupervisorFeedback already exists for assessment {assessment.id}, skipping auto-creation")
                 return
             

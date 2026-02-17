@@ -425,6 +425,56 @@ class SupervisorFeedbackService:
             raise
 
     @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
+    async def return_feedback(
+        self,
+        feedback_id: UUID,
+        return_comment: str,
+        current_user_context: AuthContext
+    ) -> SupervisorFeedback:
+        """
+        Return feedback for correction (差し戻し).
+        Sets return_comment visible to subordinate and reverts SelfAssessment to draft.
+        """
+        try:
+            org_id = current_user_context.organization_id
+            if not org_id:
+                raise PermissionDeniedError("Organization context required")
+
+            existing_feedback = await self.supervisor_feedback_repo.get_by_id_with_details(feedback_id, org_id)
+            if not existing_feedback:
+                raise NotFoundError(f"Supervisor feedback with ID {feedback_id} not found")
+
+            await self._check_feedback_update_permission(existing_feedback, current_user_context)
+
+            if existing_feedback.action == SupervisorAction.APPROVED.value:
+                raise BadRequestError("Cannot return approved feedback")
+
+            # Set return_comment on feedback
+            updated_feedback = await self.supervisor_feedback_repo.return_feedback(
+                feedback_id, return_comment, org_id
+            )
+
+            # Revert linked SelfAssessment to draft so subordinate can edit
+            from .self_assessment_service import SelfAssessmentService
+            self_assessment_service = SelfAssessmentService(self.session)
+            await self_assessment_service.revert_to_draft(
+                existing_feedback.self_assessment_id, org_id
+            )
+            logger.info(f"Self-assessment {existing_feedback.self_assessment_id} reverted to draft via feedback return {feedback_id}")
+
+            await self.session.commit()
+
+            enriched_feedback = await self._enrich_feedback_data(updated_feedback)
+
+            logger.info(f"Supervisor feedback returned: {feedback_id} by {current_user_context.user_id}")
+            return enriched_feedback
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error returning feedback {feedback_id}: {str(e)}")
+            raise
+
+    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
     async def delete_feedback(
         self,
         feedback_id: UUID,

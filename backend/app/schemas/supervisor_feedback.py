@@ -94,6 +94,18 @@ class SupervisorFeedbackSubmit(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SupervisorFeedbackReturn(BaseModel):
+    """Request schema for returning feedback for correction (差し戻し)."""
+    return_comment: str = Field(
+        ...,
+        alias="returnComment",
+        max_length=5000,
+        description="Feedback from supervisor requesting subordinate to make corrections"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
 class SupervisorFeedbackInDB(SupervisorFeedbackBase):
     id: UUID
     self_assessment_id: UUID
@@ -106,6 +118,11 @@ class SupervisorFeedbackInDB(SupervisorFeedbackBase):
         ge=0,
         le=7,
         description="Numeric rating (0.0-7.0), auto-calculated"
+    )
+    return_comment: Optional[str] = Field(
+        None,
+        alias="returnComment",
+        description="Feedback from supervisor requesting corrections (visible to subordinate)"
     )
     rating_data: Optional[dict] = Field(
         None,

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database.session import get_db_session
 from ...security.dependencies import get_auth_context, require_supervisor_or_above
 from ...security.context import AuthContext
-from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedbackSubmit
+from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedbackSubmit, SupervisorFeedbackReturn
 from ...schemas.common import PaginationParams, BaseResponse
 from ...services.supervisor_feedback_service import SupervisorFeedbackService
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
@@ -243,6 +243,33 @@ async def draft_supervisor_feedback(
         raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error changing supervisor feedback to draft: {str(e)}")
+
+
+@router.post("/{feedback_id}/return", response_model=SupervisorFeedback)
+async def return_supervisor_feedback(
+    feedback_id: UUID,
+    return_data: SupervisorFeedbackReturn,
+    context: AuthContext = Depends(require_supervisor_or_above),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Return feedback for correction (差し戻し).
+    Sets return_comment visible to subordinate and reverts their self-assessment to draft.
+    """
+    try:
+        service = SupervisorFeedbackService(session)
+        result = await service.return_feedback(feedback_id, return_data.return_comment, context)
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error returning supervisor feedback: {str(e)}")
 
 
 @router.delete("/{feedback_id}", response_model=BaseResponse)

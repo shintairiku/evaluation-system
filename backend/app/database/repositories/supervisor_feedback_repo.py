@@ -565,6 +565,64 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             logger.error(f"Database error drafting supervisor feedback {feedback_id}: {e}")
             raise
 
+    async def return_feedback(
+        self,
+        feedback_id: UUID,
+        return_comment: str,
+        org_id: str
+    ) -> Optional[SupervisorFeedback]:
+        """
+        Return feedback for correction (差し戻し).
+        Sets return_comment visible to subordinate.
+        Does NOT change action or status — preserves internal data.
+        """
+        try:
+            existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
+
+            if existing_feedback.action == SupervisorAction.APPROVED.value:
+                raise ValidationError("Cannot return approved feedback")
+
+            update_data = {
+                "return_comment": return_comment,
+                "updated_at": datetime.now(timezone.utc)
+            }
+
+            await self.session.execute(
+                update(SupervisorFeedback)
+                .where(SupervisorFeedback.id == feedback_id)
+                .values(**update_data)
+            )
+
+            logger.info(f"Returned supervisor feedback {feedback_id} for correction")
+            return await self.get_by_id(feedback_id, org_id)
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error returning supervisor feedback {feedback_id}: {e}")
+            raise
+
+    async def clear_return_comment(self, self_assessment_id: UUID, org_id: str) -> bool:
+        """
+        Clear return_comment when subordinate resubmits their assessment.
+        Uses get_by_self_assessment() to find the linked feedback.
+        """
+        try:
+            feedback = await self.get_by_self_assessment(self_assessment_id, org_id)
+            if not feedback or not feedback.return_comment:
+                return False
+
+            await self.session.execute(
+                update(SupervisorFeedback)
+                .where(SupervisorFeedback.id == feedback.id)
+                .values(return_comment=None, updated_at=datetime.now(timezone.utc))
+            )
+
+            logger.info(f"Cleared return_comment for feedback {feedback.id} (assessment {self_assessment_id})")
+            return True
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error clearing return_comment for assessment {self_assessment_id}: {e}")
+            raise
+
     # ========================================
     # DELETE OPERATIONS
     # ========================================
