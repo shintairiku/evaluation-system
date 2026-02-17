@@ -736,6 +736,7 @@ class SupervisorFeedbackService:
             "supervisor_rating_code": feedback_model.supervisor_rating_code,
             "supervisor_rating": float(feedback_model.supervisor_rating) if feedback_model.supervisor_rating else None,
             "supervisor_comment": feedback_model.supervisor_comment,
+            "return_comment": feedback_model.return_comment,
             "rating_data": feedback_model.rating_data,
             "action": SupervisorAction(feedback_model.action) if feedback_model.action else SupervisorAction.PENDING,
             "status": SubmissionStatus(feedback_model.status),
