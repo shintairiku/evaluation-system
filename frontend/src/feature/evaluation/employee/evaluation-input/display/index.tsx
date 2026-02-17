@@ -7,8 +7,16 @@ import CoreValueEvaluate from "./CoreValueEvaluate";
 import SubmitButton from "../components/SubmitButton";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
+import { getCurrentUserAction } from "@/api/server-actions/users";
+import { getCompetenciesAction } from "@/api/server-actions/competencies";
 import { fetchAndCategorizeGoals } from "./utils";
-import type { EvaluationPeriod, GoalResponse, SelfAssessment, SupervisorFeedback } from "@/api/types";
+import type {
+  EvaluationPeriod,
+  GoalResponse,
+  SelfAssessment,
+  SupervisorFeedback,
+  Competency,
+} from "@/api/types";
 
 /**
  * Combined type for display: Goal with its SelfAssessment and SupervisorFeedback
@@ -29,6 +37,8 @@ export default function EmployeeEvaluationInputDisplay() {
   const [performanceGoals, setPerformanceGoals] = useState<GoalWithAssessment[]>([]);
   const [competencyGoals, setCompetencyGoals] = useState<GoalWithAssessment[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [stageCompetencies, setStageCompetencies] = useState<Competency[]>([]);
+  const [isLoadingStageCompetencies, setIsLoadingStageCompetencies] = useState(true);
 
   /**
    * Fetch goals, self-assessments, and supervisor feedbacks for the selected period
@@ -74,6 +84,39 @@ export default function EmployeeEvaluationInputDisplay() {
     };
 
     fetchPeriods();
+  }, []);
+
+  // Fetch current user's stage competencies on mount
+  useEffect(() => {
+    const fetchStageCompetencies = async () => {
+      try {
+        setIsLoadingStageCompetencies(true);
+
+        const currentUserResult = await getCurrentUserAction();
+        if (!currentUserResult.success || !currentUserResult.data?.stage?.id) {
+          setStageCompetencies([]);
+          return;
+        }
+
+        const competenciesResult = await getCompetenciesAction({
+          stageId: currentUserResult.data.stage.id,
+          limit: 100,
+        });
+
+        if (competenciesResult.success && competenciesResult.data?.items) {
+          setStageCompetencies(competenciesResult.data.items);
+        } else {
+          setStageCompetencies([]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch stage competencies:", error);
+        setStageCompetencies([]);
+      } finally {
+        setIsLoadingStageCompetencies(false);
+      }
+    };
+
+    fetchStageCompetencies();
   }, []);
 
   // Fetch goals and assessments when period changes
@@ -132,17 +175,6 @@ export default function EmployeeEvaluationInputDisplay() {
           />
         </div>
 
-        {/* Submit Button */}
-        <div className="flex justify-end">
-          <SubmitButton
-            performanceGoals={performanceGoals}
-            competencyGoals={competencyGoals}
-            onSubmitSuccess={handleAssessmentUpdate}
-            onRefreshData={handleSilentRefresh}
-            disabled={isLoadingData}
-          />
-        </div>
-
         {/* Evaluation Forms */}
         <div className="space-y-6">
           <PerformanceGoalsEvaluate
@@ -151,9 +183,22 @@ export default function EmployeeEvaluationInputDisplay() {
           />
           <CompetencyEvaluate
             goalsWithAssessments={competencyGoals}
-            isLoading={isLoadingData}
+            stageCompetencies={stageCompetencies}
+            isLoading={isLoadingData || isLoadingStageCompetencies}
           />
           <CoreValueEvaluate />
+        </div>
+
+        {/* Submit Button */}
+        <div className="flex justify-end pt-2">
+          <SubmitButton
+            performanceGoals={performanceGoals}
+            competencyGoals={competencyGoals}
+            stageCompetencies={stageCompetencies}
+            onSubmitSuccess={handleAssessmentUpdate}
+            onRefreshData={handleSilentRefresh}
+            disabled={isLoadingData || isLoadingStageCompetencies}
+          />
         </div>
       </div>
     </div>
