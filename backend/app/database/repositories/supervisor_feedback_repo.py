@@ -2,6 +2,7 @@ import logging
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.orm import joinedload
@@ -50,11 +51,22 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             
             # Auto-calculate supervisor_rating from rating_code
             supervisor_rating = None
+            supervisor_rating_code = None
             if feedback_data.supervisor_rating_code:
+                supervisor_rating_code = feedback_data.supervisor_rating_code.value
                 supervisor_rating = await self.score_mapping_repo.get_numeric_value_for_rating_code(
                     organization_id=org_id,
                     rating_code=feedback_data.supervisor_rating_code
                 )
+            elif feedback_data.rating is not None:
+                # Backward compatibility: honor legacy numeric rating payloads.
+                supervisor_rating = Decimal(str(feedback_data.rating))
+
+            supervisor_comment = (
+                feedback_data.supervisor_comment
+                if feedback_data.supervisor_comment is not None
+                else feedback_data.comment
+            )
 
             # Get subordinate_id from the self-assessment's goal owner
             subordinate_id = None
@@ -67,9 +79,9 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 period_id=feedback_data.period_id,
                 supervisor_id=supervisor_id,
                 subordinate_id=subordinate_id,
-                supervisor_rating_code=feedback_data.supervisor_rating_code.value if feedback_data.supervisor_rating_code else None,
+                supervisor_rating_code=supervisor_rating_code,
                 supervisor_rating=supervisor_rating,
-                supervisor_comment=feedback_data.supervisor_comment,
+                supervisor_comment=supervisor_comment,
                 rating_data=feedback_data.rating_data,
                 action=feedback_data.action.value if feedback_data.action else SupervisorAction.PENDING.value,
                 status=feedback_data.status.value if feedback_data.status else SubmissionStatus.INCOMPLETE.value
@@ -447,9 +459,15 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                     organization_id=org_id,
                     rating_code=feedback_data.supervisor_rating_code
                 )
+            elif feedback_data.rating is not None:
+                # Backward compatibility: honor legacy numeric rating updates.
+                update_data["supervisor_rating"] = Decimal(str(feedback_data.rating))
 
             if feedback_data.supervisor_comment is not None:
                 update_data["supervisor_comment"] = feedback_data.supervisor_comment
+            elif feedback_data.comment is not None:
+                # Backward compatibility: honor legacy comment updates.
+                update_data["supervisor_comment"] = feedback_data.comment
 
             if feedback_data.rating_data is not None:
                 update_data["rating_data"] = feedback_data.rating_data
