@@ -20,7 +20,10 @@ class SelfAssessmentBase(BaseModel):
 
 class SelfAssessmentCreate(SelfAssessmentBase):
     """Request schema for creating a self-assessment, matches endpoints_v2.md."""
-    status: SubmissionStatus = Field(..., description="Assessment status based on button clicked: 'draft' or 'submitted'")
+    status: SubmissionStatus = Field(
+        SubmissionStatus.DRAFT,
+        description="Assessment status based on button clicked: 'draft' or 'submitted'",
+    )
 
 
 class SelfAssessmentUpdate(BaseModel):
