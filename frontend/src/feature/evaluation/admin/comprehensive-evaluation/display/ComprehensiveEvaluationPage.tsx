@@ -888,7 +888,7 @@ export default function ComprehensiveEvaluationPage() {
           <div className="relative overflow-x-auto">
             <Table className="min-w-[1400px]">
               <TableHeader>
-                <TableRow className="bg-muted/40">
+                <TableRow className="bg-muted/40 [&>th]:text-center">
                   <TableHead colSpan={personalInfoColumns} className="font-semibold border-r">
                     個人基本情報
                   </TableHead>
