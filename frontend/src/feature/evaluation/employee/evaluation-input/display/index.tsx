@@ -190,7 +190,7 @@ export default function EmployeeEvaluationInputDisplay() {
         </div>
 
         {/* Submit Button */}
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-center pt-4">
           <SubmitButton
             performanceGoals={performanceGoals}
             competencyGoals={competencyGoals}

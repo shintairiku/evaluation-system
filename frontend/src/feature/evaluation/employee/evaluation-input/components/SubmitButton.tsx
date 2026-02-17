@@ -310,10 +310,11 @@ export default function SubmitButton({
   return (
     <div className="flex items-center gap-3">
       <Button
+        size="lg"
         variant={canSubmit ? "default" : "outline"}
         disabled={disabled || isSubmitting || isRefreshing || !hasEditableAssessments}
         onClick={handleButtonClick}
-        className="flex items-center space-x-2"
+        className="flex h-12 w-full items-center justify-center space-x-2 px-8 text-base font-semibold sm:w-auto sm:min-w-[220px]"
         aria-label="自己評価を最終提出する"
       >
         {isSubmitting || isRefreshing ? (
