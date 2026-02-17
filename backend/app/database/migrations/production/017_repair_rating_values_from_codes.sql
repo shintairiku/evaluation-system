@@ -9,10 +9,10 @@ UPDATE self_assessments
 SET self_rating = CASE self_rating_code
     WHEN 'SS' THEN 7.0
     WHEN 'S' THEN 6.0
-    WHEN 'A' THEN 4.0
-    WHEN 'B' THEN 2.0
-    WHEN 'C' THEN 1.0
-    WHEN 'D' THEN 0.0
+    WHEN 'A' THEN 5.0
+    WHEN 'B' THEN 4.0
+    WHEN 'C' THEN 3.0
+    WHEN 'D' THEN 2.0
     ELSE self_rating
 END
 WHERE self_rating_code IS NOT NULL
@@ -20,10 +20,10 @@ WHERE self_rating_code IS NOT NULL
     CASE self_rating_code
       WHEN 'SS' THEN 7.0
       WHEN 'S' THEN 6.0
-      WHEN 'A' THEN 4.0
-      WHEN 'B' THEN 2.0
-      WHEN 'C' THEN 1.0
-      WHEN 'D' THEN 0.0
+      WHEN 'A' THEN 5.0
+      WHEN 'B' THEN 4.0
+      WHEN 'C' THEN 3.0
+      WHEN 'D' THEN 2.0
       ELSE self_rating
     END
   );
@@ -33,10 +33,10 @@ UPDATE supervisor_feedback
 SET supervisor_rating = CASE supervisor_rating_code
     WHEN 'SS' THEN 7.0
     WHEN 'S' THEN 6.0
-    WHEN 'A' THEN 4.0
-    WHEN 'B' THEN 2.0
-    WHEN 'C' THEN 1.0
-    WHEN 'D' THEN 0.0
+    WHEN 'A' THEN 5.0
+    WHEN 'B' THEN 4.0
+    WHEN 'C' THEN 3.0
+    WHEN 'D' THEN 2.0
     ELSE supervisor_rating
 END
 WHERE supervisor_rating_code IS NOT NULL
@@ -44,10 +44,10 @@ WHERE supervisor_rating_code IS NOT NULL
     CASE supervisor_rating_code
       WHEN 'SS' THEN 7.0
       WHEN 'S' THEN 6.0
-      WHEN 'A' THEN 4.0
-      WHEN 'B' THEN 2.0
-      WHEN 'C' THEN 1.0
-      WHEN 'D' THEN 0.0
+      WHEN 'A' THEN 5.0
+      WHEN 'B' THEN 4.0
+      WHEN 'C' THEN 3.0
+      WHEN 'D' THEN 2.0
       ELSE supervisor_rating
     END
   );
