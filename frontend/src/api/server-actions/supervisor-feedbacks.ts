@@ -10,6 +10,7 @@ import type {
   SupervisorFeedbackCreate,
   SupervisorFeedbackUpdate,
   SupervisorFeedbackSubmit,
+  SupervisorFeedbackReturn,
   SupervisorFeedbackList,
   PaginationParams,
   UUID,
@@ -363,6 +364,42 @@ export async function draftSupervisorFeedbackAction(feedbackId: UUID): Promise<{
     return {
       success: false,
       error: 'An unexpected error occurred while marking supervisor feedback as draft',
+    };
+  }
+}
+
+/**
+ * Server action to return supervisor feedback for correction (差し戻し)
+ */
+export async function returnSupervisorFeedbackAction(
+  feedbackId: UUID,
+  returnData: SupervisorFeedbackReturn,
+): Promise<{
+  success: boolean;
+  data?: SupervisorFeedback;
+  error?: string;
+}> {
+  try {
+    const response = await supervisorFeedbacksApi.returnSupervisorFeedback(feedbackId, returnData);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to return supervisor feedback',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.SUPERVISOR_FEEDBACKS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Return supervisor feedback action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while returning supervisor feedback',
     };
   }
 }

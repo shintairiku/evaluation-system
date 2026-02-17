@@ -241,6 +241,7 @@ export const API_ENDPOINTS = {
     BY_ASSESSMENT: (assessmentId: string) => `/supervisor-feedbacks/assessment/${assessmentId}`,
     SUBMIT: (id: string) => `/supervisor-feedbacks/${id}/submit`,
     DRAFT: (id: string) => `/supervisor-feedbacks/${id}/draft`,
+    RETURN: (id: string) => `/supervisor-feedbacks/${id}/return`,
   },
 
   // Permission management endpoints

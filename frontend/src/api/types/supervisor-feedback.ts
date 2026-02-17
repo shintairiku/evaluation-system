@@ -42,6 +42,8 @@ export interface SupervisorFeedback extends SupervisorFeedbackBase {
   subordinateId: UUID;
   /** Numeric rating (0.0-7.0), auto-calculated */
   supervisorRating?: number;
+  /** Feedback from supervisor requesting corrections (visible to subordinate) */
+  returnComment?: string | null;
   /** Decision: PENDING or APPROVED */
   action: SupervisorFeedbackAction;
   /** Workflow status: incomplete, draft, or submitted */
@@ -120,6 +122,14 @@ export interface SupervisorFeedbackSubmit {
   supervisorRatingCode?: RatingCode;
   /** Optional comment */
   supervisorComment?: string;
+}
+
+/**
+ * Request body for returning feedback for correction (差し戻し)
+ */
+export interface SupervisorFeedbackReturn {
+  /** Feedback from supervisor requesting subordinate to make corrections */
+  returnComment: string;
 }
 
 /**

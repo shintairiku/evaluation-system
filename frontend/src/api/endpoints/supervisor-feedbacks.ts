@@ -6,6 +6,7 @@ import type {
   SupervisorFeedbackCreate,
   SupervisorFeedbackUpdate,
   SupervisorFeedbackSubmit,
+  SupervisorFeedbackReturn,
   SupervisorFeedbackList,
   PaginationParams,
   ApiResponse,
@@ -103,6 +104,13 @@ export const supervisorFeedbacksApi = {
    */
   draftSupervisorFeedback: async (feedbackId: UUID): Promise<ApiResponse<SupervisorFeedback>> => {
     return httpClient.post<SupervisorFeedback>(API_ENDPOINTS.SUPERVISOR_FEEDBACKS.DRAFT(feedbackId), {});
+  },
+
+  /**
+   * Return feedback for correction (差し戻し)
+   */
+  returnSupervisorFeedback: async (feedbackId: UUID, data: SupervisorFeedbackReturn): Promise<ApiResponse<SupervisorFeedback>> => {
+    return httpClient.post<SupervisorFeedback>(API_ENDPOINTS.SUPERVISOR_FEEDBACKS.RETURN(feedbackId), data);
   },
 
   /**
