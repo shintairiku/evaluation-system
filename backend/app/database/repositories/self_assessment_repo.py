@@ -2,7 +2,6 @@ import logging
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, timezone
-from decimal import Decimal
 
 from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.orm import joinedload, aliased
@@ -12,10 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.self_assessment import SelfAssessment
 from ..models.goal import Goal
 from ...schemas.self_assessment import SelfAssessmentCreate, SelfAssessmentUpdate
-from ...schemas.common import PaginationParams, SelfAssessmentStatus, RatingCode, RATING_CODE_VALUES
+from ...schemas.common import PaginationParams, SelfAssessmentStatus
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
+from .evaluation_score_mapping_repo import EvaluationScoreMappingRepository
 from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, SelfAssessment)
+        self.score_mapping_repo = EvaluationScoreMappingRepository(session)
 
     # ========================================
     # CREATE OPERATIONS
@@ -49,7 +50,10 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             # Auto-calculate self_rating from self_rating_code
             self_rating = None
             if assessment_data.self_rating_code:
-                self_rating = Decimal(str(RATING_CODE_VALUES.get(assessment_data.self_rating_code, 0.0)))
+                self_rating = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=assessment_data.self_rating_code
+                )
 
             assessment = SelfAssessment(
                 goal_id=goal_id,
@@ -67,7 +71,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         except IntegrityError as e:
             logger.error(f"Integrity error creating self-assessment for goal {goal_id}: {e}")
             if "chk_self_rating_bounds" in str(e):
-                raise ValidationError("Self rating must be between 0 and 7")
+                raise ValidationError("Self rating must be between 0 and 100")
             elif "chk_self_rating_code" in str(e):
                 raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
             elif "chk_self_assessment_status" in str(e):
@@ -313,7 +317,10 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             if assessment_data.self_rating_code is not None:
                 update_data["self_rating_code"] = assessment_data.self_rating_code.value
                 # Auto-calculate self_rating from code
-                update_data["self_rating"] = Decimal(str(RATING_CODE_VALUES.get(assessment_data.self_rating_code, 0.0)))
+                update_data["self_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=assessment_data.self_rating_code
+                )
 
             if assessment_data.self_comment is not None:
                 update_data["self_comment"] = assessment_data.self_comment
@@ -336,7 +343,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         except IntegrityError as e:
             logger.error(f"Integrity error updating self-assessment {assessment_id}: {e}")
             if "chk_self_rating_bounds" in str(e):
-                raise ValidationError("Self rating must be between 0 and 7")
+                raise ValidationError("Self rating must be between 0 and 100")
             elif "chk_self_rating_code" in str(e):
                 raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
             elif "chk_self_assessment_submission" in str(e):
