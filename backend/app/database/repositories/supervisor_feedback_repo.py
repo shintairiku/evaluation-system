@@ -303,6 +303,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         status: Optional[str] = None,
         action: Optional[str] = None,
         user_ids: Optional[List[UUID]] = None,  # For filtering by assessment owner (alias for subordinate_ids)
+        has_return_comment: Optional[bool] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[SupervisorFeedback]:
         """Search supervisor feedbacks with various filters within organization scope."""
@@ -344,6 +345,12 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
 
+            if has_return_comment is not None:
+                if has_return_comment:
+                    query = query.filter(SupervisorFeedback.return_comment.isnot(None))
+                else:
+                    query = query.filter(SupervisorFeedback.return_comment.is_(None))
+
             # Apply ordering
             query = query.order_by(SupervisorFeedback.created_at.desc())
 
@@ -365,7 +372,8 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
         action: Optional[str] = None,
-        user_ids: Optional[List[UUID]] = None
+        user_ids: Optional[List[UUID]] = None,
+        has_return_comment: Optional[bool] = None
     ) -> int:
         """Count supervisor feedbacks matching the given filters within organization scope."""
         try:
@@ -399,6 +407,12 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             if user_ids:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
+
+            if has_return_comment is not None:
+                if has_return_comment:
+                    query = query.filter(SupervisorFeedback.return_comment.isnot(None))
+                else:
+                    query = query.filter(SupervisorFeedback.return_comment.is_(None))
 
             result = await self.session.execute(query)
             return result.scalar() or 0

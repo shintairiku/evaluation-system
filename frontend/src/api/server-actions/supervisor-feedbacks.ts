@@ -27,6 +27,7 @@ export const getSupervisorFeedbacksAction = cache(
     subordinateId?: string;
     status?: string;
     action?: string;
+    hasReturnComment?: boolean;
   }): Promise<{
     success: boolean;
     data?: SupervisorFeedbackList;

@@ -30,6 +30,7 @@ export const supervisorFeedbacksApi = {
     subordinateId?: UUID;
     status?: string;
     action?: string;
+    hasReturnComment?: boolean;
   }): Promise<ApiResponse<SupervisorFeedbackList>> => {
     const queryParams = new URLSearchParams();
     if (params?.pagination?.page) queryParams.append('page', params.pagination.page.toString());
@@ -39,6 +40,7 @@ export const supervisorFeedbacksApi = {
     if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.action) queryParams.append('action', params.action);
+    if (params?.hasReturnComment !== undefined) queryParams.append('hasReturnComment', String(params.hasReturnComment));
     
     const endpoint = queryParams.toString() 
       ? `${API_ENDPOINTS.SUPERVISOR_FEEDBACKS.LIST}?${queryParams.toString()}`

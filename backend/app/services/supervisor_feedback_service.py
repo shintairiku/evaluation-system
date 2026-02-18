@@ -58,6 +58,7 @@ class SupervisorFeedbackService:
         subordinate_id: Optional[UUID] = None,
         status: Optional[str] = None,
         action: Optional[str] = None,
+        has_return_comment: Optional[bool] = None,
         pagination: Optional[PaginationParams] = None
     ) -> PaginatedResponse[SupervisorFeedback]:
         """
@@ -142,6 +143,7 @@ class SupervisorFeedbackService:
                 period_id=period_id,
                 status=status,
                 action=action,
+                has_return_comment=has_return_comment,
                 pagination=pagination
             )
 
@@ -152,7 +154,8 @@ class SupervisorFeedbackService:
                 user_ids=final_user_ids,
                 period_id=period_id,
                 status=status,
-                action=action
+                action=action,
+                has_return_comment=has_return_comment
             )
             
             # Convert to response format

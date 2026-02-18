@@ -23,6 +23,7 @@ async def get_supervisor_feedbacks(
     subordinate_id: Optional[UUID] = Query(None, alias="subordinateId", description="Filter by subordinate ID (feedback recipient)"),
     status: Optional[str] = Query(None, description="Filter by status (incomplete, draft, submitted)"),
     action: Optional[str] = Query(None, description="Filter by action (PENDING, APPROVED)"),
+    has_return_comment: Optional[bool] = Query(None, alias="hasReturnComment", description="Filter by return comment presence"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -56,6 +57,7 @@ async def get_supervisor_feedbacks(
             subordinate_id=subordinate_id,
             status=status,
             action=action,
+            has_return_comment=has_return_comment,
             pagination=pagination
         )
         
