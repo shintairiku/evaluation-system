@@ -20,6 +20,11 @@ import {
   getSelfAssessmentsByGoalAction,
 } from "@/api/server-actions/self-assessments";
 import { SaveStatusIndicator, SupervisorFeedbackAlert } from "./components";
+import {
+  getGoalCompetencyIds,
+  getGoalRequiredCompetencyActions,
+  getSelectedCompetencyIdsForReference,
+} from "./competencyRequirements";
 
 interface CompetencyEvaluateProps {
   goalsWithAssessments?: GoalWithAssessment[];
@@ -49,14 +54,11 @@ function CompetencyGoalCard({
 
   // Get competency data from goal
   const competencyNames = goal.competencyNames || {};
-  const selectedIdealActions = goal.selectedIdealActions || {};
   const idealActionTexts = goal.idealActionTexts || {};
-  const selectedCompetencyIds = goal.competencyIds || [];
+  const selectedCompetencyIds = getSelectedCompetencyIdsForReference(goal);
+  const requiredActionsByCompetency = getGoalRequiredCompetencyActions(goal, stageCompetencies);
   const stageCompetencyMap = new Map(stageCompetencies.map((competency) => [competency.id, competency]));
-  const competencyIds =
-    stageCompetencies.length > 0
-      ? stageCompetencies.map((competency) => competency.id)
-      : selectedCompetencyIds;
+  const competencyIds = getGoalCompetencyIds(goal, stageCompetencies);
   const selectedCompetencyNamesForReference = selectedCompetencyIds.map(
     (competencyId) =>
       competencyNames[competencyId] ||
@@ -141,12 +143,12 @@ function CompetencyGoalCard({
       };
       setRatingData(newRatingData);
       if (isEditable) {
-        debouncedSave({ ratingData: newRatingData, selfComment: comment });
+        void save({ ratingData: newRatingData, selfComment: comment });
       } else if (!activeAssessment?.id) {
         setHasAttemptedEnsure(false);
       }
     },
-    [ratingData, comment, debouncedSave, isEditable, canEdit, activeAssessment?.id]
+    [ratingData, comment, save, isEditable, canEdit, activeAssessment?.id]
   );
 
   // Handle comment change (debounced)
@@ -174,13 +176,6 @@ function CompetencyGoalCard({
     }
     save({ ratingData, selfComment: comment });
   }, [ratingData, comment, save, isEditable, canEdit, activeAssessment?.id]);
-
-  useEffect(() => {
-    if (!isEditable || !activeAssessment?.id) return;
-    if (Object.keys(ratingData).length === 0 && !comment.trim()) return;
-
-    debouncedSave({ ratingData, selfComment: comment });
-  }, [isEditable, activeAssessment?.id, debouncedSave, ratingData, comment]);
 
   // Calculate competency rating (average of action ratings)
   const calculateCompetencyRating = (competencyId: string, actionIndexes: string[]): string | null => {
@@ -229,11 +224,9 @@ function CompetencyGoalCard({
       {competencyIds.map((competencyId) => {
         const stageCompetency = stageCompetencyMap.get(competencyId);
         const stageActionTexts = stageCompetency?.description || {};
-        const stageActionIndexes = Object.keys(stageActionTexts).sort(
-          (a, b) => Number(a) - Number(b)
-        );
-        const fallbackActionIndexes = selectedIdealActions[competencyId] || [];
-        const actionIndexes = stageActionIndexes.length > 0 ? stageActionIndexes : fallbackActionIndexes;
+        const actionIndexes =
+          requiredActionsByCompetency[competencyId] ||
+          Object.keys(stageActionTexts).sort((a, b) => Number(a) - Number(b));
         const fallbackActionTexts = idealActionTexts[competencyId] || [];
         const competencyName =
           stageCompetency?.name || competencyNames[competencyId] || "コンピテンシー";
@@ -510,25 +503,12 @@ export default function CompetencyEvaluate({
   const calculateOverallRating = (): string | null => {
     if (goalsWithAssessments.length === 0) return null;
 
-    const requiredActionsByStageCompetency: Record<string, string[]> = stageCompetencies.reduce(
-      (acc, competency) => {
-        const actionIndexes = Object.keys(competency.description || {}).sort(
-          (a, b) => Number(a) - Number(b)
-        );
-        if (actionIndexes.length > 0) {
-          acc[competency.id] = actionIndexes;
-        }
-        return acc;
-      },
-      {} as Record<string, string[]>
-    );
-
     const getRequiredActions = (item: GoalWithAssessment): Record<string, string[]> => {
-      if (Object.keys(requiredActionsByStageCompetency).length > 0) {
-        return requiredActionsByStageCompetency;
-      }
-      return item.goal.selectedIdealActions || {};
+      return getGoalRequiredCompetencyActions(item.goal, stageCompetencies);
     };
+
+    const hasAnyActionRating = (ratingData: CompetencyRatingData): boolean =>
+      Object.values(ratingData).some((actions) => Object.values(actions || {}).some(Boolean));
 
     // Check if all goals have complete ratings and comments
     const allComplete = goalsWithAssessments.every((item) => {
@@ -537,6 +517,10 @@ export default function CompetencyEvaluate({
       if (!ratingData) return false;
 
       const requiredActions = getRequiredActions(item);
+      if (Object.keys(requiredActions).length === 0) {
+        return hasAnyActionRating(ratingData);
+      }
+
       return Object.entries(requiredActions).every(([compId, actions]) => {
         const actionRatings = ratingData[compId];
         if (!actionRatings) return false;
@@ -558,17 +542,27 @@ export default function CompetencyEvaluate({
       // Collect all ratings for this goal
       const allRatings: RatingCode[] = [];
       const requiredActions = getRequiredActions(item);
-      Object.entries(requiredActions).forEach(([compId, actions]) => {
-        const actionRatings = ratingData[compId];
-        if (!actionRatings) return;
-
-        (actions as string[]).forEach((idx) => {
-          const rating = actionRatings[idx] as RatingCode;
-          if (rating) {
-            allRatings.push(rating);
-          }
+      if (Object.keys(requiredActions).length === 0) {
+        Object.values(ratingData).forEach((actionRatings) => {
+          Object.values(actionRatings || {}).forEach((rating) => {
+            if (rating) {
+              allRatings.push(rating as RatingCode);
+            }
+          });
         });
-      });
+      } else {
+        Object.entries(requiredActions).forEach(([compId, actions]) => {
+          const actionRatings = ratingData[compId];
+          if (!actionRatings) return;
+
+          (actions as string[]).forEach((idx) => {
+            const rating = actionRatings[idx] as RatingCode;
+            if (rating) {
+              allRatings.push(rating);
+            }
+          });
+        });
+      }
 
       const goalAvg = calculateRatingAverage(allRatings);
       if (goalAvg !== null) {
@@ -650,8 +644,7 @@ export default function CompetencyEvaluate({
           </div>
         </CardHeader>
 
-        {isExpanded && (
-          <CardContent className="space-y-6 pt-2">
+        <CardContent className={`space-y-6 pt-2 ${isExpanded ? "" : "hidden"}`}>
             {/* Loading state */}
             {isLoading && (
               <div className="flex items-center justify-center py-8">
@@ -687,7 +680,6 @@ export default function CompetencyEvaluate({
               </>
             )}
           </CardContent>
-        )}
       </Card>
     </div>
   );
