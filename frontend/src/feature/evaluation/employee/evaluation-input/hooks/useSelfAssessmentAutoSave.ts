@@ -247,6 +247,26 @@ export function useSelfAssessmentAutoSave({
     }
   }, [save]);
 
+  const saveQueuedDataWithoutState = useCallback(async (data: SelfAssessmentSaveData) => {
+    if (!assessmentId || !isEditable) {
+      return;
+    }
+
+    if (!hasDataChanged(data)) {
+      return;
+    }
+
+    try {
+      await updateSelfAssessmentAction(assessmentId, {
+        selfRatingCode: data.selfRatingCode,
+        selfComment: data.selfComment,
+        ratingData: data.ratingData,
+      });
+    } catch {
+      // Best-effort save during unmount; ignore failures here.
+    }
+  }, [assessmentId, isEditable, hasDataChanged]);
+
   /**
    * Initialize with server data
    */
@@ -293,13 +313,17 @@ export function useSelfAssessmentAutoSave({
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
       }
+      const queuedData = debouncedDataRef.current;
+      debouncedDataRef.current = null;
+      if (queuedData) {
+        void saveQueuedDataWithoutState(queuedData);
+      }
       if (statusClearTimerRef.current) {
         clearTimeout(statusClearTimerRef.current);
         statusClearTimerRef.current = null;
       }
-      debouncedDataRef.current = null;
     };
-  }, []);
+  }, [saveQueuedDataWithoutState]);
 
   return {
     saveStatus,
