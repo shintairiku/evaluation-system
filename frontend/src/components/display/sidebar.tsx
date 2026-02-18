@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { useGoalListContext } from '@/context/GoalListContext';
+import { useReturnedAssessmentsContext } from '@/context/ReturnedAssessmentsContext';
 import {
   Home, Target, ClipboardList, List, ListChecks, Users, CheckCircle, MessageSquare,
   UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield, Calendar
@@ -68,6 +69,17 @@ export default function Sidebar() {
     // Context not available (e.g., during SSR or outside provider)
     // Use default value
     rejectedGoalsCount = 0;
+  }
+
+  // Get returned assessments context with graceful fallback
+  let returnedCount = 0;
+  try {
+    const context = useReturnedAssessmentsContext();
+    returnedCount = context.returnedCount;
+  } catch {
+    // Context not available (e.g., during SSR or outside provider)
+    // Use default value
+    returnedCount = 0;
   }
 
   // 権限フィルタリング（現在はダミー実装）
@@ -133,6 +145,14 @@ export default function Sidebar() {
                           </Badge>
                         </div>
                       )}
+                      {/* Returned Assessments Count - Only visible when sidebar is collapsed */}
+                      {link.href === '/evaluation-input' && returnedCount > 0 && (
+                        <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
+                          <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
+                            {returnedCount > 99 ? '99' : returnedCount}
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
                       <div className="font-medium truncate">{link.label}</div>
@@ -150,6 +170,13 @@ export default function Sidebar() {
                       {link.href === '/goal-list' && rejectedGoalsCount > 0 && (
                         <Badge variant="destructive" className="text-xs bg-red-500 text-white">
                           {rejectedGoalsCount > 99 ? '99+' : rejectedGoalsCount}
+                        </Badge>
+                      )}
+
+                      {/* Returned Assessments Count - Expanded view */}
+                      {link.href === '/evaluation-input' && returnedCount > 0 && (
+                        <Badge variant="destructive" className="text-xs bg-red-500 text-white">
+                          {returnedCount > 99 ? '99+' : returnedCount}
                         </Badge>
                       )}
 

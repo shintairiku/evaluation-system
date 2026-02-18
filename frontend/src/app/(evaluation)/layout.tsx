@@ -3,6 +3,7 @@ import Sidebar from "@/components/display/sidebar";
 import { AuthSyncProvider } from '@/components/auth/AuthSyncProvider';
 import { GoalListProvider } from '@/context/GoalListContext';
 import { GoalReviewProvider } from '@/context/GoalReviewContext';
+import { ReturnedAssessmentsProvider } from '@/context/ReturnedAssessmentsContext';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { getCurrentUserContextAction } from '@/api/server-actions/current-user-context';
@@ -27,15 +28,17 @@ export default async function EvaluationLayout({
       <CurrentUserProvider value={currentUserContext}>
         <GoalReviewProvider>
           <GoalListProvider>
-            <div className="min-h-screen bg-background">
-              <Header />
-              <Sidebar />
-              <main className="ml-[64px] min-w-0">
-                <div className="mt-[45px]">
-                  {children}
-                </div>
-              </main>
-            </div>
+            <ReturnedAssessmentsProvider>
+              <div className="min-h-screen bg-background">
+                <Header />
+                <Sidebar />
+                <main className="ml-[64px] min-w-0">
+                  <div className="mt-[45px]">
+                    {children}
+                  </div>
+                </main>
+              </div>
+            </ReturnedAssessmentsProvider>
           </GoalListProvider>
         </GoalReviewProvider>
       </CurrentUserProvider>
