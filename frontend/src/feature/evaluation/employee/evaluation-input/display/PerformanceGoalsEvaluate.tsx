@@ -61,8 +61,8 @@ function PerformanceGoalCard({
   const handleRatingChange = useCallback((newRating: RatingCode) => {
     if (!isEditable) return;
     setRatingCode(newRating);
-    debouncedSave({ selfRatingCode: newRating, selfComment: comment });
-  }, [comment, debouncedSave, isEditable]);
+    void save({ selfRatingCode: newRating, selfComment: comment });
+  }, [comment, save, isEditable]);
 
   // Handle comment change (debounced)
   const handleCommentChange = useCallback((newComment: string) => {
@@ -294,8 +294,7 @@ export default function PerformanceGoalsEvaluate({
           </div>
         </CardHeader>
 
-        {isExpanded && (
-          <CardContent className="space-y-6 pt-2">
+        <CardContent className={`space-y-6 pt-2 ${isExpanded ? "" : "hidden"}`}>
             {/* Loading state */}
             {isLoading && (
               <div className="flex items-center justify-center py-8">
@@ -323,7 +322,6 @@ export default function PerformanceGoalsEvaluate({
                 />
               ))}
           </CardContent>
-        )}
       </Card>
     </div>
   );
