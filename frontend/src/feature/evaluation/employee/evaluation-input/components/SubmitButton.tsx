@@ -19,6 +19,7 @@ import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
 import type { CompetencyRatingData, Competency } from "@/api/types";
 import type { GoalWithAssessment } from "../display/index";
+import { getGoalRequiredCompetencyActions } from "../display/competencyRequirements";
 
 interface SubmitButtonProps {
   performanceGoals: GoalWithAssessment[];
@@ -61,23 +62,13 @@ function isCompetencyAssessmentComplete(
   const ratingData = assessment.ratingData as CompetencyRatingData | undefined;
   if (!ratingData) return false;
 
-  const actionsByCompetencyFromStage: Record<string, string[]> = stageCompetencies.reduce(
-    (acc, competency) => {
-      const actionIndexes = Object.keys(competency.description || {}).sort(
-        (a, b) => Number(a) - Number(b)
-      );
-      if (actionIndexes.length > 0) {
-        acc[competency.id] = actionIndexes;
-      }
-      return acc;
-    },
-    {} as Record<string, string[]>
-  );
+  const requiredActions = getGoalRequiredCompetencyActions(item.goal, stageCompetencies);
 
-  const requiredActions =
-    Object.keys(actionsByCompetencyFromStage).length > 0
-      ? actionsByCompetencyFromStage
-      : item.goal.selectedIdealActions || {};
+  if (Object.keys(requiredActions).length === 0) {
+    return Object.values(ratingData).some((ratingsByAction) =>
+      Object.values(ratingsByAction || {}).some(Boolean)
+    );
+  }
 
   // Check each competency has all actions rated
   for (const [competencyId, actionIndexes] of Object.entries(requiredActions)) {
