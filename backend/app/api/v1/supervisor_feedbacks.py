@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database.session import get_db_session
-from ...security.dependencies import get_auth_context, require_supervisor_or_above
+from ...security.dependencies import get_auth_context
 from ...security.context import AuthContext
 from ...schemas.supervisor_feedback import SupervisorFeedback, SupervisorFeedbackDetail, SupervisorFeedbackList, SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedbackSubmit
 from ...schemas.common import PaginationParams, BaseResponse
@@ -83,7 +83,7 @@ async def get_supervisor_feedbacks(
 @router.post("/", response_model=SupervisorFeedback)
 async def create_supervisor_feedback(
     feedback_create: SupervisorFeedbackCreate,
-    context: AuthContext = Depends(require_supervisor_or_above),
+    context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Create supervisor feedback on a self-assessment."""
@@ -164,7 +164,7 @@ async def get_supervisor_feedback(
 async def update_supervisor_feedback(
     feedback_id: UUID,
     feedback_update: SupervisorFeedbackUpdate,
-    context: AuthContext = Depends(require_supervisor_or_above),
+    context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Update supervisor feedback."""
@@ -190,7 +190,7 @@ async def update_supervisor_feedback(
 async def submit_supervisor_feedback(
     feedback_id: UUID,
     submit_data: SupervisorFeedbackSubmit,
-    context: AuthContext = Depends(require_supervisor_or_above),
+    context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """
@@ -222,7 +222,7 @@ async def submit_supervisor_feedback(
 @router.post("/{feedback_id}/draft", response_model=SupervisorFeedback)
 async def draft_supervisor_feedback(
     feedback_id: UUID,
-    context: AuthContext = Depends(require_supervisor_or_above),
+    context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Change supervisor feedback status to draft (feedback creator only)."""
@@ -250,7 +250,7 @@ async def draft_supervisor_feedback(
 @router.delete("/{feedback_id}", response_model=BaseResponse)
 async def delete_supervisor_feedback(
     feedback_id: UUID,
-    context: AuthContext = Depends(require_supervisor_or_above),
+    context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Delete supervisor feedback."""
