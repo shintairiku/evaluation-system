@@ -6,7 +6,8 @@ import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
 import { getSubordinatesAction, getCurrentUserAction } from "@/api/server-actions/users";
 import { getSubordinatesAssessmentStatusAction } from "@/api/server-actions/self-assessments";
-import type { EvaluationPeriod, UserDetailResponse } from "@/api/types";
+import { getCompetenciesAction } from "@/api/server-actions/competencies";
+import type { EvaluationPeriod, UserDetailResponse, Competency } from "@/api/types";
 import {
   Select,
   SelectContent,
@@ -147,6 +148,24 @@ export default function EvaluationFeedbackDisplay() {
     fetchSubordinates();
   }, [currentUser?.id, selectedPeriodId]);
 
+  const fetchSelectedSubordinateCompetencies = useCallback(async (): Promise<Competency[]> => {
+    const selectedSubordinate = subordinates.find((subordinate) => subordinate.id === selectedSubordinateId);
+    const stageId = selectedSubordinate?.stage?.id;
+
+    if (!stageId) {
+      return [];
+    }
+
+    const competenciesResult = await getCompetenciesAction({
+      stageId,
+      limit: 100,
+    });
+
+    return competenciesResult.success && competenciesResult.data?.items
+      ? competenciesResult.data.items
+      : [];
+  }, [selectedSubordinateId, subordinates]);
+
   // Fetch evaluation data function (can be called manually for refresh)
   const fetchEvaluationData = useCallback(async () => {
     if (!selectedSubordinateId || !selectedPeriodId) {
@@ -160,7 +179,12 @@ export default function EvaluationFeedbackDisplay() {
     try {
       setIsLoadingEvaluationData(true);
 
-      const data = await fetchSubordinateEvaluationData(selectedPeriodId, selectedSubordinateId);
+      const stageCompetencies = await fetchSelectedSubordinateCompetencies();
+      const data = await fetchSubordinateEvaluationData(
+        selectedPeriodId,
+        selectedSubordinateId,
+        stageCompetencies
+      );
 
       setPerformanceGoals(data.performanceGoals);
       setCompetencyData(data.competencyData);
@@ -175,7 +199,7 @@ export default function EvaluationFeedbackDisplay() {
     } finally {
       setIsLoadingEvaluationData(false);
     }
-  }, [selectedSubordinateId, selectedPeriodId]);
+  }, [selectedSubordinateId, selectedPeriodId, fetchSelectedSubordinateCompetencies]);
 
   // Fetch evaluation data when subordinate is selected
   useEffect(() => {
@@ -190,7 +214,12 @@ export default function EvaluationFeedbackDisplay() {
     if (!selectedSubordinateId || !selectedPeriodId) return;
 
     try {
-      const data = await fetchSubordinateEvaluationData(selectedPeriodId, selectedSubordinateId);
+      const stageCompetencies = await fetchSelectedSubordinateCompetencies();
+      const data = await fetchSubordinateEvaluationData(
+        selectedPeriodId,
+        selectedSubordinateId,
+        stageCompetencies
+      );
 
       setPerformanceGoals(data.performanceGoals);
       setCompetencyData(data.competencyData);
@@ -199,7 +228,7 @@ export default function EvaluationFeedbackDisplay() {
     } catch (error) {
       console.error('Error refreshing evaluation data:', error);
     }
-  }, [selectedSubordinateId, selectedPeriodId]);
+  }, [selectedSubordinateId, selectedPeriodId, fetchSelectedSubordinateCompetencies]);
 
   // Handle period change
   const handlePeriodChange = (periodId: string) => {
@@ -305,17 +334,6 @@ export default function EvaluationFeedbackDisplay() {
           </div>
         )}
 
-        {/* Submit Button */}
-        <div className="flex justify-end">
-          <SupervisorSubmitButton
-            performanceGoals={supervisorPerformanceGoals}
-            competencyGoals={supervisorCompetencyData}
-            onSubmitSuccess={silentRefreshData}
-            onRefreshData={silentRefreshData}
-            disabled={!canEvaluate}
-          />
-        </div>
-
         {/* Headers Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <h2 className="text-lg font-bold text-blue-700">
@@ -352,6 +370,17 @@ export default function EvaluationFeedbackDisplay() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
           <CoreValueSelfAssessment />
           <CoreValueSupervisorEvaluation />
+        </div>
+
+        {/* Submit Button */}
+        <div className="flex justify-center pt-4">
+          <SupervisorSubmitButton
+            performanceGoals={supervisorPerformanceGoals}
+            competencyGoals={supervisorCompetencyData}
+            onSubmitSuccess={silentRefreshData}
+            onRefreshData={silentRefreshData}
+            disabled={isLoadingEvaluationData}
+          />
         </div>
       </div>
     </div>
