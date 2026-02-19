@@ -15,6 +15,7 @@ export interface PerformanceGoalSupervisorData {
   id: string;
   goalId: string;
   selfAssessmentId: string;
+  periodId: string;
   feedbackId?: string;
   feedbackStatus?: SupervisorFeedbackStatus;
   type: "quantitative" | "qualitative";
@@ -52,6 +53,7 @@ export function transformPerformanceGoalsForSupervisor(
         id: goal.id,
         goalId: goal.id,
         selfAssessmentId: assessment?.id || '',
+        periodId: assessment?.periodId || goal.periodId || '',
         feedbackId: feedback?.id,
         feedbackStatus: feedback?.status,
         type: goal.performanceGoalType || 'qualitative',
@@ -112,14 +114,16 @@ function PerformanceGoalSupervisorCard({
   goal: PerformanceGoalSupervisorData;
 }) {
   // Local state for form values
-  const [ratingCode, setRatingCode] = useState<RatingCode | undefined>(
-    goal.supervisorRatingCode
+  const [ratingCode, setRatingCode] = useState<RatingCode | null>(
+    goal.supervisorRatingCode ?? null
   );
   const [comment, setComment] = useState<string>(goal.supervisorComment || "");
 
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
     feedbackId: goal.feedbackId,
+    selfAssessmentId: goal.selfAssessmentId,
+    periodId: goal.periodId,
     initialRatingCode: goal.supervisorRatingCode,
     initialComment: goal.supervisorComment,
     initialStatus: goal.feedbackStatus,
@@ -132,15 +136,15 @@ function PerformanceGoalSupervisorCard({
   // Handle rating change (toggle - click again to deselect)
   const handleRatingChange = useCallback((newRating: RatingCode) => {
     if (!isEditable) return;
-    // If clicking the same rating, deselect it (send undefined to clear in DB)
+    // If clicking the same rating, deselect it (send null to clear in DB)
     const isDeselecting = ratingCode === newRating;
-    const updatedRating = isDeselecting ? undefined : newRating;
+    const updatedRating = isDeselecting ? null : newRating;
     setRatingCode(updatedRating);
-    debouncedSave({
+    void save({
       supervisorRatingCode: updatedRating,
       supervisorComment: comment
     });
-  }, [ratingCode, comment, debouncedSave, isEditable]);
+  }, [ratingCode, comment, save, isEditable]);
 
   // Handle comment change (debounced)
   const handleCommentChange = useCallback((newComment: string) => {

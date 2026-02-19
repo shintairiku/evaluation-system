@@ -10,9 +10,22 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { GoalResponse, SelfAssessment as APISelfAssessment, RatingCode, CompetencyRatingData } from "@/api/types";
+import type {
+  GoalResponse,
+  SelfAssessment as APISelfAssessment,
+  RatingCode,
+  CompetencyRatingData,
+  Competency,
+} from "@/api/types";
 import { QUALITATIVE_RATING_CODES } from "@/api/types/common";
 import { calculateAverageRatingCode } from "@/utils/rating";
+import {
+  buildStageCompetencyMap,
+  resolveActionDescription,
+  resolveCompetencyName,
+  resolveDisplayActionIndexes,
+  resolveDisplayCompetencyIds,
+} from "./competencyDisplayScope";
 
 // Display data structure for competency action item
 export interface CompetencyActionDisplayItem {
@@ -41,10 +54,12 @@ interface CompetencySelfAssessmentProps {
 // Helper function to transform API data to display format
 export function transformCompetencyGoalsForDisplay(
   goals: GoalResponse[],
-  selfAssessments: APISelfAssessment[]
+  selfAssessments: APISelfAssessment[],
+  stageCompetencies: Competency[] = []
 ): CompetencyDisplayData[] {
   // Create a map of goalId -> selfAssessment for quick lookup
   const assessmentMap = new Map(selfAssessments.map(sa => [sa.goalId, sa]));
+  const stageCompetencyMap = buildStageCompetencyMap(stageCompetencies);
 
   const competencyGoals = goals.filter(
     goal => goal.goalCategory === 'コンピテンシー' && goal.status === 'approved'
@@ -54,29 +69,44 @@ export function transformCompetencyGoalsForDisplay(
 
   for (const goal of competencyGoals) {
     const assessment = assessmentMap.get(goal.id);
-    const ratingData: CompetencyRatingData = assessment?.ratingData || {};
+    const ratingData: CompetencyRatingData = (assessment?.ratingData as CompetencyRatingData) || {};
 
-    // Get competency IDs and names from the goal
-    const competencyIds = goal.competencyIds || [];
+    const competencyIds = resolveDisplayCompetencyIds({
+      goal,
+      stageCompetencies,
+      assessmentRatingData: ratingData,
+    });
     const competencyNames = goal.competencyNames || {};
     const idealActionTexts = goal.idealActionTexts || {};
     const selectedIdealActions = goal.selectedIdealActions || {};
 
     for (let i = 0; i < competencyIds.length; i++) {
       const competencyId = competencyIds[i];
-      const competencyName = competencyNames[competencyId] || `コンピテンシー`;
-      const actionTexts = idealActionTexts[competencyId] || [];
-      const selectedActions = selectedIdealActions[competencyId] || [];
+      const stageCompetency = stageCompetencyMap.get(competencyId);
+      const competencyName = resolveCompetencyName({
+        competencyId,
+        stageCompetency,
+        competencyNames,
+      });
       const competencyRatings = ratingData[competencyId] || {};
+      const actionIndexes = resolveDisplayActionIndexes({
+        competencyId,
+        stageCompetency,
+        selectedIdealActions,
+        assessmentRatings: competencyRatings,
+      });
 
-      // Build items from selected ideal actions
-      const items: CompetencyActionDisplayItem[] = selectedActions.map((actionIndex) => {
-        const actionIdxStr = actionIndex.toString();
-        const actionIdxNum = parseInt(actionIndex, 10);
+      const items: CompetencyActionDisplayItem[] = actionIndexes.map((actionIndex) => {
         return {
           id: `${competencyId}-${actionIndex}`,
-          description: actionTexts[actionIdxNum] || `アクション ${parseInt(actionIndex) + 1}`,
-          rating: competencyRatings[actionIdxStr] as RatingCode | undefined,
+          description: resolveActionDescription({
+            competencyId,
+            actionIndex,
+            stageCompetency,
+            selectedIdealActions,
+            idealActionTexts,
+          }),
+          rating: competencyRatings[actionIndex] as RatingCode | undefined,
         };
       });
 

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Target, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -11,10 +11,25 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, CompetencyRatingData, SupervisorFeedbackStatus } from "@/api/types";
+import type {
+  GoalResponse,
+  SelfAssessment,
+  SupervisorFeedback,
+  RatingCode,
+  CompetencyRatingData,
+  SupervisorFeedbackStatus,
+  Competency,
+} from "@/api/types";
 import { QUALITATIVE_RATING_CODES } from "@/api/types/common";
 import { calculateAverageRatingCode } from "@/utils/rating";
 import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
+import {
+  buildStageCompetencyMap,
+  resolveActionDescription,
+  resolveCompetencyName,
+  resolveDisplayActionIndexes,
+  resolveDisplayCompetencyIds,
+} from "./competencyDisplayScope";
 
 // Display data structure for competency action item
 export interface CompetencyActionSupervisorItem {
@@ -29,6 +44,7 @@ export interface CompetencySupervisorData {
   competencyId: string;
   goalId: string;
   selfAssessmentId: string;
+  periodId: string;
   feedbackId?: string;
   feedbackStatus?: SupervisorFeedbackStatus;
   name: string;
@@ -50,11 +66,13 @@ interface CompetencySupervisorEvaluationProps {
 export function transformCompetencyGoalsForSupervisor(
   goals: GoalResponse[],
   selfAssessments: SelfAssessment[],
-  supervisorFeedbacks: SupervisorFeedback[]
+  supervisorFeedbacks: SupervisorFeedback[],
+  stageCompetencies: Competency[] = []
 ): CompetencySupervisorData[] {
   // Create maps for quick lookup
   const assessmentMap = new Map(selfAssessments.map(sa => [sa.goalId, sa]));
   const feedbackMap = new Map(supervisorFeedbacks.map(fb => [fb.selfAssessmentId, fb]));
+  const stageCompetencyMap = buildStageCompetencyMap(stageCompetencies);
 
   const competencyGoals = goals.filter(
     goal => goal.goalCategory === 'コンピテンシー' && goal.status === 'approved'
@@ -66,29 +84,46 @@ export function transformCompetencyGoalsForSupervisor(
     const assessment = assessmentMap.get(goal.id);
     const feedback = assessment ? feedbackMap.get(assessment.id) : undefined;
 
-    // Get competency data from goal
-    const competencyIds = goal.competencyIds || [];
+    const assessmentRatingData: CompetencyRatingData = (assessment?.ratingData as CompetencyRatingData) || {};
+    const supervisorRatingData: CompetencyRatingData = (feedback as unknown as { ratingData?: CompetencyRatingData })?.ratingData || {};
+    const competencyIds = resolveDisplayCompetencyIds({
+      goal,
+      stageCompetencies,
+      assessmentRatingData,
+      supervisorRatingData,
+    });
     const competencyNames = goal.competencyNames || {};
     const idealActionTexts = goal.idealActionTexts || {};
     const selectedIdealActions = goal.selectedIdealActions || {};
 
-    // Use supervisor's rating data if exists, otherwise empty
-    const supervisorRatingData: CompetencyRatingData = (feedback as unknown as { ratingData?: CompetencyRatingData })?.ratingData || {};
-
     for (let i = 0; i < competencyIds.length; i++) {
       const competencyId = competencyIds[i];
-      const competencyName = competencyNames[competencyId] || `コンピテンシー`;
-      const actionTexts = idealActionTexts[competencyId] || [];
-      const selectedActions = selectedIdealActions[competencyId] || [];
+      const stageCompetency = stageCompetencyMap.get(competencyId);
+      const competencyName = resolveCompetencyName({
+        competencyId,
+        stageCompetency,
+        competencyNames,
+      });
       const competencyRatings = supervisorRatingData[competencyId] || {};
+      const actionIndexes = resolveDisplayActionIndexes({
+        competencyId,
+        stageCompetency,
+        selectedIdealActions,
+        assessmentRatings: assessmentRatingData[competencyId],
+        supervisorRatings: competencyRatings,
+      });
 
-      // Build items from selected ideal actions
-      const items: CompetencyActionSupervisorItem[] = selectedActions.map((actionIndex) => {
-        const actionIdxNum = parseInt(actionIndex, 10);
+      const items: CompetencyActionSupervisorItem[] = actionIndexes.map((actionIndex) => {
         return {
           id: `${competencyId}-${actionIndex}`,
-          actionIndex: actionIndex.toString(),
-          description: actionTexts[actionIdxNum] || `アクション ${actionIdxNum + 1}`,
+          actionIndex: String(actionIndex),
+          description: resolveActionDescription({
+            competencyId,
+            actionIndex,
+            stageCompetency,
+            selectedIdealActions,
+            idealActionTexts,
+          }),
           rating: competencyRatings[actionIndex] as RatingCode | undefined,
         };
       });
@@ -100,6 +135,7 @@ export function transformCompetencyGoalsForSupervisor(
         competencyId,
         goalId: goal.id,
         selfAssessmentId: assessment?.id || '',
+        periodId: assessment?.periodId || goal.periodId || '',
         feedbackId: feedback?.id,
         feedbackStatus: feedback?.status,
         name: competencyName,
@@ -253,22 +289,39 @@ function CompetencyGoalGroup({
   }, [competencies]);
   const [comment, setComment] = useState<string>(firstCompetency?.supervisorComment || "");
   const [allRatingData, setAllRatingData] = useState<CompetencyRatingData>(mergedRatingData);
-
-  useEffect(() => {
-    setComment(firstCompetency?.supervisorComment || "");
-    setAllRatingData(mergedRatingData);
-  }, [firstCompetency?.feedbackId, firstCompetency?.supervisorComment, mergedRatingData]);
+  const groupAssessmentId = firstCompetency?.selfAssessmentId ?? null;
+  const lastInitializedAssessmentIdRef = useRef<string | null>(null);
 
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
     feedbackId: firstCompetency?.feedbackId,
+    selfAssessmentId: firstCompetency?.selfAssessmentId,
+    periodId: firstCompetency?.periodId,
     initialComment: firstCompetency?.supervisorComment,
     initialRatingData: mergedRatingData,
     initialStatus: firstCompetency?.feedbackStatus,
   });
 
+  useEffect(() => {
+    // Initialize local state when switching to a different assessment.
+    // Avoid syncing on every parent rerender (which can recreate mergedRatingData).
+    if (!groupAssessmentId) {
+      lastInitializedAssessmentIdRef.current = null;
+      return;
+    }
+
+    if (lastInitializedAssessmentIdRef.current === groupAssessmentId) {
+      return;
+    }
+
+    lastInitializedAssessmentIdRef.current = groupAssessmentId;
+    setComment(firstCompetency?.supervisorComment || "");
+    setAllRatingData(mergedRatingData);
+  }, [groupAssessmentId, firstCompetency?.supervisorComment, mergedRatingData]);
+
   // Handle rating change for any competency in the group (supports toggle/deselect)
   const handleRatingChange = useCallback((competencyId: string, actionIndex: string, rating: RatingCode | undefined) => {
+    if (!isEditable) return;
     const currentCompetencyRatings = { ...(allRatingData[competencyId] || {}) };
 
     if (rating === undefined) {
@@ -283,8 +336,8 @@ function CompetencyGoalGroup({
       [competencyId]: currentCompetencyRatings,
     };
     setAllRatingData(newRatingData);
-    debouncedSave({ supervisorComment: comment, ratingData: newRatingData });
-  }, [allRatingData, comment, debouncedSave]);
+    void save({ supervisorComment: comment, ratingData: newRatingData });
+  }, [allRatingData, comment, isEditable, save]);
 
   // Handle comment change (debounced)
   const handleCommentChange = useCallback((newComment: string) => {
