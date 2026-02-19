@@ -25,7 +25,7 @@ from ..security.decorators import require_any_permission
 from ..security.rbac_helper import RBACHelper
 from ..security.rbac_types import ResourceType
 from ..core.exceptions import (
-    NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
+    NotFoundError, PermissionDeniedError, BadRequestError, ValidationError, ConflictError
 )
 from .rating_rules import validate_rating_code_for_goal
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -245,7 +245,11 @@ class SupervisorFeedbackService:
             logger.error(f"Error getting feedback for assessment {self_assessment_id}: {str(e)}")
             raise
 
-    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
+    @require_any_permission([
+        Permission.GOAL_APPROVE,
+        Permission.GOAL_READ_ALL,
+        Permission.GOAL_READ_SUBORDINATES
+    ])
     async def create_feedback(
         self,
         feedback_data: SupervisorFeedbackCreate,
@@ -265,6 +269,23 @@ class SupervisorFeedbackService:
             
             # Business validation
             await self._validate_feedback_creation(assessment, feedback_data, current_user_context)
+
+            existing_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(
+                feedback_data.self_assessment_id,
+                org_id
+            )
+            if existing_feedback:
+                if existing_feedback.supervisor_id != current_user_context.user_id:
+                    raise PermissionDeniedError(
+                        "Supervisor feedback already exists and can only be edited by its creator"
+                    )
+
+                logger.info(
+                    "Supervisor feedback already exists for self-assessment %s. Returning existing feedback %s.",
+                    feedback_data.self_assessment_id,
+                    existing_feedback.id
+                )
+                return await self._enrich_feedback_data(existing_feedback)
             
             # Create feedback
             created_feedback = await self.supervisor_feedback_repo.create_feedback(
@@ -281,12 +302,35 @@ class SupervisorFeedbackService:
             logger.info(f"Supervisor feedback created successfully: {created_feedback.id}")
             return enriched_feedback
             
+        except ConflictError as e:
+            await self.session.rollback()
+
+            org_id = current_user_context.organization_id
+            if org_id:
+                existing_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(
+                    feedback_data.self_assessment_id,
+                    org_id
+                )
+                if existing_feedback and existing_feedback.supervisor_id == current_user_context.user_id:
+                    logger.info(
+                        "Create feedback conflict resolved by returning existing feedback %s for self-assessment %s.",
+                        existing_feedback.id,
+                        feedback_data.self_assessment_id
+                    )
+                    return await self._enrich_feedback_data(existing_feedback)
+
+            logger.error(f"Error creating supervisor feedback: {str(e)}")
+            raise
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error creating supervisor feedback: {str(e)}")
             raise
 
-    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
+    @require_any_permission([
+        Permission.GOAL_APPROVE,
+        Permission.GOAL_READ_ALL,
+        Permission.GOAL_READ_SUBORDINATES
+    ])
     async def update_feedback(
         self,
         feedback_id: UUID,
@@ -328,7 +372,11 @@ class SupervisorFeedbackService:
             logger.error(f"Error updating feedback {feedback_id}: {str(e)}")
             raise
 
-    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
+    @require_any_permission([
+        Permission.GOAL_APPROVE,
+        Permission.GOAL_READ_ALL,
+        Permission.GOAL_READ_SUBORDINATES
+    ])
     async def submit_feedback(
         self,
         feedback_id: UUID,
@@ -397,7 +445,11 @@ class SupervisorFeedbackService:
             logger.error(f"Error submitting feedback {feedback_id}: {str(e)}")
             raise
 
-    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
+    @require_any_permission([
+        Permission.GOAL_APPROVE,
+        Permission.GOAL_READ_ALL,
+        Permission.GOAL_READ_SUBORDINATES
+    ])
     async def draft_feedback(
         self,
         feedback_id: UUID,
@@ -437,7 +489,11 @@ class SupervisorFeedbackService:
             logger.error(f"Error drafting feedback {feedback_id}: {str(e)}")
             raise
 
-    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
+    @require_any_permission([
+        Permission.GOAL_APPROVE,
+        Permission.GOAL_READ_ALL,
+        Permission.GOAL_READ_SUBORDINATES
+    ])
     async def delete_feedback(
         self,
         feedback_id: UUID,
@@ -592,9 +648,16 @@ class SupervisorFeedbackService:
 
     async def _check_feedback_update_permission(self, feedback: SupervisorFeedbackModel, current_user_context: AuthContext):
         """Check if user has permission to update this feedback."""
-        # Business Rule: Only manager and supervisor roles can update/delete feedback
-        if not current_user_context.has_any_role(["manager", "supervisor"]):
-            raise PermissionDeniedError("Only managers and supervisors can update supervisor feedback")
+        has_feedback_write_permission = (
+            current_user_context.has_permission(Permission.GOAL_APPROVE)
+            or current_user_context.has_permission(Permission.GOAL_READ_ALL)
+            or current_user_context.has_permission(Permission.GOAL_READ_SUBORDINATES)
+        )
+
+        if not has_feedback_write_permission:
+            raise PermissionDeniedError(
+                "Only users with subordinate goal access can update supervisor feedback"
+            )
         
         # Business Rule: supervisor_id MUST be same as current_user_context.user_id
         if feedback.supervisor_id != current_user_context.user_id:
@@ -684,10 +747,16 @@ class SupervisorFeedbackService:
             "self_assessment_id": feedback_model.self_assessment_id,
             "period_id": feedback_model.period_id,
             "supervisor_id": feedback_model.supervisor_id,
+            "subordinate_id": feedback_model.subordinate_id,
             "rating": float(feedback_model.supervisor_rating) if feedback_model.supervisor_rating is not None else None,
             "comment": feedback_model.supervisor_comment,
+            "supervisor_rating_code": feedback_model.supervisor_rating_code,
+            "supervisor_comment": feedback_model.supervisor_comment,
+            "rating_data": feedback_model.rating_data,
+            "action": feedback_model.action,
             "status": SubmissionStatus(feedback_model.status),
             "submitted_at": feedback_model.submitted_at,
+            "reviewed_at": feedback_model.reviewed_at,
             "created_at": feedback_model.created_at,
             "updated_at": feedback_model.updated_at
         }
