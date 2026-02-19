@@ -1,6 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { updateSupervisorFeedbackAction } from '@/api/server-actions/supervisor-feedbacks';
-import type { RatingCode, SupervisorFeedbackStatus, CompetencyRatingData } from '@/api/types';
+import {
+  createSupervisorFeedbackAction,
+  getSupervisorFeedbacksByAssessmentAction,
+  updateSupervisorFeedbackAction,
+} from '@/api/server-actions/supervisor-feedbacks';
+import type { RatingCode, SupervisorFeedbackStatus, CompetencyRatingData, UUID } from '@/api/types';
 
 /**
  * Save status for auto-save functionality
@@ -11,7 +15,7 @@ export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
  * Data to save for a supervisor feedback
  */
 export interface SupervisorFeedbackSaveData {
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
   supervisorComment?: string;
   /** Per-action ratings for competency goals */
   ratingData?: CompetencyRatingData;
@@ -23,8 +27,12 @@ export interface SupervisorFeedbackSaveData {
 interface UseSupervisorFeedbackAutoSaveOptions {
   /** Supervisor feedback ID to auto-save to */
   feedbackId?: string;
+  /** Self-assessment ID used to auto-create feedback if missing */
+  selfAssessmentId?: string;
+  /** Period ID used to auto-create feedback if missing */
+  periodId?: string;
   /** Initial rating code (from server) */
-  initialRatingCode?: RatingCode;
+  initialRatingCode?: RatingCode | null;
   /** Initial comment (from server) */
   initialComment?: string;
   /** Initial per-action ratings for competency goals (from server) */
@@ -70,6 +78,30 @@ export async function flushSupervisorFeedbackAutoSaves(): Promise<void> {
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function findFeedbackByAssessmentWithRetry(
+  selfAssessmentId: UUID,
+  retryDelays: number[] = [0]
+): Promise<string | undefined> {
+  for (const delay of retryDelays) {
+    if (delay > 0) {
+      await sleep(delay);
+    }
+
+    const existingResult = await getSupervisorFeedbacksByAssessmentAction(selfAssessmentId);
+    if (existingResult.success && existingResult.data?.id) {
+      return existingResult.data.id;
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Custom hook to handle auto-save functionality for supervisor feedback ratings and comments.
  *
@@ -84,6 +116,8 @@ export async function flushSupervisorFeedbackAutoSaves(): Promise<void> {
  */
 export function useSupervisorFeedbackAutoSave({
   feedbackId,
+  selfAssessmentId,
+  periodId,
   initialRatingCode,
   initialComment,
   initialRatingData,
@@ -93,6 +127,7 @@ export function useSupervisorFeedbackAutoSave({
   onSaveSuccess
 }: UseSupervisorFeedbackAutoSaveOptions): UseSupervisorFeedbackAutoSaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [activeFeedbackId, setActiveFeedbackId] = useState<string | undefined>(feedbackId);
   const initialData: SupervisorFeedbackSaveData = {
     supervisorRatingCode: initialRatingCode,
     supervisorComment: initialComment,
@@ -109,6 +144,7 @@ export function useSupervisorFeedbackAutoSave({
   const debouncedDataRef = useRef<SupervisorFeedbackSaveData | null>(null);
   const lastSavedDataRef = useRef<SupervisorFeedbackSaveData>(initialData);
   const saveStatusRef = useRef<SaveStatus>('idle');
+  const ensuringFeedbackRef = useRef<Promise<string | undefined> | null>(null);
 
   // Determine if feedback is editable (incomplete or draft, not submitted)
   const isEditable = initialStatus !== 'submitted';
@@ -129,11 +165,72 @@ export function useSupervisorFeedbackAutoSave({
     setSaveStatus(status);
   }, []);
 
+  const ensureFeedbackId = useCallback(async (): Promise<string | undefined> => {
+    if (activeFeedbackId) {
+      return activeFeedbackId;
+    }
+
+    if (!selfAssessmentId || !periodId) {
+      return undefined;
+    }
+
+    if (ensuringFeedbackRef.current) {
+      return ensuringFeedbackRef.current;
+    }
+
+    ensuringFeedbackRef.current = (async () => {
+      const existingId = await findFeedbackByAssessmentWithRetry(
+        selfAssessmentId as UUID
+      );
+      if (existingId) {
+        setActiveFeedbackId(existingId);
+        return existingId;
+      }
+
+      const createResult = await createSupervisorFeedbackAction({
+        selfAssessmentId: selfAssessmentId as UUID,
+        periodId: periodId as UUID,
+        action: 'PENDING',
+        status: 'draft',
+      });
+
+      if (createResult.success && createResult.data) {
+        const createdId = createResult.data.id;
+        setActiveFeedbackId(createdId);
+        return createdId;
+      }
+
+      const recoveredId = await findFeedbackByAssessmentWithRetry(
+        selfAssessmentId as UUID,
+        [150, 300, 600]
+      );
+      if (recoveredId) {
+        setActiveFeedbackId(recoveredId);
+      }
+
+      return recoveredId;
+    })()
+      .finally(() => {
+        ensuringFeedbackRef.current = null;
+      });
+
+    return ensuringFeedbackRef.current;
+  }, [activeFeedbackId, selfAssessmentId, periodId]);
+
   /**
    * Core save function - saves rating and comment to supervisor feedback
    */
   const save = useCallback(async (data: SupervisorFeedbackSaveData) => {
-    if (!feedbackId || !isEditable) {
+    if (!isEditable) {
+      return;
+    }
+
+    let resolvedFeedbackId = activeFeedbackId;
+    if (!resolvedFeedbackId) {
+      resolvedFeedbackId = await ensureFeedbackId();
+    }
+    if (!resolvedFeedbackId) {
+      updateSaveStatus('error');
       return;
     }
 
@@ -160,7 +257,7 @@ export function useSupervisorFeedbackAutoSave({
         }
 
         try {
-          const result = await updateSupervisorFeedbackAction(feedbackId, {
+          const result = await updateSupervisorFeedbackAction(resolvedFeedbackId as UUID, {
             supervisorRatingCode: nextData.supervisorRatingCode,
             supervisorComment: nextData.supervisorComment,
             ratingData: nextData.ratingData,
@@ -194,7 +291,15 @@ export function useSupervisorFeedbackAutoSave({
     });
 
     await inFlightSaveRef.current;
-  }, [feedbackId, isEditable, hasDataChanged, statusClearTimeout, onSaveSuccess, updateSaveStatus]);
+  }, [
+    isEditable,
+    activeFeedbackId,
+    ensureFeedbackId,
+    hasDataChanged,
+    statusClearTimeout,
+    onSaveSuccess,
+    updateSaveStatus,
+  ]);
 
   /**
    * Debounced save function - use for onChange events
@@ -242,11 +347,70 @@ export function useSupervisorFeedbackAutoSave({
     }
   }, [save]);
 
+  const saveQueuedDataWithoutState = useCallback(async (data: SupervisorFeedbackSaveData) => {
+    if (!isEditable) {
+      return;
+    }
+
+    if (!hasDataChanged(data)) {
+      return;
+    }
+
+    let resolvedFeedbackId = activeFeedbackId || feedbackId;
+
+    if (!resolvedFeedbackId) {
+      if (!selfAssessmentId || !periodId) {
+        return;
+      }
+
+      const existingId = await findFeedbackByAssessmentWithRetry(
+        selfAssessmentId as UUID
+      );
+      if (existingId) {
+        resolvedFeedbackId = existingId;
+      } else {
+        const createResult = await createSupervisorFeedbackAction({
+          selfAssessmentId: selfAssessmentId as UUID,
+          periodId: periodId as UUID,
+          action: 'PENDING',
+          status: 'draft',
+        });
+
+        if (createResult.success && createResult.data) {
+          resolvedFeedbackId = createResult.data.id;
+        } else {
+          resolvedFeedbackId = await findFeedbackByAssessmentWithRetry(
+            selfAssessmentId as UUID,
+            [150, 300, 600]
+          );
+        }
+      }
+    }
+
+    if (!resolvedFeedbackId) {
+      return;
+    }
+
+    try {
+      await updateSupervisorFeedbackAction(resolvedFeedbackId as UUID, {
+        supervisorRatingCode: data.supervisorRatingCode,
+        supervisorComment: data.supervisorComment,
+        ratingData: data.ratingData,
+      });
+    } catch {
+      // Best-effort save during unmount; ignore failures here.
+    }
+  }, [activeFeedbackId, feedbackId, hasDataChanged, isEditable, periodId, selfAssessmentId]);
+
   /**
    * Initialize with server data
    */
   useEffect(() => {
-    if (feedbackId && !isInitialized) {
+    setActiveFeedbackId(feedbackId);
+  }, [feedbackId]);
+
+  useEffect(() => {
+    if (activeFeedbackId && !isInitialized) {
       const data = {
         supervisorRatingCode: initialRatingCode,
         supervisorComment: initialComment?.trim(),
@@ -256,7 +420,7 @@ export function useSupervisorFeedbackAutoSave({
       setLastSavedData(data);
       setIsInitialized(true);
     }
-  }, [feedbackId, initialRatingCode, initialComment, initialRatingData, isInitialized]);
+  }, [activeFeedbackId, initialRatingCode, initialComment, initialRatingData, isInitialized]);
 
   /**
    * Reset when feedback ID changes
@@ -270,6 +434,7 @@ export function useSupervisorFeedbackAutoSave({
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
+    ensuringFeedbackRef.current = null;
   }, [feedbackId, updateSaveStatus]);
 
   useEffect(() => {
@@ -288,13 +453,17 @@ export function useSupervisorFeedbackAutoSave({
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
       }
+      const queuedData = debouncedDataRef.current;
+      debouncedDataRef.current = null;
+      if (queuedData) {
+        void saveQueuedDataWithoutState(queuedData);
+      }
       if (statusClearTimerRef.current) {
         clearTimeout(statusClearTimerRef.current);
         statusClearTimerRef.current = null;
       }
-      debouncedDataRef.current = null;
     };
-  }, []);
+  }, [saveQueuedDataWithoutState]);
 
   return {
     saveStatus,
