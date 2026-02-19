@@ -79,8 +79,10 @@ class SupervisorFeedbackInDB(SupervisorFeedbackBase):
     self_assessment_id: UUID
     period_id: UUID
     supervisor_id: UUID
+    subordinate_id: Optional[UUID] = None
     status: SubmissionStatus = SubmissionStatus.DRAFT
     submitted_at: Optional[datetime] = None
+    reviewed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -93,11 +95,16 @@ class SupervisorFeedback(SupervisorFeedbackInDB):
     Basic supervisor feedback schema for API responses (list views, simple references).
     Contains core supervisor feedback information without expensive joins.
     """
-    # Add aliases for API compatibility without duplicating fields
-    model_config = {
-        "from_attributes": True,
-        "populate_by_name": True
-    }
+    self_assessment_id: UUID = Field(..., alias="selfAssessmentId")
+    period_id: UUID = Field(..., alias="periodId")
+    supervisor_id: UUID = Field(..., alias="supervisorId")
+    subordinate_id: Optional[UUID] = Field(None, alias="subordinateId")
+    submitted_at: Optional[datetime] = Field(None, alias="submittedAt")
+    reviewed_at: Optional[datetime] = Field(None, alias="reviewedAt")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
