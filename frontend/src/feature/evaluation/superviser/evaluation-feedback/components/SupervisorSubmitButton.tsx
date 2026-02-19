@@ -12,11 +12,16 @@ import {
 } from "@/components/ui/dialog";
 import { Send, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { submitSupervisorFeedbackAction } from "@/api/server-actions/supervisor-feedbacks";
+import {
+  createSupervisorFeedbackAction,
+  getSupervisorFeedbacksByAssessmentAction,
+  submitSupervisorFeedbackAction,
+} from "@/api/server-actions/supervisor-feedbacks";
 import { flushSupervisorFeedbackAutoSaves } from "../hooks/useSupervisorFeedbackAutoSave";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
+import type { UUID } from "@/api/types";
 import type { PerformanceGoalSupervisorData } from "../display/PerformanceGoalsSupervisorEvaluation";
 import type { CompetencySupervisorData } from "../display/CompetencySupervisorEvaluation";
 
@@ -29,22 +34,96 @@ interface SupervisorSubmitButtonProps {
   disabled?: boolean;
 }
 
-/**
- * Check if a performance goal feedback can be submitted (has feedbackId and not already submitted)
- * Note: Rating and comment are OPTIONAL - supervisor can submit without filling them
- */
-function canSubmitPerformanceFeedback(goal: PerformanceGoalSupervisorData): boolean {
-  // Need feedbackId and not already submitted - rating/comment are optional
-  return !!goal.feedbackId && goal.feedbackStatus !== 'submitted';
+type SupervisorSubmitTarget = {
+  selfAssessmentId: string;
+  periodId: string;
+  feedbackId?: string;
+  feedbackStatus?: string;
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
-/**
- * Check if a competency goal feedback can be submitted (has feedbackId and not already submitted)
- * Note: Ratings and comment are OPTIONAL - supervisor can submit without filling them
- */
-function canSubmitCompetencyFeedback(competency: CompetencySupervisorData): boolean {
-  // Need feedbackId and not already submitted - ratings/comment are optional
-  return !!competency.feedbackId && competency.feedbackStatus !== 'submitted';
+async function findFeedbackByAssessmentWithRetry(
+  selfAssessmentId: UUID,
+  retryDelays: number[] = [0]
+): Promise<string | null> {
+  for (const delay of retryDelays) {
+    if (delay > 0) {
+      await sleep(delay);
+    }
+
+    const existingResult = await getSupervisorFeedbacksByAssessmentAction(selfAssessmentId);
+    if (existingResult.success && existingResult.data?.id) {
+      return existingResult.data.id;
+    }
+  }
+
+  return null;
+}
+
+function getSubmittableTargets(
+  performanceGoals: PerformanceGoalSupervisorData[],
+  competencyGoals: CompetencySupervisorData[]
+): SupervisorSubmitTarget[] {
+  const targets: SupervisorSubmitTarget[] = [
+    ...performanceGoals.map((goal) => ({
+      selfAssessmentId: goal.selfAssessmentId,
+      periodId: goal.periodId,
+      feedbackId: goal.feedbackId,
+      feedbackStatus: goal.feedbackStatus,
+    })),
+    ...competencyGoals.map((competency) => ({
+      selfAssessmentId: competency.selfAssessmentId,
+      periodId: competency.periodId,
+      feedbackId: competency.feedbackId,
+      feedbackStatus: competency.feedbackStatus,
+    })),
+  ].filter(
+    (target) =>
+      !!target.selfAssessmentId &&
+      !!target.periodId &&
+      target.feedbackStatus !== "submitted"
+  );
+
+  const deduplicated = new Map<string, SupervisorSubmitTarget>();
+  targets.forEach((target) => {
+    if (!deduplicated.has(target.selfAssessmentId)) {
+      deduplicated.set(target.selfAssessmentId, target);
+    }
+  });
+  return Array.from(deduplicated.values());
+}
+
+async function ensureFeedbackId(target: SupervisorSubmitTarget): Promise<string | null> {
+  if (target.feedbackId) {
+    return target.feedbackId;
+  }
+
+  const existingId = await findFeedbackByAssessmentWithRetry(
+    target.selfAssessmentId as UUID
+  );
+  if (existingId) {
+    return existingId;
+  }
+
+  const createResult = await createSupervisorFeedbackAction({
+    selfAssessmentId: target.selfAssessmentId as UUID,
+    periodId: target.periodId as UUID,
+    action: "PENDING",
+    status: "draft",
+  });
+  if (createResult.success && createResult.data) {
+    return createResult.data.id;
+  }
+
+  return findFeedbackByAssessmentWithRetry(
+    target.selfAssessmentId as UUID,
+    [150, 300, 600]
+  );
 }
 
 export default function SupervisorSubmitButton({
@@ -57,6 +136,7 @@ export default function SupervisorSubmitButton({
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [feedbackIdsToSubmit, setFeedbackIdsToSubmit] = useState<string[]>([]);
 
   // Accessibility and responsive hooks
   const { containerRef } = useKeyboardNavigation({
@@ -88,32 +168,16 @@ export default function SupervisorSubmitButton({
     }
   }, [isOpen]);
 
-  // Get feedbacks that can be submitted (have feedbackId)
-  const submittablePerformanceGoals = performanceGoals.filter(canSubmitPerformanceFeedback);
-  const submittableCompetencyGoals = competencyGoals.filter(canSubmitCompetencyFeedback);
-
-  const hasSubmittableFeedbacks = submittablePerformanceGoals.length > 0 || submittableCompetencyGoals.length > 0;
-
-  // Deduplicate competency goals by feedbackId (multiple competencies share the same feedback)
-  const uniqueCompetencyFeedbacks = useMemo(() => {
-    const seen = new Set<string>();
-    return submittableCompetencyGoals.filter(c => {
-      if (seen.has(c.feedbackId!)) return false;
-      seen.add(c.feedbackId!);
-      return true;
-    });
-  }, [submittableCompetencyGoals]);
-
-  // All feedbacks with feedbackId can be submitted (rating/comment are optional)
-  const feedbacksToSubmit = [
-    ...submittablePerformanceGoals.map((g) => g.feedbackId!),
-    ...uniqueCompetencyFeedbacks.map((c) => c.feedbackId!),
-  ];
-
-  const canSubmit = feedbacksToSubmit.length > 0;
+  const submittableTargets = useMemo(
+    () => getSubmittableTargets(performanceGoals, competencyGoals),
+    [performanceGoals, competencyGoals]
+  );
+  const hasSubmittableFeedbacks = submittableTargets.length > 0;
+  const canSubmit = feedbackIdsToSubmit.length > 0;
 
   const handleCancel = () => {
     if (!isSubmitting) {
+      setFeedbackIdsToSubmit([]);
       setIsOpen(false);
       announceToScreenReader('操作がキャンセルされました', 'polite');
     }
@@ -127,6 +191,19 @@ export default function SupervisorSubmitButton({
       if (onRefreshData) {
         await onRefreshData();
       }
+
+      const ensuredFeedbackIds = (
+        await Promise.all(submittableTargets.map((target) => ensureFeedbackId(target)))
+      ).filter((feedbackId): feedbackId is string => !!feedbackId);
+
+      const uniqueIds = Array.from(new Set(ensuredFeedbackIds));
+      setFeedbackIdsToSubmit(uniqueIds);
+      if (uniqueIds.length === 0) {
+        toast.error("提出可能な評価が見つかりません", {
+          description: "ページを更新して再度お試しください。",
+        });
+        return;
+      }
       setIsOpen(true);
     } catch {
       toast.error('自動保存に失敗しました', {
@@ -139,7 +216,7 @@ export default function SupervisorSubmitButton({
   };
 
   const handleSubmit = async () => {
-    if (feedbacksToSubmit.length === 0) return;
+    if (feedbackIdsToSubmit.length === 0) return;
 
     announceToScreenReader('評価の提出処理を開始します', 'assertive');
     setIsSubmitting(true);
@@ -147,7 +224,7 @@ export default function SupervisorSubmitButton({
     try {
       // Submit all feedbacks with APPROVED action
       const results = await Promise.all(
-        feedbacksToSubmit.map((feedbackId) =>
+        feedbackIdsToSubmit.map((feedbackId) =>
           submitSupervisorFeedbackAction(feedbackId, {
             action: 'APPROVED',
           })
@@ -157,6 +234,7 @@ export default function SupervisorSubmitButton({
       const failedCount = results.filter((r) => !r.success).length;
       const successCount = results.filter((r) => r.success).length;
 
+      setFeedbackIdsToSubmit([]);
       setIsOpen(false);
 
       if (failedCount === 0) {
@@ -175,6 +253,7 @@ export default function SupervisorSubmitButton({
         });
       }
     } catch {
+      setFeedbackIdsToSubmit([]);
       setIsOpen(false);
       toast.error('予期せぬエラーが発生しました', {
         description: 'しばらく時間をおいて再度お試しください。',
@@ -187,10 +266,11 @@ export default function SupervisorSubmitButton({
   return (
     <div className="flex items-center gap-3">
       <Button
-        variant={canSubmit ? "default" : "outline"}
+        size="lg"
+        variant={hasSubmittableFeedbacks ? "default" : "outline"}
         disabled={disabled || isSubmitting || isRefreshing || !hasSubmittableFeedbacks}
         onClick={handleButtonClick}
-        className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+        className="flex h-12 w-full items-center justify-center space-x-2 px-8 text-base font-semibold sm:w-auto sm:min-w-[220px]"
         aria-label="評価を最終提出する"
       >
         {isSubmitting || isRefreshing ? (
@@ -235,7 +315,7 @@ export default function SupervisorSubmitButton({
               aria-label="提出情報"
             >
               <p className="text-sm font-medium text-foreground">
-                提出対象: {feedbacksToSubmit.length}件の評価
+                提出対象: {feedbackIdsToSubmit.length}件の評価
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 ※ 上長評価（評点・コメント）は任意です
