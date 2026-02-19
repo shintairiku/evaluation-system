@@ -3,7 +3,7 @@ import Sidebar from "@/components/display/sidebar";
 import { AuthSyncProvider } from '@/components/auth/AuthSyncProvider';
 import { GoalListProvider } from '@/context/GoalListContext';
 import { GoalReviewProvider } from '@/context/GoalReviewContext';
-import { ReturnedAssessmentsProvider } from '@/context/ReturnedAssessmentsContext';
+import { DraftAssessmentsProvider } from '@/context/ReturnedAssessmentsContext';
 import { PendingEvaluationsProvider } from '@/context/PendingEvaluationsContext';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
@@ -29,7 +29,7 @@ export default async function EvaluationLayout({
       <CurrentUserProvider value={currentUserContext}>
         <GoalReviewProvider>
           <GoalListProvider>
-            <ReturnedAssessmentsProvider>
+            <DraftAssessmentsProvider>
               <PendingEvaluationsProvider>
                 <div className="min-h-screen bg-background">
                   <Header />
@@ -41,7 +41,7 @@ export default async function EvaluationLayout({
                   </main>
                 </div>
               </PendingEvaluationsProvider>
-            </ReturnedAssessmentsProvider>
+            </DraftAssessmentsProvider>
           </GoalListProvider>
         </GoalReviewProvider>
       </CurrentUserProvider>

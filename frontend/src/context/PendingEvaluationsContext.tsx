@@ -32,7 +32,7 @@ export interface PendingEvaluationsProviderProps {
  * Manages state for pending evaluation notifications, tracking supervisor feedbacks
  * with action=PENDING and no return_comment (self-assessments awaiting supervisor review).
  *
- * This follows the same pattern as ReturnedAssessmentsProvider.
+ * This follows the same pattern as DraftAssessmentsProvider.
  */
 export function PendingEvaluationsProvider({ children, initialPendingEvaluationsCount }: PendingEvaluationsProviderProps) {
   const currentUserContext = useOptionalCurrentUserContext();

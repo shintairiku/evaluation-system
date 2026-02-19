@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { useGoalListContext } from '@/context/GoalListContext';
-import { useReturnedAssessmentsContext } from '@/context/ReturnedAssessmentsContext';
+import { useDraftAssessmentsContext } from '@/context/ReturnedAssessmentsContext';
 import { usePendingEvaluationsContext } from '@/context/PendingEvaluationsContext';
 import {
   Home, Target, ClipboardList, List, ListChecks, Users, CheckCircle, MessageSquare,
@@ -72,15 +72,15 @@ export default function Sidebar() {
     rejectedGoalsCount = 0;
   }
 
-  // Get returned assessments context with graceful fallback
-  let returnedCount = 0;
+  // Get draft assessments context with graceful fallback
+  let draftCount = 0;
   try {
-    const context = useReturnedAssessmentsContext();
-    returnedCount = context.returnedCount;
+    const context = useDraftAssessmentsContext();
+    draftCount = context.draftCount;
   } catch {
     // Context not available (e.g., during SSR or outside provider)
     // Use default value
-    returnedCount = 0;
+    draftCount = 0;
   }
 
   // Get pending evaluations context with graceful fallback
@@ -157,11 +157,11 @@ export default function Sidebar() {
                           </Badge>
                         </div>
                       )}
-                      {/* Returned Assessments Count - Only visible when sidebar is collapsed */}
-                      {link.href === '/evaluation-input' && returnedCount > 0 && (
+                      {/* Draft Assessments Count - Only visible when sidebar is collapsed */}
+                      {link.href === '/evaluation-input' && draftCount > 0 && (
                         <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
                           <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
-                            {returnedCount > 99 ? '99' : returnedCount}
+                            {draftCount > 99 ? '99' : draftCount}
                           </Badge>
                         </div>
                       )}
@@ -193,10 +193,10 @@ export default function Sidebar() {
                         </Badge>
                       )}
 
-                      {/* Returned Assessments Count - Expanded view */}
-                      {link.href === '/evaluation-input' && returnedCount > 0 && (
+                      {/* Draft Assessments Count - Expanded view */}
+                      {link.href === '/evaluation-input' && draftCount > 0 && (
                         <Badge variant="destructive" className="text-xs bg-red-500 text-white">
-                          {returnedCount > 99 ? '99+' : returnedCount}
+                          {draftCount > 99 ? '99+' : draftCount}
                         </Badge>
                       )}
 
