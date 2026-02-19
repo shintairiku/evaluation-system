@@ -20,9 +20,9 @@ import type { UserProfileOption } from './user';
  */
 export interface SupervisorFeedbackBase {
   /** Supervisor's letter grade: SS, S, A+, A, A-, B, C, D */
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
   /** Supervisor's feedback comment */
-  supervisorComment?: string;
+  supervisorComment?: string | null;
 }
 
 /**
@@ -102,9 +102,9 @@ export interface SupervisorFeedbackCreate extends SupervisorFeedbackBase {
  */
 export interface SupervisorFeedbackUpdate {
   /** Supervisor's letter grade */
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
   /** Supervisor's feedback comment */
-  supervisorComment?: string;
+  supervisorComment?: string | null;
   /** Per-action ratings for competency goals (JSONB) */
   ratingData?: Record<string, Record<string, RatingCode>>;
 }
@@ -117,9 +117,9 @@ export interface SupervisorFeedbackSubmit {
   /** Decision: PENDING or APPROVED */
   action: 'PENDING' | 'APPROVED';
   /** Optional rating code */
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
   /** Optional comment */
-  supervisorComment?: string;
+  supervisorComment?: string | null;
   /** Per-action ratings for competency goals (JSONB) */
   ratingData?: Record<string, Record<string, RatingCode>>;
 }

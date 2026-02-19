@@ -9,6 +9,7 @@ import type {
   SupervisorFeedbackDetail, 
   SupervisorFeedbackCreate, 
   SupervisorFeedbackUpdate,
+  SupervisorFeedbackSubmit,
   SupervisorFeedbackList,
   PaginationParams,
   UUID,
@@ -262,49 +263,50 @@ export const getSupervisorFeedbacksByEmployeeAction = cache(
 /**
  * Server action to get supervisor feedbacks by assessment ID
  */
-export const getSupervisorFeedbacksByAssessmentAction = cache(
-  async (
-    assessmentId: UUID,
-  ): Promise<{
-    success: boolean;
-    data?: SupervisorFeedback | null;
-    error?: string;
-  }> => {
-    try {
-      const response = await supervisorFeedbacksApi.getSupervisorFeedbackByAssessment(assessmentId);
+export async function getSupervisorFeedbacksByAssessmentAction(
+  assessmentId: UUID,
+): Promise<{
+  success: boolean;
+  data?: SupervisorFeedback | null;
+  error?: string;
+}> {
+  try {
+    const response = await supervisorFeedbacksApi.getSupervisorFeedbackByAssessment(assessmentId);
 
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.errorMessage || 'Failed to fetch supervisor feedbacks by assessment',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get supervisor feedbacks by assessment action error:', error);
+    if (!response.success) {
       return {
         success: false,
-        error: 'An unexpected error occurred while fetching supervisor feedbacks by assessment',
+        error: response.errorMessage || 'Failed to fetch supervisor feedbacks by assessment',
       };
     }
-  },
-);
+
+    return {
+      success: true,
+      data: response.data ?? null,
+    };
+  } catch (error) {
+    console.error('Get supervisor feedbacks by assessment action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching supervisor feedbacks by assessment',
+    };
+  }
+}
 
 /**
  * Server action to submit a supervisor feedback with cache revalidation.
  * Action must be PENDING or APPROVED.
  */
-export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<{
+export async function submitSupervisorFeedbackAction(
+  feedbackId: UUID,
+  submitData: SupervisorFeedbackSubmit = { action: 'APPROVED' }
+): Promise<{
   success: boolean;
   data?: SupervisorFeedback;
   error?: string;
 }> {
   try {
-    const response = await supervisorFeedbacksApi.submitSupervisorFeedback(feedbackId);
+    const response = await supervisorFeedbacksApi.submitSupervisorFeedback(feedbackId, submitData);
 
     if (!response.success || !response.data) {
       return {
