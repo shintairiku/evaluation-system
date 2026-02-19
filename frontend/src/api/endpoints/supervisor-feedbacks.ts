@@ -5,6 +5,7 @@ import type {
   SupervisorFeedbackDetail,
   SupervisorFeedbackCreate,
   SupervisorFeedbackUpdate,
+  SupervisorFeedbackSubmit,
   SupervisorFeedbackList,
   PaginationParams,
   ApiResponse,
@@ -91,8 +92,11 @@ export const supervisorFeedbacksApi = {
    * Submit a supervisor feedback.
    * Action must be PENDING or APPROVED.
    */
-  submitSupervisorFeedback: async (feedbackId: UUID): Promise<ApiResponse<SupervisorFeedback>> => {
-    return httpClient.post<SupervisorFeedback>(API_ENDPOINTS.SUPERVISOR_FEEDBACKS.SUBMIT(feedbackId), {});
+  submitSupervisorFeedback: async (
+    feedbackId: UUID,
+    data: SupervisorFeedbackSubmit
+  ): Promise<ApiResponse<SupervisorFeedback>> => {
+    return httpClient.post<SupervisorFeedback>(API_ENDPOINTS.SUPERVISOR_FEEDBACKS.SUBMIT(feedbackId), data);
   },
 
   /**
