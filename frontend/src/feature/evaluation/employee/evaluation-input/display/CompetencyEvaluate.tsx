@@ -177,7 +177,7 @@ function CompetencyGoalCard({
                 return (
                   <div key={`${competencyId}-${actionIdx}`}>
                     {/* Action Description */}
-                    <div className={`text-sm mb-3 ${isFocusedAction ? 'text-gray-800 font-medium' : 'text-gray-600'}`}>
+                    <div className={`text-sm mb-3 ${isFocusedAction ? 'text-gray-800 font-medium pl-3 border-l-2 border-green-500' : 'text-gray-600'}`}>
                       {actionText}
                     </div>
 
