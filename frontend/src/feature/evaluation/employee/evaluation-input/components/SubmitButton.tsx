@@ -17,9 +17,8 @@ import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
 import { flushSelfAssessmentAutoSaves } from "../hooks/useSelfAssessmentAutoSave";
-import type { CompetencyRatingData, Competency, UUID } from "@/api/types";
+import type { CompetencyRatingData } from "@/api/types";
 import type { GoalWithAssessment } from "../display/index";
-import { getGoalRequiredCompetencyActions } from "../display/competencyRequirements";
 
 interface SubmitButtonProps {
   performanceGoals: GoalWithAssessment[];
@@ -44,7 +43,7 @@ function isPerformanceAssessmentComplete(item: GoalWithAssessment): boolean {
 
 /**
  * Check if a competency goal assessment is complete.
- * Requires comment + all required action ratings filled.
+ * Requires comment + at least one action rating.
  */
 function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   const assessment = item.selfAssessment;
@@ -52,44 +51,16 @@ function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   // Approved assessments are locked and complete
   if (assessment.status === 'approved') return true;
 
-  // Must have comment
+  // Comment is required
   if (!assessment.selfComment?.trim()) return false;
 
-  // Must have all required action ratings
+  // At least one competency action rating must exist
   const ratingData = assessment.ratingData as CompetencyRatingData | undefined;
   if (!ratingData) return false;
 
-  // Build stage competencies from goal's allStage* fields
-  const goal = item.goal;
-  const stageCompetencies: Competency[] = (goal.allStageCompetencyIds || []).map(id => ({
-    id,
-    name: goal.allStageCompetencyNames?.[id] || '',
-    description: goal.allStageIdealActionTexts?.[id] || {},
-    stageId: '' as UUID,
-    createdAt: '',
-    updatedAt: '',
-  }));
-
-  const requiredActions = getGoalRequiredCompetencyActions(goal, stageCompetencies);
-
-  if (Object.keys(requiredActions).length === 0) {
-    // No required actions known — accept any rating
-    return Object.values(ratingData).some((ratingsByAction) =>
-      Object.values(ratingsByAction || {}).some(Boolean)
-    );
-  }
-
-  // Check each competency has all required actions rated
-  for (const [competencyId, actionIndexes] of Object.entries(requiredActions)) {
-    const competencyRatings = ratingData[competencyId];
-    if (!competencyRatings) return false;
-
-    for (const actionIdx of actionIndexes) {
-      if (!competencyRatings[actionIdx]) return false;
-    }
-  }
-
-  return true;
+  return Object.values(ratingData).some((ratingsByAction) =>
+    Object.values(ratingsByAction || {}).some(Boolean)
+  );
 }
 
 export default function SubmitButton({
