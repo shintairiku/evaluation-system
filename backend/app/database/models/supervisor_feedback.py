@@ -29,7 +29,7 @@ class SupervisorFeedback(Base):
 
     # Rating fields (renamed from rating/comment)
     supervisor_rating_code = Column(String(3), nullable=True)  # SS, S, A, B, C, D
-    supervisor_rating = Column(DECIMAL(5, 2), nullable=True)  # 0-7 numeric value, auto-calculated
+    supervisor_rating = Column(DECIMAL(5, 2), nullable=True)  # 0-100 numeric value, auto-calculated
     supervisor_comment = Column(String, nullable=True)
     return_comment = Column(Text, nullable=True)  # Feedback visible to subordinate for corrections
     rating_data = Column(JSONB, nullable=True)  # Competency per-action ratings
@@ -46,9 +46,9 @@ class SupervisorFeedback(Base):
 
     # Database constraints
     __table_args__ = (
-        # Rating validation: 0-7 scale
+        # Rating validation: 0-100 scale
         CheckConstraint(
-            'supervisor_rating IS NULL OR (supervisor_rating >= 0 AND supervisor_rating <= 7)',
+            'supervisor_rating IS NULL OR (supervisor_rating >= 0 AND supervisor_rating <= 100)',
             name='chk_supervisor_feedback_rating_bounds'
         ),
 
@@ -111,11 +111,11 @@ class SupervisorFeedback(Base):
 
     @validates('supervisor_rating')
     def validate_supervisor_rating(self, key, rating):
-        """Validate supervisor_rating is within 0-7 bounds if provided"""
+        """Validate supervisor_rating is within 0-100 bounds if provided"""
         if rating is not None:
             rating_decimal = Decimal(str(rating))
-            if rating_decimal < 0 or rating_decimal > 7:
-                raise ValueError(f"Supervisor rating must be between 0 and 7, got: {rating_decimal}")
+            if rating_decimal < 0 or rating_decimal > 100:
+                raise ValueError(f"Supervisor rating must be between 0 and 100, got: {rating_decimal}")
         return rating
 
     @validates('status')

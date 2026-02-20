@@ -116,8 +116,8 @@ class SupervisorFeedbackInDB(SupervisorFeedbackBase):
         None,
         alias="supervisorRating",
         ge=0,
-        le=7,
-        description="Numeric rating (0.0-7.0), auto-calculated"
+        le=100,
+        description="Numeric rating (0-100), auto-calculated"
     )
     return_comment: Optional[str] = Field(
         None,

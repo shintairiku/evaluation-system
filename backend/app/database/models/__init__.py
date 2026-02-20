@@ -5,6 +5,7 @@ from .permission import Permission as PermissionModel, RolePermission as RolePer
 from .stage_competency import Stage, Competency
 from .user_goal_weight_history import UserGoalWeightHistory
 from .evaluation import EvaluationPeriod, EvaluationPeriodStatus, EvaluationPeriodType
+from .evaluation_score_mapping import EvaluationScoreMapping
 from .goal import Goal
 from .self_assessment import SelfAssessment
 from .supervisor_review import SupervisorReview
@@ -30,6 +31,7 @@ __all__ = [
     "EvaluationPeriod",
     "EvaluationPeriodStatus",
     "EvaluationPeriodType",
+    "EvaluationScoreMapping",
     "Goal",
     "SelfAssessment",
     "SupervisorReview",

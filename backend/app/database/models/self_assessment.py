@@ -14,7 +14,7 @@ class SelfAssessment(Base):
     Self-assessment model representing employee self-evaluation for goals.
 
     3-state system: draft → submitted → approved
-    Rating uses letter grades (SS/S/A/B/C/D) with auto-calculated numeric values (0-7).
+    Rating uses letter grades (SS/S/A/B/C/D) with auto-calculated numeric values (0-100).
     Competency goals use rating_data JSONB for granular per-action ratings.
     """
     __tablename__ = "self_assessments"
@@ -24,7 +24,7 @@ class SelfAssessment(Base):
     goal_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("goals.id", ondelete="CASCADE"), nullable=False)
     period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
     self_rating_code = Column(String(3), nullable=True)  # SS, S, A, B, C, D
-    self_rating = Column(DECIMAL(5, 2), nullable=True)  # 0-7 numeric value, auto-calculated
+    self_rating = Column(DECIMAL(5, 2), nullable=True)  # 0-100 numeric value, auto-calculated
     self_comment = Column(String, nullable=True)
     rating_data = Column(JSONB, nullable=True)  # Competency per-action ratings
     status = Column(String(50), nullable=False, default="draft")
@@ -38,8 +38,8 @@ class SelfAssessment(Base):
 
     # Database constraints
     __table_args__ = (
-        # Rating validation: 0-7 scale
-        CheckConstraint('self_rating IS NULL OR (self_rating >= 0 AND self_rating <= 7)', name='chk_self_rating_bounds'),
+        # Rating validation: 0-100 scale
+        CheckConstraint('self_rating IS NULL OR (self_rating >= 0 AND self_rating <= 100)', name='chk_self_rating_bounds'),
 
         # Rating code validation
         CheckConstraint(
@@ -84,11 +84,11 @@ class SelfAssessment(Base):
 
     @validates('self_rating')
     def validate_self_rating(self, key, self_rating):
-        """Validate self_rating is within 0-7 bounds if provided"""
+        """Validate self_rating is within 0-100 bounds if provided"""
         if self_rating is not None:
             rating_decimal = Decimal(str(self_rating))
-            if rating_decimal < 0 or rating_decimal > 7:
-                raise ValueError(f"Self rating must be between 0 and 7, got: {rating_decimal}")
+            if rating_decimal < 0 or rating_decimal > 100:
+                raise ValueError(f"Self rating must be between 0 and 100, got: {rating_decimal}")
         return self_rating
 
     @validates('status')
