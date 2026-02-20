@@ -13,11 +13,12 @@ from ..models.supervisor_feedback import SupervisorFeedback
 from ..models.self_assessment import SelfAssessment
 from ..models.goal import Goal
 from ...schemas.supervisor_feedback import SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedbackSubmit
-from ...schemas.common import PaginationParams, SubmissionStatus, RatingCode, RATING_CODE_VALUES
+from ...schemas.common import PaginationParams, SubmissionStatus
 from ...schemas.supervisor_review import SupervisorAction
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
+from .evaluation_score_mapping_repo import EvaluationScoreMappingRepository
 from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, SupervisorFeedback)
+        self.score_mapping_repo = EvaluationScoreMappingRepository(session)
 
     # ========================================
     # CREATE OPERATIONS
@@ -49,8 +51,13 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             
             # Auto-calculate supervisor_rating from rating_code
             supervisor_rating = None
+            supervisor_rating_code = None
             if feedback_data.supervisor_rating_code:
-                supervisor_rating = Decimal(str(RATING_CODE_VALUES.get(feedback_data.supervisor_rating_code, 0.0)))
+                supervisor_rating_code = feedback_data.supervisor_rating_code.value
+                supervisor_rating = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=feedback_data.supervisor_rating_code
+                )
 
             # Get subordinate_id from the self-assessment's goal owner
             subordinate_id = None
@@ -63,7 +70,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 period_id=feedback_data.period_id,
                 supervisor_id=supervisor_id,
                 subordinate_id=subordinate_id,
-                supervisor_rating_code=feedback_data.supervisor_rating_code.value if feedback_data.supervisor_rating_code else None,
+                supervisor_rating_code=supervisor_rating_code,
                 supervisor_rating=supervisor_rating,
                 supervisor_comment=feedback_data.supervisor_comment,
                 rating_data=feedback_data.rating_data,
@@ -78,7 +85,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         except IntegrityError as e:
             logger.error(f"Integrity error creating supervisor feedback for assessment {feedback_data.self_assessment_id}: {e}")
             if "chk_supervisor_feedback_rating_bounds" in str(e):
-                raise ValidationError("Supervisor rating must be between 0 and 7")
+                raise ValidationError("Supervisor rating must be between 0 and 100")
             elif "chk_supervisor_rating_code" in str(e):
                 raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
             elif "chk_supervisor_feedback_status" in str(e):
@@ -308,6 +315,13 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     ) -> List[SupervisorFeedback]:
         """Search supervisor feedbacks with various filters within organization scope."""
         try:
+            if supervisor_ids is not None and len(supervisor_ids) == 0:
+                return []
+            if subordinate_ids is not None and len(subordinate_ids) == 0:
+                return []
+            if user_ids is not None and len(user_ids) == 0:
+                return []
+
             from ..models.goal import Goal
             from ..models.user import User
 
@@ -326,10 +340,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             )
 
             # Apply filters
-            if supervisor_ids:
+            if supervisor_ids is not None:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
 
-            if subordinate_ids:
+            if subordinate_ids is not None:
                 query = query.filter(SupervisorFeedback.subordinate_id.in_(subordinate_ids))
 
             if period_id:
@@ -341,7 +355,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             if action:
                 query = query.filter(SupervisorFeedback.action == action)
 
-            if user_ids:
+            if user_ids is not None:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
 
@@ -377,6 +391,13 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     ) -> int:
         """Count supervisor feedbacks matching the given filters within organization scope."""
         try:
+            if supervisor_ids is not None and len(supervisor_ids) == 0:
+                return 0
+            if subordinate_ids is not None and len(subordinate_ids) == 0:
+                return 0
+            if user_ids is not None and len(user_ids) == 0:
+                return 0
+
             from ..models.goal import Goal
             from ..models.user import User
 
@@ -389,10 +410,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             )
 
             # Apply same filters as search_feedbacks
-            if supervisor_ids:
+            if supervisor_ids is not None:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
 
-            if subordinate_ids:
+            if subordinate_ids is not None:
                 query = query.filter(SupervisorFeedback.subordinate_id.in_(subordinate_ids))
 
             if period_id:
@@ -404,7 +425,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             if action:
                 query = query.filter(SupervisorFeedback.action == action)
 
-            if user_ids:
+            if user_ids is not None:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
 
@@ -442,7 +463,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 if feedback_data.supervisor_rating_code is not None:
                     update_data["supervisor_rating_code"] = feedback_data.supervisor_rating_code.value
                     # Auto-calculate supervisor_rating from code
-                    update_data["supervisor_rating"] = Decimal(str(RATING_CODE_VALUES.get(feedback_data.supervisor_rating_code, 0.0)))
+                    update_data["supervisor_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                        organization_id=org_id,
+                        rating_code=feedback_data.supervisor_rating_code
+                    )
                 else:
                     # Explicitly clear the rating
                     update_data["supervisor_rating_code"] = None
@@ -450,7 +474,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             elif feedback_data.supervisor_rating_code is not None:
                 # Fallback for when model_fields_set is not available
                 update_data["supervisor_rating_code"] = feedback_data.supervisor_rating_code.value
-                update_data["supervisor_rating"] = Decimal(str(RATING_CODE_VALUES.get(feedback_data.supervisor_rating_code, 0.0)))
+                update_data["supervisor_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=feedback_data.supervisor_rating_code
+                )
 
             if feedback_data.supervisor_comment is not None:
                 update_data["supervisor_comment"] = feedback_data.supervisor_comment
@@ -477,7 +504,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         except IntegrityError as e:
             logger.error(f"Integrity error updating supervisor feedback {feedback_id}: {e}")
             if "chk_supervisor_feedback_rating_bounds" in str(e):
-                raise ValidationError("Supervisor rating must be between 0 and 7")
+                raise ValidationError("Supervisor rating must be between 0 and 100")
             elif "chk_supervisor_rating_code" in str(e):
                 raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
             elif "chk_supervisor_feedback_submission" in str(e):
@@ -524,7 +551,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             # Optional: update rating if provided
             if submit_data.supervisor_rating_code is not None:
                 update_data["supervisor_rating_code"] = submit_data.supervisor_rating_code.value
-                update_data["supervisor_rating"] = Decimal(str(RATING_CODE_VALUES.get(submit_data.supervisor_rating_code, 0.0)))
+                update_data["supervisor_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=submit_data.supervisor_rating_code
+                )
 
             # Optional: update comment if provided
             if submit_data.supervisor_comment is not None:

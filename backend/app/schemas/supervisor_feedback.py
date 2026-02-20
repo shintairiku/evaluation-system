@@ -195,6 +195,8 @@ class SupervisorFeedbackDetail(SupervisorFeedbackInDB):
     # Assessment context
     goal_category: Optional[str] = Field(None, alias="goalCategory")
     goal_title: Optional[str] = Field(None, alias="goalTitle")
+    goal_description: Optional[str] = Field(None, alias="goalDescription")
+    evaluation_period_name: Optional[str] = Field(None, alias="evaluationPeriodName")
 
     model_config = {"from_attributes": True, "populate_by_name": True}
 

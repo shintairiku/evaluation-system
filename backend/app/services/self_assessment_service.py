@@ -23,6 +23,7 @@ from ..security.decorators import require_permission
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
+from .rating_rules import validate_rating_code_for_goal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,10 @@ class SelfAssessmentService:
             accessible_user_ids = await self._get_accessible_assessment_user_ids(
                 current_user_context, user_id, self_only=self_only
             )
-            
+
+            if accessible_user_ids is not None and len(accessible_user_ids) == 0:
+                return PaginatedResponse(items=[], total=0, page=pagination.page if pagination else 1, limit=pagination.limit if pagination else 0, pages=0)
+
             # Search assessments with filters
             assessments = await self.self_assessment_repo.search_assessments(
                 org_id=org_id,
@@ -288,7 +292,17 @@ class SelfAssessmentService:
             
             # Business validation
             await self._validate_assessment_update(assessment_data, existing_assessment)
-            
+
+            if assessment_data.self_rating_code:
+                goal = await self.goal_repo.get_goal_by_id(existing_assessment.goal_id, org_id)
+                if goal:
+                    validate_rating_code_for_goal(
+                        goal_category=goal.goal_category,
+                        target_data=goal.target_data if hasattr(goal, 'target_data') else None,
+                        rating_code=assessment_data.self_rating_code.value if hasattr(assessment_data.self_rating_code, 'value') else assessment_data.self_rating_code,
+                        actor_name="self-assessment"
+                    )
+
             # Update assessment
             updated_assessment = await self.self_assessment_repo.update_assessment(assessment_id, assessment_data, org_id)
             if not updated_assessment:
@@ -360,7 +374,16 @@ class SelfAssessmentService:
                 # Other goal types (e.g., コアバリュー) - require at least self_comment
                 if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
                     raise ValidationError("Self-comment is required before submission")
-            
+
+            # Validate rating code for goal
+            if existing_assessment.self_rating_code:
+                validate_rating_code_for_goal(
+                    goal_category=existing_assessment.goal.goal_category,
+                    target_data=existing_assessment.goal.target_data if hasattr(existing_assessment.goal, 'target_data') else None,
+                    rating_code=existing_assessment.self_rating_code,
+                    actor_name="self-assessment"
+                )
+
             # Update status using dedicated method
             updated_assessment = await self.self_assessment_repo.submit_assessment(assessment_id, org_id)
             

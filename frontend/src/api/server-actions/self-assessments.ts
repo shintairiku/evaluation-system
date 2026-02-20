@@ -4,9 +4,11 @@ import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { selfAssessmentsApi } from '../endpoints/self-assessments';
 import { CACHE_TAGS } from '../utils/cache';
+import { SelfAssessmentStatus } from '../types';
 import type {
   SelfAssessment,
   SelfAssessmentDetail,
+  SelfAssessmentCreate,
   SelfAssessmentUpdate,
   SelfAssessmentList,
   SubordinatesAssessmentStatusResponse,
@@ -24,13 +26,28 @@ export const getSelfAssessmentsAction = cache(
     userId?: string;
     status?: string;
     selfOnly?: boolean;
+    /**
+     * Cache buster for React cache() memoization.
+     * Not sent to API; only used to force fresh server action execution.
+     */
+    cacheBuster?: string;
   }): Promise<{
     success: boolean;
     data?: SelfAssessmentList;
     error?: string;
   }> => {
     try {
-      const response = await selfAssessmentsApi.getSelfAssessments(params);
+      const response = await selfAssessmentsApi.getSelfAssessments(
+        params
+          ? {
+              pagination: params.pagination,
+              periodId: params.periodId,
+              userId: params.userId,
+              status: params.status,
+              selfOnly: params.selfOnly,
+            }
+          : undefined,
+      );
 
       if (!response.success || !response.data) {
         return {
@@ -89,9 +106,45 @@ export const getSelfAssessmentByIdAction = cache(
 );
 
 /**
+ * Server action to create a self-assessment with cache revalidation.
+ * Recovery path: usually auto-created by backend when goal is approved,
+ * but legacy data may have approved goals without assessments.
+ */
+export async function createSelfAssessmentAction(
+  goalId: UUID,
+  createData: SelfAssessmentCreate = { status: SelfAssessmentStatus.DRAFT },
+): Promise<{
+  success: boolean;
+  data?: SelfAssessment;
+  error?: string;
+}> {
+  try {
+    const response = await selfAssessmentsApi.createSelfAssessment(goalId, createData);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to create self-assessment',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Create self-assessment action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while creating self-assessment',
+    };
+  }
+}
+
+/**
  * Server action to update an existing self-assessment with cache revalidation
- * NOTE: Self-assessments are auto-created when goals are approved.
- * There is no manual creation action.
  */
 export async function updateSelfAssessmentAction(
   assessmentId: UUID,

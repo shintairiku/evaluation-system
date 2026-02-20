@@ -12,10 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.self_assessment import SelfAssessment
 from ..models.goal import Goal
 from ...schemas.self_assessment import SelfAssessmentCreate, SelfAssessmentUpdate
-from ...schemas.common import PaginationParams, SelfAssessmentStatus, RatingCode, RATING_CODE_VALUES
+from ...schemas.common import PaginationParams, SelfAssessmentStatus
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
 )
+from .evaluation_score_mapping_repo import EvaluationScoreMappingRepository
 from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
 
     def __init__(self, session: AsyncSession):
         super().__init__(session, SelfAssessment)
+        self.score_mapping_repo = EvaluationScoreMappingRepository(session)
 
     # ========================================
     # CREATE OPERATIONS
@@ -39,17 +41,23 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         try:
             # Validate goal exists first within organization scope
             goal = await self._validate_goal_exists(goal_id, org_id)
-            
+
             # Check if assessment already exists for this goal within organization scope
             existing = await self.get_by_goal(goal_id, org_id)
             if existing:
                 raise ConflictError(f"Self-assessment already exists for goal {goal_id}")
-            
+
             # Create assessment with validated data
             # Auto-calculate self_rating from self_rating_code
             self_rating = None
             if assessment_data.self_rating_code:
-                self_rating = Decimal(str(RATING_CODE_VALUES.get(assessment_data.self_rating_code, 0.0)))
+                self_rating = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=assessment_data.self_rating_code
+                )
+            elif assessment_data.self_rating is not None:
+                # Backward compatibility: accept legacy numeric-only selfRating payloads.
+                self_rating = Decimal(str(assessment_data.self_rating))
 
             assessment = SelfAssessment(
                 goal_id=goal_id,
@@ -57,6 +65,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
                 self_rating_code=assessment_data.self_rating_code.value if assessment_data.self_rating_code else None,
                 self_rating=self_rating,
                 self_comment=assessment_data.self_comment,
+                rating_data=assessment_data.rating_data,
                 status=assessment_data.status.value if assessment_data.status else SelfAssessmentStatus.DRAFT.value
             )
             
@@ -67,7 +76,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         except IntegrityError as e:
             logger.error(f"Integrity error creating self-assessment for goal {goal_id}: {e}")
             if "chk_self_rating_bounds" in str(e):
-                raise ValidationError("Self rating must be between 0 and 7")
+                raise ValidationError("Self rating must be between 0 and 100")
             elif "chk_self_rating_code" in str(e):
                 raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
             elif "chk_self_assessment_status" in str(e):
@@ -230,11 +239,14 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     ) -> List[SelfAssessment]:
         """Search self-assessments within organization scope with various filters."""
         try:
+            if user_ids is not None and len(user_ids) == 0:
+                return []
+
             query = select(SelfAssessment).options(
                 joinedload(SelfAssessment.goal).joinedload(Goal.user),
                 joinedload(SelfAssessment.period)
             )
-            
+
             # Apply filters
             if user_ids:
                 goal_alias = aliased(Goal)
@@ -271,8 +283,11 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     ) -> int:
         """Count self-assessments within organization scope matching the given filters."""
         try:
+            if user_ids is not None and len(user_ids) == 0:
+                return 0
+
             query = select(func.count(SelfAssessment.id))
-            
+
             # Apply same filters as search_assessments
             if user_ids:
                 goal_alias = aliased(Goal)
@@ -313,7 +328,13 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             if assessment_data.self_rating_code is not None:
                 update_data["self_rating_code"] = assessment_data.self_rating_code.value
                 # Auto-calculate self_rating from code
-                update_data["self_rating"] = Decimal(str(RATING_CODE_VALUES.get(assessment_data.self_rating_code, 0.0)))
+                update_data["self_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=org_id,
+                    rating_code=assessment_data.self_rating_code
+                )
+            elif assessment_data.self_rating is not None:
+                # Backward compatibility: honor legacy numeric-only selfRating updates.
+                update_data["self_rating"] = Decimal(str(assessment_data.self_rating))
 
             if assessment_data.self_comment is not None:
                 update_data["self_comment"] = assessment_data.self_comment
@@ -336,7 +357,7 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         except IntegrityError as e:
             logger.error(f"Integrity error updating self-assessment {assessment_id}: {e}")
             if "chk_self_rating_bounds" in str(e):
-                raise ValidationError("Self rating must be between 0 and 7")
+                raise ValidationError("Self rating must be between 0 and 100")
             elif "chk_self_rating_code" in str(e):
                 raise ValidationError("Invalid rating code. Must be one of: SS, S, A, B, C, D")
             elif "chk_self_assessment_submission" in str(e):

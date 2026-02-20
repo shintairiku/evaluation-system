@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../constants/config';
 import type {
   SelfAssessment,
   SelfAssessmentDetail,
+  SelfAssessmentCreate,
   SelfAssessmentUpdate,
   SelfAssessmentList,
   SubordinatesAssessmentStatusResponse,
@@ -18,6 +19,17 @@ const httpClient = getHttpClient();
  * All functions follow the standardized pattern with proper error handling
  */
 export const selfAssessmentsApi = {
+  /**
+   * Create a self-assessment for a specific goal (recovery path)
+   */
+  createSelfAssessment: async (
+    goalId: UUID,
+    data: SelfAssessmentCreate,
+  ): Promise<ApiResponse<SelfAssessment>> => {
+    const endpoint = `${API_ENDPOINTS.SELF_ASSESSMENTS.LIST}?goalId=${goalId}`;
+    return httpClient.post<SelfAssessment>(endpoint, data);
+  },
+
   /**
    * Get self-assessments with optional filters and pagination
    */
@@ -87,8 +99,6 @@ export const selfAssessmentsApi = {
 
   /**
    * Update an existing self-assessment
-   * NOTE: Self-assessments are auto-created when goals are approved.
-   * There is no manual creation endpoint.
    */
   updateSelfAssessment: async (assessmentId: UUID, data: SelfAssessmentUpdate): Promise<ApiResponse<SelfAssessment>> => {
     return httpClient.put<SelfAssessment>(API_ENDPOINTS.SELF_ASSESSMENTS.UPDATE(assessmentId), data);

@@ -13,6 +13,7 @@ import {
 import { Send, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { submitSupervisorFeedbackAction } from "@/api/server-actions/supervisor-feedbacks";
+import { flushSupervisorFeedbackAutoSaves } from "../hooks/useSupervisorFeedbackAutoSave";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
@@ -128,15 +129,16 @@ export default function SupervisorSubmitButton({
     }
   };
 
-  // Handle button click - refresh data first, then open dialog
+  // Handle button click - flush auto-saves, refresh data, then open dialog
   const handleButtonClick = async () => {
-    if (onRefreshData) {
-      setIsRefreshing(true);
-      try {
+    setIsRefreshing(true);
+    try {
+      await flushSupervisorFeedbackAutoSaves();
+      if (onRefreshData) {
         await onRefreshData();
-      } finally {
-        setIsRefreshing(false);
       }
+    } finally {
+      setIsRefreshing(false);
     }
     setIsOpen(true);
   };

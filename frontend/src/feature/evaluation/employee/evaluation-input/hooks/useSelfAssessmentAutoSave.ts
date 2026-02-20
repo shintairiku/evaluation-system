@@ -57,6 +57,14 @@ interface UseSelfAssessmentAutoSaveReturn {
   isEditable: boolean;
 }
 
+const selfAssessmentSaveFlushers = new Set<() => Promise<void>>();
+
+export async function flushSelfAssessmentAutoSaves(): Promise<void> {
+  await Promise.allSettled(
+    Array.from(selfAssessmentSaveFlushers, (flush) => flush())
+  );
+}
+
 /**
  * Custom hook to handle auto-save functionality for self-assessment ratings and comments.
  *
@@ -66,6 +74,8 @@ interface UseSelfAssessmentAutoSaveReturn {
  * - Visual save status indicators
  * - Only editable when status is 'draft'
  * - Save before page unload
+ * - Save queue to prevent race conditions
+ * - Flush pending saves before submit
  *
  * @param options - Configuration options
  * @returns Object containing save functions and status
@@ -100,14 +110,21 @@ export function useSelfAssessmentAutoSave({
   onSaveSuccess
 }: UseSelfAssessmentAutoSaveOptions): UseSelfAssessmentAutoSaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const [lastSavedData, setLastSavedData] = useState<SelfAssessmentSaveData>({
+  const initialData: SelfAssessmentSaveData = {
     selfRatingCode: initialRatingCode,
     selfComment: initialComment,
     ratingData: initialRatingData
+  };
+  const [lastSavedData, setLastSavedData] = useState<SelfAssessmentSaveData>({
+    ...initialData
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const statusClearTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const inFlightSaveRef = useRef<Promise<void> | null>(null);
+  const pendingSaveRef = useRef<SelfAssessmentSaveData | null>(null);
+  const debouncedDataRef = useRef<SelfAssessmentSaveData | null>(null);
+  const lastSavedDataRef = useRef<SelfAssessmentSaveData>(initialData);
 
   // Determine if assessment is editable (only draft status)
   const isEditable = initialStatus === 'draft';
@@ -116,72 +133,88 @@ export function useSelfAssessmentAutoSave({
    * Check if data has changed from last saved
    */
   const hasDataChanged = useCallback((data: SelfAssessmentSaveData): boolean => {
-    const ratingCodeChanged = data.selfRatingCode !== lastSavedData.selfRatingCode;
-    const commentChanged = data.selfComment?.trim() !== lastSavedData.selfComment?.trim();
-    const ratingDataChanged = JSON.stringify(data.ratingData) !== JSON.stringify(lastSavedData.ratingData);
+    const last = lastSavedDataRef.current;
+    const ratingCodeChanged = data.selfRatingCode !== last.selfRatingCode;
+    const commentChanged = data.selfComment?.trim() !== last.selfComment?.trim();
+    const ratingDataChanged = JSON.stringify(data.ratingData) !== JSON.stringify(last.ratingData);
     return ratingCodeChanged || commentChanged || ratingDataChanged;
-  }, [lastSavedData]);
+  }, []);
 
   /**
-   * Core save function - saves rating and comment to self-assessment
+   * Core save function - saves rating and comment to self-assessment.
+   * Uses a save queue loop to prevent race conditions.
    */
   const save = useCallback(async (data: SelfAssessmentSaveData) => {
     if (!assessmentId || !isEditable) {
       return;
     }
 
-    // Don't save if no changes
-    if (!hasDataChanged(data)) {
+    pendingSaveRef.current = data;
+
+    if (inFlightSaveRef.current) {
+      await inFlightSaveRef.current;
       return;
     }
 
-    // Prevent concurrent saves
-    if (saveStatus === 'saving') {
-      return;
-    }
+    const runSaveLoop = async () => {
+      while (pendingSaveRef.current) {
+        const nextData = pendingSaveRef.current;
+        pendingSaveRef.current = null;
 
-    setSaveStatus('saving');
+        if (!hasDataChanged(nextData)) {
+          continue;
+        }
 
-    // Clear any pending status clear timer
-    if (statusClearTimerRef.current) {
-      clearTimeout(statusClearTimerRef.current);
-    }
+        setSaveStatus('saving');
 
-    try {
-      const result = await updateSelfAssessmentAction(assessmentId, {
-        selfRatingCode: data.selfRatingCode,
-        selfComment: data.selfComment,
-        ratingData: data.ratingData
-      });
+        if (statusClearTimerRef.current) {
+          clearTimeout(statusClearTimerRef.current);
+        }
 
-      if (result.success) {
-        setLastSavedData({
-          selfRatingCode: data.selfRatingCode,
-          selfComment: data.selfComment?.trim(),
-          ratingData: data.ratingData
-        });
-        setSaveStatus('saved');
+        try {
+          const result = await updateSelfAssessmentAction(assessmentId, {
+            selfRatingCode: nextData.selfRatingCode,
+            selfComment: nextData.selfComment,
+            ratingData: nextData.ratingData
+          });
 
-        // Notify parent that data was saved (for refreshing validation state)
-        onSaveSuccess?.();
+          if (result.success) {
+            const normalizedData: SelfAssessmentSaveData = {
+              selfRatingCode: nextData.selfRatingCode,
+              selfComment: nextData.selfComment?.trim(),
+              ratingData: nextData.ratingData
+            };
+            lastSavedDataRef.current = normalizedData;
+            setLastSavedData(normalizedData);
+            setSaveStatus('saved');
+            onSaveSuccess?.();
 
-        // Clear status after timeout
-        statusClearTimerRef.current = setTimeout(() => {
-          setSaveStatus('idle');
-        }, statusClearTimeout);
-      } else {
-        setSaveStatus('error');
+            statusClearTimerRef.current = setTimeout(() => {
+              setSaveStatus('idle');
+            }, statusClearTimeout);
+          } else {
+            setSaveStatus('error');
+          }
+        } catch {
+          setSaveStatus('error');
+        }
       }
-    } catch {
-      setSaveStatus('error');
-    }
-  }, [assessmentId, isEditable, hasDataChanged, saveStatus, statusClearTimeout, onSaveSuccess]);
+    };
+
+    inFlightSaveRef.current = runSaveLoop().finally(() => {
+      inFlightSaveRef.current = null;
+    });
+
+    await inFlightSaveRef.current;
+  }, [assessmentId, isEditable, hasDataChanged, statusClearTimeout, onSaveSuccess]);
 
   /**
    * Debounced save function - use for onChange events
    */
   const debouncedSave = useCallback((data: SelfAssessmentSaveData) => {
     if (!isEditable) return;
+
+    debouncedDataRef.current = data;
 
     // Clear existing timer
     if (debounceTimerRef.current) {
@@ -190,20 +223,71 @@ export function useSelfAssessmentAutoSave({
 
     // Set new timer
     debounceTimerRef.current = setTimeout(() => {
-      save(data);
+      const queuedData = debouncedDataRef.current;
+      debouncedDataRef.current = null;
+      debounceTimerRef.current = null;
+      if (queuedData) {
+        void save(queuedData);
+      }
     }, debounceDelay);
   }, [save, debounceDelay, isEditable]);
+
+  /**
+   * Flush any pending debounced save and wait for in-flight saves to complete.
+   */
+  const flushPendingSave = useCallback(async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    const queuedData = debouncedDataRef.current;
+    debouncedDataRef.current = null;
+
+    if (queuedData) {
+      await save(queuedData);
+    }
+
+    if (inFlightSaveRef.current) {
+      await inFlightSaveRef.current;
+    }
+  }, [save]);
+
+  /**
+   * Best-effort save during unmount — fires without updating React state.
+   */
+  const saveQueuedDataWithoutState = useCallback(async (data: SelfAssessmentSaveData) => {
+    if (!assessmentId || !isEditable) {
+      return;
+    }
+
+    if (!hasDataChanged(data)) {
+      return;
+    }
+
+    try {
+      await updateSelfAssessmentAction(assessmentId, {
+        selfRatingCode: data.selfRatingCode,
+        selfComment: data.selfComment,
+        ratingData: data.ratingData,
+      });
+    } catch {
+      // Best-effort save during unmount; ignore failures here.
+    }
+  }, [assessmentId, isEditable, hasDataChanged]);
 
   /**
    * Initialize with server data
    */
   useEffect(() => {
     if (assessmentId && !isInitialized) {
-      setLastSavedData({
+      const data = {
         selfRatingCode: initialRatingCode,
         selfComment: initialComment?.trim(),
         ratingData: initialRatingData
-      });
+      };
+      lastSavedDataRef.current = data;
+      setLastSavedData(data);
       setIsInitialized(true);
     }
   }, [assessmentId, initialRatingCode, initialComment, initialRatingData, isInitialized]);
@@ -214,21 +298,44 @@ export function useSelfAssessmentAutoSave({
   useEffect(() => {
     setIsInitialized(false);
     setSaveStatus('idle');
+    pendingSaveRef.current = null;
+    debouncedDataRef.current = null;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
   }, [assessmentId]);
 
   /**
-   * Cleanup timers on unmount
+   * Register/unregister flush function for global flush before submit
+   */
+  useEffect(() => {
+    selfAssessmentSaveFlushers.add(flushPendingSave);
+    return () => {
+      selfAssessmentSaveFlushers.delete(flushPendingSave);
+    };
+  }, [flushPendingSave]);
+
+  /**
+   * Cleanup timers on unmount + best-effort save of queued data
    */
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      const queuedData = debouncedDataRef.current;
+      debouncedDataRef.current = null;
+      if (queuedData) {
+        void saveQueuedDataWithoutState(queuedData);
       }
       if (statusClearTimerRef.current) {
         clearTimeout(statusClearTimerRef.current);
+        statusClearTimerRef.current = null;
       }
     };
-  }, []);
+  }, [saveQueuedDataWithoutState]);
 
   return {
     saveStatus,

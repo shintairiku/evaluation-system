@@ -14,11 +14,23 @@ class SelfAssessmentBase(BaseModel):
         alias="selfRatingCode",
         description="Letter grade: SS, S, A, B, C, D (6-level input scale)"
     )
+    self_rating: Optional[float] = Field(
+        None,
+        alias="selfRating",
+        ge=0,
+        le=100,
+        description="Numeric rating (0-100), auto-calculated from selfRatingCode"
+    )
     self_comment: Optional[str] = Field(
         None,
         alias="selfComment",
         max_length=5000,
         description="Employee's narrative self-assessment comment"
+    )
+    rating_data: Optional[dict] = Field(
+        None,
+        alias="ratingData",
+        description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
     )
 
 
@@ -39,6 +51,13 @@ class SelfAssessmentUpdate(BaseModel):
         alias="selfRatingCode",
         description="Letter grade: SS, S, A, B, C, D (6-level input scale)"
     )
+    self_rating: Optional[float] = Field(
+        None,
+        alias="selfRating",
+        ge=0,
+        le=100,
+        description="Numeric rating (0-100), auto-calculated from selfRatingCode"
+    )
     self_comment: Optional[str] = Field(
         None,
         alias="selfComment",
@@ -58,18 +77,6 @@ class SelfAssessmentInDB(SelfAssessmentBase):
     id: UUID
     goal_id: UUID
     period_id: UUID
-    self_rating: Optional[float] = Field(
-        None,
-        alias="selfRating",
-        ge=0,
-        le=7,
-        description="Numeric rating (0.0-7.0), auto-calculated from selfRatingCode"
-    )
-    rating_data: Optional[dict] = Field(
-        None,
-        alias="ratingData",
-        description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
-    )
     status: SelfAssessmentStatus = SelfAssessmentStatus.DRAFT
     submitted_at: Optional[datetime] = None
     created_at: datetime
