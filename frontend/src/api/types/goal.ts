@@ -79,6 +79,11 @@ export interface GoalResponse {
   idealActionTexts?: Record<string, string[]> | null;
   actionPlan?: string;
 
+  // All stage competencies for evaluation scope (includes focused + non-focused)
+  allStageCompetencyIds?: UUID[] | null;
+  allStageCompetencyNames?: Record<string, string> | null;
+  allStageIdealActionTexts?: Record<string, Record<string, string>> | null;
+
   // Performance optimization: Embedded reviews (populated when includeReviews=true)
   supervisorReview?: SupervisorReview | null;
   rejectionHistory?: SupervisorReview[];

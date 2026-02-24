@@ -41,12 +41,12 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         try:
             # Validate goal exists first within organization scope
             goal = await self._validate_goal_exists(goal_id, org_id)
-            
+
             # Check if assessment already exists for this goal within organization scope
             existing = await self.get_by_goal(goal_id, org_id)
             if existing:
                 raise ConflictError(f"Self-assessment already exists for goal {goal_id}")
-            
+
             # Create assessment with validated data
             # Auto-calculate self_rating from self_rating_code
             self_rating = None
@@ -239,11 +239,14 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     ) -> List[SelfAssessment]:
         """Search self-assessments within organization scope with various filters."""
         try:
+            if user_ids is not None and len(user_ids) == 0:
+                return []
+
             query = select(SelfAssessment).options(
                 joinedload(SelfAssessment.goal).joinedload(Goal.user),
                 joinedload(SelfAssessment.period)
             )
-            
+
             # Apply filters
             if user_ids:
                 goal_alias = aliased(Goal)
@@ -280,8 +283,11 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
     ) -> int:
         """Count self-assessments within organization scope matching the given filters."""
         try:
+            if user_ids is not None and len(user_ids) == 0:
+                return 0
+
             query = select(func.count(SelfAssessment.id))
-            
+
             # Apply same filters as search_assessments
             if user_ids:
                 goal_alias = aliased(Goal)
@@ -375,11 +381,8 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
             if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
                 raise ValidationError("Cannot submit approved self-assessment (locked)")
 
-            # Validate required fields for submission
-            if existing_assessment.self_rating is None:
-                raise ValidationError("selfRating is required for submission")
-            if not existing_assessment.self_comment or existing_assessment.self_comment.strip() == "":
-                raise ValidationError("selfComment is required for submission")
+            # Note: Field validation is handled at the service layer (goal-type-aware)
+            # Performance goals require self_rating_code, Competency goals require rating_data
 
             # Update status and set submitted_at
             update_data = {
@@ -433,6 +436,41 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
 
         except SQLAlchemyError as e:
             logger.error(f"Database error approving self-assessment {assessment_id}: {e}")
+            raise
+
+    async def reopen_assessment(self, assessment_id: UUID, org_id: str) -> Optional[SelfAssessment]:
+        """Reopen a submitted self-assessment by changing status back to draft."""
+        try:
+            # Validate assessment exists (organization-scoped)
+            existing_assessment = await self._validate_assessment_exists(assessment_id, org_id)
+
+            # Check if already draft
+            if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                logger.info(f"Self-assessment {assessment_id} is already in draft status")
+                return existing_assessment
+
+            # Check if approved (cannot reopen)
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise ValidationError("Cannot reopen approved self-assessment (locked)")
+
+            # Update status back to draft and clear submitted_at
+            update_data = {
+                "status": SelfAssessmentStatus.DRAFT.value,
+                "submitted_at": None,
+                "updated_at": datetime.now(timezone.utc)
+            }
+
+            await self.session.execute(
+                update(SelfAssessment)
+                .where(SelfAssessment.id == assessment_id)
+                .values(**update_data)
+            )
+
+            logger.info(f"Reopened self-assessment {assessment_id} (back to draft)")
+            return await self.get_by_id(assessment_id, org_id)
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error reopening self-assessment {assessment_id}: {e}")
             raise
 
     # ========================================
@@ -493,3 +531,82 @@ class SelfAssessmentRepository(BaseRepository[SelfAssessment]):
         if not assessment:
             raise NotFoundError(f"Self-assessment not found: {assessment_id}")
         return assessment
+
+    async def get_assessment_status_by_users(
+        self,
+        user_ids: List[UUID],
+        period_id: UUID,
+        org_id: str
+    ) -> List[dict]:
+        """
+        Get assessment submission status for multiple users in a single query.
+        Returns a list of dicts with userId, totalCount, submittedCount, approvedCount.
+        """
+        try:
+            if not user_ids:
+                return []
+
+            goal_alias = aliased(Goal)
+
+            # Query to count total, submitted, and approved assessments per user
+            query = (
+                select(
+                    goal_alias.user_id.label('user_id'),
+                    func.count(SelfAssessment.id).label('total_count'),
+                    func.count(
+                        func.nullif(
+                            SelfAssessment.status.in_([
+                                SelfAssessmentStatus.SUBMITTED.value,
+                                SelfAssessmentStatus.APPROVED.value
+                            ]),
+                            False
+                        )
+                    ).label('submitted_count'),
+                    func.count(
+                        func.nullif(
+                            SelfAssessment.status == SelfAssessmentStatus.APPROVED.value,
+                            False
+                        )
+                    ).label('approved_count')
+                )
+                .join(goal_alias, SelfAssessment.goal_id == goal_alias.id)
+                .filter(
+                    and_(
+                        goal_alias.user_id.in_(user_ids),
+                        SelfAssessment.period_id == period_id
+                    )
+                )
+                .group_by(goal_alias.user_id)
+            )
+
+            # Apply organization scope
+            query = self.apply_org_scope_via_goal(query, SelfAssessment.goal_id, org_id)
+
+            result = await self.session.execute(query)
+            rows = result.all()
+
+            # Build result list with all user_ids (including those with 0 assessments)
+            status_map = {
+                str(row.user_id): {
+                    'userId': str(row.user_id),
+                    'totalCount': row.total_count,
+                    'submittedCount': row.submitted_count,
+                    'approvedCount': row.approved_count
+                }
+                for row in rows
+            }
+
+            # Include users with no assessments
+            return [
+                status_map.get(str(uid), {
+                    'userId': str(uid),
+                    'totalCount': 0,
+                    'submittedCount': 0,
+                    'approvedCount': 0
+                })
+                for uid in user_ids
+            ]
+
+        except SQLAlchemyError as e:
+            logger.error(f"Error getting assessment status by users in org {org_id}: {e}")
+            raise

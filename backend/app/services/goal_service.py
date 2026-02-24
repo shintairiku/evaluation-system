@@ -71,7 +71,8 @@ class GoalService:
         has_previous_goal_id: Optional[bool] = None,
         pagination: Optional[PaginationParams] = None,
         include_reviews: bool = False,
-        include_rejection_history: bool = False
+        include_rejection_history: bool = False,
+        self_only: bool = False
     ) -> PaginatedResponse[Goal]:
         """
         Get goals based on current user's permissions and filters.
@@ -84,11 +85,14 @@ class GoalService:
         Performance optimization:
         - include_reviews: Batch fetch supervisor reviews (eliminates N+1 queries)
         - include_rejection_history: Fetch rejection history chain (requires include_reviews=True)
+
+        Args:
+            self_only: If True, return only the current user's goals (ignore subordinates)
         """
         try:
             # Determine which users' goals the current user can access
             accessible_user_ids = await self._get_accessible_goal_user_ids(
-                current_user_context, user_id
+                current_user_context, user_id, self_only=self_only
             )
             org_id = current_user_context.organization_id
             if not org_id:
@@ -174,6 +178,34 @@ class GoalService:
             except Exception as e:
                 logger.warning(f"Failed to batch load competency names: {e}")
 
+            # Batch load ALL stage competencies for competency goals (evaluation scope)
+            stage_competency_data: dict[str, dict] = {}
+            try:
+                # Collect unique user_ids from competency goals
+                comp_user_ids: set[UUID] = set()
+                for goal_model in goals:
+                    if goal_model.goal_category == "コンピテンシー":
+                        comp_user_ids.add(goal_model.user_id)
+
+                if comp_user_ids:
+                    # Get stage_id for each user, then all competencies per stage
+                    stage_cache: dict[UUID, list] = {}  # stage_id -> competencies
+                    for uid in comp_user_ids:
+                        stage_id = await self.user_repo.get_user_stage_id(uid, org_id)
+                        if not stage_id:
+                            continue
+                        if stage_id not in stage_cache:
+                            stage_cache[stage_id] = await self.competency_repo.get_by_stage_id(stage_id, org_id)
+
+                        comps = stage_cache[stage_id]
+                        stage_competency_data[str(uid)] = {
+                            "competency_ids": [c.id for c in comps],
+                            "competency_names": {str(c.id): c.name for c in comps},
+                            "ideal_action_texts": {str(c.id): (c.description or {}) for c in comps},
+                        }
+            except Exception as e:
+                logger.warning(f"Failed to batch load stage competencies: {e}")
+
             # Convert to response format
             enriched_goals = []
             for goal_model in goals:
@@ -186,6 +218,7 @@ class GoalService:
                     org_id=org_id,
                     competency_name_map=competency_name_map,
                     competency_description_map=competency_description_map,
+                    stage_competency_data=stage_competency_data,
                 )
                 enriched_goals.append(enriched_goal)
             
@@ -313,6 +346,32 @@ class GoalService:
         except Exception as e:
             logger.warning(f"Failed to batch load competency names: {e}")
 
+        # Batch load ALL stage competencies for competency goals (evaluation scope)
+        stage_competency_data: dict[str, dict] = {}
+        try:
+            comp_user_ids: set[UUID] = set()
+            for goal_model in ordered_goals:
+                if goal_model.goal_category == "コンピテンシー":
+                    comp_user_ids.add(goal_model.user_id)
+
+            if comp_user_ids:
+                stage_cache: dict[UUID, list] = {}
+                for uid in comp_user_ids:
+                    stage_id = await self.user_repo.get_user_stage_id(uid, org_id)
+                    if not stage_id:
+                        continue
+                    if stage_id not in stage_cache:
+                        stage_cache[stage_id] = await self.competency_repo.get_by_stage_id(stage_id, org_id)
+
+                    comps = stage_cache[stage_id]
+                    stage_competency_data[str(uid)] = {
+                        "competency_ids": [c.id for c in comps],
+                        "competency_names": {str(c.id): c.name for c in comps},
+                        "ideal_action_texts": {str(c.id): (c.description or {}) for c in comps},
+                    }
+        except Exception as e:
+            logger.warning(f"Failed to batch load stage competencies: {e}")
+
         enriched_goals: list[Goal] = []
         for goal_model in ordered_goals:
             enriched_goal = await self._enrich_goal_data(
@@ -324,6 +383,7 @@ class GoalService:
                 org_id=org_id,
                 competency_name_map=competency_name_map,
                 competency_description_map=competency_description_map,
+                stage_competency_data=stage_competency_data,
             )
             enriched_goals.append(enriched_goal)
 
@@ -790,6 +850,15 @@ class GoalService:
             # Commit transaction
             await self.session.commit()
 
+            # Auto-create draft SelfAssessment for the approved goal
+            # This triggers the self-assessment workflow for evaluation
+            try:
+                await self._auto_create_self_assessment(updated_goal, org_id)
+                await self.session.commit()
+            except Exception as auto_create_error:
+                logger.error(f"Auto-create SelfAssessment failed for goal {goal_id}: {auto_create_error}")
+                # Do not rollback goal approval due to auto-creation failure
+
             # Enrich response data with competency names (N+1 fix)
             competency_name_map = await self._build_competency_name_map_for_goal(updated_goal, org_id)
             enriched_goal = await self._enrich_goal_data(
@@ -800,7 +869,7 @@ class GoalService:
 
             logger.info(f"Goal approved successfully: {goal_id} by {current_user_context.user_id}")
             return enriched_goal
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error approving goal {goal_id}: {str(e)}")
@@ -847,10 +916,23 @@ class GoalService:
             if period_status in ("completed", "cancelled"):
                 raise BadRequestError("Cannot reject goals in completed or cancelled evaluation periods")
 
+            # Guard rail: handle SelfAssessment based on status
+            # - draft: delete it and allow 差戻し (employee hasn't started yet)
+            # - submitted/approved: block 差戻し (evaluation has progressed)
             existing_assessment = await self.self_assessment_repo.get_by_goal(goal_id, org_id)
             if existing_assessment:
-                raise BadRequestError("Cannot reject goal after self-assessment has been created")
-            
+                from ..schemas.common import SelfAssessmentStatus
+                if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                    # Delete draft assessment to allow 差戻し
+                    await self.self_assessment_repo.delete_assessment(existing_assessment.id, org_id)
+                    logger.info(f"Deleted draft SelfAssessment {existing_assessment.id} for goal 差戻し: {goal_id}")
+                else:
+                    # Block 差戻し if assessment is submitted or approved
+                    raise BadRequestError(
+                        f"Cannot reject goal: self-assessment is already {existing_assessment.status}. "
+                        "差戻し is only allowed when self-assessment is still in draft status."
+                    )
+
             # Update status
             updated_goal = await self.goal_repo.update_goal_status(goal_id, GoalStatus.REJECTED, org_id)
 
@@ -1136,9 +1218,19 @@ class GoalService:
     async def _get_accessible_goal_user_ids(
         self,
         current_user_context: AuthContext,
-        requested_user_id: Optional[UUID] = None
+        requested_user_id: Optional[UUID] = None,
+        self_only: bool = False
     ) -> Optional[List[UUID]]:
-        """Determine which users' goals the current user can access."""
+        """Determine which users' goals the current user can access.
+
+        Args:
+            current_user_context: The authentication context
+            requested_user_id: Specific user ID to filter by (optional)
+            self_only: If True, return only the current user's ID (ignore subordinates)
+        """
+        # If self_only is True, return only the current user's ID
+        if self_only:
+            return [current_user_context.user_id] if current_user_context.user_id else []
 
         if current_user_context.has_permission(Permission.GOAL_READ_ALL) or current_user_context.has_permission(Permission.GOAL_MANAGE):
             # Admin: can read any user's goals when explicitly requested
@@ -1147,9 +1239,9 @@ class GoalService:
             # Safe default: admin sees only their own goals unless explicitly requesting others
             # For org-wide view, use get_all_goals_for_admin() endpoint instead
             return [current_user_context.user_id] if current_user_context.user_id else []
-        
+
         accessible_ids = []
-        
+
         # Add self when the user can either read or manage their own goals.
         can_access_self = (
             current_user_context.has_permission(Permission.GOAL_READ_SELF)
@@ -1157,7 +1249,7 @@ class GoalService:
         )
         if can_access_self and current_user_context.user_id:
             accessible_ids.append(current_user_context.user_id)
-        
+
         # Supervisors: can see subordinates' goals.
         # Approvers must also be able to view the goals they act on.
         can_access_subordinates = (
@@ -1179,13 +1271,13 @@ class GoalService:
                 seen.add(uid)
                 deduped.append(uid)
         accessible_ids = deduped
-        
+
         # If specific user requested, check if accessible
         if requested_user_id:
             if requested_user_id not in accessible_ids:
                 raise PermissionDeniedError(f"You do not have permission to access goals for user {requested_user_id}")
             return [requested_user_id]
-        
+
         return accessible_ids
 
     async def _validate_goal_creation(self, goal_data: GoalCreate, user_id: UUID, org_id: UUID):
@@ -1547,6 +1639,7 @@ class GoalService:
         *,
         competency_name_map: dict[str, str] | None = None,
         competency_description_map: dict[str, dict[str, str]] | None = None,
+        stage_competency_data: dict[str, dict] | None = None,
     ) -> Goal:
         """
         Convert GoalModel to Goal response schema with enriched data.
@@ -1625,14 +1718,9 @@ class GoalService:
                             desc_map = competency_description_map.get(comp_id_str)
 
                         resolved: list[str] = []
-                        if isinstance(desc_map, dict):
-                            for action_id in action_ids:
-                                text = desc_map.get(str(action_id))
-                                if text:
-                                    resolved.append(text)
-
-                        if not resolved:
-                            resolved = [f"行動 {str(action_id)}" for action_id in action_ids]
+                        for action_id in action_ids:
+                            text = desc_map.get(str(action_id)) if isinstance(desc_map, dict) else None
+                            resolved.append(text or f"行動 {action_id}")
 
                         ideal_action_texts[comp_id_str] = resolved
 
@@ -1640,6 +1728,18 @@ class GoalService:
                         goal_dict["ideal_action_texts"] = ideal_action_texts
             except Exception as e:
                 logger.warning(f"Failed to resolve ideal action texts for goal {goal_model.id}: {str(e)}")
+
+        # Add ALL stage competencies for evaluation scope
+        if (
+            goal_model.goal_category == "コンピテンシー"
+            and stage_competency_data is not None
+        ):
+            user_id_str = str(goal_model.user_id)
+            stage_data = stage_competency_data.get(user_id_str)
+            if stage_data:
+                goal_dict["all_stage_competency_ids"] = stage_data["competency_ids"]
+                goal_dict["all_stage_competency_names"] = stage_data["competency_names"]
+                goal_dict["all_stage_ideal_action_texts"] = stage_data["ideal_action_texts"]
 
         # Performance optimization: Embed supervisor review if requested
         if include_reviews and reviews_map is not None:
@@ -1747,3 +1847,44 @@ class GoalService:
                 "Goal submission will continue, but manual review creation may be needed."
             )
             # Don't raise exception to avoid breaking goal submission flow
+
+    async def _auto_create_self_assessment(self, goal: GoalModel, org_id: str) -> None:
+        """
+        Auto-create draft SelfAssessment when Goal is approved.
+
+        This implements the automatic creation trigger for the evaluation workflow:
+        Goal (approved) → SelfAssessment (draft) → [employee fills] → submitted → SupervisorFeedback
+
+        Args:
+            goal: The approved goal model
+            org_id: Organization ID for scoping
+        """
+        try:
+            # Check if assessment already exists for this goal
+            existing = await self.self_assessment_repo.get_by_goal(goal.id, org_id)
+            if existing:
+                logger.info(f"SelfAssessment already exists for goal {goal.id}, skipping auto-creation")
+                return
+
+            # Create draft self-assessment (empty - to be filled by employee)
+            from ..schemas.self_assessment import SelfAssessmentCreate
+            from ..schemas.common import SelfAssessmentStatus
+
+            assessment_create = SelfAssessmentCreate(
+                self_rating_code=None,  # Empty - to be filled by employee
+                self_comment=None,  # Empty - to be filled by employee
+                status=SelfAssessmentStatus.DRAFT
+            )
+
+            created_assessment = await self.self_assessment_repo.create_assessment(
+                assessment_data=assessment_create,
+                goal_id=goal.id,
+                org_id=org_id
+            )
+
+            logger.info(f"Auto-created draft SelfAssessment {created_assessment.id} for approved goal {goal.id}")
+
+        except Exception as e:
+            logger.error(f"Error auto-creating SelfAssessment for goal {goal.id}: {str(e)}")
+            # Don't re-raise - failure shouldn't block Goal approval
+            # This follows the same pattern as _auto_create_supervisor_feedback in self_assessment_service.py

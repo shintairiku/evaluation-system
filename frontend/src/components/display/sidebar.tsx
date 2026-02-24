@@ -10,6 +10,8 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { useGoalListContext } from '@/context/GoalListContext';
+import { useDraftAssessmentsContext } from '@/context/ReturnedAssessmentsContext';
+import { usePendingEvaluationsContext } from '@/context/PendingEvaluationsContext';
 import {
   Home, Target, ClipboardList, List, ListChecks, Users, CheckCircle, MessageSquare,
   UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield, Calendar
@@ -68,6 +70,28 @@ export default function Sidebar() {
     // Context not available (e.g., during SSR or outside provider)
     // Use default value
     rejectedGoalsCount = 0;
+  }
+
+  // Get draft assessments context with graceful fallback
+  let draftCount = 0;
+  try {
+    const context = useDraftAssessmentsContext();
+    draftCount = context.draftCount;
+  } catch {
+    // Context not available (e.g., during SSR or outside provider)
+    // Use default value
+    draftCount = 0;
+  }
+
+  // Get pending evaluations context with graceful fallback
+  let pendingEvaluationsCount = 0;
+  try {
+    const context = usePendingEvaluationsContext();
+    pendingEvaluationsCount = context.pendingEvaluationsCount;
+  } catch {
+    // Context not available (e.g., during SSR or outside provider)
+    // Use default value
+    pendingEvaluationsCount = 0;
   }
 
   // 権限フィルタリング（現在はダミー実装）
@@ -133,6 +157,22 @@ export default function Sidebar() {
                           </Badge>
                         </div>
                       )}
+                      {/* Draft Assessments Count - Only visible when sidebar is collapsed */}
+                      {link.href === '/evaluation-input' && draftCount > 0 && (
+                        <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
+                          <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
+                            {draftCount > 99 ? '99' : draftCount}
+                          </Badge>
+                        </div>
+                      )}
+                      {/* Pending Evaluations Count - Only visible when sidebar is collapsed */}
+                      {link.href === '/evaluation-feedback' && pendingEvaluationsCount > 0 && (
+                        <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
+                          <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
+                            {pendingEvaluationsCount > 99 ? '99' : pendingEvaluationsCount}
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
                       <div className="font-medium truncate">{link.label}</div>
@@ -153,12 +193,26 @@ export default function Sidebar() {
                         </Badge>
                       )}
 
+                      {/* Draft Assessments Count - Expanded view */}
+                      {link.href === '/evaluation-input' && draftCount > 0 && (
+                        <Badge variant="destructive" className="text-xs bg-red-500 text-white">
+                          {draftCount > 99 ? '99+' : draftCount}
+                        </Badge>
+                      )}
+
+                      {/* Pending Evaluations Count - Expanded view */}
+                      {link.href === '/evaluation-feedback' && pendingEvaluationsCount > 0 && (
+                        <Badge variant="destructive" className="text-xs bg-red-500 text-white">
+                          {pendingEvaluationsCount > 99 ? '99+' : pendingEvaluationsCount}
+                        </Badge>
+                      )}
+
                       {link.permission === 'admin' && (
                         <Badge variant="secondary" className="text-xs bg-white/20 text-white border-white/30">
                           管理者
                         </Badge>
                       )}
-                      {link.permission === 'supervisor' && (link.href !== '/goal-review' || pendingCount === 0) && (
+                      {link.permission === 'supervisor' && (link.href !== '/goal-review' || pendingCount === 0) && (link.href !== '/evaluation-feedback' || pendingEvaluationsCount === 0) && (
                         <Badge variant="outline" className="text-xs border-white/30 text-white">
                           上司
                         </Badge>

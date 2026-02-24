@@ -58,15 +58,6 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                     organization_id=org_id,
                     rating_code=feedback_data.supervisor_rating_code
                 )
-            elif feedback_data.rating is not None:
-                # Backward compatibility: honor legacy numeric rating payloads.
-                supervisor_rating = Decimal(str(feedback_data.rating))
-
-            supervisor_comment = (
-                feedback_data.supervisor_comment
-                if feedback_data.supervisor_comment is not None
-                else feedback_data.comment
-            )
 
             # Get subordinate_id from the self-assessment's goal owner
             subordinate_id = None
@@ -81,7 +72,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 subordinate_id=subordinate_id,
                 supervisor_rating_code=supervisor_rating_code,
                 supervisor_rating=supervisor_rating,
-                supervisor_comment=supervisor_comment,
+                supervisor_comment=feedback_data.supervisor_comment,
                 rating_data=feedback_data.rating_data,
                 action=feedback_data.action.value if feedback_data.action else SupervisorAction.PENDING.value,
                 status=feedback_data.status.value if feedback_data.status else SubmissionStatus.INCOMPLETE.value
@@ -319,10 +310,18 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         status: Optional[str] = None,
         action: Optional[str] = None,
         user_ids: Optional[List[UUID]] = None,  # For filtering by assessment owner (alias for subordinate_ids)
+        has_return_comment: Optional[bool] = None,
         pagination: Optional[PaginationParams] = None
     ) -> List[SupervisorFeedback]:
         """Search supervisor feedbacks with various filters within organization scope."""
         try:
+            if supervisor_ids is not None and len(supervisor_ids) == 0:
+                return []
+            if subordinate_ids is not None and len(subordinate_ids) == 0:
+                return []
+            if user_ids is not None and len(user_ids) == 0:
+                return []
+
             from ..models.goal import Goal
             from ..models.user import User
 
@@ -341,10 +340,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             )
 
             # Apply filters
-            if supervisor_ids:
+            if supervisor_ids is not None:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
 
-            if subordinate_ids:
+            if subordinate_ids is not None:
                 query = query.filter(SupervisorFeedback.subordinate_id.in_(subordinate_ids))
 
             if period_id:
@@ -356,9 +355,15 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             if action:
                 query = query.filter(SupervisorFeedback.action == action)
 
-            if user_ids:
+            if user_ids is not None:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
+
+            if has_return_comment is not None:
+                if has_return_comment:
+                    query = query.filter(SupervisorFeedback.return_comment.isnot(None))
+                else:
+                    query = query.filter(SupervisorFeedback.return_comment.is_(None))
 
             # Apply ordering
             query = query.order_by(SupervisorFeedback.created_at.desc())
@@ -381,10 +386,18 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
         action: Optional[str] = None,
-        user_ids: Optional[List[UUID]] = None
+        user_ids: Optional[List[UUID]] = None,
+        has_return_comment: Optional[bool] = None
     ) -> int:
         """Count supervisor feedbacks matching the given filters within organization scope."""
         try:
+            if supervisor_ids is not None and len(supervisor_ids) == 0:
+                return 0
+            if subordinate_ids is not None and len(subordinate_ids) == 0:
+                return 0
+            if user_ids is not None and len(user_ids) == 0:
+                return 0
+
             from ..models.goal import Goal
             from ..models.user import User
 
@@ -397,10 +410,10 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             )
 
             # Apply same filters as search_feedbacks
-            if supervisor_ids:
+            if supervisor_ids is not None:
                 query = query.filter(SupervisorFeedback.supervisor_id.in_(supervisor_ids))
 
-            if subordinate_ids:
+            if subordinate_ids is not None:
                 query = query.filter(SupervisorFeedback.subordinate_id.in_(subordinate_ids))
 
             if period_id:
@@ -412,9 +425,15 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             if action:
                 query = query.filter(SupervisorFeedback.action == action)
 
-            if user_ids:
+            if user_ids is not None:
                 # Filter by assessment owners (employees) - already joined with Goal
                 query = query.filter(Goal.user_id.in_(user_ids))
+
+            if has_return_comment is not None:
+                if has_return_comment:
+                    query = query.filter(SupervisorFeedback.return_comment.isnot(None))
+                else:
+                    query = query.filter(SupervisorFeedback.return_comment.is_(None))
 
             result = await self.session.execute(query)
             return result.scalar() or 0
@@ -459,15 +478,9 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                     organization_id=org_id,
                     rating_code=feedback_data.supervisor_rating_code
                 )
-            elif feedback_data.rating is not None:
-                # Backward compatibility: honor legacy numeric rating updates.
-                update_data["supervisor_rating"] = Decimal(str(feedback_data.rating))
 
             if feedback_data.supervisor_comment is not None:
                 update_data["supervisor_comment"] = feedback_data.supervisor_comment
-            elif feedback_data.comment is not None:
-                # Backward compatibility: honor legacy comment updates.
-                update_data["supervisor_comment"] = feedback_data.comment
 
             if feedback_data.rating_data is not None:
                 update_data["rating_data"] = feedback_data.rating_data
@@ -508,13 +521,13 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     async def submit_feedback(
         self,
         feedback_id: UUID,
-        org_id: str,
-        submit_data: Optional[SupervisorFeedbackSubmit] = None
+        submit_data: SupervisorFeedbackSubmit,
+        org_id: str
     ) -> Optional[SupervisorFeedback]:
         """
         Submit supervisor feedback with approval.
         Sets action=APPROVED, status=submitted, reviewed_at=now.
-        Rating and comment are optionally updated if submit_data is provided.
+        Rating and comment are optional.
         """
         try:
             # Validate feedback exists within organization scope
@@ -536,7 +549,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             }
 
             # Optional: update rating if provided
-            if submit_data and submit_data.supervisor_rating_code is not None:
+            if submit_data.supervisor_rating_code is not None:
                 update_data["supervisor_rating_code"] = submit_data.supervisor_rating_code.value
                 update_data["supervisor_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
                     organization_id=org_id,
@@ -544,11 +557,11 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 )
 
             # Optional: update comment if provided
-            if submit_data and submit_data.supervisor_comment is not None:
+            if submit_data.supervisor_comment is not None:
                 update_data["supervisor_comment"] = submit_data.supervisor_comment
 
             # Optional: update rating_data if provided
-            if submit_data and submit_data.rating_data is not None:
+            if submit_data.rating_data is not None:
                 update_data["rating_data"] = submit_data.rating_data
 
             await self.session.execute(
@@ -594,6 +607,64 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
 
         except SQLAlchemyError as e:
             logger.error(f"Database error drafting supervisor feedback {feedback_id}: {e}")
+            raise
+
+    async def return_feedback(
+        self,
+        feedback_id: UUID,
+        return_comment: str,
+        org_id: str
+    ) -> Optional[SupervisorFeedback]:
+        """
+        Return feedback for correction (差し戻し).
+        Sets return_comment visible to subordinate.
+        Does NOT change action or status — preserves internal data.
+        """
+        try:
+            existing_feedback = await self._validate_feedback_exists(feedback_id, org_id)
+
+            if existing_feedback.action == SupervisorAction.APPROVED.value:
+                raise ValidationError("Cannot return approved feedback")
+
+            update_data = {
+                "return_comment": return_comment,
+                "updated_at": datetime.now(timezone.utc)
+            }
+
+            await self.session.execute(
+                update(SupervisorFeedback)
+                .where(SupervisorFeedback.id == feedback_id)
+                .values(**update_data)
+            )
+
+            logger.info(f"Returned supervisor feedback {feedback_id} for correction")
+            return await self.get_by_id(feedback_id, org_id)
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error returning supervisor feedback {feedback_id}: {e}")
+            raise
+
+    async def clear_return_comment(self, self_assessment_id: UUID, org_id: str) -> bool:
+        """
+        Clear return_comment when subordinate resubmits their assessment.
+        Uses get_by_self_assessment() to find the linked feedback.
+        """
+        try:
+            feedback = await self.get_by_self_assessment(self_assessment_id, org_id)
+            if not feedback or not feedback.return_comment:
+                return False
+
+            await self.session.execute(
+                update(SupervisorFeedback)
+                .where(SupervisorFeedback.id == feedback.id)
+                .values(return_comment=None, updated_at=datetime.now(timezone.utc))
+            )
+
+            logger.info(f"Cleared return_comment for feedback {feedback.id} (assessment {self_assessment_id})")
+            return True
+
+        except SQLAlchemyError as e:
+            logger.error(f"Database error clearing return_comment for assessment {self_assessment_id}: {e}")
             raise
 
     # ========================================
