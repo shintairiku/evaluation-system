@@ -162,6 +162,7 @@ class UserServiceV2:
             users,
             ctx.organization_id,
             include_set,
+            include_level=ctx.has_role("eval_admin"),
         )
 
         payload = PaginatedResponse(
@@ -267,6 +268,7 @@ class UserServiceV2:
             [user_model],
             ctx.organization_id,
             include_set,
+            include_level=ctx.has_role("eval_admin"),
         )
         return response_items[0] if response_items else None
 
@@ -333,6 +335,7 @@ class UserServiceV2:
             ordered_models,
             ctx.organization_id,
             include_set,
+            include_level=ctx.has_role("eval_admin"),
         )
 
     async def _apply_supervisor_filter(
@@ -362,6 +365,8 @@ class UserServiceV2:
         users: Sequence[UserModel],
         org_id: str,
         include: Set[str],
+        *,
+        include_level: bool,
     ) -> List[UserDetailResponse]:
         if not users:
             return []
@@ -492,6 +497,7 @@ class UserServiceV2:
                     job_title=user.job_title,
                     department=department_dtos.get(user.department_id),
                     stage=stage_dtos.get(user.stage_id),
+                    level=user.level if include_level else None,
                     goal_weight_budget=self._build_goal_weight_budget(user, stage_models_for_budget.get(user.stage_id)),
                     roles=role_dtos.get(user.id, []),
                     supervisor=supervisor,
@@ -600,6 +606,8 @@ class UserServiceV2:
         with_count: bool,
         sort: Optional[str],
     ) -> str:
+        role_signature = ",".join(sorted(role.lower() for role in (ctx.role_names or [])))
+
         def _list(val):
             if val is None:
                 return None
@@ -609,6 +617,7 @@ class UserServiceV2:
             [
                 ctx.organization_id or "_no_org",
                 ctx.clerk_user_id or "_no_user",
+                role_signature,
                 str(page),
                 str(limit),
                 cursor or "_nocursor",
