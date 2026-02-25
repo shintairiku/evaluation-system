@@ -679,6 +679,8 @@ class UserRepository(BaseRepository[User]):
                 existing_user.job_title = user_data.job_title
             if user_data.department_id is not None:
                 existing_user.department_id = user_data.department_id
+            if "level" in user_data.model_fields_set:
+                existing_user.level = user_data.level
             # stage_id removed - use dedicated admin-only update_user_stage method
             if user_data.status is not None:
                 existing_user.status = user_data.status
