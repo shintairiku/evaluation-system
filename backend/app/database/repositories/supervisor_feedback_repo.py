@@ -13,7 +13,7 @@ from ..models.supervisor_feedback import SupervisorFeedback
 from ..models.self_assessment import SelfAssessment
 from ..models.goal import Goal
 from ...schemas.supervisor_feedback import SupervisorFeedbackCreate, SupervisorFeedbackUpdate, SupervisorFeedbackSubmit
-from ...schemas.common import PaginationParams, SubmissionStatus
+from ...schemas.common import PaginationParams, SubmissionStatus, RatingCode
 from ...schemas.supervisor_review import SupervisorAction
 from ...core.exceptions import (
     NotFoundError, ConflictError, ValidationError
@@ -57,6 +57,12 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 supervisor_rating = await self.score_mapping_repo.get_numeric_value_for_rating_code(
                     organization_id=org_id,
                     rating_code=feedback_data.supervisor_rating_code
+                )
+            elif feedback_data.rating_data is not None:
+                # Competency feedback stores granular ratings in rating_data (no single rating_code).
+                supervisor_rating = await self._calculate_supervisor_rating_from_rating_data(
+                    organization_id=org_id,
+                    rating_data=feedback_data.rating_data
                 )
 
             # Get subordinate_id from the self-assessment's goal owner
@@ -458,8 +464,12 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             # Build update dictionary
             update_data = {}
 
-            # Handle supervisor_rating_code - use model_fields_set to detect explicit null
-            if hasattr(feedback_data, 'model_fields_set') and 'supervisor_rating_code' in feedback_data.model_fields_set:
+            model_fields = getattr(feedback_data, 'model_fields_set', set())
+            is_rating_code_provided = "supervisor_rating_code" in model_fields if model_fields else feedback_data.supervisor_rating_code is not None
+            should_derive_rating_from_data = False
+
+            # Handle supervisor_rating_code (explicit null supported)
+            if is_rating_code_provided:
                 if feedback_data.supervisor_rating_code is not None:
                     update_data["supervisor_rating_code"] = feedback_data.supervisor_rating_code.value
                     # Auto-calculate supervisor_rating from code
@@ -468,22 +478,25 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                         rating_code=feedback_data.supervisor_rating_code
                     )
                 else:
-                    # Explicitly clear the rating
+                    # Explicitly clear rating code. Numeric rating may still be derived from rating_data.
                     update_data["supervisor_rating_code"] = None
-                    update_data["supervisor_rating"] = None
-            elif feedback_data.supervisor_rating_code is not None:
-                # Fallback for when model_fields_set is not available
-                update_data["supervisor_rating_code"] = feedback_data.supervisor_rating_code.value
-                update_data["supervisor_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
-                    organization_id=org_id,
-                    rating_code=feedback_data.supervisor_rating_code
-                )
+                    should_derive_rating_from_data = True
+            elif feedback_data.rating_data is not None and existing_feedback.supervisor_rating_code is None:
+                # No single rating code for competency goals; derive numeric from rating_data.
+                should_derive_rating_from_data = True
 
             if feedback_data.supervisor_comment is not None:
                 update_data["supervisor_comment"] = feedback_data.supervisor_comment
 
             if feedback_data.rating_data is not None:
                 update_data["rating_data"] = feedback_data.rating_data
+
+            if should_derive_rating_from_data:
+                rating_source = feedback_data.rating_data if feedback_data.rating_data is not None else existing_feedback.rating_data
+                update_data["supervisor_rating"] = await self._calculate_supervisor_rating_from_rating_data(
+                    organization_id=org_id,
+                    rating_data=rating_source
+                )
 
             # If any data was provided, change status to draft if still incomplete
             if update_data and existing_feedback.status == SubmissionStatus.INCOMPLETE.value:
@@ -554,6 +567,13 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 update_data["supervisor_rating"] = await self.score_mapping_repo.get_numeric_value_for_rating_code(
                     organization_id=org_id,
                     rating_code=submit_data.supervisor_rating_code
+                )
+            elif existing_feedback.supervisor_rating_code is None:
+                # Competency feedback: no supervisor_rating_code is expected.
+                rating_source = submit_data.rating_data if submit_data.rating_data is not None else existing_feedback.rating_data
+                update_data["supervisor_rating"] = await self._calculate_supervisor_rating_from_rating_data(
+                    organization_id=org_id,
+                    rating_data=rating_source
                 )
 
             # Optional: update comment if provided
@@ -700,6 +720,56 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     # ========================================
     # HELPER METHODS
     # ========================================
+
+    @staticmethod
+    def _extract_rating_codes_from_rating_data(rating_data: Optional[dict]) -> List[RatingCode]:
+        """Extract valid rating codes from competency rating_data payload."""
+        if not isinstance(rating_data, dict):
+            return []
+
+        extracted: List[RatingCode] = []
+        for ratings_by_action in rating_data.values():
+            if not isinstance(ratings_by_action, dict):
+                continue
+            for raw_code in ratings_by_action.values():
+                if raw_code is None:
+                    continue
+                if isinstance(raw_code, RatingCode):
+                    extracted.append(raw_code)
+                    continue
+                if not isinstance(raw_code, str):
+                    continue
+                normalized = raw_code.strip().upper()
+                if not normalized:
+                    continue
+                try:
+                    extracted.append(RatingCode(normalized))
+                except ValueError:
+                    logger.warning("Skipping invalid rating code in supervisor rating_data: %s", raw_code)
+        return extracted
+
+    async def _calculate_supervisor_rating_from_rating_data(
+        self,
+        organization_id: str,
+        rating_data: Optional[dict]
+    ) -> Optional[Decimal]:
+        """
+        Derive numeric supervisor_rating from competency rating_data.
+        Uses simple average across all rated actions.
+        """
+        rating_codes = self._extract_rating_codes_from_rating_data(rating_data)
+        if not rating_codes:
+            return None
+
+        total = Decimal("0")
+        for rating_code in rating_codes:
+            total += await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                organization_id=organization_id,
+                rating_code=rating_code
+            )
+
+        average = total / Decimal(len(rating_codes))
+        return average.quantize(Decimal("0.01"))
 
     async def _validate_self_assessment_exists(self, self_assessment_id: UUID, org_id: str) -> SelfAssessment:
         """Validate self-assessment exists within organization scope and return it with goal loaded."""
