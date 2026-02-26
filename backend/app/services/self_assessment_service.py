@@ -495,6 +495,14 @@ class SelfAssessmentService:
             if existing_assessment.status != SelfAssessmentStatus.SUBMITTED.value:
                 raise BadRequestError("Can only approve submitted assessments")
 
+            # Guard against inconsistent locks:
+            # self-assessment can be approved only when linked supervisor feedback is approved.
+            linked_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment_id, org_id)
+            if not linked_feedback or str(getattr(linked_feedback, "action", "")).upper() != "APPROVED":
+                raise BadRequestError(
+                    "Cannot approve self-assessment before supervisor feedback is approved"
+                )
+
             # Update status to approved using repo method
             updated_assessment = await self.self_assessment_repo.approve_assessment(assessment_id, org_id)
             if not updated_assessment:
