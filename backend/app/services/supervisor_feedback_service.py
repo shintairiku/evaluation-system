@@ -335,6 +335,8 @@ class SupervisorFeedbackService:
             
             # Permission check - only feedback creator can update
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
+
+            await self._ensure_period_allows_score_changes(existing_feedback.period_id, org_id)
             
             # Business validation
             await self._validate_feedback_update(feedback_data, existing_feedback)
@@ -381,6 +383,8 @@ class SupervisorFeedbackService:
 
             # Permission check - only feedback creator can submit
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
+
+            await self._ensure_period_allows_score_changes(existing_feedback.period_id, org_id)
 
             # Business rule: cannot submit already approved feedback
             if existing_feedback.action == SupervisorAction.APPROVED.value:
@@ -446,6 +450,8 @@ class SupervisorFeedbackService:
             
             # Permission check - only feedback creator can change to draft
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
+
+            await self._ensure_period_allows_score_changes(existing_feedback.period_id, org_id)
             
             # Business rule: cannot revert approved feedbacks
             if existing_feedback.action == SupervisorAction.APPROVED.value:
@@ -494,6 +500,8 @@ class SupervisorFeedbackService:
 
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
 
+            await self._ensure_period_allows_score_changes(existing_feedback.period_id, org_id)
+
             if existing_feedback.action == SupervisorAction.APPROVED.value:
                 raise BadRequestError("Cannot return approved feedback")
 
@@ -540,6 +548,7 @@ class SupervisorFeedbackService:
             
             # Permission check
             await self._check_feedback_update_permission(existing_feedback, current_user_context)
+            await self._ensure_period_allows_score_changes(existing_feedback.period_id, org_id)
                         
             # Delete feedback
             success = await self.supervisor_feedback_repo.delete_feedback(feedback_id, org_id)
@@ -716,15 +725,22 @@ class SupervisorFeedbackService:
         org_id = current_user_context.organization_id
         if not org_id:
             raise PermissionDeniedError("Organization context required")
-        period = await self.evaluation_period_repo.get_by_id(feedback_data.period_id, org_id)
-        if not period:
-            raise BadRequestError(f"Evaluation period {feedback_data.period_id} not found")
+        await self._ensure_period_allows_score_changes(feedback_data.period_id, org_id)
         
         # Validate rating code rules based on goal category
         if feedback_data.supervisor_rating_code:
             await self._validate_goal_category_rating_rules(
                 goal, feedback_data.supervisor_rating_code.value if hasattr(feedback_data.supervisor_rating_code, 'value') else feedback_data.supervisor_rating_code
             )
+
+    async def _ensure_period_allows_score_changes(self, period_id: UUID, org_id: str) -> None:
+        period = await self.evaluation_period_repo.get_by_id(period_id, org_id)
+        if not period:
+            raise NotFoundError(f"Evaluation period with ID {period_id} not found")
+
+        period_status = str(getattr(period.status, "value", period.status)).lower()
+        if period_status in ("completed", "cancelled"):
+            raise BadRequestError("Cannot modify scores in completed or cancelled evaluation periods")
 
     async def _validate_feedback_update(self, feedback_data: SupervisorFeedbackUpdate, existing_feedback: SupervisorFeedbackModel):
         """Validate supervisor feedback update business rules."""
