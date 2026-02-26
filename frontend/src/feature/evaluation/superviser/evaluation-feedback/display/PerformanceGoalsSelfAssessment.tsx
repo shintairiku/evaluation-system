@@ -192,7 +192,7 @@ export default function PerformanceGoalsSelfAssessment({
               <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                 自己評価コメント
               </Label>
-              <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 min-h-[100px]">
+              <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 h-[100px] overflow-y-auto">
                 {evalItem.comment || <span className="text-gray-400">コメントなし</span>}
               </div>
               <div className="flex justify-start items-center mt-1">
