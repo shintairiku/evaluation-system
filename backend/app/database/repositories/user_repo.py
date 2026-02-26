@@ -657,7 +657,35 @@ class UserRepository(BaseRepository[User]):
             logger.error(f"Error batch updating user statuses in org {org_id}: {e}")
             raise
 
-    
+    async def batch_update_user_levels(self, org_id: str, updates: Dict[UUID, int]) -> Set[UUID]:
+        """Batch update user levels using a single CASE statement."""
+        if not updates:
+            return set()
+
+        try:
+            update_ids = list(updates.keys())
+
+            level_case = case(
+                *[(User.id == user_id, level) for user_id, level in updates.items()],
+                else_=User.level,
+            )
+
+            stmt = (
+                update(User)
+                .where(User.clerk_organization_id == org_id)
+                .where(User.id.in_(update_ids))
+                .values(level=level_case, updated_at=func.now())
+                .returning(User.id)
+            )
+
+            result = await self.session.execute(stmt)
+            updated = set(result.scalars().all())
+            return updated
+        except SQLAlchemyError as e:
+            logger.error(f"Error batch updating user levels in org {org_id}: {e}")
+            raise
+
+
 
 
     async def update_user(self, user_id: UUID, user_data: UserUpdate, org_id: str) -> Optional[User]:
