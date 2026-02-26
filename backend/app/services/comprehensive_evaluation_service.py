@@ -838,7 +838,7 @@ class ComprehensiveEvaluationService:
         for rank in RANK_ORDER:
             if score >= float(thresholds[rank]):
                 return rank
-        return None
+        return RANK_ORDER[-1]
 
     def _is_rank_at_least(self, actual: EvaluationRank, minimum: EvaluationRank) -> bool:
         return RANK_INDEX[actual] <= RANK_INDEX[minimum]
