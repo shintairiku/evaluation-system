@@ -10,6 +10,7 @@ from .goal import Goal
 from .self_assessment import SelfAssessment
 from .supervisor_review import SupervisorReview
 from .supervisor_feedback import SupervisorFeedback
+from .core_value import CoreValueDefinition, CoreValueEvaluation, CoreValueFeedback
 from .viewer_visibility import (
     ViewerVisibilityDepartment,
     ViewerVisibilitySupervisorTeam,
@@ -41,4 +42,7 @@ __all__ = [
     "ViewerVisibilityUser",
     "ViewerVisibilityDepartment",
     "ViewerVisibilitySupervisorTeam",
+    "CoreValueDefinition",
+    "CoreValueEvaluation",
+    "CoreValueFeedback",
 ]

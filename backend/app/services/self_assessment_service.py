@@ -246,7 +246,15 @@ class SelfAssessmentService:
             
             # Create assessment
             created_assessment = await self.self_assessment_repo.create_assessment(assessment_data, goal_id, org_id)
-            
+
+            # Ensure core value evaluation exists for this user/period
+            try:
+                from .core_value_service import CoreValueService
+                cv_service = CoreValueService(self.session)
+                await cv_service.ensure_evaluation_exists(goal.period_id, goal.user_id, org_id)
+            except Exception as e:
+                logger.warning(f"Could not ensure core value evaluation exists: {e}")
+
             # Commit transaction
             await self.session.commit()
             await self.session.refresh(created_assessment)
@@ -772,11 +780,38 @@ class SelfAssessmentService:
                 org_id=org_id
             )
 
-            # Add calculated boolean fields
+            # Get core value evaluation status for subordinates
+            try:
+                from ..database.repositories.core_value_evaluation_repo import CoreValueEvaluationRepository
+                cv_eval_repo = CoreValueEvaluationRepository(self.session)
+                cv_status_map = await cv_eval_repo.get_evaluation_status_by_users(
+                    user_ids=subordinate_ids,
+                    period_id=period_id,
+                    org_id=org_id
+                )
+            except Exception as e:
+                logger.warning(f"Could not fetch core value evaluation statuses: {e}")
+                cv_status_map = {}
+
+            # Add calculated boolean fields and core value status
             for status in status_list:
+                user_id_str = status['userId']
                 total = status['totalCount']
                 submitted = status['submittedCount']
                 approved = status['approvedCount']
+
+                # Include core value evaluation in counts
+                cv_info = cv_status_map.get(user_id_str)
+                if cv_info:
+                    total += 1
+                    status['totalCount'] = total
+                    if cv_info['status'] in ('submitted', 'approved'):
+                        submitted += 1
+                        status['submittedCount'] = submitted
+                    if cv_info['status'] == 'approved':
+                        approved += 1
+                        status['approvedCount'] = approved
+
                 status['allSubmitted'] = total > 0 and submitted == total
                 status['allApproved'] = total > 0 and approved == total
 
