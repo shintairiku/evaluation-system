@@ -34,6 +34,7 @@ export const comprehensiveEvaluationApi = {
     if (params.employmentType) queryParams.append('employmentType', params.employmentType);
     if (params.search) queryParams.append('search', params.search);
     if (params.processingStatus) queryParams.append('processingStatus', params.processingStatus);
+    if (params.candidateView !== undefined) queryParams.append('candidateView', String(params.candidateView));
     if (params.page) queryParams.append('page', String(params.page));
     if (params.limit) queryParams.append('limit', String(params.limit));
 
