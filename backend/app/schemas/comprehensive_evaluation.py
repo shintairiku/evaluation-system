@@ -83,7 +83,7 @@ class ComprehensiveManualDecisionResponse(BaseModel):
     stage_after: Optional[str] = Field(None, alias="stageAfter")
     level_after: Optional[int] = Field(None, alias="levelAfter")
     reason: str
-    double_checked_by: str = Field(..., alias="doubleCheckedBy")
+    double_checked_by: Optional[str] = Field(None, alias="doubleCheckedBy")
     applied_by_user_id: UUID = Field(..., alias="appliedByUserId")
     applied_at: datetime = Field(..., alias="appliedAt")
 
@@ -159,7 +159,7 @@ class ComprehensiveManualDecisionUpsertRequest(BaseModel):
     stage_after: Optional[str] = Field(None, alias="stageAfter")
     level_after: Optional[int] = Field(None, alias="levelAfter", ge=1, le=30)
     reason: str = Field(..., min_length=1)
-    double_checked_by: str = Field(..., alias="doubleCheckedBy", min_length=1)
+    double_checked_by: Optional[str] = Field(None, alias="doubleCheckedBy")
 
     @model_validator(mode="after")
     def _validate_required_fields(self):
