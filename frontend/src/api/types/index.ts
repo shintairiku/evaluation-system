@@ -46,6 +46,9 @@ export * from './permission';
 // Viewer visibility types
 export * from './viewer-visibility';
 
+// Core Value types
+export * from './core-value';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;

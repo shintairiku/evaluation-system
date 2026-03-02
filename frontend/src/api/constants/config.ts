@@ -244,6 +244,20 @@ export const API_ENDPOINTS = {
     RETURN: (id: string) => `/supervisor-feedbacks/${id}/return`,
   },
 
+  // Core Value endpoints
+  CORE_VALUES: {
+    DEFINITIONS: buildApiUrl('/core-values/definitions'),
+    DEFINITIONS_SEED: buildApiUrl('/core-values/definitions/seed'),
+    MY_EVALUATION: buildApiUrl('/core-values/evaluations/mine'),
+    UPDATE_EVALUATION: (id: string) => buildApiUrl(`/core-values/evaluations/${id}`),
+    SUBMIT_EVALUATION: (id: string) => buildApiUrl(`/core-values/evaluations/${id}/submit`),
+    REOPEN_EVALUATION: (id: string) => buildApiUrl(`/core-values/evaluations/${id}/reopen`),
+    SUBORDINATE_DATA: buildApiUrl('/core-values/subordinate'),
+    UPDATE_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}`),
+    SUBMIT_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}/submit`),
+    RETURN_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}/return`),
+  },
+
   // Permission management endpoints
   PERMISSIONS: {
     CATALOG: '/permissions/',

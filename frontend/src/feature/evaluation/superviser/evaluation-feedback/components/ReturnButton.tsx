@@ -15,13 +15,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { RotateCcw, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { returnSupervisorFeedbackAction } from "@/api/server-actions/supervisor-feedbacks";
+import { returnCoreValueFeedbackAction } from "@/api/server-actions/core-values";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
+import type { CoreValueFeedback } from "@/api/types";
 import type { PerformanceGoalSupervisorData } from "../display/PerformanceGoalsSupervisorEvaluation";
 import type { CompetencySupervisorData } from "../display/CompetencySupervisorEvaluation";
 
 interface ReturnButtonProps {
   performanceGoals: PerformanceGoalSupervisorData[];
   competencyGoals: CompetencySupervisorData[];
+  coreValueFeedback?: CoreValueFeedback | null;
   onReturnSuccess?: () => void;
   onRefreshData?: () => Promise<void>;
   disabled?: boolean;
@@ -31,6 +34,7 @@ interface ReturnableItem {
   feedbackId: string;
   label: string;
   category: string;
+  type: 'supervisor' | 'core-value';
 }
 
 /**
@@ -43,6 +47,7 @@ function canReturnFeedback(feedbackId?: string, feedbackStatus?: string): boolea
 export default function ReturnButton({
   performanceGoals,
   competencyGoals,
+  coreValueFeedback,
   onReturnSuccess,
   onRefreshData,
   disabled = false,
@@ -65,6 +70,7 @@ export default function ReturnButton({
           feedbackId: goal.feedbackId!,
           label: goal.specificGoal,
           category: "業績目標",
+          type: "supervisor",
         });
       }
     });
@@ -78,12 +84,23 @@ export default function ReturnButton({
           feedbackId: comp.feedbackId!,
           label: comp.name,
           category: "コンピテンシー",
+          type: "supervisor",
         });
       }
     });
 
+    // Core value feedback
+    if (coreValueFeedback && canReturnFeedback(coreValueFeedback.id, coreValueFeedback.status)) {
+      items.push({
+        feedbackId: coreValueFeedback.id,
+        label: "コアバリュー評価",
+        category: "コアバリュー",
+        type: "core-value",
+      });
+    }
+
     return items;
-  }, [performanceGoals, competencyGoals]);
+  }, [performanceGoals, competencyGoals, coreValueFeedback]);
 
   const hasReturnableItems = returnableItems.length > 0;
   const canReturn = selectedIds.size > 0 && [...selectedIds].every((id) => comments[id]?.trim());
@@ -132,11 +149,17 @@ export default function ReturnButton({
 
     try {
       const results = await Promise.all(
-        [...selectedIds].map((feedbackId) =>
-          returnSupervisorFeedbackAction(feedbackId, {
+        [...selectedIds].map((feedbackId) => {
+          const item = returnableItems.find(i => i.feedbackId === feedbackId);
+          if (item?.type === 'core-value') {
+            return returnCoreValueFeedbackAction(feedbackId, {
+              returnComment: comments[feedbackId],
+            });
+          }
+          return returnSupervisorFeedbackAction(feedbackId, {
             returnComment: comments[feedbackId],
-          })
-        )
+          });
+        })
       );
 
       const failedCount = results.filter((r) => !r.success).length;

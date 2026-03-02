@@ -6,7 +6,7 @@ import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
 import { getSubordinatesAction, getCurrentUserAction } from "@/api/server-actions/users";
 import { getSubordinatesAssessmentStatusAction } from "@/api/server-actions/self-assessments";
-import type { EvaluationPeriod, UserDetailResponse } from "@/api/types";
+import type { EvaluationPeriod, UserDetailResponse, CoreValueDefinition, CoreValueEvaluation, CoreValueFeedback } from "@/api/types";
 import {
   Select,
   SelectContent,
@@ -60,6 +60,11 @@ export default function EvaluationFeedbackDisplay() {
   // Evaluation data state - Supervisor feedback (editable)
   const [supervisorPerformanceGoals, setSupervisorPerformanceGoals] = useState<PerformanceGoalSupervisorData[]>([]);
   const [supervisorCompetencyData, setSupervisorCompetencyData] = useState<CompetencySupervisorData[]>([]);
+
+  // Core value state
+  const [coreValueDefinitions, setCoreValueDefinitions] = useState<CoreValueDefinition[]>([]);
+  const [coreValueEvaluation, setCoreValueEvaluation] = useState<CoreValueEvaluation | null>(null);
+  const [coreValueFeedback, setCoreValueFeedback] = useState<CoreValueFeedback | null>(null);
 
   const [isLoadingEvaluationData, setIsLoadingEvaluationData] = useState(false);
 
@@ -155,6 +160,9 @@ export default function EvaluationFeedbackDisplay() {
       setCompetencyData([]);
       setSupervisorPerformanceGoals([]);
       setSupervisorCompetencyData([]);
+      setCoreValueDefinitions([]);
+      setCoreValueEvaluation(null);
+      setCoreValueFeedback(null);
       return;
     }
 
@@ -167,12 +175,18 @@ export default function EvaluationFeedbackDisplay() {
       setCompetencyData(data.competencyData);
       setSupervisorPerformanceGoals(data.supervisorPerformanceGoals);
       setSupervisorCompetencyData(data.supervisorCompetencyData);
+      setCoreValueDefinitions(data.coreValueDefinitions);
+      setCoreValueEvaluation(data.coreValueEvaluation);
+      setCoreValueFeedback(data.coreValueFeedback);
     } catch (error) {
       console.error('Error fetching evaluation data:', error);
       setPerformanceGoals([]);
       setCompetencyData([]);
       setSupervisorPerformanceGoals([]);
       setSupervisorCompetencyData([]);
+      setCoreValueDefinitions([]);
+      setCoreValueEvaluation(null);
+      setCoreValueFeedback(null);
     } finally {
       setIsLoadingEvaluationData(false);
     }
@@ -197,6 +211,9 @@ export default function EvaluationFeedbackDisplay() {
       setCompetencyData(data.competencyData);
       setSupervisorPerformanceGoals(data.supervisorPerformanceGoals);
       setSupervisorCompetencyData(data.supervisorCompetencyData);
+      setCoreValueDefinitions(data.coreValueDefinitions);
+      setCoreValueEvaluation(data.coreValueEvaluation);
+      setCoreValueFeedback(data.coreValueFeedback);
     } catch (error) {
       console.error('Error refreshing evaluation data:', error);
     }
@@ -311,6 +328,7 @@ export default function EvaluationFeedbackDisplay() {
           <ReturnButton
             performanceGoals={supervisorPerformanceGoals}
             competencyGoals={supervisorCompetencyData}
+            coreValueFeedback={coreValueFeedback}
             onReturnSuccess={silentRefreshData}
             onRefreshData={silentRefreshData}
             disabled={!canEvaluate}
@@ -318,6 +336,7 @@ export default function EvaluationFeedbackDisplay() {
           <SupervisorSubmitButton
             performanceGoals={supervisorPerformanceGoals}
             competencyGoals={supervisorCompetencyData}
+            coreValueFeedback={coreValueFeedback}
             onSubmitSuccess={silentRefreshData}
             onRefreshData={silentRefreshData}
             disabled={!canEvaluate}
@@ -358,8 +377,16 @@ export default function EvaluationFeedbackDisplay() {
 
         {/* Core Value Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
-          <CoreValueSelfAssessment />
-          <CoreValueSupervisorEvaluation />
+          <CoreValueSelfAssessment
+            definitions={coreValueDefinitions}
+            evaluation={coreValueEvaluation}
+            isLoading={isLoadingEvaluationData}
+          />
+          <CoreValueSupervisorEvaluation
+            definitions={coreValueDefinitions}
+            feedback={coreValueFeedback}
+            isLoading={isLoadingEvaluationData}
+          />
         </div>
       </div>
     </div>

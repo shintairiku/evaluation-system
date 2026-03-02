@@ -13,16 +13,20 @@ import {
 import { Send, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { submitSupervisorFeedbackAction } from "@/api/server-actions/supervisor-feedbacks";
+import { submitCoreValueFeedbackAction } from "@/api/server-actions/core-values";
 import { flushSupervisorFeedbackAutoSaves } from "../hooks/useSupervisorFeedbackAutoSave";
+import { flushCoreValueFeedbackAutoSaves } from "../hooks/useCoreValueFeedbackAutoSave";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
+import type { CoreValueFeedback } from "@/api/types";
 import type { PerformanceGoalSupervisorData } from "../display/PerformanceGoalsSupervisorEvaluation";
 import type { CompetencySupervisorData } from "../display/CompetencySupervisorEvaluation";
 
 interface SupervisorSubmitButtonProps {
   performanceGoals: PerformanceGoalSupervisorData[];
   competencyGoals: CompetencySupervisorData[];
+  coreValueFeedback?: CoreValueFeedback | null;
   onSubmitSuccess?: () => void;
   /** Called before opening dialog to refresh data for accurate validation */
   onRefreshData?: () => Promise<void>;
@@ -50,6 +54,7 @@ function canSubmitCompetencyFeedback(competency: CompetencySupervisorData): bool
 export default function SupervisorSubmitButton({
   performanceGoals,
   competencyGoals,
+  coreValueFeedback,
   onSubmitSuccess,
   onRefreshData,
   disabled = false,
@@ -92,7 +97,10 @@ export default function SupervisorSubmitButton({
   const submittablePerformanceGoals = performanceGoals.filter(canSubmitPerformanceFeedback);
   const submittableCompetencyGoals = competencyGoals.filter(canSubmitCompetencyFeedback);
 
-  const hasSubmittableFeedbacks = submittablePerformanceGoals.length > 0 || submittableCompetencyGoals.length > 0;
+  // Check if core value feedback can be submitted
+  const canSubmitCoreValueFeedback = coreValueFeedback?.id && coreValueFeedback.status !== 'submitted';
+
+  const hasSubmittableFeedbacks = submittablePerformanceGoals.length > 0 || submittableCompetencyGoals.length > 0 || !!canSubmitCoreValueFeedback;
 
   // Deduplicate competency goals by feedbackId (multiple competencies share the same feedback)
   const uniqueCompetencyFeedbacks = useMemo(() => {
@@ -120,7 +128,8 @@ export default function SupervisorSubmitButton({
     })),
   ];
 
-  const canSubmit = feedbacksToSubmit.length > 0;
+  const totalToSubmit = feedbacksToSubmit.length + (canSubmitCoreValueFeedback ? 1 : 0);
+  const canSubmit = totalToSubmit > 0;
 
   const handleCancel = () => {
     if (!isSubmitting) {
@@ -133,7 +142,10 @@ export default function SupervisorSubmitButton({
   const handleButtonClick = async () => {
     setIsRefreshing(true);
     try {
-      await flushSupervisorFeedbackAutoSaves();
+      await Promise.all([
+        flushSupervisorFeedbackAutoSaves(),
+        flushCoreValueFeedbackAutoSaves(),
+      ]);
       if (onRefreshData) {
         await onRefreshData();
       }
@@ -144,22 +156,26 @@ export default function SupervisorSubmitButton({
   };
 
   const handleSubmit = async () => {
-    if (feedbacksToSubmit.length === 0) return;
+    if (totalToSubmit === 0) return;
 
     announceToScreenReader('評価の提出処理を開始します', 'assertive');
     setIsSubmitting(true);
 
     try {
-      // Submit all feedbacks with APPROVED action
-      const results = await Promise.all(
-        feedbacksToSubmit.map((feedback) =>
+      // Submit all feedbacks with APPROVED action + core value feedback
+      const submitPromises = [
+        ...feedbacksToSubmit.map((feedback) =>
           submitSupervisorFeedbackAction(feedback.feedbackId, {
             action: 'APPROVED',
             supervisorRatingCode: feedback.supervisorRatingCode,
             supervisorComment: feedback.supervisorComment,
           })
-        )
-      );
+        ),
+        ...(canSubmitCoreValueFeedback && coreValueFeedback?.id
+          ? [submitCoreValueFeedbackAction(coreValueFeedback.id, { action: 'APPROVED' })]
+          : []),
+      ];
+      const results = await Promise.all(submitPromises);
 
       const failedCount = results.filter((r) => !r.success).length;
       const successCount = results.filter((r) => r.success).length;
@@ -242,7 +258,7 @@ export default function SupervisorSubmitButton({
               aria-label="提出情報"
             >
               <p className="text-sm font-medium text-foreground">
-                提出対象: {feedbacksToSubmit.length}件の評価
+                提出対象: {totalToSubmit}件の評価
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 ※ 上長評価（評点・コメント）は任意です

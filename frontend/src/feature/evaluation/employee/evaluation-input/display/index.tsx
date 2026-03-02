@@ -8,7 +8,8 @@ import SubmitButton from "../components/SubmitButton";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
 import { fetchAndCategorizeGoals } from "./utils";
-import type { EvaluationPeriod, GoalResponse, SelfAssessment, SupervisorFeedback } from "@/api/types";
+import type { EvaluationPeriod, GoalResponse, SelfAssessment, SupervisorFeedback, CoreValueDefinition, CoreValueEvaluation } from "@/api/types";
+import { getCoreValueDefinitionsAction, getMyEvaluationAction } from "@/api/server-actions/core-values";
 
 /**
  * Combined type for display: Goal with its SelfAssessment and SupervisorFeedback
@@ -30,6 +31,10 @@ export default function EmployeeEvaluationInputDisplay() {
   const [competencyGoals, setCompetencyGoals] = useState<GoalWithAssessment[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
+  // Core value state
+  const [coreValueDefinitions, setCoreValueDefinitions] = useState<CoreValueDefinition[]>([]);
+  const [coreValueEvaluation, setCoreValueEvaluation] = useState<CoreValueEvaluation | null>(null);
+
   /**
    * Fetch goals, self-assessments, and supervisor feedbacks for the selected period
    */
@@ -38,9 +43,21 @@ export default function EmployeeEvaluationInputDisplay() {
 
     setIsLoadingData(true);
     try {
-      const { performance, competency } = await fetchAndCategorizeGoals(periodId);
-      setPerformanceGoals(performance);
-      setCompetencyGoals(competency);
+      const [goalsResult, definitionsResult, evaluationResult] = await Promise.all([
+        fetchAndCategorizeGoals(periodId),
+        getCoreValueDefinitionsAction(),
+        getMyEvaluationAction(periodId),
+      ]);
+
+      setPerformanceGoals(goalsResult.performance);
+      setCompetencyGoals(goalsResult.competency);
+
+      if (definitionsResult.success && definitionsResult.data) {
+        setCoreValueDefinitions(definitionsResult.data);
+      }
+      if (evaluationResult.success) {
+        setCoreValueEvaluation(evaluationResult.data ?? null);
+      }
     } catch (error) {
       console.error('Failed to fetch goals and assessments:', error);
     } finally {
@@ -104,9 +121,15 @@ export default function EmployeeEvaluationInputDisplay() {
     if (!selectedPeriodId) return;
 
     try {
-      const { performance, competency } = await fetchAndCategorizeGoals(selectedPeriodId);
-      setPerformanceGoals(performance);
-      setCompetencyGoals(competency);
+      const [goalsResult, evaluationResult] = await Promise.all([
+        fetchAndCategorizeGoals(selectedPeriodId),
+        getMyEvaluationAction(selectedPeriodId),
+      ]);
+      setPerformanceGoals(goalsResult.performance);
+      setCompetencyGoals(goalsResult.competency);
+      if (evaluationResult.success) {
+        setCoreValueEvaluation(evaluationResult.data ?? null);
+      }
     } catch (error) {
       console.error('Failed to refresh goals and assessments:', error);
     }
@@ -137,6 +160,8 @@ export default function EmployeeEvaluationInputDisplay() {
           <SubmitButton
             performanceGoals={performanceGoals}
             competencyGoals={competencyGoals}
+            coreValueEvaluation={coreValueEvaluation}
+            coreValueDefinitionCount={coreValueDefinitions.length}
             onSubmitSuccess={handleAssessmentUpdate}
             onRefreshData={handleSilentRefresh}
             disabled={isLoadingData}
@@ -153,7 +178,11 @@ export default function EmployeeEvaluationInputDisplay() {
             goalsWithAssessments={competencyGoals}
             isLoading={isLoadingData}
           />
-          <CoreValueEvaluate />
+          <CoreValueEvaluate
+            definitions={coreValueDefinitions}
+            evaluation={coreValueEvaluation}
+            isLoading={isLoadingData}
+          />
         </div>
       </div>
     </div>

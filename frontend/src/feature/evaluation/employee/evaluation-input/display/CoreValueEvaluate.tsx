@@ -1,21 +1,265 @@
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Users } from "lucide-react";
+"use client";
 
-export default function CoreValueEvaluate() {
+import { useState, useCallback } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Users, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, MessageSquare } from "lucide-react";
+import type {
+  CoreValueDefinition,
+  CoreValueEvaluation,
+  CoreValueRatingCode,
+} from "@/api/types";
+import { CORE_VALUE_RATING_CODES } from "@/api/types/core-value";
+import { useCoreValueEvaluationAutoSave } from "../hooks/useCoreValueEvaluationAutoSave";
+import { SaveStatusIndicator } from "./components";
+
+interface CoreValueEvaluateProps {
+  definitions: CoreValueDefinition[];
+  evaluation: CoreValueEvaluation | null;
+  returnComment?: string | null;
+  isLoading?: boolean;
+}
+
+export default function CoreValueEvaluate({
+  definitions,
+  evaluation,
+  returnComment,
+  isLoading = false,
+}: CoreValueEvaluateProps) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Local state for scores and comment
+  const [scores, setScores] = useState<Record<string, string>>(
+    evaluation?.scores ?? {}
+  );
+  const [comment, setComment] = useState<string>(evaluation?.comment ?? "");
+
+  // Auto-save hook
+  const { saveStatus, debouncedSave, save, isEditable } =
+    useCoreValueEvaluationAutoSave({
+      evaluationId: evaluation?.id,
+      initialScores: evaluation?.scores,
+      initialComment: evaluation?.comment,
+      initialStatus: evaluation?.status,
+    });
+
+  // Handle rating change (toggle - click again to deselect)
+  const handleRatingChange = useCallback(
+    (definitionId: string, rating: CoreValueRatingCode) => {
+      if (!isEditable) return;
+      const isDeselecting = scores[definitionId] === rating;
+      const newScores = { ...scores };
+      if (isDeselecting) {
+        delete newScores[definitionId];
+      } else {
+        newScores[definitionId] = rating;
+      }
+      setScores(newScores);
+      debouncedSave({ scores: newScores, comment });
+    },
+    [scores, comment, debouncedSave, isEditable]
+  );
+
+  // Handle comment change (debounced)
+  const handleCommentChange = useCallback(
+    (newComment: string) => {
+      if (!isEditable) return;
+      setComment(newComment);
+      debouncedSave({ scores, comment: newComment });
+    },
+    [scores, debouncedSave, isEditable]
+  );
+
+  // Handle comment blur (immediate save)
+  const handleCommentBlur = useCallback(() => {
+    if (!isEditable) return;
+    save({ scores, comment });
+  }, [scores, comment, save, isEditable]);
+
+  // Sort definitions by displayOrder
+  const sortedDefinitions = [...definitions].sort(
+    (a, b) => a.displayOrder - b.displayOrder
+  );
+
   return (
     <div className="max-w-3xl mx-auto py-6">
       <Card className="shadow-xl border-0 bg-white">
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-3">
+        <CardHeader className="pb-3">
+          <div className="flex items-start gap-3">
             <div className="p-2 rounded-full bg-purple-100 text-purple-700">
               <Users className="w-6 h-6" />
             </div>
-            <div>
-              <CardTitle className="text-lg font-bold tracking-tight">コアバリュー評価</CardTitle>
-              <p className="text-xs text-gray-500 mt-1">コアバリュー評価は期末のみ表示される</p>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg font-bold tracking-tight">
+                    コアバリュー評価
+                  </CardTitle>
+                  <p className="text-xs text-gray-500 mt-1">
+                    各コアバリューの実践度を評価してください
+                  </p>
+                </div>
+
+                {/* Expand/Collapse Button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="p-2 hover:bg-purple-50"
+                >
+                  {isExpanded ? (
+                    <ChevronUp className="w-5 h-5 text-gray-600" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-600" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
+
+        {isExpanded && (
+          <CardContent className="space-y-6 pt-2">
+            {/* Loading state */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+                <span className="ml-2 text-sm text-gray-500">
+                  読み込み中...
+                </span>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!isLoading && definitions.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p>コアバリュー定義がありません。</p>
+              </div>
+            )}
+
+            {!isLoading && definitions.length > 0 && (
+              <>
+                {/* Return comment alert */}
+                {returnComment && (
+                  <Alert
+                    variant="default"
+                    className="border-red-200 bg-red-50"
+                  >
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className="ml-2">
+                      <div className="space-y-2">
+                        <p className="font-semibold text-red-900 flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4" />
+                          上司からのフィードバック（差し戻し）
+                        </p>
+                        <div className="bg-white p-3 rounded border border-red-200">
+                          <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                            {returnComment}
+                          </p>
+                        </div>
+                        <p className="text-sm text-red-700 font-medium">
+                          修正して再度提出してください。
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Core value definition cards */}
+                {sortedDefinitions.map((definition) => (
+                  <div
+                    key={definition.id}
+                    className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-4 transition hover:shadow-md"
+                  >
+                    {/* Definition Header */}
+                    <div>
+                      <div className="text-lg font-bold text-purple-800">
+                        {definition.name}
+                      </div>
+                      {definition.description && (
+                        <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                          {definition.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Rating Section */}
+                    <div>
+                      <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                        評価{" "}
+                        {!scores[definition.id] && (
+                          <span className="text-red-500">*</span>
+                        )}
+                      </Label>
+
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {CORE_VALUE_RATING_CODES.map((rating) => {
+                          const isSelected =
+                            scores[definition.id] === rating;
+                          return (
+                            <div
+                              key={rating}
+                              className={`flex items-center gap-2 ${
+                                isEditable
+                                  ? "cursor-pointer"
+                                  : "cursor-not-allowed opacity-60"
+                              }`}
+                              onClick={() =>
+                                isEditable &&
+                                handleRatingChange(definition.id, rating)
+                              }
+                            >
+                              <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
+                                {isSelected && (
+                                  <div className="w-3 h-3 rounded-full bg-gray-800"></div>
+                                )}
+                              </div>
+                              <span className="text-sm text-gray-700">
+                                {rating}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Comment Section */}
+                <div className="mt-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-semibold text-gray-700">
+                      自己評価コメント
+                    </Label>
+                    <SaveStatusIndicator status={saveStatus} />
+                  </div>
+                  <Textarea
+                    value={comment}
+                    onChange={(e) => handleCommentChange(e.target.value)}
+                    onBlur={handleCommentBlur}
+                    placeholder="コアバリューの実践について記入してください..."
+                    className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-purple-200 min-h-[100px]"
+                    maxLength={5000}
+                    disabled={!isEditable}
+                  />
+                  <div className="flex justify-between items-center mt-1">
+                    <p className="text-xs text-gray-400">
+                      具体的なエピソードや取り組みを記載してください
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {comment.length} / 5000
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        )}
       </Card>
     </div>
   );
