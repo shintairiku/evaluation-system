@@ -62,9 +62,14 @@ interface UseSelfAssessmentAutoSaveReturn {
 const selfAssessmentSaveFlushers = new Set<() => Promise<void>>();
 
 export async function flushSelfAssessmentAutoSaves(): Promise<void> {
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     Array.from(selfAssessmentSaveFlushers, (flush) => flush())
   );
+
+  const failedFlushes = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (failedFlushes.length > 0) {
+    throw new Error('Failed to flush self-assessment auto-saves');
+  }
 }
 
 /**
@@ -128,6 +133,7 @@ export function useSelfAssessmentAutoSave({
   const pendingSaveRef = useRef<SelfAssessmentSaveData | null>(null);
   const debouncedDataRef = useRef<SelfAssessmentSaveData | null>(null);
   const lastSavedDataRef = useRef<SelfAssessmentSaveData>(initialData);
+  const saveStatusRef = useRef<SaveStatus>('idle');
 
   // Determine if assessment is editable (only draft status)
   const isEditable = initialStatus === 'draft' && isPeriodEditable;
@@ -141,6 +147,11 @@ export function useSelfAssessmentAutoSave({
     const commentChanged = data.selfComment?.trim() !== last.selfComment?.trim();
     const ratingDataChanged = JSON.stringify(data.ratingData) !== JSON.stringify(last.ratingData);
     return ratingCodeChanged || commentChanged || ratingDataChanged;
+  }, []);
+
+  const updateSaveStatus = useCallback((status: SaveStatus) => {
+    saveStatusRef.current = status;
+    setSaveStatus(status);
   }, []);
 
   /**
@@ -168,7 +179,7 @@ export function useSelfAssessmentAutoSave({
           continue;
         }
 
-        setSaveStatus('saving');
+        updateSaveStatus('saving');
 
         if (statusClearTimerRef.current) {
           clearTimeout(statusClearTimerRef.current);
@@ -189,17 +200,17 @@ export function useSelfAssessmentAutoSave({
             };
             lastSavedDataRef.current = normalizedData;
             setLastSavedData(normalizedData);
-            setSaveStatus('saved');
+            updateSaveStatus('saved');
             onSaveSuccess?.();
 
             statusClearTimerRef.current = setTimeout(() => {
-              setSaveStatus('idle');
+              updateSaveStatus('idle');
             }, statusClearTimeout);
           } else {
-            setSaveStatus('error');
+            updateSaveStatus('error');
           }
         } catch {
-          setSaveStatus('error');
+          updateSaveStatus('error');
         }
       }
     };
@@ -209,7 +220,7 @@ export function useSelfAssessmentAutoSave({
     });
 
     await inFlightSaveRef.current;
-  }, [assessmentId, isEditable, hasDataChanged, statusClearTimeout, onSaveSuccess]);
+  }, [assessmentId, isEditable, hasDataChanged, statusClearTimeout, onSaveSuccess, updateSaveStatus]);
 
   /**
    * Debounced save function - use for onChange events
@@ -237,6 +248,7 @@ export function useSelfAssessmentAutoSave({
 
   /**
    * Flush any pending debounced save and wait for in-flight saves to complete.
+   * Throws if the last save status was an error.
    */
   const flushPendingSave = useCallback(async () => {
     if (debounceTimerRef.current) {
@@ -253,6 +265,10 @@ export function useSelfAssessmentAutoSave({
 
     if (inFlightSaveRef.current) {
       await inFlightSaveRef.current;
+    }
+
+    if (saveStatusRef.current === 'error') {
+      throw new Error('Self-assessment auto-save failed');
     }
   }, [save]);
 
@@ -300,14 +316,14 @@ export function useSelfAssessmentAutoSave({
    */
   useEffect(() => {
     setIsInitialized(false);
-    setSaveStatus('idle');
+    updateSaveStatus('idle');
     pendingSaveRef.current = null;
     debouncedDataRef.current = null;
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-  }, [assessmentId]);
+  }, [assessmentId, updateSaveStatus]);
 
   /**
    * Register/unregister flush function for global flush before submit
