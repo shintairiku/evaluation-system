@@ -23,6 +23,7 @@ import PerformanceGoalsSelfAssessment, {
 } from "./PerformanceGoalsSelfAssessment";
 import PerformanceGoalsSupervisorEvaluation, {
   type PerformanceGoalSupervisorData,
+  calculateSupervisorOverallRating,
 } from "./PerformanceGoalsSupervisorEvaluation";
 import CompetencySelfAssessment, {
   type CompetencyDisplayData,
@@ -30,6 +31,7 @@ import CompetencySelfAssessment, {
 } from "./CompetencySelfAssessment";
 import CompetencySupervisorEvaluation, {
   type CompetencySupervisorData,
+  calculateCompetencySupervisorOverallRating,
 } from "./CompetencySupervisorEvaluation";
 import CoreValueSelfAssessment from "./CoreValueSelfAssessment";
 import CoreValueSupervisorEvaluation from "./CoreValueSupervisorEvaluation";
@@ -226,6 +228,14 @@ export default function EvaluationFeedbackDisplay() {
     () => (competencyData.length > 0 ? calculateCompetencyOverallRating(competencyData) : "−"),
     [competencyData]
   );
+  const supervisorPerformanceOverallRating = useMemo(
+    () => (supervisorPerformanceGoals.length > 0 ? calculateSupervisorOverallRating(supervisorPerformanceGoals) : "−"),
+    [supervisorPerformanceGoals]
+  );
+  const supervisorCompetencyOverallRating = useMemo(
+    () => (supervisorCompetencyData.length > 0 ? calculateCompetencySupervisorOverallRating(supervisorCompetencyData) : "−"),
+    [supervisorCompetencyData]
+  );
 
   return (
     <div className="container mx-auto p-4 md:p-6">
@@ -351,7 +361,7 @@ export default function EvaluationFeedbackDisplay() {
           />
           <PerformanceGoalsSupervisorEvaluation
             goals={supervisorPerformanceGoals}
-            overallRating={performanceOverallRating}
+            overallRating={supervisorPerformanceOverallRating}
             isLoading={isLoadingEvaluationData}
           />
         </div>
@@ -365,7 +375,7 @@ export default function EvaluationFeedbackDisplay() {
           />
           <CompetencySupervisorEvaluation
             competencies={supervisorCompetencyData}
-            overallRating={competencyOverallRating}
+            overallRating={supervisorCompetencyOverallRating}
             isLoading={isLoadingEvaluationData}
           />
         </div>
