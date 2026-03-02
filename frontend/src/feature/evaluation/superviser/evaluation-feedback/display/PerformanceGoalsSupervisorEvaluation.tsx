@@ -23,7 +23,7 @@ export interface PerformanceGoalSupervisorData {
   specificGoal: string;
   achievementCriteria: string;
   methods: string;
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
   supervisorRating?: number;
   supervisorComment: string;
 }
@@ -136,7 +136,7 @@ function PerformanceGoalSupervisorCard({
   onGoalChange: (goalId: string, updates: PerformanceGoalLiveUpdate) => void;
 }) {
   // Local state for form values
-  const [ratingCode, setRatingCode] = useState<RatingCode | undefined>(
+  const [ratingCode, setRatingCode] = useState<RatingCode | null | undefined>(
     goal.supervisorRatingCode
   );
   const [comment, setComment] = useState<string>(goal.supervisorComment || "");
@@ -161,12 +161,12 @@ function PerformanceGoalSupervisorCard({
   // Handle rating change (toggle - click again to deselect)
   const handleRatingChange = useCallback((newRating: RatingCode) => {
     if (!isEditable) return;
-    // If clicking the same rating, deselect it (send undefined to clear in DB)
+    // If clicking the same rating, deselect it (send explicit null to clear in DB)
     const isDeselecting = ratingCode === newRating;
-    const updatedRating = isDeselecting ? undefined : newRating;
+    const updatedRating: RatingCode | null = isDeselecting ? null : newRating;
     setRatingCode(updatedRating);
     onGoalChange(goal.id, {
-      supervisorRatingCode: updatedRating,
+      supervisorRatingCode: updatedRating ?? undefined,
       supervisorRating: updatedRating ? RATING_CODE_VALUES[updatedRating] : undefined,
       supervisorComment: comment,
     });
@@ -181,7 +181,7 @@ function PerformanceGoalSupervisorCard({
     if (!isEditable) return;
     setComment(newComment);
     onGoalChange(goal.id, {
-      supervisorRatingCode: ratingCode,
+      supervisorRatingCode: ratingCode ?? undefined,
       supervisorRating: ratingCode ? RATING_CODE_VALUES[ratingCode] : undefined,
       supervisorComment: newComment,
     });
