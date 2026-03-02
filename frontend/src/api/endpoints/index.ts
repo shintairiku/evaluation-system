@@ -14,3 +14,4 @@ export * from './supervisor-feedbacks';
 export * from './admin-dashboard';
 export * from './supervisor-dashboard';
 export * from './employee-dashboard';
+export * from './comprehensive-evaluation';
