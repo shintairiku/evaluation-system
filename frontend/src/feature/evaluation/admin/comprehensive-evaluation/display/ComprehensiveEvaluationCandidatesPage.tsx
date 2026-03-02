@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
+import {
+  getComprehensiveEvaluationListAction,
+  getComprehensiveEvaluationStageOptionsAction,
+} from "@/api/server-actions/comprehensive-evaluation";
+import type { ComprehensiveEvaluationRowResponse } from "@/api/types";
 import RolePermissionGuard from "@/components/auth/RolePermissionGuard";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useOptionalCurrentUserContext } from "@/context/CurrentUserContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,11 +23,9 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 
-import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow, type ComprehensiveEvaluationComputedRow } from "../logic";
+import { applyComprehensiveEvaluationManualOverride, type ComprehensiveEvaluationComputedRow } from "../logic";
 import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
-import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
 import type { ComprehensiveEvaluationManualOverride } from "../manualOverride";
-import { mockComprehensiveEvaluationRows, mockEvaluationPeriods } from "../mock";
 import type { ComprehensiveEvaluationDecision } from "../settings";
 import type { ComprehensiveEvaluationRow, EmploymentType } from "../types";
 
@@ -41,9 +45,10 @@ type ManualOverrideDraft = {
 };
 
 const DECISIONS: ComprehensiveEvaluationDecision[] = ["昇格", "降格", "対象外"];
+const COMPREHENSIVE_ROWS_PAGE_SIZE = 200;
 
-function buildSearchText(row: ComprehensiveEvaluationRow): string {
-  return [row.employeeCode, row.name, row.departmentName, row.currentStage ?? ""].join(" ").toLowerCase();
+function buildSearchText(row: ComprehensiveEvaluationRowResponse): string {
+  return [row.employeeCode, row.name, row.departmentName ?? "", row.currentStage ?? ""].join(" ").toLowerCase();
 }
 
 function getEmploymentTypeLabel(value: EmploymentType): string {
@@ -54,29 +59,74 @@ function getEmploymentTypeBadgeVariant(value: EmploymentType) {
   return value === "employee" ? "outline" : "secondary";
 }
 
-function formatNumber(value: number, digits = 2): string {
-  return value.toFixed(digits);
-}
-
-function formatDelta(value: number | null): string {
-  if (value === null) return "-";
-  if (value === 0) return "0";
-  return value > 0 ? `+${value}` : `${value}`;
-}
-
 function getDecisionBadgeVariant(decision: "昇格" | "降格" | "対象外") {
   if (decision === "昇格") return "default";
   if (decision === "降格") return "destructive";
   return "outline";
 }
 
+function toLogicRow(row: ComprehensiveEvaluationRowResponse): ComprehensiveEvaluationRow {
+  return {
+    id: row.id,
+    userId: row.userId,
+    evaluationPeriodId: row.evaluationPeriodId,
+    employeeCode: row.employeeCode,
+    name: row.name,
+    departmentName: row.departmentName ?? "",
+    employmentType: row.employmentType,
+    processingStatus: row.processingStatus,
+    performanceFinalRank: row.performanceFinalRank,
+    performanceWeightPercent: row.performanceWeightPercent,
+    performanceScore: row.performanceScore,
+    competencyFinalRank: row.competencyFinalRank,
+    competencyWeightPercent: row.competencyWeightPercent,
+    competencyScore: row.competencyScore,
+    coreValueFinalRank: row.coreValueFinalRank,
+    leaderInterviewCleared: row.leaderInterviewCleared,
+    divisionHeadPresentationCleared: row.divisionHeadPresentationCleared,
+    ceoInterviewCleared: row.ceoInterviewCleared,
+    currentStage: row.currentStage,
+    currentLevel: row.currentLevel,
+  };
+}
+
+function toManualOverride(
+  manualDecision: ComprehensiveEvaluationRowResponse["manualDecision"],
+): ComprehensiveEvaluationManualOverride | undefined {
+  if (!manualDecision) return undefined;
+
+  return {
+    decision: manualDecision.decision,
+    stageAfter: manualDecision.stageAfter ?? undefined,
+    levelAfter: manualDecision.levelAfter ?? undefined,
+    reason: manualDecision.reason,
+    appliedAt: manualDecision.appliedAt,
+  };
+}
+
 export default function ComprehensiveEvaluationCandidatesPage() {
   const { hasRole } = useUserRoles();
-  const canEdit = hasRole("admin"); // TODO: eval_adminに変更
-  const { settings } = useComprehensiveEvaluationSettings();
-  const { overridesByPeriodId, upsertOverride, clearOverride } = useComprehensiveEvaluationManualOverrides();
+  const currentUserContext = useOptionalCurrentUserContext();
+  const canEditRole = hasRole("eval_admin");
+  const { upsertOverride, clearOverride, isSaving, error: actionError } = useComprehensiveEvaluationManualOverrides();
 
-  const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(mockEvaluationPeriods[0]?.id ?? "all");
+  const [rows, setRows] = useState<ComprehensiveEvaluationRowResponse[]>([]);
+  const [isRowsLoading, setIsRowsLoading] = useState<boolean>(false);
+  const [rowsError, setRowsError] = useState<string | null>(null);
+  const latestRowsRequestId = useRef(0);
+
+  const evaluationPeriods = useMemo(
+    () =>
+      (currentUserContext?.periods?.all ?? []).map((period) => ({
+        id: period.id,
+        label: period.name,
+        status: period.status,
+      })),
+    [currentUserContext?.periods?.all],
+  );
+  const defaultPeriodId = currentUserContext?.currentPeriod?.id ?? evaluationPeriods[0]?.id ?? "all";
+
+  const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(defaultPeriodId);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedStage, setSelectedStage] = useState<string>("all");
   const [selectedEmploymentType, setSelectedEmploymentType] = useState<EmploymentType | "all">("all");
@@ -85,25 +135,158 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("all");
   const [overrideRowId, setOverrideRowId] = useState<string | null>(null);
   const [overrideDraft, setOverrideDraft] = useState<ManualOverrideDraft | null>(null);
+  const [stageOptionsFromApi, setStageOptionsFromApi] = useState<string[]>([]);
+  const [stageOptionsError, setStageOptionsError] = useState<string | null>(null);
+
+  const selectedEvaluationPeriod = useMemo(
+    () => evaluationPeriods.find((period) => period.id === evaluationPeriodId) ?? null,
+    [evaluationPeriodId, evaluationPeriods],
+  );
+  const isSelectedPeriodCompleted = selectedEvaluationPeriod?.status === "completed";
+  const isSelectedPeriodCancelled = selectedEvaluationPeriod?.status === "cancelled";
+  const canEdit = canEditRole && !isSelectedPeriodCancelled;
+
+  useEffect(() => {
+    if (evaluationPeriodId !== "all") return;
+    if (!defaultPeriodId || defaultPeriodId === "all") return;
+    setEvaluationPeriodId(defaultPeriodId);
+  }, [defaultPeriodId, evaluationPeriodId]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadStages = async () => {
+      const result = await getComprehensiveEvaluationStageOptionsAction();
+      if (!isActive) return;
+      if (!result.success || !result.data) {
+        setStageOptionsFromApi([]);
+        setStageOptionsError(result.error ?? "ステージ一覧の取得に失敗しました");
+        return;
+      }
+      setStageOptionsError(null);
+
+      const seen = new Set<string>();
+      const names: string[] = [];
+      result.data.forEach((stageName) => {
+        const name = stageName?.trim();
+        if (!name || seen.has(name)) return;
+        seen.add(name);
+        names.push(name);
+      });
+
+      setStageOptionsFromApi(names);
+    };
+
+    void loadStages();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const loadRows = useCallback(async () => {
+    const requestId = latestRowsRequestId.current + 1;
+    latestRowsRequestId.current = requestId;
+
+    if (!evaluationPeriodId || evaluationPeriodId === "all") {
+      setRows([]);
+      setRowsError(null);
+      setIsRowsLoading(false);
+      return;
+    }
+
+    setIsRowsLoading(true);
+    setRowsError(null);
+
+    const firstPageResult = await getComprehensiveEvaluationListAction({
+      periodId: evaluationPeriodId,
+      page: 1,
+      limit: COMPREHENSIVE_ROWS_PAGE_SIZE,
+    });
+
+    if (requestId !== latestRowsRequestId.current) return;
+
+    if (!firstPageResult.success || !firstPageResult.data) {
+      setRows([]);
+      setRowsError(firstPageResult.error ?? "総合評価データの取得に失敗しました");
+      setIsRowsLoading(false);
+      return;
+    }
+
+    let mergedRows = [...firstPageResult.data.rows];
+    const totalPages = firstPageResult.data.meta.pages;
+
+    if (totalPages > 1) {
+      const remainingPageResults = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, index) =>
+          getComprehensiveEvaluationListAction({
+            periodId: evaluationPeriodId,
+            page: index + 2,
+            limit: COMPREHENSIVE_ROWS_PAGE_SIZE,
+          }),
+        ),
+      );
+
+      if (requestId !== latestRowsRequestId.current) return;
+
+      const failedPageResult = remainingPageResults.find((result) => !result.success || !result.data);
+      if (failedPageResult) {
+        setRows([]);
+        setRowsError(failedPageResult.error ?? "総合評価データの取得に失敗しました");
+        setIsRowsLoading(false);
+        return;
+      }
+
+      mergedRows = [
+        ...mergedRows,
+        ...remainingPageResults.flatMap((result) => result.data?.rows ?? []),
+      ];
+    }
+
+    if (requestId !== latestRowsRequestId.current) return;
+
+    setRows(mergedRows);
+    setIsRowsLoading(false);
+  }, [evaluationPeriodId]);
+
+  useEffect(() => {
+    void loadRows();
+  }, [loadRows]);
 
   const departments = useMemo(() => {
     const unique = new Set<string>();
-    mockComprehensiveEvaluationRows.forEach((row) => unique.add(row.departmentName));
+    rows.forEach((row) => {
+      if (row.departmentName) unique.add(row.departmentName);
+    });
     return Array.from(unique).sort((a, b) => a.localeCompare(b, "ja"));
-  }, []);
+  }, [rows]);
 
-  const stages = useMemo(() => {
+  const stagesFromRows = useMemo(() => {
     const unique = new Set<string>();
-    mockComprehensiveEvaluationRows.forEach((row) => {
+    rows.forEach((row) => {
       if (row.currentStage) unique.add(row.currentStage);
     });
     return Array.from(unique).sort((a, b) => a.localeCompare(b, "ja"));
-  }, []);
+  }, [rows]);
+
+  const stagesForOverride = useMemo(() => {
+    if (stageOptionsFromApi.length === 0) return [];
+
+    const merged = [...stageOptionsFromApi];
+    const seen = new Set(merged);
+    stagesFromRows.forEach((stage) => {
+      if (seen.has(stage)) return;
+      seen.add(stage);
+      merged.push(stage);
+    });
+
+    return merged;
+  }, [stageOptionsFromApi, stagesFromRows]);
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return mockComprehensiveEvaluationRows.filter((row) => {
+    return rows.filter((row) => {
       if (evaluationPeriodId !== "all" && row.evaluationPeriodId !== evaluationPeriodId) return false;
       if (selectedDepartment !== "all" && row.departmentName !== selectedDepartment) return false;
       if (selectedStage !== "all" && row.currentStage !== selectedStage) return false;
@@ -112,16 +295,17 @@ export default function ComprehensiveEvaluationCandidatesPage() {
       if (!normalizedQuery) return true;
       return buildSearchText(row).includes(normalizedQuery);
     });
-  }, [evaluationPeriodId, searchQuery, selectedDepartment, selectedStage, selectedEmploymentType]);
+  }, [evaluationPeriodId, rows, searchQuery, selectedDepartment, selectedStage, selectedEmploymentType]);
 
-	  const computedRows = useMemo(() => {
-	    return filteredRows.map((row) => {
-	      const base = computeComprehensiveEvaluationRow(row, settings);
-	      const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
-	      const applied = applyComprehensiveEvaluationManualOverride(row, base, override);
-	      return { row, base, applied, override };
-	    });
-	  }, [filteredRows, overridesByPeriodId, settings]);
+  const computedRows = useMemo(() => {
+    return filteredRows.map((row) => {
+      const logicRow = toLogicRow(row);
+      const base = row.auto as ComprehensiveEvaluationComputedRow;
+      const applied = row.applied as ComprehensiveEvaluationComputedRow;
+      const override = toManualOverride(row.manualDecision);
+      return { row, logicRow, base, applied, override };
+    });
+  }, [filteredRows]);
 
   const selectedItem = useMemo(() => {
     if (!overrideRowId) return null;
@@ -129,20 +313,32 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   }, [computedRows, overrideRowId]);
 
   const requiresStageAfter = overrideDraft ? overrideDraft.decision !== "対象外" : false;
-  const requiresLevelAfter =
-    requiresStageAfter && selectedItem?.row.employmentType === "employee";
+  const allowsLevelAfter =
+    overrideDraft && selectedItem
+      ? overrideDraft.decision !== "対象外" && selectedItem.row.employmentType === "employee"
+      : false;
 
   const openOverrideDialog = (
-    row: ComprehensiveEvaluationRow,
+    row: ComprehensiveEvaluationRowResponse,
     base: ComprehensiveEvaluationComputedRow,
-    override: ComprehensiveEvaluationManualOverride | undefined
+    override: ComprehensiveEvaluationManualOverride | undefined,
   ) => {
     setOverrideRowId(row.id);
-    const defaultDecision = override?.decision ?? (base.promotionFlag ? "昇格" : base.demotionFlag ? "降格" : base.decision);
+    const defaultDecision =
+      override?.decision ?? (base.promotionFlag ? "昇格" : base.demotionFlag ? "降格" : base.decision);
+    const defaultLevelAfter =
+      defaultDecision !== "対象外" && row.employmentType === "employee"
+        ? typeof override?.levelAfter === "number"
+          ? String(override.levelAfter)
+          : typeof row.currentLevel === "number"
+            ? String(row.currentLevel)
+            : ""
+        : "";
+
     setOverrideDraft({
       decision: defaultDecision,
       stageAfter: typeof override?.stageAfter === "string" ? override.stageAfter : "",
-      levelAfter: typeof override?.levelAfter === "number" ? String(override.levelAfter) : "",
+      levelAfter: defaultLevelAfter,
       reason: override?.reason ?? "",
     });
   };
@@ -153,6 +349,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
     const flagged = computedRows.filter((item) => item.applied.promotionFlag || item.applied.demotionFlag).length;
     const promotionConfirmed = computedRows.filter((item) => item.override?.decision === "昇格").length;
     const demotionConfirmed = computedRows.filter((item) => item.override?.decision === "降格").length;
+
     return { flagged, promotionFlag, demotionFlag, promotionConfirmed, demotionConfirmed };
   }, [computedRows]);
 
@@ -166,6 +363,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
       if (candidateFilter === "demotion_flag" && !item.applied.demotionFlag) return false;
       if (candidateFilter === "promotion_confirmed" && item.override?.decision !== "昇格") return false;
       if (candidateFilter === "demotion_confirmed" && item.override?.decision !== "降格") return false;
+
       return true;
     });
   }, [candidateFilter, candidateOnly, computedRows]);
@@ -175,47 +373,54 @@ export default function ComprehensiveEvaluationCandidatesPage() {
     setOverrideDraft(null);
   };
 
-  const handleApplyOverride = () => {
+  const handleApplyOverride = async () => {
     if (!canEdit || !selectedItem || !overrideDraft) return;
 
-    const requiresStageAfter = overrideDraft.decision !== "対象外";
-    const requiresLevelAfter = requiresStageAfter && selectedItem.row.employmentType === "employee";
+    const localRequiresStageAfter = overrideDraft.decision !== "対象外";
+    const localAllowsLevelAfter = localRequiresStageAfter && selectedItem.row.employmentType === "employee";
 
     const stageAfter = overrideDraft.stageAfter.trim();
-    const stageAfterValid = !requiresStageAfter || stageAfter !== "";
+    const stageAfterValid = !localRequiresStageAfter || stageAfter !== "";
 
     const levelAfterInput = overrideDraft.levelAfter.trim();
     const levelAfterValue = levelAfterInput === "" ? undefined : Number(levelAfterInput);
     const levelAfterValid =
-      !requiresLevelAfter ||
-      (levelAfterInput !== "" &&
-        Number.isFinite(levelAfterValue) &&
+      levelAfterInput === "" ||
+      (Number.isFinite(levelAfterValue) &&
         Number.isInteger(levelAfterValue) &&
         (levelAfterValue as number) >= 1 &&
         (levelAfterValue as number) <= 30);
 
-    if (!stageAfterValid || !levelAfterValid) return;
+    const reason = overrideDraft.reason.trim();
 
-    upsertOverride(selectedItem.row.evaluationPeriodId, selectedItem.row.userId, {
+    if (!stageAfterValid || !levelAfterValid || !reason) return;
+
+    const result = await upsertOverride(selectedItem.row.evaluationPeriodId, selectedItem.row.userId, {
       decision: overrideDraft.decision,
-      stageAfter: requiresStageAfter ? stageAfter : undefined,
-      levelAfter:
-        requiresLevelAfter && typeof levelAfterValue === "number" ? (levelAfterValue as number) : undefined,
-      reason: overrideDraft.reason.trim() ? overrideDraft.reason.trim() : undefined,
+      stageAfter: localRequiresStageAfter ? stageAfter : undefined,
+      levelAfter: localAllowsLevelAfter && typeof levelAfterValue === "number" ? levelAfterValue : undefined,
+      reason,
       appliedAt: new Date().toISOString(),
     });
 
+    if (!result.success) return;
+
+    await loadRows();
     closeOverrideDialog();
   };
 
-  const handleClearOverride = () => {
+  const handleClearOverride = async () => {
     if (!canEdit || !selectedItem) return;
-    clearOverride(selectedItem.row.evaluationPeriodId, selectedItem.row.userId);
+
+    const result = await clearOverride(selectedItem.row.evaluationPeriodId, selectedItem.row.userId);
+    if (!result.success) return;
+
+    await loadRows();
     closeOverrideDialog();
   };
 
   const handleClearFilters = () => {
-    setEvaluationPeriodId(mockEvaluationPeriods[0]?.id ?? "all");
+    setEvaluationPeriodId(defaultPeriodId);
     setSelectedDepartment("all");
     setSelectedStage("all");
     setSelectedEmploymentType("all");
@@ -225,14 +430,27 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   };
 
   return (
-    <RolePermissionGuard requiredRole="admin" deniedMessage="このページはeval_adminのみ閲覧できます">
+    <RolePermissionGuard
+      allowedRoles={["admin", "eval_admin"]}
+      deniedMessage="このページはadminまたはeval_adminのみ閲覧できます"
+    >
       <div className="container mx-auto space-y-6 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">昇格/降格フラグ対応</h1>
             <p className="text-sm text-muted-foreground">
-              昇格フラグ（正社員の新レベルが30以上）または降格フラグ（総合評価がD）が点灯した行を起点に、`eval_admin`がステージ変更（アップ/ダウン）と反映後レベル（正社員のみ）を手動で確定します（理由は任意 / モックではブラウザ保存）。
+              昇格フラグ（正社員の新レベルが30以上）または降格フラグ（総合評価がD）が点灯した行を起点に、`eval_admin`が判定・反映後ステージ・反映後レベルを手動確定します。
             </p>
+            {isSelectedPeriodCancelled && (
+              <p className="text-sm text-destructive">
+                この評価期間はキャンセル済みのため、手動確定の編集はできません。
+              </p>
+            )}
+            {isSelectedPeriodCompleted && !isSelectedPeriodCancelled && (
+              <p className="text-sm text-muted-foreground">
+                確定済みの評価期間でも、このページでは手動確定を編集できます。
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -256,13 +474,19 @@ export default function ComprehensiveEvaluationCandidatesPage() {
               <SelectValue placeholder="評価期間" />
             </SelectTrigger>
             <SelectContent>
-              {mockEvaluationPeriods.map((period) => (
+              {evaluationPeriods.map((period) => (
                 <SelectItem key={period.id} value={period.id}>
                   {period.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+
+          {selectedEvaluationPeriod && (
+            <Badge variant={isSelectedPeriodCompleted ? "secondary" : "outline"}>
+              {isSelectedPeriodCompleted ? "確定済み" : "未確定"}
+            </Badge>
+          )}
 
           <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
             <SelectTrigger className="w-[180px]">
@@ -284,7 +508,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">すべてのステージ</SelectItem>
-              {stages.map((stage) => (
+              {stagesFromRows.map((stage) => (
                 <SelectItem key={stage} value={stage}>
                   {stage}
                 </SelectItem>
@@ -292,7 +516,10 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             </SelectContent>
           </Select>
 
-          <Select value={selectedEmploymentType} onValueChange={(value) => setSelectedEmploymentType(value as EmploymentType | "all")}>
+          <Select
+            value={selectedEmploymentType}
+            onValueChange={(value) => setSelectedEmploymentType(value as EmploymentType | "all")}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="雇用形態" />
             </SelectTrigger>
@@ -322,7 +549,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             <Switch checked={candidateOnly} onCheckedChange={setCandidateOnly} />
           </div>
 
-          <div className="relative flex-1 min-w-[260px]">
+          <div className="relative min-w-[260px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQuery}
@@ -348,7 +575,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             className="flex items-center gap-2"
             onClick={handleClearFilters}
             disabled={
-              evaluationPeriodId === (mockEvaluationPeriods[0]?.id ?? "all") &&
+              evaluationPeriodId === defaultPeriodId &&
               selectedDepartment === "all" &&
               selectedStage === "all" &&
               selectedEmploymentType === "all" &&
@@ -362,7 +589,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           </Button>
         </div>
 
-          <div className="rounded-lg border">
+        <div className="rounded-lg border">
           <div className="relative overflow-x-auto">
             <Table className="min-w-[1400px]">
               <TableHeader>
@@ -378,31 +605,38 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                   <TableHead className="whitespace-nowrap text-center">現在ステージ</TableHead>
                   <TableHead className="whitespace-nowrap text-center">反映後ステージ</TableHead>
                   <TableHead className="whitespace-nowrap text-center">現在レベル</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">レベル増減</TableHead>
-                  <TableHead className="whitespace-nowrap text-center">反映後レベル</TableHead>
-                  <TableHead className="whitespace-nowrap text-right">合計（点）</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleRows.length === 0 ? (
+                {isRowsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={14} className="h-24 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={11} className="h-24 text-center text-sm text-muted-foreground">
+                      読み込み中...
+                    </TableCell>
+                  </TableRow>
+                ) : rowsError ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="h-24 text-center text-sm text-destructive">
+                      {rowsError}
+                    </TableCell>
+                  </TableRow>
+                ) : visibleRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="h-24 text-center text-sm text-muted-foreground">
                       表示できるデータがありません
                     </TableCell>
                   </TableRow>
                 ) : (
                   visibleRows.map(({ row, base, override }) => {
-                    const isAlertLevel = base.newLevel !== null && base.newLevel >= 31;
                     const showsPromotionFlag = base.promotionFlag;
                     const showsDemotionFlag = base.demotionFlag;
                     const confirmedStageAfter = override?.stageAfter;
-                    const confirmedLevelAfter = override?.levelAfter;
 
                     return (
                       <TableRow key={row.id}>
                         <TableCell className="font-medium">{row.employeeCode}</TableCell>
                         <TableCell className="whitespace-nowrap">{row.name}</TableCell>
-                        <TableCell className="whitespace-nowrap">{row.departmentName}</TableCell>
+                        <TableCell className="whitespace-nowrap">{row.departmentName ?? "-"}</TableCell>
                         <TableCell className="text-center">
                           <Badge variant={getEmploymentTypeBadgeVariant(row.employmentType)}>
                             {getEmploymentTypeLabel(row.employmentType)}
@@ -416,9 +650,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                           <div className="flex items-center justify-center gap-2">
                             {override ? (
                               <>
-                                <Badge variant={getDecisionBadgeVariant(override.decision)}>
-                                  {override.decision}
-                                </Badge>
+                                <Badge variant={getDecisionBadgeVariant(override.decision)}>{override.decision}</Badge>
                                 <Badge variant="secondary">確定</Badge>
                               </>
                             ) : (
@@ -439,32 +671,10 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         <TableCell className="text-center">{row.currentStage ?? "-"}</TableCell>
                         <TableCell className="text-center">
                           <div className="font-medium">{confirmedStageAfter ?? "-"}</div>
-                          {showsPromotionFlag && (
-                            <div className="mt-1 text-xs font-semibold text-primary">昇格フラグ</div>
-                          )}
-                          {showsDemotionFlag && (
-                            <div className="mt-1 text-xs font-semibold text-destructive">降格フラグ</div>
-                          )}
+                          {showsPromotionFlag && <div className="mt-1 text-xs font-semibold text-primary">昇格フラグ</div>}
+                          {showsDemotionFlag && <div className="mt-1 text-xs font-semibold text-destructive">降格フラグ</div>}
                         </TableCell>
                         <TableCell className="text-center">{row.currentLevel ?? "-"}</TableCell>
-                        <TableCell className="text-center">
-                          <div className="font-medium">{formatDelta(base.levelDelta)}</div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="font-medium">
-                            {row.employmentType === "employee"
-                              ? (typeof confirmedLevelAfter === "number" ? confirmedLevelAfter : "-")
-                              : "-"}
-                          </div>
-                          {row.employmentType === "employee" && (
-                            <div className={isAlertLevel ? "mt-1 text-xs text-destructive" : "mt-1 text-xs text-muted-foreground"}>
-                              算出: {base.newLevel ?? "-"}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {base.totalScore !== null ? formatNumber(base.totalScore) : "-"}
-                        </TableCell>
                       </TableRow>
                     );
                   })
@@ -479,7 +689,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             <DialogHeader>
               <DialogTitle>手動確定（判定/反映後ステージ/反映後レベルを確定）</DialogTitle>
               <DialogDescription>
-                ルールに該当しない場合でも、必要に応じて理由を残して手動で確定できます（モックではブラウザ保存）。
+                ルールに該当しない場合でも、理由を記録して手動で確定できます。
               </DialogDescription>
             </DialogHeader>
 
@@ -494,60 +704,48 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         {selectedItem.row.employeeCode} {selectedItem.row.name}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {selectedItem.row.departmentName} / {selectedItem.row.currentStage ?? "-"}
+                        {selectedItem.row.departmentName ?? "-"} / {selectedItem.row.currentStage ?? "-"}
                       </div>
                     </div>
 
                     <Separator />
 
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2 rounded-md border p-3">
-                        <div className="text-sm font-semibold">自動判定</div>
-                        <div className="text-sm">判定: {selectedItem.base.decision}</div>
-                        <div className="text-sm">新ステージ: {selectedItem.base.newStage ?? "-"}</div>
-                        <div className="text-sm">レベル増減: {formatDelta(selectedItem.base.levelDelta)}</div>
-                        <div className="text-sm">新レベル: {selectedItem.base.newLevel ?? "-"}</div>
-                      </div>
+                    <div className="space-y-2 rounded-md border p-3">
+                      <div className="text-sm font-semibold">手動確定プレビュー</div>
+                      {(() => {
+                        const localRequiresStageAfter = overrideDraft.decision !== "対象外";
 
-                      <div className="space-y-2 rounded-md border p-3">
-                        <div className="text-sm font-semibold">手動確定プレビュー</div>
-                        {(() => {
-                          const requiresStageAfter = overrideDraft.decision !== "対象外";
-                          const requiresLevelAfter =
-                            requiresStageAfter && selectedItem.row.employmentType === "employee";
+                        const stageAfterInput = overrideDraft.stageAfter.trim();
+                        const stageAfterOverride =
+                          localRequiresStageAfter && stageAfterInput !== "" ? stageAfterInput : undefined;
 
-                          const stageAfterInput = overrideDraft.stageAfter.trim();
-                          const stageAfterOverride =
-                            requiresStageAfter && stageAfterInput !== "" ? stageAfterInput : undefined;
+                        const levelAfterInput = overrideDraft.levelAfter.trim();
+                        const levelAfterValue = levelAfterInput === "" ? undefined : Number(levelAfterInput);
+                        const levelAfterOverride =
+                          localRequiresStageAfter &&
+                          selectedItem.row.employmentType === "employee" &&
+                          levelAfterInput !== "" &&
+                          Number.isFinite(levelAfterValue) &&
+                          Number.isInteger(levelAfterValue)
+                            ? (levelAfterValue as number)
+                            : undefined;
 
-                          const levelAfterInput = overrideDraft.levelAfter.trim();
-                          const levelAfterValue = levelAfterInput === "" ? undefined : Number(levelAfterInput);
-                          const levelAfterOverride =
-                            requiresLevelAfter &&
-                            levelAfterInput !== "" &&
-                            Number.isFinite(levelAfterValue) &&
-                            Number.isInteger(levelAfterValue)
-                              ? (levelAfterValue as number)
-                              : undefined;
+                        const preview = applyComprehensiveEvaluationManualOverride(selectedItem.logicRow, selectedItem.base, {
+                          decision: overrideDraft.decision,
+                          stageAfter: stageAfterOverride,
+                          levelAfter: levelAfterOverride,
+                          reason: overrideDraft.reason,
+                          appliedAt: selectedItem.override?.appliedAt ?? new Date().toISOString(),
+                        });
 
-                          const preview = applyComprehensiveEvaluationManualOverride(selectedItem.row, selectedItem.base, {
-                            decision: overrideDraft.decision,
-                            stageAfter: stageAfterOverride,
-                            levelAfter: levelAfterOverride,
-                            reason: overrideDraft.reason,
-                            appliedAt: selectedItem.override?.appliedAt ?? new Date().toISOString(),
-                          });
-
-                          return (
-                            <>
-                              <div className="text-sm">判定: {preview.decision}</div>
-                              <div className="text-sm">反映後ステージ: {preview.newStage ?? "-"}</div>
-                              <div className="text-sm">レベル増減: {formatDelta(preview.levelDelta)}</div>
-                              <div className="text-sm">反映後レベル: {preview.newLevel ?? "-"}</div>
-                            </>
-                          );
-                        })()}
-                      </div>
+                        return (
+                          <>
+                            <div className="text-sm">判定: {preview.decision}</div>
+                            <div className="text-sm">反映後ステージ: {preview.newStage ?? "-"}</div>
+                            <div className="text-sm">反映後レベル: {preview.newLevel ?? "-"}</div>
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <Separator />
@@ -561,11 +759,20 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                             setOverrideDraft((prev) => {
                               if (!prev) return prev;
                               const decision = value as ComprehensiveEvaluationDecision;
+                              const levelAfter =
+                                decision === "対象外"
+                                  ? ""
+                                  : prev.levelAfter !== ""
+                                    ? prev.levelAfter
+                                    : selectedItem?.row.employmentType === "employee" &&
+                                        typeof selectedItem.row.currentLevel === "number"
+                                      ? String(selectedItem.row.currentLevel)
+                                      : "";
                               return {
                                 ...prev,
                                 decision,
                                 stageAfter: decision === "対象外" ? "" : prev.stageAfter,
-                                levelAfter: decision === "対象外" ? "" : prev.levelAfter,
+                                levelAfter,
                               };
                             })
                           }
@@ -590,14 +797,14 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                           onValueChange={(value) =>
                             setOverrideDraft((prev) => (prev ? { ...prev, stageAfter: value === "unset" ? "" : value } : prev))
                           }
-                          disabled={!canEdit || !requiresStageAfter}
+                          disabled={!canEdit || !requiresStageAfter || stageOptionsFromApi.length === 0}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="反映後ステージ" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unset">未指定</SelectItem>
-                            {stages.map((stage) => (
+                            {stagesForOverride.map((stage) => (
                               <SelectItem key={stage} value={stage}>
                                 {stage}
                               </SelectItem>
@@ -607,27 +814,30 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         {requiresStageAfter && overrideDraft.stageAfter.trim() === "" && (
                           <div className="text-xs text-destructive">反映後ステージを選択してください</div>
                         )}
+                        {requiresStageAfter && stageOptionsFromApi.length === 0 && stageOptionsError && (
+                          <div className="text-xs text-destructive">{stageOptionsError}</div>
+                        )}
                         {!requiresStageAfter && (
                           <div className="text-xs text-muted-foreground">判定が対象外のため入力不要です</div>
                         )}
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
-                        <Label>
-                          反映後レベル（正社員のみ{requiresLevelAfter ? "・必須" : ""}）
-                        </Label>
+                        <Label>反映後レベル（正社員のみ）</Label>
                         <Input
                           inputMode="numeric"
                           placeholder="例: 10"
                           value={overrideDraft.levelAfter}
-                          onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, levelAfter: e.target.value } : prev))}
-                          disabled={!canEdit || !requiresLevelAfter}
+                          onChange={(e) =>
+                            setOverrideDraft((prev) => (prev ? { ...prev, levelAfter: e.target.value } : prev))
+                          }
+                          disabled={!canEdit || !allowsLevelAfter}
                         />
                         {selectedItem.row.employmentType === "parttime" && (
                           <div className="text-xs text-muted-foreground">パートはレベル概念がないため未適用です</div>
                         )}
-                        {requiresLevelAfter && overrideDraft.levelAfter.trim() === "" && (
-                          <div className="text-xs text-destructive">反映後レベルを入力してください</div>
+                        {allowsLevelAfter && overrideDraft.levelAfter.trim() === "" && (
+                          <div className="text-xs text-muted-foreground">未入力の場合は現在レベルを使用します</div>
                         )}
                         {overrideDraft.levelAfter.trim() !== "" &&
                           !(Number.isFinite(Number(overrideDraft.levelAfter)) && Number.isInteger(Number(overrideDraft.levelAfter))) && (
@@ -642,13 +852,18 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
-                        <Label>理由（任意）</Label>
+                        <Label>理由（必須）</Label>
                         <Textarea
                           value={overrideDraft.reason}
-                          onChange={(e) => setOverrideDraft((prev) => (prev ? { ...prev, reason: e.target.value } : prev))}
+                          onChange={(e) =>
+                            setOverrideDraft((prev) => (prev ? { ...prev, reason: e.target.value } : prev))
+                          }
                           placeholder="例: 組織改編に伴う役割変更のため、ルール外でステージ変更を実施"
                           disabled={!canEdit}
                         />
+                        {overrideDraft.reason.trim() === "" && (
+                          <div className="text-xs text-destructive">理由を入力してください</div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -660,21 +875,23 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                   </Button>
                   <div className="flex items-center gap-2">
                     {selectedItem.override && (
-                      <Button variant="outline" onClick={handleClearOverride} disabled={!canEdit}>
+                      <Button variant="outline" onClick={() => void handleClearOverride()} disabled={!canEdit || isSaving}>
                         手動確定を解除
                       </Button>
                     )}
                     <Button
-                      onClick={handleApplyOverride}
+                      onClick={() => void handleApplyOverride()}
                       disabled={
                         !canEdit ||
+                        isSaving ||
                         (requiresStageAfter && overrideDraft.stageAfter.trim() === "") ||
-                        (requiresLevelAfter &&
-                          (overrideDraft.levelAfter.trim() === "" ||
-                            !Number.isFinite(Number(overrideDraft.levelAfter)) ||
+                        (allowsLevelAfter &&
+                          overrideDraft.levelAfter.trim() !== "" &&
+                          (!Number.isFinite(Number(overrideDraft.levelAfter)) ||
                             !Number.isInteger(Number(overrideDraft.levelAfter)) ||
                             Number(overrideDraft.levelAfter) < 1 ||
-                            Number(overrideDraft.levelAfter) > 30))
+                            Number(overrideDraft.levelAfter) > 30)) ||
+                        overrideDraft.reason.trim() === ""
                       }
                     >
                       確定
@@ -685,6 +902,8 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             )}
           </DialogContent>
         </Dialog>
+
+        {actionError && <div className="text-sm text-destructive">{actionError}</div>}
       </div>
     </RolePermissionGuard>
   );
