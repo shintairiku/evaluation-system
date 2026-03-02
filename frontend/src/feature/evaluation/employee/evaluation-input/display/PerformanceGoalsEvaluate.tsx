@@ -26,6 +26,7 @@ import { SaveStatusIndicator, SupervisorFeedbackAlert } from "./components";
 interface PerformanceGoalsEvaluateProps {
   goalsWithAssessments: GoalWithAssessment[];
   isLoading?: boolean;
+  isPeriodEditable?: boolean;
 }
 
 /**
@@ -33,8 +34,10 @@ interface PerformanceGoalsEvaluateProps {
  */
 function PerformanceGoalCard({
   goalWithAssessment,
+  isPeriodEditable = true,
 }: {
   goalWithAssessment: GoalWithAssessment;
+  isPeriodEditable?: boolean;
 }) {
   const { goal, selfAssessment } = goalWithAssessment;
 
@@ -50,6 +53,7 @@ function PerformanceGoalCard({
     initialRatingCode: selfAssessment?.selfRatingCode as RatingCode | undefined,
     initialComment: selfAssessment?.selfComment,
     initialStatus: selfAssessment?.status,
+    isPeriodEditable,
   });
 
   // Determine goal type
@@ -194,6 +198,7 @@ function PerformanceGoalCard({
 export default function PerformanceGoalsEvaluate({
   goalsWithAssessments,
   isLoading = false,
+  isPeriodEditable = true,
 }: PerformanceGoalsEvaluateProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -320,6 +325,7 @@ export default function PerformanceGoalsEvaluate({
                 <PerformanceGoalCard
                   key={item.goal.id}
                   goalWithAssessment={item}
+                  isPeriodEditable={isPeriodEditable}
                 />
               ))}
           </CardContent>
