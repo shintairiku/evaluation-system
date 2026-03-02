@@ -193,6 +193,43 @@ export async function reopenCoreValueEvaluationAction(
   }
 }
 
+// ---- Employee Feedback ----
+
+/**
+ * Server action to get my core value feedback for a period
+ */
+export const getMyFeedbackAction = cache(
+  async (
+    periodId: string,
+  ): Promise<{
+    success: boolean;
+    data?: CoreValueFeedback | null;
+    error?: string;
+  }> => {
+    try {
+      const response = await coreValuesApi.getMyFeedback(periodId);
+
+      if (!response.success) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch core value feedback',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data ?? null,
+      };
+    } catch (error) {
+      console.error('Get my core value feedback action error:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred while fetching core value feedback',
+      };
+    }
+  },
+);
+
 // ---- Supervisor ----
 
 /**

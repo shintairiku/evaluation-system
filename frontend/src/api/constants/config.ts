@@ -253,6 +253,7 @@ export const API_ENDPOINTS = {
     SUBMIT_EVALUATION: (id: string) => buildApiUrl(`/core-values/evaluations/${id}/submit`),
     REOPEN_EVALUATION: (id: string) => buildApiUrl(`/core-values/evaluations/${id}/reopen`),
     SUBORDINATE_DATA: buildApiUrl('/core-values/subordinate'),
+    MY_FEEDBACK: buildApiUrl('/core-values/feedback/mine'),
     UPDATE_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}`),
     SUBMIT_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}/submit`),
     RETURN_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}/return`),

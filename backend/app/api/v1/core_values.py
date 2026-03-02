@@ -176,8 +176,24 @@ async def get_subordinate_data(
 
 
 # ========================================
-# FEEDBACK (supervisor)
+# FEEDBACK
 # ========================================
+
+@router.get("/feedback/mine", response_model=Optional[CoreValueFeedbackResponse])
+async def get_my_feedback(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get my core value feedback for a period (employee view)."""
+    try:
+        service = CoreValueService(session)
+        return await service.get_my_feedback(context, period_id)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching core value feedback: {str(e)}")
+
 
 @router.get("/feedback/pending-count")
 async def get_pending_feedback_count(

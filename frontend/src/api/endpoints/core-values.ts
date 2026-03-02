@@ -69,6 +69,16 @@ export const coreValuesApi = {
     );
   },
 
+  // ---- Employee Feedback ----
+
+  getMyFeedback: async (
+    periodId: string,
+  ): Promise<ApiResponse<CoreValueFeedback | null>> => {
+    return httpClient.get<CoreValueFeedback | null>(
+      `${API_ENDPOINTS.CORE_VALUES.MY_FEEDBACK}?periodId=${periodId}`,
+    );
+  },
+
   // ---- Supervisor ----
 
   getSubordinateData: async (

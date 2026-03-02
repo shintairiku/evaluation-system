@@ -99,6 +99,29 @@ class CoreValueService:
 
         return CoreValueEvaluationResponse.model_validate(evaluation)
 
+    @require_any_permission([Permission.ASSESSMENT_READ_SELF, Permission.ASSESSMENT_READ_ALL])
+    async def get_my_feedback(
+        self,
+        current_user_context: AuthContext,
+        period_id: UUID
+    ) -> Optional[CoreValueFeedbackResponse]:
+        """Get the current user's core value feedback for a period."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        evaluation = await self.evaluation_repo.get_evaluation(
+            period_id, current_user_context.user_id, org_id
+        )
+        if not evaluation:
+            return None
+
+        feedback = await self.feedback_repo.get_feedback_by_evaluation(evaluation.id, org_id)
+        if not feedback:
+            return None
+
+        return CoreValueFeedbackResponse.model_validate(feedback)
+
     @require_any_permission([Permission.ASSESSMENT_MANAGE_SELF, Permission.ASSESSMENT_READ_ALL])
     async def save_evaluation(
         self,

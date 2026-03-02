@@ -1,35 +1,34 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Users, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, MessageSquare } from "lucide-react";
 import type {
   CoreValueDefinition,
   CoreValueEvaluation,
+  CoreValueFeedback,
   CoreValueRatingCode,
 } from "@/api/types";
 import { CORE_VALUE_RATING_CODES } from "@/api/types/core-value";
 import { useCoreValueEvaluationAutoSave } from "../hooks/useCoreValueEvaluationAutoSave";
-import { SaveStatusIndicator } from "./components";
+import { SaveStatusIndicator, CoreValueFeedbackAlert } from "./components";
 import { calculateCoreValueRatingAverage, scoreToFinalRating } from "@/utils/rating";
 
 interface CoreValueEvaluateProps {
   definitions: CoreValueDefinition[];
   evaluation: CoreValueEvaluation | null;
-  returnComment?: string | null;
+  feedback?: CoreValueFeedback | null;
   isLoading?: boolean;
 }
 
 export default function CoreValueEvaluate({
   definitions,
   evaluation,
-  returnComment,
+  feedback,
   isLoading = false,
 }: CoreValueEvaluateProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -39,6 +38,12 @@ export default function CoreValueEvaluate({
     evaluation?.scores ?? {}
   );
   const [comment, setComment] = useState<string>(evaluation?.comment ?? "");
+
+  // Sync local state when evaluation prop changes (async load / refresh)
+  useEffect(() => {
+    setScores(evaluation?.scores ?? {});
+    setComment(evaluation?.comment ?? "");
+  }, [evaluation]);
 
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } =
@@ -232,32 +237,6 @@ export default function CoreValueEvaluate({
                   </div>
                 </div>
 
-                {/* Return comment alert */}
-                {returnComment && (
-                  <Alert
-                    variant="default"
-                    className="border-red-200 bg-red-50"
-                  >
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                    <AlertDescription className="ml-2">
-                      <div className="space-y-2">
-                        <p className="font-semibold text-red-900 flex items-center gap-2">
-                          <MessageSquare className="h-4 w-4" />
-                          上司からのフィードバック（差し戻し）
-                        </p>
-                        <div className="bg-white p-3 rounded border border-red-200">
-                          <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                            {returnComment}
-                          </p>
-                        </div>
-                        <p className="text-sm text-red-700 font-medium">
-                          修正して再度提出してください。
-                        </p>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
                 {/* Core value definition cards */}
                 {sortedDefinitions.map((definition) => (
                   <div
@@ -344,6 +323,9 @@ export default function CoreValueEvaluate({
                     </p>
                   </div>
                 </div>
+
+                {/* Supervisor Feedback Section */}
+                <CoreValueFeedbackAlert feedback={feedback ?? null} />
               </>
             )}
           </CardContent>
