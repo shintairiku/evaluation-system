@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Users, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +17,7 @@ import type {
 import { CORE_VALUE_RATING_CODES } from "@/api/types/core-value";
 import { useCoreValueEvaluationAutoSave } from "../hooks/useCoreValueEvaluationAutoSave";
 import { SaveStatusIndicator } from "./components";
+import { calculateCoreValueRatingAverage, scoreToFinalRating } from "@/utils/rating";
 
 interface CoreValueEvaluateProps {
   definitions: CoreValueDefinition[];
@@ -85,6 +87,24 @@ export default function CoreValueEvaluate({
     (a, b) => a.displayOrder - b.displayOrder
   );
 
+  // Calculate overall rating (simple average of all 9 scores)
+  const calculateOverallRating = (): string | null => {
+    if (definitions.length === 0) return null;
+    const allRated = definitions.every((d) => scores[d.id]);
+    if (!allRated) return null;
+
+    const ratings = definitions.map(
+      (d) => scores[d.id] as CoreValueRatingCode
+    );
+    const avg = calculateCoreValueRatingAverage(ratings);
+    if (avg === null) return null;
+    return scoreToFinalRating(avg);
+  };
+
+  const overallRating = calculateOverallRating();
+  const isSubmitted =
+    evaluation?.status && evaluation.status !== "draft";
+
   return (
     <div className="max-w-3xl mx-auto py-6">
       <Card className="shadow-xl border-0 bg-white">
@@ -104,20 +124,47 @@ export default function CoreValueEvaluate({
                   </p>
                 </div>
 
-                {/* Expand/Collapse Button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="p-2 hover:bg-purple-50"
-                >
-                  {isExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-gray-600" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-gray-600" />
-                  )}
-                </Button>
+                {/* Overall Rating Display - Grade only shows after submission */}
+                <div className="flex items-center gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white cursor-help transition-colors hover:bg-gray-50">
+                          <span className="text-xs text-gray-500">総合評価</span>
+                          <div
+                            className={`text-xl font-bold ${
+                              isSubmitted && overallRating ? "text-purple-700" : "text-gray-300"
+                            }`}
+                          >
+                            {isSubmitted ? (overallRating || "−") : "−"}
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="text-xs">
+                          {isSubmitted
+                            ? "提出済みのコアバリュー評価から算出された総合評価です。"
+                            : "※提出後に総合評価が表示されます。"}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  {/* Expand/Collapse Button */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="p-2 hover:bg-purple-50"
+                  >
+                    {isExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-gray-600" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-600" />
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

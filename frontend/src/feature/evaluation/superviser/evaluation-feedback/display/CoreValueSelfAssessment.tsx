@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import type {
   CoreValueDefinition,
   CoreValueEvaluation,
+  CoreValueRatingCode,
 } from "@/api/types";
 import { CORE_VALUE_RATING_CODES } from "@/api/types/core-value";
+import { calculateCoreValueRatingAverage, scoreToFinalRating } from "@/utils/rating";
 
 interface CoreValueSelfAssessmentProps {
   definitions: CoreValueDefinition[];
@@ -33,6 +35,22 @@ export default function CoreValueSelfAssessment({
     (a, b) => a.displayOrder - b.displayOrder
   );
 
+  // Calculate overall rating from employee's scores
+  const calculateOverallRating = (): string => {
+    if (definitions.length === 0 || !evaluation?.scores) return "−";
+    const allRated = definitions.every((d) => evaluation.scores?.[d.id]);
+    if (!allRated) return "−";
+
+    const ratings = definitions.map(
+      (d) => evaluation.scores![d.id] as CoreValueRatingCode
+    );
+    const avg = calculateCoreValueRatingAverage(ratings);
+    if (avg === null) return "−";
+    return scoreToFinalRating(avg);
+  };
+
+  const displayOverallRating = calculateOverallRating();
+
   return (
     <Card className="shadow-xl border-0 bg-white">
       <CardHeader className="pb-3">
@@ -51,20 +69,30 @@ export default function CoreValueSelfAssessment({
                 </p>
               </div>
 
-              {/* Expand/Collapse Button */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="p-2 hover:bg-purple-50"
-              >
-                {isExpanded ? (
-                  <ChevronUp className="w-5 h-5 text-gray-600" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-600" />
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Overall Rating Display */}
+                <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
+                  <span className="text-xs text-gray-500">総合評価</span>
+                  <div className="text-xl font-bold text-blue-700">
+                    {displayOverallRating}
+                  </div>
+                </div>
+
+                {/* Expand/Collapse Button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="p-2 hover:bg-purple-50"
+                >
+                  {isExpanded ? (
+                    <ChevronUp className="w-5 h-5 text-gray-600" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-600" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
