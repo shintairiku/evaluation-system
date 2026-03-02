@@ -216,19 +216,16 @@ export default function CoreValueSelfAssessment({
               })}
 
               {/* Comment (read-only) */}
-              <div className="mt-5">
+              <div className="mt-6">
                 <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                   自己評価コメント
                 </Label>
-                {comment.trim() ? (
-                  <div className="bg-slate-50 border border-slate-200 rounded-md p-4">
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {comment}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400">コメントなし</p>
-                )}
+                <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 h-[100px] overflow-y-auto">
+                  {comment.trim() || <span className="text-gray-400">コメントなし</span>}
+                </div>
+                <div className="flex justify-start items-center mt-1">
+                  <p className="text-xs text-gray-400">部下による自己評価コメント</p>
+                </div>
               </div>
             </>
           )}
