@@ -25,6 +25,7 @@ export const getSupervisorFeedbacksAction = cache(
     periodId?: string;
     supervisorId?: string;
     subordinateId?: string;
+    selfOnly?: boolean;
     status?: string;
     action?: string;
     hasReturnComment?: boolean;
