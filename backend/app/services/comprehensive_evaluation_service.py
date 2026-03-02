@@ -11,6 +11,7 @@ from ..core.exceptions import BadRequestError, NotFoundError, PermissionDeniedEr
 from ..database.models.evaluation import EvaluationPeriodStatus
 from ..database.repositories.comprehensive_evaluation_repo import ComprehensiveEvaluationRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
+from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.user_repo import UserRepository
 from ..schemas.comprehensive_evaluation import (
     ComprehensiveDecision,
@@ -64,6 +65,7 @@ class ComprehensiveEvaluationService:
         self.session = session
         self.repo = ComprehensiveEvaluationRepository(session)
         self.period_repo = EvaluationPeriodRepository(session)
+        self.stage_repo = StageRepository(session)
         self.user_repo = UserRepository(session)
 
     async def get_comprehensive_evaluation(
@@ -188,7 +190,7 @@ class ComprehensiveEvaluationService:
                     stageAfter=item.get("manual_stage_after"),
                     levelAfter=item.get("manual_level_after"),
                     reason=item.get("manual_reason") or "",
-                    doubleCheckedBy=item.get("manual_double_checked_by") or "",
+                    doubleCheckedBy=item.get("manual_double_checked_by"),
                     appliedByUserId=item.get("manual_applied_by_user_id"),
                     appliedAt=item.get("manual_applied_at"),
                 )
@@ -236,6 +238,22 @@ class ComprehensiveEvaluationService:
             pages=max(1, ceil(total / limit)) if limit > 0 else 1,
         )
         return ComprehensiveEvaluationListResponse(rows=rows, meta=meta)
+
+    async def get_stage_options(self, *, context: AuthContext) -> List[str]:
+        org_id = self._require_org(context)
+        self._require_read_role(context)
+
+        stage_models = await self.stage_repo.get_all(org_id)
+        seen = set()
+        stage_names: List[str] = []
+        for stage in stage_models:
+            name = (stage.name or "").strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            stage_names.append(name)
+
+        return stage_names
 
     async def get_settings(self, *, context: AuthContext) -> ComprehensiveEvaluationSettings:
         org_id = self._require_org(context)
@@ -373,26 +391,33 @@ class ComprehensiveEvaluationService:
         self._require_write_role(context)
 
         period = await self._ensure_period_exists(payload.period_id, org_id)
-        self._ensure_period_is_mutable(period)
+        self._ensure_period_allows_manual_decision(period)
         user_profile = await self.repo.get_user_employment_profile(org_id=org_id, user_id=user_id)
         if not user_profile:
             raise NotFoundError("Target user not found in this organization")
 
         reason = payload.reason.strip()
-        double_checked_by = payload.double_checked_by.strip()
         if not reason:
             raise BadRequestError("reason is required")
-        if not double_checked_by:
-            raise BadRequestError("doubleCheckedBy is required")
+        double_checked_by = payload.double_checked_by.strip() if payload.double_checked_by else None
 
         if payload.decision != "対象外":
             if not payload.stage_after or not payload.stage_after.strip():
                 raise BadRequestError("stageAfter is required when decision is not 対象外")
-            if user_profile["employment_type"] == "employee" and payload.level_after is None:
-                raise BadRequestError("levelAfter is required for employee when decision is not 対象外")
 
         if payload.level_after is not None and (payload.level_after < 1 or payload.level_after > 30):
             raise BadRequestError("levelAfter must be between 1 and 30")
+
+        stage_after = (
+            payload.stage_after.strip()
+            if payload.decision != "対象外" and payload.stage_after
+            else None
+        )
+        level_after = (
+            payload.level_after
+            if payload.decision != "対象外" and user_profile["employment_type"] == "employee"
+            else None
+        )
 
         try:
             persisted = await self.repo.upsert_manual_decision(
@@ -400,8 +425,8 @@ class ComprehensiveEvaluationService:
                 period_id=payload.period_id,
                 user_id=user_id,
                 decision=payload.decision,
-                stage_after=payload.stage_after.strip() if payload.stage_after else None,
-                level_after=payload.level_after,
+                stage_after=stage_after,
+                level_after=level_after,
                 reason=reason,
                 double_checked_by=double_checked_by,
                 applied_by_user_id=actor_user_id,
@@ -431,7 +456,7 @@ class ComprehensiveEvaluationService:
             stageAfter=persisted.get("stage_after"),
             levelAfter=persisted.get("level_after"),
             reason=persisted.get("reason") or "",
-            doubleCheckedBy=persisted.get("double_checked_by") or "",
+            doubleCheckedBy=persisted.get("double_checked_by"),
             appliedByUserId=persisted["applied_by_user_id"],
             appliedAt=persisted["applied_at"],
         )
@@ -448,7 +473,7 @@ class ComprehensiveEvaluationService:
         self._require_write_role(context)
 
         period = await self._ensure_period_exists(period_id, org_id)
-        self._ensure_period_is_mutable(period)
+        self._ensure_period_allows_manual_decision(period)
         user_profile = await self.repo.get_user_employment_profile(org_id=org_id, user_id=user_id)
         if not user_profile:
             raise NotFoundError("Target user not found in this organization")
@@ -772,9 +797,11 @@ class ComprehensiveEvaluationService:
         if (
             decision != "対象外"
             and employment_type == "employee"
-            and manual_decision.level_after is not None
         ):
-            level_after = manual_decision.level_after
+            if manual_decision.level_after is not None:
+                level_after = manual_decision.level_after
+            elif current_level is not None:
+                level_after = current_level
 
         stage_delta = self._parse_stage_delta(current_stage, stage_after)
         if current_level is not None and level_after is not None:
@@ -852,10 +879,12 @@ class ComprehensiveEvaluationService:
             raise NotFoundError("Evaluation period not found")
         return period
 
-    def _ensure_period_is_mutable(self, period) -> None:
+    def _ensure_period_allows_manual_decision(self, period) -> None:
         status = self._get_period_status(period)
-        if status in ("completed", "cancelled"):
-            raise BadRequestError("Cannot modify this evaluation period after finalization")
+        if status == "completed":
+            raise BadRequestError("Cannot modify manual decisions after finalization")
+        if status == "cancelled":
+            raise BadRequestError("Cannot modify manual decisions for cancelled evaluation periods")
 
     def _get_period_status(self, period) -> str:
         status = getattr(period.status, "value", period.status)
