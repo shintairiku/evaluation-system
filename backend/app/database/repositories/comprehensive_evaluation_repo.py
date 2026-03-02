@@ -231,7 +231,7 @@ class ComprehensiveEvaluationRepository:
                     md.stage_after AS manual_stage_after,
                     md.level_after AS manual_level_after,
                     md.reason AS manual_reason,
-                    md.double_checked_by AS manual_double_checked_by,
+                    NULLIF(md.double_checked_by, '') AS manual_double_checked_by,
                     md.applied_by_user_id AS manual_applied_by_user_id,
                     md.applied_at AS manual_applied_at
                 FROM aggregated a
@@ -569,10 +569,14 @@ class ComprehensiveEvaluationRepository:
         stage_after: Optional[str],
         level_after: Optional[int],
         reason: str,
-        double_checked_by: str,
+        double_checked_by: Optional[str],
         applied_by_user_id: UUID,
     ) -> Dict[str, Any]:
         applied_at = datetime.now(timezone.utc)
+        # Backward compatibility:
+        # Some environments still have NOT NULL on this column.
+        # Store empty string when omitted, and normalize back to NULL on reads.
+        double_checked_by_value = (double_checked_by or "").strip()
 
         result = await self.session.execute(
             text(
@@ -622,7 +626,7 @@ class ComprehensiveEvaluationRepository:
                     stage_after,
                     level_after,
                     reason,
-                    double_checked_by,
+                    NULLIF(double_checked_by, '') AS double_checked_by,
                     applied_by_user_id,
                     applied_at
                 """
@@ -635,7 +639,7 @@ class ComprehensiveEvaluationRepository:
                 "stage_after": stage_after,
                 "level_after": level_after,
                 "reason": reason,
-                "double_checked_by": double_checked_by,
+                "double_checked_by": double_checked_by_value,
                 "applied_by_user_id": applied_by_user_id,
                 "applied_at": applied_at,
                 "created_at": applied_at,
@@ -660,7 +664,7 @@ class ComprehensiveEvaluationRepository:
                     stage_after,
                     level_after,
                     reason,
-                    double_checked_by,
+                    NULLIF(double_checked_by, '') AS double_checked_by,
                     applied_by_user_id,
                     applied_at
                 FROM comprehensive_manual_decisions
@@ -792,7 +796,7 @@ class ComprehensiveEvaluationRepository:
                     h.stage_after,
                     h.level_after,
                     h.reason,
-                    h.double_checked_by,
+                    NULLIF(h.double_checked_by, '') AS double_checked_by,
                     h.applied_by_user_id,
                     actor.name AS applied_by_user_name,
                     h.applied_at,
