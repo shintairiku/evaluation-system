@@ -407,3 +407,51 @@ async def test_finalize_period_is_idempotent_when_already_completed():
     assert result.previous_status == "completed"
     assert result.current_status == "completed"
     assert result.updated_user_levels == 0
+
+
+@pytest.mark.asyncio
+async def test_finalize_period_clamps_out_of_range_applied_levels():
+    session = AsyncMock()
+    service = ComprehensiveEvaluationService(session)
+    period_id = uuid4()
+    high_level_user_id = uuid4()
+    low_level_user_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service.get_comprehensive_evaluation = AsyncMock(
+        return_value=SimpleNamespace(
+            rows=[
+                SimpleNamespace(
+                    user_id=high_level_user_id,
+                    employment_type="employee",
+                    current_level=29,
+                    applied=SimpleNamespace(new_level=35),
+                ),
+                SimpleNamespace(
+                    user_id=low_level_user_id,
+                    employment_type="employee",
+                    current_level=2,
+                    applied=SimpleNamespace(new_level=-3),
+                ),
+            ],
+            meta=SimpleNamespace(pages=1),
+        )
+    )
+    service.user_repo.batch_update_user_levels = AsyncMock(
+        return_value={high_level_user_id, low_level_user_id}
+    )
+    service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
+
+    result = await service.finalize_evaluation_period(
+        context=make_context(role_name="eval_admin"),
+        period_id=period_id,
+    )
+
+    service.user_repo.batch_update_user_levels.assert_awaited_once_with(
+        "org_test",
+        {
+            high_level_user_id: 30,
+            low_level_user_id: 1,
+        },
+    )
+    assert result.updated_user_levels == 2
