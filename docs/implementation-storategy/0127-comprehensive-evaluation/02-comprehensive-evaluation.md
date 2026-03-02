@@ -3,388 +3,263 @@
 
 ## リビジョン履歴
 
-| バージョン | 日付 | 変更者 | 変更内容 | 承認状況 | 承認者 | 次回レビュー予定 |
-|------------|------|--------|----------|----------|--------|------------------|
-| v1.0 | 2026-01-27 | AI（Codex） | 初版作成（管理者向け総合評価テーブル要件・算出ルール・権限） | 🔄 レビュー中 | - | - |
-| v1.1 | 2026-02-04 | AI（Codex） | 昇格/降格（ステージ変更）は手動確定とし、確定時のレベル設定も手動（正社員必須）であることを明記 | 🔄 レビュー中 | - | - |
-| v1.2 | 2026-02-04 | AI（Codex） | コアバリュー表記に統一（旧: クレド） | 🔄 レビュー中 | - | - |
-| v1.3 | 2026-02-05 | AI（Codex） | 実装戦略/要件定義を整理し、ステージ/レベル/給与仕様（旧04）と監査ログ計画（旧05）を本書へ統合 | 🔄 レビュー中 | - | - |
-| - | - | - | - | - | - | - |
+| バージョン | 日付 | 変更者 | 変更内容 | 承認状況 |
+|---|---|---|---|---|
+| v1.6 | 2026-02-26 | AI（Codex） | 評価期間確定フローを追加。`eval_admin`のみ期間確定、確定時にユーザーレベル一括反映、確定後スコア編集ロック。 | 🔄 レビュー中 |
+| v1.5 | 2026-02-20 | AI（Codex） | M2+M3+M4を実装反映。`users.level` 追加、総合評価API/設定永続化/手動確定履歴、`eval_admin` ロール運用、rawスコア集計（`/10`正規化なし）に更新。 | 🔄 レビュー中 |
 
 ---
 
 ## TL;DR（結論）
 
-- 合計点 = 業績点 + コンピテンシー点（コアバリューは合計に含めない）
-- 昇格/降格フラグは固定ルールで点灯し、ステージ変更と反映後レベルは手動確定 + 監査ログ必須
-  - 昇格フラグ: 正社員のみ `新レベル >= 30`
-  - 降格フラグ: （単一の）評価期間の `総合評価 = D`
-- 判定基準（`evaluation_score_mapping`）の編集は `eval_admin` のみ（`admin` は閲覧のみ）
-- ステージ/レベル/給与（旧 `04-stage-level-compensation.md`）と監査ログ（旧 `05-stage-level-change-history.md`）は本書に統合（8章/9章）
+- `self_assessments` / `supervisor_feedback` のDBスキーマとAPIは利用中
+- M2+M3+M4として、総合評価一覧API・設定永続化・手動確定/履歴APIを実装済み
+- 本番はFrontend集約ではなく、Backendが集計済み行DTOを返す
+  - `GET /api/org/{org_slug}/evaluation/comprehensive-evaluation`
+  - 期間必須、フィルタ/検索/ページング対応
+  - N+1禁止、単一集計クエリを基本とする
+- `evaluation_score_mapping` は「個別評価コード（SS/S/A/B/C/D）→数値」の責務に固定し、総合評価用閾値は別テーブルで管理する
+- 総合評価の点数はDBのraw永続値（`self_rating` / `supervisor_rating`）を使用し、`/10` 正規化は行わない
 
 ---
 
 ## 1. 目的 / 背景
 
-従来はExcel（スプレッドシート）で作成・集計していた「総合評価シート」を、システム上で完結できる形で提供する。
+従来の総合評価シート（スプレッドシート）をシステム化し、管理者が評価期間ごとの最終判定を一画面で確認・確定できるようにする。
 
-- 業績目標（定量+定性）とコンピテンシー目標の合計点を算出し、総合評価（S/A/B/C/D等）を同一画面で確認できる
-- コアバリュー評価は合計点に加算しないが、同じ総合評価ビューに表示する
-- 総合評価結果から、昇格/降格/昇給などの判定が一目で分かる
-- 昇格/降格/昇給・レベル増減などの判定基準（マッピング）を変更できるのは`eval_admin`のみとする（`admin`は閲覧のみ）
+- 業績目標/コンピテンシーの上司評価を集計し、総合評価を算出する
+- コアバリューは合計点には含めず、同一画面で並列表示する
+- 昇格/降格フラグの検知と、`eval_admin` による手動確定を行う
 
 ---
 
 ## 2. 対象スコープ
 
-### 2.1 対象（今回の要件）
+### 2.1 対象（今回）
 
-- 単一ページでの「総合評価テーブル（一覧）」表示
-- 業績/コンピテンシーの点数合算と、総合評価の算出
-- コアバリュー評価の併記（合計点には含めない）
-- 昇格/降格/昇給・レベル増減などの結果表示
-- `eval_admin`による判定基準（`evaluation_score_mapping`）の変更
+- 管理者向け総合評価テーブル（単一ページ）
+- DB実データ（`goals` / `self_assessments` / `supervisor_feedback` / `users`）を使った集計表示
+- 総合評価判定基準の管理（`eval_admin` 編集）
+- 昇格/降格対象者の手動確定（理由・ダブルチェック者必須）
 
-### 2.2 対象外（別途検討）
+### 2.2 対象外（別途）
 
-- エクセル/CSV出力（将来拡張）
-- 評価のシミュレーション機能（将来拡張）
-- 360°評価（コアバリュー）の集計ロジック詳細（本ドキュメントでは表示要件のみ）
+- CSV/Excelエクスポート
+- 360評価の詳細集計ロジック（本書では「最終結果を表示する前提」のみ扱う）
+- 給与計算の自動反映
 
 ---
 
-## 3. ロール / 権限制御（管理者向け）
+## 3. 実装済み前提（2026-02-20時点）
 
-本機能は「管理者向け」だが、編集可能範囲を明確に分離する。
+### 3.1 DB / API 反映済み
 
-### 3.1 ロール定義（提案）
-
-| ロール（表示名） | role.name（例） | 権限概要 |
+| 領域 | 状態 | 要点 |
 |---|---|---|
-| 管理者 | `admin` | 総合評価テーブルの閲覧（本機能では判定基準の編集は不可） |
-| 評価基準アドミン | `eval_admin` | 総合評価テーブルの閲覧 + 判定基準（`evaluation_score_mapping`）の編集（昇格/降格/昇給・レベル増減の閾値変更を含む） |
+| `self_assessments` | ✅ 実装済み | `self_rating_code`, `self_rating`（組織マップ済みraw値）, `rating_data`, `status(draft/submitted/approved)` |
+| `supervisor_feedback` | ✅ 実装済み | `supervisor_rating_code`, `supervisor_rating`（組織マップ済みraw値）, `rating_data`, `action(PENDING/APPROVED)`, `status` |
+| `evaluation_score_mapping` | ✅ 実装済み | 組織別 `rating_code -> score_value`（`SS/S/A/B/C/D`） |
+| 総合評価専用API | ✅ 実装済み | `GET/PUT/DELETE /evaluation/comprehensive-evaluation*` を提供 |
+| 総合評価設定テーブル群 | ✅ 実装済み | `comprehensive_overall_rank_rules`, `comprehensive_decision_rule_groups`, `comprehensive_decision_rules` |
+| 手動確定テーブル群 | ✅ 実装済み | `comprehensive_manual_decisions`, `comprehensive_manual_decision_history`, `comprehensive_settings_audit_log` |
+| `users.level` | ✅ 実装済み | nullable + `CHECK (level IS NULL OR (level >= 1 AND level <= 30))` |
+| `eval_admin` ロール | ✅ 実装済み | 組織単位でseed、write権限を担当 |
 
-> 既存のRBACはDBの`roles`/`permissions`で運用しているため、上記ロール名は例。実運用の命名は管理画面で調整可能。
+### 3.2 現行スキーマ上の制約（重要）
 
-### 3.2 画面/操作の権限
+- `users` に `employment_type` はない
+  - 雇用形態は `roles`（例: `parttime`）から判定する
+- コアバリュー目標は評価コード入力を許可しない運用
+  - `coreValueFinalRank` は別系統の評価結果ソースが必要
+
+---
+
+## 4. ロール / 権限制御
 
 | 操作 | `admin` | `eval_admin` |
 |---|---:|---:|
 | 総合評価テーブル閲覧 | ✅ | ✅ |
-| フィルタ/検索/並び替え | ✅ | ✅ |
-| 判定基準（`evaluation_score_mapping`）の閲覧 | ✅ | ✅ |
-| 判定基準（`evaluation_score_mapping`）の作成/更新/削除 | ❌ | ✅ |
+| フィルタ/検索 | ✅ | ✅ |
+| 判定基準閲覧 | ✅ | ✅ |
+| 判定基準作成/更新/削除 | ❌ | ✅ |
+| 特例反映（手動確定） | ❌ | ✅ |
+| 評価期間確定（`completed`化 + レベル反映） | ❌ | ✅ |
 
 ---
 
-## 4. 画面要件（単一ページ）
+## 5. 算出仕様（DB実データ前提）
 
-### 4.1 画面の目的
+### 5.1 使用テーブル
 
-評価期間（または年次等の対象スコープ）を選択し、全従業員の総合評価を「スプレッドシート相当の表形式」で一覧表示する。
+- `goals`（`goal_category`, `weight`, `status`, `user_id`, `period_id`）
+- `self_assessments`（`goal_id`, `status`, `self_rating_code`, `self_rating`）
+- `supervisor_feedback`（`self_assessment_id`, `status`, `action`, `supervisor_rating_code`, `supervisor_rating`）
+- `users`, `departments`, `stages`, `user_roles`, `roles`
 
-### 4.2 想定URL（案）
+### 5.2 基本集計（合計点）
 
-- 管理者向け: `/admin-eval-list`
-  - 既存の画面命名・ルーティングに合わせて調整
+- 基本は上司評価（`supervisor_feedback.supervisor_rating`）を採用
+- `業績スコア = Σ(業績目標の supervisor_rating × goal.weight) / 100`
+- `コンピテンシースコア = Σ(コンピテンシー目標の supervisor_rating × goal.weight) / 100`
+- `合計点 = 業績スコア + コンピテンシースコア`
+- raw永続値をそのまま利用し、`/10` 正規化は行わない
 
-### 4.3 フィルタ/検索（案）
+### 5.3 総合評価ランク
 
-- 評価期間（必須）
-- 部署
-- ステージ
-- 雇用形態（社員/パート等）
-- 氏名/社員番号/メールのテキスト検索
+- `合計点` を総合評価ランク閾値テーブルで判定する
+- ランク別 `level_delta` は同ルールテーブルで管理する
+- 既存 `evaluation_score_mapping` は個別評価コードの点数化専用として使用する
 
-### 4.4 テーブル表示（添付スプレッドシート準拠）
+### 5.4 フラグ判定
 
-以下のカラムを横持ちで表示する（Excelの「総合評価」シート相当）。
+- 昇格フラグ: 正社員相当かつ `新レベル >= 30`
+- 降格フラグ: `総合評価 = D`
+- ステージ変更は自動反映しない（`eval_admin` 手動確定）
 
-#### 4.4.1 個人基本情報
+### 5.5 未確定データの扱い
 
-| カラム | 内容 |
-|---|---|
-| 社員番号 | `users.employee_code` |
-| 氏名 | `users.name` |
-| 部署 | `departments.name` |
-
-#### 4.4.2 目標達成（定量+定性 / MBO）
-
-| カラム | 内容 |
-|---|---|
-| 最終評価 | 業績目標の集計結果（評価ランク） |
-| ウェイト（%） | 100（固定。定量+定性の合計） |
-| 点数（点） | 業績目標の集計点（小数可） |
-
-#### 4.4.3 コンピテンシー
-
-| カラム | 内容 |
-|---|---|
-| 最終評価 | コンピテンシー目標の集計結果（評価ランク） |
-| ウェイト（%） | `stages.competency_weight`（デフォルト10）またはユーザー上書き |
-| 点数（点） | コンピテンシー目標の集計点（小数可） |
-
-#### 4.4.4 コアバリュー
-
-| カラム | 内容 |
-|---|---|
-| 最終評価 | コアバリュー評価の結果（評価ランク）※合計点に加算しない |
-
-#### 4.4.5 総合結果
-
-| カラム | 内容 |
-|---|---|
-| 合計（点） | 「業績点 + コンピテンシー点」の合計（コアバリューは除外） |
-| 総合評価 | 合計点を`evaluation_score_mapping`で判定した評価ランク |
-| 昇格/降格フラグ | 昇格: 正社員の`新レベル >= 30` の場合に点灯（常に）。降格: 当該評価期間の`総合評価 = D` の場合に点灯（常に） |
-| レベル増減 | `evaluation_score_mapping`に基づく（例: +8 / -8） |
-| 現在ステージ | `users.stage`（現行値） |
-| 現在レベル | 従業員の現在レベル（データソース要確認） |
-| 新レベル（31以上はアラート） | `現在レベル + レベル増減`（条件により強調表示） |
-
-> 画面上の`#N/A`相当の表現（未評価/未入力/参照不可）は、フロント側で`-`や`未確定`等に統一して表示する。
-
-補足（運用/確定）:
-- 昇格フラグは **「正社員の新レベルが30以上」の場合に常に点灯**する（判定ルールで増減しない）
-- 降格フラグは **「（単一の）評価期間における総合評価がD」の場合に常に点灯**する（年間集約は前提としない）
-- 昇格フラグ点灯者に対する `users.stage`（ステージ変更: アップ/ダウン）は **`eval_admin` が手動で判断して確定**する（自動更新しない）
-- ステージ変更を確定する場合、**反映後レベル（正社員のみ）も手動で確定**する（1〜30の範囲 / 増減入力ではなく確定値入力）
-  - 監査ログ方針: 本書「9. ステージ・レベル変更履歴（監査ログ）実装計画」
+- 必須入力不足でカテゴリ点を算出できない場合は `-` 表示
+- 合計点が `NULL` の行は `総合評価` を `未確定` 扱い
 
 ---
 
-## 5. 算出仕様（合計点・総合評価）
+## 6. モック列のDB可否（確定）
 
-### 5.1 大原則
-
-- 合計点 = 業績目標（定量+定性）の点数 + コンピテンシー目標の点数
-- コアバリュー評価は合計点に加算しない（ただし同一ビューに表示する）
-
-### 5.2 使用するデータ（想定）
-
-- `goals`（カテゴリ: 業績目標/コンピテンシー/コアバリュー、`weight`）
-- `self_assessments`（参照用）
-- `supervisor_feedback`（上司評価点 `rating` を使用。未提出は未確定扱い）
-- `users`, `departments`, `stages`
-- `evaluation_score_mapping`（「＜最終評価・点数対応表＞」と「＜総合評価・点数対応表＞」を含む。昇降格/昇給/レベル増減などの基準は主に後者に紐づく）
-
-### 5.3 点数の算出（案：スプレッドシートに合わせたスケール）
-
-#### 5.3.1 前提
-
-- 上司評価点（`supervisor_feedback.rating`）は0〜100（小数可）
-- `goals.weight`はパーセンテージ
-  - 業績目標（定量+定性）: 合計100%（提出前に100%であることをバリデーション）
-  - コンピテンシー: ステージの`competency_weight`（デフォルト10%）以内（上限チェック）
-
-#### 5.3.2 業績点（定量+定性）
-
-- `業績加重スコア(0-100) = Σ(各業績目標のrating × 各目標weight) / 100`
-- `業績点(0-10) = 業績加重スコア / 10`
-
-#### 5.3.3 コンピテンシー点
-
-- `コンピテンシー加重スコア(0-10) = Σ(各コンピテンシー目標のrating × 各目標weight) / 100`
-  - 例: weight合計が10%の場合、最大で10点相当（100×10/100）
-- `コンピテンシー点(0-1) = コンピテンシー加重スコア / 10`
-
-#### 5.3.4 合計点（コアバリュー除外）
-
-- `合計点(0-11) = 業績点 + コンピテンシー点`
-
-#### 5.3.5 丸め
-
-- 表示は小数第2位まで（例: `0.55`, `6.00`）
-- 判定（マッピング参照）の丸め方は`evaluation_score_mapping`の境界設計に合わせる（要統一）
-
-### 5.4 評価ランクの算出
-
-#### 5.4.1 業績/コンピテンシーの最終評価
-
-- 原則: 各カテゴリ点（業績点/コンピテンシー点）を評価ランクへマッピングする
-- マッピングは`evaluation_score_mapping`の「＜最終評価・点数対応表＞」を参照する
-  - 業績（0-10）とコンピテンシー（0-1）でスケールが異なるため、カテゴリ別にスコープを分けられる設計（例: `mapping_type` + `goal_category`）とする
-- コアバリューの最終評価は、既存のコアバリュー評価結果（ランク）を表示する（点数→マッピングは今回の必須要件外）
-
-#### 5.4.2 総合評価（合計点 → ランク）
-
-- `合計点`をキーに`evaluation_score_mapping`の「＜総合評価・点数対応表＞」を参照し、`総合評価`（ランク）と、昇降格/昇給/レベル増減を決定する
-
-＜総合評価・点数対応表＞（案）
-
-| 総合評価 | 点数レンジ（例） |
-|---|---|
-| SS | 6.5点以上 |
-| S | 5.5点以上 〜 6.5点未満 |
-| A+ | 4.5点以上 〜 5.5点未満 |
-| A | 3.7点以上 〜 4.5点未満 |
-| A- | 2.7点以上 〜 3.7点未満 |
-| B | 1.7点以上 〜 2.7点未満 |
-| C | 1.0点以上 〜 1.7点未満 |
-| D | 0.1点以上 〜 1.0点未満 |
-
-### 5.5 例外ルール（スプレッドシートの注記）
-
-スプレッドシート例には年次集約の例外ルールが記載されているが、本仕様では採用しない（評価期間ごとの`総合評価`をそのまま扱う）。
+| モック列 | DB取得可否 | 取得元 / 補足 |
+|---|---|---|
+| 社員番号・氏名・部署 | ✅ | `users` + `departments` |
+| 雇用形態 | ✅ | `roles.name = parttime` ならパート、それ以外は正社員扱い |
+| 現在ステージ | ✅ | `users.stage_id -> stages.name` |
+| 業績/コンピテンシー 点数 | ✅ | `goals` + `self_assessments` + `supervisor_feedback` の集計 |
+| 業績/コンピテンシー 最終評価 | ✅ | 集計点を総合評価用ルールでマッピング |
+| 合計点 / 総合評価 | ✅ | 上記集計 + 閾値マッピング |
+| 昇格/降格フラグ | ✅ | 昇格: ルールヒットかつ正社員`newLevel >= 30`、降格: 降格ルールヒット |
+| 処理状態（processed/unprocessed） | ✅ | `goals/self_assessments/supervisor_feedback` の状態から導出 |
+| コアバリュー最終評価 | ⚠️ 要別ソース | 360評価結果テーブル等が必要 |
+| 現在レベル / 新レベル | ✅ | `users.level` と `level_delta` から算出（`level`未設定時は `NULL`） |
+| 面談系フラグ（3列） | ❌ | 現行DBに項目なし（モック専用） |
 
 ---
 
-## 6. 判定基準（`evaluation_score_mapping`）の管理
+## 7. データ取得API要件（効率方針を確定）
 
-### 6.1 目的
+### 7.1 エンドポイント
 
-「合計点 → 総合評価ランク → 昇降格/昇給/レベル増減」等の判定基準を、システム上で変更可能にする。
+- `GET /api/org/{org_slug}/evaluation/comprehensive-evaluation`
 
-### 6.2 権限制御
+### 7.2 クエリパラメータ
 
-- 変更（作成/更新/削除）は`eval_admin`のみ
-- `admin`は閲覧のみ
+- 必須: `periodId`
+- 任意: `departmentId`, `stageId`, `employmentType`, `search`, `processingStatus`, `page`, `limit`
 
-### 6.3 バリデーション（必須）
+### 7.3 取得戦略（最終）
 
-- 点数レンジの重複禁止（同一スコープ内で、ある点数が複数行にマッチしない）
-- 最小値 < 最大値
-- 境界の包含ルール（`min <= score < max` など）を統一し、フロント/バックエンドで一貫させる
-- 変更履歴の保持（監査ログ）を推奨
+- **Backend単一集計クエリ**（CTE）で行DTOを作成して返す
+- Frontendは一覧表示・フィルタ入力・手動確定操作のみ担当
+- Frontendで4系統APIを横断結合する方式は禁止
 
-### 6.4 `evaluation_score_mapping`に保持する対応表（必須）
+推奨クエリ構成:
 
-現状の`evaluation_score_mapping`が「＜最終評価・点数対応表＞」のみを保持している前提の場合、本機能では以下も同一テーブルに保持できるようにする。
+1. `target_users`: 組織 + フィルタ済みユーザー集合  
+2. `target_goals`: 期間 + 対象ユーザーの目標  
+3. `joined_scores`: `goals` と `self_assessments` / `supervisor_feedback` を結合  
+4. `aggregated`: ユーザー単位にカテゴリ点・件数・状態を集計  
+5. 閾値テーブルとJOINして `overallRank` / `levelDelta` を確定  
 
-- 「＜最終評価・点数対応表＞」: 各カテゴリ（目標達成/コンピテンシー）の点数 → 最終評価（ランク）
-- 「＜総合評価・点数対応表＞」: 合計点（業績+コンピテンシー）→ 総合評価ランク → 昇格/降格/昇給・レベル増減
+### 7.4 パフォーマンス要件
 
-実装上は、`mapping_type`（例: `final_evaluation` / `overall_evaluation`）等で対応表を識別できる設計とする。
+- DBラウンドトリップ: 一覧取得は原則1回
+- N+1クエリ: 禁止
+- `limit`: デフォルト50 / 最大200
+- 必要に応じて `periodId` + フィルタ単位で短TTLキャッシュ（30〜60秒）
 
----
+### 7.5 インデックス方針
 
-## 6.5 複合条件ルール（AND/OR）の管理（将来拡張）
+既存活用:
 
-現時点の仕様では、昇格フラグは **「正社員の新レベルが30以上」で常に点灯**し、降格フラグは **「当該評価期間の総合評価がD」で常に点灯**する。ステージ変更（アップ/ダウン）の判断は `eval_admin` が **手動で確定**する。
+- `goals`: `idx_goals_user_period`
+- `self_assessments`: `idx_self_assessments_period_status`, `idx_self_assessments_goal_unique`
+- `supervisor_feedback`: `idx_supervisor_feedback_period_status`, `idx_supervisor_feedback_assessment_unique`
 
-一方で将来的に、追加の確認フラグ等を使って「ステージ変更の自動提案」や「確認項目の自動チェック」などを行いたい場合、`AND`/`OR` を含む条件式が必要になる可能性がある。
+追加推奨（集計API導入時）:
 
-そのため、拡張に備える場合は以下を満たす設計とする:
-
-- **条件式が`AND`/`OR`で表現できる**
-- ルールが複数ある場合の **優先順位（`priority`）** を持てる
-- ルール定義は`eval_admin`のみ編集可能（`admin`は閲覧のみ）
-- Backendで一貫して評価し、フロント側に判定ロジックを分散させない
-
----
-
-## 7. 受け入れ条件（Acceptance Criteria）
-
-- [ ] 単一ページで、添付スプレッドシート同等の総合評価テーブルを表示できる
-- [ ] 業績点・コンピテンシー点・合計点が要件通りに算出される（コアバリューは合計に含まれない）
-- [ ] `evaluation_score_mapping`に基づき、総合評価（ランク）と昇降格/昇給/レベル増減が表示される
-- [ ] `eval_admin`のみが判定基準を変更できる（`admin`は閲覧のみ）
-- [ ] 昇格/降格フラグ（昇格: 正社員の新レベルが30以上 / 降格: 当該評価期間の総合評価がD）が点灯し、点灯者に対して`eval_admin`がステージ変更（アップ/ダウン）と反映後レベルを手動で確定できる
-- [ ] 未評価/未入力データが存在しても画面が破綻せず、未確定であることが分かる
+- `goals(period_id, user_id, goal_category, status)`
+- `self_assessments(period_id, goal_id, status)`
+- `supervisor_feedback(period_id, self_assessment_id, status, action)`
 
 ---
 
-## 8. ステージ・レベル・給与（基本給/時給）仕様（総合評価連携）
+## 8. 判定基準管理（整理）
 
-目的: 総合評価（業績目標 + コンピテンシー）の結果で決まる **レベル増減（正社員）** を、給与改定（基本給/時給）に接続できるようにする。
+### 8.1 現行テーブルの責務
 
-### 8.1 確定ルール
+- `evaluation_score_mapping`:
+  - 目的: `rating_code -> score_value`
+  - 対象: 個別目標評価（`self_assessments` / `supervisor_feedback`）
+  - 維持方針: 現行責務のまま運用
 
-- ステージ（グレード）は **正社員・パートタイム共通**
-- ステージ変更（昇格/降格等）は総合評価から **自動反映しない**（`eval_admin` が手動確定）
-- レベルは **正社員のみ** が持つ（1〜30）。パートタイムはレベルなし（`NULL`/非表示）
+### 8.2 総合評価ルール（新規）
 
-### 8.2 正社員（基本給）
+総合評価ページ用に別テーブルを追加する。
 
-- レベル増減は `evaluation_score_mapping`（「＜総合評価・点数対応表＞」）に従う（`eval_admin` が変更可能）
-- 新レベル = 現在レベル + レベル増減
-- 新レベルが範囲外（`<= 0` / `>= 31`）の場合:
-  - 管理者テーブル上はアラート表示
-  - 給与の自動算出は未確定（`null`）扱いとし、手動確認が必要な状態にする
+例:
 
-基本給算出（提案）:
-- ステージごとに `base_salary_level1_yen`（レベル1基本給）と `per_level_increment_yen`（レベルあたり増額）を保持
-- `base_salary_yen = base_salary_level1_yen(stage) + (level - 1) * per_level_increment_yen(stage)`
+- `comprehensive_overall_rank_rules`
+  - `organization_id`, `min_score`, `max_score`, `overall_rank`, `level_delta`, `display_order`, `is_active`
 
-### 8.3 パートタイム（時給）
+将来拡張:
 
-- 時給はステージごとの `hourly_wage_yen(stage)` を参照する
-- パートタイムはレベルの概念がないため、総合評価テーブル上のレベル関連（現在レベル/レベル増減/新レベル）は `-` 表示とする
+- `comprehensive_decision_rules`
+  - `AND/OR` 条件式、優先順位、適用範囲
 
-### 8.4 データモデル案（提案）
+### 8.3 バリデーション
 
-- 方式A: `stages` に給与項目を追加（シンプルだが正社員/パートで `NULL` が増える）
-- 方式B（推奨）: 給与マスタを分離（例: `stage_compensation_rules`）
-  - `stage_id`, `employment_type`（`employee`/`part_time`）
-  - 正社員: `level_min`, `level_max`, `base_salary_level1_yen`, `per_level_increment_yen`
-  - パート: `hourly_wage_yen`
+- 同一組織内の点数レンジ重複禁止
+- 境界ルール統一（例: `min <= score < max`）
+- 変更は `eval_admin` のみ
+- 変更履歴を監査ログとして保持
 
 ---
 
-## 9. ステージ・レベル変更履歴（監査ログ）実装計画（Backend/DB）
+## 9. 特例反映（手動確定）/ 監査ログ
 
-目的: 昇格/降格フラグ点灯者への「特例反映（手動確定）」を含め、ステージ/レベルの変更を **必ず監査ログとして永続化** する。
+### 9.1 要件
 
-### 9.1 監査ログの基本方針（必須）
+- 昇格/降格対象に対して `eval_admin` が手動確定
+- 必須入力: 判定、理由、ダブルチェック者
+- 正社員は反映後レベルを確定（判定が`対象外`以外のとき必須）
 
-- append-only（原則UPDATE/DELETEしない）
-- 「ユーザー現在値の更新」と「履歴INSERT」を同一トランザクションで行う
-- ステージ/レベル更新は“必ず履歴を残す”専用のサービス/APIを経由する（直UPDATEを避ける）
+### 9.2 実装方針
 
-### 9.2 データモデル案（提案）
-
-- `users.stage_id`（既存）を利用
-- `users.level`（正社員のみ `1..30`、パートは `NULL`）を追加
-  - DB制約例: `CHECK (level IS NULL OR (level BETWEEN 1 AND 30))`
-
-履歴テーブル例: `comprehensive_evaluation_stage_level_history`
-- `id`（UUID）, `organization_id`, `evaluation_period_id`
-- `user_id`（対象）, `actor_user_id`（更新者）
-- `double_checked_by`（必須）, `reason`（必須）, `changed_at`
-- `stage_id_before`, `stage_id_after`, `level_before`, `level_after`
-
-索引例:
-- `(organization_id, user_id, changed_at DESC)`
-- `(organization_id, evaluation_period_id, changed_at DESC)`
-
-### 9.3 API/サービス（案）
-
-変更API例:
-- `POST /api/org/{org_slug}/comprehensive-evaluation/users/{user_id}/stage-level`
-  - 入力: `evaluationPeriodId`, `stageIdAfter`, `levelAfter`（nullable）, `reason`, `doubleCheckedBy`
-  - 認可: `eval_admin` のみ
-  - バリデーション:
-    - パートタイムは `levelAfter = NULL` を強制
-    - ステージ変更を確定する場合、正社員は `levelAfter` 必須（1〜30の範囲）
-
-履歴取得API例:
-- `GET /api/org/{org_slug}/comprehensive-evaluation/users/{user_id}/stage-level-history?evaluationPeriodId=...&limit=20`
-
-### 9.4 ロールアウト（実行順）
-
-1) DB migration（`users.level` + 履歴テーブル + index）
-2) Backend API/Service 実装（履歴必須の更新経路を用意）
-3) フロントの保存先を localStorage → API に切替
-4) （必要なら）監査UI（履歴表示）の追加
+- ローカル保存（現行）を廃止しDB永続化へ移行
+- 更新と履歴挿入を同一トランザクションで実施
+- append-only履歴テーブルを採用
 
 ---
 
-## 10. 未決定事項 / 要確認
+## 10. 受け入れ条件（Acceptance Criteria）
 
-- `evaluation_score_mapping`の実際のスキーマ（点数レンジ、評価ランク、昇給/昇降格、レベル増減の保持形式）
-  - 「＜最終評価・点数対応表＞」と「＜総合評価・点数対応表＞」を識別するカラム（例: `mapping_type`）の有無
-- 「現在レベル」「レベル増減」「新レベル」のデータソース（`users`に存在しない場合は追加方針）
-- ステージ/給与マスタの具体値（正社員: `base_salary_level1_yen`/`per_level_increment_yen`、パート: `hourly_wage_yen`）と保持場所
-- 昇格/降格などの複合条件ルール（`AND`/`OR`）の表現方式（JSONツリー / OR-of-AND等）と、優先順位・競合解決の仕様
-  - 正社員: ステージ内レベル（1〜30）と、ステージ別「レベルあたり増額」（例: ステージ1=2,000円/レベル、ステージ2=3,000円/レベル）
-  - パートタイム: レベルなし、ステージに紐づく時給
-- コアバリュー評価の「最終評価」データの取得方法（360評価の実装状況に依存）
+- [x] `/admin-eval-list` がモックではなく総合評価APIから表示される
+- [x] 合計点/総合評価がDBデータで算出される（raw永続値、`/10`正規化なし）
+- [x] モック列の不足項目は仕様通りに `-` / `未確定` 表示される
+- [x] `admin` は閲覧のみ、`eval_admin` は判定基準編集可能
+- [x] 一覧取得が単一集計クエリで動作し、N+1が発生しない
+- [x] 特例反映がAPI経由で永続化され、監査ログを追跡できる
+- [x] `eval_admin`のみ評価期間を確定でき、確定時に全ユーザーのレベルが反映される
+- [x] 評価期間確定後、スコア変更系操作（自己評価/上司評価）は拒否される
 
 ---
 
-## 11. 関連資料
+## 11. 未決定事項 / 要確認
+
+- コアバリュー最終評価の正式データソース（360評価結果）をどこに置くか
+- ステージ・レベル・給与連携の確定仕様
+- 面談系フラグを総合評価対象に含めるか（含めるならDB設計が必要）
+
+---
+
+## 12. 関連資料
 
 - 実装戦略 / 実行計画: `docs/implementation-storategy/0127-comprehensive-evaluation/01-comprehensive-evaluation-strategy.md`
-- フロントモックまとめ（ステークホルダー確認用）: `docs/implementation-storategy/0127-comprehensive-evaluation/03-frontend-mock-summary.md`
-- 機能一覧: `docs/requirement-definition/04-feature/01-feature-list.md`（F404 総合評価算出）
-- 参考（議事録）: `docs/requirement-definition/06-reference/external-meeting/0602.md`
+- フロントモックまとめ: `docs/implementation-storategy/0127-comprehensive-evaluation/03-frontend-mock-summary.md`
+- 機能一覧: `docs/requirement-definition/04-feature/01-feature-list.md`
