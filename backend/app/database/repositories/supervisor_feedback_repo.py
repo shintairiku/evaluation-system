@@ -539,7 +539,8 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
     ) -> Optional[SupervisorFeedback]:
         """
         Submit supervisor feedback with approval.
-        Sets action=APPROVED, status=submitted, reviewed_at=now.
+        Sets action from submit payload and status=submitted.
+        reviewed_at is set only for APPROVED action.
         Rating and comment are optional.
         """
         try:
@@ -553,11 +554,12 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
             now = datetime.now(timezone.utc)
 
             # Build update dictionary
+            action_value = submit_data.action.value
             update_data = {
-                "action": SupervisorAction.APPROVED.value,
+                "action": action_value,
                 "status": SubmissionStatus.SUBMITTED.value,
                 "submitted_at": now,
-                "reviewed_at": now,
+                "reviewed_at": now if action_value == SupervisorAction.APPROVED.value else None,
                 "updated_at": now
             }
 
@@ -590,7 +592,7 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
                 .values(**update_data)
             )
 
-            logger.info(f"Submitted and approved supervisor feedback {feedback_id}")
+            logger.info(f"Submitted supervisor feedback {feedback_id} with action={action_value}")
             return await self.get_by_id(feedback_id, org_id)
 
         except SQLAlchemyError as e:
