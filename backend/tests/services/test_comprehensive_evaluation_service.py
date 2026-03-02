@@ -234,6 +234,25 @@ def test_require_write_role_denies_non_eval_admin():
 
 
 @pytest.mark.asyncio
+async def test_get_comprehensive_evaluation_candidate_view_denies_admin():
+    service = ComprehensiveEvaluationService(AsyncMock())
+
+    with pytest.raises(PermissionDeniedError, match="eval_admin"):
+        await service.get_comprehensive_evaluation(
+            context=make_context(role_name="admin"),
+            period_id=uuid4(),
+            department_id=None,
+            stage_id=None,
+            employment_type=None,
+            search=None,
+            processing_status=None,
+            page=1,
+            limit=200,
+            candidate_view=True,
+        )
+
+
+@pytest.mark.asyncio
 async def test_category_rank_uses_raw_score_not_weighted_contribution():
     service = ComprehensiveEvaluationService(AsyncMock())
     settings = build_settings()
