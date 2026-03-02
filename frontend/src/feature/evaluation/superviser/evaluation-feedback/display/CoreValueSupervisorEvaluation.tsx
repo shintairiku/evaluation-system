@@ -171,6 +171,47 @@ export default function CoreValueSupervisorEvaluation({
 
           {!isLoading && feedback && (
             <>
+              {/* Rating Criteria Legend */}
+              <div className="sticky top-4 z-10 bg-white pb-4 pt-10 -mt-8 border-b border-gray-200 mb-2">
+                <div className="text-xs text-gray-500 space-y-0.5">
+                  <div className="py-1 px-2">
+                    <span className="font-semibold">SS</span>
+                    <span className="mx-1">：</span>
+                    <span>全スタッフの上位３%以内に位置する。全社へ影響を与える卓越したレベル。</span>
+                  </div>
+                  <div className="py-1 px-2">
+                    <span className="font-semibold">S</span>
+                    <span className="mx-1">：</span>
+                    <span>上位10%以内の望ましい行動レベルで、拠点を超えた影響を及ぼしている。</span>
+                  </div>
+                  <div className="py-1 px-2">
+                    <span className="font-semibold">A+</span>
+                    <span className="mx-1">：</span>
+                    <span>上位20%以内の良好な行動レベルで、部門を超えた影響を持っている。</span>
+                  </div>
+                  <div className="py-1 px-2">
+                    <span className="font-semibold">A</span>
+                    <span className="mx-1">：</span>
+                    <span>上位30%以内であり、部門内でのポジティブな影響が見られる。</span>
+                  </div>
+                  <div className="py-1 px-2">
+                    <span className="font-semibold">A-</span>
+                    <span className="mx-1">：</span>
+                    <span>30％〜70%のレンジに位置し、個人レベルでの成果は認められる。自身からの積極的な影響に期待。</span>
+                  </div>
+                  <div className="py-1 px-2">
+                    <span className="font-semibold">B</span>
+                    <span className="mx-1">：</span>
+                    <span>下位30%のレベルで、他人からの影響を受けている状態。</span>
+                  </div>
+                  <div className="py-1 px-2">
+                    <span className="font-semibold">C</span>
+                    <span className="mx-1">：</span>
+                    <span>下位10%以下に位置し、他人へのマイナスの影響を与えることがあるなど、早急な改善が必要。</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Core value definition cards (editable) */}
               {sortedDefinitions.map((definition) => (
                 <div
