@@ -121,7 +121,7 @@ class ComprehensiveManualDecision(Base):
     stage_after = Column(Text, nullable=True)
     level_after = Column(Integer, nullable=True)
     reason = Column(Text, nullable=False)
-    double_checked_by = Column(Text, nullable=False)
+    double_checked_by = Column(Text, nullable=True)
     applied_by_user_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     applied_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
