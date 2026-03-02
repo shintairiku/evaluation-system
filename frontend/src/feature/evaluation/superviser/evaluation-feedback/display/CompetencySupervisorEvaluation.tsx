@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Target, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, CompetencyRatingData, SupervisorFeedbackStatus } from "@/api/types";
 import { QUALITATIVE_RATING_CODES } from "@/api/types/common";
-import { calculateAverageRatingCode } from "@/utils/rating";
+import { calculateAverageRatingCode, calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
 // Display data structure for competency action item
@@ -28,6 +28,8 @@ export interface CompetencyActionSupervisorItem {
 export interface CompetencySupervisorData {
   competencyId: string;
   goalId: string;
+  goalWeight: number;
+  goalSupervisorRating?: number;
   selfAssessmentId: string;
   feedbackId?: string;
   feedbackStatus?: SupervisorFeedbackStatus;
@@ -98,6 +100,8 @@ export function transformCompetencyGoalsForSupervisor(
       result.push({
         competencyId,
         goalId: goal.id,
+        goalWeight: goal.weight,
+        goalSupervisorRating: feedback?.supervisorRating,
         selfAssessmentId: assessment?.id || '',
         feedbackId: feedback?.id,
         feedbackStatus: feedback?.status,
@@ -115,13 +119,52 @@ export function transformCompetencyGoalsForSupervisor(
   return result;
 }
 
-// NOTE: Overall rating is not shown during supervisor evaluation.
-// Rating will only be displayed after all self-assessments are approved,
-// and will be based on the subordinate's self-rating, not the supervisor's.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function calculateCompetencySupervisorOverallRating(competencies: CompetencySupervisorData[]): string {
-  // Always return '−' during evaluation - rating is shown after approval
-  return '−';
+  const goals = new Map<string, { weight: number; goalScore?: number; ratings: RatingCode[] }>();
+
+  for (const competency of competencies) {
+    const existing = goals.get(competency.goalId);
+    if (!existing) {
+      goals.set(competency.goalId, {
+        weight: competency.goalWeight || 0,
+        goalScore:
+          typeof competency.goalSupervisorRating === "number" && Number.isFinite(competency.goalSupervisorRating)
+            ? competency.goalSupervisorRating
+            : undefined,
+        ratings: [],
+      });
+    } else if (existing.goalScore === undefined) {
+      if (
+        typeof competency.goalSupervisorRating === "number" &&
+        Number.isFinite(competency.goalSupervisorRating)
+      ) {
+        existing.goalScore = competency.goalSupervisorRating;
+      }
+    }
+
+    const goal = goals.get(competency.goalId);
+    if (!goal) continue;
+    const actionRatings = competency.ratingData[competency.competencyId];
+    if (!actionRatings) continue;
+    Object.values(actionRatings).forEach((rating) => {
+      if (rating) {
+        goal.ratings.push(rating as RatingCode);
+      }
+    });
+  }
+
+  let totalWeight = 0;
+  let weightedSum = 0;
+  for (const goal of goals.values()) {
+    if (!goal.weight || goal.weight <= 0) continue;
+    const goalScore = goal.goalScore ?? calculateRatingAverage(goal.ratings);
+    if (goalScore === null || goalScore === undefined) continue;
+    weightedSum += goalScore * goal.weight;
+    totalWeight += goal.weight;
+  }
+
+  if (totalWeight === 0) return "−";
+  return scoreToFinalRating(weightedSum / totalWeight);
 }
 
 /**
@@ -165,6 +208,14 @@ function CompetencyItemCard({
   isEditable: boolean;
 }) {
   const [items, setItems] = useState(competency.items);
+  const competencyRating = useMemo(
+    () => calculateAverageRatingCode(items.map(i => i.rating).filter(Boolean) as RatingCode[]),
+    [items]
+  );
+
+  useEffect(() => {
+    setItems(competency.items);
+  }, [competency.items]);
 
   // Handle rating change (toggle - click again to deselect)
   const handleRatingChange = useCallback((actionIndex: string, rating: RatingCode) => {
@@ -195,11 +246,11 @@ function CompetencyItemCard({
           )}
         </div>
 
-        {/* Individual Competency Rating Display - Always show '−' during evaluation */}
+        {/* Individual Competency Rating Display */}
         <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
           <span className="text-xs text-gray-500">評価</span>
-          <div className="text-xl font-bold text-gray-300">
-            −
+          <div className={`text-xl font-bold ${competencyRating !== '−' ? 'text-green-700' : 'text-gray-300'}`}>
+            {competencyRating}
           </div>
         </div>
       </div>
