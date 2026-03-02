@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.core_value import CoreValueFeedback, CoreValueEvaluation
 from ..models.user import User
 from ...core.exceptions import NotFoundError, ConflictError, ValidationError
+from ...schemas.common import SubmissionStatus
+from ...schemas.core_value import CoreValueFeedbackAction
 from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -72,7 +74,7 @@ class CoreValueFeedbackRepository(BaseRepository[CoreValueFeedback]):
                 .filter(
                     CoreValueFeedback.period_id == period_id,
                     CoreValueFeedback.supervisor_id == supervisor_id,
-                    CoreValueFeedback.action == "PENDING",
+                    CoreValueFeedback.action == CoreValueFeedbackAction.PENDING.value,
                     CoreValueFeedback.return_comment.is_(None),
                     User.clerk_organization_id == org_id
                 )
@@ -102,8 +104,8 @@ class CoreValueFeedbackRepository(BaseRepository[CoreValueFeedback]):
                 period_id=period_id,
                 supervisor_id=supervisor_id,
                 subordinate_id=subordinate_id,
-                action="PENDING",
-                status="incomplete"
+                action=CoreValueFeedbackAction.PENDING.value,
+                status=SubmissionStatus.INCOMPLETE.value
             )
             self.session.add(feedback)
             await self.session.flush()
@@ -126,7 +128,7 @@ class CoreValueFeedbackRepository(BaseRepository[CoreValueFeedback]):
         try:
             existing = await self._validate_exists(feedback_id, org_id)
 
-            if existing.status == "submitted":
+            if existing.status == SubmissionStatus.SUBMITTED.value:
                 raise ValidationError("Cannot update submitted feedback")
 
             update_data = {"updated_at": datetime.now(timezone.utc)}
@@ -136,8 +138,8 @@ class CoreValueFeedbackRepository(BaseRepository[CoreValueFeedback]):
                 update_data["comment"] = data["comment"]
 
             # Transition incomplete → draft on first edit
-            if existing.status == "incomplete":
-                update_data["status"] = "draft"
+            if existing.status == SubmissionStatus.INCOMPLETE.value:
+                update_data["status"] = SubmissionStatus.DRAFT.value
 
             await self.session.execute(
                 update(CoreValueFeedback)
@@ -157,13 +159,13 @@ class CoreValueFeedbackRepository(BaseRepository[CoreValueFeedback]):
         try:
             existing = await self._validate_exists(feedback_id, org_id)
 
-            if existing.status == "submitted":
+            if existing.status == SubmissionStatus.SUBMITTED.value:
                 raise ValidationError("Feedback is already submitted")
 
             now = datetime.now(timezone.utc)
             update_data = {
-                "action": "APPROVED",
-                "status": "submitted",
+                "action": CoreValueFeedbackAction.APPROVED.value,
+                "status": SubmissionStatus.SUBMITTED.value,
                 "submitted_at": now,
                 "reviewed_at": now,
                 "updated_at": now
@@ -191,7 +193,7 @@ class CoreValueFeedbackRepository(BaseRepository[CoreValueFeedback]):
         try:
             existing = await self._validate_exists(feedback_id, org_id)
 
-            if existing.action == "APPROVED":
+            if existing.action == CoreValueFeedbackAction.APPROVED.value:
                 raise ValidationError("Cannot return approved feedback")
 
             await self.session.execute(

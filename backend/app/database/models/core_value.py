@@ -46,7 +46,7 @@ class CoreValueEvaluation(Base):
     period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     scores = Column(JSONB, nullable=True)
-    comment = Column(Text, nullable=True)
+    comment = Column(String, nullable=True)
     status = Column(String(20), nullable=False, default="draft")
 
     submitted_at = Column(DateTime(timezone=True), nullable=True)
@@ -64,7 +64,6 @@ class CoreValueEvaluation(Base):
             name='chk_cv_submission'
         ),
         Index('uq_cv_eval', 'period_id', 'user_id', unique=True),
-        Index('idx_cv_eval_period_user', 'period_id', 'user_id'),
         Index('idx_cv_eval_status', 'status'),
     )
 
@@ -104,7 +103,7 @@ class CoreValueFeedback(Base):
     subordinate_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     scores = Column(JSONB, nullable=True)
-    comment = Column(Text, nullable=True)
+    comment = Column(String, nullable=True)
     return_comment = Column(Text, nullable=True)
 
     action = Column(String(10), nullable=False, default="PENDING")

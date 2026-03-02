@@ -40,7 +40,7 @@ async def get_definitions(
     except PermissionDeniedError as e:
         raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching core value definitions: {str(e)}")
 
 
 @router.post("/definitions/seed", response_model=BaseResponse)
@@ -56,7 +56,7 @@ async def seed_definitions(
     except PermissionDeniedError as e:
         raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error seeding core value definitions: {str(e)}")
 
 
 # ========================================
@@ -78,7 +78,7 @@ async def get_my_evaluation(
     except NotFoundError as e:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching core value evaluation: {str(e)}")
 
 
 @router.put("/evaluations/{eval_id}", response_model=CoreValueEvaluationResponse)
@@ -103,7 +103,7 @@ async def save_evaluation(
     except ConflictError as e:
         raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error saving core value evaluation: {str(e)}")
 
 
 @router.post("/evaluations/{eval_id}/submit", response_model=CoreValueEvaluationResponse)
@@ -127,7 +127,7 @@ async def submit_evaluation(
     except ConflictError as e:
         raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting core value evaluation: {str(e)}")
 
 
 @router.post("/evaluations/{eval_id}/reopen", response_model=CoreValueEvaluationResponse)
@@ -149,7 +149,7 @@ async def reopen_evaluation(
     except BadRequestError as e:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error reopening core value evaluation: {str(e)}")
 
 
 # ========================================
@@ -172,7 +172,7 @@ async def get_subordinate_data(
     except NotFoundError as e:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching subordinate core value data: {str(e)}")
 
 
 # ========================================
@@ -201,7 +201,7 @@ async def save_feedback(
     except ConflictError as e:
         raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error saving core value feedback: {str(e)}")
 
 
 @router.post("/feedback/{feedback_id}/submit", response_model=CoreValueFeedbackResponse)
@@ -224,7 +224,7 @@ async def submit_feedback(
     except BadRequestError as e:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting core value feedback: {str(e)}")
 
 
 @router.post("/feedback/{feedback_id}/return", response_model=CoreValueFeedbackResponse)
@@ -247,4 +247,4 @@ async def return_feedback(
     except BadRequestError as e:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error returning core value feedback: {str(e)}")

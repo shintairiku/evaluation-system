@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.core_value import CoreValueEvaluation
 from ..models.user import User
 from ...core.exceptions import NotFoundError, ConflictError, ValidationError
+from ...schemas.common import SelfAssessmentStatus
+from ...schemas.core_value import CoreValueFeedbackAction
 from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -100,7 +102,7 @@ class CoreValueEvaluationRepository(BaseRepository[CoreValueEvaluation]):
             for row in rows:
                 status_map[str(row[0])] = {
                     "status": row[1],
-                    "action": row[2] or "PENDING"
+                    "action": row[2] or CoreValueFeedbackAction.PENDING.value
                 }
             return status_map
         except SQLAlchemyError as e:
@@ -117,7 +119,7 @@ class CoreValueEvaluationRepository(BaseRepository[CoreValueEvaluation]):
             evaluation = CoreValueEvaluation(
                 period_id=period_id,
                 user_id=user_id,
-                status="draft"
+                status=SelfAssessmentStatus.DRAFT.value
             )
             self.session.add(evaluation)
             await self.session.flush()
@@ -140,7 +142,7 @@ class CoreValueEvaluationRepository(BaseRepository[CoreValueEvaluation]):
         try:
             existing = await self._validate_exists(eval_id, org_id)
 
-            if existing.status != "draft":
+            if existing.status != SelfAssessmentStatus.DRAFT.value:
                 raise ValidationError("Cannot update evaluation that is not in draft status")
 
             update_data = {"updated_at": datetime.now(timezone.utc)}
@@ -164,14 +166,14 @@ class CoreValueEvaluationRepository(BaseRepository[CoreValueEvaluation]):
         try:
             existing = await self._validate_exists(eval_id, org_id)
 
-            if existing.status != "draft":
+            if existing.status != SelfAssessmentStatus.DRAFT.value:
                 raise ValidationError(f"Cannot submit evaluation in '{existing.status}' status (must be draft)")
 
             now = datetime.now(timezone.utc)
             await self.session.execute(
                 update(CoreValueEvaluation)
                 .where(CoreValueEvaluation.id == eval_id)
-                .values(status="submitted", submitted_at=now, updated_at=now)
+                .values(status=SelfAssessmentStatus.SUBMITTED.value, submitted_at=now, updated_at=now)
             )
             return await self.get_by_id(eval_id, org_id)
         except SQLAlchemyError as e:
@@ -183,15 +185,15 @@ class CoreValueEvaluationRepository(BaseRepository[CoreValueEvaluation]):
         try:
             existing = await self._validate_exists(eval_id, org_id)
 
-            if existing.status == "approved":
+            if existing.status == SelfAssessmentStatus.APPROVED.value:
                 raise ValidationError("Cannot reopen an approved evaluation")
-            if existing.status != "submitted":
+            if existing.status != SelfAssessmentStatus.SUBMITTED.value:
                 raise ValidationError(f"Cannot reopen evaluation in '{existing.status}' status (must be submitted)")
 
             await self.session.execute(
                 update(CoreValueEvaluation)
                 .where(CoreValueEvaluation.id == eval_id)
-                .values(status="draft", updated_at=datetime.now(timezone.utc))
+                .values(status=SelfAssessmentStatus.DRAFT.value, updated_at=datetime.now(timezone.utc))
             )
             return await self.get_by_id(eval_id, org_id)
         except SQLAlchemyError as e:
@@ -203,15 +205,15 @@ class CoreValueEvaluationRepository(BaseRepository[CoreValueEvaluation]):
         try:
             existing = await self._validate_exists(eval_id, org_id)
 
-            if existing.status == "approved":
+            if existing.status == SelfAssessmentStatus.APPROVED.value:
                 raise ValidationError("Cannot revert an approved evaluation")
-            if existing.status != "submitted":
+            if existing.status != SelfAssessmentStatus.SUBMITTED.value:
                 raise ValidationError(f"Cannot revert evaluation in '{existing.status}' status")
 
             await self.session.execute(
                 update(CoreValueEvaluation)
                 .where(CoreValueEvaluation.id == eval_id)
-                .values(status="draft", submitted_at=None, updated_at=datetime.now(timezone.utc))
+                .values(status=SelfAssessmentStatus.DRAFT.value, submitted_at=None, updated_at=datetime.now(timezone.utc))
             )
             return await self.get_by_id(eval_id, org_id)
         except SQLAlchemyError as e:
@@ -223,15 +225,15 @@ class CoreValueEvaluationRepository(BaseRepository[CoreValueEvaluation]):
         try:
             existing = await self._validate_exists(eval_id, org_id)
 
-            if existing.status == "approved":
+            if existing.status == SelfAssessmentStatus.APPROVED.value:
                 return existing  # Already approved, idempotent
-            if existing.status != "submitted":
+            if existing.status != SelfAssessmentStatus.SUBMITTED.value:
                 raise ValidationError(f"Cannot approve evaluation in '{existing.status}' status (must be submitted)")
 
             await self.session.execute(
                 update(CoreValueEvaluation)
                 .where(CoreValueEvaluation.id == eval_id)
-                .values(status="approved", updated_at=datetime.now(timezone.utc))
+                .values(status=SelfAssessmentStatus.APPROVED.value, updated_at=datetime.now(timezone.utc))
             )
             return await self.get_by_id(eval_id, org_id)
         except SQLAlchemyError as e:
