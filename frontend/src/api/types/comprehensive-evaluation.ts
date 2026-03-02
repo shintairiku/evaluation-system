@@ -117,6 +117,7 @@ export interface GetComprehensiveEvaluationListParams {
   employmentType?: ComprehensiveEmploymentType;
   search?: string;
   processingStatus?: ComprehensiveProcessingStatus;
+  candidateView?: boolean;
   page?: number;
   limit?: number;
 }
