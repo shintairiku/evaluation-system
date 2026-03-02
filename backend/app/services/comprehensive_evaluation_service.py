@@ -82,9 +82,10 @@ class ComprehensiveEvaluationService:
         processing_status: Optional[str],
         page: int,
         limit: int,
+        candidate_view: bool = False,
     ) -> ComprehensiveEvaluationListResponse:
         org_id = self._require_org(context)
-        self._require_read_role(context)
+        self._require_list_read_role(context=context, candidate_view=candidate_view)
         await self._ensure_period_exists(period_id, org_id)
 
         settings = await self.get_settings(context=context)
@@ -914,6 +915,12 @@ class ComprehensiveEvaluationService:
     def _require_read_role(self, context: AuthContext) -> None:
         if not context.has_any_role(["admin", "eval_admin"]):
             raise PermissionDeniedError("Access denied. Requires admin or eval_admin role")
+
+    def _require_list_read_role(self, *, context: AuthContext, candidate_view: bool) -> None:
+        if candidate_view:
+            self._require_write_role(context)
+            return
+        self._require_read_role(context)
 
     def _require_write_role(self, context: AuthContext) -> None:
         if not context.has_role("eval_admin"):
