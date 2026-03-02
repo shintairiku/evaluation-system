@@ -31,6 +31,8 @@ interface UseSelfAssessmentAutoSaveOptions {
   initialRatingData?: CompetencyRatingData;
   /** Initial status - only allow edits if draft */
   initialStatus?: SelfAssessmentStatus;
+  /** Period-level editability (completed/cancelled periods are read-only) */
+  isPeriodEditable?: boolean;
   /** Debounce delay in milliseconds (default: 2000) */
   debounceDelay?: number;
   /** Status clear timeout in milliseconds (default: 3000) */
@@ -105,6 +107,7 @@ export function useSelfAssessmentAutoSave({
   initialComment,
   initialRatingData,
   initialStatus,
+  isPeriodEditable = true,
   debounceDelay = 2000,
   statusClearTimeout = 3000,
   onSaveSuccess
@@ -127,7 +130,7 @@ export function useSelfAssessmentAutoSave({
   const lastSavedDataRef = useRef<SelfAssessmentSaveData>(initialData);
 
   // Determine if assessment is editable (only draft status)
-  const isEditable = initialStatus === 'draft';
+  const isEditable = initialStatus === 'draft' && isPeriodEditable;
 
   /**
    * Check if data has changed from last saved
