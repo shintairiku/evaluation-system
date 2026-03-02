@@ -34,6 +34,11 @@ async def get_comprehensive_evaluation(
         alias="processingStatus",
         description="processed or unprocessed",
     ),
+    candidate_view: bool = Query(
+        False,
+        alias="candidateView",
+        description="Require eval_admin access for candidate view",
+    ),
     page: int = Query(1, ge=1),
     limit: int = Query(200, ge=1, le=200),
     context: AuthContext = Depends(get_auth_context),
@@ -49,6 +54,7 @@ async def get_comprehensive_evaluation(
             employment_type=employment_type,
             search=search,
             processing_status=processing_status,
+            candidate_view=candidate_view,
             page=page,
             limit=limit,
         )
