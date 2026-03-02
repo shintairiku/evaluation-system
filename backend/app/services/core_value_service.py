@@ -290,6 +290,21 @@ class CoreValueService:
         )
 
     @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
+    async def count_pending_feedback(
+        self,
+        current_user_context: AuthContext,
+        period_id: UUID
+    ) -> int:
+        """Count pending core value feedbacks for the current supervisor."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        return await self.feedback_repo.count_pending_feedback(
+            period_id, current_user_context.user_id, org_id
+        )
+
+    @require_any_permission([Permission.GOAL_APPROVE, Permission.GOAL_READ_ALL])
     async def save_feedback(
         self,
         current_user_context: AuthContext,

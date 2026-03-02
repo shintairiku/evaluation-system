@@ -179,6 +179,23 @@ async def get_subordinate_data(
 # FEEDBACK (supervisor)
 # ========================================
 
+@router.get("/feedback/pending-count")
+async def get_pending_feedback_count(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Count pending core value feedbacks for the current supervisor."""
+    try:
+        service = CoreValueService(session)
+        count = await service.count_pending_feedback(context, period_id)
+        return {"count": count}
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error counting pending feedback: {str(e)}")
+
+
 @router.put("/feedback/{feedback_id}", response_model=CoreValueFeedbackResponse)
 async def save_feedback(
     feedback_id: UUID,

@@ -306,6 +306,36 @@ export async function submitCoreValueFeedbackAction(
 /**
  * Server action to return core value feedback for correction (差し戻し)
  */
+export async function getCoreValuePendingFeedbackCountAction(
+  periodId: string,
+): Promise<{
+  success: boolean;
+  data?: { count: number };
+  error?: string;
+}> {
+  try {
+    const response = await coreValuesApi.getPendingFeedbackCount(periodId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to get pending feedback count',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get core value pending feedback count action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred',
+    };
+  }
+}
+
 export async function returnCoreValueFeedbackAction(
   feedbackId: string,
   data: CoreValueFeedbackReturn,

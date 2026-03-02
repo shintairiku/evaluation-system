@@ -109,4 +109,12 @@ export const coreValuesApi = {
       data,
     );
   },
+
+  getPendingFeedbackCount: async (
+    periodId: string,
+  ): Promise<ApiResponse<{ count: number }>> => {
+    return httpClient.get<{ count: number }>(
+      `${API_ENDPOINTS.CORE_VALUES.PENDING_FEEDBACK_COUNT}?periodId=${periodId}`,
+    );
+  },
 };

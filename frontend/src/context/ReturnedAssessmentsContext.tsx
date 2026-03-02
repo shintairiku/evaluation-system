@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { getSelfAssessmentsAction } from '@/api/server-actions/self-assessments';
+import { getMyEvaluationAction } from '@/api/server-actions/core-values';
 import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
 
 /**
@@ -67,20 +68,27 @@ export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftA
         return;
       }
 
-      // Fetch only the count: one row + total, filtered to draft self-assessments
-      const assessmentsResult = await getSelfAssessmentsAction({
-        periodId: currentPeriodId,
-        status: 'draft',
-        selfOnly: true,
-        pagination: { limit: 1 }
-      });
+      // Fetch self-assessment draft count + core value evaluation in parallel
+      const [assessmentsResult, coreValueResult] = await Promise.all([
+        getSelfAssessmentsAction({
+          periodId: currentPeriodId,
+          status: 'draft',
+          selfOnly: true,
+          pagination: { limit: 1 }
+        }),
+        getMyEvaluationAction(currentPeriodId),
+      ]);
 
-      if (assessmentsResult.success && assessmentsResult.data) {
-        setDraftCountState(assessmentsResult.data.total);
-      } else {
-        // Failed to fetch, keep previous count
-        console.warn('Failed to fetch draft assessments count');
-      }
+      const selfAssessmentTotal = assessmentsResult.success && assessmentsResult.data
+        ? assessmentsResult.data.total
+        : 0;
+
+      const coreValueIsDraft = coreValueResult.success && coreValueResult.data
+        && coreValueResult.data.status === 'draft'
+        ? 1
+        : 0;
+
+      setDraftCountState(selfAssessmentTotal + coreValueIsDraft);
     } catch (error) {
       console.error('Error refreshing draft assessments count:', error);
       // Don't reset count on error, keep previous value

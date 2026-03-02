@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { getSupervisorFeedbacksAction } from '@/api/server-actions/supervisor-feedbacks';
+import { getCoreValuePendingFeedbackCountAction } from '@/api/server-actions/core-values';
 import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
 
 /**
@@ -65,21 +66,27 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
         return;
       }
 
-      // Fetch only the count: one row + total, filtered to pending feedbacks without return_comment
-      const feedbacksResult = await getSupervisorFeedbacksAction({
-        periodId: currentPeriodId,
-        supervisorId: currentUserId,
-        action: 'PENDING',
-        hasReturnComment: false,
-        pagination: { limit: 1 }
-      });
+      // Fetch supervisor feedback count + core value pending count in parallel
+      const [feedbacksResult, coreValueResult] = await Promise.all([
+        getSupervisorFeedbacksAction({
+          periodId: currentPeriodId,
+          supervisorId: currentUserId,
+          action: 'PENDING',
+          hasReturnComment: false,
+          pagination: { limit: 1 }
+        }),
+        getCoreValuePendingFeedbackCountAction(currentPeriodId),
+      ]);
 
-      if (feedbacksResult.success && feedbacksResult.data) {
-        setPendingEvaluationsCountState(feedbacksResult.data.total);
-      } else {
-        // Failed to fetch, keep previous count
-        console.warn('Failed to fetch pending evaluations count');
-      }
+      const supervisorTotal = feedbacksResult.success && feedbacksResult.data
+        ? feedbacksResult.data.total
+        : 0;
+
+      const coreValueCount = coreValueResult.success && coreValueResult.data
+        ? coreValueResult.data.count
+        : 0;
+
+      setPendingEvaluationsCountState(supervisorTotal + coreValueCount);
     } catch (error) {
       console.error('Error refreshing pending evaluations count:', error);
       // Don't reset count on error, keep previous value

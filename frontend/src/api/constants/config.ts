@@ -256,6 +256,7 @@ export const API_ENDPOINTS = {
     UPDATE_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}`),
     SUBMIT_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}/submit`),
     RETURN_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}/return`),
+    PENDING_FEEDBACK_COUNT: buildApiUrl('/core-values/feedback/pending-count'),
   },
 
   // Permission management endpoints
