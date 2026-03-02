@@ -58,6 +58,8 @@ DEFAULT_LEVEL_DELTAS: Dict[EvaluationRank, int] = {
     "D": -8,
 }
 FINALIZE_PAGE_LIMIT = 200
+USER_LEVEL_MIN = 1
+USER_LEVEL_MAX = 30
 
 
 class ComprehensiveEvaluationService:
@@ -329,7 +331,26 @@ class ComprehensiveEvaluationService:
                 continue
             if row.applied.new_level is None:
                 continue
-            next_level = int(row.applied.new_level)
+
+            try:
+                proposed_level = int(row.applied.new_level)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Skipping invalid applied new level during finalization: user_id=%s level=%s",
+                    row.user_id,
+                    row.applied.new_level,
+                )
+                continue
+
+            next_level = max(USER_LEVEL_MIN, min(USER_LEVEL_MAX, proposed_level))
+            if next_level != proposed_level:
+                logger.warning(
+                    "Clamped out-of-range applied level during finalization: user_id=%s proposed=%s clamped=%s",
+                    row.user_id,
+                    proposed_level,
+                    next_level,
+                )
+
             if row.current_level is not None and row.current_level == next_level:
                 continue
             level_updates[row.user_id] = next_level
