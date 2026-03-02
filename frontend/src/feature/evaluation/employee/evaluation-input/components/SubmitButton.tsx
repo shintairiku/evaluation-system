@@ -266,10 +266,15 @@ export default function SubmitButton({
       if (onRefreshData) {
         await onRefreshData();
       }
+      setIsOpen(true);
+    } catch {
+      announceToScreenReader('一時保存に失敗したため提出確認を開けませんでした', 'assertive');
+      toast.error('一時保存に失敗しました', {
+        description: '入力内容を確認して、もう一度お試しください。',
+      });
     } finally {
       setIsRefreshing(false);
     }
-    setIsOpen(true);
   };
 
   const handleSubmit = async () => {
