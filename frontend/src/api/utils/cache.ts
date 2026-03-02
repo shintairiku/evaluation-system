@@ -22,6 +22,9 @@ export const CACHE_TAGS = {
   EVALUATIONS: 'evaluations',
   ADMIN_DASHBOARD: 'admin-dashboard',
   VIEWER_VISIBILITY: 'viewer-visibility',
+  COMPREHENSIVE_EVALUATION_LIST: 'comprehensive-evaluation-list',
+  COMPREHENSIVE_EVALUATION_SETTINGS: 'comprehensive-evaluation-settings',
+  COMPREHENSIVE_EVALUATION_HISTORY: 'comprehensive-evaluation-history',
 } as const;
 
 /**
@@ -100,6 +103,18 @@ export const CACHE_STRATEGIES = {
   [CACHE_TAGS.VIEWER_VISIBILITY]: {
     duration: CACHE_DURATIONS.DYNAMIC,
     tags: [CACHE_TAGS.VIEWER_VISIBILITY] as string[],
+  },
+  [CACHE_TAGS.COMPREHENSIVE_EVALUATION_LIST]: {
+    duration: CACHE_DURATIONS.DYNAMIC,
+    tags: [CACHE_TAGS.COMPREHENSIVE_EVALUATION_LIST] as string[],
+  },
+  [CACHE_TAGS.COMPREHENSIVE_EVALUATION_SETTINGS]: {
+    duration: CACHE_DURATIONS.DYNAMIC,
+    tags: [CACHE_TAGS.COMPREHENSIVE_EVALUATION_SETTINGS] as string[],
+  },
+  [CACHE_TAGS.COMPREHENSIVE_EVALUATION_HISTORY]: {
+    duration: CACHE_DURATIONS.DYNAMIC,
+    tags: [CACHE_TAGS.COMPREHENSIVE_EVALUATION_HISTORY] as string[],
   },
 } as const;
 
