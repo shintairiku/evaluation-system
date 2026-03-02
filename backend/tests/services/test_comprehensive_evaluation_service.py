@@ -150,7 +150,6 @@ def test_apply_manual_decision_overrides_applied_state_for_employee():
         stageAfter="STAGE3",
         levelAfter=18,
         reason="manual adjustment",
-        doubleCheckedBy="HR checker",
         appliedByUserId=uuid4(),
         appliedAt="2026-02-20T00:00:00+00:00",
     )
@@ -168,6 +167,44 @@ def test_apply_manual_decision_overrides_applied_state_for_employee():
     assert applied.new_level == 18
     assert applied.stage_delta == -1
     assert applied.level_delta == -2
+
+
+def test_apply_manual_decision_defaults_level_to_current_when_omitted():
+    service = ComprehensiveEvaluationService(AsyncMock())
+
+    auto_state = ComprehensiveEvaluationComputedState(
+        totalScore=5.2,
+        overallRank="A+",
+        decision="昇格",
+        promotionFlag=True,
+        demotionFlag=False,
+        stageDelta=0,
+        levelDelta=6,
+        newStage="STAGE4",
+        newLevel=26,
+        isPromotionCandidate=True,
+        isDemotionCandidate=False,
+    )
+    manual = ComprehensiveManualDecisionResponse(
+        periodId=uuid4(),
+        decision="昇格",
+        stageAfter="STAGE5",
+        reason="stage change only",
+        appliedByUserId=uuid4(),
+        appliedAt="2026-02-20T00:00:00+00:00",
+    )
+
+    applied = service._apply_manual_decision(
+        auto_state=auto_state,
+        manual_decision=manual,
+        current_stage="STAGE4",
+        current_level=20,
+        employment_type="employee",
+    )
+
+    assert applied.new_stage == "STAGE5"
+    assert applied.new_level == 20
+    assert applied.level_delta == 0
 
 
 def test_validate_settings_rejects_non_descending_thresholds():
@@ -265,9 +302,7 @@ async def test_upsert_manual_decision_rejects_completed_period():
         periodId=period_id,
         decision="昇格",
         stageAfter="STAGE4",
-        levelAfter=20,
         reason="manual adjustment",
-        doubleCheckedBy="HR checker",
     )
 
     with pytest.raises(BadRequestError, match="finalization"):
@@ -275,6 +310,21 @@ async def test_upsert_manual_decision_rejects_completed_period():
             context=make_context(role_name="eval_admin"),
             user_id=uuid4(),
             payload=payload,
+        )
+
+
+@pytest.mark.asyncio
+async def test_clear_manual_decision_rejects_completed_period():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+
+    with pytest.raises(BadRequestError, match="finalization"):
+        await service.clear_manual_decision(
+            context=make_context(role_name="eval_admin"),
+            user_id=uuid4(),
+            period_id=period_id,
         )
 
 
