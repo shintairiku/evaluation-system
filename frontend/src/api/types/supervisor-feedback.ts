@@ -135,8 +135,7 @@ export interface SupervisorFeedbackReturn {
 /**
  * Paginated list of supervisor feedbacks
  */
-export interface SupervisorFeedbackList
-  extends PaginatedResponse<SupervisorFeedback> {}
+export type SupervisorFeedbackList = PaginatedResponse<SupervisorFeedback>;
 
 /**
  * Query parameters for fetching supervisor feedbacks
@@ -145,6 +144,7 @@ export interface SupervisorFeedbackQueryParams {
   periodId?: UUID;
   supervisorId?: UUID;
   subordinateId?: UUID;
+  selfOnly?: boolean;
   status?: SupervisorFeedbackStatus;
   action?: SupervisorFeedbackAction;
   page?: number;
