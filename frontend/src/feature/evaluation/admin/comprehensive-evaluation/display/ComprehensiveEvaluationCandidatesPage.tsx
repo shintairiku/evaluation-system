@@ -107,7 +107,8 @@ function toManualOverride(
 export default function ComprehensiveEvaluationCandidatesPage() {
   const { hasRole } = useUserRoles();
   const currentUserContext = useOptionalCurrentUserContext();
-  const canEditRole = hasRole("eval_admin");
+  const canAccessCandidates = hasRole("eval_admin");
+  const canEditRole = canAccessCandidates;
   const { upsertOverride, clearOverride, isSaving, error: actionError } = useComprehensiveEvaluationManualOverrides();
 
   const [rows, setRows] = useState<ComprehensiveEvaluationRowResponse[]>([]);
@@ -153,6 +154,12 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   }, [defaultPeriodId, evaluationPeriodId]);
 
   useEffect(() => {
+    if (!canAccessCandidates) {
+      setStageOptionsFromApi([]);
+      setStageOptionsError(null);
+      return;
+    }
+
     let isActive = true;
 
     const loadStages = async () => {
@@ -182,9 +189,16 @@ export default function ComprehensiveEvaluationCandidatesPage() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [canAccessCandidates]);
 
   const loadRows = useCallback(async () => {
+    if (!canAccessCandidates) {
+      setRows([]);
+      setRowsError(null);
+      setIsRowsLoading(false);
+      return;
+    }
+
     const requestId = latestRowsRequestId.current + 1;
     latestRowsRequestId.current = requestId;
 
@@ -200,6 +214,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
 
     const firstPageResult = await getComprehensiveEvaluationListAction({
       periodId: evaluationPeriodId,
+      candidateView: true,
       page: 1,
       limit: COMPREHENSIVE_ROWS_PAGE_SIZE,
     });
@@ -221,6 +236,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
         Array.from({ length: totalPages - 1 }, (_, index) =>
           getComprehensiveEvaluationListAction({
             periodId: evaluationPeriodId,
+            candidateView: true,
             page: index + 2,
             limit: COMPREHENSIVE_ROWS_PAGE_SIZE,
           }),
@@ -247,7 +263,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
 
     setRows(mergedRows);
     setIsRowsLoading(false);
-  }, [evaluationPeriodId]);
+  }, [canAccessCandidates, evaluationPeriodId]);
 
   useEffect(() => {
     void loadRows();
@@ -431,8 +447,8 @@ export default function ComprehensiveEvaluationCandidatesPage() {
 
   return (
     <RolePermissionGuard
-      allowedRoles={["admin", "eval_admin"]}
-      deniedMessage="このページはadminまたはeval_adminのみ閲覧できます"
+      allowedRoles={["eval_admin"]}
+      deniedMessage="このページはeval_adminのみ閲覧できます"
     >
       <div className="container mx-auto space-y-6 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">

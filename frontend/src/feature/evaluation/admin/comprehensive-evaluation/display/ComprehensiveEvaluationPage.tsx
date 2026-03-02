@@ -111,8 +111,8 @@ export default function ComprehensiveEvaluationPage() {
   const { hasRole, isLoading: isRoleLoading, error: roleError, currentUser } = useUserRoles();
   const currentUserContext = useOptionalCurrentUserContext();
   const canAccessComprehensiveEvaluation = hasRole("admin") || hasRole("eval_admin");
-  const canAccessCandidates = canAccessComprehensiveEvaluation;
   const isEvalAdmin = hasRole("eval_admin");
+  const canAccessCandidates = isEvalAdmin;
   const canEditThresholds = isEvalAdmin;
 
   const personalInfoColumns = 5;
