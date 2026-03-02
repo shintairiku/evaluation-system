@@ -91,7 +91,6 @@ async def run_smoke() -> None:
             periodId=period_id,
             decision="対象外",
             reason="smoke test update",
-            doubleCheckedBy="smoke-checker",
         )
         manual = await service.upsert_manual_decision(
             context=context,
@@ -126,4 +125,3 @@ async def run_smoke() -> None:
 
 if __name__ == "__main__":
     asyncio.run(run_smoke())
-
