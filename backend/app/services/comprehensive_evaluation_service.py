@@ -328,20 +328,35 @@ class ComprehensiveEvaluationService:
 
         rows = await self._collect_period_rows_for_finalization(context=context, period_id=period_id)
         level_updates: Dict[UUID, int] = {}
+        requested_stage_names_by_user: Dict[UUID, str] = {}
 
         for row in rows:
-            if row.employment_type != "employee":
+            user_id = getattr(row, "user_id", None)
+            if user_id is None:
                 continue
-            if row.applied.new_level is None:
+
+            applied_state = getattr(row, "applied", None)
+            current_stage_name = self._normalize_stage_name(getattr(row, "current_stage", None))
+            next_stage_name = self._normalize_stage_name(getattr(applied_state, "new_stage", None))
+
+            if next_stage_name and (
+                current_stage_name is None or next_stage_name.casefold() != current_stage_name.casefold()
+            ):
+                requested_stage_names_by_user[user_id] = next_stage_name
+
+            if getattr(row, "employment_type", None) != "employee":
+                continue
+
+            if getattr(applied_state, "new_level", None) is None:
                 continue
 
             try:
-                proposed_level = int(row.applied.new_level)
+                proposed_level = int(applied_state.new_level)
             except (TypeError, ValueError):
                 logger.warning(
                     "Skipping invalid applied new level during finalization: user_id=%s level=%s",
-                    row.user_id,
-                    row.applied.new_level,
+                    user_id,
+                    getattr(applied_state, "new_level", None),
                 )
                 continue
 
@@ -349,17 +364,37 @@ class ComprehensiveEvaluationService:
             if next_level != proposed_level:
                 logger.warning(
                     "Clamped out-of-range applied level during finalization: user_id=%s proposed=%s clamped=%s",
-                    row.user_id,
+                    user_id,
                     proposed_level,
                     next_level,
                 )
 
-            if row.current_level is not None and row.current_level == next_level:
+            current_level = getattr(row, "current_level", None)
+            if current_level is not None and current_level == next_level:
                 continue
-            level_updates[row.user_id] = next_level
+            level_updates[user_id] = next_level
+
+        stage_updates: Dict[UUID, UUID] = {}
+        if requested_stage_names_by_user:
+            stage_name_to_id, stage_name_folded_to_id = await self._get_stage_name_maps(org_id)
+            for user_id, stage_name in requested_stage_names_by_user.items():
+                stage_id = self._resolve_stage_id(
+                    stage_name=stage_name,
+                    stage_name_to_id=stage_name_to_id,
+                    stage_name_folded_to_id=stage_name_folded_to_id,
+                )
+                if stage_id is None:
+                    logger.warning(
+                        "Skipping unknown applied stage during finalization: user_id=%s stage_name=%s",
+                        user_id,
+                        stage_name,
+                    )
+                    continue
+                stage_updates[user_id] = stage_id
 
         try:
-            updated_user_ids = await self.user_repo.batch_update_user_levels(org_id, level_updates)
+            updated_level_user_ids = await self.user_repo.batch_update_user_levels(org_id, level_updates)
+            await self.user_repo.batch_update_user_stages(org_id, stage_updates)
             if previous_status != "completed":
                 await self.period_repo.update_status(period_id, EvaluationPeriodStatus.COMPLETED, org_id)
             await self.session.commit()
@@ -372,7 +407,7 @@ class ComprehensiveEvaluationService:
             previousStatus=previous_status,
             currentStatus="completed",
             totalUsers=len(rows),
-            updatedUserLevels=len(updated_user_ids),
+            updatedUserLevels=len(updated_level_user_ids),
         )
 
     async def _collect_period_rows_for_finalization(
@@ -443,6 +478,13 @@ class ComprehensiveEvaluationService:
             else None
         )
 
+        target_stage_id: Optional[UUID] = None
+        if stage_after is not None:
+            stage = await self.stage_repo.get_by_name(stage_after, org_id)
+            if stage is None:
+                raise BadRequestError("stageAfter must match an existing stage in this organization")
+            target_stage_id = stage.id
+
         try:
             persisted = await self.repo.upsert_manual_decision(
                 org_id=org_id,
@@ -455,6 +497,16 @@ class ComprehensiveEvaluationService:
                 double_checked_by=double_checked_by,
                 applied_by_user_id=actor_user_id,
             )
+
+            if payload.decision != "対象外":
+                if target_stage_id is not None:
+                    await self.user_repo.update_user_stage(user_id, target_stage_id, org_id)
+
+                if user_profile["employment_type"] == "employee":
+                    current_level = user_profile.get("level")
+                    target_level = level_after if level_after is not None else current_level
+                    if target_level is not None and target_level != current_level:
+                        await self.user_repo.batch_update_user_levels(org_id, {user_id: int(target_level)})
 
             await self.repo.insert_manual_decision_history(
                 org_id=org_id,
@@ -905,10 +957,10 @@ class ComprehensiveEvaluationService:
 
     def _ensure_period_allows_manual_decision(self, period) -> None:
         status = self._get_period_status(period)
-        if status == "completed":
-            raise BadRequestError("Cannot modify manual decisions after finalization")
         if status == "cancelled":
             raise BadRequestError("Cannot modify manual decisions for cancelled evaluation periods")
+        if status != "completed":
+            raise BadRequestError("Manual decisions are available only after finalization")
 
     def _get_period_status(self, period) -> str:
         status = getattr(period.status, "value", period.status)
@@ -942,3 +994,36 @@ class ComprehensiveEvaluationService:
         if value is None:
             return None
         return float(value)
+
+    async def _get_stage_name_maps(self, org_id: str) -> Tuple[Dict[str, UUID], Dict[str, UUID]]:
+        stage_models = await self.stage_repo.get_all(org_id)
+        stage_name_to_id: Dict[str, UUID] = {}
+        stage_name_folded_to_id: Dict[str, UUID] = {}
+
+        for stage in stage_models:
+            stage_name = self._normalize_stage_name(getattr(stage, "name", None))
+            if stage_name is None:
+                continue
+
+            stage_name_to_id[stage_name] = stage.id
+            stage_name_folded_to_id.setdefault(stage_name.casefold(), stage.id)
+
+        return stage_name_to_id, stage_name_folded_to_id
+
+    def _resolve_stage_id(
+        self,
+        *,
+        stage_name: str,
+        stage_name_to_id: Dict[str, UUID],
+        stage_name_folded_to_id: Dict[str, UUID],
+    ) -> Optional[UUID]:
+        direct_match = stage_name_to_id.get(stage_name)
+        if direct_match is not None:
+            return direct_match
+        return stage_name_folded_to_id.get(stage_name.casefold())
+
+    def _normalize_stage_name(self, stage_name: Optional[str]) -> Optional[str]:
+        if stage_name is None:
+            return None
+        normalized = stage_name.strip()
+        return normalized if normalized else None
