@@ -108,6 +108,7 @@ export interface UserUpdate {
   job_title?: string;
   department_id?: UUID | null;
   stage_id?: UUID | null;
+  level?: number | null;
   role_ids?: UUID[];
   supervisor_id?: UUID | null;
   subordinate_ids?: UUID[];
@@ -147,6 +148,7 @@ export interface UserDetailResponse {
   job_title?: string;
   department?: Department;
   stage?: Stage;
+  level?: number | null;
   goalWeightBudget?: GoalWeightBudget;
   roles: Role[];
   supervisor?: User;
