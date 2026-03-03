@@ -33,11 +33,11 @@ def test_rejects_d_for_competency_goal():
         )
 
 
-def test_rejects_any_rating_for_core_value_goal():
-    with pytest.raises(ValidationError):
-        validate_rating_code_for_goal(
-            goal_category="コアバリュー",
-            target_data=None,
-            rating_code="A",
-            actor_name="supervisor",
-        )
+def test_skips_core_value_goal():
+    """Core value goals use a separate evaluation system; rating_rules does not block them."""
+    validate_rating_code_for_goal(
+        goal_category="コアバリュー",
+        target_data=None,
+        rating_code="A",
+        actor_name="supervisor",
+    )

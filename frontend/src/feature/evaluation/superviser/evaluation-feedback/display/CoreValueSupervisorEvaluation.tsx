@@ -12,40 +12,13 @@ import type {
   CoreValueRatingCode,
 } from "@/api/types";
 import { CORE_VALUE_RATING_CODES } from "@/api/types/core-value";
-import { useCoreValueFeedbackAutoSave, type SaveStatus } from "../hooks/useCoreValueFeedbackAutoSave";
+import { useCoreValueFeedbackAutoSave } from "../hooks/useCoreValueFeedbackAutoSave";
+import { SaveStatusIndicator } from "@/feature/evaluation/employee/evaluation-input/display/components";
 
 interface CoreValueSupervisorEvaluationProps {
   definitions: CoreValueDefinition[];
   feedback: CoreValueFeedback | null;
   isLoading?: boolean;
-}
-
-/**
- * Save status indicator component (green theme for supervisor)
- */
-function SaveStatusIndicator({ status }: { status: SaveStatus }) {
-  if (status === "idle") return null;
-
-  return (
-    <>
-      {status === "saving" && (
-        <span className="text-xs text-green-500 flex items-center gap-1 animate-pulse">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          保存中...
-        </span>
-      )}
-      {status === "saved" && (
-        <span className="text-xs text-green-600 flex items-center gap-1">
-          ✓ 一時保存済み
-        </span>
-      )}
-      {status === "error" && (
-        <span className="text-xs text-red-500 flex items-center gap-1">
-          ⚠ 保存失敗
-        </span>
-      )}
-    </>
-  );
 }
 
 export default function CoreValueSupervisorEvaluation({
@@ -65,7 +38,7 @@ export default function CoreValueSupervisorEvaluation({
   useEffect(() => {
     setScores(feedback?.scores ?? {});
     setComment(feedback?.comment ?? "");
-  }, [feedback?.id]);
+  }, [feedback]);
 
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } =
@@ -281,7 +254,7 @@ export default function CoreValueSupervisorEvaluation({
                   <Label className="text-sm font-semibold text-gray-700">
                     上長評価コメント
                   </Label>
-                  <SaveStatusIndicator status={saveStatus} />
+                  <SaveStatusIndicator status={saveStatus} theme="green" />
                 </div>
                 <Textarea
                   value={comment}
