@@ -325,7 +325,7 @@ export default function CoreValueEvaluate({
                 </div>
 
                 {/* Supervisor Feedback Section */}
-                <CoreValueFeedbackAlert feedback={feedback ?? null} />
+                <CoreValueFeedbackAlert feedback={feedback ?? null} definitions={definitions} />
               </>
             )}
           </CardContent>

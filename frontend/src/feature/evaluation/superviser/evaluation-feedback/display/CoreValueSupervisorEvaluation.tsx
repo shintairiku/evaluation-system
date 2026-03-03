@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Users, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -60,6 +60,12 @@ export default function CoreValueSupervisorEvaluation({
     feedback?.scores ?? {}
   );
   const [comment, setComment] = useState<string>(feedback?.comment ?? "");
+
+  // Sync local state when feedback prop changes (e.g. after initial load or subordinate switch)
+  useEffect(() => {
+    setScores(feedback?.scores ?? {});
+    setComment(feedback?.comment ?? "");
+  }, [feedback?.id]);
 
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } =

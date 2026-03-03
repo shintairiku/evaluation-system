@@ -3,7 +3,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle, Clock, Loader2, MessageSquare } from "lucide-react";
 import type { GoalWithAssessment } from "./index";
-import type { CoreValueFeedback } from "@/api/types";
+import type { CoreValueFeedback, CoreValueDefinition } from "@/api/types";
 import type { SaveStatus } from "../hooks/useSelfAssessmentAutoSave";
 
 /**
@@ -44,14 +44,16 @@ export function SaveStatusIndicator({ status }: { status: SaveStatus }) {
  * 2. RETURNED (red) — action === 'PENDING' && returnComment present
  * 3. PENDING (amber) — action === 'PENDING' && no returnComment
  *
- * Note: supervisorComment and supervisorRatingCode are internal and NOT shown to subordinate.
+ * When RETURNED (差し戻し), shows the supervisor's suggested rating(s):
+ * - Performance goals: single supervisorRatingCode inline badge
+ * - Competency goals: per-competency average ratings grid (from ratingData)
  */
 export function SupervisorFeedbackAlert({
   goalWithAssessment,
 }: {
   goalWithAssessment: GoalWithAssessment;
 }) {
-  const { supervisorFeedback } = goalWithAssessment;
+  const { goal, supervisorFeedback } = goalWithAssessment;
 
   if (!supervisorFeedback) {
     return null;
@@ -119,13 +121,62 @@ export function SupervisorFeedbackAlert({
               {feedbackDate && <p className={dateClasses}>{formatDate(feedbackDate)}</p>}
             </div>
           </div>
-          {isReturned && supervisorFeedback.returnComment && (
+          {isReturned && (
             <>
-              <div className="bg-white p-3 rounded border border-red-200">
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                  {supervisorFeedback.returnComment}
-                </p>
-              </div>
+              {/* Supervisor suggested rating(s) */}
+              {supervisorFeedback.ratingData && Object.keys(supervisorFeedback.ratingData).length > 0 ? (
+                /* Competency: per-action ratings grouped by competency */
+                (() => {
+                  const competencyNames = goal.allStageCompetencyNames || goal.competencyNames || {};
+                  const actionTexts = goal.allStageIdealActionTexts || {};
+                  const compIds = Object.keys(supervisorFeedback.ratingData!);
+
+                  if (compIds.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-sm font-medium text-red-800 mb-1">上司推薦評価：</p>
+                      <div className="bg-white p-3 rounded border border-red-200 space-y-2">
+                        {compIds.map(compId => {
+                          const compName = competencyNames[compId] || compId;
+                          const compActionTexts = actionTexts[compId] || {};
+                          const actionRatings = supervisorFeedback.ratingData![compId];
+                          const actionEntries = Object.entries(actionRatings).filter(([, r]) => r);
+
+                          if (actionEntries.length === 0) return null;
+                          return (
+                            <div key={compId}>
+                              <p className="text-xs font-semibold text-gray-600 mb-0.5">{compName}</p>
+                              <div className="flex flex-wrap gap-x-4 gap-y-0.5 pl-2">
+                                {actionEntries.map(([actionIdx, rating]) => (
+                                  <span key={actionIdx} className="text-sm text-gray-800">
+                                    <span className="text-gray-500 truncate max-w-[200px] inline-block align-bottom overflow-hidden whitespace-nowrap">
+                                      {compActionTexts[actionIdx] || `Action ${actionIdx}`}
+                                    </span>
+                                    ：<span className="font-bold">{rating}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : supervisorFeedback.supervisorRatingCode ? (
+                /* Performance: single inline badge */
+                <div className="flex items-center gap-2 text-sm text-red-800">
+                  <span>上司推薦評価：</span>
+                  <span className="font-bold text-base">{supervisorFeedback.supervisorRatingCode}</span>
+                </div>
+              ) : null}
+              {supervisorFeedback.returnComment && (
+                <div className="bg-white p-3 rounded border border-red-200">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                    {supervisorFeedback.returnComment}
+                  </p>
+                </div>
+              )}
               <p className="text-sm text-red-700 font-medium">
                 修正して再度提出してください。
               </p>
@@ -148,11 +199,15 @@ export function SupervisorFeedbackAlert({
  * 1. APPROVED (green) — action === 'APPROVED'
  * 2. RETURNED (red) — action === 'PENDING' && returnComment present
  * 3. PENDING (amber) — action === 'PENDING' && no returnComment
+ *
+ * When RETURNED, shows per-core-value supervisor ratings grid from feedback.scores.
  */
 export function CoreValueFeedbackAlert({
   feedback,
+  definitions,
 }: {
   feedback: CoreValueFeedback | null;
+  definitions?: CoreValueDefinition[];
 }) {
   if (!feedback) {
     return null;
@@ -220,13 +275,40 @@ export function CoreValueFeedbackAlert({
               {feedbackDate && <p className={dateClasses}>{formatDate(feedbackDate)}</p>}
             </div>
           </div>
-          {isReturned && feedback.returnComment && (
+          {isReturned && (
             <>
-              <div className="bg-white p-3 rounded border border-red-200">
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                  {feedback.returnComment}
-                </p>
-              </div>
+              {/* Per-core-value supervisor ratings grid */}
+              {feedback.scores && definitions && definitions.length > 0 && (() => {
+                const entries = definitions
+                  .filter(def => feedback.scores![def.id])
+                  .map(def => ({
+                    name: def.name,
+                    rating: feedback.scores![def.id],
+                  }));
+
+                if (entries.length === 0) return null;
+                return (
+                  <div>
+                    <p className="text-sm font-medium text-red-800 mb-1">上司推薦評価：</p>
+                    <div className="bg-white p-3 rounded border border-red-200">
+                      <div className="flex flex-wrap gap-x-5 gap-y-1">
+                        {entries.map(e => (
+                          <span key={e.name} className="text-sm text-gray-800">
+                            {e.name}：<span className="font-bold">{e.rating}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              {feedback.returnComment && (
+                <div className="bg-white p-3 rounded border border-red-200">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                    {feedback.returnComment}
+                  </p>
+                </div>
+              )}
               <p className="text-sm text-red-700 font-medium">
                 修正して再度提出してください。
               </p>
