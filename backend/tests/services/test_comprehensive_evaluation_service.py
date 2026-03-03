@@ -405,6 +405,45 @@ async def test_finalize_period_updates_levels_and_marks_completed():
 
 
 @pytest.mark.asyncio
+async def test_finalize_period_allows_draft_status():
+    session = AsyncMock()
+    service = ComprehensiveEvaluationService(session)
+    period_id = uuid4()
+    employee_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="draft"))
+    service.get_comprehensive_evaluation = AsyncMock(
+        return_value=SimpleNamespace(
+            rows=[
+                SimpleNamespace(
+                    user_id=employee_id,
+                    employment_type="employee",
+                    current_level=10,
+                    applied=SimpleNamespace(new_level=12),
+                ),
+            ],
+            meta=SimpleNamespace(pages=1),
+        )
+    )
+    service.user_repo.batch_update_user_levels = AsyncMock(return_value={employee_id})
+    service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
+
+    result = await service.finalize_evaluation_period(
+        context=make_context(role_name="eval_admin"),
+        period_id=period_id,
+    )
+
+    service.period_repo.update_status.assert_awaited_once_with(
+        period_id,
+        EvaluationPeriodStatus.COMPLETED,
+        "org_test",
+    )
+    assert result.previous_status == "draft"
+    assert result.current_status == "completed"
+    assert result.updated_user_levels == 1
+
+
+@pytest.mark.asyncio
 async def test_finalize_period_is_idempotent_when_already_completed():
     session = AsyncMock()
     service = ComprehensiveEvaluationService(session)
