@@ -321,8 +321,10 @@ class ComprehensiveEvaluationService:
 
         if previous_status == "cancelled":
             raise BadRequestError("Cancelled evaluation periods cannot be finalized")
-        if previous_status not in ("active", "completed"):
-            raise BadRequestError("Only active evaluation periods can be finalized")
+        if previous_status not in ("draft", "active", "completed"):
+            raise BadRequestError(
+                "Only draft, active, or completed evaluation periods can be finalized"
+            )
 
         rows = await self._collect_period_rows_for_finalization(context=context, period_id=period_id)
         level_updates: Dict[UUID, int] = {}
