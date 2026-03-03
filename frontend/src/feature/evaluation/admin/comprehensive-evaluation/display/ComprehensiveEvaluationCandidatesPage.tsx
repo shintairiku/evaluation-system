@@ -145,7 +145,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   );
   const isSelectedPeriodCompleted = selectedEvaluationPeriod?.status === "completed";
   const isSelectedPeriodCancelled = selectedEvaluationPeriod?.status === "cancelled";
-  const canEdit = canEditRole && !isSelectedPeriodCancelled;
+  const canEdit = canEditRole && isSelectedPeriodCompleted;
 
   useEffect(() => {
     if (evaluationPeriodId !== "all") return;
@@ -465,6 +465,11 @@ export default function ComprehensiveEvaluationCandidatesPage() {
             {isSelectedPeriodCompleted && !isSelectedPeriodCancelled && (
               <p className="text-sm text-muted-foreground">
                 確定済みの評価期間でも、このページでは手動確定を編集できます。
+              </p>
+            )}
+            {!isSelectedPeriodCompleted && !isSelectedPeriodCancelled && (
+              <p className="text-sm text-muted-foreground">
+                手動確定の編集は、評価期間を確定（completed）した後に利用できます。
               </p>
             )}
           </div>
