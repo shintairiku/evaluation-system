@@ -368,22 +368,9 @@ class EvaluationPeriodService:
 
     async def _validate_period_creation(self, period_data: EvaluationPeriodCreate, org_id: str):
         """Validate business rules for evaluation period creation."""
-        
-        # Check for name uniqueness
-        name_exists = await self.evaluation_period_repo.check_name_exists(period_data.name, org_id)
-        if name_exists:
-            raise ConflictError(f"Evaluation period with name '{period_data.name}' already exists")
-        
-        # Check for date overlap with existing periods
-        date_overlap = await self.evaluation_period_repo.check_date_overlap(
-            period_data.start_date, 
-            period_data.end_date,
-            org_id
-        )
-        if date_overlap:
-            raise ConflictError("Evaluation period dates overlap with an existing period")
-        
-        # Additional business rule validations (relaxed for flexibility)
+        _ = org_id
+        # Creation now allows duplicate names and overlapping date ranges.
+        # Additional business rule validations remain for invalid date ordering.
         
         # Goal submission deadline should be reasonable (allow some flexibility)
         if period_data.goal_submission_deadline > period_data.end_date:
