@@ -1,6 +1,6 @@
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from .common import SubmissionStatus, RatingCode, PaginatedResponse
 from .supervisor_review import SupervisorAction
@@ -90,6 +90,13 @@ class SupervisorFeedbackSubmit(BaseModel):
         alias="ratingData",
         description="Granular per-action ratings for コンピテンシー goals (JSONB). NULL for 業績目標."
     )
+
+    @field_validator("action")
+    @classmethod
+    def validate_supported_submit_action(cls, value: SupervisorAction) -> SupervisorAction:
+        if value == SupervisorAction.REJECTED:
+            raise ValueError("REJECTED is not supported for supervisor feedback submission")
+        return value
 
     model_config = {"populate_by_name": True}
 

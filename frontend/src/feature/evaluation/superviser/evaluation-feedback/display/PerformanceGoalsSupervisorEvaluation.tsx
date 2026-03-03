@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, SupervisorFeedbackStatus } from "@/api/types";
-import { QUANTITATIVE_RATING_CODES, QUALITATIVE_RATING_CODES } from "@/api/types/common";
+import { QUANTITATIVE_RATING_CODES, QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
+import { scoreToFinalRating } from "@/utils/rating";
 import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
 // Display data structure for supervisor evaluation
@@ -22,9 +23,15 @@ export interface PerformanceGoalSupervisorData {
   specificGoal: string;
   achievementCriteria: string;
   methods: string;
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
+  supervisorRating?: number;
   supervisorComment: string;
 }
+
+type PerformanceGoalLiveUpdate = Pick<
+  PerformanceGoalSupervisorData,
+  "supervisorRatingCode" | "supervisorRating" | "supervisorComment"
+>;
 
 interface PerformanceGoalsSupervisorEvaluationProps {
   goals?: PerformanceGoalSupervisorData[];
@@ -60,19 +67,34 @@ export function transformPerformanceGoalsForSupervisor(
         achievementCriteria: goal.achievementCriteriaText || '',
         methods: goal.meansMethodsText || '',
         supervisorRatingCode: feedback?.supervisorRatingCode,
+        supervisorRating: feedback?.supervisorRating,
         supervisorComment: feedback?.supervisorComment || '',
       };
     });
 }
 
-// NOTE: Overall rating is not shown during supervisor evaluation.
-// Rating will only be displayed after all self-assessments are approved,
-// and will be based on the subordinate's self-rating, not the supervisor's.
-// This function is kept for backward compatibility but always returns '−'.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function calculateSupervisorOverallRating(goals: PerformanceGoalSupervisorData[]): string {
-  // Always return '−' during evaluation - rating is shown after approval
-  return '−';
+  let totalWeight = 0;
+  let weightedSum = 0;
+
+  for (const goal of goals) {
+    const weight = goal.weight || 0;
+    if (weight <= 0) continue;
+
+    let score: number | undefined;
+    if (goal.supervisorRatingCode) {
+      score = RATING_CODE_VALUES[goal.supervisorRatingCode];
+    } else if (typeof goal.supervisorRating === "number" && Number.isFinite(goal.supervisorRating)) {
+      score = goal.supervisorRating;
+    }
+
+    if (typeof score !== "number") continue;
+    weightedSum += score * weight;
+    totalWeight += weight;
+  }
+
+  if (totalWeight === 0) return "−";
+  return scoreToFinalRating(weightedSum / totalWeight);
 }
 
 /**
@@ -108,14 +130,21 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
  */
 function PerformanceGoalSupervisorCard({
   goal,
+  onGoalChange,
 }: {
   goal: PerformanceGoalSupervisorData;
+  onGoalChange: (goalId: string, updates: PerformanceGoalLiveUpdate) => void;
 }) {
   // Local state for form values
-  const [ratingCode, setRatingCode] = useState<RatingCode | undefined>(
+  const [ratingCode, setRatingCode] = useState<RatingCode | null | undefined>(
     goal.supervisorRatingCode
   );
   const [comment, setComment] = useState<string>(goal.supervisorComment || "");
+
+  useEffect(() => {
+    setRatingCode(goal.supervisorRatingCode);
+    setComment(goal.supervisorComment || "");
+  }, [goal.id, goal.supervisorRatingCode, goal.supervisorComment]);
 
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
@@ -132,22 +161,32 @@ function PerformanceGoalSupervisorCard({
   // Handle rating change (toggle - click again to deselect)
   const handleRatingChange = useCallback((newRating: RatingCode) => {
     if (!isEditable) return;
-    // If clicking the same rating, deselect it (send undefined to clear in DB)
+    // If clicking the same rating, deselect it (send explicit null to clear in DB)
     const isDeselecting = ratingCode === newRating;
-    const updatedRating = isDeselecting ? undefined : newRating;
+    const updatedRating: RatingCode | null = isDeselecting ? null : newRating;
     setRatingCode(updatedRating);
+    onGoalChange(goal.id, {
+      supervisorRatingCode: updatedRating ?? undefined,
+      supervisorRating: updatedRating ? RATING_CODE_VALUES[updatedRating] : undefined,
+      supervisorComment: comment,
+    });
     debouncedSave({
       supervisorRatingCode: updatedRating,
       supervisorComment: comment
     });
-  }, [ratingCode, comment, debouncedSave, isEditable]);
+  }, [goal.id, ratingCode, comment, debouncedSave, isEditable, onGoalChange]);
 
   // Handle comment change (debounced)
   const handleCommentChange = useCallback((newComment: string) => {
     if (!isEditable) return;
     setComment(newComment);
+    onGoalChange(goal.id, {
+      supervisorRatingCode: ratingCode ?? undefined,
+      supervisorRating: ratingCode ? RATING_CODE_VALUES[ratingCode] : undefined,
+      supervisorComment: newComment,
+    });
     debouncedSave({ supervisorRatingCode: ratingCode, supervisorComment: newComment });
-  }, [ratingCode, debouncedSave, isEditable]);
+  }, [goal.id, ratingCode, debouncedSave, isEditable, onGoalChange]);
 
   // Handle comment blur (immediate save)
   const handleCommentBlur = useCallback(() => {
@@ -266,9 +305,29 @@ export default function PerformanceGoalsSupervisorEvaluation({
   isLoading = false,
 }: PerformanceGoalsSupervisorEvaluationProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [localGoals, setLocalGoals] = useState<PerformanceGoalSupervisorData[]>(goals || []);
 
-  const displayGoals = goals || [];
-  const displayOverallRating = overallRating || (displayGoals.length > 0 ? calculateSupervisorOverallRating(displayGoals) : '−');
+  useEffect(() => {
+    setLocalGoals(goals || []);
+  }, [goals]);
+
+  const handleGoalChange = useCallback((goalId: string, updates: PerformanceGoalLiveUpdate) => {
+    setLocalGoals((prevGoals) =>
+      prevGoals.map((goal) =>
+        goal.id === goalId
+          ? {
+              ...goal,
+              ...updates,
+            }
+          : goal
+      )
+    );
+  }, []);
+
+  const displayGoals = localGoals;
+  const displayOverallRating = displayGoals.length > 0
+    ? calculateSupervisorOverallRating(displayGoals)
+    : (overallRating || "−");
 
   return (
     <Card className="shadow-xl border-0 bg-white">
@@ -328,6 +387,7 @@ export default function PerformanceGoalsSupervisorEvaluation({
             <PerformanceGoalSupervisorCard
               key={goal.id}
               goal={goal}
+              onGoalChange={handleGoalChange}
             />
           ))
         )}

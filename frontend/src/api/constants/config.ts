@@ -252,6 +252,16 @@ export const API_ENDPOINTS = {
     ROLE_CLONE: (roleId: string) => `/roles/${roleId}/permissions:clone`,
     ROLE_BULK: '/roles/permissions:bulk',
   },
+
+  // Comprehensive Evaluation endpoints
+  COMPREHENSIVE_EVALUATION: {
+    LIST: '/evaluation/comprehensive-evaluation',
+    STAGE_OPTIONS: '/evaluation/comprehensive-evaluation/stage-options',
+    SETTINGS: '/evaluation/comprehensive-evaluation/settings',
+    FINALIZE: '/evaluation/comprehensive-evaluation/finalize',
+    MANUAL_DECISION: (userId: string) => `/evaluation/comprehensive-evaluation/manual-decisions/${userId}`,
+    MANUAL_HISTORY: '/evaluation/comprehensive-evaluation/manual-decisions/history',
+  },
 } as const;
 
 export const HTTP_STATUS = {

@@ -20,7 +20,7 @@ import type { UserProfileOption } from './user';
  */
 export interface SupervisorFeedbackBase {
   /** Supervisor's letter grade: SS, S, A+, A, A-, B, C, D */
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
   /** Supervisor's feedback comment */
   supervisorComment?: string;
 }
@@ -104,7 +104,7 @@ export interface SupervisorFeedbackCreate extends SupervisorFeedbackBase {
  */
 export interface SupervisorFeedbackUpdate {
   /** Supervisor's letter grade */
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
   /** Supervisor's feedback comment */
   supervisorComment?: string;
   /** Per-action ratings for competency goals (JSONB) */
@@ -135,8 +135,7 @@ export interface SupervisorFeedbackReturn {
 /**
  * Paginated list of supervisor feedbacks
  */
-export interface SupervisorFeedbackList
-  extends PaginatedResponse<SupervisorFeedback> {}
+export type SupervisorFeedbackList = PaginatedResponse<SupervisorFeedback>;
 
 /**
  * Query parameters for fetching supervisor feedbacks
@@ -145,6 +144,7 @@ export interface SupervisorFeedbackQueryParams {
   periodId?: UUID;
   supervisorId?: UUID;
   subordinateId?: UUID;
+  selfOnly?: boolean;
   status?: SupervisorFeedbackStatus;
   action?: SupervisorFeedbackAction;
   page?: number;

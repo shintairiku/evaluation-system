@@ -11,7 +11,7 @@ export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
  * Data to save for a supervisor feedback
  */
 export interface SupervisorFeedbackSaveData {
-  supervisorRatingCode?: RatingCode;
+  supervisorRatingCode?: RatingCode | null;
   supervisorComment?: string;
   /** Per-action ratings for competency goals */
   ratingData?: CompetencyRatingData;
@@ -24,7 +24,7 @@ interface UseSupervisorFeedbackAutoSaveOptions {
   /** Supervisor feedback ID to auto-save to */
   feedbackId?: string;
   /** Initial rating code (from server) */
-  initialRatingCode?: RatingCode;
+  initialRatingCode?: RatingCode | null;
   /** Initial comment (from server) */
   initialComment?: string;
   /** Initial per-action ratings for competency goals (from server) */

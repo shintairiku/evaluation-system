@@ -33,6 +33,75 @@ function getStageActionMap(stageCompetencies: Competency[]): Record<string, stri
   }, {});
 }
 
+function shouldResolveFallbackByActionIndex(
+  actionIndexes: string[],
+  fallbackTexts: string[]
+): boolean {
+  if (actionIndexes.length === 0 || fallbackTexts.length === 0) {
+    return false;
+  }
+
+  const numericIndexes = actionIndexes
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0);
+
+  if (numericIndexes.length !== actionIndexes.length) {
+    return false;
+  }
+
+  const maxSelectedIndex = Math.max(...numericIndexes);
+  return fallbackTexts.length >= maxSelectedIndex && maxSelectedIndex > actionIndexes.length;
+}
+
+export function getGoalActionTexts(
+  goal: GoalResponse
+): Record<string, Record<string, string>> {
+  if (goal.allStageIdealActionTexts && Object.keys(goal.allStageIdealActionTexts).length > 0) {
+    return goal.allStageIdealActionTexts;
+  }
+
+  const selectedIdealActions = goal.selectedIdealActions || {};
+
+  return Object.entries(selectedIdealActions).reduce<Record<string, Record<string, string>>>(
+    (acc, [competencyId, actionIndexes]) => {
+      if (!Array.isArray(actionIndexes)) {
+        return acc;
+      }
+
+      const fallbackTexts = goal.idealActionTexts?.[competencyId] || [];
+      const resolveByActionIndex = shouldResolveFallbackByActionIndex(actionIndexes, fallbackTexts);
+
+      const actionTextMap = actionIndexes.reduce<Record<string, string>>(
+        (actionAcc, actionIndex, index) => {
+          const normalizedIndex = String(actionIndex).trim();
+          if (!normalizedIndex) {
+            return actionAcc;
+          }
+
+          const textFromSelectionOrder = fallbackTexts[index];
+          const numericActionIndex = Number(normalizedIndex);
+          const textFromActionIndex =
+            resolveByActionIndex && Number.isInteger(numericActionIndex) && numericActionIndex > 0
+              ? fallbackTexts[numericActionIndex - 1]
+              : undefined;
+
+          actionAcc[normalizedIndex] =
+            textFromActionIndex || textFromSelectionOrder || `行動 ${normalizedIndex}`;
+
+          return actionAcc;
+        },
+        {}
+      );
+
+      if (Object.keys(actionTextMap).length > 0) {
+        acc[competencyId] = actionTextMap;
+      }
+      return acc;
+    },
+    {}
+  );
+}
+
 export function getGoalCompetencyIds(goal: GoalResponse, stageCompetencies: Competency[] = []): string[] {
   const stageCompetencyIds = stageCompetencies.map((competency) => competency.id);
   if (stageCompetencyIds.length > 0) {

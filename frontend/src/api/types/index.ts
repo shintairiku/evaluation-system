@@ -45,6 +45,7 @@ export * from './permission';
 
 // Viewer visibility types
 export * from './viewer-visibility';
+export * from './comprehensive-evaluation';
 
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {

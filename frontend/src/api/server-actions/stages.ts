@@ -1,6 +1,5 @@
 'use server';
 
-import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { stagesApi } from '../endpoints/stages';
 import { CACHE_TAGS } from '../utils/cache';
@@ -16,14 +15,15 @@ import type {
 } from '../types';
 
 /**
- * Server action to get all stages with request memoization.
- * Data caching is handled at the fetch level.
+ * Server action to get all stages.
+ * This is intentionally uncached to avoid stale/cross-org stage lists
+ * in role-scoped management UIs.
  */
-export const getStagesAction = cache(async (): Promise<{
+export async function getStagesAction(): Promise<{
   success: boolean;
   data?: Stage[];
   error?: string;
-}> => {
+}> {
   try {
     const response = await stagesApi.getStages();
     
@@ -45,17 +45,17 @@ export const getStagesAction = cache(async (): Promise<{
       error: 'An unexpected error occurred while fetching stages',
     };
   }
-});
+}
 
 /**
- * Server action to get a specific stage by ID with request memoization.
- * Data caching is handled at the fetch level.
+ * Server action to get a specific stage by ID.
+ * This is intentionally uncached to avoid stale/cross-org data.
  */
-export const getStageByIdAction = cache(async (stageId: UUID): Promise<{
+export async function getStageByIdAction(stageId: UUID): Promise<{
   success: boolean;
   data?: StageDetail;
   error?: string;
-}> => {
+}> {
   try {
     const response = await stagesApi.getStageById(stageId);
     
@@ -77,7 +77,7 @@ export const getStageByIdAction = cache(async (stageId: UUID): Promise<{
       error: 'An unexpected error occurred while fetching stage',
     };
   }
-});
+}
 
 /**
  * Server action to create a new stage with cache revalidation
