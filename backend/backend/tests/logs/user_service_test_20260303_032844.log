@@ -1,0 +1,25 @@
+2026-03-03 03:28:44,489 - root - INFO - setup_service_test_logging:73 - === User Service Test Session Started ===
+2026-03-03 03:28:44,490 - root - INFO - setup_service_test_logging:74 - Log file: backend/tests/logs/user_service_test_20260303_032844.log
+2026-03-03 03:28:44,490 - root - INFO - setup_service_test_logging:75 - Testing business logic and repository interactions for user service
+2026-03-03 03:28:44,842 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:44,843 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:46,805 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,112 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,123 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,127 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,130 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,133 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,136 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,139 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,154 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,158 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,161 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,164 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,166 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,171 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,173 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,175 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,176 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,179 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-03 03:28:48,238 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for update_user_stage: user 00000000-0000-0000-0000-000000000001 lacks stage:manage
+2026-03-03 03:28:48,651 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
