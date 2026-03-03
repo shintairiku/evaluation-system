@@ -179,9 +179,6 @@ export default function CoreValueSelfAssessment({
 
                     {/* Rating Display (read-only) */}
                     <div>
-                      <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                        評価
-                      </Label>
                       <div className="flex items-center gap-3 flex-wrap">
                         {CORE_VALUE_RATING_CODES.map((rating) => {
                           const isSelected = score === rating;

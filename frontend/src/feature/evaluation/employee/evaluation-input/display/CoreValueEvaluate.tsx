@@ -257,12 +257,9 @@ export default function CoreValueEvaluate({
 
                     {/* Rating Section */}
                     <div>
-                      <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                        評価{" "}
-                        {!scores[definition.id] && (
-                          <span className="text-red-500">*</span>
-                        )}
-                      </Label>
+                      {!scores[definition.id] && (
+                        <span className="text-red-500 text-sm mb-2 block">*</span>
+                      )}
 
                       <div className="flex items-center gap-3 flex-wrap">
                         {CORE_VALUE_RATING_CODES.map((rating) => {

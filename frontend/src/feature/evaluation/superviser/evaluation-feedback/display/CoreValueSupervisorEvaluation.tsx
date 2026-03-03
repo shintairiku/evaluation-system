@@ -211,10 +211,6 @@ export default function CoreValueSupervisorEvaluation({
 
                   {/* Rating Section */}
                   <div>
-                    <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                      上長評価
-                    </Label>
-
                     <div className="flex items-center gap-3 flex-wrap">
                       {CORE_VALUE_RATING_CODES.map((rating) => {
                         const isSelected =
