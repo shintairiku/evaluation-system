@@ -106,7 +106,7 @@ export default function PeerReviewAssignmentsPage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">評価者割当管理</h1>
+          <h1 className="text-2xl font-bold">同僚評価進捗管理</h1>
           <p className="text-sm text-muted-foreground mt-1">
             各社員に対して同僚評価者を2名割り当てます
           </p>

@@ -106,7 +106,7 @@ export const groups = [
       },
       {
         href: '/peer-review-assignments',
-        label: '評価者割当管理',
+        label: '同僚評価進捗管理',
         sublabel: 'Peer Review Assignments',
         icon: 'users',
         permission: 'admin'

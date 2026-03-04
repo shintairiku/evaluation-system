@@ -17,7 +17,9 @@ const isAdminRoute = createRouteMatcher([
   '/org-management(.*)',
   '/stage-management(.*)',
   '/competency-management(.*)',
-  '/admin-goal-list(.*)'
+  '/admin-goal-list(.*)',
+  '/admin-eval-list(.*)',
+  '/peer-review-assignments(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
