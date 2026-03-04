@@ -441,8 +441,8 @@ class EvaluationPeriodService:
     async def _validate_period_deletion(self, existing_period: EvaluationPeriodModel):
         """Validate that the evaluation period can be deleted."""
         
-        # Cannot delete active, completed, or cancelled periods
-        if existing_period.status in [EvaluationPeriodStatus.ACTIVE, EvaluationPeriodStatus.COMPLETED, EvaluationPeriodStatus.CANCELLED]:
+        # Allow deleting only draft/completed periods. Active/cancelled are blocked.
+        if existing_period.status in [EvaluationPeriodStatus.ACTIVE, EvaluationPeriodStatus.CANCELLED]:
             raise BadRequestError(f"Cannot delete {existing_period.status} evaluation period")
         
         # TODO: Add validation for existing goals/assessments when those models are implemented
