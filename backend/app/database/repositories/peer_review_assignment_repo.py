@@ -31,7 +31,7 @@ class PeerReviewAssignmentRepository(BaseRepository[PeerReviewAssignment]):
             query = (
                 select(PeerReviewAssignment)
                 .options(
-                    joinedload(PeerReviewAssignment.reviewee),
+                    joinedload(PeerReviewAssignment.reviewee).joinedload(User.department),
                     joinedload(PeerReviewAssignment.reviewer),
                     joinedload(PeerReviewAssignment.evaluation),
                 )

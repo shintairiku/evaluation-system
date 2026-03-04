@@ -19,37 +19,35 @@ import type {
 /**
  * Server action to get all assignments for a period (admin)
  */
-export const getAssignmentsAction = cache(
-  async (
-    periodId: string,
-  ): Promise<{
-    success: boolean;
-    data?: PeerReviewAssignmentsByReviewee[];
-    error?: string;
-  }> => {
-    try {
-      const response = await peerReviewsApi.getAssignments(periodId);
+export async function getAssignmentsAction(
+  periodId: string,
+): Promise<{
+  success: boolean;
+  data?: PeerReviewAssignmentsByReviewee[];
+  error?: string;
+}> {
+  try {
+    const response = await peerReviewsApi.getAssignments(periodId);
 
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.errorMessage || 'Failed to fetch peer review assignments',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get peer review assignments action error:', error);
+    if (!response.success || !response.data) {
       return {
         success: false,
-        error: 'An unexpected error occurred while fetching peer review assignments',
+        error: response.errorMessage || 'Failed to fetch peer review assignments',
       };
     }
-  },
-);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get peer review assignments action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching peer review assignments',
+    };
+  }
+}
 
 /**
  * Server action to assign reviewers to a reviewee (admin)

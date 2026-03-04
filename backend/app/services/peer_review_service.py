@@ -138,6 +138,9 @@ class PeerReviewService:
                     reviewer_id=reviewer_id,
                     org_id=org_id,
                 )
+                # Eagerly load relationships for response serialization
+                # (async SQLAlchemy cannot lazy-load)
+                await self.session.refresh(assignment, attribute_names=['reviewer', 'evaluation'])
                 results.append(
                     PeerReviewAssignmentResponse.model_validate(assignment)
                 )

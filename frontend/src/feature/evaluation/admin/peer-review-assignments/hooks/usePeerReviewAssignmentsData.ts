@@ -426,6 +426,7 @@ export function usePeerReviewAssignmentsData(
 
     // Reload to sync with server state
     await loadData();
+    setRandomAssignedIds(new Set());
     setIsSaving(false);
     return true;
   }, [resolvedPeriodId, rows, loadData]);
