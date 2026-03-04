@@ -1,0 +1,1705 @@
+2026-03-04 07:34:59,503 - root - INFO - setup_service_test_logging:73 - === User Service Test Session Started ===
+2026-03-04 07:34:59,503 - root - INFO - setup_service_test_logging:74 - Log file: backend/tests/logs/user_service_test_20260304_073459.log
+2026-03-04 07:34:59,503 - root - INFO - setup_service_test_logging:75 - Testing business logic and repository interactions for user service
+2026-03-04 07:34:59,564 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:34:59,564 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:01,912 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,932 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,938 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,942 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,945 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,947 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,950 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,951 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,963 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,965 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,967 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,973 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,977 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,983 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,989 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:03,996 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,000 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,005 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,148 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for update_user_stage: user 00000000-0000-0000-0000-000000000001 lacks stage:manage
+2026-03-04 07:35:04,214 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,241 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for update_user_stage: user 00000000-0000-0000-0000-000000000001 lacks stage:manage
+2026-03-04 07:35:04,259 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,281 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for update_user_stage: user 00000000-0000-0000-0000-000000000001 lacks stage:manage
+2026-03-04 07:35:04,294 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,299 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,299 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,301 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,301 - root - INFO - log_test_start:85 - ================================================================================
+2026-03-04 07:35:04,301 - root - INFO - log_test_start:86 - Testing: Profile Options Retrieval
+2026-03-04 07:35:04,301 - root - INFO - log_test_start:87 - ================================================================================
+2026-03-04 07:35:04,306 - root - INFO - log_api_request:106 - 🌐 API Request: GET http://localhost:8000/api/v1/auth/signup/profile-options
+2026-03-04 07:35:04,307 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.started host='localhost' port=8000 local_address=None timeout=5.0 socket_options=None
+2026-03-04 07:35:04,311 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0xffff9b392c00>
+2026-03-04 07:35:04,312 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'GET']>
+2026-03-04 07:35:04,314 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:04,314 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'GET']>
+2026-03-04 07:35:04,314 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:04,314 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'GET']>
+2026-03-04 07:35:04,554 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Wed, 04 Mar 2026 07:35:03 GMT'), (b'server', b'uvicorn'), (b'content-length', b'52'), (b'content-type', b'application/json')])
+2026-03-04 07:35:04,556 - httpx - INFO - _send_single_request:1740 - HTTP Request: GET http://localhost:8000/api/v1/auth/signup/profile-options "HTTP/1.1 200 OK"
+2026-03-04 07:35:04,556 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'GET']>
+2026-03-04 07:35:04,556 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:04,557 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:04,557 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:04,557 - root - INFO - log_api_response:114 - ✅ API Response: 200
+2026-03-04 07:35:04,557 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Profile options retrieved
+2026-03-04 07:35:04,557 - root - INFO - log_auth_workflow_step:127 -    departments_count: 0
+2026-03-04 07:35:04,557 - root - INFO - log_auth_workflow_step:127 -    stages_count: 0
+2026-03-04 07:35:04,557 - root - INFO - log_auth_workflow_step:127 -    roles_count: 0
+2026-03-04 07:35:04,557 - root - INFO - log_auth_workflow_step:127 -    users_count: 0
+2026-03-04 07:35:04,557 - root - INFO - log_test_success:92 - ✅ Profile Options Retrieval - PASSED
+2026-03-04 07:35:04,557 - root - INFO - log_test_success:95 -    data_structure: validated
+2026-03-04 07:35:04,558 - httpcore.connection - DEBUG - atrace:87 - close.started
+2026-03-04 07:35:04,558 - httpcore.connection - DEBUG - atrace:87 - close.complete
+2026-03-04 07:35:04,561 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:04,561 - root - INFO - log_test_start:85 - ================================================================================
+2026-03-04 07:35:04,561 - root - INFO - log_test_start:86 - Testing: Check Non-existent User
+2026-03-04 07:35:04,562 - root - INFO - log_test_start:87 - ================================================================================
+2026-03-04 07:35:04,562 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Generated test Clerk ID
+2026-03-04 07:35:04,562 - root - INFO - log_auth_workflow_step:127 -    clerk_id: test-clerk-nonexistent-ec3a0efd-5b00-48ee-b1db-e5398741171c
+2026-03-04 07:35:04,566 - root - INFO - log_api_request:106 - 🌐 API Request: GET http://localhost:8000/api/v1/auth/user/test-clerk-nonexistent-ec3a0efd-5b00-48ee-b1db-e5398741171c
+2026-03-04 07:35:04,567 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.started host='localhost' port=8000 local_address=None timeout=5.0 socket_options=None
+2026-03-04 07:35:04,568 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0xffff9b4b6900>
+2026-03-04 07:35:04,569 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'GET']>
+2026-03-04 07:35:04,569 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:04,572 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'GET']>
+2026-03-04 07:35:04,573 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:04,574 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'GET']>
+2026-03-04 07:35:05,893 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Wed, 04 Mar 2026 07:35:03 GMT'), (b'server', b'uvicorn'), (b'content-length', b'70'), (b'content-type', b'application/json')])
+2026-03-04 07:35:05,895 - httpx - INFO - _send_single_request:1740 - HTTP Request: GET http://localhost:8000/api/v1/auth/user/test-clerk-nonexistent-ec3a0efd-5b00-48ee-b1db-e5398741171c "HTTP/1.1 200 OK"
+2026-03-04 07:35:05,895 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'GET']>
+2026-03-04 07:35:05,896 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:05,897 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:05,897 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:05,898 - root - INFO - log_api_response:114 - ✅ API Response: 200
+2026-03-04 07:35:05,898 - root - INFO - log_api_response:119 -    Response: {'exists': False, 'user_id': None, 'name': None, 'email': None, 'status': None}
+2026-03-04 07:35:05,898 - root - INFO - log_test_success:92 - ✅ Check Non-existent User - PASSED
+2026-03-04 07:35:05,898 - root - INFO - log_test_success:95 -    user_exists: False
+2026-03-04 07:35:05,899 - httpcore.connection - DEBUG - atrace:87 - close.started
+2026-03-04 07:35:05,899 - httpcore.connection - DEBUG - atrace:87 - close.complete
+2026-03-04 07:35:05,903 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:05,904 - root - INFO - log_test_start:85 - ================================================================================
+2026-03-04 07:35:05,904 - root - INFO - log_test_start:86 - Testing: Complete Signup Workflow
+2026-03-04 07:35:05,905 - root - INFO - log_test_start:87 - ================================================================================
+2026-03-04 07:35:05,905 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Generated test identifiers
+2026-03-04 07:35:05,905 - root - INFO - log_auth_workflow_step:127 -    clerk_id: test-clerk-a4bdd247-e554-48ea-83d7-e1ed263ab9b4
+2026-03-04 07:35:05,905 - root - INFO - log_auth_workflow_step:127 -    employee_code: EMP74DD2E
+2026-03-04 07:35:05,918 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Step 1: Getting profile options
+2026-03-04 07:35:05,918 - root - INFO - log_api_request:106 - 🌐 API Request: GET http://localhost:8000/api/v1/auth/signup/profile-options
+2026-03-04 07:35:05,919 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.started host='localhost' port=8000 local_address=None timeout=5.0 socket_options=None
+2026-03-04 07:35:05,923 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0xffff9b1a2000>
+2026-03-04 07:35:05,924 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'GET']>
+2026-03-04 07:35:05,924 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:05,927 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'GET']>
+2026-03-04 07:35:05,928 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:05,928 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'GET']>
+2026-03-04 07:35:05,953 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Wed, 04 Mar 2026 07:35:04 GMT'), (b'server', b'uvicorn'), (b'content-length', b'52'), (b'content-type', b'application/json')])
+2026-03-04 07:35:05,954 - httpx - INFO - _send_single_request:1740 - HTTP Request: GET http://localhost:8000/api/v1/auth/signup/profile-options "HTTP/1.1 200 OK"
+2026-03-04 07:35:05,955 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'GET']>
+2026-03-04 07:35:05,955 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:05,955 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:05,956 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:05,956 - root - INFO - log_api_response:114 - ✅ API Response: 200
+2026-03-04 07:35:05,956 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Profile options configured
+2026-03-04 07:35:05,956 - root - INFO - log_auth_workflow_step:127 -    department_id: None
+2026-03-04 07:35:05,956 - root - INFO - log_auth_workflow_step:127 -    stage_id: None
+2026-03-04 07:35:05,956 - root - INFO - log_auth_workflow_step:127 -    role_ids: []
+2026-03-04 07:35:05,956 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Step 2: Checking user doesn't exist
+2026-03-04 07:35:05,956 - root - INFO - log_api_request:106 - 🌐 API Request: GET http://localhost:8000/api/v1/auth/user/test-clerk-a4bdd247-e554-48ea-83d7-e1ed263ab9b4
+2026-03-04 07:35:05,957 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'GET']>
+2026-03-04 07:35:05,957 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:05,961 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'GET']>
+2026-03-04 07:35:05,962 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:05,965 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'GET']>
+2026-03-04 07:35:07,676 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Wed, 04 Mar 2026 07:35:04 GMT'), (b'server', b'uvicorn'), (b'content-length', b'70'), (b'content-type', b'application/json')])
+2026-03-04 07:35:07,677 - httpx - INFO - _send_single_request:1740 - HTTP Request: GET http://localhost:8000/api/v1/auth/user/test-clerk-a4bdd247-e554-48ea-83d7-e1ed263ab9b4 "HTTP/1.1 200 OK"
+2026-03-04 07:35:07,677 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'GET']>
+2026-03-04 07:35:07,678 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:07,679 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:07,679 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:07,679 - root - INFO - log_api_response:114 - ✅ API Response: 200
+2026-03-04 07:35:07,680 - root - INFO - log_api_response:119 -    Response: {'exists': False, 'user_id': None, 'name': None, 'email': None, 'status': None}
+2026-03-04 07:35:07,680 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Step 3: Preparing signup data
+2026-03-04 07:35:07,680 - root - INFO - log_auth_workflow_step:127 -    name: 田中 太郎
+2026-03-04 07:35:07,680 - root - INFO - log_auth_workflow_step:127 -    email: test-43e32a81-baf4-4c72-8503-51d02ab25ca3@example.com
+2026-03-04 07:35:07,680 - root - INFO - log_auth_workflow_step:127 -    job_title: ソフトウェアエンジニア
+2026-03-04 07:35:07,680 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Step 4: Submitting signup
+2026-03-04 07:35:07,681 - root - INFO - log_api_request:106 - 🌐 API Request: POST http://localhost:8000/api/v1/auth/signup
+2026-03-04 07:35:07,681 - root - INFO - log_api_request:108 -    Payload: {'clerk_user_id': 'test-clerk-a4bdd247-e554-48ea-83d7-e1ed263ab9b4', 'name': '田中 太郎', 'email': 'test-43e32a81-baf4-4c72-8503-51d02ab25ca3@example.com', 'employee_code': 'EMP74DD2E', 'job_title': 'ソフトウェアエンジニア', 'department_id': None, 'stage_id': None, 'role_ids': []}
+2026-03-04 07:35:07,682 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,683 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:07,684 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,685 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:07,685 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,685 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'date', b'Wed, 04 Mar 2026 07:35:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'22'), (b'content-type', b'application/json')])
+2026-03-04 07:35:07,686 - httpx - INFO - _send_single_request:1740 - HTTP Request: POST http://localhost:8000/api/v1/auth/signup "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:07,686 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,686 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:07,686 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:07,686 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:07,687 - root - WARNING - log_api_response:116 - ⚠️  API Response: 404
+2026-03-04 07:35:07,687 - root - INFO - log_api_response:119 -    Response: {'detail': 'Not Found'}
+2026-03-04 07:35:07,688 - httpcore.connection - DEBUG - atrace:87 - close.started
+2026-03-04 07:35:07,688 - httpcore.connection - DEBUG - atrace:87 - close.complete
+2026-03-04 07:35:07,688 - root - ERROR - log_test_failure:100 - ❌ Complete Signup Workflow - FAILED: assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+2026-03-04 07:35:07,688 - root - ERROR - log_test_failure:101 -    Error type: AssertionError
+2026-03-04 07:35:07,714 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,714 - root - INFO - log_test_start:85 - ================================================================================
+2026-03-04 07:35:07,714 - root - INFO - log_test_start:86 - Testing: Minimal Data Signup
+2026-03-04 07:35:07,714 - root - INFO - log_test_start:87 - ================================================================================
+2026-03-04 07:35:07,714 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Testing minimal data signup
+2026-03-04 07:35:07,714 - root - INFO - log_auth_workflow_step:127 -    optional_fields_null: ['department_id', 'stage_id', 'role_ids']
+2026-03-04 07:35:07,721 - root - INFO - log_api_request:106 - 🌐 API Request: POST http://localhost:8000/api/v1/auth/signup
+2026-03-04 07:35:07,721 - root - INFO - log_api_request:108 -    Payload: {'clerk_user_id': 'test-clerk-minimal-e2c6d20e-563a-4a08-bf34-c0789dabbbde', 'name': '佐藤 花子', 'email': 'minimal-3f577746-02cf-44bf-a17b-498102afba97@example.com', 'employee_code': 'MIN70033D', 'job_title': 'デザイナー', 'department_id': None, 'stage_id': None, 'role_ids': []}
+2026-03-04 07:35:07,721 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.started host='localhost' port=8000 local_address=None timeout=5.0 socket_options=None
+2026-03-04 07:35:07,724 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0xffff9b4cca70>
+2026-03-04 07:35:07,724 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,725 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:07,727 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,727 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:07,727 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,727 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'date', b'Wed, 04 Mar 2026 07:35:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'22'), (b'content-type', b'application/json')])
+2026-03-04 07:35:07,727 - httpx - INFO - _send_single_request:1740 - HTTP Request: POST http://localhost:8000/api/v1/auth/signup "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:07,728 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,728 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:07,728 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:07,728 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:07,728 - root - WARNING - log_api_response:116 - ⚠️  API Response: 404
+2026-03-04 07:35:07,728 - root - INFO - log_api_response:119 -    Response: {'detail': 'Not Found'}
+2026-03-04 07:35:07,728 - httpcore.connection - DEBUG - atrace:87 - close.started
+2026-03-04 07:35:07,729 - httpcore.connection - DEBUG - atrace:87 - close.complete
+2026-03-04 07:35:07,729 - root - ERROR - log_test_failure:100 - ❌ Minimal Data Signup - FAILED: assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+2026-03-04 07:35:07,729 - root - ERROR - log_test_failure:101 -    Error type: AssertionError
+2026-03-04 07:35:07,737 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,737 - root - INFO - log_test_start:85 - ================================================================================
+2026-03-04 07:35:07,737 - root - INFO - log_test_start:86 - Testing: Duplicate Employee Code Handling
+2026-03-04 07:35:07,737 - root - INFO - log_test_start:87 - ================================================================================
+2026-03-04 07:35:07,737 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Creating first user
+2026-03-04 07:35:07,738 - root - INFO - log_auth_workflow_step:127 -    employee_code: DUPCA390F
+2026-03-04 07:35:07,742 - root - INFO - log_api_request:106 - 🌐 API Request: POST http://localhost:8000/api/v1/auth/signup
+2026-03-04 07:35:07,742 - root - INFO - log_api_request:108 -    Payload: {'clerk_user_id': 'test-clerk-dup1-131442d7-8ba3-4a0f-8992-5d5d76bc9356', 'name': '田中 太郎', 'email': 'dup1-ca59bb25-e50c-4889-bcc7-021467922a84@example.com', 'employee_code': 'DUPCA390F', 'job_title': 'エンジニア', 'department_id': None, 'stage_id': None, 'role_ids': []}
+2026-03-04 07:35:07,743 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.started host='localhost' port=8000 local_address=None timeout=5.0 socket_options=None
+2026-03-04 07:35:07,744 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0xffff9b4b4e90>
+2026-03-04 07:35:07,744 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,744 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:07,745 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,745 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:07,745 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,746 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'date', b'Wed, 04 Mar 2026 07:35:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'22'), (b'content-type', b'application/json')])
+2026-03-04 07:35:07,746 - httpx - INFO - _send_single_request:1740 - HTTP Request: POST http://localhost:8000/api/v1/auth/signup "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:07,746 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,746 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:07,746 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:07,746 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:07,746 - root - WARNING - log_api_response:116 - ⚠️  API Response: 404
+2026-03-04 07:35:07,746 - httpcore.connection - DEBUG - atrace:87 - close.started
+2026-03-04 07:35:07,747 - httpcore.connection - DEBUG - atrace:87 - close.complete
+2026-03-04 07:35:07,747 - root - ERROR - log_test_failure:100 - ❌ Duplicate Employee Code Handling - FAILED: assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+2026-03-04 07:35:07,747 - root - ERROR - log_test_failure:101 -    Error type: AssertionError
+2026-03-04 07:35:07,755 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,755 - root - INFO - log_test_start:85 - ================================================================================
+2026-03-04 07:35:07,755 - root - INFO - log_test_start:86 - Testing: Duplicate Clerk ID Handling
+2026-03-04 07:35:07,755 - root - INFO - log_test_start:87 - ================================================================================
+2026-03-04 07:35:07,755 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Creating first user
+2026-03-04 07:35:07,755 - root - INFO - log_auth_workflow_step:127 -    clerk_id: test-clerk-duplicate-7c456072-847d-4dab-b14b-0751b88b01cc
+2026-03-04 07:35:07,760 - root - INFO - log_api_request:106 - 🌐 API Request: POST http://localhost:8000/api/v1/auth/signup
+2026-03-04 07:35:07,760 - root - INFO - log_api_request:108 -    Payload: {'clerk_user_id': 'test-clerk-duplicate-7c456072-847d-4dab-b14b-0751b88b01cc', 'name': '田中 太郎', 'email': 'dup-clerk-adeb3f15-9046-470e-9403-f8165ac561b7@example.com', 'employee_code': 'DUP10F4B05', 'job_title': 'エンジニア', 'department_id': None, 'stage_id': None, 'role_ids': []}
+2026-03-04 07:35:07,761 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.started host='localhost' port=8000 local_address=None timeout=5.0 socket_options=None
+2026-03-04 07:35:07,762 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0xffff9b142480>
+2026-03-04 07:35:07,762 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,763 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:07,764 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,764 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:07,764 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,764 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'date', b'Wed, 04 Mar 2026 07:35:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'22'), (b'content-type', b'application/json')])
+2026-03-04 07:35:07,765 - httpx - INFO - _send_single_request:1740 - HTTP Request: POST http://localhost:8000/api/v1/auth/signup "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:07,765 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,765 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:07,765 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:07,765 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:07,765 - root - WARNING - log_api_response:116 - ⚠️  API Response: 404
+2026-03-04 07:35:07,765 - httpcore.connection - DEBUG - atrace:87 - close.started
+2026-03-04 07:35:07,765 - httpcore.connection - DEBUG - atrace:87 - close.complete
+2026-03-04 07:35:07,766 - root - ERROR - log_test_failure:100 - ❌ Duplicate Clerk ID Handling - FAILED: assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+2026-03-04 07:35:07,766 - root - ERROR - log_test_failure:101 -    Error type: AssertionError
+2026-03-04 07:35:07,778 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,779 - root - INFO - log_test_start:85 - ================================================================================
+2026-03-04 07:35:07,779 - root - INFO - log_test_start:86 - Testing: Input Validation
+2026-03-04 07:35:07,779 - root - INFO - log_test_start:87 - ================================================================================
+2026-03-04 07:35:07,784 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Testing validation case 1
+2026-03-04 07:35:07,784 - root - INFO - log_auth_workflow_step:127 -    missing_fields: ['clerk_user_id']
+2026-03-04 07:35:07,784 - root - INFO - log_api_request:106 - 🌐 API Request: POST http://localhost:8000/api/v1/auth/signup
+2026-03-04 07:35:07,784 - root - INFO - log_api_request:108 -    Payload: {'name': 'Test User', 'email': 'test@example.com', 'employee_code': 'EMP123', 'job_title': 'Test'}
+2026-03-04 07:35:07,784 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.started host='localhost' port=8000 local_address=None timeout=5.0 socket_options=None
+2026-03-04 07:35:07,785 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0xffff9b1184d0>
+2026-03-04 07:35:07,786 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,786 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:07,787 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,787 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:07,787 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,787 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'date', b'Wed, 04 Mar 2026 07:35:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'22'), (b'content-type', b'application/json')])
+2026-03-04 07:35:07,787 - httpx - INFO - _send_single_request:1740 - HTTP Request: POST http://localhost:8000/api/v1/auth/signup "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:07,787 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,787 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:07,788 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:07,788 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:07,788 - root - WARNING - log_api_response:116 - ⚠️  API Response: 404
+2026-03-04 07:35:07,788 - root - INFO - log_api_response:119 -    Response: {'detail': 'Not Found'}
+2026-03-04 07:35:07,788 - httpcore.connection - DEBUG - atrace:87 - close.started
+2026-03-04 07:35:07,788 - httpcore.connection - DEBUG - atrace:87 - close.complete
+2026-03-04 07:35:07,788 - root - ERROR - log_test_failure:100 - ❌ Input Validation - FAILED: Expected validation error for data: {'name': 'Test User', 'email': 'test@example.com', 'employee_code': 'EMP123', 'job_title': 'Test'}
+assert 404 == 422
+ +  where 404 = <Response [404 Not Found]>.status_code
+2026-03-04 07:35:07,788 - root - ERROR - log_test_failure:101 -    Error type: AssertionError
+2026-03-04 07:35:07,808 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,808 - root - INFO - log_test_start:85 - ================================================================================
+2026-03-04 07:35:07,808 - root - INFO - log_test_start:86 - Testing: Check Existing User
+2026-03-04 07:35:07,808 - root - INFO - log_test_start:87 - ================================================================================
+2026-03-04 07:35:07,809 - root - INFO - log_auth_workflow_step:124 - 🔐 Auth Workflow Step: Creating user for existence test
+2026-03-04 07:35:07,809 - root - INFO - log_auth_workflow_step:127 -    clerk_id: test-clerk-existing-fdc9807e-dac4-441d-85e3-985689f52531
+2026-03-04 07:35:07,809 - root - INFO - log_auth_workflow_step:127 -    name: 山田 次郎
+2026-03-04 07:35:07,813 - root - INFO - log_api_request:106 - 🌐 API Request: POST http://localhost:8000/api/v1/auth/signup
+2026-03-04 07:35:07,813 - root - INFO - log_api_request:108 -    Payload: {'clerk_user_id': 'test-clerk-existing-fdc9807e-dac4-441d-85e3-985689f52531', 'name': '山田 次郎', 'email': 'existing-6dc17dc2-67cf-478e-8fbd-f4197e73fb0d@example.com', 'employee_code': 'EXT0190E2', 'job_title': 'テスター', 'department_id': None, 'stage_id': None, 'role_ids': []}
+2026-03-04 07:35:07,814 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.started host='localhost' port=8000 local_address=None timeout=5.0 socket_options=None
+2026-03-04 07:35:07,814 - httpcore.connection - DEBUG - atrace:87 - connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0xffff9b11a060>
+2026-03-04 07:35:07,815 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,815 - httpcore.http11 - DEBUG - atrace:87 - send_request_headers.complete
+2026-03-04 07:35:07,816 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,816 - httpcore.http11 - DEBUG - atrace:87 - send_request_body.complete
+2026-03-04 07:35:07,816 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.started request=<Request [b'POST']>
+2026-03-04 07:35:07,816 - httpcore.http11 - DEBUG - atrace:87 - receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'date', b'Wed, 04 Mar 2026 07:35:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'22'), (b'content-type', b'application/json')])
+2026-03-04 07:35:07,816 - httpx - INFO - _send_single_request:1740 - HTTP Request: POST http://localhost:8000/api/v1/auth/signup "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:07,816 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.started request=<Request [b'POST']>
+2026-03-04 07:35:07,816 - httpcore.http11 - DEBUG - atrace:87 - receive_response_body.complete
+2026-03-04 07:35:07,817 - httpcore.http11 - DEBUG - atrace:87 - response_closed.started
+2026-03-04 07:35:07,817 - httpcore.http11 - DEBUG - atrace:87 - response_closed.complete
+2026-03-04 07:35:07,817 - root - WARNING - log_api_response:116 - ⚠️  API Response: 404
+2026-03-04 07:35:07,817 - httpcore.connection - DEBUG - atrace:87 - close.started
+2026-03-04 07:35:07,817 - httpcore.connection - DEBUG - atrace:87 - close.complete
+2026-03-04 07:35:07,817 - root - ERROR - log_test_failure:100 - ❌ Check Existing User - FAILED: assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+2026-03-04 07:35:07,817 - root - ERROR - log_test_failure:101 -    Error type: AssertionError
+2026-03-04 07:35:07,836 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,838 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,842 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,843 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:07,843 - root - INFO - log_test_start:88 - Testing: get_by_id
+2026-03-04 07:35:07,843 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:07,843 - root - INFO - test_get_by_id:52 - Attempting to fetch department with ID: 650e8400-e29b-41d4-a716-446655440002
+2026-03-04 07:35:07,849 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,849 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:07,849 - root - INFO - log_test_start:88 - Testing: get_by_name
+2026-03-04 07:35:07,849 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:07,849 - root - INFO - test_get_by_name:73 - Attempting to fetch department with name: 'Sales'
+2026-03-04 07:35:07,854 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,854 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:07,854 - root - INFO - log_test_start:88 - Testing: get_all
+2026-03-04 07:35:07,854 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:07,862 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,862 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:07,862 - root - INFO - log_test_start:88 - Testing: get_department_users
+2026-03-04 07:35:07,862 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:07,862 - root - INFO - test_get_department_users:110 - Fetching users for department ID: 650e8400-e29b-41d4-a716-446655440001
+2026-03-04 07:35:07,866 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,867 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:07,867 - root - INFO - log_test_start:88 - Testing: search_departments
+2026-03-04 07:35:07,867 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:07,867 - root - INFO - test_search_departments:136 - 1. Testing search by name ('Engine')
+2026-03-04 07:35:07,871 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:07,871 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:07,871 - root - INFO - log_test_start:88 - Testing: autocomplete_departments
+2026-03-04 07:35:07,871 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:07,871 - root - INFO - test_autocomplete_departments:172 - Testing autocomplete with 'Sal'
+2026-03-04 07:35:13,803 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - select pg_catalog.version()
+2026-03-04 07:35:13,805 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [raw sql] ()
+2026-03-04 07:35:14,127 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - select current_schema()
+2026-03-04 07:35:14,128 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [raw sql] ()
+2026-03-04 07:35:14,867 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - show standard_conforming_strings
+2026-03-04 07:35:14,867 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [raw sql] ()
+2026-03-04 07:35:15,187 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:15,245 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT departments.id, departments.organization_id, departments.name, departments.description, departments.created_at, departments.updated_at 
+FROM departments 
+WHERE departments.name ILIKE $1::VARCHAR ORDER BY lower(departments.name) = $2::VARCHAR, lower(departments.name) LIKE $3::VARCHAR DESC, departments.name 
+ LIMIT $4::INTEGER
+2026-03-04 07:35:15,245 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00038s] ('%sal%', 'sal', 'sal%', 5)
+2026-03-04 07:35:15,907 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:16,335 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:16,337 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:16,337 - root - INFO - log_test_start:88 - Testing: count_departments
+2026-03-04 07:35:16,337 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:16,343 - sqlalchemy.pool.impl.AsyncAdaptedQueuePool - ERROR - _close_connection:377 - Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0xffff9b133b60>>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 373, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1127, in do_terminate
+    dbapi_connection.terminate()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 402, in terminate
+    self.await_(asyncio.shield(self._terminate_graceful_close()))  # type: ignore[attr-defined] # noqa: E501
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 912, in _terminate_graceful_close
+    await self._connection.close(timeout=2)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1513, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 617, in close
+  File "asyncpg/protocol/protocol.pyx", line 650, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1682, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 455, in create_task
+    self._check_closed()
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+2026-03-04 07:35:16,829 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:16,830 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:16,830 - root - INFO - log_test_start:88 - Testing: create_update_delete_flow
+2026-03-04 07:35:16,830 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:16,830 - root - INFO - test_create_update_delete_flow:204 - 1. Creating department: 'Temp Dept e3139e'
+2026-03-04 07:35:16,836 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:16,837 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:16,837 - root - INFO - log_test_start:88 - Testing: delete_department_with_users_fails
+2026-03-04 07:35:16,837 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:16,837 - root - INFO - test_delete_department_with_users_fails:244 - Attempting to delete department with active users: 650e8400-e29b-41d4-a716-446655440001
+2026-03-04 07:35:16,854 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:16,855 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:16,855 - root - INFO - log_test_start:88 - Testing: create_duplicate_name_fails
+2026-03-04 07:35:16,856 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:16,856 - root - INFO - test_create_duplicate_name_fails:258 - Attempting to create department with duplicate name: 'Engineering'
+2026-03-04 07:35:16,861 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:16,862 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:16,862 - root - INFO - log_test_start:88 - Testing: supabase_connectivity
+2026-03-04 07:35:16,862 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:16,862 - root - INFO - test_supabase_connectivity:273 - Testing basic database connection...
+2026-03-04 07:35:16,862 - root - ERROR - test_supabase_connectivity:285 - ❌ Supabase connectivity failed: DepartmentRepository.get_all() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:16,862 - root - ERROR - test_supabase_connectivity:286 -    Connection error type: TypeError
+2026-03-04 07:35:16,867 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:16,867 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:16,867 - root - INFO - log_test_start:88 - Testing: all_seed_departments_exist
+2026-03-04 07:35:16,867 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:16,872 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:16,872 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:16,872 - root - INFO - log_test_start:88 - Testing: test_supabase_connectivity
+2026-03-04 07:35:16,872 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:22,737 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:22,740 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT 1 as test
+2026-03-04 07:35:22,740 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00063s] ()
+2026-03-04 07:35:23,045 - root - INFO - log_supabase_connectivity:163 - ✅ Supabase connection successful
+2026-03-04 07:35:23,045 - root - INFO - log_supabase_connectivity:164 -    Retrieved True records from Query executed successfully: 1
+2026-03-04 07:35:23,046 - root - INFO - log_supabase_connectivity:165 -    Database response time: measured in query execution
+2026-03-04 07:35:23,046 - root - INFO - log_assertion_success:152 - ✅ Supabase connectivity verified
+2026-03-04 07:35:23,048 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:23,161 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,163 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,163 - root - INFO - log_test_start:88 - Testing: test_get_goal_by_id
+2026-03-04 07:35:23,164 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,178 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,179 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,179 - root - INFO - log_test_start:88 - Testing: test_get_goal_by_id_with_details
+2026-03-04 07:35:23,180 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,188 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,189 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,189 - root - INFO - log_test_start:88 - Testing: test_get_goals_by_user_and_period
+2026-03-04 07:35:23,189 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,191 - app.database.repositories.base - DEBUG - apply_org_scope_via_user:60 - Applying organization scope via user: org_id = a1b2c3d4-e5f6-7890-1234-56789abcdef0
+2026-03-04 07:35:23,191 - app.database.repositories.base - INFO - ensure_org_filter_applied:232 - Organization filter applied to get_goals_by_user_and_period: org_id=a1b2c3d4-e5f6-7890-1234-56789abcdef0
+2026-03-04 07:35:23,193 - sqlalchemy.pool.impl.AsyncAdaptedQueuePool - ERROR - _close_connection:377 - Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0xffff99ce9130>>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 373, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1127, in do_terminate
+    dbapi_connection.terminate()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 402, in terminate
+    self.await_(asyncio.shield(self._terminate_graceful_close()))  # type: ignore[attr-defined] # noqa: E501
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 912, in _terminate_graceful_close
+    await self._connection.close(timeout=2)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1513, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 617, in close
+  File "asyncpg/protocol/protocol.pyx", line 650, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1682, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 455, in create_task
+    self._check_closed()
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+2026-03-04 07:35:23,387 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,388 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,388 - root - INFO - log_test_start:88 - Testing: test_search_goals
+2026-03-04 07:35:23,388 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,391 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,392 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,392 - root - INFO - log_test_start:88 - Testing: test_count_goals
+2026-03-04 07:35:23,392 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,395 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,396 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,396 - root - INFO - log_test_start:88 - Testing: test_get_weight_totals_by_category
+2026-03-04 07:35:23,396 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,399 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,399 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,400 - root - INFO - log_test_start:88 - Testing: test_create_goal
+2026-03-04 07:35:23,400 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,404 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,404 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,404 - root - INFO - log_test_start:88 - Testing: test_update_goal
+2026-03-04 07:35:23,405 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,408 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,408 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,408 - root - INFO - log_test_start:88 - Testing: test_delete_goal
+2026-03-04 07:35:23,408 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:23,412 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,413 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,414 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,417 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,457 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,458 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE organizations (
+	id VARCHAR(50) NOT NULL, 
+	name VARCHAR(100) NOT NULL, 
+	slug VARCHAR(100), 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (slug)
+)
+
+
+2026-03-04 07:35:23,458 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00011s] ()
+2026-03-04 07:35:23,458 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,458 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,458 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE roles (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	name VARCHAR(50) NOT NULL, 
+	description VARCHAR(200) NOT NULL, 
+	hierarchy_order INTEGER NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_roles_org_name UNIQUE (organization_id, name), 
+	FOREIGN KEY(organization_id) REFERENCES organizations (id)
+)
+
+
+2026-03-04 07:35:23,458 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00008s] ()
+2026-03-04 07:35:23,459 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,459 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,459 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE permissions (
+	id UUID NOT NULL, 
+	code VARCHAR(150) NOT NULL, 
+	description TEXT NOT NULL, 
+	permission_group VARCHAR(80) NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (code)
+)
+
+
+2026-03-04 07:35:23,459 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00006s] ()
+2026-03-04 07:35:23,459 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - CREATE INDEX ix_permissions_permission_group ON permissions (permission_group)
+2026-03-04 07:35:23,459 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:23,459 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,459 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,460 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE role_permissions (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	role_id UUID NOT NULL, 
+	permission_id UUID NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_role_permissions_unique UNIQUE (organization_id, role_id, permission_id), 
+	FOREIGN KEY(role_id) REFERENCES roles (id), 
+	FOREIGN KEY(permission_id) REFERENCES permissions (id)
+)
+
+
+2026-03-04 07:35:23,460 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00008s] ()
+2026-03-04 07:35:23,460 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,460 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,461 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id, permissions.code, permissions.description, permissions.permission_group, permissions.created_at, permissions.updated_at 
+FROM permissions
+2026-03-04 07:35:23,461 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00015s] ()
+2026-03-04 07:35:23,462 - app.database.repositories.permission_repo - INFO - ensure_permission_codes:65 - Seeded 2 new permissions
+2026-03-04 07:35:23,464 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - INSERT INTO permissions (id, code, description, permission_group, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+2026-03-04 07:35:23,464 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00019s] [('adfc774e7afa4b11abd473f8c0a340b2', 'user:read:all', 'すべてのユーザーを閲覧', 'ユーザー', '2026-03-04 07:35:23.464036', '2026-03-04 07:35:23.464039'), ('3cee420993014f3489a14dde96639ba0', 'goal:read:self', '自分の目標を閲覧', '目標', '2026-03-04 07:35:23.464041', '2026-03-04 07:35:23.464042')]
+2026-03-04 07:35:23,464 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,464 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,465 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id AS permissions_id, permissions.code AS permissions_code, permissions.description AS permissions_description, permissions.permission_group AS permissions_permission_group, permissions.created_at AS permissions_created_at, permissions.updated_at AS permissions_updated_at 
+FROM permissions 
+WHERE permissions.id = ?
+2026-03-04 07:35:23,465 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00011s] ('adfc774e7afa4b11abd473f8c0a340b2',)
+2026-03-04 07:35:23,466 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id AS permissions_id, permissions.code AS permissions_code, permissions.description AS permissions_description, permissions.permission_group AS permissions_permission_group, permissions.created_at AS permissions_created_at, permissions.updated_at AS permissions_updated_at 
+FROM permissions 
+WHERE permissions.id = ?
+2026-03-04 07:35:23,466 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [cached since 0.0005759s ago] ('3cee420993014f3489a14dde96639ba0',)
+2026-03-04 07:35:23,466 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id, permissions.code, permissions.description, permissions.permission_group, permissions.created_at, permissions.updated_at 
+FROM permissions
+2026-03-04 07:35:23,466 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [cached since 0.004768s ago] ()
+2026-03-04 07:35:23,466 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:23,472 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,473 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,473 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE organizations (
+	id VARCHAR(50) NOT NULL, 
+	name VARCHAR(100) NOT NULL, 
+	slug VARCHAR(100), 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (slug)
+)
+
+
+2026-03-04 07:35:23,473 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:23,473 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,473 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,473 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE roles (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	name VARCHAR(50) NOT NULL, 
+	description VARCHAR(200) NOT NULL, 
+	hierarchy_order INTEGER NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_roles_org_name UNIQUE (organization_id, name), 
+	FOREIGN KEY(organization_id) REFERENCES organizations (id)
+)
+
+
+2026-03-04 07:35:23,473 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00006s] ()
+2026-03-04 07:35:23,473 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE permissions (
+	id UUID NOT NULL, 
+	code VARCHAR(150) NOT NULL, 
+	description TEXT NOT NULL, 
+	permission_group VARCHAR(80) NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (code)
+)
+
+
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00008s] ()
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - CREATE INDEX ix_permissions_permission_group ON permissions (permission_group)
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00005s] ()
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE role_permissions (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	role_id UUID NOT NULL, 
+	permission_id UUID NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_role_permissions_unique UNIQUE (organization_id, role_id, permission_id), 
+	FOREIGN KEY(role_id) REFERENCES roles (id), 
+	FOREIGN KEY(permission_id) REFERENCES permissions (id)
+)
+
+
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00006s] ()
+2026-03-04 07:35:23,474 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,475 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,476 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - INSERT INTO roles (id, organization_id, name, description, hierarchy_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-03-04 07:35:23,476 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00012s] ('1ac1c2e13c444755b94ad71d1684450d', 'org_repo_test', 'custom', 'Custom role', 1, '2026-03-04 07:35:23.475138', '2026-03-04 07:35:23.475140')
+2026-03-04 07:35:23,476 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id, permissions.code, permissions.description, permissions.permission_group, permissions.created_at, permissions.updated_at 
+FROM permissions
+2026-03-04 07:35:23,476 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00009s] ()
+2026-03-04 07:35:23,476 - app.database.repositories.permission_repo - INFO - ensure_permission_codes:65 - Seeded 2 new permissions
+2026-03-04 07:35:23,477 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - INSERT INTO permissions (id, code, description, permission_group, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+2026-03-04 07:35:23,477 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00012s] [('a9a79af58ba5450488aa27a93808efcf', 'user:read:all', 'すべてのユーザーを閲覧', 'ユーザー', '2026-03-04 07:35:23.477086', '2026-03-04 07:35:23.477088'), ('00ba760de2f64f09ae38365ad85e102d', 'goal:read:self', '自分の目標を閲覧', '目標', '2026-03-04 07:35:23.477090', '2026-03-04 07:35:23.477091')]
+2026-03-04 07:35:23,478 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - DELETE FROM role_permissions WHERE role_permissions.role_id = ? AND role_permissions.organization_id = ?
+2026-03-04 07:35:23,478 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00011s] ('1ac1c2e13c444755b94ad71d1684450d', 'org_repo_test')
+2026-03-04 07:35:23,479 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - INSERT INTO role_permissions (id, organization_id, role_id, permission_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+2026-03-04 07:35:23,479 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00018s] ('e354ad844c0f42459e95e57a14a54868', 'org_repo_test', '1ac1c2e13c444755b94ad71d1684450d', 'a9a79af58ba5450488aa27a93808efcf', '2026-03-04 07:35:23.478235', '2026-03-04 07:35:23.478237')
+2026-03-04 07:35:23,479 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,480 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,480 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT roles.id AS roles_id, roles.organization_id AS roles_organization_id, roles.name AS roles_name, roles.description AS roles_description, roles.hierarchy_order AS roles_hierarchy_order, roles.created_at AS roles_created_at, roles.updated_at AS roles_updated_at 
+FROM roles 
+WHERE roles.id = ?
+2026-03-04 07:35:23,480 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00013s] ('1ac1c2e13c444755b94ad71d1684450d',)
+2026-03-04 07:35:23,481 - app.database.repositories.base - DEBUG - apply_org_scope_direct:41 - Applying direct organization scope: org_id = org_repo_test
+2026-03-04 07:35:23,481 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id, permissions.code, permissions.description, permissions.permission_group, permissions.created_at, permissions.updated_at 
+FROM permissions JOIN role_permissions ON role_permissions.permission_id = permissions.id 
+WHERE role_permissions.role_id = ? AND role_permissions.organization_id = ?
+2026-03-04 07:35:23,481 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00015s] ('1ac1c2e13c444755b94ad71d1684450d', 'org_repo_test')
+2026-03-04 07:35:23,482 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:23,484 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,485 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,485 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE organizations (
+	id VARCHAR(50) NOT NULL, 
+	name VARCHAR(100) NOT NULL, 
+	slug VARCHAR(100), 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (slug)
+)
+
+
+2026-03-04 07:35:23,485 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00008s] ()
+2026-03-04 07:35:23,485 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,485 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,485 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE roles (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	name VARCHAR(50) NOT NULL, 
+	description VARCHAR(200) NOT NULL, 
+	hierarchy_order INTEGER NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_roles_org_name UNIQUE (organization_id, name), 
+	FOREIGN KEY(organization_id) REFERENCES organizations (id)
+)
+
+
+2026-03-04 07:35:23,485 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:23,485 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE permissions (
+	id UUID NOT NULL, 
+	code VARCHAR(150) NOT NULL, 
+	description TEXT NOT NULL, 
+	permission_group VARCHAR(80) NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (code)
+)
+
+
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - CREATE INDEX ix_permissions_permission_group ON permissions (permission_group)
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE role_permissions (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	role_id UUID NOT NULL, 
+	permission_id UUID NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_role_permissions_unique UNIQUE (organization_id, role_id, permission_id), 
+	FOREIGN KEY(role_id) REFERENCES roles (id), 
+	FOREIGN KEY(permission_id) REFERENCES permissions (id)
+)
+
+
+2026-03-04 07:35:23,486 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00014s] ()
+2026-03-04 07:35:23,487 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,487 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,487 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id, permissions.code, permissions.description, permissions.permission_group, permissions.created_at, permissions.updated_at 
+FROM permissions
+2026-03-04 07:35:23,487 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00009s] ()
+2026-03-04 07:35:23,488 - app.database.repositories.permission_repo - INFO - ensure_permission_codes:65 - Seeded 3 new permissions
+2026-03-04 07:35:23,488 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - INSERT INTO permissions (id, code, description, permission_group, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+2026-03-04 07:35:23,488 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00014s] [('d91c0d64c8e64deba3ea7a2fdc0b0ef7', 'goal:manage', '目標を管理', '目標', '2026-03-04 07:35:23.488678', '2026-03-04 07:35:23.488680'), ('324ed0cc2ea847c7878a75bf03ebf45b', 'user:manage', 'ユーザーを管理', 'ユーザー', '2026-03-04 07:35:23.488681', '2026-03-04 07:35:23.488683'), ('567c5215ae754b79abe52d22d3b084ee', 'evaluation:read', '評価を閲覧', '評価', '2026-03-04 07:35:23.488684', '2026-03-04 07:35:23.488685')]
+2026-03-04 07:35:23,489 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,489 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,489 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id, permissions.code, permissions.description, permissions.permission_group, permissions.created_at, permissions.updated_at 
+FROM permissions 
+WHERE permissions.code IN (?, ?, ?)
+2026-03-04 07:35:23,489 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00015s] ('evaluation:read', 'goal:manage', 'user:manage')
+2026-03-04 07:35:23,490 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:23,490 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE organizations (
+	id VARCHAR(50) NOT NULL, 
+	name VARCHAR(100) NOT NULL, 
+	slug VARCHAR(100), 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (slug)
+)
+
+
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE roles (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	name VARCHAR(50) NOT NULL, 
+	description VARCHAR(200) NOT NULL, 
+	hierarchy_order INTEGER NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_roles_org_name UNIQUE (organization_id, name), 
+	FOREIGN KEY(organization_id) REFERENCES organizations (id)
+)
+
+
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00006s] ()
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,491 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE permissions (
+	id UUID NOT NULL, 
+	code VARCHAR(150) NOT NULL, 
+	description TEXT NOT NULL, 
+	permission_group VARCHAR(80) NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (code)
+)
+
+
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - CREATE INDEX ix_permissions_permission_group ON permissions (permission_group)
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00005s] ()
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE role_permissions (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	role_id UUID NOT NULL, 
+	permission_id UUID NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_role_permissions_unique UNIQUE (organization_id, role_id, permission_id), 
+	FOREIGN KEY(role_id) REFERENCES roles (id), 
+	FOREIGN KEY(permission_id) REFERENCES permissions (id)
+)
+
+
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00006s] ()
+2026-03-04 07:35:23,492 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,493 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,493 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - INSERT INTO permissions (id, code, description, permission_group, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+2026-03-04 07:35:23,493 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00013s] ('90a81605ab354e4faceebe61d3817218', 'user:manage', 'Manage users', 'User', '2026-03-04 07:35:23.493392', '2026-03-04 07:35:23.493394')
+2026-03-04 07:35:23,493 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,493 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,494 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id, permissions.code, permissions.description, permissions.permission_group, permissions.created_at, permissions.updated_at 
+FROM permissions
+2026-03-04 07:35:23,494 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00008s] ()
+2026-03-04 07:35:23,494 - app.database.repositories.permission_repo - INFO - ensure_permission_codes:67 - Updated existing permission metadata
+2026-03-04 07:35:23,495 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - UPDATE permissions SET description=?, permission_group=?, updated_at=? WHERE permissions.id = ?
+2026-03-04 07:35:23,495 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00014s] ('ユーザーを管理', 'ユーザー', '2026-03-04 07:35:23.495024', '90a81605ab354e4faceebe61d3817218')
+2026-03-04 07:35:23,495 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:23,495 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:23,495 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT permissions.id, permissions.code, permissions.description, permissions.permission_group, permissions.created_at, permissions.updated_at 
+FROM permissions 
+WHERE permissions.code = ?
+2026-03-04 07:35:23,495 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00009s] ('user:manage',)
+2026-03-04 07:35:23,496 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:23,496 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,499 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,501 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,502 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,503 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:23,503 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:23,503 - root - INFO - log_test_start:88 - Testing: test_supabase_connectivity
+2026-03-04 07:35:23,504 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:24,285 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:24,286 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT 1 as test
+2026-03-04 07:35:24,286 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [cached since 1.547s ago] ()
+2026-03-04 07:35:24,593 - root - INFO - log_supabase_connectivity:163 - ✅ Supabase connection successful
+2026-03-04 07:35:24,593 - root - INFO - log_supabase_connectivity:164 -    Retrieved True records from Query executed successfully: 1
+2026-03-04 07:35:24,593 - root - INFO - log_supabase_connectivity:165 -    Database response time: measured in query execution
+2026-03-04 07:35:24,593 - root - INFO - log_assertion_success:152 - ✅ Supabase connectivity verified
+2026-03-04 07:35:24,595 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:24,701 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:24,703 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:24,703 - root - INFO - log_test_start:88 - Testing: test_create_and_delete_review
+2026-03-04 07:35:24,703 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:24,720 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:24,721 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:24,722 - root - INFO - log_test_start:88 - Testing: test_list_and_count_queries
+2026-03-04 07:35:24,722 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:24,725 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:24,726 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:24,726 - root - INFO - log_test_start:88 - Testing: get_user_by_clerk_id
+2026-03-04 07:35:24,726 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:24,726 - root - INFO - test_get_user_by_clerk_id:61 - Attempting to fetch user with Clerk ID: user_2yvuP5pHHlMHlBdkbpvwlpXuaGY
+2026-03-04 07:35:24,727 - sqlalchemy.pool.impl.AsyncAdaptedQueuePool - ERROR - _close_connection:377 - Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0xffff99ddfd40>>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 373, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1127, in do_terminate
+    dbapi_connection.terminate()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 402, in terminate
+    self.await_(asyncio.shield(self._terminate_graceful_close()))  # type: ignore[attr-defined] # noqa: E501
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 912, in _terminate_graceful_close
+    await self._connection.close(timeout=2)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1513, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 617, in close
+  File "asyncpg/protocol/protocol.pyx", line 650, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1682, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 455, in create_task
+    self._check_closed()
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+2026-03-04 07:35:24,728 - root - ERROR - test_get_user_by_clerk_id:92 - ❌ Error during Supabase query: Task <Task pending name='Task-368' coro=<TestUserRepository.test_get_user_by_clerk_id() running at /app/tests/repositories/test_user_repo.py:64> cb=[_run_until_complete_cb() at /usr/local/lib/python3.12/asyncio/base_events.py:181]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+2026-03-04 07:35:24,729 - root - ERROR - test_get_user_by_clerk_id:93 -    Error type: RuntimeError
+2026-03-04 07:35:24,936 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:24,951 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:24,964 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:24,965 - root - INFO - test_get_user_by_email:150 - === Testing get_user_by_email ===
+2026-03-04 07:35:24,965 - root - INFO - test_get_user_by_email:153 - Attempting to fetch user with email: yamada.taro@company.com
+2026-03-04 07:35:24,965 - root - ERROR - test_get_user_by_email:179 - ❌ Error during email-based Supabase query: UserRepository.get_user_by_email() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:24,979 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:25,744 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:25,750 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT users.id, users.department_id, users.stage_id, users.quantitative_weight_override, users.qualitative_weight_override, users.competency_weight_override, users.clerk_user_id, users.clerk_organization_id, users.name, users.email, users.employee_code, users.status, users.job_title, users.created_at, users.updated_at 
+FROM users 
+WHERE users.id = $1::UUID
+2026-03-04 07:35:25,751 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00088s] (UUID('333e4567-e89b-12d3-a456-426614174002'),)
+2026-03-04 07:35:26,135 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:26,240 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:26,242 - sqlalchemy.pool.impl.AsyncAdaptedQueuePool - ERROR - _close_connection:377 - Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0xffff99cea990>>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 373, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1127, in do_terminate
+    dbapi_connection.terminate()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 402, in terminate
+    self.await_(asyncio.shield(self._terminate_graceful_close()))  # type: ignore[attr-defined] # noqa: E501
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 912, in _terminate_graceful_close
+    await self._connection.close(timeout=2)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1513, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 617, in close
+  File "asyncpg/protocol/protocol.pyx", line 650, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1682, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 455, in create_task
+    self._check_closed()
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+2026-03-04 07:35:26,461 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:26,461 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:26,461 - root - INFO - log_test_start:88 - Testing: Supabase Database Connectivity
+2026-03-04 07:35:26,461 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:26,461 - root - INFO - test_supabase_connectivity:219 - Testing basic database connection...
+2026-03-04 07:35:26,462 - root - ERROR - test_supabase_connectivity:230 - ❌ Supabase connectivity failed: UserRepository.get_users_by_status() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:26,462 - root - ERROR - test_supabase_connectivity:231 -    Connection error type: TypeError
+2026-03-04 07:35:26,571 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:26,573 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:26,580 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:26,581 - root - INFO - test_database_relationships:237 - === Testing Database Relationships ===
+2026-03-04 07:35:26,581 - root - INFO - test_database_relationships:240 - Testing relationship loading for user ID: 123e4567-e89b-12d3-a456-426614174000
+2026-03-04 07:35:26,581 - root - ERROR - test_database_relationships:262 - ❌ Error testing database relationships: UserRepository.get_user_by_id_with_details() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:26,594 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:26,594 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:26,594 - root - INFO - log_test_start:88 - Testing: get_user_by_employee_code
+2026-03-04 07:35:26,595 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:26,595 - root - INFO - test_get_user_by_employee_code:273 - Attempting to fetch user with employee code: EMP001
+2026-03-04 07:35:26,595 - root - ERROR - test_get_user_by_employee_code:297 - ❌ Error during employee code lookup: UserRepository.get_user_by_employee_code() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:26,609 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:26,609 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:26,610 - root - INFO - log_test_start:88 - Testing: check_user_exists_by_clerk_id
+2026-03-04 07:35:26,610 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:26,610 - root - INFO - test_check_user_exists_by_clerk_id:306 - Checking user existence with Clerk ID: user_2yvuRoUwHSGUPhtCEGoYuOfgr56
+2026-03-04 07:35:27,346 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:27,350 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT users.id, users.name, users.email, users.status 
+FROM users 
+WHERE users.clerk_user_id = $1::VARCHAR
+2026-03-04 07:35:27,350 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00061s] ('user_2yvuRoUwHSGUPhtCEGoYuOfgr56',)
+2026-03-04 07:35:27,677 - root - ERROR - test_check_user_exists_by_clerk_id:329 - ❌ User existence check returned None
+2026-03-04 07:35:27,677 - root - ERROR - test_check_user_exists_by_clerk_id:333 - ❌ Error during user existence check: User should exist
+2026-03-04 07:35:27,710 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:27,833 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:27,834 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:27,835 - root - INFO - log_test_start:88 - Testing: get_users_by_department
+2026-03-04 07:35:27,835 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:27,868 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:27,869 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:27,869 - root - INFO - log_test_start:88 - Testing: get_users_by_role_names
+2026-03-04 07:35:27,869 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:27,869 - root - INFO - test_get_users_by_role_names:375 - Testing role filtering with names: ['employee', 'manager']
+2026-03-04 07:35:27,870 - sqlalchemy.pool.impl.AsyncAdaptedQueuePool - ERROR - _close_connection:377 - Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0xffff9a7557c0>>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 373, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1127, in do_terminate
+    dbapi_connection.terminate()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 402, in terminate
+    self.await_(asyncio.shield(self._terminate_graceful_close()))  # type: ignore[attr-defined] # noqa: E501
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 912, in _terminate_graceful_close
+    await self._connection.close(timeout=2)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1513, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 617, in close
+  File "asyncpg/protocol/protocol.pyx", line 650, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1682, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 455, in create_task
+    self._check_closed()
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+2026-03-04 07:35:27,871 - root - ERROR - test_get_users_by_role_names:392 - ❌ Error fetching users by role names: Task <Task pending name='Task-466' coro=<TestUserRepository.test_get_users_by_role_names() running at /app/tests/repositories/test_user_repo.py:378> cb=[_run_until_complete_cb() at /usr/local/lib/python3.12/asyncio/base_events.py:181]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+2026-03-04 07:35:28,062 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:28,062 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:28,062 - root - INFO - log_test_start:88 - Testing: get_user_roles
+2026-03-04 07:35:28,062 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:28,062 - root - INFO - test_get_user_roles:401 - Testing role retrieval for user ID: 223e4567-e89b-12d3-a456-426614174001
+2026-03-04 07:35:28,756 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:28,759 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT roles.id, roles.organization_id, roles.name, roles.description, roles.hierarchy_order, roles.created_at, roles.updated_at 
+FROM roles JOIN user_roles ON roles.id = user_roles.role_id 
+WHERE user_roles.user_id = $1::UUID ORDER BY roles.name
+2026-03-04 07:35:28,760 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00069s] (UUID('223e4567-e89b-12d3-a456-426614174001'),)
+2026-03-04 07:35:29,098 - root - INFO - log_data_verification:140 - ✅ Successfully fetched user_roles from Supabase
+2026-03-04 07:35:29,099 - root - INFO - log_data_verification:142 -    User ID: 223e4567-e89b-12d3-a456-426614174001
+2026-03-04 07:35:29,099 - root - INFO - log_data_verification:142 -    Roles Found: 0
+2026-03-04 07:35:29,100 - root - INFO - log_data_verification:142 -    Role Names: []
+2026-03-04 07:35:29,100 - root - ERROR - test_get_user_roles:418 - ❌ Error fetching user roles: User should have at least one role
+assert 0 > 0
+ +  where 0 = len([])
+2026-03-04 07:35:29,133 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:29,243 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,244 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,245 - root - INFO - log_test_start:88 - Testing: get_user_supervisors
+2026-03-04 07:35:29,245 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:29,245 - root - INFO - test_get_user_supervisors:428 - Testing supervisor lookup for user ID: 123e4567-e89b-12d3-a456-426614174000
+2026-03-04 07:35:29,246 - root - ERROR - test_get_user_supervisors:448 - ❌ Error fetching user supervisors: UserRepository.get_user_supervisors() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:29,281 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,281 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,282 - root - INFO - log_test_start:88 - Testing: get_subordinates
+2026-03-04 07:35:29,282 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:29,282 - root - INFO - test_get_subordinates:458 - Testing subordinate lookup for supervisor ID: 223e4567-e89b-12d3-a456-426614174001
+2026-03-04 07:35:29,282 - root - ERROR - test_get_subordinates:478 - ❌ Error fetching subordinates: UserRepository.get_subordinates() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:29,305 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,306 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,306 - root - INFO - log_test_start:88 - Testing: search_users
+2026-03-04 07:35:29,306 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:29,306 - root - INFO - test_search_users:493 - 1. Testing basic search with term: '山田'
+2026-03-04 07:35:29,306 - app.database.repositories.base - DEBUG - apply_org_scope_direct:41 - Applying direct organization scope: org_id = 山田
+2026-03-04 07:35:29,307 - app.database.repositories.base - INFO - ensure_org_filter_applied:232 - Organization filter applied to search_users: org_id=山田
+2026-03-04 07:35:29,307 - sqlalchemy.pool.impl.AsyncAdaptedQueuePool - ERROR - _close_connection:377 - Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0xffff99dde990>>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 373, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1127, in do_terminate
+    dbapi_connection.terminate()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 402, in terminate
+    self.await_(asyncio.shield(self._terminate_graceful_close()))  # type: ignore[attr-defined] # noqa: E501
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 912, in _terminate_graceful_close
+    await self._connection.close(timeout=2)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1513, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 617, in close
+  File "asyncpg/protocol/protocol.pyx", line 650, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 1682, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 455, in create_task
+    self._check_closed()
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+2026-03-04 07:35:29,308 - root - ERROR - test_search_users:656 - ❌ Error during comprehensive search testing: Task <Task pending name='Task-500' coro=<TestUserRepository.test_search_users() running at /app/tests/repositories/test_user_repo.py:495> cb=[_run_until_complete_cb() at /usr/local/lib/python3.12/asyncio/base_events.py:181]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+2026-03-04 07:35:29,308 - root - ERROR - test_search_users:657 -    Error type: RuntimeError
+2026-03-04 07:35:29,486 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,486 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,487 - root - INFO - log_test_start:88 - Testing: count_users
+2026-03-04 07:35:29,487 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:29,487 - root - INFO - test_count_users:665 - Testing user counting functionality
+2026-03-04 07:35:29,487 - root - ERROR - test_count_users:686 - ❌ Error counting users: UserRepository.count_users() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:29,501 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,501 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,501 - root - INFO - log_test_start:88 - Testing: get_active_users
+2026-03-04 07:35:29,501 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:29,501 - root - INFO - test_get_active_users:694 - Testing active users retrieval
+2026-03-04 07:35:29,501 - root - ERROR - test_get_active_users:713 - ❌ Error fetching active users: UserRepository.get_active_users() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:29,515 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,515 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,515 - root - INFO - log_test_start:88 - Testing: create_user
+2026-03-04 07:35:29,515 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:29,529 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,529 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,529 - root - INFO - log_test_start:88 - Testing: soft_delete_user
+2026-03-04 07:35:29,529 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:29,542 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,543 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,543 - root - INFO - log_test_start:88 - Testing: hard_delete_temp_user
+2026-03-04 07:35:29,543 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:29,556 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:29,556 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:29,556 - root - INFO - log_test_start:88 - Testing: get_user_stage_with_weights with override
+2026-03-04 07:35:29,556 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:30,365 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:30,366 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - SELECT users.id, users.department_id, users.stage_id, users.quantitative_weight_override, users.qualitative_weight_override, users.competency_weight_override, users.clerk_user_id, users.clerk_organization_id, users.name, users.email, users.employee_code, users.status, users.job_title, users.created_at, users.updated_at 
+FROM users 
+WHERE users.id = $1::UUID
+2026-03-04 07:35:30,367 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [cached since 4.617s ago] (UUID('123e4567-e89b-12d3-a456-426614174000'),)
+2026-03-04 07:35:30,707 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:30,816 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,842 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,842 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for test_function: user 3609f808-c140-47d5-bef8-a4d45fa6c62a lacks user:manage
+2026-03-04 07:35:30,861 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,862 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for test_function: user 54c6361f-29ee-446d-b9c9-4ac852ac7e37 lacks user:manage
+2026-03-04 07:35:30,863 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for test_function: user 5e2bb4c7-4900-4d51-8f7d-3fc86d4d1716 lacks user:read:all
+2026-03-04 07:35:30,876 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for test_function: user a7a34fea-ae67-4597-8fa4-ae395eb63192 lacks user:read:all
+2026-03-04 07:35:30,876 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,877 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,878 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for test_function: user 63a34316-35d2-40f1-a00a-bdc3bc0f1458 lacks user:read:all
+2026-03-04 07:35:30,890 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,891 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for test_function: user a630c533-f7d4-4ab2-95fa-0c1a47c16c47 lacks user:read:all
+2026-03-04 07:35:30,901 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,901 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for test_function: No AuthContext found in function arguments. Ensure the decorated function has a parameter of type AuthContext named 'current_user_context', 'auth_context', 'user_context', or 'context'
+2026-03-04 07:35:30,902 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,903 - app.security.decorators - WARNING - async_wrapper:199 - Permission denied for test_function: user a518cee2-dcc6-43e3-92db-41b0fc17bb50 lacks any of ['user:read:all', 'user:read:subordinates']
+2026-03-04 07:35:30,912 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,912 - app.security.decorators - WARNING - async_wrapper:199 - Permission denied for test_function: user 0f249066-e3a0-4c73-b93b-324c0cb84a69 lacks any of ['user:read:all', 'user:manage']
+2026-03-04 07:35:30,913 - app.security.decorators - WARNING - sync_wrapper:229 - Permission denied for test_function: user 9819cfa9-d49d-4ace-8f09-71fb592ad58d lacks any of ['user:read:subordinates', 'user:read:all']
+2026-03-04 07:35:30,923 - app.security.decorators - WARNING - sync_wrapper:229 - Permission denied for test_function: user 1b73e9cd-3163-48fb-8dfb-6c49c1f1cc6c lacks any of ['user:read:all', 'user:manage']
+2026-03-04 07:35:30,923 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,924 - app.security.decorators - WARNING - async_wrapper:199 - Permission denied for test_function: user e3afd6d3-6fef-40f9-9704-41db37984e44 lacks any of ['user:read:subordinates']
+2026-03-04 07:35:30,933 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,934 - app.security.decorators - WARNING - async_wrapper:199 - Permission denied for test_function: user f9d2f262-ade3-46c6-889e-2f38f8c82020 lacks any of []
+2026-03-04 07:35:30,934 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,934 - app.security.decorators - DEBUG - async_wrapper:282 - Role check passed for test_function: user 3cf187fa-d2f9-407b-aae0-d1467621d6ac has role admin
+2026-03-04 07:35:30,935 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,935 - app.security.decorators - WARNING - async_wrapper:292 - Role denied for test_function: user b952a0f5-bc49-42ee-9e9f-e22e7feee19d lacks role admin
+2026-03-04 07:35:30,936 - app.security.decorators - DEBUG - sync_wrapper:311 - Role check passed for test_function: user 1c6901f6-fab4-4e63-8713-fd021fa45e54 has role admin
+2026-03-04 07:35:30,936 - app.security.decorators - WARNING - sync_wrapper:321 - Role denied for test_function: user 1f51b1d5-d7a8-4664-9afd-6e18e3d8dfa9 lacks role admin
+2026-03-04 07:35:30,936 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,937 - app.security.decorators - DEBUG - async_wrapper:282 - Role check passed for test_function: user a92a4c77-3ada-4d8b-8404-6d3dbade2c76 has role ADMIN
+2026-03-04 07:35:30,937 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,937 - app.security.decorators - DEBUG - async_wrapper:282 - Role check passed for test_function: user 46a1e6ea-e718-441c-a372-5c62453dbc6e has role Admin
+2026-03-04 07:35:30,938 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,947 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,948 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,949 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,950 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,959 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,959 - app.security.decorators - DEBUG - async_wrapper:282 - Role check passed for test_function: user 41cb9711-37fc-46c0-b7d5-c33b7e3ed59d has role manager
+2026-03-04 07:35:30,959 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for test_function: user 41cb9711-37fc-46c0-b7d5-c33b7e3ed59d lacks user:read:subordinates
+2026-03-04 07:35:30,959 - app.security.decorators - WARNING - async_wrapper:292 - Role denied for test_function: user 41cb9711-37fc-46c0-b7d5-c33b7e3ed59d lacks role manager
+2026-03-04 07:35:30,970 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,970 - app.security.decorators - DEBUG - async_wrapper:282 - Role check passed for outer_function: user 97ac833c-8a9e-4562-9450-259f9b2966e0 has role manager
+2026-03-04 07:35:30,970 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for inner_function: user 97ac833c-8a9e-4562-9450-259f9b2966e0 lacks user:read:subordinates
+2026-03-04 07:35:30,970 - app.security.decorators - WARNING - async_wrapper:292 - Role denied for outer_function: user 97ac833c-8a9e-4562-9450-259f9b2966e0 lacks role manager
+2026-03-04 07:35:30,981 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,982 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for complex_function: user db6d4cb9-e7b3-4aef-9b27-7d1fd24310ba lacks user:manage
+2026-03-04 07:35:30,990 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,990 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for test_function: No AuthContext found in function arguments. Ensure the decorated function has a parameter of type AuthContext named 'current_user_context', 'auth_context', 'user_context', or 'context'
+2026-03-04 07:35:30,991 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:30,991 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for test_function: 'str' object has no attribute 'value'
+2026-03-04 07:35:30,991 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for test_function: user 406f1e09-dd36-4227-82d8-199b3004eab7 lacks user:read:all
+2026-03-04 07:35:31,000 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,000 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,001 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,001 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 6b90bd2d-8184-4570-b025-c2258fdd7fda on user 01f867f8-7b1f-4677-b9e7-9dacad01205b: False
+2026-03-04 07:35:31,002 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,002 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 7df7c5e7-2a5b-47be-b316-7e6fb1598f10: 1 resources
+2026-03-04 07:35:31,002 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 7df7c5e7-2a5b-47be-b316-7e6fb1598f10 on user 3e548205-b294-407d-9ed2-c10c3d0272ec: False
+2026-03-04 07:35:31,003 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for admin_only_function: user 45a470e8-d48a-459b-8da5-9ce21d52de37 lacks user:manage
+2026-03-04 07:35:31,003 - app.security.decorators - WARNING - sync_wrapper:321 - Role denied for admin_only_function: user 40994f21-6cb6-486d-98ea-9bfd8084c3ca lacks role admin
+2026-03-04 07:35:31,004 - app.security.decorators - WARNING - sync_wrapper:229 - Permission denied for admin_function: user 57886e00-4aa8-44a5-b075-dd6991b89e83 lacks any of ['user:manage', 'role:manage']
+2026-03-04 07:35:31,006 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,006 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 059628c7-8cfa-490a-897d-55921faf6628: 1 resources
+2026-03-04 07:35:31,006 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,006 - app.security.rbac_helper - DEBUG - get_accessible_user_ids:112 - Computed accessible user IDs for user 1a8fb7fd-69f3-4a75-9492-27c348b0e8b7: 1 users
+2026-03-04 07:35:31,018 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,026 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,034 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,043 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,052 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,060 - app.security.rbac_helper - INFO - clear_cache:428 - Cleared RBAC cache for user invalid_uuid_string
+2026-03-04 07:35:31,060 - app.security.rbac_helper - INFO - clear_cache:428 - Cleared RBAC cache for user 12345
+2026-03-04 07:35:31,061 - app.security.rbac_helper - INFO - clear_cache:433 - Cleared all RBAC caches
+2026-03-04 07:35:31,065 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,073 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,082 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,082 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 2069ba8f-4ac5-43fe-bac1-0d9c47686403 on user 00000000-0000-0000-0000-000000000000: False
+2026-03-04 07:35:31,083 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,084 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,097 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,106 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,115 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,123 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,131 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,139 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,140 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,149 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,157 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,167 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,177 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,187 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,196 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,197 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,206 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,206 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user c4527094-3ada-480d-8d2b-5e66010993dc on user 3c102c96-1de7-4025-b237-7eaaf7dfd902: False
+2026-03-04 07:35:31,211 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,211 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 5b13dd6c-5337-434c-bb69-95dfc03230cd on user 0a56742a-ec7a-429f-ae5a-e0fc0414540a: True
+2026-03-04 07:35:31,212 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,212 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 7e9ad911-4150-4dbd-820e-88047e6ae851 on user 8e54eb2b-64f7-4c58-b8b9-0ca9e2686947: False
+2026-03-04 07:35:31,213 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,213 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 30f12237-f97d-4ff1-bd4a-f84454fe9737 on user a71521e1-c8c2-4817-a6d3-4dd6c16e8814: True
+2026-03-04 07:35:31,214 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,214 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 3b749941-e2bd-4e5c-b0a3-93c56f0d9420 on user a4fee180-7d33-454d-85c9-a79ae879384b: False
+2026-03-04 07:35:31,215 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,215 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 1b2b77a2-7584-499c-9e12-d14c69a71399 on user 7296d0a4-db29-4dc6-b776-b64870a4a8cd: False
+2026-03-04 07:35:31,220 - app.security.rbac_helper - INFO - clear_cache:428 - Cleared RBAC cache for user c5d23868-86ef-4795-8d1d-5a036add8b87
+2026-03-04 07:35:31,220 - app.security.rbac_helper - INFO - clear_cache:433 - Cleared all RBAC caches
+2026-03-04 07:35:31,220 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,221 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,230 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,302 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,310 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,311 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,568 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,733 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,741 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,781 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,801 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,901 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for decorated_function: user 0e2edad5-280a-4314-9a76-97353ebb2cbb lacks user:read:all
+2026-03-04 07:35:31,928 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,948 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:31,968 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,054 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,066 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,235 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,235 - app.security.rbac_helper - DEBUG - get_accessible_user_ids:112 - Computed accessible user IDs for user d56de830-f561-4650-9b3d-273b2fa3378e: all users
+2026-03-04 07:35:32,236 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,236 - app.security.rbac_helper - WARNING - _get_subordinate_user_ids:228 - No org_id provided for subordinate lookup for user 6a1e5f94-6559-4f78-9a0f-cc676e628df3. This may cause cross-organization data leaks.
+2026-03-04 07:35:32,237 - app.security.rbac_helper - DEBUG - _get_subordinate_user_ids:233 - Fetched 3 subordinates for user 6a1e5f94-6559-4f78-9a0f-cc676e628df3 in org None
+2026-03-04 07:35:32,237 - app.security.rbac_helper - DEBUG - get_accessible_user_ids:112 - Computed accessible user IDs for user 6a1e5f94-6559-4f78-9a0f-cc676e628df3: 4 users
+2026-03-04 07:35:32,237 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,238 - app.security.rbac_helper - WARNING - _get_subordinate_user_ids:228 - No org_id provided for subordinate lookup for user 982effa7-f345-4064-b336-5fd22f258a5d. This may cause cross-organization data leaks.
+2026-03-04 07:35:32,238 - app.security.rbac_helper - DEBUG - _get_subordinate_user_ids:233 - Fetched 3 subordinates for user 982effa7-f345-4064-b336-5fd22f258a5d in org None
+2026-03-04 07:35:32,238 - app.security.rbac_helper - DEBUG - get_accessible_user_ids:112 - Computed accessible user IDs for user 982effa7-f345-4064-b336-5fd22f258a5d: 4 users
+2026-03-04 07:35:32,239 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,239 - app.security.rbac_helper - DEBUG - get_accessible_user_ids:112 - Computed accessible user IDs for user 20a1f835-08ca-4656-8579-21cd37e7b596: 1 users
+2026-03-04 07:35:32,240 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,240 - app.security.rbac_helper - DEBUG - get_accessible_user_ids:112 - Computed accessible user IDs for user 5f9625c5-976a-43f7-9339-0bf1c4cdaa15: 1 users
+2026-03-04 07:35:32,241 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,241 - app.security.rbac_helper - DEBUG - get_accessible_user_ids:112 - Computed accessible user IDs for user c1950f7c-faef-4f7c-ae61-c82edeab3b20: 1 users
+2026-03-04 07:35:32,241 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,242 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user b767d3c7-b49b-4a8d-a4a8-d5f1b2b850ba: all resources
+2026-03-04 07:35:32,243 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,243 - app.security.rbac_helper - WARNING - _get_subordinate_user_ids:228 - No org_id provided for subordinate lookup for user cfca8030-7345-4669-aca7-6d74ed8c4ae7. This may cause cross-organization data leaks.
+2026-03-04 07:35:32,243 - app.security.rbac_helper - DEBUG - _get_subordinate_user_ids:233 - Fetched 3 subordinates for user cfca8030-7345-4669-aca7-6d74ed8c4ae7 in org None
+2026-03-04 07:35:32,243 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user cfca8030-7345-4669-aca7-6d74ed8c4ae7: 4 resources
+2026-03-04 07:35:32,244 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,244 - app.security.rbac_helper - WARNING - _get_subordinate_user_ids:228 - No org_id provided for subordinate lookup for user 3700c996-39ac-4a05-92e8-8924772e9f6d. This may cause cross-organization data leaks.
+2026-03-04 07:35:32,244 - app.security.rbac_helper - DEBUG - _get_subordinate_user_ids:233 - Fetched 3 subordinates for user 3700c996-39ac-4a05-92e8-8924772e9f6d in org None
+2026-03-04 07:35:32,244 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 3700c996-39ac-4a05-92e8-8924772e9f6d: 4 resources
+2026-03-04 07:35:32,245 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,245 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 41bf7025-6f2a-403d-9be6-98c2d5ca9b44: 1 resources
+2026-03-04 07:35:32,246 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,246 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user eee4f762-817b-4b2f-a752-ead3bb323305: 1 resources
+2026-03-04 07:35:32,247 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,247 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 7a26da9c-4c45-460e-83f5-c148720edaf6: 1 resources
+2026-03-04 07:35:32,248 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,248 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 01d1b740-8909-4001-b26b-1120397c4e5f: all resources
+2026-03-04 07:35:32,248 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 01d1b740-8909-4001-b26b-1120397c4e5f on user 9690a87b-7574-45ea-b372-d6e163ebff80: True
+2026-03-04 07:35:32,248 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 01d1b740-8909-4001-b26b-1120397c4e5f: all resources
+2026-03-04 07:35:32,249 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 01d1b740-8909-4001-b26b-1120397c4e5f on user 9690a87b-7574-45ea-b372-d6e163ebff80: True
+2026-03-04 07:35:32,249 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,250 - app.security.rbac_helper - WARNING - _get_subordinate_user_ids:228 - No org_id provided for subordinate lookup for user 6eec7869-69b0-4e5b-8199-098ed770722a. This may cause cross-organization data leaks.
+2026-03-04 07:35:32,250 - app.security.rbac_helper - DEBUG - _get_subordinate_user_ids:233 - Fetched 3 subordinates for user 6eec7869-69b0-4e5b-8199-098ed770722a in org None
+2026-03-04 07:35:32,250 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 6eec7869-69b0-4e5b-8199-098ed770722a: 4 resources
+2026-03-04 07:35:32,250 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 6eec7869-69b0-4e5b-8199-098ed770722a on user 59b84685-4a71-4145-9861-e10d32467b67: True
+2026-03-04 07:35:32,250 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:141 - Cache hit for accessible user IDs: 6eec7869-69b0-4e5b-8199-098ed770722a
+2026-03-04 07:35:32,250 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 6eec7869-69b0-4e5b-8199-098ed770722a on user 59b84685-4a71-4145-9861-e10d32467b67: False
+2026-03-04 07:35:32,251 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,251 - app.security.rbac_helper - WARNING - _get_subordinate_user_ids:228 - No org_id provided for subordinate lookup for user 50f11906-1c07-4624-9fab-a2b84909ea52. This may cause cross-organization data leaks.
+2026-03-04 07:35:32,251 - app.security.rbac_helper - DEBUG - _get_subordinate_user_ids:233 - Fetched 3 subordinates for user 50f11906-1c07-4624-9fab-a2b84909ea52 in org None
+2026-03-04 07:35:32,251 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 50f11906-1c07-4624-9fab-a2b84909ea52: 4 resources
+2026-03-04 07:35:32,251 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 50f11906-1c07-4624-9fab-a2b84909ea52 on user ed285293-b2aa-4bf0-bf1d-2b4c005d2c12: True
+2026-03-04 07:35:32,251 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:141 - Cache hit for accessible user IDs: 50f11906-1c07-4624-9fab-a2b84909ea52
+2026-03-04 07:35:32,251 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 50f11906-1c07-4624-9fab-a2b84909ea52 on user ed285293-b2aa-4bf0-bf1d-2b4c005d2c12: False
+2026-03-04 07:35:32,252 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,252 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 28231c6a-d2e0-47bc-892e-031ef5967924: 1 resources
+2026-03-04 07:35:32,252 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 28231c6a-d2e0-47bc-892e-031ef5967924 on user 03a43cbd-7439-4de4-994e-d0a3a4c97fb4: True
+2026-03-04 07:35:32,252 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:141 - Cache hit for accessible user IDs: 28231c6a-d2e0-47bc-892e-031ef5967924
+2026-03-04 07:35:32,252 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 28231c6a-d2e0-47bc-892e-031ef5967924 on user 03a43cbd-7439-4de4-994e-d0a3a4c97fb4: False
+2026-03-04 07:35:32,253 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,253 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 76f31c55-d530-4a78-bece-6a418c7d5b3b: 1 resources
+2026-03-04 07:35:32,253 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 76f31c55-d530-4a78-bece-6a418c7d5b3b on user 28b13a38-911b-42e4-a0d2-213a76e08ad7: True
+2026-03-04 07:35:32,253 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:141 - Cache hit for accessible user IDs: 76f31c55-d530-4a78-bece-6a418c7d5b3b
+2026-03-04 07:35:32,253 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 76f31c55-d530-4a78-bece-6a418c7d5b3b on user 28b13a38-911b-42e4-a0d2-213a76e08ad7: False
+2026-03-04 07:35:32,254 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,254 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:151 - Computed accessible user IDs for user 0aaadb69-84b3-4775-a4e3-8b6adba89d00: 1 resources
+2026-03-04 07:35:32,254 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 0aaadb69-84b3-4775-a4e3-8b6adba89d00 on user e91e128c-b907-41bc-b6c5-a358d1db3ced: True
+2026-03-04 07:35:32,254 - app.security.rbac_helper - DEBUG - get_accessible_resource_ids:141 - Cache hit for accessible user IDs: 0aaadb69-84b3-4775-a4e3-8b6adba89d00
+2026-03-04 07:35:32,254 - app.security.rbac_helper - DEBUG - can_access_resource:191 - Resource access check for user 0aaadb69-84b3-4775-a4e3-8b6adba89d00 on user e91e128c-b907-41bc-b6c5-a358d1db3ced: False
+2026-03-04 07:35:32,255 - app.security.decorators - DEBUG - sync_wrapper:124 - Permission check passed for test_function: user a1c8ee50-6fb5-40a2-89ad-cd6356397172 has user:manage
+2026-03-04 07:35:32,256 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for test_function: user 2b086eb7-ca8e-4983-882a-bb82fead6372 lacks user:manage
+2026-03-04 07:35:32,256 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for test_function: user ba33ac6b-98be-463f-a863-b6488de24860 lacks user:manage
+2026-03-04 07:35:32,256 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for test_function: user 8dad3b14-e872-401c-9cd6-5769f3457044 lacks user:manage
+2026-03-04 07:35:32,257 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for test_function: user 4d154bbd-aad5-4998-bd38-014e8cac64b0 lacks user:manage
+2026-03-04 07:35:32,257 - app.security.decorators - WARNING - sync_wrapper:134 - Permission denied for test_function: user cb14fa11-c836-4d94-bca1-840f62157071 lacks user:manage
+2026-03-04 07:35:32,258 - app.security.decorators - DEBUG - sync_wrapper:219 - Permission check passed for test_function: user 1a7c0f06-93d7-43ee-9160-b4965d029b26 has one of ['user:read:all', 'user:manage']
+2026-03-04 07:35:32,258 - app.security.decorators - DEBUG - sync_wrapper:219 - Permission check passed for test_function: user e99e32da-0f9e-4fe6-b27a-9c963177f13a has one of ['user:read:all', 'user:read:subordinates']
+2026-03-04 07:35:32,259 - app.security.decorators - DEBUG - sync_wrapper:219 - Permission check passed for test_function: user da3b0783-3037-40e8-b6e3-652931ab7fe1 has one of ['user:read:all', 'user:read:subordinates']
+2026-03-04 07:35:32,259 - app.security.decorators - WARNING - sync_wrapper:229 - Permission denied for test_function: user 30f97682-da7d-4a2e-ad5f-17039f24ad0e lacks any of ['user:read:all', 'user:read:subordinates']
+2026-03-04 07:35:32,260 - app.security.decorators - WARNING - sync_wrapper:229 - Permission denied for test_function: user 5219975d-f63b-41cf-b335-48308758ced5 lacks any of ['user:manage', 'goal:manage']
+2026-03-04 07:35:32,260 - app.security.decorators - WARNING - sync_wrapper:229 - Permission denied for test_function: user aff57ec0-a799-49ae-9121-01f99f34d057 lacks any of ['user:manage', 'goal:manage']
+2026-03-04 07:35:32,260 - app.security.decorators - DEBUG - sync_wrapper:311 - Role check passed for test_function: user b6569989-64b9-41bf-b179-1a21251fcc9e has role admin
+2026-03-04 07:35:32,261 - app.security.decorators - WARNING - sync_wrapper:321 - Role denied for test_function: user 799d4d30-e2b2-4ac5-8846-8b50e45caee9 lacks role manager
+2026-03-04 07:35:32,261 - app.security.decorators - DEBUG - sync_wrapper:311 - Role check passed for test_function: user 44489ef9-1350-40ac-9d5e-00fb84696dc7 has role manager
+2026-03-04 07:35:32,262 - app.security.decorators - WARNING - sync_wrapper:321 - Role denied for test_function: user 9abf9182-6b8c-4fcd-94b2-5ff030135a34 lacks role admin
+2026-03-04 07:35:32,262 - app.security.decorators - DEBUG - sync_wrapper:311 - Role check passed for test_function: user d2fbd2ce-01c1-4f39-a5ba-9cccf474a7e9 has role supervisor
+2026-03-04 07:35:32,263 - app.security.decorators - WARNING - sync_wrapper:321 - Role denied for test_function: user 09b248f8-dd47-4331-8335-75260cb568bd lacks role manager
+2026-03-04 07:35:32,263 - app.security.decorators - DEBUG - sync_wrapper:311 - Role check passed for test_function: user ca6743c9-3918-4f87-8d68-961ef1a62aae has role employee
+2026-03-04 07:35:32,264 - app.security.decorators - WARNING - sync_wrapper:321 - Role denied for test_function: user 2ce3f9bb-bda2-4d9b-9c10-6d11383de700 lacks role supervisor
+2026-03-04 07:35:32,264 - app.security.decorators - DEBUG - sync_wrapper:311 - Role check passed for test_function: user fedecb15-4ee3-4c67-8c40-8cad3c0487b8 has role viewer
+2026-03-04 07:35:32,265 - app.security.decorators - WARNING - sync_wrapper:321 - Role denied for test_function: user 615680ce-9a66-4795-997f-d783608c3558 lacks role employee
+2026-03-04 07:35:32,265 - app.security.decorators - DEBUG - sync_wrapper:311 - Role check passed for test_function: user dc2d60fd-919e-4992-8523-a19092856d69 has role parttime
+2026-03-04 07:35:32,265 - app.security.decorators - WARNING - sync_wrapper:321 - Role denied for test_function: user f1465f16-fc45-4889-bb26-6395fa4e5461 lacks role viewer
+2026-03-04 07:35:32,273 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,273 - app.security.rbac_helper - WARNING - _get_subordinate_user_ids:228 - No org_id provided for subordinate lookup for user 8944b04e-8b17-47f7-95ce-dea2c3877d12. This may cause cross-organization data leaks.
+2026-03-04 07:35:32,273 - app.security.rbac_helper - DEBUG - _get_subordinate_user_ids:233 - Fetched 2 subordinates for user 8944b04e-8b17-47f7-95ce-dea2c3877d12 in org None
+2026-03-04 07:35:32,273 - app.security.rbac_helper - DEBUG - get_accessible_user_ids:112 - Computed accessible user IDs for user 8944b04e-8b17-47f7-95ce-dea2c3877d12: 3 users
+2026-03-04 07:35:32,275 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,275 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:32,275 - root - INFO - log_test_start:88 - Testing: test_get_profile_options
+2026-03-04 07:35:32,275 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:32,275 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Creating AuthService with real DB session
+2026-03-04 07:35:32,284 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Calling get_profile_options()
+2026-03-04 07:35:32,285 - app.services.auth_service - INFO - get_profile_options:378 - No organization context provided - returning empty profile options
+2026-03-04 07:35:32,285 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,295 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,306 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,323 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,324 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:32,324 - root - INFO - log_test_start:88 - Testing: test_get_goals
+2026-03-04 07:35:32,324 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:32,324 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Creating GoalService with real DB session
+2026-03-04 07:35:32,324 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Test 1: Admin gets all goals
+2026-03-04 07:35:32,324 - root - INFO - log_mock_setup:140 - 🎭 Mock Setup: AuthContext
+2026-03-04 07:35:32,324 - root - INFO - log_mock_setup:142 -    Return value: admin role with full permissions
+2026-03-04 07:35:32,324 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Calling service.get_goals() for admin
+2026-03-04 07:35:32,324 - app.services.goal_service - ERROR - get_goals:240 - Error in get_goals: Mock object has no attribute 'organization_id'
+2026-03-04 07:35:32,325 - root - ERROR - log_test_failure:114 - ❌ test_get_goals - FAILED: Mock object has no attribute 'organization_id'
+2026-03-04 07:35:32,325 - root - ERROR - log_test_failure:115 -    Error type: AttributeError
+2026-03-04 07:35:32,370 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,370 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:32,370 - root - INFO - log_test_start:88 - Testing: test_get_goal_by_id
+2026-03-04 07:35:32,370 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:32,370 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Creating GoalService with real DB session
+2026-03-04 07:35:32,370 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Finding existing goal for testing
+2026-03-04 07:35:32,370 - root - ERROR - log_test_failure:114 - ❌ test_get_goal_by_id - FAILED: cannot access local variable 'admin_context' where it is not associated with a value
+2026-03-04 07:35:32,370 - root - ERROR - log_test_failure:115 -    Error type: UnboundLocalError
+2026-03-04 07:35:32,373 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,374 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:32,374 - root - INFO - log_test_start:88 - Testing: test_weight_validation
+2026-03-04 07:35:32,374 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:32,374 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Checking weight totals for user 123e4567-e89b-12d3-a456-426614174000
+2026-03-04 07:35:32,374 - root - ERROR - log_test_failure:114 - ❌ test_weight_validation - FAILED: GoalRepository.get_weight_totals_by_category() missing 1 required positional argument: 'org_id'
+2026-03-04 07:35:32,374 - root - ERROR - log_test_failure:115 -    Error type: TypeError
+2026-03-04 07:35:32,376 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,377 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,378 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,381 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,381 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:32,381 - root - INFO - log_test_start:88 - Testing: test_goal_approval_workflow
+2026-03-04 07:35:32,381 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:32,382 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Getting pending approvals for supervisor
+2026-03-04 07:35:32,382 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for get_pending_approvals: user 223e4567-e89b-12d3-a456-426614174001 has goal:approve
+2026-03-04 07:35:32,382 - app.services.goal_service - ERROR - get_pending_approvals:1074 - Error getting pending approvals: Mock object has no attribute 'organization_id'
+2026-03-04 07:35:32,382 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for get_pending_approvals: Mock object has no attribute 'organization_id'
+2026-03-04 07:35:32,382 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Note: Pending approvals test resulted in: Mock object has no attribute 'organization_id'
+2026-03-04 07:35:32,382 - root - INFO - log_test_success:100 - ✅ test_goal_approval_workflow - PASSED
+2026-03-04 07:35:32,383 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,383 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:32,383 - root - INFO - log_test_start:88 - Testing: test_create_goal_validation
+2026-03-04 07:35:32,383 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:32,384 - root - ERROR - log_test_failure:114 - ❌ test_create_goal_validation - FAILED: 1 validation error for GoalCreate
+  Value error, Performance goals require: title [type=value_error, input_value={'periodId': UUID('a1b2c3...lStatus.DRAFT: 'draft'>}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/value_error
+2026-03-04 07:35:32,384 - root - ERROR - log_test_failure:115 -    Error type: ValidationError
+2026-03-04 07:35:32,387 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,388 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,389 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,390 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for reject_goal: user bb4fbd28-1c3d-4dfe-84dd-14b5bd211dbb has goal:approve
+2026-03-04 07:35:32,391 - app.services.goal_service - INFO - reject_goal:994 - Goal rejected successfully: fd14f26d-4999-4b4e-8e81-8d5c8367f2c8 by bb4fbd28-1c3d-4dfe-84dd-14b5bd211dbb
+2026-03-04 07:35:32,392 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,392 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for reject_goal: user e962126e-90cb-4d6c-a599-aeb07bc25a83 has goal:approve
+2026-03-04 07:35:32,393 - app.services.goal_service - ERROR - reject_goal:999 - Error rejecting goal 86bc6b0f-f4f2-47ca-93fe-ec0982c8e942: 400: Cannot reject goals in completed or cancelled evaluation periods
+2026-03-04 07:35:32,393 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for reject_goal: 400: Cannot reject goals in completed or cancelled evaluation periods
+2026-03-04 07:35:32,394 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,394 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for reject_goal: user cc6858ab-cf5e-473c-8dac-fdbfb343bedb has goal:approve
+2026-03-04 07:35:32,395 - app.services.goal_service - ERROR - reject_goal:999 - Error rejecting goal d9d789fa-97a1-4435-9a47-5b130a099b2b: 400: Cannot reject goals in completed or cancelled evaluation periods
+2026-03-04 07:35:32,395 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for reject_goal: 400: Cannot reject goals in completed or cancelled evaluation periods
+2026-03-04 07:35:32,395 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,396 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for reject_goal: user f4f1245d-174e-48f0-9976-9a34c79a3e2a has goal:approve
+2026-03-04 07:35:32,398 - app.services.goal_service - ERROR - reject_goal:999 - Error rejecting goal 1988b607-9334-44b7-bc6f-fc5ad7e2786b: 400: Cannot reject goal: self-assessment is already <MagicMock name='mock.status' id='281473260040944'>. 差戻し is only allowed when self-assessment is still in draft status.
+2026-03-04 07:35:32,398 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for reject_goal: 400: Cannot reject goal: self-assessment is already <MagicMock name='mock.status' id='281473260040944'>. 差戻し is only allowed when self-assessment is still in draft status.
+2026-03-04 07:35:32,398 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,400 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for reject_goal: user b1694613-7fc4-44d7-b9d4-f953c050f60b has goal:approve
+2026-03-04 07:35:32,400 - app.services.goal_service - INFO - reject_goal:994 - Goal rejected successfully: 1dd6f451-b471-49ca-b7b0-db9dcbdf46e1 by b1694613-7fc4-44d7-b9d4-f953c050f60b
+2026-03-04 07:35:32,401 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,402 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,403 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,404 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user b07856b9-7570-4321-aef1-ed6aeaf4aec3 has goal:manage:self
+2026-03-04 07:35:32,404 - app.services.goal_service - ERROR - submit_goal:810 - Error submitting goal c18dca74-0ece-4876-b695-da31f97fe9a0: 400: Only active users can submit goals
+2026-03-04 07:35:32,404 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for submit_goal: 400: Only active users can submit goals
+2026-03-04 07:35:32,404 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,405 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user c87d6218-a48d-4053-85d6-b6427e4cefd6 has goal:manage:self
+2026-03-04 07:35:32,406 - app.services.goal_service - ERROR - submit_goal:810 - Error submitting goal edfddf3d-21f5-4e87-9f37-43864c5e2c91: 400: Only active users can submit goals
+2026-03-04 07:35:32,406 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for submit_goal: 400: Only active users can submit goals
+2026-03-04 07:35:32,406 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,407 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user 49f4d0e4-00b8-4cb2-8899-4fd38d0c734a has goal:manage:self
+2026-03-04 07:35:32,408 - app.services.goal_service - INFO - submit_goal:805 - Goal status changed to 'submitted': 3e39f4ba-a56a-4735-aab3-ca06a25c074a by 49f4d0e4-00b8-4cb2-8899-4fd38d0c734a
+2026-03-04 07:35:32,408 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,409 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user dd1abc78-099a-49c0-b93b-65d37b2bcdf9 has goal:manage:self
+2026-03-04 07:35:32,409 - app.services.goal_service - INFO - submit_goal:805 - Goal status changed to 'draft': 94ca7ef8-5d8a-41dd-9ac2-1ef356f8da70 by dd1abc78-099a-49c0-b93b-65d37b2bcdf9
+2026-03-04 07:35:32,410 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,412 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user e4a3e569-5cd4-421b-90f9-42a8335d7abb has goal:manage:self
+2026-03-04 07:35:32,412 - app.services.goal_service - ERROR - submit_goal:810 - Error submitting goal 3d3c20a5-dc9d-4d3c-87ca-e7cd2e5d67d7: 400: Cannot withdraw: supervisor has already started reviewing this goal
+2026-03-04 07:35:32,412 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for submit_goal: 400: Cannot withdraw: supervisor has already started reviewing this goal
+2026-03-04 07:35:32,412 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,413 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user 5e43b4b1-1eac-486d-ab85-26a9f45379a9 has goal:manage:self
+2026-03-04 07:35:32,413 - app.services.goal_service - ERROR - submit_goal:810 - Error submitting goal be3bc451-4f88-429b-86e5-3f7726f0cbba: 400: Cannot withdraw: supervisor has already started reviewing this goal
+2026-03-04 07:35:32,414 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for submit_goal: 400: Cannot withdraw: supervisor has already started reviewing this goal
+2026-03-04 07:35:32,414 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,415 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user cba87773-4873-43ee-9345-8116fc0f6343 has goal:manage:self
+2026-03-04 07:35:32,415 - app.services.goal_service - ERROR - submit_goal:810 - Error submitting goal a515d868-1bc4-4fa6-805d-db20bf2cfac3: 400: Can only withdraw submitted goals back to draft
+2026-03-04 07:35:32,415 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for submit_goal: 400: Can only withdraw submitted goals back to draft
+2026-03-04 07:35:32,416 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,416 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user 3e23e46c-8753-4729-a55e-edc6dcd9d73f has goal:manage:self
+2026-03-04 07:35:32,417 - app.services.goal_service - INFO - submit_goal:805 - Goal status changed to 'draft': 2644305f-e7ca-439c-a0a9-e7101c64cb0b by 3e23e46c-8753-4729-a55e-edc6dcd9d73f
+2026-03-04 07:35:32,417 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,418 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for submit_goal: user 20667ce3-4e63-4730-87a6-a2a16a3f4422 has goal:manage:self
+2026-03-04 07:35:32,418 - app.services.goal_service - ERROR - submit_goal:810 - Error submitting goal 71e5eb20-5291-469b-b0aa-fff4e8725f1c: 403: You can only submit your own goals
+2026-03-04 07:35:32,418 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for submit_goal: user 20667ce3-4e63-4730-87a6-a2a16a3f4422 lacks goal:manage:self
+2026-03-04 07:35:32,419 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,419 - app.security.decorators - DEBUG - async_wrapper:189 - Permission check passed for update_goal: user ca195a5e-fb8a-4ba8-b744-4c678fe0e609 has one of ['goal:manage', 'goal:manage:self']
+2026-03-04 07:35:32,420 - app.services.goal_service - ERROR - update_goal:661 - Error updating goal 00a06cd4-977a-4114-9aad-4e82a27715ab: 400: Can only update draft goals
+2026-03-04 07:35:32,420 - app.security.decorators - ERROR - async_wrapper:206 - Error in permission decorator for update_goal: 400: Can only update draft goals
+2026-03-04 07:35:32,420 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,421 - app.security.decorators - DEBUG - async_wrapper:189 - Permission check passed for update_goal: user 452ac260-7e55-4a46-9633-906efe27b269 has one of ['goal:manage', 'goal:manage:self']
+2026-03-04 07:35:32,421 - app.services.goal_service - ERROR - update_goal:661 - Error updating goal b30bfbf7-3b50-4acf-95cc-a673bc3bfee1: 403: You can only update your own goals
+2026-03-04 07:35:32,421 - app.security.decorators - WARNING - async_wrapper:199 - Permission denied for update_goal: user 452ac260-7e55-4a46-9633-906efe27b269 lacks any of ['goal:manage', 'goal:manage:self']
+2026-03-04 07:35:32,422 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,422 - app.security.decorators - DEBUG - async_wrapper:189 - Permission check passed for delete_goal: user 6074701f-fb0e-4bd9-a067-6c517b52b3fb has one of ['goal:manage', 'goal:manage:self']
+2026-03-04 07:35:32,423 - app.services.goal_service - ERROR - delete_goal:710 - Error deleting goal 83b9af53-240c-46f4-8fd6-5f3b54707310: 400: Can only delete draft goals
+2026-03-04 07:35:32,423 - app.security.decorators - ERROR - async_wrapper:206 - Error in permission decorator for delete_goal: 400: Can only delete draft goals
+2026-03-04 07:35:32,423 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,424 - app.security.decorators - DEBUG - async_wrapper:189 - Permission check passed for delete_goal: user dd702569-85fe-4ffd-87aa-b3cdff66312f has one of ['goal:manage', 'goal:manage:self']
+2026-03-04 07:35:32,424 - app.services.goal_service - ERROR - delete_goal:710 - Error deleting goal b19da0ff-a0f8-4311-b8be-2dc915b421da: 403: You can only delete your own goals
+2026-03-04 07:35:32,424 - app.security.decorators - WARNING - async_wrapper:199 - Permission denied for delete_goal: user dd702569-85fe-4ffd-87aa-b3cdff66312f lacks any of ['goal:manage', 'goal:manage:self']
+2026-03-04 07:35:32,425 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,425 - app.security.decorators - DEBUG - async_wrapper:189 - Permission check passed for delete_goal: user ec69c4d2-8a15-4d7d-8ef2-b608f0289225 has one of ['goal:manage', 'goal:manage:self']
+2026-03-04 07:35:32,426 - app.services.goal_service - INFO - delete_goal:704 - Goal deleted successfully: 0a18dc7d-148c-4c70-82a3-e7d74a649396
+2026-03-04 07:35:32,426 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,427 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,427 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE organizations (
+	id VARCHAR(50) NOT NULL, 
+	name VARCHAR(100) NOT NULL, 
+	slug VARCHAR(100), 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (slug)
+)
+
+
+2026-03-04 07:35:32,427 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00008s] ()
+2026-03-04 07:35:32,427 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:32,427 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE roles (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	name VARCHAR(50) NOT NULL, 
+	description VARCHAR(200) NOT NULL, 
+	hierarchy_order INTEGER NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_roles_org_name UNIQUE (organization_id, name), 
+	FOREIGN KEY(organization_id) REFERENCES organizations (id)
+)
+
+
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00008s] ()
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE permissions (
+	id UUID NOT NULL, 
+	code VARCHAR(150) NOT NULL, 
+	description TEXT NOT NULL, 
+	permission_group VARCHAR(80) NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (code)
+)
+
+
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00006s] ()
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - CREATE INDEX ix_permissions_permission_group ON permissions (permission_group)
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00006s] ()
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:32,428 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,429 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE role_permissions (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	role_id UUID NOT NULL, 
+	permission_id UUID NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_role_permissions_unique UNIQUE (organization_id, role_id, permission_id), 
+	FOREIGN KEY(role_id) REFERENCES roles (id), 
+	FOREIGN KEY(permission_id) REFERENCES permissions (id)
+)
+
+
+2026-03-04 07:35:32,429 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:32,429 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:32,429 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,430 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - INSERT INTO roles (id, organization_id, name, description, hierarchy_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-03-04 07:35:32,430 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00013s] ('8b11365bfccd4bd985d0ba63e068e5f4', 'org_service_test', 'admin', 'admin role', 1, '2026-03-04 07:35:32.429462', '2026-03-04 07:35:32.429462')
+2026-03-04 07:35:32,430 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for get_role_permissions: user 43ac256d-b603-44db-bbd1-9ac2038d1439 lacks role:read:all
+2026-03-04 07:35:32,437 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:32,438 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,438 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,438 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE organizations (
+	id VARCHAR(50) NOT NULL, 
+	name VARCHAR(100) NOT NULL, 
+	slug VARCHAR(100), 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (slug)
+)
+
+
+2026-03-04 07:35:32,438 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00009s] ()
+2026-03-04 07:35:32,439 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:32,439 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,439 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE roles (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	name VARCHAR(50) NOT NULL, 
+	description VARCHAR(200) NOT NULL, 
+	hierarchy_order INTEGER NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_roles_org_name UNIQUE (organization_id, name), 
+	FOREIGN KEY(organization_id) REFERENCES organizations (id)
+)
+
+
+2026-03-04 07:35:32,439 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:32,439 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:32,439 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,439 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE permissions (
+	id UUID NOT NULL, 
+	code VARCHAR(150) NOT NULL, 
+	description TEXT NOT NULL, 
+	permission_group VARCHAR(80) NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	UNIQUE (code)
+)
+
+
+2026-03-04 07:35:32,439 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:32,440 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - CREATE INDEX ix_permissions_permission_group ON permissions (permission_group)
+2026-03-04 07:35:32,440 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:32,440 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:32,440 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,440 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - 
+CREATE TABLE role_permissions (
+	id UUID NOT NULL, 
+	organization_id VARCHAR(50) NOT NULL, 
+	role_id UUID NOT NULL, 
+	permission_id UUID NOT NULL, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_role_permissions_unique UNIQUE (organization_id, role_id, permission_id), 
+	FOREIGN KEY(role_id) REFERENCES roles (id), 
+	FOREIGN KEY(permission_id) REFERENCES permissions (id)
+)
+
+
+2026-03-04 07:35:32,440 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [no key 0.00007s] ()
+2026-03-04 07:35:32,440 - sqlalchemy.engine.Engine - INFO - _connection_commit_impl:2716 - COMMIT
+2026-03-04 07:35:32,441 - sqlalchemy.engine.Engine - INFO - _connection_begin_impl:2710 - BEGIN (implicit)
+2026-03-04 07:35:32,441 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - INSERT INTO roles (id, organization_id, name, description, hierarchy_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-03-04 07:35:32,441 - sqlalchemy.engine.Engine - INFO - _execute_context:1846 - [generated in 0.00015s] [('f5300c4c73834c16a260486c81c95396', 'org_service_test', 'admin', 'admin role', 1, '2026-03-04 07:35:32.440817', '2026-03-04 07:35:32.440817'), ('eae82c5647d34030be504ed4fdafeda8', 'org_service_test', 'viewer', 'viewer role', 2, '2026-03-04 07:35:32.440851', '2026-03-04 07:35:32.440851')]
+2026-03-04 07:35:32,441 - app.security.decorators - WARNING - async_wrapper:105 - Permission denied for replace_role_permissions: user 745a40e4-d0bf-47f7-aabe-26d328b0a5f8 lacks role:manage
+2026-03-04 07:35:32,447 - sqlalchemy.engine.Engine - INFO - _connection_rollback_impl:2713 - ROLLBACK
+2026-03-04 07:35:32,449 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,449 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for delete_role: user None has role:manage
+2026-03-04 07:35:32,449 - app.services.role_service - ERROR - delete_role:266 - Error deleting role 1b82be5e-dee2-4db6-8865-64da8d44b550: 400: Cannot delete role 'custom' because it is assigned to 3 user(s)
+2026-03-04 07:35:32,449 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for delete_role: 400: Cannot delete role 'custom' because it is assigned to 3 user(s)
+2026-03-04 07:35:32,450 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,450 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for delete_role: user None has role:manage
+2026-03-04 07:35:32,450 - app.services.role_service - INFO - delete_role:258 - Role 6867cc1f-df60-439d-8984-b440b4afcb0a deleted successfully
+2026-03-04 07:35:32,451 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,451 - app.security.decorators - DEBUG - async_wrapper:95 - Permission check passed for delete_role: user None has role:manage
+2026-03-04 07:35:32,451 - app.services.role_service - ERROR - delete_role:266 - Error deleting role 2f6ba6e1-4ec0-4d18-a531-930ba54f1f54: 404: Role with ID 2f6ba6e1-4ec0-4d18-a531-930ba54f1f54 not found
+2026-03-04 07:35:32,451 - app.security.decorators - ERROR - async_wrapper:111 - Error in permission decorator for delete_role: 404: Role with ID 2f6ba6e1-4ec0-4d18-a531-930ba54f1f54 not found
+2026-03-04 07:35:32,451 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,452 - root - INFO - log_test_start:87 - ============================================================
+2026-03-04 07:35:32,452 - root - INFO - log_test_start:88 - Testing: test_create_list_submit_review
+2026-03-04 07:35:32,452 - root - INFO - log_test_start:89 - ============================================================
+2026-03-04 07:35:32,452 - root - ERROR - log_test_failure:114 - ❌ test_create_list_submit_review - FAILED: 1 validation error for GoalCreate
+  Value error, Performance goals require: title [type=value_error, input_value={'periodId': UUID('a1b2c3...lStatus.DRAFT: 'draft'>}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/value_error
+2026-03-04 07:35:32,452 - root - ERROR - log_test_failure:115 -    Error type: ValidationError
+2026-03-04 07:35:32,494 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,495 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,496 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,497 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,498 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,498 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,499 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,559 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,560 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0003s
+2026-03-04 07:35:32,561 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,566 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,567 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/user_b_123 - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,567 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/user_b_123 "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,573 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,573 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,573 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,578 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,578 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0001s
+2026-03-04 07:35:32,579 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,583 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,584 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,584 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,589 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,590 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,590 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,595 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,596 - app.core.middleware - WARNING - dispatch:219 - Error response: POST http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,596 - httpx - INFO - _send_single_request:1025 - HTTP Request: POST http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,601 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,602 - app.core.middleware - WARNING - dispatch:219 - Error response: PUT http://testserver/api/v1/users/123e4567-e89b-12d3-a456-426614174000 - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,603 - httpx - INFO - _send_single_request:1025 - HTTP Request: PUT http://testserver/api/v1/users/123e4567-e89b-12d3-a456-426614174000 "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,608 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,609 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/123e4567-e89b-12d3-a456-426614174000 - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,609 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/123e4567-e89b-12d3-a456-426614174000 "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,610 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,611 - app.core.middleware - WARNING - dispatch:219 - Error response: PUT http://testserver/api/v1/users/123e4567-e89b-12d3-a456-426614174000 - Status: 404 - Process time: 0.0001s
+2026-03-04 07:35:32,611 - httpx - INFO - _send_single_request:1025 - HTTP Request: PUT http://testserver/api/v1/users/123e4567-e89b-12d3-a456-426614174000 "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,616 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,617 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/?search=';%20DROP%20TABLE%20users;%20-- - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,617 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/?search=';%20DROP%20TABLE%20users;%20-- "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,623 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,624 - app.core.middleware - WARNING - dispatch:219 - Error response: POST http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,624 - httpx - INFO - _send_single_request:1025 - HTTP Request: POST http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,629 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,629 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/etc/passwd - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,630 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/etc/passwd "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,630 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,631 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/..\..\..\windows\system32\config\sam - Status: 404 - Process time: 0.0001s
+2026-03-04 07:35:32,631 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/..\..\..\windows\system32\config\sam "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,632 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,632 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/....//....//....//etc/passwd - Status: 404 - Process time: 0.0001s
+2026-03-04 07:35:32,633 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/....//....//....//etc/passwd "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,633 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,634 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/../../../etc/passwd - Status: 404 - Process time: 0.0001s
+2026-03-04 07:35:32,634 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,635 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,636 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,636 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,641 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,641 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0001s
+2026-03-04 07:35:32,642 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,646 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,647 - app.core.middleware - WARNING - dispatch:219 - Error response: POST http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,647 - httpx - INFO - _send_single_request:1025 - HTTP Request: POST http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,653 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,654 - app.core.middleware - WARNING - dispatch:219 - Error response: POST http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,654 - httpx - INFO - _send_single_request:1025 - HTTP Request: POST http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,659 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,659 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,660 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"
+2026-03-04 07:35:32,664 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-04 07:35:32,665 - app.core.middleware - WARNING - dispatch:219 - Error response: GET http://testserver/api/v1/users/ - Status: 404 - Process time: 0.0002s
+2026-03-04 07:35:32,665 - httpx - INFO - _send_single_request:1025 - HTTP Request: GET http://testserver/api/v1/users/ "HTTP/1.1 404 Not Found"

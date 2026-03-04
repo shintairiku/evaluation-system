@@ -104,6 +104,13 @@ export const groups = [
         icon: 'brain',
         permission: 'admin'
       },
+      {
+        href: '/peer-review-assignments',
+        label: '評価者割当管理',
+        sublabel: 'Peer Review Assignments',
+        icon: 'users',
+        permission: 'admin'
+      },
     ],
   },
   {

@@ -1,0 +1,404 @@
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { getAssignmentsAction, assignReviewersAction } from '@/api/server-actions/peer-reviews';
+import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
+import { getUsersAction } from '@/api/server-actions/users';
+import { getDepartmentsAction } from '@/api/server-actions/departments';
+import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
+import type {
+  EvaluationPeriod,
+  UserDetailResponse,
+  Department,
+  PeerReviewAssignmentsByReviewee,
+} from '@/api/types';
+
+/**
+ * Local state for reviewer assignments per reviewee (for bulk save).
+ */
+export interface LocalReviewerAssignment {
+  reviewer1Id: string | null;
+  reviewer2Id: string | null;
+}
+
+/**
+ * Row data combining user info with assignment state.
+ */
+export interface AssignmentRow {
+  user: UserDetailResponse;
+  serverAssignment: PeerReviewAssignmentsByReviewee | null;
+  local: LocalReviewerAssignment;
+  isDirty: boolean;
+}
+
+export interface UsePeerReviewAssignmentsDataParams {
+  selectedPeriodId?: string;
+}
+
+export interface UsePeerReviewAssignmentsDataReturn {
+  rows: AssignmentRow[];
+  filteredRows: AssignmentRow[];
+  paginatedRows: AssignmentRow[];
+  isLoading: boolean;
+  isSaving: boolean;
+  error: string | null;
+  saveError: string | null;
+  searchQuery: string;
+  selectedDepartmentId: string;
+  currentPeriod: EvaluationPeriod | null;
+  allPeriods: EvaluationPeriod[];
+  resolvedPeriodId: string | null;
+  users: UserDetailResponse[];
+  departments: Department[];
+  currentPage: number;
+  itemsPerPage: number;
+  totalPages: number;
+  dirtyCount: number;
+  stats: { total: number; assigned: number; partial: number; unassigned: number };
+  setSearchQuery: (query: string) => void;
+  setSelectedDepartmentId: (id: string) => void;
+  setCurrentPage: (page: number) => void;
+  setReviewerForRow: (revieweeId: string, slot: 1 | 2, reviewerId: string | null) => void;
+  saveAllChanges: () => Promise<boolean>;
+  refetch: () => Promise<void>;
+}
+
+export function usePeerReviewAssignmentsData(
+  params?: UsePeerReviewAssignmentsDataParams
+): UsePeerReviewAssignmentsDataReturn {
+  const currentUserContext = useOptionalCurrentUserContext();
+
+  // Data state
+  const [users, setUsers] = useState<UserDetailResponse[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [serverAssignments, setServerAssignments] = useState<PeerReviewAssignmentsByReviewee[]>([]);
+  const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
+  const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>([]);
+  const [resolvedPeriodId, setResolvedPeriodId] = useState<string | null>(
+    params?.selectedPeriodId ?? null
+  );
+
+  // Local assignment edits (revieweeId → local state)
+  const [localAssignments, setLocalAssignments] = useState<Map<string, LocalReviewerAssignment>>(
+    new Map()
+  );
+
+  // UI state
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('all');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  /**
+   * Initialize local assignments from server data.
+   */
+  const initLocalAssignments = useCallback(
+    (assignments: PeerReviewAssignmentsByReviewee[], allUsers: UserDetailResponse[]) => {
+      const map = new Map<string, LocalReviewerAssignment>();
+      // Initialize all users with null/null
+      for (const user of allUsers) {
+        map.set(user.id, { reviewer1Id: null, reviewer2Id: null });
+      }
+      // Populate from server assignments
+      for (const group of assignments) {
+        const sorted = [...group.assignments].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        map.set(group.revieweeId, {
+          reviewer1Id: sorted[0]?.reviewerId ?? null,
+          reviewer2Id: sorted[1]?.reviewerId ?? null,
+        });
+      }
+      setLocalAssignments(map);
+    },
+    []
+  );
+
+  /**
+   * Load all data.
+   */
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setSaveError(null);
+
+      const usersPromise = getUsersAction({
+        include: 'department,stage,supervisor',
+        withCount: false,
+      });
+      const departmentsPromise = getDepartmentsAction();
+
+      // Resolve periods
+      const hasContextPeriods =
+        currentUserContext?.periods?.all && currentUserContext.periods.all.length > 0;
+      const periodsPromise = !hasContextPeriods
+        ? getCategorizedEvaluationPeriodsAction()
+        : Promise.resolve({ success: true, data: currentUserContext?.periods ?? undefined });
+
+      const periodResult = await periodsPromise;
+
+      if (!periodResult.success || !periodResult.data) {
+        setAllPeriods([]);
+        setCurrentPeriod(null);
+        setResolvedPeriodId(null);
+        setError('評価期間が設定されていません');
+        await Promise.allSettled([usersPromise, departmentsPromise]);
+        return;
+      }
+
+      const allPeriodsArray = periodResult.data.all || [];
+      const resolvedCurrentPeriod =
+        currentUserContext?.currentPeriod ?? periodResult.data.current ?? null;
+      setAllPeriods(allPeriodsArray);
+      setCurrentPeriod(resolvedCurrentPeriod);
+
+      let periodToUse: EvaluationPeriod | undefined;
+      if (params?.selectedPeriodId) {
+        periodToUse = allPeriodsArray.find(p => p.id === params.selectedPeriodId);
+      }
+      if (!periodToUse) {
+        periodToUse =
+          (currentUserContext?.currentPeriod ?? periodResult.data.current) ?? allPeriodsArray[0];
+      }
+
+      if (!periodToUse) {
+        setResolvedPeriodId(null);
+        setError('評価期間が設定されていません');
+        await Promise.allSettled([usersPromise, departmentsPromise]);
+        return;
+      }
+
+      const targetPeriodId = periodToUse.id;
+      setResolvedPeriodId(targetPeriodId);
+
+      // Fetch assignments for the period
+      const assignmentsPromise = getAssignmentsAction(targetPeriodId);
+
+      const [usersResult, departmentsResult, assignmentsResult] = await Promise.all([
+        usersPromise,
+        departmentsPromise,
+        assignmentsPromise,
+      ]);
+
+      const loadedUsers =
+        usersResult.success && usersResult.data?.items ? usersResult.data.items : [];
+      setUsers(loadedUsers);
+
+      if (departmentsResult.success && Array.isArray(departmentsResult.data)) {
+        setDepartments(departmentsResult.data);
+      }
+
+      const loadedAssignments =
+        assignmentsResult.success && assignmentsResult.data ? assignmentsResult.data : [];
+      setServerAssignments(loadedAssignments);
+
+      // Initialize local state from server
+      initLocalAssignments(loadedAssignments, loadedUsers);
+    } catch (err) {
+      console.error('Error loading peer review assignments data:', err);
+      setError(err instanceof Error ? err.message : '予期しないエラーが発生しました');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUserContext?.currentPeriod, currentUserContext?.periods, params?.selectedPeriodId, initLocalAssignments]);
+
+  /**
+   * Build rows combining user + assignment data.
+   */
+  const rows = useMemo<AssignmentRow[]>(() => {
+    return users.map(user => {
+      const serverAssignment = serverAssignments.find(a => a.revieweeId === user.id) ?? null;
+      const local = localAssignments.get(user.id) ?? { reviewer1Id: null, reviewer2Id: null };
+
+      // Determine if this row has been modified from server state
+      const serverLocal = {
+        reviewer1Id: null as string | null,
+        reviewer2Id: null as string | null,
+      };
+      if (serverAssignment) {
+        const sorted = [...serverAssignment.assignments].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        serverLocal.reviewer1Id = sorted[0]?.reviewerId ?? null;
+        serverLocal.reviewer2Id = sorted[1]?.reviewerId ?? null;
+      }
+
+      const isDirty =
+        local.reviewer1Id !== serverLocal.reviewer1Id ||
+        local.reviewer2Id !== serverLocal.reviewer2Id;
+
+      return { user, serverAssignment, local, isDirty };
+    });
+  }, [users, serverAssignments, localAssignments]);
+
+  /**
+   * Filter rows.
+   */
+  const filteredRows = useMemo(() => {
+    let result = rows;
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        r =>
+          r.user.name.toLowerCase().includes(query) ||
+          r.user.department?.name?.toLowerCase().includes(query)
+      );
+    }
+
+    if (selectedDepartmentId !== 'all') {
+      result = result.filter(r => r.user.department?.id === selectedDepartmentId);
+    }
+
+    return result;
+  }, [rows, searchQuery, selectedDepartmentId]);
+
+  /**
+   * Stats.
+   */
+  const stats = useMemo(() => {
+    const total = rows.length;
+    let assigned = 0;
+    let partial = 0;
+    let unassigned = 0;
+
+    for (const r of rows) {
+      const has1 = !!r.local.reviewer1Id;
+      const has2 = !!r.local.reviewer2Id;
+      if (has1 && has2) assigned++;
+      else if (has1 || has2) partial++;
+      else unassigned++;
+    }
+
+    return { total, assigned, partial, unassigned };
+  }, [rows]);
+
+  const dirtyCount = useMemo(() => rows.filter(r => r.isDirty).length, [rows]);
+
+  /**
+   * Pagination.
+   */
+  const totalPages = useMemo(
+    () => Math.ceil(filteredRows.length / itemsPerPage),
+    [filteredRows.length, itemsPerPage]
+  );
+
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredRows.slice(start, start + itemsPerPage);
+  }, [filteredRows, currentPage, itemsPerPage]);
+
+  /**
+   * Set reviewer for a specific row/slot.
+   */
+  const setReviewerForRow = useCallback(
+    (revieweeId: string, slot: 1 | 2, reviewerId: string | null) => {
+      setLocalAssignments(prev => {
+        const next = new Map(prev);
+        const current = next.get(revieweeId) ?? { reviewer1Id: null, reviewer2Id: null };
+        next.set(revieweeId, {
+          ...current,
+          [slot === 1 ? 'reviewer1Id' : 'reviewer2Id']: reviewerId,
+        });
+        return next;
+      });
+    },
+    []
+  );
+
+  /**
+   * Save all dirty rows.
+   */
+  const saveAllChanges = useCallback(async (): Promise<boolean> => {
+    if (!resolvedPeriodId) return false;
+
+    const dirtyRows = rows.filter(r => r.isDirty);
+    if (dirtyRows.length === 0) return true;
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    const errors: string[] = [];
+
+    for (const row of dirtyRows) {
+      const { reviewer1Id, reviewer2Id } = row.local;
+
+      // Skip rows with incomplete assignments (both must be set or both null)
+      if (!reviewer1Id && !reviewer2Id) {
+        // TODO: handle removal case if needed
+        continue;
+      }
+
+      if (!reviewer1Id || !reviewer2Id) {
+        errors.push(`${row.user.name}: 2名の評価者を選択してください`);
+        continue;
+      }
+
+      const result = await assignReviewersAction(resolvedPeriodId, row.user.id, {
+        reviewerIds: [reviewer1Id, reviewer2Id],
+      });
+
+      if (!result.success) {
+        errors.push(`${row.user.name}: ${result.error || '保存に失敗しました'}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      setSaveError(errors.join('\n'));
+      // Reload to sync with server state
+      await loadData();
+      setIsSaving(false);
+      return false;
+    }
+
+    // Reload to sync with server state
+    await loadData();
+    setIsSaving(false);
+    return true;
+  }, [resolvedPeriodId, rows, loadData]);
+
+  // Load on mount
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Reset page on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedDepartmentId]);
+
+  return {
+    rows,
+    filteredRows,
+    paginatedRows,
+    isLoading,
+    isSaving,
+    error,
+    saveError,
+    searchQuery,
+    selectedDepartmentId,
+    currentPeriod,
+    allPeriods,
+    resolvedPeriodId,
+    users,
+    departments,
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    dirtyCount,
+    stats,
+    setSearchQuery,
+    setSelectedDepartmentId,
+    setCurrentPage,
+    setReviewerForRow,
+    saveAllChanges,
+    refetch: loadData,
+  };
+}
