@@ -260,6 +260,23 @@ export const API_ENDPOINTS = {
     PENDING_FEEDBACK_COUNT: buildApiUrl('/core-values/feedback/pending-count'),
   },
 
+  // Peer Review endpoints
+  PEER_REVIEWS: {
+    ASSIGNMENTS: buildApiUrl('/peer-reviews/assignments'),
+    ASSIGN_REVIEWERS: (periodId: string, revieweeId: string) =>
+      buildApiUrl(`/peer-reviews/assignments/${periodId}/reviewee/${revieweeId}`),
+    REMOVE_ASSIGNMENT: (assignmentId: string) =>
+      buildApiUrl(`/peer-reviews/assignments/${assignmentId}`),
+    MINE: buildApiUrl('/peer-reviews/mine'),
+    UPDATE_EVALUATION: (evalId: string) =>
+      buildApiUrl(`/peer-reviews/evaluations/${evalId}`),
+    SUBMIT_EVALUATION: (evalId: string) =>
+      buildApiUrl(`/peer-reviews/evaluations/${evalId}/submit`),
+    RESULTS_MINE: buildApiUrl('/peer-reviews/results/mine'),
+    RESULTS_USER: buildApiUrl('/peer-reviews/results/user'),
+    SUMMARY_USER: buildApiUrl('/peer-reviews/summary/user'),
+  },
+
   // Permission management endpoints
   PERMISSIONS: {
     CATALOG: '/permissions/',
