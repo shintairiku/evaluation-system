@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError
+from app.database.models.evaluation import EvaluationPeriodStatus
 from app.schemas.evaluation import EvaluationPeriodCreate, EvaluationPeriodType
 from app.security.context import AuthContext, RoleInfo
 from app.security.permissions import Permission
@@ -77,3 +78,26 @@ async def test_create_still_rejects_evaluation_deadline_before_period_end():
 
     with pytest.raises(BadRequestError, match="Evaluation deadline should not be before the period end date"):
         await service._validate_period_creation(period_data, org_id="org_test")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [EvaluationPeriodStatus.DRAFT, EvaluationPeriodStatus.COMPLETED])
+async def test_delete_validation_allows_draft_and_completed(status: EvaluationPeriodStatus):
+    session = AsyncMock(spec=AsyncSession)
+    service = EvaluationPeriodService(session)
+
+    period = SimpleNamespace(status=status)
+
+    await service._validate_period_deletion(period)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [EvaluationPeriodStatus.ACTIVE, EvaluationPeriodStatus.CANCELLED])
+async def test_delete_validation_rejects_active_and_cancelled(status: EvaluationPeriodStatus):
+    session = AsyncMock(spec=AsyncSession)
+    service = EvaluationPeriodService(session)
+
+    period = SimpleNamespace(status=status)
+
+    with pytest.raises(BadRequestError, match=f"Cannot delete {status} evaluation period"):
+        await service._validate_period_deletion(period)
