@@ -31,6 +31,8 @@ import {
   Loader2,
   Save,
   Search,
+  Shuffle,
+  Undo2,
   Users,
   CheckCircle,
   Clock,
@@ -72,6 +74,8 @@ export default function PeerReviewAssignmentsPage({
     setCurrentPage,
     setReviewerForRow,
     saveAllChanges,
+    isRandomAssigned,
+    toggleRandomAssign,
     refetch,
   } = usePeerReviewAssignmentsData({
     selectedPeriodId: internalSelectedPeriodId || undefined,
@@ -182,6 +186,28 @@ export default function PeerReviewAssignmentsPage({
             ))}
           </SelectContent>
         </Select>
+
+        <Button
+          variant={isRandomAssigned ? 'destructive' : 'outline'}
+          onClick={() => {
+            const count = toggleRandomAssign();
+            if (isRandomAssigned) {
+              toast.info(`${count}名のランダム割当を取り消しました。`);
+            } else if (count > 0) {
+              toast.success(`${count}名にランダムで評価者を割り当てました。内容を確認して一括保存してください。`);
+            } else {
+              toast.info('ランダム割当の対象者がいません（全員割当済みか、ユーザーが3名未満です）。');
+            }
+          }}
+          disabled={isSaving || (!isRandomAssigned && stats.unassigned === 0)}
+        >
+          {isRandomAssigned ? (
+            <Undo2 className="mr-2 h-4 w-4" />
+          ) : (
+            <Shuffle className="mr-2 h-4 w-4" />
+          )}
+          {isRandomAssigned ? 'ランダム割当を取消' : 'ランダム割当'}
+        </Button>
 
         <Button onClick={handleSaveAll} disabled={isSaving || dirtyCount === 0}>
           {isSaving ? (

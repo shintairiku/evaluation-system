@@ -58,6 +58,8 @@ export interface UsePeerReviewAssignmentsDataReturn {
   setCurrentPage: (page: number) => void;
   setReviewerForRow: (revieweeId: string, slot: 1 | 2, reviewerId: string | null) => void;
   saveAllChanges: () => Promise<boolean>;
+  isRandomAssigned: boolean;
+  toggleRandomAssign: () => number;
   refetch: () => Promise<void>;
 }
 
@@ -313,6 +315,70 @@ export function usePeerReviewAssignmentsData(
     []
   );
 
+  // Tracks which user IDs were randomly assigned (to undo on next toggle)
+  const [randomAssignedIds, setRandomAssignedIds] = useState<Set<string>>(new Set());
+  const isRandomAssigned = randomAssignedIds.size > 0;
+
+  /**
+   * Toggle random assignment:
+   * - 1st click: randomly assign 2 reviewers to each fully unassigned user
+   * - 2nd click: undo only those random assignments (restore to null/null)
+   * Returns the number of users affected.
+   */
+  const toggleRandomAssign = useCallback((): number => {
+    if (isRandomAssigned) {
+      // Undo: restore randomly assigned rows to null/null
+      const count = randomAssignedIds.size;
+      setLocalAssignments(prev => {
+        const next = new Map(prev);
+        for (const userId of randomAssignedIds) {
+          next.set(userId, { reviewer1Id: null, reviewer2Id: null });
+        }
+        return next;
+      });
+      setRandomAssignedIds(new Set());
+      return count;
+    }
+
+    // Assign: randomly pick 2 reviewers for each unassigned user
+    const userIds = users.map(u => u.id);
+    if (userIds.length < 3) return 0;
+
+    let assignedCount = 0;
+    const newRandomIds = new Set<string>();
+
+    setLocalAssignments(prev => {
+      const next = new Map(prev);
+
+      for (const userId of userIds) {
+        const current = next.get(userId) ?? { reviewer1Id: null, reviewer2Id: null };
+        if (current.reviewer1Id || current.reviewer2Id) continue;
+
+        const candidates = userIds.filter(id => id !== userId);
+
+        // Fisher-Yates shuffle
+        for (let i = candidates.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+
+        if (candidates.length >= 2) {
+          next.set(userId, {
+            reviewer1Id: candidates[0],
+            reviewer2Id: candidates[1],
+          });
+          newRandomIds.add(userId);
+          assignedCount++;
+        }
+      }
+
+      return next;
+    });
+
+    setRandomAssignedIds(newRandomIds);
+    return assignedCount;
+  }, [users, isRandomAssigned, randomAssignedIds]);
+
   /**
    * Save all dirty rows.
    */
@@ -399,6 +465,8 @@ export function usePeerReviewAssignmentsData(
     setCurrentPage,
     setReviewerForRow,
     saveAllChanges,
+    isRandomAssigned,
+    toggleRandomAssign,
     refetch: loadData,
   };
 }
