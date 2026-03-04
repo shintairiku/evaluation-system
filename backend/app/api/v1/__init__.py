@@ -18,6 +18,7 @@ from .dashboard import router as dashboard_router
 from .viewers import router as viewer_router
 from .evaluation_pages import router as evaluation_pages_router
 from .core_values import router as core_value_router
+from .peer_reviews import router as peer_review_router
 
 # from .reports import router as reports_router  # Will be defined in the future
 # from .webhooks import router as webhooks_router
@@ -43,6 +44,7 @@ org_api_router.include_router(self_assessment_router)
 org_api_router.include_router(supervisor_feedback_router)
 org_api_router.include_router(dashboard_router)
 org_api_router.include_router(core_value_router)
+org_api_router.include_router(peer_review_router)
 
 # api_router.include_router(reports_router)
 

@@ -11,6 +11,7 @@ from .self_assessment import SelfAssessment
 from .supervisor_review import SupervisorReview
 from .supervisor_feedback import SupervisorFeedback
 from .core_value import CoreValueDefinition, CoreValueEvaluation, CoreValueFeedback
+from .peer_review import PeerReviewAssignment, PeerReviewEvaluation
 from .viewer_visibility import (
     ViewerVisibilityDepartment,
     ViewerVisibilitySupervisorTeam,
@@ -45,4 +46,6 @@ __all__ = [
     "CoreValueDefinition",
     "CoreValueEvaluation",
     "CoreValueFeedback",
+    "PeerReviewAssignment",
+    "PeerReviewEvaluation",
 ]
