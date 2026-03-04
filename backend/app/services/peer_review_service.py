@@ -3,10 +3,8 @@ import logging
 from typing import Optional, List
 from uuid import UUID
 
-from ..database.repositories.peer_review_repository import (
-    PeerReviewAssignmentRepository,
-    PeerReviewEvaluationRepository,
-)
+from ..database.repositories.peer_review_assignment_repo import PeerReviewAssignmentRepository
+from ..database.repositories.peer_review_evaluation_repo import PeerReviewEvaluationRepository
 from ..database.repositories.core_value_definition_repo import CoreValueDefinitionRepository
 from ..database.repositories.core_value_evaluation_repo import CoreValueEvaluationRepository
 from ..database.repositories.core_value_feedback_repo import CoreValueFeedbackRepository
@@ -28,53 +26,16 @@ from ..security.permissions import Permission
 from ..security.decorators import require_any_permission
 from ..security.rbac_helper import RBACHelper
 from ..core.exceptions import (
-    NotFoundError, PermissionDeniedError, ValidationError
+    NotFoundError, PermissionDeniedError, ValidationError, BadRequestError
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-
-# ============================================================
-# Rating utilities (same thresholds as frontend scoreToFinalRating)
-# ============================================================
-
-RATING_CODE_TO_NUMERIC: dict[str, float] = {
-    "SS": 7.0, "S": 6.0, "A+": 5.0, "A": 4.0, "A-": 3.0, "B": 2.0, "C": 1.0,
+# Build a string-keyed lookup from the canonical CORE_VALUE_RATING_VALUES
+_RATING_CODE_TO_NUMERIC: dict[str, float] = {
+    code.value: val for code, val in CORE_VALUE_RATING_VALUES.items()
 }
-
-
-def score_to_final_rating(score: float) -> str:
-    """Convert numeric score to rating code using same thresholds as frontend."""
-    if score >= 6.5:
-        return "SS"
-    if score >= 5.5:
-        return "S"
-    if score >= 4.5:
-        return "A+"
-    if score >= 3.7:
-        return "A"
-    if score >= 2.7:
-        return "A-"
-    if score >= 1.7:
-        return "B"
-    if score >= 1.0:
-        return "C"
-    return "D"
-
-
-def _calculate_source_average(scores: dict) -> Optional[float]:
-    """Calculate the average numeric score from a scores JSONB dict."""
-    if not scores:
-        return None
-    values = []
-    for rating_code in scores.values():
-        numeric = RATING_CODE_TO_NUMERIC.get(rating_code)
-        if numeric is not None:
-            values.append(numeric)
-    if not values:
-        return None
-    return sum(values) / len(values)
 
 
 class PeerReviewService:
@@ -119,17 +80,7 @@ class PeerReviewService:
                     "assignments": [],
                 }
             grouped[rid]["assignments"].append(
-                PeerReviewAssignmentResponse(
-                    id=a.id,
-                    period_id=a.period_id,
-                    reviewee_id=a.reviewee_id,
-                    reviewer_id=a.reviewer_id,
-                    reviewer_name=a.reviewer.name if a.reviewer else None,
-                    assigned_by=a.assigned_by,
-                    evaluation_status=a.evaluation.status if a.evaluation else None,
-                    created_at=a.created_at,
-                    updated_at=a.updated_at,
-                )
+                PeerReviewAssignmentResponse.model_validate(a)
             )
 
         return [
@@ -177,6 +128,7 @@ class PeerReviewService:
                     reviewee_id=reviewee_id,
                     reviewer_id=reviewer_id,
                     assigned_by=current_user_context.user_id,
+                    org_id=org_id,
                 )
                 # Auto-create evaluation in draft
                 await self.evaluation_repo.create_evaluation(
@@ -184,17 +136,10 @@ class PeerReviewService:
                     period_id=period_id,
                     reviewee_id=reviewee_id,
                     reviewer_id=reviewer_id,
+                    org_id=org_id,
                 )
                 results.append(
-                    PeerReviewAssignmentResponse(
-                        id=assignment.id,
-                        period_id=assignment.period_id,
-                        reviewee_id=assignment.reviewee_id,
-                        reviewer_id=assignment.reviewer_id,
-                        assigned_by=assignment.assigned_by,
-                        created_at=assignment.created_at,
-                        updated_at=assignment.updated_at,
-                    )
+                    PeerReviewAssignmentResponse.model_validate(assignment)
                 )
 
             await self.session.commit()
@@ -245,20 +190,7 @@ class PeerReviewService:
         )
 
         return [
-            PeerReviewEvaluationResponse(
-                id=e.id,
-                assignment_id=e.assignment_id,
-                period_id=e.period_id,
-                reviewee_id=e.reviewee_id,
-                reviewee_name=e.reviewee.name if e.reviewee else None,
-                reviewer_id=e.reviewer_id,
-                scores=e.scores,
-                comment=e.comment,
-                status=e.status,
-                submitted_at=e.submitted_at,
-                created_at=e.created_at,
-                updated_at=e.updated_at,
-            )
+            PeerReviewEvaluationResponse.model_validate(e)
             for e in evaluations
         ]
 
@@ -291,20 +223,7 @@ class PeerReviewService:
             updated = await self.evaluation_repo.update_evaluation(eval_id, update_data, org_id)
             await self.session.commit()
 
-            return PeerReviewEvaluationResponse(
-                id=updated.id,
-                assignment_id=updated.assignment_id,
-                period_id=updated.period_id,
-                reviewee_id=updated.reviewee_id,
-                reviewee_name=updated.reviewee.name if updated.reviewee else None,
-                reviewer_id=updated.reviewer_id,
-                scores=updated.scores,
-                comment=updated.comment,
-                status=updated.status,
-                submitted_at=updated.submitted_at,
-                created_at=updated.created_at,
-                updated_at=updated.updated_at,
-            )
+            return PeerReviewEvaluationResponse.model_validate(updated)
 
         except Exception as e:
             await self.session.rollback()
@@ -349,20 +268,7 @@ class PeerReviewService:
             updated = await self.evaluation_repo.submit_evaluation(eval_id, org_id)
             await self.session.commit()
 
-            return PeerReviewEvaluationResponse(
-                id=updated.id,
-                assignment_id=updated.assignment_id,
-                period_id=updated.period_id,
-                reviewee_id=updated.reviewee_id,
-                reviewee_name=updated.reviewee.name if updated.reviewee else None,
-                reviewer_id=updated.reviewer_id,
-                scores=updated.scores,
-                comment=updated.comment,
-                status=updated.status,
-                submitted_at=updated.submitted_at,
-                created_at=updated.created_at,
-                updated_at=updated.updated_at,
-            )
+            return PeerReviewEvaluationResponse.model_validate(updated)
 
         except Exception as e:
             await self.session.rollback()
@@ -419,7 +325,7 @@ class PeerReviewService:
             if not ev.scores:
                 continue
             for cv_id, rating_code in ev.scores.items():
-                numeric = RATING_CODE_TO_NUMERIC.get(rating_code)
+                numeric = _RATING_CODE_TO_NUMERIC.get(rating_code)
                 if numeric is not None:
                     if cv_id not in scores_by_cv:
                         scores_by_cv[cv_id] = []
@@ -433,7 +339,7 @@ class PeerReviewService:
                 PeerReviewCoreValueAverage(
                     core_value_definition_id=cv_id,
                     average_score=round(avg, 2),
-                    rating_code=score_to_final_rating(avg),
+                    rating_code=self._score_to_final_rating(avg),
                 )
             )
 
@@ -462,9 +368,9 @@ class PeerReviewService:
         self_rating = None
         cv_eval = await self.cv_evaluation_repo.get_evaluation(period_id, user_id, org_id)
         if cv_eval and cv_eval.status in ("submitted", "approved") and cv_eval.scores:
-            self_score = _calculate_source_average(cv_eval.scores)
+            self_score = self._calculate_source_average(cv_eval.scores)
             if self_score is not None:
-                self_rating = score_to_final_rating(self_score)
+                self_rating = self._score_to_final_rating(self_score)
                 sources_scores.append(self_score)
 
         # 2. 同僚評価 - from peer_review_evaluations (each reviewer is a separate source)
@@ -473,8 +379,8 @@ class PeerReviewService:
             period_id, user_id, org_id
         )
         for i, ev in enumerate(submitted_evals, 1):
-            peer_score = _calculate_source_average(ev.scores)
-            peer_rating = score_to_final_rating(peer_score) if peer_score is not None else None
+            peer_score = self._calculate_source_average(ev.scores)
+            peer_rating = self._score_to_final_rating(peer_score) if peer_score is not None else None
             peer_sources.append(
                 CoreValueSummarySource(
                     label=f"同僚評価{self._to_circled_number(i)}",
@@ -491,9 +397,9 @@ class PeerReviewService:
         if cv_eval:
             feedback = await self.cv_feedback_repo.get_feedback_by_evaluation(cv_eval.id, org_id)
             if feedback and feedback.status == "submitted" and feedback.scores:
-                supervisor_score = _calculate_source_average(feedback.scores)
+                supervisor_score = self._calculate_source_average(feedback.scores)
                 if supervisor_score is not None:
-                    supervisor_rating = score_to_final_rating(supervisor_score)
+                    supervisor_rating = self._score_to_final_rating(supervisor_score)
                     sources_scores.append(supervisor_score)
 
         # 4. 総合平均 - equal weight average of available sources
@@ -501,7 +407,7 @@ class PeerReviewService:
         overall_rating = None
         if sources_scores:
             overall_score = round(sum(sources_scores) / len(sources_scores), 2)
-            overall_rating = score_to_final_rating(overall_score)
+            overall_rating = self._score_to_final_rating(overall_score)
 
         return CoreValueSummaryResponse(
             self_rating=self_rating,
@@ -520,3 +426,40 @@ class PeerReviewService:
         if 1 <= n <= len(circled):
             return circled[n - 1]
         return f"({n})"
+
+    # ========================================
+    # RATING UTILITIES
+    # ========================================
+
+    @staticmethod
+    def _score_to_final_rating(score: float) -> str:
+        """Convert numeric score to rating code using same thresholds as frontend."""
+        if score >= 6.5:
+            return "SS"
+        if score >= 5.5:
+            return "S"
+        if score >= 4.5:
+            return "A+"
+        if score >= 3.7:
+            return "A"
+        if score >= 2.7:
+            return "A-"
+        if score >= 1.7:
+            return "B"
+        if score >= 1.0:
+            return "C"
+        return "D"
+
+    @staticmethod
+    def _calculate_source_average(scores: dict) -> Optional[float]:
+        """Calculate the average numeric score from a scores JSONB dict."""
+        if not scores:
+            return None
+        values = []
+        for rating_code in scores.values():
+            numeric = _RATING_CODE_TO_NUMERIC.get(rating_code)
+            if numeric is not None:
+                values.append(numeric)
+        if not values:
+            return None
+        return sum(values) / len(values)

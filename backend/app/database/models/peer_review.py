@@ -40,6 +40,16 @@ class PeerReviewAssignment(Base):
     assigner = relationship("User", foreign_keys=[assigned_by])
     evaluation = relationship("PeerReviewEvaluation", back_populates="assignment", uselist=False)
 
+    @property
+    def reviewer_name(self) -> str | None:
+        """Computed field for Pydantic model_validate compatibility."""
+        return self.reviewer.name if self.reviewer else None
+
+    @property
+    def evaluation_status(self) -> str | None:
+        """Computed field for Pydantic model_validate compatibility."""
+        return self.evaluation.status if self.evaluation else None
+
     def __repr__(self):
         return f"<PeerReviewAssignment(id={self.id}, period={self.period_id}, reviewee={self.reviewee_id}, reviewer={self.reviewer_id})>"
 
@@ -88,6 +98,11 @@ class PeerReviewEvaluation(Base):
     period = relationship("EvaluationPeriod")
     reviewee = relationship("User", foreign_keys=[reviewee_id])
     reviewer = relationship("User", foreign_keys=[reviewer_id])
+
+    @property
+    def reviewee_name(self) -> str | None:
+        """Computed field for Pydantic model_validate compatibility."""
+        return self.reviewee.name if self.reviewee else None
 
     @validates('status')
     def validate_status(self, key, status):
