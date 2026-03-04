@@ -75,8 +75,8 @@ export default function EvaluationPeriodManagementContainer({
 
   // Handle delete period confirmation
   const handleDeletePeriod = useCallback((period: EvaluationPeriod) => {
-    if (period.status !== 'draft') {
-      toast.error('削除できるのは「下書き」の評価期間のみです');
+    if (period.status !== 'draft' && period.status !== 'completed') {
+      toast.error('削除できるのは「下書き」または「完了」の評価期間のみです');
       return;
     }
 
