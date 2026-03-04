@@ -115,17 +115,21 @@ export default function PeriodCard({
               <Edit size={14} className="mr-1" />
               編集
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDelete(period)}
-              disabled={!canDelete}
+            <span
+              className="flex-1"
               title={!canDelete ? '削除できるのは「下書き」または「完了」の評価期間のみです' : undefined}
-              className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:text-gray-400 disabled:hover:bg-transparent"
             >
-              <Trash2 size={14} className="mr-1" />
-              削除
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onDelete(period)}
+                disabled={!canDelete}
+                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 disabled:text-gray-400 disabled:hover:bg-transparent"
+              >
+                <Trash2 size={14} className="mr-1" />
+                削除
+              </Button>
+            </span>
           </div>
         </div>
       </CardContent>
