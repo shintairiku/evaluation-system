@@ -12,6 +12,7 @@ import type {
   PeerReviewEvaluation,
   PeerReviewAveragedScores,
   CoreValueSummaryResponse,
+  EvaluationProgressEntry,
 } from '../types';
 
 // ---- Admin - Assignments ----
@@ -299,6 +300,41 @@ export const getUserPeerReviewResultsAction = cache(
     }
   },
 );
+
+// ---- Admin - 評価進捗 ----
+
+/**
+ * Server action to get evaluation progress for all users (admin)
+ */
+export async function getProgressAction(
+  periodId: string,
+): Promise<{
+  success: boolean;
+  data?: EvaluationProgressEntry[];
+  error?: string;
+}> {
+  try {
+    const response = await peerReviewsApi.getProgress(periodId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch evaluation progress',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get evaluation progress action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching evaluation progress',
+    };
+  }
+}
 
 // ---- Admin - 総合評価 ----
 

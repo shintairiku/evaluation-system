@@ -275,6 +275,7 @@ export const API_ENDPOINTS = {
     RESULTS_MINE: buildApiUrl('/peer-reviews/results/mine'),
     RESULTS_USER: buildApiUrl('/peer-reviews/results/user'),
     SUMMARY_USER: buildApiUrl('/peer-reviews/summary/user'),
+    PROGRESS: buildApiUrl('/peer-reviews/progress'),
   },
 
   // Permission management endpoints

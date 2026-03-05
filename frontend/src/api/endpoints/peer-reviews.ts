@@ -8,6 +8,7 @@ import type {
   PeerReviewEvaluation,
   PeerReviewAveragedScores,
   CoreValueSummaryResponse,
+  EvaluationProgressEntry,
   ApiResponse,
 } from '../types';
 
@@ -91,6 +92,16 @@ export const peerReviewsApi = {
   ): Promise<ApiResponse<PeerReviewAveragedScores>> => {
     return httpClient.get<PeerReviewAveragedScores>(
       `${API_ENDPOINTS.PEER_REVIEWS.RESULTS_USER}?periodId=${periodId}&userId=${userId}`,
+    );
+  },
+
+  // ---- Admin - 評価進捗 ----
+
+  getProgress: async (
+    periodId: string,
+  ): Promise<ApiResponse<EvaluationProgressEntry[]>> => {
+    return httpClient.get<EvaluationProgressEntry[]>(
+      `${API_ENDPOINTS.PEER_REVIEWS.PROGRESS}?periodId=${periodId}`,
     );
   },
 

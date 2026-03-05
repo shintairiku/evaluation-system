@@ -96,3 +96,22 @@ export interface CoreValueSummaryResponse {
   overallRating: string | null;
   overallScore: number | null;
 }
+
+// ============================================================
+// Evaluation Progress (admin - 評価進捗)
+// ============================================================
+
+export interface EvaluationProgressSource {
+  evaluatorName: string | null;
+  status: string | null;
+}
+
+export interface EvaluationProgressEntry {
+  userId: string;
+  userName: string;
+  departmentName: string | null;
+  selfAssessment: EvaluationProgressSource;
+  peerReviewer1: EvaluationProgressSource;
+  peerReviewer2: EvaluationProgressSource;
+  supervisor: EvaluationProgressSource;
+}
