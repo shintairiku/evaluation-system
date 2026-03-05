@@ -27,7 +27,7 @@ interface PeerReviewSubmitButtonProps {
 /**
  * Check if a single peer review evaluation is complete
  */
-function isEvaluationComplete(
+export function isEvaluationComplete(
   evaluation: PeerReviewEvaluation,
   definitionCount: number,
 ): boolean {
