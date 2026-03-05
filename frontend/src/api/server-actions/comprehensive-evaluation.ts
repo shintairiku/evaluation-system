@@ -15,6 +15,7 @@ import type {
   UpdateComprehensiveDepartmentAssignmentRequest,
   UpdateComprehensiveDefaultAssignmentRequest,
   UpdateComprehensiveStageAssignmentRequest,
+  ProcessComprehensiveEvaluationUserResponse,
   UUID,
   UpsertComprehensiveRulesetRequest,
   UpsertComprehensiveManualDecisionRequest,
@@ -335,6 +336,41 @@ export async function finalizeComprehensiveEvaluationPeriodAction(
     return {
       success: false,
       error: 'An unexpected error occurred while finalizing the evaluation period',
+    };
+  }
+}
+
+export async function processComprehensiveEvaluationUserAction(
+  periodId: UUID,
+  userId: UUID,
+): Promise<{
+  success: boolean;
+  data?: ProcessComprehensiveEvaluationUserResponse;
+  error?: string;
+}> {
+  try {
+    const response = await comprehensiveEvaluationApi.processComprehensiveEvaluationUser({ periodId, userId });
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || response.errorMessage || 'Failed to process user evaluation',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_LIST);
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_HISTORY);
+    revalidateTag(CACHE_TAGS.USERS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('processComprehensiveEvaluationUserAction error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while processing user evaluation',
     };
   }
 }
