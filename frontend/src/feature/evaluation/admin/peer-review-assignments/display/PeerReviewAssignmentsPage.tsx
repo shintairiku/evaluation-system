@@ -42,16 +42,23 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import type { EvaluationPeriod, UserDetailResponse, Department } from '@/api/types';
 
 interface PeerReviewAssignmentsPageProps {
-  selectedPeriodId?: string;
+  initialPeriods: EvaluationPeriod[];
+  initialActivePeriod: EvaluationPeriod | null;
+  initialUsers: UserDetailResponse[];
+  initialDepartments: Department[];
 }
 
 export default function PeerReviewAssignmentsPage({
-  selectedPeriodId,
+  initialPeriods,
+  initialActivePeriod,
+  initialUsers,
+  initialDepartments,
 }: PeerReviewAssignmentsPageProps) {
   const [internalSelectedPeriodId, setInternalSelectedPeriodId] = useState<string>(
-    selectedPeriodId || ''
+    initialActivePeriod?.id || ''
   );
   const {
     paginatedRows,
@@ -82,6 +89,10 @@ export default function PeerReviewAssignmentsPage({
     refetch,
   } = usePeerReviewAssignmentsData({
     selectedPeriodId: internalSelectedPeriodId || undefined,
+    initialPeriods,
+    initialActivePeriod,
+    initialUsers,
+    initialDepartments,
   });
 
   const [activeTab, setActiveTab] = useState('assignments');

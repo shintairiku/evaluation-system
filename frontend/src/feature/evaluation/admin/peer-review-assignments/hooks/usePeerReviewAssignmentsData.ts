@@ -31,6 +31,10 @@ export interface AssignmentRow {
 
 export interface UsePeerReviewAssignmentsDataParams {
   selectedPeriodId?: string;
+  initialPeriods?: EvaluationPeriod[];
+  initialActivePeriod?: EvaluationPeriod | null;
+  initialUsers?: UserDetailResponse[];
+  initialDepartments?: Department[];
 }
 
 export interface UsePeerReviewAssignmentsDataReturn {
@@ -68,14 +72,22 @@ export function usePeerReviewAssignmentsData(
 ): UsePeerReviewAssignmentsDataReturn {
   const currentUserContext = useOptionalCurrentUserContext();
 
-  // Data state
-  const [users, setUsers] = useState<UserDetailResponse[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  // Determine if SSR data was provided
+  const hasInitialData = !!(
+    params?.initialPeriods?.length &&
+    params?.initialUsers?.length
+  );
+
+  // Data state — initialize from SSR props when available
+  const [users, setUsers] = useState<UserDetailResponse[]>(params?.initialUsers ?? []);
+  const [departments, setDepartments] = useState<Department[]>(params?.initialDepartments ?? []);
   const [serverAssignments, setServerAssignments] = useState<PeerReviewAssignmentsByReviewee[]>([]);
-  const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
-  const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>([]);
+  const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(
+    params?.initialActivePeriod ?? null
+  );
+  const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>(params?.initialPeriods ?? []);
   const [resolvedPeriodId, setResolvedPeriodId] = useState<string | null>(
-    params?.selectedPeriodId ?? null
+    params?.selectedPeriodId ?? params?.initialActivePeriod?.id ?? null
   );
 
   // Local assignment edits (revieweeId → local state)
@@ -124,56 +136,63 @@ export function usePeerReviewAssignmentsData(
 
   /**
    * Load all data.
+   * When SSR initial data is available (hasInitialData), skips fetching
+   * periods/users/departments and only fetches assignments.
+   * On refetch (after save, period change), fetches everything fresh.
    */
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (skipStaticData = false) => {
     try {
       setIsLoading(true);
       setError(null);
       setSaveError(null);
 
-      const usersPromise = getUsersAction({
-        include: 'department,stage,supervisor',
-        withCount: false,
-      });
-      const departmentsPromise = getDepartmentsAction();
+      let loadedUsers = users;
+      let loadedAllPeriods = allPeriods;
+      let resolvedCurrentPeriod = currentPeriod;
 
-      // Resolve periods
-      const hasContextPeriods =
-        currentUserContext?.periods?.all && currentUserContext.periods.all.length > 0;
-      const periodsPromise = !hasContextPeriods
-        ? getCategorizedEvaluationPeriodsAction()
-        : Promise.resolve({ success: true, data: currentUserContext?.periods ?? undefined });
+      if (!skipStaticData) {
+        // Full reload: fetch periods, users, departments from server
+        const [periodsResult, usersResult, departmentsResult] = await Promise.all([
+          getCategorizedEvaluationPeriodsAction(),
+          getUsersAction({ include: 'department,stage,supervisor', withCount: false }),
+          getDepartmentsAction(),
+        ]);
 
-      const periodResult = await periodsPromise;
+        if (!periodsResult.success || !periodsResult.data) {
+          setAllPeriods([]);
+          setCurrentPeriod(null);
+          setResolvedPeriodId(null);
+          setError('評価期間が設定されていません');
+          return;
+        }
 
-      if (!periodResult.success || !periodResult.data) {
-        setAllPeriods([]);
-        setCurrentPeriod(null);
-        setResolvedPeriodId(null);
-        setError('評価期間が設定されていません');
-        await Promise.allSettled([usersPromise, departmentsPromise]);
-        return;
+        loadedAllPeriods = periodsResult.data.all || [];
+        resolvedCurrentPeriod =
+          currentUserContext?.currentPeriod ?? periodsResult.data.current ?? null;
+        setAllPeriods(loadedAllPeriods);
+        setCurrentPeriod(resolvedCurrentPeriod);
+
+        loadedUsers =
+          usersResult.success && usersResult.data?.items ? usersResult.data.items : [];
+        setUsers(loadedUsers);
+
+        if (departmentsResult.success && Array.isArray(departmentsResult.data)) {
+          setDepartments(departmentsResult.data);
+        }
       }
 
-      const allPeriodsArray = periodResult.data.all || [];
-      const resolvedCurrentPeriod =
-        currentUserContext?.currentPeriod ?? periodResult.data.current ?? null;
-      setAllPeriods(allPeriodsArray);
-      setCurrentPeriod(resolvedCurrentPeriod);
-
+      // Resolve which period to use
       let periodToUse: EvaluationPeriod | undefined;
       if (params?.selectedPeriodId) {
-        periodToUse = allPeriodsArray.find(p => p.id === params.selectedPeriodId);
+        periodToUse = loadedAllPeriods.find(p => p.id === params.selectedPeriodId);
       }
       if (!periodToUse) {
-        periodToUse =
-          (currentUserContext?.currentPeriod ?? periodResult.data.current) ?? allPeriodsArray[0];
+        periodToUse = resolvedCurrentPeriod ?? loadedAllPeriods[0];
       }
 
       if (!periodToUse) {
         setResolvedPeriodId(null);
         setError('評価期間が設定されていません');
-        await Promise.allSettled([usersPromise, departmentsPromise]);
         return;
       }
 
@@ -181,21 +200,7 @@ export function usePeerReviewAssignmentsData(
       setResolvedPeriodId(targetPeriodId);
 
       // Fetch assignments for the period
-      const assignmentsPromise = getAssignmentsAction(targetPeriodId);
-
-      const [usersResult, departmentsResult, assignmentsResult] = await Promise.all([
-        usersPromise,
-        departmentsPromise,
-        assignmentsPromise,
-      ]);
-
-      const loadedUsers =
-        usersResult.success && usersResult.data?.items ? usersResult.data.items : [];
-      setUsers(loadedUsers);
-
-      if (departmentsResult.success && Array.isArray(departmentsResult.data)) {
-        setDepartments(departmentsResult.data);
-      }
+      const assignmentsResult = await getAssignmentsAction(targetPeriodId);
 
       const loadedAssignments =
         assignmentsResult.success && assignmentsResult.data ? assignmentsResult.data : [];
@@ -209,7 +214,8 @@ export function usePeerReviewAssignmentsData(
     } finally {
       setIsLoading(false);
     }
-  }, [currentUserContext?.currentPeriod, currentUserContext?.periods, params?.selectedPeriodId, initLocalAssignments]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params?.selectedPeriodId, initLocalAssignments]);
 
   /**
    * Build rows combining user + assignment data.
@@ -418,8 +424,8 @@ export function usePeerReviewAssignmentsData(
 
     if (errors.length > 0) {
       setSaveError(errors.join('\n'));
-      // Reload to sync with server state
-      await loadData();
+      // Reload to sync with server state (full reload)
+      await loadData(false);
       setIsSaving(false);
       return false;
     }
@@ -431,10 +437,10 @@ export function usePeerReviewAssignmentsData(
     return true;
   }, [resolvedPeriodId, rows, loadData]);
 
-  // Load on mount
+  // Load on mount — skip static data if SSR provided it
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData(hasInitialData);
+  }, [loadData, hasInitialData]);
 
   // Reset page on filter change
   useEffect(() => {
@@ -468,6 +474,6 @@ export function usePeerReviewAssignmentsData(
     saveAllChanges,
     isRandomAssigned,
     toggleRandomAssign,
-    refetch: loadData,
+    refetch: () => loadData(false),
   };
 }
