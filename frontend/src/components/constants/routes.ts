@@ -32,10 +32,17 @@ export const groups = [
         permission: 'employee'
       },
       {
+        href: '/peer-review',
+        label: '同僚評価',
+        sublabel: 'Peer Review',
+        icon: 'users',
+        permission: 'employee'
+      },
+      {
         href: '/user-profiles',
         label: 'ユーザー管理',
         sublabel: 'User Profiles',
-        icon: 'users',
+        icon: 'user-cog',
         permission: 'authenticated'
       },
     ],
