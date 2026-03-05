@@ -581,11 +581,8 @@ class PeerReviewService:
             period_id, user_id, org_id
         )
 
-        # 6. Peer reviewer names from assignments
-        all_assignments = await self.assignment_repo.get_assignments_for_period(period_id, org_id)
-        user_assignments = [
-            a for a in all_assignments if a.reviewee_id == user_id
-        ]
+        # 6. Peer reviewer names from assignments (filtered by reviewee at DB level)
+        user_assignments = await self.assignment_repo.get_assignments_for_reviewee(period_id, user_id, org_id)
         user_assignments.sort(key=lambda a: a.created_at)
 
         peer1_name = user_assignments[0].reviewer.name if len(user_assignments) > 0 and user_assignments[0].reviewer else None
