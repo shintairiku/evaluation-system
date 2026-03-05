@@ -94,8 +94,8 @@ class SupervisorFeedbackSubmit(BaseModel):
     @field_validator("action")
     @classmethod
     def validate_supported_submit_action(cls, value: SupervisorAction) -> SupervisorAction:
-        if value == SupervisorAction.REJECTED:
-            raise ValueError("REJECTED is not supported for supervisor feedback submission")
+        if value != SupervisorAction.APPROVED:
+            raise ValueError("Only APPROVED is supported for supervisor feedback submission")
         return value
 
     model_config = {"populate_by_name": True}
