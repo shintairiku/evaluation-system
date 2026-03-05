@@ -15,6 +15,8 @@ import type {
   UpdateComprehensiveDepartmentAssignmentRequest,
   UpdateComprehensiveDefaultAssignmentRequest,
   UpdateComprehensiveStageAssignmentRequest,
+  ProcessComprehensiveEvaluationUserRequest,
+  ProcessComprehensiveEvaluationUserResponse,
   UUID,
   UpsertComprehensiveRulesetRequest,
   UpsertComprehensiveManualDecisionRequest,
@@ -115,6 +117,15 @@ export const comprehensiveEvaluationApi = {
   ): Promise<ApiResponse<FinalizeComprehensiveEvaluationResponse>> => {
     return httpClient.post<FinalizeComprehensiveEvaluationResponse>(
       API_ENDPOINTS.COMPREHENSIVE_EVALUATION.FINALIZE,
+      payload,
+    );
+  },
+
+  processComprehensiveEvaluationUser: async (
+    payload: ProcessComprehensiveEvaluationUserRequest,
+  ): Promise<ApiResponse<ProcessComprehensiveEvaluationUserResponse>> => {
+    return httpClient.post<ProcessComprehensiveEvaluationUserResponse>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.PROCESS_USER,
       payload,
     );
   },
