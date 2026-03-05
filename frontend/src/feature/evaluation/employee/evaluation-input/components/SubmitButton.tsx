@@ -47,24 +47,31 @@ function isPerformanceAssessmentComplete(item: GoalWithAssessment): boolean {
 
 /**
  * Check if a competency goal assessment is complete.
- * Requires comment + at least one action rating.
+ * Requires comment + ALL action ratings for every competency.
  */
 function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   const assessment = item.selfAssessment;
   if (!assessment) return false;
-  // Approved assessments are locked and complete
   if (assessment.status === 'approved') return true;
 
-  // Comment is required
   if (!assessment.selfComment?.trim()) return false;
 
-  // At least one competency action rating must exist
   const ratingData = assessment.ratingData as CompetencyRatingData | undefined;
   if (!ratingData) return false;
 
-  return Object.values(ratingData).some((ratingsByAction) =>
-    Object.values(ratingsByAction || {}).some(Boolean)
-  );
+  const goal = item.goal;
+  const competencyIds = goal.allStageCompetencyIds || goal.competencyIds || [];
+  const allActionTexts = goal.allStageIdealActionTexts || {};
+
+  for (const compId of competencyIds) {
+    const compActionTexts = allActionTexts[compId];
+    if (!compActionTexts) continue;
+    for (const actionIdx of Object.keys(compActionTexts)) {
+      if (!ratingData[compId]?.[actionIdx]) return false;
+    }
+  }
+
+  return true;
 }
 
 export default function SubmitButton({
@@ -133,7 +140,9 @@ export default function SubmitButton({
     if (coreValueEvaluation.status === 'approved') return true;
     if (coreValueEvaluation.status === 'submitted') return true;
     const scores = coreValueEvaluation.scores ?? {};
-    return Object.keys(scores).length >= coreValueDefinitionCount;
+    if (Object.keys(scores).length < coreValueDefinitionCount) return false;
+    if (!coreValueEvaluation.comment?.trim()) return false;
+    return true;
   })();
 
   const isCoreValueEditable = coreValueEvaluation && (coreValueEvaluation.status === 'draft' || coreValueEvaluation.status === 'submitted');
@@ -299,7 +308,7 @@ export default function SubmitButton({
       messages.push(`業績目標: ${incompletePerformance.length}件が未入力`);
     }
     if (incompleteCompetency.length > 0) {
-      messages.push(`コンピテンシー: ${incompleteCompetency.length}件が未入力`);
+      messages.push(`コンピテンシー: ${incompleteCompetency.length}件が未入力（全項目の評価が必要です）`);
     }
     if (isCoreValueDraft && !isCoreValueComplete) {
       messages.push('コアバリュー: 全項目の評価が必要です');

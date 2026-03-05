@@ -6,7 +6,6 @@ import CompetencyEvaluate from "./CompetencyEvaluate";
 import CoreValueEvaluate from "./CoreValueEvaluate";
 import SubmitButton from "../components/SubmitButton";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
-import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
 import { fetchAndCategorizeGoals } from "./utils";
 import type { EvaluationPeriod, GoalResponse, SelfAssessment, SupervisorFeedback, CoreValueDefinition, CoreValueEvaluation, CoreValueFeedback } from "@/api/types";
 import { getCoreValueDefinitionsAction, getMyEvaluationAction, getMyFeedbackAction } from "@/api/server-actions/core-values";
@@ -20,11 +19,18 @@ export interface GoalWithAssessment {
   supervisorFeedback: SupervisorFeedback | null;
 }
 
-export default function EmployeeEvaluationInputDisplay() {
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
-  const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
-  const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface EmployeeEvaluationInputDisplayProps {
+  initialPeriods: EvaluationPeriod[];
+  initialPeriodId: string;
+}
+
+export default function EmployeeEvaluationInputDisplay({
+  initialPeriods,
+  initialPeriodId,
+}: EmployeeEvaluationInputDisplayProps) {
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>(initialPeriodId);
+  const currentPeriod = initialPeriods.find(p => p.status === 'active') || initialPeriods[0] || null;
+  const [allPeriods] = useState<EvaluationPeriod[]>(initialPeriods);
 
   // Data state for goals and self-assessments
   const [performanceGoals, setPerformanceGoals] = useState<GoalWithAssessment[]>([]);
@@ -68,34 +74,6 @@ export default function EmployeeEvaluationInputDisplay() {
     } finally {
       setIsLoadingData(false);
     }
-  }, []);
-
-  // Fetch evaluation periods on mount
-  useEffect(() => {
-    const fetchPeriods = async () => {
-      try {
-        setIsLoading(true);
-        const result = await getCategorizedEvaluationPeriodsAction();
-
-        if (result.success && result.data) {
-          const periods = result.data.all || [];
-          setAllPeriods(periods);
-
-          // Set current period (find the one with status 'active' or first one)
-          const activePeriod = periods.find(p => p.status === 'active') || periods[0];
-          if (activePeriod) {
-            setCurrentPeriod(activePeriod);
-            setSelectedPeriodId(activePeriod.id);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch evaluation periods:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPeriods();
   }, []);
 
   // Fetch goals and assessments when period changes
@@ -160,7 +138,7 @@ export default function EmployeeEvaluationInputDisplay() {
             selectedPeriodId={selectedPeriodId}
             currentPeriodId={currentPeriod?.id || null}
             onPeriodChange={handlePeriodChange}
-            isLoading={isLoading}
+            isLoading={false}
           />
         </div>
 
