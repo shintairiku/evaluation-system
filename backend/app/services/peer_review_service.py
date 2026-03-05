@@ -26,7 +26,13 @@ from ..schemas.peer_review import (
     EvaluationSourceComment,
     EvaluationDetailResponse,
 )
-from ..schemas.core_value import CORE_VALUE_RATING_VALUES, CoreValueRatingCode
+from ..schemas.core_value import CoreValueRatingCode
+from ..core.rating_utils import (
+    RATING_CODE_TO_NUMERIC,
+    score_to_final_rating,
+    calculate_source_average,
+    to_circled_number,
+)
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.decorators import require_any_permission
@@ -37,11 +43,6 @@ from ..core.exceptions import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
-
-# Build a string-keyed lookup from the canonical CORE_VALUE_RATING_VALUES
-_RATING_CODE_TO_NUMERIC: dict[str, float] = {
-    code.value: val for code, val in CORE_VALUE_RATING_VALUES.items()
-}
 
 
 class PeerReviewService:
@@ -335,7 +336,7 @@ class PeerReviewService:
             if not ev.scores:
                 continue
             for cv_id, rating_code in ev.scores.items():
-                numeric = _RATING_CODE_TO_NUMERIC.get(rating_code)
+                numeric = RATING_CODE_TO_NUMERIC.get(rating_code)
                 if numeric is not None:
                     if cv_id not in scores_by_cv:
                         scores_by_cv[cv_id] = []
@@ -349,7 +350,7 @@ class PeerReviewService:
                 PeerReviewCoreValueAverage(
                     core_value_definition_id=cv_id,
                     average_score=round(avg, 2),
-                    rating_code=self._score_to_final_rating(avg),
+                    rating_code=score_to_final_rating(avg),
                 )
             )
 
@@ -378,9 +379,9 @@ class PeerReviewService:
         self_rating = None
         cv_eval = await self.cv_evaluation_repo.get_evaluation(period_id, user_id, org_id)
         if cv_eval and cv_eval.status in ("submitted", "approved") and cv_eval.scores:
-            self_score = self._calculate_source_average(cv_eval.scores)
+            self_score = calculate_source_average(cv_eval.scores)
             if self_score is not None:
-                self_rating = self._score_to_final_rating(self_score)
+                self_rating = score_to_final_rating(self_score)
                 sources_scores.append(self_score)
 
         # 2. 同僚評価 - from peer_review_evaluations (each reviewer is a separate source)
@@ -389,11 +390,11 @@ class PeerReviewService:
             period_id, user_id, org_id
         )
         for i, ev in enumerate(submitted_evals, 1):
-            peer_score = self._calculate_source_average(ev.scores)
-            peer_rating = self._score_to_final_rating(peer_score) if peer_score is not None else None
+            peer_score = calculate_source_average(ev.scores)
+            peer_rating = score_to_final_rating(peer_score) if peer_score is not None else None
             peer_sources.append(
                 CoreValueSummarySource(
-                    label=f"同僚評価{self._to_circled_number(i)}",
+                    label=f"同僚評価{to_circled_number(i)}",
                     rating_code=peer_rating,
                     score=round(peer_score, 2) if peer_score is not None else None,
                 )
@@ -407,9 +408,9 @@ class PeerReviewService:
         if cv_eval:
             feedback = await self.cv_feedback_repo.get_feedback_by_evaluation(cv_eval.id, org_id)
             if feedback and feedback.status == "submitted" and feedback.scores:
-                supervisor_score = self._calculate_source_average(feedback.scores)
+                supervisor_score = calculate_source_average(feedback.scores)
                 if supervisor_score is not None:
-                    supervisor_rating = self._score_to_final_rating(supervisor_score)
+                    supervisor_rating = score_to_final_rating(supervisor_score)
                     sources_scores.append(supervisor_score)
 
         # 4. 総合平均 - equal weight average of available sources
@@ -417,7 +418,7 @@ class PeerReviewService:
         overall_rating = None
         if sources_scores:
             overall_score = round(sum(sources_scores) / len(sources_scores), 2)
-            overall_rating = self._score_to_final_rating(overall_score)
+            overall_rating = score_to_final_rating(overall_score)
 
         return CoreValueSummaryResponse(
             self_rating=self_rating,
@@ -428,14 +429,6 @@ class PeerReviewService:
             overall_rating=overall_rating,
             overall_score=overall_score,
         )
-
-    @staticmethod
-    def _to_circled_number(n: int) -> str:
-        """Convert integer to circled number character (①②③...)."""
-        circled = "①②③④⑤⑥⑦⑧⑨⑩"
-        if 1 <= n <= len(circled):
-            return circled[n - 1]
-        return f"({n})"
 
     # ========================================
     # ADMIN - 評価進捗 (EVALUATION PROGRESS)
@@ -628,14 +621,14 @@ class PeerReviewService:
             numeric_values = []
             for r in [self_rating, p1_rating, p2_rating, sup_rating]:
                 if r is not None:
-                    num = _RATING_CODE_TO_NUMERIC.get(r)
+                    num = RATING_CODE_TO_NUMERIC.get(r)
                     if num is not None:
                         numeric_values.append(num)
 
             avg_rating = None
             if numeric_values:
                 avg = sum(numeric_values) / len(numeric_values)
-                avg_rating = self._score_to_final_rating(avg)
+                avg_rating = score_to_final_rating(avg)
 
             core_values.append(CoreValueItemScore(
                 definition_id=defn.id,
@@ -699,23 +692,23 @@ class PeerReviewService:
 
         # 11. Calculate overall average across 4 sources
         source_scores: list[float] = []
-        self_avg = self._calculate_source_average(cv_eval.scores) if cv_eval and cv_eval.status in ("submitted", "approved") and cv_eval.scores else None
+        self_avg = calculate_source_average(cv_eval.scores) if cv_eval and cv_eval.status in ("submitted", "approved") and cv_eval.scores else None
         if self_avg is not None:
             source_scores.append(self_avg)
-        p1_avg = self._calculate_source_average(peer1_eval.scores) if peer1_eval and peer1_eval.scores else None
+        p1_avg = calculate_source_average(peer1_eval.scores) if peer1_eval and peer1_eval.scores else None
         if p1_avg is not None:
             source_scores.append(p1_avg)
-        p2_avg = self._calculate_source_average(peer2_eval.scores) if peer2_eval and peer2_eval.scores else None
+        p2_avg = calculate_source_average(peer2_eval.scores) if peer2_eval and peer2_eval.scores else None
         if p2_avg is not None:
             source_scores.append(p2_avg)
-        sup_avg = self._calculate_source_average(supervisor_feedback.scores) if supervisor_feedback and supervisor_feedback.status == "submitted" and supervisor_feedback.scores else None
+        sup_avg = calculate_source_average(supervisor_feedback.scores) if supervisor_feedback and supervisor_feedback.status == "submitted" and supervisor_feedback.scores else None
         if sup_avg is not None:
             source_scores.append(sup_avg)
 
         overall_rating = None
         if source_scores:
             overall = sum(source_scores) / len(source_scores)
-            overall_rating = self._score_to_final_rating(overall)
+            overall_rating = score_to_final_rating(overall)
 
         # User info
         dept_name = user.department.name if user.department else None
@@ -731,46 +724,10 @@ class PeerReviewService:
             all_submitted=all_submitted,
             core_values=core_values,
             comments=comments,
-            self_avg_rating=self._score_to_final_rating(self_avg) if self_avg is not None else None,
-            peer1_avg_rating=self._score_to_final_rating(p1_avg) if p1_avg is not None else None,
-            peer2_avg_rating=self._score_to_final_rating(p2_avg) if p2_avg is not None else None,
-            supervisor_avg_rating=self._score_to_final_rating(sup_avg) if sup_avg is not None else None,
+            self_avg_rating=score_to_final_rating(self_avg) if self_avg is not None else None,
+            peer1_avg_rating=score_to_final_rating(p1_avg) if p1_avg is not None else None,
+            peer2_avg_rating=score_to_final_rating(p2_avg) if p2_avg is not None else None,
+            supervisor_avg_rating=score_to_final_rating(sup_avg) if sup_avg is not None else None,
             overall_rating=overall_rating,
         )
 
-    # ========================================
-    # RATING UTILITIES
-    # ========================================
-
-    @staticmethod
-    def _score_to_final_rating(score: float) -> str:
-        """Convert numeric score to rating code using same thresholds as frontend."""
-        if score >= 6.5:
-            return "SS"
-        if score >= 5.5:
-            return "S"
-        if score >= 4.5:
-            return "A+"
-        if score >= 3.7:
-            return "A"
-        if score >= 2.7:
-            return "A-"
-        if score >= 1.7:
-            return "B"
-        if score >= 1.0:
-            return "C"
-        return "D"
-
-    @staticmethod
-    def _calculate_source_average(scores: dict) -> Optional[float]:
-        """Calculate the average numeric score from a scores JSONB dict."""
-        if not scores:
-            return None
-        values = []
-        for rating_code in scores.values():
-            numeric = _RATING_CODE_TO_NUMERIC.get(rating_code)
-            if numeric is not None:
-                values.append(numeric)
-        if not values:
-            return None
-        return sum(values) / len(values)
