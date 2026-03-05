@@ -1,6 +1,0 @@
-2026-03-03 03:29:18,974 - root - INFO - setup_repository_test_logging:73 - === User_Service Repository Test Session Started ===
-2026-03-03 03:29:18,974 - root - INFO - setup_repository_test_logging:74 - Log file: backend/tests/logs/user_service_repo_test_20260303_032918.log
-2026-03-03 03:29:18,974 - root - INFO - setup_repository_test_logging:75 - Testing Supabase connectivity and data fetching for user_service repository
-2026-03-03 03:29:18,979 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
-2026-03-03 03:29:18,980 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
-2026-03-03 03:29:18,981 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector

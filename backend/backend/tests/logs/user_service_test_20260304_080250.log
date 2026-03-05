@@ -1,3 +1,0 @@
-2026-03-04 08:02:50,559 - root - INFO - setup_service_test_logging:73 - === User Service Test Session Started ===
-2026-03-04 08:02:50,559 - root - INFO - setup_service_test_logging:74 - Log file: backend/tests/logs/user_service_test_20260304_080250.log
-2026-03-04 08:02:50,559 - root - INFO - setup_service_test_logging:75 - Testing business logic and repository interactions for user service
