@@ -86,9 +86,9 @@ export default function PeerReviewAssignmentsPage({
 
   const [activeTab, setActiveTab] = useState('assignments');
 
-  // Progress data (only loaded when tab is active)
+  // Progress data (always pass stable periodId to avoid refetch on tab switch)
   const progress = useEvaluationProgressData(
-    activeTab === 'progress' ? (resolvedPeriodId || internalSelectedPeriodId || null) : null
+    resolvedPeriodId || internalSelectedPeriodId || null
   );
 
   const handlePeriodChange = (periodId: string) => {
