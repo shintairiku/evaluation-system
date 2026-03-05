@@ -15,6 +15,7 @@ from ...schemas.peer_review import (
     PeerReviewEvaluationResponse,
     PeerReviewAveragedScores,
     CoreValueSummaryResponse,
+    EvaluationProgressEntry,
 )
 from ...schemas.common import BaseResponse
 from ...services.peer_review_service import PeerReviewService
@@ -82,6 +83,26 @@ async def remove_assignment(
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error removing assignment: {str(e)}")
+
+
+# ========================================
+# ADMIN - EVALUATION PROGRESS
+# ========================================
+
+@router.get("/progress", response_model=List[EvaluationProgressEntry])
+async def get_evaluation_progress(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get evaluation progress for all users in a period (admin)."""
+    try:
+        service = PeerReviewService(session)
+        return await service.get_evaluation_progress(context, period_id)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching evaluation progress: {str(e)}")
 
 
 # ========================================

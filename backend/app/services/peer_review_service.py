@@ -19,6 +19,8 @@ from ..schemas.peer_review import (
     PeerReviewCoreValueAverage,
     CoreValueSummaryResponse,
     CoreValueSummarySource,
+    EvaluationProgressEntry,
+    EvaluationProgressSource,
 )
 from ..schemas.core_value import CORE_VALUE_RATING_VALUES, CoreValueRatingCode
 from ..security.context import AuthContext
@@ -429,6 +431,103 @@ class PeerReviewService:
         if 1 <= n <= len(circled):
             return circled[n - 1]
         return f"({n})"
+
+    # ========================================
+    # ADMIN - 評価進捗 (EVALUATION PROGRESS)
+    # ========================================
+
+    @require_any_permission([Permission.GOAL_READ_ALL])
+    async def get_evaluation_progress(
+        self,
+        current_user_context: AuthContext,
+        period_id: UUID,
+    ) -> List[EvaluationProgressEntry]:
+        """Get evaluation progress for all active users in a period (admin)."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        # 1. All active users
+        all_users = await self.user_repo.get_active_users(org_id)
+        user_ids = [u.id for u in all_users]
+
+        if not user_ids:
+            return []
+
+        # 2. Self-assessment statuses (batch)
+        cv_statuses = await self.cv_evaluation_repo.get_evaluation_status_by_users(
+            user_ids, period_id, org_id
+        )
+
+        # 3. Peer review assignments (already groups by reviewee with evaluation status)
+        assignments = await self.assignment_repo.get_assignments_for_period(period_id, org_id)
+        assignments_by_reviewee: dict[str, list] = {}
+        for a in assignments:
+            rid = str(a.reviewee_id)
+            if rid not in assignments_by_reviewee:
+                assignments_by_reviewee[rid] = []
+            assignments_by_reviewee[rid].append(a)
+
+        # 4. Supervisor feedback statuses (batch)
+        feedback_rows = await self.cv_feedback_repo.get_feedbacks_status_for_period(period_id, org_id)
+        feedback_by_subordinate: dict[str, dict] = {}
+        for row in feedback_rows:
+            feedback_by_subordinate[row["subordinate_id"]] = row
+
+        # 5. Build entries
+        entries: List[EvaluationProgressEntry] = []
+        for user in all_users:
+            uid = str(user.id)
+
+            # Self assessment
+            cv_status = cv_statuses.get(uid)
+            self_status = None
+            if cv_status:
+                s = cv_status["status"]
+                self_status = "submitted" if s in ("submitted", "approved") else s
+            self_assessment = EvaluationProgressSource(
+                evaluator_name=user.name,
+                status=self_status,
+            )
+
+            # Peer reviewers
+            user_assignments = assignments_by_reviewee.get(uid, [])
+            # Sort by creation order
+            user_assignments.sort(key=lambda a: a.created_at)
+
+            peer1 = EvaluationProgressSource(evaluator_name=None, status=None)
+            peer2 = EvaluationProgressSource(evaluator_name=None, status=None)
+
+            for i, a in enumerate(user_assignments[:2]):
+                reviewer_name = a.reviewer.name if a.reviewer else None
+                eval_status = a.evaluation_status  # property on model
+                source = EvaluationProgressSource(
+                    evaluator_name=reviewer_name,
+                    status=eval_status,
+                )
+                if i == 0:
+                    peer1 = source
+                else:
+                    peer2 = source
+
+            # Supervisor feedback
+            fb = feedback_by_subordinate.get(uid)
+            supervisor_source = EvaluationProgressSource(
+                evaluator_name=fb["supervisor_name"] if fb else None,
+                status=fb["status"] if fb else None,
+            )
+
+            entries.append(EvaluationProgressEntry(
+                user_id=user.id,
+                user_name=user.name,
+                department_name=user.department.name if user.department else None,
+                self_assessment=self_assessment,
+                peer_reviewer1=peer1,
+                peer_reviewer2=peer2,
+                supervisor=supervisor_source,
+            ))
+
+        return entries
 
     # ========================================
     # RATING UTILITIES

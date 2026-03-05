@@ -85,6 +85,37 @@ class CoreValueFeedbackRepository(BaseRepository[CoreValueFeedback]):
             logger.error(f"Error counting pending feedback: {e}")
             raise
 
+    async def get_feedbacks_status_for_period(self, period_id: UUID, org_id: str) -> list[dict]:
+        """
+        Batch get feedback statuses for all users in a period.
+        Returns list of dicts: { subordinate_id, status, supervisor_name }
+        """
+        try:
+            query = (
+                select(
+                    CoreValueFeedback.subordinate_id,
+                    CoreValueFeedback.status,
+                    User.name.label("supervisor_name")
+                )
+                .join(User, CoreValueFeedback.supervisor_id == User.id)
+                .filter(
+                    CoreValueFeedback.period_id == period_id,
+                )
+            )
+            result = await self.session.execute(query)
+            rows = result.all()
+            return [
+                {
+                    "subordinate_id": str(row[0]),
+                    "status": row[1],
+                    "supervisor_name": row[2],
+                }
+                for row in rows
+            ]
+        except SQLAlchemyError as e:
+            logger.error(f"Error batch fetching feedback statuses for period {period_id}: {e}")
+            raise
+
     # ========================================
     # CREATE OPERATIONS
     # ========================================

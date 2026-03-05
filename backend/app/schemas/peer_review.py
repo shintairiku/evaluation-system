@@ -138,3 +138,28 @@ class CoreValueSummaryResponse(BaseModel):
     overall_score: Optional[float] = Field(None, alias="overallScore")
 
     model_config = {"populate_by_name": True}
+
+
+# ============================================================
+# Evaluation Progress (admin - 評価進捗)
+# ============================================================
+
+class EvaluationProgressSource(BaseModel):
+    """Status of a single evaluation source for a user."""
+    evaluator_name: Optional[str] = Field(None, alias="evaluatorName")
+    status: Optional[str] = None
+
+    model_config = {"populate_by_name": True}
+
+
+class EvaluationProgressEntry(BaseModel):
+    """Progress entry for a single user across all evaluation sources."""
+    user_id: UUID = Field(..., alias="userId")
+    user_name: str = Field(..., alias="userName")
+    department_name: Optional[str] = Field(None, alias="departmentName")
+    self_assessment: EvaluationProgressSource = Field(..., alias="selfAssessment")
+    peer_reviewer1: EvaluationProgressSource = Field(..., alias="peerReviewer1")
+    peer_reviewer2: EvaluationProgressSource = Field(..., alias="peerReviewer2")
+    supervisor: EvaluationProgressSource
+
+    model_config = {"populate_by_name": True}
