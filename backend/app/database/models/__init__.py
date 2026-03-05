@@ -21,6 +21,7 @@ from .comprehensive_evaluation import (
     ComprehensiveRuleset,
     ComprehensiveRulesetAssignment,
     ComprehensiveSettingsAuditLog,
+    ComprehensiveProcessingStatus,
 )
 from .viewer_visibility import (
     ViewerVisibilityDepartment,
@@ -56,6 +57,7 @@ __all__ = [
     "ComprehensiveRuleset",
     "ComprehensiveRulesetAssignment",
     "ComprehensiveSettingsAuditLog",
+    "ComprehensiveProcessingStatus",
     "PermissionModel",
     "RolePermissionModel",
     "ViewerVisibilityUser",
