@@ -17,6 +17,7 @@ from .comprehensive_evaluation import (
     ComprehensiveManualDecision,
     ComprehensiveManualDecisionHistory,
     ComprehensiveSettingsAuditLog,
+    ComprehensiveProcessingStatus,
 )
 from .viewer_visibility import (
     ViewerVisibilityDepartment,
@@ -50,6 +51,7 @@ __all__ = [
     "ComprehensiveManualDecision",
     "ComprehensiveManualDecisionHistory",
     "ComprehensiveSettingsAuditLog",
+    "ComprehensiveProcessingStatus",
     "PermissionModel",
     "RolePermissionModel",
     "ViewerVisibilityUser",
