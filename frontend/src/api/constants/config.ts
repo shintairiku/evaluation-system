@@ -301,6 +301,7 @@ export const API_ENDPOINTS = {
     RULESETS: '/evaluation/comprehensive-evaluation/settings/rulesets',
     RULESET: (rulesetId: string) => `/evaluation/comprehensive-evaluation/settings/rulesets/${rulesetId}`,
     FINALIZE: '/evaluation/comprehensive-evaluation/finalize',
+    PROCESS_USER: '/evaluation/comprehensive-evaluation/process-user',
     MANUAL_DECISION: (userId: string) => `/evaluation/comprehensive-evaluation/manual-decisions/${userId}`,
     MANUAL_HISTORY: '/evaluation/comprehensive-evaluation/manual-decisions/history',
   },
