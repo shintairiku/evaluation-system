@@ -13,6 +13,7 @@ import { useCoreValueFeedbackAutoSave } from "../hooks/useCoreValueFeedbackAutoS
 import { CoreValueRatingLegend } from "@/feature/evaluation/shared/core-value/CoreValueRatingLegend";
 import { CoreValueCard, CORE_VALUE_THEMES } from "@/feature/evaluation/shared/core-value/CoreValueCard";
 import { CoreValueCommentSection } from "@/feature/evaluation/shared/core-value/CoreValueCommentSection";
+import { calculateCoreValueRatingAverage, scoreToFinalRating } from "@/utils/rating";
 
 interface CoreValueSupervisorEvaluationProps {
   definitions: CoreValueDefinition[];
@@ -86,6 +87,23 @@ export default function CoreValueSupervisorEvaluation({
     (a, b) => a.displayOrder - b.displayOrder
   );
 
+  // Calculate overall rating from supervisor's scores
+  const calculateOverallRating = (): string => {
+    if (definitions.length === 0) return "−";
+    const allRated = definitions.every((d) => scores[d.id]);
+    if (!allRated) return "−";
+
+    const ratings = definitions.map(
+      (d) => scores[d.id] as CoreValueRatingCode
+    );
+    const avg = calculateCoreValueRatingAverage(ratings);
+    if (avg === null) return "−";
+    return scoreToFinalRating(avg);
+  };
+
+  const overallRating = calculateOverallRating();
+  const isSubmitted = feedback?.status === "submitted";
+
   return (
     <Card className="shadow-xl border-0 bg-white">
       <CardHeader className="pb-3">
@@ -108,7 +126,9 @@ export default function CoreValueSupervisorEvaluation({
                 {/* Overall Rating Display */}
                 <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
                   <span className="text-xs text-gray-500">総合評価</span>
-                  <div className="text-xl font-bold text-gray-300">−</div>
+                  <div className={`text-xl font-bold ${isSubmitted && overallRating !== "−" ? "text-green-700" : "text-gray-300"}`}>
+                    {isSubmitted ? overallRating : "−"}
+                  </div>
                 </div>
 
                 {/* Expand/Collapse Button */}
