@@ -190,6 +190,12 @@ class ComprehensiveEvaluationFinalizeResponse(BaseModel):
 
     model_config = {"populate_by_name": True}
 
+class ComprehensiveEvaluationProcessUserRequest(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    user_id: UUID = Field(..., alias="userId")
+
+    model_config = {"populate_by_name": True}
+
 
 class ComprehensiveDefaultAssignmentUpdateRequest(BaseModel):
     period_id: UUID = Field(..., alias="periodId")
@@ -226,6 +232,14 @@ class ComprehensiveRulesetUpsertRequest(BaseModel):
     name: str = Field(..., min_length=1)
     settings: ComprehensiveEvaluationSettings
     is_default_template: bool = Field(False, alias="isDefaultTemplate")
+
+
+class ComprehensiveEvaluationProcessUserResponse(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    user_id: UUID = Field(..., alias="userId")
+    processing_status: ProcessingStatus = Field(..., alias="processingStatus")
+    updated_level: bool = Field(..., alias="updatedLevel")
+    updated_stage: bool = Field(..., alias="updatedStage")
 
     model_config = {"populate_by_name": True}
 
