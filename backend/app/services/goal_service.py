@@ -857,6 +857,7 @@ class GoalService:
                 await self.session.commit()
             except Exception as auto_create_error:
                 logger.error(f"Auto-create SelfAssessment failed for goal {goal_id}: {auto_create_error}")
+                await self.session.rollback()
                 # Do not rollback goal approval due to auto-creation failure
 
             # Enrich response data with competency names (N+1 fix)
