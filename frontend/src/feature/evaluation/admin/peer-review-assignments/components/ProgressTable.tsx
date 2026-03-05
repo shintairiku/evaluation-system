@@ -9,7 +9,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Loader2, Search } from 'lucide-react';
+import { AlertCircle, Eye, Loader2, Search } from 'lucide-react';
 import { ProgressStatusBadge } from './ProgressStatusBadge';
 import { ProgressSummaryCards } from './ProgressSummaryCards';
 import type { EvaluationProgressEntry, EvaluationProgressSource } from '@/api/types';
@@ -115,19 +115,20 @@ export function ProgressTable({
                 <TableHead className="w-[160px]">同僚評価者1</TableHead>
                 <TableHead className="w-[160px]">同僚評価者2</TableHead>
                 <TableHead className="w-[160px]">上長評価</TableHead>
+                <TableHead className="w-[60px]">詳細</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12">
+                  <TableCell colSpan={7} className="text-center py-12">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                     <p className="text-sm text-muted-foreground mt-2">読み込み中...</p>
                   </TableCell>
                 </TableRow>
               ) : entries.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     該当するユーザーがいません
                   </TableCell>
                 </TableRow>
@@ -149,6 +150,11 @@ export function ProgressTable({
                     </TableCell>
                     <TableCell>
                       <SourceCell source={entry.supervisor} />
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
