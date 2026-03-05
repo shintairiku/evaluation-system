@@ -1,0 +1,18 @@
+2026-03-05 05:44:52,501 - root - INFO - setup_service_test_logging:73 - === User Service Test Session Started ===
+2026-03-05 05:44:52,501 - root - INFO - setup_service_test_logging:74 - Log file: backend/tests/logs/user_service_test_20260305_054452.log
+2026-03-05 05:44:52,501 - root - INFO - setup_service_test_logging:75 - Testing business logic and repository interactions for user service
+2026-03-05 05:44:52,516 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-05 05:44:52,516 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-05 05:44:52,517 - root - INFO - log_test_start:87 - ============================================================
+2026-03-05 05:44:52,517 - root - INFO - log_test_start:88 - Testing: test_get_profile_options
+2026-03-05 05:44:52,517 - root - INFO - log_test_start:89 - ============================================================
+2026-03-05 05:44:52,517 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Creating AuthService with real DB session
+2026-03-05 05:44:52,540 - root - INFO - log_service_operation:126 - 🔄 Service Operation: Calling get_profile_options()
+2026-03-05 05:44:52,540 - app.services.auth_service - INFO - get_profile_options:378 - No organization context provided - returning empty profile options
+2026-03-05 05:44:52,541 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-05 05:44:52,553 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-05 05:44:52,564 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-05 05:44:52,617 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-05 05:44:52,618 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-05 05:44:52,619 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector
+2026-03-05 05:44:52,621 - asyncio - DEBUG - __init__:64 - Using selector: EpollSelector

@@ -11,6 +11,14 @@ from .self_assessment import SelfAssessment
 from .supervisor_review import SupervisorReview
 from .supervisor_feedback import SupervisorFeedback
 from .core_value import CoreValueDefinition, CoreValueEvaluation, CoreValueFeedback
+from .comprehensive_evaluation import (
+    ComprehensiveOverallRankRule,
+    ComprehensiveDecisionRuleGroup,
+    ComprehensiveDecisionRule,
+    ComprehensiveManualDecision,
+    ComprehensiveManualDecisionHistory,
+    ComprehensiveSettingsAuditLog,
+)
 from .viewer_visibility import (
     ViewerVisibilityDepartment,
     ViewerVisibilitySupervisorTeam,
@@ -37,6 +45,12 @@ __all__ = [
     "SelfAssessment",
     "SupervisorReview",
     "SupervisorFeedback",
+    "ComprehensiveOverallRankRule",
+    "ComprehensiveDecisionRuleGroup",
+    "ComprehensiveDecisionRule",
+    "ComprehensiveManualDecision",
+    "ComprehensiveManualDecisionHistory",
+    "ComprehensiveSettingsAuditLog",
     "PermissionModel",
     "RolePermissionModel",
     "ViewerVisibilityUser",

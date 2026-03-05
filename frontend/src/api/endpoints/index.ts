@@ -15,3 +15,4 @@ export * from './admin-dashboard';
 export * from './supervisor-dashboard';
 export * from './employee-dashboard';
 export * from './core-values';
+export * from './comprehensive-evaluation';

@@ -24,6 +24,11 @@ async def get_supervisor_feedbacks(
     status: Optional[str] = Query(None, description="Filter by status (incomplete, draft, submitted)"),
     action: Optional[str] = Query(None, description="Filter by action (PENDING, APPROVED)"),
     has_return_comment: Optional[bool] = Query(None, alias="hasReturnComment", description="Filter by return comment presence"),
+    self_only: bool = Query(
+        False,
+        alias="selfOnly",
+        description="Return only current user's received feedbacks (ignore supervisor scope)"
+    ),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -58,7 +63,8 @@ async def get_supervisor_feedbacks(
             status=status,
             action=action,
             has_return_comment=has_return_comment,
-            pagination=pagination
+            pagination=pagination,
+            self_only=self_only
         )
         
         return result

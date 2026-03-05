@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
 import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
@@ -19,15 +19,19 @@ import SupervisorSubmitButton from "../components/SupervisorSubmitButton";
 import ReturnButton from "../components/ReturnButton";
 import PerformanceGoalsSelfAssessment, {
   type PerformanceGoalDisplayData,
+  calculatePerformanceOverallRating,
 } from "./PerformanceGoalsSelfAssessment";
 import PerformanceGoalsSupervisorEvaluation, {
   type PerformanceGoalSupervisorData,
+  calculateSupervisorOverallRating,
 } from "./PerformanceGoalsSupervisorEvaluation";
 import CompetencySelfAssessment, {
   type CompetencyDisplayData,
+  calculateCompetencyOverallRating,
 } from "./CompetencySelfAssessment";
 import CompetencySupervisorEvaluation, {
   type CompetencySupervisorData,
+  calculateCompetencySupervisorOverallRating,
 } from "./CompetencySupervisorEvaluation";
 import CoreValueSelfAssessment from "./CoreValueSelfAssessment";
 import CoreValueSupervisorEvaluation from "./CoreValueSupervisorEvaluation";
@@ -233,6 +237,22 @@ export default function EvaluationFeedbackDisplay() {
 
   // Check if subordinate has submitted all self-assessments
   const canEvaluate = selectedSubordinate?.allAssessmentsSubmitted ?? false;
+  const performanceOverallRating = useMemo(
+    () => (performanceGoals.length > 0 ? calculatePerformanceOverallRating(performanceGoals) : "−"),
+    [performanceGoals]
+  );
+  const competencyOverallRating = useMemo(
+    () => (competencyData.length > 0 ? calculateCompetencyOverallRating(competencyData) : "−"),
+    [competencyData]
+  );
+  const supervisorPerformanceOverallRating = useMemo(
+    () => (supervisorPerformanceGoals.length > 0 ? calculateSupervisorOverallRating(supervisorPerformanceGoals) : "−"),
+    [supervisorPerformanceGoals]
+  );
+  const supervisorCompetencyOverallRating = useMemo(
+    () => (supervisorCompetencyData.length > 0 ? calculateCompetencySupervisorOverallRating(supervisorCompetencyData) : "−"),
+    [supervisorCompetencyData]
+  );
 
   return (
     <div className="container mx-auto p-4 md:p-6">
@@ -357,10 +377,12 @@ export default function EvaluationFeedbackDisplay() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
           <PerformanceGoalsSelfAssessment
             goals={performanceGoals}
+            overallRating={performanceOverallRating}
             isLoading={isLoadingEvaluationData}
           />
           <PerformanceGoalsSupervisorEvaluation
             goals={supervisorPerformanceGoals}
+            overallRating={supervisorPerformanceOverallRating}
             isLoading={isLoadingEvaluationData}
           />
         </div>
@@ -369,10 +391,12 @@ export default function EvaluationFeedbackDisplay() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
           <CompetencySelfAssessment
             competencies={competencyData}
+            overallRating={competencyOverallRating}
             isLoading={isLoadingEvaluationData}
           />
           <CompetencySupervisorEvaluation
             competencies={supervisorCompetencyData}
+            overallRating={supervisorCompetencyOverallRating}
             isLoading={isLoadingEvaluationData}
           />
         </div>

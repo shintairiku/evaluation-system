@@ -45,6 +45,7 @@ export * from './permission';
 
 // Viewer visibility types
 export * from './viewer-visibility';
+export * from './comprehensive-evaluation';
 
 // Core Value types
 export * from './core-value';

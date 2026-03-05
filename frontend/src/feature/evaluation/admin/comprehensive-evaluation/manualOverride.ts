@@ -4,6 +4,6 @@ export interface ComprehensiveEvaluationManualOverride {
   decision: ComprehensiveEvaluationDecision;
   stageAfter?: string;
   levelAfter?: number;
-  reason?: string;
+  reason: string;
   appliedAt: string;
 }

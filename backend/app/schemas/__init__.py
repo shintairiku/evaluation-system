@@ -9,6 +9,7 @@ from .supervisor_feedback import *
 from .supervisor_review import *
 from .user import *
 from .stage_competency import *
+from .comprehensive_evaluation import *
 
 # Rebuild models with forward references after all schemas are imported
 def rebuild_schema_models():

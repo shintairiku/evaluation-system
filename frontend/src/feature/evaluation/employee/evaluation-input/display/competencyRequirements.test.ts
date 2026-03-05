@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Competency, GoalResponse } from "@/api/types";
 import {
+  getGoalActionTexts,
   getGoalCompetencyIds,
   getGoalRequiredCompetencyActions,
   getSelectedCompetencyIdsForReference,
@@ -40,6 +41,59 @@ const stageCompetencies: Competency[] = [
 ];
 
 describe("competencyRequirements", () => {
+  it("uses all stage action texts when stage mapping exists", () => {
+    const goal = buildGoal({
+      selectedIdealActions: { "comp-1": ["2", "5"] },
+      allStageIdealActionTexts: {
+        "comp-1": {
+          "1": "stage action 1",
+          "2": "stage action 2",
+          "5": "stage action 5",
+        },
+      },
+    });
+
+    expect(getGoalActionTexts(goal)).toEqual({
+      "comp-1": {
+        "1": "stage action 1",
+        "2": "stage action 2",
+        "5": "stage action 5",
+      },
+    });
+  });
+
+  it("maps fallback action texts by action index for sparse action IDs", () => {
+    const goal = buildGoal({
+      selectedIdealActions: { "comp-1": ["2", "5"] },
+      idealActionTexts: {
+        "comp-1": ["a1", "a2", "a3", "a4", "a5"],
+      },
+    });
+
+    expect(getGoalActionTexts(goal)).toEqual({
+      "comp-1": {
+        "2": "a2",
+        "5": "a5",
+      },
+    });
+  });
+
+  it("falls back to selection order when fallback texts are selected-only", () => {
+    const goal = buildGoal({
+      selectedIdealActions: { "comp-1": ["2", "5"] },
+      idealActionTexts: {
+        "comp-1": ["selected a2", "selected a5"],
+      },
+    });
+
+    expect(getGoalActionTexts(goal)).toEqual({
+      "comp-1": {
+        "2": "selected a2",
+        "5": "selected a5",
+      },
+    });
+  });
+
   it("uses stage competencies for required actions when stage config exists", () => {
     const goal = buildGoal({
       competencyIds: ["comp-1"],

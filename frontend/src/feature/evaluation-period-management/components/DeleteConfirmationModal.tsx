@@ -40,7 +40,7 @@ export default function DeleteConfirmationModal({
   const statusColor = getStatusColor(period.status);
   const periodTypeLabel = PERIOD_TYPE_LABELS[period.period_type] || period.period_type;
   const daysRemaining = period.status === 'active' ? getDaysRemaining(period.end_date) : null;
-  const canDelete = period.status === 'draft';
+  const canDelete = period.status === 'draft' || period.status === 'completed';
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -156,7 +156,7 @@ export default function DeleteConfirmationModal({
                 <AlertDescription className="space-y-2">
                   {!canDelete && (
                     <p className="font-medium">
-                      この評価期間は削除できません（削除できるのは「下書き」の評価期間のみです）。
+                      この評価期間は削除できません（削除できるのは「下書き」または「完了」の評価期間のみです）。
                     </p>
                   )}
                   <p className="font-medium">

@@ -122,6 +122,10 @@ export default function EmployeeEvaluationInputDisplay({
     }
   }, [selectedPeriodId]);
 
+  const selectedPeriod = allPeriods.find((period) => period.id === selectedPeriodId) || null;
+  const isPeriodEditable =
+    selectedPeriod?.status !== "completed" && selectedPeriod?.status !== "cancelled";
+
   return (
     <div className="container mx-auto p-4 md:p-6">
       <div className="space-y-6">
@@ -151,19 +155,29 @@ export default function EmployeeEvaluationInputDisplay({
             coreValueDefinitionCount={coreValueDefinitions.length}
             onSubmitSuccess={handleAssessmentUpdate}
             onRefreshData={handleSilentRefresh}
+            isPeriodEditable={isPeriodEditable}
             disabled={isLoadingData}
           />
         </div>
+
+        {!isPeriodEditable && selectedPeriod && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            この評価期間（{selectedPeriod.name}）は{selectedPeriod.status === "completed" ? "完了" : "キャンセル済み"}
+            のため、自己評価は編集できません。
+          </div>
+        )}
 
         {/* Evaluation Forms */}
         <div className="space-y-6">
           <PerformanceGoalsEvaluate
             goalsWithAssessments={performanceGoals}
             isLoading={isLoadingData}
+            isPeriodEditable={isPeriodEditable}
           />
           <CompetencyEvaluate
             goalsWithAssessments={competencyGoals}
             isLoading={isLoadingData}
+            isPeriodEditable={isPeriodEditable}
           />
           <CoreValueEvaluate
             definitions={coreValueDefinitions}
