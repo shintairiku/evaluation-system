@@ -217,3 +217,45 @@ async def test_reject_goal_does_not_duplicate_replacement_draft(monkeypatch):
     assert result is enriched
     assert service.goal_repo.create_goal_from_model.await_count == 0
     assert session.commit.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_approve_goal_rolls_back_after_failed_auto_create_commit(monkeypatch):
+    session = AsyncMock(spec=AsyncSession)
+    service = GoalService(session)
+
+    org_id = "org_test"
+    supervisor_id = uuid4()
+    owner_id = uuid4()
+    goal_id = uuid4()
+
+    context = _approver_context(user_id=supervisor_id, org_id=org_id)
+
+    goal = MagicMock()
+    goal.id = goal_id
+    goal.user_id = owner_id
+    goal.status = GoalStatus.SUBMITTED.value
+
+    updated_goal = MagicMock()
+    updated_goal.id = goal_id
+
+    monkeypatch.setattr(
+        "app.services.goal_service.RBACHelper.can_access_resource",
+        AsyncMock(return_value=True),
+    )
+
+    service.goal_repo.get_goal_by_id_with_details = AsyncMock(return_value=goal)
+    service.goal_repo.update_goal_status = AsyncMock(return_value=updated_goal)
+    service._auto_create_self_assessment = AsyncMock(return_value=None)
+    service._build_competency_name_map_for_goal = AsyncMock(return_value={})
+    enriched = MagicMock()
+    service._enrich_goal_data = AsyncMock(return_value=enriched)
+
+    session.commit = AsyncMock(side_effect=[None, RuntimeError("pending rollback state")])
+    session.rollback = AsyncMock()
+
+    result = await service.approve_goal(goal_id, context)
+
+    assert result is enriched
+    assert session.commit.await_count == 2
+    session.rollback.assert_awaited_once()
