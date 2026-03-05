@@ -56,6 +56,7 @@ export function CoreValueCard({
       <div>
         <div className={`text-lg font-bold ${theme.titleColor}`}>
           {definition.name}
+          {showRequired && !selectedRating && <span className="text-red-500"> *</span>}
         </div>
         {definition.description && (
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">
@@ -66,10 +67,6 @@ export function CoreValueCard({
 
       {/* Rating Section */}
       <div>
-        {showRequired && !selectedRating && (
-          <span className="text-red-500 text-sm mb-2 block">*</span>
-        )}
-
         <div className="flex items-center gap-3 flex-wrap">
           {CORE_VALUE_RATING_CODES.map((rating) => {
             const isSelected = selectedRating === rating;

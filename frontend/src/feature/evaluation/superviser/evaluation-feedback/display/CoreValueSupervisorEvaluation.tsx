@@ -174,6 +174,7 @@ export default function CoreValueSupervisorEvaluation({
                 hintText="メモ（部下には表示されません）"
                 saveStatusTheme="green"
                 focusRingColor="focus:ring-green-200"
+                showRequired
               />
             </>
           )}
