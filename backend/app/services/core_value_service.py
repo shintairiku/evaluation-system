@@ -189,6 +189,10 @@ class CoreValueService:
             if missing:
                 raise ValidationError(f"Missing scores for {len(missing)} core values. All 9 are required.")
 
+            # Validate comment is present
+            if not existing.comment or not existing.comment.strip():
+                raise ValidationError("Comment is required before submission")
+
             # Submit
             updated = await self.evaluation_repo.submit_evaluation(eval_id, org_id)
 
@@ -388,6 +392,18 @@ class CoreValueService:
                 submit_data["scores"] = data.scores
             if data.comment is not None:
                 submit_data["comment"] = data.comment
+
+            # Validate all 9 core value scores are present
+            merged_scores = {**(existing.scores or {}), **(data.scores or {})}
+            definitions = await self.definition_repo.get_definitions(org_id)
+            definition_ids = {str(d.id) for d in definitions}
+
+            if not merged_scores:
+                raise ValidationError("All core value scores are required before submission")
+
+            missing = definition_ids - set(merged_scores.keys())
+            if missing:
+                raise ValidationError(f"Missing scores for {len(missing)} core values. All {len(definition_ids)} are required.")
 
             updated = await self.feedback_repo.submit_feedback(feedback_id, submit_data, org_id)
 

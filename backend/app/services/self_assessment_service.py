@@ -9,6 +9,7 @@ from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.repositories.supervisor_feedback_repo import SupervisorFeedbackRepository
+from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.models.self_assessment import SelfAssessment as SelfAssessmentModel
 from ..schemas.self_assessment import (
     SelfAssessmentCreate, SelfAssessmentUpdate, SelfAssessment, SelfAssessmentDetail
@@ -42,6 +43,7 @@ class SelfAssessmentService:
         self.user_repo = UserRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.supervisor_feedback_repo = SupervisorFeedbackRepository(session)
+        self.competency_repo = CompetencyRepository(session)
         
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
@@ -376,6 +378,21 @@ class SelfAssessmentService:
                 # Requires rating_data (per-action ratings) and self_comment
                 if not existing_assessment.rating_data:
                     raise ValidationError("Action ratings are required before submission")
+
+                # Validate ALL action ratings are present
+                user = await self.user_repo.get_user_by_id(existing_assessment.goal.user_id, org_id)
+                if user and user.stage_id:
+                    stage_competencies = await self.competency_repo.get_by_stage_id(user.stage_id, org_id)
+                    for comp in stage_competencies:
+                        comp_id_str = str(comp.id)
+                        comp_ratings = existing_assessment.rating_data.get(comp_id_str, {})
+                        action_texts = comp.description or {}
+                        for action_idx in action_texts.keys():
+                            if action_idx not in comp_ratings:
+                                raise ValidationError(
+                                    "All competency action ratings are required before submission"
+                                )
+
                 if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
                     raise ValidationError("Self-comment is required before submission")
             else:
