@@ -27,6 +27,8 @@ interface SupervisorSubmitButtonProps {
   performanceGoals: PerformanceGoalSupervisorData[];
   competencyGoals: CompetencySupervisorData[];
   coreValueFeedback?: CoreValueFeedback | null;
+  coreValueDefinitionsCount?: number;
+  coreValueScores?: Record<string, string> | null;
   onSubmitSuccess?: () => void;
   /** Called before opening dialog to refresh data for accurate validation */
   onRefreshData?: () => Promise<void>;
@@ -55,6 +57,8 @@ export default function SupervisorSubmitButton({
   performanceGoals,
   competencyGoals,
   coreValueFeedback,
+  coreValueDefinitionsCount = 0,
+  coreValueScores,
   onSubmitSuccess,
   onRefreshData,
   disabled = false,
@@ -138,7 +142,7 @@ export default function SupervisorSubmitButton({
     }
   };
 
-  // Handle button click - flush auto-saves, refresh data, then open dialog
+  // Handle button click - flush auto-saves, refresh data, validate, then open dialog
   const handleButtonClick = async () => {
     setIsRefreshing(true);
     try {
@@ -152,6 +156,18 @@ export default function SupervisorSubmitButton({
     } finally {
       setIsRefreshing(false);
     }
+
+    // Validate all core value scores are filled
+    if (coreValueDefinitionsCount > 0) {
+      const filledCount = Object.keys(coreValueScores ?? {}).length;
+      if (filledCount < coreValueDefinitionsCount) {
+        toast.warning('コアバリュー評価を全て入力してください', {
+          description: `${coreValueDefinitionsCount}項目中${filledCount}項目が入力済みです。`,
+        });
+        return;
+      }
+    }
+
     setIsOpen(true);
   };
 
@@ -261,7 +277,7 @@ export default function SupervisorSubmitButton({
                 提出対象: {totalToSubmit}件の評価
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                ※ 上長評価（評点・コメント）は任意です
+                ※ コアバリュー評価は全項目必須です（業績目標・コンピテンシーの評点・コメントは任意）
               </p>
             </div>
             <div

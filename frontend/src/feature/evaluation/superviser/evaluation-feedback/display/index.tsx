@@ -337,6 +337,8 @@ export default function EvaluationFeedbackDisplay() {
             performanceGoals={supervisorPerformanceGoals}
             competencyGoals={supervisorCompetencyData}
             coreValueFeedback={coreValueFeedback}
+            coreValueDefinitionsCount={coreValueDefinitions.length}
+            coreValueScores={coreValueFeedback?.scores}
             onSubmitSuccess={silentRefreshData}
             onRefreshData={silentRefreshData}
             disabled={!canEvaluate}
