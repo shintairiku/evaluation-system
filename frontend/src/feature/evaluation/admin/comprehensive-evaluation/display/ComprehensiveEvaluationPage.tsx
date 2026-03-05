@@ -7,6 +7,7 @@ import { Plus, Search, Settings, ShieldX, Trash2, X } from "lucide-react";
 import {
   finalizeComprehensiveEvaluationPeriodAction,
   getComprehensiveEvaluationListAction,
+  processComprehensiveEvaluationUserAction,
 } from "@/api/server-actions/comprehensive-evaluation";
 import type { ComprehensiveEvaluationRowResponse, UUID } from "@/api/types";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -108,6 +109,14 @@ function getEmploymentTypeLabel(value: EmploymentType): string {
 
 function getEmploymentTypeBadgeVariant(value: EmploymentType) {
   return value === "employee" ? "outline" : "secondary";
+}
+
+function getEvaluationPeriodStatusLabel(status: string | undefined): string {
+  if (status === "draft") return "下書き";
+  if (status === "active") return "進行中";
+  if (status === "completed") return "評価期限後";
+  if (status === "cancelled") return "キャンセル";
+  return "-";
 }
 
 type PromotionConditionTarget = PromotionRuleCondition["field"];
@@ -303,8 +312,7 @@ export default function ComprehensiveEvaluationPage() {
     currentUser,
   } = useUserRoles();
   const currentUserContext = useOptionalCurrentUserContext();
-  const canAccessComprehensiveEvaluation =
-    hasRole("admin") || hasRole("eval_admin");
+  const canAccessComprehensiveEvaluation = hasRole("eval_admin");
   const isEvalAdmin = hasRole("eval_admin");
   const canAccessCandidates = isEvalAdmin;
   const canEditThresholds = isEvalAdmin;
@@ -313,7 +321,7 @@ export default function ComprehensiveEvaluationPage() {
   const performanceColumns = 2;
   const competencyColumns = 2;
   const coreValueColumns = 1;
-  const overallColumns = 3;
+  const overallColumns = 4;
   const totalColumns =
     personalInfoColumns +
     performanceColumns +
@@ -387,6 +395,10 @@ export default function ComprehensiveEvaluationPage() {
   const [isFinalizing, setIsFinalizing] = useState<boolean>(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [finalizeSuccess, setFinalizeSuccess] = useState<string | null>(null);
+  const [isProcessingUserId, setIsProcessingUserId] =
+    useState<string | null>(null);
+  const [processError, setProcessError] = useState<string | null>(null);
+  const [processSuccess, setProcessSuccess] = useState<string | null>(null);
   const [levelDeltaInputs, setLevelDeltaInputs] = useState<
     Record<EvaluationRank, string>
   >(() => buildLevelDeltaInputs(mockDefaultComprehensiveEvaluationSettings));
@@ -403,6 +415,10 @@ export default function ComprehensiveEvaluationPage() {
   const { kind: settingsTargetKind, id: settingsTargetId } = useMemo(
     () => parseSettingsTarget(settingsTarget),
     [settingsTarget],
+  );
+  const isSelectedPeriodCancelled = selectedEvaluationPeriod?.status === "cancelled";
+  const canProcessSelectedPeriod = Boolean(
+    selectedEvaluationPeriod && !isSelectedPeriodCancelled,
   );
 
   useEffect(() => {
@@ -877,6 +893,25 @@ export default function ComprehensiveEvaluationPage() {
     setIsFinalizeDialogOpen(false);
     await loadRows();
     currentUserContext?.refresh();
+  };
+
+  const handleProcessUser = async (row: ComprehensiveEvaluationRowResponse) => {
+    if (!isEvalAdmin || !canProcessSelectedPeriod) return;
+
+    setProcessError(null);
+    setProcessSuccess(null);
+    setIsProcessingUserId(row.userId);
+    const result = await processComprehensiveEvaluationUserAction(row.evaluationPeriodId, row.userId);
+
+    setIsProcessingUserId(null);
+
+    if (!result.success || !result.data) {
+      setProcessError(result.error ?? "ユーザー評価の処理に失敗しました");
+      return;
+    }
+
+    setProcessSuccess(`${row.name}（${row.employeeCode}）の評価を処理しました。`);
+    await loadRows();
   };
 
   const handleSaveSettings = async () => {
@@ -1354,9 +1389,7 @@ export default function ComprehensiveEvaluationPage() {
     return (
       <Alert variant="destructive">
         <ShieldX className="h-4 w-4" />
-        <AlertDescription>
-          このページはadminまたはeval_adminのみ閲覧できます
-        </AlertDescription>
+        <AlertDescription>このページはeval_adminのみ閲覧できます</AlertDescription>
       </Alert>
     );
   }
@@ -1369,6 +1402,11 @@ export default function ComprehensiveEvaluationPage() {
           <p className="text-sm text-muted-foreground">
             総合評価テーブルをAPIデータで表示します。昇格フラグは「正社員の新レベルが30以上」の場合に点灯します（ステージは自動更新しません）。昇格フラグ点灯行は、昇格フラグ対応ページでステージ変更と反映後レベルを手動確定してください。
           </p>
+          {isSelectedPeriodCancelled && (
+            <p className="text-sm text-destructive">
+              評価期間がキャンセル済みのため、ユーザー処理はできません。
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -2694,6 +2732,18 @@ export default function ComprehensiveEvaluationPage() {
         </Alert>
       )}
 
+      {processSuccess && (
+        <Alert>
+          <AlertDescription>{processSuccess}</AlertDescription>
+        </Alert>
+      )}
+
+      {processError && (
+        <Alert variant="destructive">
+          <AlertDescription>{processError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="rounded-lg border">
         <div className="relative overflow-x-auto">
           <Table className="min-w-[1400px]">
@@ -2755,6 +2805,7 @@ export default function ComprehensiveEvaluationPage() {
                 <TableHead className="whitespace-nowrap">
                   昇格/降格フラグ
                 </TableHead>
+                <TableHead className="whitespace-nowrap">処理状態</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2853,6 +2904,37 @@ export default function ComprehensiveEvaluationPage() {
                           </span>
                           {manualDecision && (
                             <Badge variant="secondary">手動</Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Badge
+                            variant={
+                              row.processingStatus === "processed"
+                                ? "secondary"
+                                : "outline"
+                            }
+                          >
+                            {row.processingStatus === "processed"
+                              ? "処理済"
+                              : "未処理"}
+                          </Badge>
+                          {isEvalAdmin && canProcessSelectedPeriod && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void handleProcessUser(row)}
+                              disabled={
+                                row.processingStatus === "processed" ||
+                                isProcessingUserId === row.userId
+                              }
+                            >
+                              {isProcessingUserId === row.userId
+                                ? "処理中..."
+                                : "処理する"}
+                            </Button>
                           )}
                         </div>
                       </TableCell>
