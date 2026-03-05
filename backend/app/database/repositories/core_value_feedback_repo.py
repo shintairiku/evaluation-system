@@ -100,6 +100,7 @@ class CoreValueFeedbackRepository(BaseRepository[CoreValueFeedback]):
                 .join(User, CoreValueFeedback.supervisor_id == User.id)
                 .filter(
                     CoreValueFeedback.period_id == period_id,
+                    User.clerk_organization_id == org_id,
                 )
             )
             result = await self.session.execute(query)

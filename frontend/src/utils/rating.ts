@@ -138,3 +138,27 @@ export function calculateCoreValueRatingAverage(
   if (count === 0) return null;
   return sum / count;
 }
+
+/**
+ * Returns Tailwind CSS classes for a rating badge based on the rating code.
+ */
+export function getRatingColor(rating: string | null): string {
+  if (!rating) return 'bg-muted text-muted-foreground';
+  switch (rating) {
+    case 'SS':
+    case 'S':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'A+':
+    case 'A':
+      return 'bg-green-100 text-green-800 border-green-200';
+    case 'A-':
+      return 'bg-lime-100 text-lime-800 border-lime-200';
+    case 'B':
+      return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'C':
+    case 'D':
+      return 'bg-red-100 text-red-800 border-red-200';
+    default:
+      return 'bg-muted text-muted-foreground';
+  }
+}

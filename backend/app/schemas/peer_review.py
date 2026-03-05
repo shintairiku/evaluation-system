@@ -163,3 +163,50 @@ class EvaluationProgressEntry(BaseModel):
     supervisor: EvaluationProgressSource
 
     model_config = {"populate_by_name": True}
+
+
+# ============================================================
+# Evaluation Detail (admin - 評価進捗詳細)
+# ============================================================
+
+class CoreValueItemScore(BaseModel):
+    """Per-item score row in the detail grid (one core value × 4 sources)."""
+    definition_id: UUID = Field(..., alias="definitionId")
+    display_order: int = Field(..., alias="displayOrder")
+    name: str
+    self_rating: Optional[str] = Field(None, alias="selfRating")
+    peer1_rating: Optional[str] = Field(None, alias="peer1Rating")
+    peer2_rating: Optional[str] = Field(None, alias="peer2Rating")
+    supervisor_rating: Optional[str] = Field(None, alias="supervisorRating")
+    average_rating: Optional[str] = Field(None, alias="averageRating")
+
+    model_config = {"populate_by_name": True}
+
+
+class EvaluationSourceComment(BaseModel):
+    """A single evaluator's comment."""
+    source_label: str = Field(..., alias="sourceLabel")
+    source_type: str = Field(..., alias="sourceType")
+    comment: Optional[str] = None
+
+    model_config = {"populate_by_name": True}
+
+
+class EvaluationDetailResponse(BaseModel):
+    """Full evaluation detail for a user (admin view)."""
+    user_id: UUID = Field(..., alias="userId")
+    user_name: str = Field(..., alias="userName")
+    department_name: Optional[str] = Field(None, alias="departmentName")
+    position_name: Optional[str] = Field(None, alias="positionName")
+    supervisor_name: Optional[str] = Field(None, alias="supervisorName")
+    period_name: Optional[str] = Field(None, alias="periodName")
+    all_submitted: bool = Field(False, alias="allSubmitted")
+    core_values: List[CoreValueItemScore] = Field(..., alias="coreValues")
+    comments: List[EvaluationSourceComment] = []
+    self_avg_rating: Optional[str] = Field(None, alias="selfAvgRating")
+    peer1_avg_rating: Optional[str] = Field(None, alias="peer1AvgRating")
+    peer2_avg_rating: Optional[str] = Field(None, alias="peer2AvgRating")
+    supervisor_avg_rating: Optional[str] = Field(None, alias="supervisorAvgRating")
+    overall_rating: Optional[str] = Field(None, alias="overallRating")
+
+    model_config = {"populate_by_name": True}

@@ -422,6 +422,7 @@ export default function PeerReviewAssignmentsPage({
             filter={progress.filter}
             setFilter={progress.setFilter}
             refetch={progress.refetch}
+            periodId={resolvedPeriodId || internalSelectedPeriodId}
           />
         </TabsContent>
       </Tabs>

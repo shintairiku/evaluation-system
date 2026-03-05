@@ -9,6 +9,7 @@ import type {
   PeerReviewAveragedScores,
   CoreValueSummaryResponse,
   EvaluationProgressEntry,
+  EvaluationDetailResponse,
   ApiResponse,
 } from '../types';
 
@@ -106,6 +107,15 @@ export const peerReviewsApi = {
   },
 
   // ---- Admin - 総合評価 ----
+
+  getDetail: async (
+    periodId: string,
+    userId: string,
+  ): Promise<ApiResponse<EvaluationDetailResponse>> => {
+    return httpClient.get<EvaluationDetailResponse>(
+      `${API_ENDPOINTS.PEER_REVIEWS.DETAIL}?periodId=${periodId}&userId=${userId}`,
+    );
+  },
 
   getCoreValueSummary: async (
     periodId: string,

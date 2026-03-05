@@ -13,6 +13,7 @@ import type {
   PeerReviewAveragedScores,
   CoreValueSummaryResponse,
   EvaluationProgressEntry,
+  EvaluationDetailResponse,
 } from '../types';
 
 // ---- Admin - Assignments ----
@@ -332,6 +333,42 @@ export async function getProgressAction(
     return {
       success: false,
       error: 'An unexpected error occurred while fetching evaluation progress',
+    };
+  }
+}
+
+// ---- Admin - 評価詳細 ----
+
+/**
+ * Server action to get evaluation detail for a user (admin)
+ */
+export async function getEvaluationDetailAction(
+  periodId: string,
+  userId: string,
+): Promise<{
+  success: boolean;
+  data?: EvaluationDetailResponse;
+  error?: string;
+}> {
+  try {
+    const response = await peerReviewsApi.getDetail(periodId, userId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch evaluation detail',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get evaluation detail action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching evaluation detail',
     };
   }
 }

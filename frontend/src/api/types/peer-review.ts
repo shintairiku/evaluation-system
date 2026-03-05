@@ -98,6 +98,44 @@ export interface CoreValueSummaryResponse {
 }
 
 // ============================================================
+// Evaluation Detail (admin - 評価詳細)
+// ============================================================
+
+export interface CoreValueItemScore {
+  definitionId: string;
+  displayOrder: number;
+  name: string;
+  selfRating: string | null;
+  peer1Rating: string | null;
+  peer2Rating: string | null;
+  supervisorRating: string | null;
+  averageRating: string | null;
+}
+
+export interface EvaluationSourceComment {
+  sourceLabel: string;
+  sourceType: 'self' | 'peer1' | 'peer2' | 'supervisor';
+  comment: string | null;
+}
+
+export interface EvaluationDetailResponse {
+  userId: string;
+  userName: string;
+  departmentName: string | null;
+  positionName: string | null;
+  supervisorName: string | null;
+  periodName: string | null;
+  allSubmitted: boolean;
+  coreValues: CoreValueItemScore[];
+  comments: EvaluationSourceComment[];
+  selfAvgRating: string | null;
+  peer1AvgRating: string | null;
+  peer2AvgRating: string | null;
+  supervisorAvgRating: string | null;
+  overallRating: string | null;
+}
+
+// ============================================================
 // Evaluation Progress (admin - 評価進捗)
 // ============================================================
 

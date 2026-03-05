@@ -84,37 +84,35 @@ export const getUsersPageAction = cache(
   },
 );
 
-export const getUserByIdAction = cache(
-  async (
-    userId: UUID,
-  ): Promise<{
-    success: boolean;
-    data?: UserDetailResponse;
-    error?: string;
-  }> => {
-    try {
-      const response = await usersApi.getUserById(userId);
+export async function getUserByIdAction(
+  userId: UUID,
+): Promise<{
+  success: boolean;
+  data?: UserDetailResponse;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.getUserById(userId);
 
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.error || 'Failed to fetch user',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get user by ID action error:', error);
+    if (!response.success || !response.data) {
       return {
         success: false,
-        error: 'An unexpected error occurred while fetching user',
+        error: response.error || 'Failed to fetch user',
       };
     }
-  },
-);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get user by ID action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching user',
+    };
+  }
+}
 
 export const getUsersByIdsAction = cache(
   async (

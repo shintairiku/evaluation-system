@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -12,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Eye, Loader2, Search } from 'lucide-react';
 import { ProgressStatusBadge } from './ProgressStatusBadge';
 import { ProgressSummaryCards } from './ProgressSummaryCards';
+import { EvaluationDetailSheet } from './EvaluationDetailSheet';
 import type { EvaluationProgressEntry, EvaluationProgressSource } from '@/api/types';
 import type { ProgressFilter, ProgressStats } from '../hooks/useEvaluationProgressData';
 
@@ -25,6 +27,7 @@ interface ProgressTableProps {
   filter: ProgressFilter;
   setFilter: (f: ProgressFilter) => void;
   refetch: () => Promise<void>;
+  periodId: string;
 }
 
 const FILTER_TABS: { value: ProgressFilter; label: string }[] = [
@@ -58,7 +61,10 @@ export function ProgressTable({
   filter,
   setFilter,
   refetch,
+  periodId,
 }: ProgressTableProps) {
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -152,7 +158,12 @@ export function ProgressTable({
                       <SourceCell source={entry.supervisor} />
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setSelectedUserId(entry.userId)}
+                      >
                         <Eye className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </TableCell>
@@ -162,6 +173,16 @@ export function ProgressTable({
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {/* Detail Sheet */}
+      {selectedUserId && (
+        <EvaluationDetailSheet
+          open={!!selectedUserId}
+          onClose={() => setSelectedUserId(null)}
+          periodId={periodId}
+          userId={selectedUserId}
+        />
       )}
     </div>
   );

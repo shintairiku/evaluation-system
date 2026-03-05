@@ -16,6 +16,7 @@ from ...schemas.peer_review import (
     PeerReviewAveragedScores,
     CoreValueSummaryResponse,
     EvaluationProgressEntry,
+    EvaluationDetailResponse,
 )
 from ...schemas.common import BaseResponse
 from ...services.peer_review_service import PeerReviewService
@@ -214,6 +215,25 @@ async def get_user_results(
 # ========================================
 # ADMIN - 総合評価 (CORE VALUE SUMMARY)
 # ========================================
+
+@router.get("/detail", response_model=EvaluationDetailResponse)
+async def get_evaluation_detail(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
+    user_id: UUID = Query(..., alias="userId", description="User ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get evaluation detail for a specific user (admin): core value scores grid + comments."""
+    try:
+        service = PeerReviewService(session)
+        return await service.get_evaluation_detail(context, period_id, user_id)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching evaluation detail: {str(e)}")
+
 
 @router.get("/summary/user", response_model=CoreValueSummaryResponse)
 async def get_core_value_summary(
