@@ -10,6 +10,8 @@ from ...schemas.comprehensive_evaluation import (
     ComprehensiveEvaluationFinalizeRequest,
     ComprehensiveEvaluationFinalizeResponse,
     ComprehensiveEvaluationListResponse,
+    ComprehensiveEvaluationProcessUserRequest,
+    ComprehensiveEvaluationProcessUserResponse,
     ComprehensiveEvaluationSettings,
     ComprehensiveManualDecisionHistoryResponse,
     ComprehensiveManualDecisionResponse,
@@ -161,6 +163,34 @@ async def finalize_comprehensive_evaluation_period(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to finalize evaluation period",
+        ) from exc
+
+
+@router.post("/process-user", response_model=ComprehensiveEvaluationProcessUserResponse)
+async def process_comprehensive_evaluation_user(
+    payload: ComprehensiveEvaluationProcessUserRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = ComprehensiveEvaluationService(session)
+        return await service.process_user_evaluation(
+            context=context,
+            period_id=payload.period_id,
+            user_id=payload.user_id,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process comprehensive evaluation user",
         ) from exc
 
 
