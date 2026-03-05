@@ -87,12 +87,14 @@ export function UsersTab({
 }: UsersTabProps) {
   const { hasRole, currentUser, refetch } = useUserRoles();
   const isAdmin = hasRole('admin');
+  const isEvalAdmin = hasRole('eval_admin') || hasRole('eval-admin');
   const canEditRoles = isAdmin;
   const roleEditDisabledMessage = 'ロールの編集は管理者のみ可能です。';
   const [pendingFieldKey, setPendingFieldKey] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkUserStatusUpdateResponse | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
   const [subordinateSearch, setSubordinateSearch] = useState<Record<string, string>>({});
+  const [levelInputs, setLevelInputs] = useState<Record<string, string>>({});
   const [goalWeightTarget, setGoalWeightTarget] = useState<UserDetailResponse | null>(null);
   const [goalWeightInputs, setGoalWeightInputs] = useState({
     quantitative: '',
@@ -249,20 +251,22 @@ export function UsersTab({
       field: string,
       updater: () => Promise<{ success: boolean; data?: UserDetailResponse; error?: string }>,
       successMessage: string,
-    ) => {
+    ): Promise<boolean> => {
       const key = fieldKey(userId, field);
       setPendingFieldKey(key);
       try {
         const result = await updater();
         if (!result.success || !result.data) {
           toast.error(result.error || '更新に失敗しました');
-          return;
+          return false;
         }
         syncUser(result.data);
         toast.success(successMessage);
+        return true;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : '更新に失敗しました';
         toast.error(errorMessage);
+        return false;
       } finally {
         setPendingFieldKey((current) => (current === key ? null : current));
       }
@@ -303,6 +307,55 @@ export function UsersTab({
       () => updateUserStageAction(user.id, stageId),
       'ステージを更新しました',
     );
+  };
+
+  const getLevelInputValue = useCallback(
+    (user: UserDetailResponse) => levelInputs[user.id] ?? (user.level == null ? '' : String(user.level)),
+    [levelInputs],
+  );
+
+  const setLevelInputFor = useCallback((userId: string, value: string) => {
+    setLevelInputs((prev) => ({ ...prev, [userId]: value }));
+  }, []);
+
+  const handleLevelBlur = async (user: UserDetailResponse) => {
+    const rawValue = getLevelInputValue(user).trim();
+    let nextLevel: number | null = null;
+
+    if (rawValue !== '') {
+      const parsedLevel = Number(rawValue);
+      if (!Number.isFinite(parsedLevel) || !Number.isInteger(parsedLevel) || parsedLevel < 1) {
+        toast.error('レベルは1以上の整数で入力してください');
+        setLevelInputs((prev) => ({
+          ...prev,
+          [user.id]: user.level == null ? '' : String(user.level),
+        }));
+        return;
+      }
+      nextLevel = parsedLevel;
+    }
+
+    if ((user.level ?? null) === nextLevel) {
+      return;
+    }
+
+    const success = await runUserUpdate(
+      user.id,
+      'level',
+      () =>
+        updateUserAction(user.id, {
+          level: nextLevel,
+        } as UserUpdate),
+      'レベルを更新しました',
+    );
+
+    if (success) {
+      setLevelInputs((prev) => {
+        const next = { ...prev };
+        delete next[user.id];
+        return next;
+      });
+    }
   };
 
   const handleRolesToggle = async (user: UserDetailResponse, roleId: string, checked: boolean) => {
@@ -545,7 +598,7 @@ export function UsersTab({
             ユーザー管理
           </h2>
           <p className="text-sm text-muted-foreground">
-            部門・ロール・ステージ・階層・ステータスをインラインで編集し、最大100件まで一括更新できます。
+            部門・ロール・ステージ・レベル・階層・ステータスをインラインで編集し、最大100件まで一括更新できます。
           </p>
         </div>
         <div className="text-sm text-muted-foreground">
@@ -578,6 +631,7 @@ export function UsersTab({
               <TableHead>部門</TableHead>
               <TableHead className="w-[260px]">ロール</TableHead>
               <TableHead>ステージ</TableHead>
+              {isEvalAdmin && <TableHead>レベル</TableHead>}
               <TableHead>上長</TableHead>
               <TableHead>部下</TableHead>
               <TableHead>ステータス</TableHead>
@@ -749,6 +803,28 @@ export function UsersTab({
                       )}
                     </div>
                   </TableCell>
+                  {isEvalAdmin && (
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={getLevelInputValue(user)}
+                        onChange={(e) => setLevelInputFor(user.id, e.target.value)}
+                        onBlur={() => {
+                          void handleLevelBlur(user);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        placeholder="未設定"
+                        className="w-24"
+                        disabled={isFieldPending(user.id, 'level')}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Select
                       value={user.supervisor?.id ?? 'unset'}
@@ -869,7 +945,7 @@ export function UsersTab({
             })}
             {users.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8}>
+                <TableCell colSpan={isEvalAdmin ? 9 : 8}>
                   <div className="py-16 text-center text-sm text-muted-foreground">
                     表示可能なユーザーがありません。
                   </div>

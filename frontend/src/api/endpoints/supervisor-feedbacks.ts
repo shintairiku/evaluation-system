@@ -28,6 +28,7 @@ export const supervisorFeedbacksApi = {
     periodId?: UUID;
     supervisorId?: UUID;
     subordinateId?: UUID;
+    selfOnly?: boolean;
     status?: string;
     action?: string;
     hasReturnComment?: boolean;
@@ -38,6 +39,7 @@ export const supervisorFeedbacksApi = {
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.supervisorId) queryParams.append('supervisorId', params.supervisorId);
     if (params?.subordinateId) queryParams.append('subordinateId', params.subordinateId);
+    if (params?.selfOnly) queryParams.append('selfOnly', 'true');
     if (params?.status) queryParams.append('status', params.status);
     if (params?.action) queryParams.append('action', params.action);
     if (params?.hasReturnComment !== undefined) queryParams.append('hasReturnComment', String(params.hasReturnComment));

@@ -3,17 +3,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Users, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type {
   CoreValueDefinition,
   CoreValueFeedback,
   CoreValueRatingCode,
 } from "@/api/types";
-import { CORE_VALUE_RATING_CODES } from "@/api/types/core-value";
 import { useCoreValueFeedbackAutoSave } from "../hooks/useCoreValueFeedbackAutoSave";
-import { SaveStatusIndicator } from "@/feature/evaluation/employee/evaluation-input/display/components";
+import { CoreValueRatingLegend } from "@/feature/evaluation/shared/core-value/CoreValueRatingLegend";
+import { CoreValueCard, CORE_VALUE_THEMES } from "@/feature/evaluation/shared/core-value/CoreValueCard";
+import { CoreValueCommentSection } from "@/feature/evaluation/shared/core-value/CoreValueCommentSection";
+import { calculateCoreValueRatingAverage, scoreToFinalRating } from "@/utils/rating";
 
 interface CoreValueSupervisorEvaluationProps {
   definitions: CoreValueDefinition[];
@@ -87,6 +87,23 @@ export default function CoreValueSupervisorEvaluation({
     (a, b) => a.displayOrder - b.displayOrder
   );
 
+  // Calculate overall rating from supervisor's scores
+  const calculateOverallRating = (): string => {
+    if (definitions.length === 0) return "−";
+    const allRated = definitions.every((d) => scores[d.id]);
+    if (!allRated) return "−";
+
+    const ratings = definitions.map(
+      (d) => scores[d.id] as CoreValueRatingCode
+    );
+    const avg = calculateCoreValueRatingAverage(ratings);
+    if (avg === null) return "−";
+    return scoreToFinalRating(avg);
+  };
+
+  const overallRating = calculateOverallRating();
+  const isSubmitted = feedback?.status === "submitted";
+
   return (
     <Card className="shadow-xl border-0 bg-white">
       <CardHeader className="pb-3">
@@ -109,7 +126,9 @@ export default function CoreValueSupervisorEvaluation({
                 {/* Overall Rating Display */}
                 <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
                   <span className="text-xs text-gray-500">総合評価</span>
-                  <div className="text-xl font-bold text-gray-300">−</div>
+                  <div className={`text-xl font-bold ${isSubmitted && overallRating !== "−" ? "text-green-700" : "text-gray-300"}`}>
+                    {isSubmitted ? overallRating : "−"}
+                  </div>
                 </div>
 
                 {/* Expand/Collapse Button */}
@@ -150,126 +169,33 @@ export default function CoreValueSupervisorEvaluation({
 
           {!isLoading && feedback && (
             <>
-              {/* Rating Criteria Legend */}
-              <div className="sticky top-4 z-10 bg-white pb-4 pt-10 -mt-8 border-b border-gray-200 mb-2">
-                <div className="text-xs text-gray-500 space-y-0.5">
-                  <div className="py-1 px-2">
-                    <span className="font-semibold">SS</span>
-                    <span className="mx-1">：</span>
-                    <span>全スタッフの上位３%以内に位置する。全社へ影響を与える卓越したレベル。</span>
-                  </div>
-                  <div className="py-1 px-2">
-                    <span className="font-semibold">S</span>
-                    <span className="mx-1">：</span>
-                    <span>上位10%以内の望ましい行動レベルで、拠点を超えた影響を及ぼしている。</span>
-                  </div>
-                  <div className="py-1 px-2">
-                    <span className="font-semibold">A+</span>
-                    <span className="mx-1">：</span>
-                    <span>上位20%以内の良好な行動レベルで、部門を超えた影響を持っている。</span>
-                  </div>
-                  <div className="py-1 px-2">
-                    <span className="font-semibold">A</span>
-                    <span className="mx-1">：</span>
-                    <span>上位30%以内であり、部門内でのポジティブな影響が見られる。</span>
-                  </div>
-                  <div className="py-1 px-2">
-                    <span className="font-semibold">A-</span>
-                    <span className="mx-1">：</span>
-                    <span>30％〜70%のレンジに位置し、個人レベルでの成果は認められる。自身からの積極的な影響に期待。</span>
-                  </div>
-                  <div className="py-1 px-2">
-                    <span className="font-semibold">B</span>
-                    <span className="mx-1">：</span>
-                    <span>下位30%のレベルで、他人からの影響を受けている状態。</span>
-                  </div>
-                  <div className="py-1 px-2">
-                    <span className="font-semibold">C</span>
-                    <span className="mx-1">：</span>
-                    <span>下位10%以下に位置し、他人へのマイナスの影響を与えることがあるなど、早急な改善が必要。</span>
-                  </div>
-                </div>
-              </div>
+              <CoreValueRatingLegend />
 
-              {/* Core value definition cards (editable) */}
               {sortedDefinitions.map((definition) => (
-                <div
+                <CoreValueCard
                   key={definition.id}
-                  className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-4"
-                >
-                  {/* Definition Header */}
-                  <div>
-                    <div className="text-lg font-bold text-green-800">
-                      {definition.name}
-                    </div>
-                    {definition.description && (
-                      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                        {definition.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Rating Section */}
-                  <div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {CORE_VALUE_RATING_CODES.map((rating) => {
-                        const isSelected =
-                          scores[definition.id] === rating;
-                        return (
-                          <div
-                            key={rating}
-                            className={`flex items-center gap-2 ${
-                              isEditable
-                                ? "cursor-pointer"
-                                : "cursor-not-allowed opacity-60"
-                            }`}
-                            onClick={() =>
-                              isEditable &&
-                              handleRatingChange(definition.id, rating)
-                            }
-                          >
-                            <div className="w-6 h-6 rounded-full border-2 border-gray-400 flex items-center justify-center transition-all">
-                              {isSelected && (
-                                <div className="w-3 h-3 rounded-full bg-gray-800"></div>
-                              )}
-                            </div>
-                            <span className="text-sm text-gray-700">
-                              {rating}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
+                  definition={definition}
+                  selectedRating={scores[definition.id]}
+                  theme={CORE_VALUE_THEMES.supervisor}
+                  onRatingChange={handleRatingChange}
+                  isEditable={isEditable}
+                  showRequired
+                />
               ))}
 
-              {/* Comment Section */}
-              <div className="mt-5">
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-sm font-semibold text-gray-700">
-                    上長評価コメント
-                  </Label>
-                  <SaveStatusIndicator status={saveStatus} theme="green" />
-                </div>
-                <Textarea
-                  value={comment}
-                  onChange={(e) => handleCommentChange(e.target.value)}
-                  onBlur={handleCommentBlur}
-                  placeholder="上長としてのフィードバックを記入してください..."
-                  className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 min-h-[100px]"
-                  maxLength={5000}
-                  disabled={!isEditable}
-                />
-                <div className="flex justify-between items-center mt-1">
-                  <p className="text-xs text-gray-400">
-                    メモ（部下には表示されません）
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {comment.length} / 5000
-                  </p>
-                </div>
-              </div>
+              <CoreValueCommentSection
+                comment={comment}
+                onCommentChange={handleCommentChange}
+                onCommentBlur={handleCommentBlur}
+                isEditable={isEditable}
+                saveStatus={saveStatus}
+                label="上長評価コメント"
+                placeholder="上長としてのフィードバックを記入してください..."
+                hintText="メモ（部下には表示されません）"
+                saveStatusTheme="green"
+                focusRingColor="focus:ring-green-200"
+                showRequired
+              />
             </>
           )}
         </CardContent>

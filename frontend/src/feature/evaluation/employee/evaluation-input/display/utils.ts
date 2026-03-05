@@ -38,6 +38,7 @@ export async function fetchAndCategorizeGoals(
     }),
     getSupervisorFeedbacksAction({
       periodId,
+      selfOnly: true,
       pagination: { page: 1, limit: 200 },
     })
   ]);

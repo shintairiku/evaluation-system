@@ -21,6 +21,7 @@ class User(Base):
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     department_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("departments.id"))
     stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id"))
+    level = Column(Integer, nullable=True)
     quantitative_weight_override = Column(DECIMAL(5, 2), nullable=True)
     qualitative_weight_override = Column(DECIMAL(5, 2), nullable=True)
     competency_weight_override = Column(DECIMAL(5, 2), nullable=True)

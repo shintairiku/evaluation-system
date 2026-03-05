@@ -1,14 +1,16 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List
+from typing import Optional, List, Any
 from uuid import UUID
 from cachetools import TTLCache
 
 from ..database.repositories.self_assessment_repo import SelfAssessmentRepository
 from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
+from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.repositories.supervisor_feedback_repo import SupervisorFeedbackRepository
+from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.models.self_assessment import SelfAssessment as SelfAssessmentModel
 from ..schemas.self_assessment import (
     SelfAssessmentCreate, SelfAssessmentUpdate, SelfAssessment, SelfAssessmentDetail
@@ -40,8 +42,10 @@ class SelfAssessmentService:
         self.self_assessment_repo = SelfAssessmentRepository(session)
         self.goal_repo = GoalRepository(session)
         self.user_repo = UserRepository(session)
+        self.competency_repo = CompetencyRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.supervisor_feedback_repo = SupervisorFeedbackRepository(session)
+        self.competency_repo = CompetencyRepository(session)
         
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
@@ -240,6 +244,8 @@ class SelfAssessmentService:
             )
             if not can_create:
                 raise PermissionDeniedError("You can only create self-assessments for your own goals")
+
+            await self._ensure_period_allows_score_changes(goal.period_id, org_id)
             
             # Business validation
             await self._validate_assessment_creation(goal, assessment_data, org_id)
@@ -297,6 +303,8 @@ class SelfAssessmentService:
             )
             if not can_update:
                 raise PermissionDeniedError("You can only update your own assessments")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
             
             # Business validation
             await self._validate_assessment_update(assessment_data, existing_assessment)
@@ -356,6 +364,8 @@ class SelfAssessmentService:
             )
             if not can_submit:
                 raise PermissionDeniedError("You can only submit your own assessments")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
             
             # Business rule: can only submit draft assessments
             if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
@@ -376,8 +386,28 @@ class SelfAssessmentService:
                 # Requires rating_data (per-action ratings) and self_comment
                 if not existing_assessment.rating_data:
                     raise ValidationError("Action ratings are required before submission")
+
+                # Validate ALL action ratings are present
+                user = await self.user_repo.get_user_by_id(existing_assessment.goal.user_id, org_id)
+                if user and user.stage_id:
+                    stage_competencies = await self.competency_repo.get_by_stage_id(user.stage_id, org_id)
+                    for comp in stage_competencies:
+                        comp_id_str = str(comp.id)
+                        comp_ratings = existing_assessment.rating_data.get(comp_id_str, {})
+                        action_texts = comp.description or {}
+                        for action_idx in action_texts.keys():
+                            if action_idx not in comp_ratings:
+                                raise ValidationError(
+                                    "All competency action ratings are required before submission"
+                                )
+
                 if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
                     raise ValidationError("Self-comment is required before submission")
+                await self._validate_competency_rating_data_completeness(
+                    existing_assessment.goal,
+                    existing_assessment.rating_data,
+                    org_id
+                )
             else:
                 # Other goal types (e.g., コアバリュー) - require at least self_comment
                 if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
@@ -444,6 +474,8 @@ class SelfAssessmentService:
             if not can_reopen:
                 raise PermissionDeniedError("You can only reopen your own assessments")
 
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
+
             # Business rule: can only reopen submitted assessments (not draft or approved)
             if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
                 raise BadRequestError("Assessment is already in draft status")
@@ -482,9 +514,19 @@ class SelfAssessmentService:
             if not existing_assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
 
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
+
             # Business rule: can only approve submitted assessments
             if existing_assessment.status != SelfAssessmentStatus.SUBMITTED.value:
                 raise BadRequestError("Can only approve submitted assessments")
+
+            # Guard against inconsistent locks:
+            # self-assessment can be approved only when linked supervisor feedback is approved.
+            linked_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment_id, org_id)
+            if not linked_feedback or str(getattr(linked_feedback, "action", "")).upper() != "APPROVED":
+                raise BadRequestError(
+                    "Cannot approve self-assessment before supervisor feedback is approved"
+                )
 
             # Update status to approved using repo method
             updated_assessment = await self.self_assessment_repo.approve_assessment(assessment_id, org_id)
@@ -514,6 +556,8 @@ class SelfAssessmentService:
             existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
             if not existing_assessment:
                 raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
 
             if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
                 raise BadRequestError("Cannot revert approved assessment to draft")
@@ -561,6 +605,8 @@ class SelfAssessmentService:
             )
             if not can_delete:
                 raise PermissionDeniedError("You can only delete your own assessments")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
             
             # Business rule: can only delete draft assessments
             if existing_assessment.status != SelfAssessmentStatus.DRAFT.value:
@@ -628,6 +674,125 @@ class SelfAssessmentService:
 
         return accessible_ids
 
+    @staticmethod
+    def _normalize_action_indexes(action_indexes: list[Any]) -> list[str]:
+        normalized = {
+            str(action_index).strip()
+            for action_index in action_indexes
+            if str(action_index).strip()
+        }
+
+        def sort_key(value: str) -> tuple[int, Any]:
+            if value.isdigit():
+                return (0, int(value))
+            return (1, value)
+
+        return sorted(normalized, key=sort_key)
+
+    @staticmethod
+    def _normalize_competency_rating_data(rating_data: Any) -> dict[str, dict[str, str]]:
+        if not isinstance(rating_data, dict):
+            return {}
+
+        normalized: dict[str, dict[str, str]] = {}
+        for competency_id, action_ratings in rating_data.items():
+            if not isinstance(action_ratings, dict):
+                continue
+
+            normalized_actions: dict[str, str] = {}
+            for action_index, rating in action_ratings.items():
+                rating_value = str(getattr(rating, "value", rating)).strip() if rating is not None else ""
+                if rating_value:
+                    normalized_actions[str(action_index)] = rating_value
+
+            if normalized_actions:
+                normalized[str(competency_id)] = normalized_actions
+
+        return normalized
+
+    def _extract_required_actions_from_goal_target_data(self, goal: Any) -> dict[str, list[str]]:
+        target_data = getattr(goal, "target_data", None)
+        if not isinstance(target_data, dict):
+            return {}
+
+        selected_ideal_actions = target_data.get("selected_ideal_actions") or {}
+        if not isinstance(selected_ideal_actions, dict):
+            return {}
+
+        required_actions: dict[str, list[str]] = {}
+        for competency_id, action_indexes in selected_ideal_actions.items():
+            if not isinstance(action_indexes, list):
+                continue
+
+            normalized_indexes = self._normalize_action_indexes(action_indexes)
+            if normalized_indexes:
+                required_actions[str(competency_id)] = normalized_indexes
+
+        return required_actions
+
+    async def _get_required_competency_actions_for_goal(
+        self,
+        goal: Any,
+        org_id: str
+    ) -> dict[str, list[str]]:
+        required_from_stage: dict[str, list[str]] = {}
+
+        try:
+            stage_id = await self.user_repo.get_user_stage_id(goal.user_id, org_id)
+            if stage_id:
+                stage_competencies = await self.competency_repo.get_by_stage_id(stage_id, org_id)
+                for competency in stage_competencies:
+                    description = competency.description
+                    if isinstance(description, dict):
+                        action_indexes = self._normalize_action_indexes(list(description.keys()))
+                    elif isinstance(description, list):
+                        action_indexes = self._normalize_action_indexes([
+                            str(index)
+                            for index, text in enumerate(description)
+                            if str(text).strip()
+                        ])
+                    else:
+                        action_indexes = []
+
+                    if action_indexes:
+                        required_from_stage[str(competency.id)] = action_indexes
+        except Exception as e:
+            logger.warning(
+                "Failed to resolve stage competency scope for goal %s: %s",
+                getattr(goal, "id", "unknown"),
+                e
+            )
+
+        if required_from_stage:
+            return required_from_stage
+
+        return self._extract_required_actions_from_goal_target_data(goal)
+
+    async def _validate_competency_rating_data_completeness(
+        self,
+        goal: Any,
+        rating_data: Any,
+        org_id: str
+    ) -> None:
+        normalized_ratings = self._normalize_competency_rating_data(rating_data)
+        if not normalized_ratings:
+            raise ValidationError("Action ratings are required before submission")
+
+        required_actions = await self._get_required_competency_actions_for_goal(goal, org_id)
+        if not required_actions:
+            return
+
+        missing_items = 0
+        for competency_id, action_indexes in required_actions.items():
+            competency_ratings = normalized_ratings.get(competency_id, {})
+            for action_index in action_indexes:
+                if not competency_ratings.get(action_index):
+                    missing_items += 1
+
+        if missing_items > 0:
+            raise ValidationError(
+                f"All competency actions must be rated before submission (missing {missing_items} item(s))"
+            )
 
     async def _validate_assessment_creation(self, goal, assessment_data: SelfAssessmentCreate, org_id: str):
         """Validate self-assessment creation business rules."""
@@ -647,6 +812,15 @@ class SelfAssessmentService:
         # Cannot update approved assessments
         if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
             raise BadRequestError("Cannot update an approved assessment")
+
+    async def _ensure_period_allows_score_changes(self, period_id: UUID, org_id: str) -> None:
+        period = await self.evaluation_period_repo.get_by_id(period_id, org_id)
+        if not period:
+            raise NotFoundError(f"Evaluation period with ID {period_id} not found")
+
+        period_status = str(getattr(period.status, "value", period.status)).lower()
+        if period_status in ("completed", "cancelled"):
+            raise BadRequestError("Cannot modify scores in completed or cancelled evaluation periods")
 
     async def _enrich_assessment_data(self, assessment_model: SelfAssessmentModel) -> SelfAssessment:
         """Convert SelfAssessmentModel to SelfAssessment response schema with enriched data."""

@@ -1,4 +1,11 @@
-import { EVALUATION_RANKS, type ComprehensiveEvaluationSettings, type ComprehensiveEvaluationUserFlags, type ComprehensiveEvaluationDecision } from './settings';
+import {
+  EVALUATION_RANKS,
+  isRankAtLeast,
+  isRankAtOrWorse,
+  type ComprehensiveEvaluationSettings,
+  type ComprehensiveEvaluationUserFlags,
+  type ComprehensiveEvaluationDecision,
+} from './settings';
 import type { ComprehensiveEvaluationManualOverride } from './manualOverride';
 import type { ComprehensiveEvaluationRow, EvaluationRank } from './types';
 
@@ -62,6 +69,68 @@ export interface ComprehensiveEvaluationComputedRow {
   isDemotionCandidate: boolean;
 }
 
+function getConditionRank(
+  field: 'overallRank' | 'competencyFinalRank' | 'coreValueFinalRank',
+  row: ComprehensiveEvaluationRow,
+  overallRank: EvaluationRank | null
+): EvaluationRank | null {
+  if (field === 'overallRank') return overallRank;
+  if (field === 'competencyFinalRank') return row.competencyFinalRank;
+  return row.coreValueFinalRank;
+}
+
+function evaluatePromotionRuleGroups(
+  row: ComprehensiveEvaluationRow,
+  overallRank: EvaluationRank | null,
+  settings: ComprehensiveEvaluationSettings
+): boolean {
+  for (const group of settings.promotion.ruleGroups) {
+    let evaluatedCount = 0;
+    let allPassed = true;
+
+    for (const condition of group.conditions) {
+      const actualRank = getConditionRank(condition.field, row, overallRank);
+      if (!actualRank) continue;
+
+      evaluatedCount += 1;
+      if (!isRankAtLeast(actualRank, condition.minimumRank)) {
+        allPassed = false;
+        break;
+      }
+    }
+
+    if (evaluatedCount > 0 && allPassed) return true;
+  }
+
+  return false;
+}
+
+function evaluateDemotionRuleGroups(
+  row: ComprehensiveEvaluationRow,
+  overallRank: EvaluationRank | null,
+  settings: ComprehensiveEvaluationSettings
+): boolean {
+  for (const group of settings.demotion.ruleGroups) {
+    let evaluatedCount = 0;
+    let allPassed = true;
+
+    for (const condition of group.conditions) {
+      const actualRank = getConditionRank(condition.field, row, overallRank);
+      if (!actualRank) continue;
+
+      evaluatedCount += 1;
+      if (!isRankAtOrWorse(actualRank, condition.thresholdRank)) {
+        allPassed = false;
+        break;
+      }
+    }
+
+    if (evaluatedCount > 0 && allPassed) return true;
+  }
+
+  return false;
+}
+
 function computePromotionFlag(row: ComprehensiveEvaluationRow, computedNewLevel: number | null): boolean {
   if (row.employmentType !== 'employee') return false;
   if (computedNewLevel === null) return false;
@@ -80,9 +149,9 @@ export function applyComprehensiveEvaluationManualOverride(
   if (!override) return base;
 
   const decision: ComprehensiveEvaluationDecision = override.decision;
-  const shouldApplyStageLevel = decision !== '対象外';
+  const shouldApplyStage = decision !== '対象外';
   const stageAfter =
-    shouldApplyStageLevel && typeof override.stageAfter === 'string' && override.stageAfter.trim() !== ''
+    shouldApplyStage && typeof override.stageAfter === 'string' && override.stageAfter.trim() !== ''
       ? override.stageAfter.trim()
       : undefined;
   const newStage = stageAfter ?? base.newStage;
@@ -96,8 +165,12 @@ export function applyComprehensiveEvaluationManualOverride(
   })();
 
   const levelAfter =
-    shouldApplyStageLevel && row.employmentType !== 'parttime' && typeof override.levelAfter === 'number'
-      ? override.levelAfter
+    shouldApplyStage && row.employmentType !== 'parttime'
+      ? typeof override.levelAfter === 'number'
+        ? override.levelAfter
+        : typeof row.currentLevel === 'number'
+          ? row.currentLevel
+          : undefined
       : undefined;
   const newLevel = typeof levelAfter === 'number' ? levelAfter : base.newLevel;
   const levelDelta = row.currentLevel !== null && newLevel !== null ? newLevel - row.currentLevel : null;
@@ -121,17 +194,18 @@ export function computeComprehensiveEvaluationRow(
     totalScore !== null ? getOverallEvaluationRank(totalScore, settings.overallScoreThresholds) : null;
   const overallRank = baseOverallRank;
 
-  const isPromotionCandidate = false;
-  const isDemotionCandidate = false;
-  const decision: ComprehensiveEvaluationDecision = '対象外';
+  const isPromotionCandidate = evaluatePromotionRuleGroups(row, overallRank, settings);
+  const isDemotionCandidate = evaluateDemotionRuleGroups(row, overallRank, settings);
   const stageDelta = 0;
   const levelDelta =
     row.employmentType === 'parttime' ? null : overallRank ? settings.levelDeltaByOverallRank[overallRank] : null;
 
   const newStage = computeNewStage(row.currentStage, stageDelta);
   const newLevel = row.currentLevel !== null && levelDelta !== null ? row.currentLevel + levelDelta : null;
-  const promotionFlag = computePromotionFlag(row, newLevel);
-  const demotionFlag = computeDemotionFlag(overallRank);
+  const promotionFlag = isPromotionCandidate && computePromotionFlag(row, newLevel);
+  const demotionFlag = isDemotionCandidate && computeDemotionFlag(overallRank);
+  const decision: ComprehensiveEvaluationDecision =
+    promotionFlag && !demotionFlag ? '昇格' : demotionFlag && !promotionFlag ? '降格' : '対象外';
 
   return {
     totalScore,

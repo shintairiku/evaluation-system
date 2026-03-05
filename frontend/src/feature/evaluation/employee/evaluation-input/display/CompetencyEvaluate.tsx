@@ -15,11 +15,14 @@ import type { GoalWithAssessment } from "./index";
 import type { RatingCode, CompetencyRatingData } from "@/api/types";
 import { calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSelfAssessmentAutoSave } from "../hooks/useSelfAssessmentAutoSave";
-import { SaveStatusIndicator, SupervisorFeedbackAlert } from "./components";
+import { SaveStatusIndicator } from "@/feature/evaluation/shared/SaveStatusIndicator";
+import { SupervisorFeedbackAlert } from "./components";
+import { getGoalActionTexts } from "./competencyRequirements";
 
 interface CompetencyEvaluateProps {
   goalsWithAssessments?: GoalWithAssessment[];
   isLoading?: boolean;
+  isPeriodEditable?: boolean;
 }
 
 /**
@@ -32,8 +35,10 @@ const COMPETENCY_RATING_CODES: RatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
  */
 function CompetencyGoalCard({
   goalWithAssessment,
+  isPeriodEditable = true,
 }: {
   goalWithAssessment: GoalWithAssessment;
+  isPeriodEditable?: boolean;
 }) {
   const { goal, selfAssessment } = goalWithAssessment;
 
@@ -41,8 +46,8 @@ function CompetencyGoalCard({
   // Use allStage* fields (all competencies from employee's stage) with fallback to focused-only fields
   const competencyIds = goal.allStageCompetencyIds || goal.competencyIds || [];
   const competencyNames = goal.allStageCompetencyNames || goal.competencyNames || {};
-  const allActionTexts = goal.allStageIdealActionTexts || {};
   const selectedIdealActions = goal.selectedIdealActions || {};
+  const allActionTexts = getGoalActionTexts(goal);
 
   // Local state for form values
   const [ratingData, setRatingData] = useState<CompetencyRatingData>(
@@ -56,6 +61,7 @@ function CompetencyGoalCard({
     initialRatingData: selfAssessment?.ratingData as CompetencyRatingData | undefined,
     initialComment: selfAssessment?.selfComment,
     initialStatus: selfAssessment?.status,
+    isPeriodEditable,
   });
 
   // Handle action rating change
@@ -179,6 +185,7 @@ function CompetencyGoalCard({
                     {/* Action Description */}
                     <div className={`text-sm mb-3 ${isFocusedAction ? 'text-gray-800 font-medium pl-3 border-l-2 border-green-500' : 'text-gray-600'}`}>
                       {actionText}
+                      {isEditable && !currentRating && <span className="text-red-500"> *</span>}
                     </div>
 
                     {/* Rating Buttons for this action */}
@@ -378,6 +385,7 @@ function RatingCriteriaLegend() {
 export default function CompetencyEvaluate({
   goalsWithAssessments = [],
   isLoading = false,
+  isPeriodEditable = true,
 }: CompetencyEvaluateProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -524,6 +532,7 @@ export default function CompetencyEvaluate({
                   <CompetencyGoalCard
                     key={item.goal.id}
                     goalWithAssessment={item}
+                    isPeriodEditable={isPeriodEditable}
                   />
                 ))}
               </>

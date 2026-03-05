@@ -28,6 +28,7 @@ export interface UseUserRolesReturn {
 // Role mapping constants with Japanese labels
 export const ROLE_MAPPING: Record<string, string> = {
   'admin': '管理者',
+  'eval_admin': '評価管理者',
   'manager': '部門マネジャー',
   'supervisor': '上司',
   'employee': '従業員',

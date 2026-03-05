@@ -30,7 +30,90 @@ interface SubmitButtonProps {
   onSubmitSuccess?: () => void;
   /** Called before opening dialog to refresh data for accurate validation */
   onRefreshData?: () => Promise<void>;
+  /** Period-level editability (completed/cancelled periods are read-only) */
+  isPeriodEditable?: boolean;
   disabled?: boolean;
+}
+
+function normalizeActionIndexes(actionIndexes: Array<string | number>): string[] {
+  const unique = Array.from(
+    new Set(
+      actionIndexes
+        .map((value) => String(value).trim())
+        .filter((value) => value.length > 0)
+    )
+  );
+
+  return unique.sort((a, b) => {
+    const aNum = Number(a);
+    const bNum = Number(b);
+    const aIsNumeric = Number.isFinite(aNum);
+    const bIsNumeric = Number.isFinite(bNum);
+
+    if (aIsNumeric && bIsNumeric) {
+      return aNum - bNum;
+    }
+
+    return a.localeCompare(b);
+  });
+}
+
+function getRequiredCompetencyActions(item: GoalWithAssessment): Record<string, string[]> {
+  const goal = item.goal;
+  const stageActionTexts = goal.allStageIdealActionTexts;
+  const requiredFromStage = Object.entries(stageActionTexts || {}).reduce<Record<string, string[]>>(
+    (acc, [competencyId, actionTexts]) => {
+      if (Array.isArray(actionTexts)) {
+        const indexes = normalizeActionIndexes(actionTexts.map((_, index) => String(index)));
+        if (indexes.length > 0) {
+          acc[competencyId] = indexes;
+        }
+        return acc;
+      }
+
+      if (actionTexts && typeof actionTexts === "object") {
+        const indexes = normalizeActionIndexes(Object.keys(actionTexts));
+        if (indexes.length > 0) {
+          acc[competencyId] = indexes;
+        }
+      }
+
+      return acc;
+    },
+    {}
+  );
+
+  if (Object.keys(requiredFromStage).length > 0) {
+    return requiredFromStage;
+  }
+
+  const selectedIdealActions = goal.selectedIdealActions || {};
+  return Object.entries(selectedIdealActions).reduce<Record<string, string[]>>(
+    (acc, [competencyId, actionIndexes]) => {
+      if (!Array.isArray(actionIndexes)) {
+        return acc;
+      }
+
+      const normalized = normalizeActionIndexes(actionIndexes);
+      if (normalized.length > 0) {
+        acc[competencyId] = normalized;
+      }
+      return acc;
+    },
+    {}
+  );
+}
+
+function hasRatingValue(value: unknown): boolean {
+  return typeof value === "string" ? value.trim().length > 0 : Boolean(value);
+}
+
+function hasAnyCompetencyRating(ratingData?: CompetencyRatingData): boolean {
+  if (!ratingData) return false;
+
+  return Object.values(ratingData).some((ratingsByAction) =>
+    Object.values(ratingsByAction || {}).some(hasRatingValue)
+  );
 }
 
 /**
@@ -47,23 +130,30 @@ function isPerformanceAssessmentComplete(item: GoalWithAssessment): boolean {
 
 /**
  * Check if a competency goal assessment is complete.
- * Requires comment + at least one action rating.
+ * Requires comment + ALL action ratings for every competency.
  */
 function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   const assessment = item.selfAssessment;
   if (!assessment) return false;
-  // Approved assessments are locked and complete
   if (assessment.status === 'approved') return true;
 
-  // Comment is required
   if (!assessment.selfComment?.trim()) return false;
 
-  // At least one competency action rating must exist
+  // Rating data is required
   const ratingData = assessment.ratingData as CompetencyRatingData | undefined;
-  if (!ratingData) return false;
+  if (!hasAnyCompetencyRating(ratingData)) return false;
 
-  return Object.values(ratingData).some((ratingsByAction) =>
-    Object.values(ratingsByAction || {}).some(Boolean)
+  // Required scope: all stage competency actions when available.
+  // Fallback: selected ideal actions when stage data is unavailable.
+  const requiredActions = getRequiredCompetencyActions(item);
+  if (Object.keys(requiredActions).length === 0) {
+    return true;
+  }
+
+  return Object.entries(requiredActions).every(([competencyId, actionIndexes]) =>
+    actionIndexes.every((actionIndex) =>
+      hasRatingValue(ratingData?.[competencyId]?.[actionIndex])
+    )
   );
 }
 
@@ -74,6 +164,7 @@ export default function SubmitButton({
   coreValueDefinitionCount = 0,
   onSubmitSuccess,
   onRefreshData,
+  isPeriodEditable = true,
   disabled = false,
 }: SubmitButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -112,12 +203,16 @@ export default function SubmitButton({
   }, [isOpen]);
 
   // Get all editable assessments (draft or submitted, not approved)
-  const editablePerformanceAssessments = performanceGoals.filter(
-    (item) => item.selfAssessment?.status === 'draft' || item.selfAssessment?.status === 'submitted'
-  );
-  const editableCompetencyAssessments = competencyGoals.filter(
-    (item) => item.selfAssessment?.status === 'draft' || item.selfAssessment?.status === 'submitted'
-  );
+  const editablePerformanceAssessments = isPeriodEditable
+    ? performanceGoals.filter(
+        (item) => item.selfAssessment?.status === 'draft' || item.selfAssessment?.status === 'submitted'
+      )
+    : [];
+  const editableCompetencyAssessments = isPeriodEditable
+    ? competencyGoals.filter(
+        (item) => item.selfAssessment?.status === 'draft' || item.selfAssessment?.status === 'submitted'
+      )
+    : [];
 
   // Check completion status
   const incompletePerformance = editablePerformanceAssessments.filter(
@@ -133,7 +228,9 @@ export default function SubmitButton({
     if (coreValueEvaluation.status === 'approved') return true;
     if (coreValueEvaluation.status === 'submitted') return true;
     const scores = coreValueEvaluation.scores ?? {};
-    return Object.keys(scores).length >= coreValueDefinitionCount;
+    if (Object.keys(scores).length < coreValueDefinitionCount) return false;
+    if (!coreValueEvaluation.comment?.trim()) return false;
+    return true;
   })();
 
   const isCoreValueEditable = coreValueEvaluation && (coreValueEvaluation.status === 'draft' || coreValueEvaluation.status === 'submitted');
@@ -188,6 +285,8 @@ export default function SubmitButton({
 
   // Handle button click - flush auto-saves, refresh data, then open dialog
   const handleButtonClick = async () => {
+    if (!isPeriodEditable) return;
+
     setIsRefreshing(true);
     try {
       await Promise.all([
@@ -197,10 +296,15 @@ export default function SubmitButton({
       if (onRefreshData) {
         await onRefreshData();
       }
+      setIsOpen(true);
+    } catch {
+      announceToScreenReader('一時保存に失敗したため提出確認を開けませんでした', 'assertive');
+      toast.error('一時保存に失敗しました', {
+        description: '入力内容を確認して、もう一度お試しください。',
+      });
     } finally {
       setIsRefreshing(false);
     }
-    setIsOpen(true);
   };
 
   const handleSubmit = async () => {
@@ -299,7 +403,7 @@ export default function SubmitButton({
       messages.push(`業績目標: ${incompletePerformance.length}件が未入力`);
     }
     if (incompleteCompetency.length > 0) {
-      messages.push(`コンピテンシー: ${incompleteCompetency.length}件が未入力`);
+      messages.push(`コンピテンシー: ${incompleteCompetency.length}件が未入力（全項目の評価が必要です）`);
     }
     if (isCoreValueDraft && !isCoreValueComplete) {
       messages.push('コアバリュー: 全項目の評価が必要です');
@@ -314,7 +418,7 @@ export default function SubmitButton({
     <div className="flex items-center gap-3">
       <Button
         variant={canSubmit ? "default" : "outline"}
-        disabled={disabled || isSubmitting || isRefreshing || !hasEditableAssessments}
+        disabled={disabled || isSubmitting || isRefreshing || !hasEditableAssessments || !isPeriodEditable}
         onClick={handleButtonClick}
         className="flex items-center space-x-2"
         aria-label="自己評価を最終提出する"

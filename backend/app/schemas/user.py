@@ -179,6 +179,7 @@ class UserUpdate(BaseModel):
     employee_code: Optional[str] = Field(None, min_length=1, max_length=20)
     job_title: Optional[str] = Field(None, max_length=100)
     department_id: Optional[UUID] = None
+    level: Optional[int] = Field(None, ge=1)
     # stage_id removed - use dedicated admin-only endpoint PATCH /users/{user_id}/stage
     role_ids: Optional[List[UUID]] = Field(None, min_items=0, max_items=10)
     supervisor_id: Optional[UUID] = None
@@ -251,6 +252,7 @@ class UserDetailResponse(BaseModel):
     job_title: Optional[str] = None
     department: Optional[Department] = None
     stage: Optional[Stage] = None
+    level: Optional[int] = None
     goal_weight_budget: Optional[GoalWeightBudget] = Field(None, alias="goalWeightBudget")
     roles: List[Role] = []
     supervisor: Optional["User"] = None
