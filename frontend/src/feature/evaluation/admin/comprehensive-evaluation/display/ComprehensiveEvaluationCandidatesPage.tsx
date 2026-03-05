@@ -65,6 +65,14 @@ function getDecisionBadgeVariant(decision: "昇格" | "降格" | "対象外") {
   return "outline";
 }
 
+function getEvaluationPeriodStatusLabel(status: string | undefined): string {
+  if (status === "draft") return "下書き";
+  if (status === "active") return "進行中";
+  if (status === "completed") return "評価期限後";
+  if (status === "cancelled") return "キャンセル";
+  return "-";
+}
+
 function toLogicRow(row: ComprehensiveEvaluationRowResponse): ComprehensiveEvaluationRow {
   return {
     id: row.id,
@@ -143,9 +151,8 @@ export default function ComprehensiveEvaluationCandidatesPage() {
     () => evaluationPeriods.find((period) => period.id === evaluationPeriodId) ?? null,
     [evaluationPeriodId, evaluationPeriods],
   );
-  const isSelectedPeriodCompleted = selectedEvaluationPeriod?.status === "completed";
   const isSelectedPeriodCancelled = selectedEvaluationPeriod?.status === "cancelled";
-  const canEdit = canEditRole && isSelectedPeriodCompleted;
+  const canEdit = canEditRole && !isSelectedPeriodCancelled;
 
   useEffect(() => {
     if (evaluationPeriodId !== "all") return;
@@ -333,6 +340,8 @@ export default function ComprehensiveEvaluationCandidatesPage() {
     overrideDraft && selectedItem
       ? overrideDraft.decision !== "対象外" && selectedItem.row.employmentType === "employee"
       : false;
+  const isSelectedItemProcessed = selectedItem?.row.processingStatus === "processed";
+  const canEditSelectedItem = canEdit && Boolean(isSelectedItemProcessed);
 
   const openOverrideDialog = (
     row: ComprehensiveEvaluationRowResponse,
@@ -390,7 +399,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   };
 
   const handleApplyOverride = async () => {
-    if (!canEdit || !selectedItem || !overrideDraft) return;
+    if (!canEditSelectedItem || !selectedItem || !overrideDraft) return;
 
     const localRequiresStageAfter = overrideDraft.decision !== "対象外";
     const localAllowsLevelAfter = localRequiresStageAfter && selectedItem.row.employmentType === "employee";
@@ -426,7 +435,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
   };
 
   const handleClearOverride = async () => {
-    if (!canEdit || !selectedItem) return;
+    if (!canEditSelectedItem || !selectedItem) return;
 
     const result = await clearOverride(selectedItem.row.evaluationPeriodId, selectedItem.row.userId);
     if (!result.success) return;
@@ -462,14 +471,13 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                 この評価期間はキャンセル済みのため、手動確定の編集はできません。
               </p>
             )}
-            {isSelectedPeriodCompleted && !isSelectedPeriodCancelled && (
+            {!isSelectedPeriodCancelled && (
               <p className="text-sm text-muted-foreground">
-                確定済みの評価期間でも、このページでは手動確定を編集できます。
-              </p>
-            )}
-            {!isSelectedPeriodCompleted && !isSelectedPeriodCancelled && (
-              <p className="text-sm text-muted-foreground">
-                手動確定の編集は、評価期間を確定（completed）した後に利用できます。
+                「処理済」のユーザーのみ手動確定を編集できます。未処理ユーザーは
+                <Link href="/admin-eval-list" className="mx-1 underline">
+                  /admin-eval-list
+                </Link>
+                で先に「処理する」を実行してください。
               </p>
             )}
           </div>
@@ -489,6 +497,15 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           <Badge variant="outline">降格確定 {counts.demotionConfirmed}</Badge>
         </div>
 
+        <div className="rounded-lg border bg-muted/20 p-4 text-sm">
+          <div className="font-semibold">操作手順（eval_admin）</div>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+            <li>`/admin-eval-list` で対象ユーザーを「処理する」して処理済にする</li>
+            <li>この画面で「手動確定する」を押す</li>
+            <li>判定・反映後ステージ・理由を入力して確定する</li>
+          </ol>
+        </div>
+
         <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-card p-4">
           <Select value={evaluationPeriodId} onValueChange={setEvaluationPeriodId}>
             <SelectTrigger className="w-[180px]">
@@ -504,8 +521,8 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           </Select>
 
           {selectedEvaluationPeriod && (
-            <Badge variant={isSelectedPeriodCompleted ? "secondary" : "outline"}>
-              {isSelectedPeriodCompleted ? "確定済み" : "未確定"}
+            <Badge variant={selectedEvaluationPeriod.status === "cancelled" ? "destructive" : "outline"}>
+              {getEvaluationPeriodStatusLabel(selectedEvaluationPeriod.status)}
             </Badge>
           )}
 
@@ -652,6 +669,11 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                     const showsPromotionFlag = base.promotionFlag;
                     const showsDemotionFlag = base.demotionFlag;
                     const confirmedStageAfter = override?.stageAfter;
+                    const isRowProcessed = row.processingStatus === "processed";
+                    const canEditRow = canEdit && isRowProcessed;
+                    const editDisabledReason = isSelectedPeriodCancelled
+                      ? "評価期間がキャンセル済みのため編集できません"
+                      : "評価スコアが未処理のため編集できません";
 
                     return (
                       <TableRow key={row.id}>
@@ -668,24 +690,36 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         <TableCell className="text-center">{row.coreValueFinalRank ?? "-"}</TableCell>
 
                         <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            {override ? (
-                              <>
-                                <Badge variant={getDecisionBadgeVariant(override.decision)}>{override.decision}</Badge>
-                                <Badge variant="secondary">確定</Badge>
-                              </>
-                            ) : (
-                              <Badge variant="outline">未確定</Badge>
-                            )}
-                            {canEdit && (
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="flex items-center justify-center gap-2">
+                              {override ? (
+                                <>
+                                  <Badge variant={getDecisionBadgeVariant(override.decision)}>{override.decision}</Badge>
+                                  <Badge variant="secondary">確定済み</Badge>
+                                </>
+                              ) : (
+                                <Badge variant="outline">未確定</Badge>
+                              )}
+                              <Badge variant={isRowProcessed ? "secondary" : "outline"}>
+                                {isRowProcessed ? "処理済" : "未処理"}
+                              </Badge>
+                            </div>
+                            {canEditRole && (
                               <Button
                                 size="sm"
-                                variant="ghost"
-                                className="h-7 px-2"
-                                onClick={() => openOverrideDialog(row, base, override)}
+                                variant={canEditRow ? "default" : "outline"}
+                                className="h-8 px-3"
+                                onClick={() => canEditRow && openOverrideDialog(row, base, override)}
+                                disabled={!canEditRow}
+                                title={!canEditRow ? editDisabledReason : undefined}
                               >
-                                編集（確定）
+                                {canEditRow ? "手動確定する" : "評価処理後に操作可能"}
                               </Button>
+                            )}
+                            {!canEditRow && !isSelectedPeriodCancelled && (
+                              <div className="text-xs text-muted-foreground">
+                                `/admin-eval-list` で先に「処理する」を実行してください
+                              </div>
                             )}
                           </div>
                         </TableCell>
@@ -727,6 +761,18 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                       <div className="text-sm text-muted-foreground">
                         {selectedItem.row.departmentName ?? "-"} / {selectedItem.row.currentStage ?? "-"}
                       </div>
+                      {!isSelectedItemProcessed && !isSelectedPeriodCancelled && (
+                        <div className="text-xs text-muted-foreground">
+                          このユーザーは評価スコアが未処理のため編集できません。先に
+                          <Link href="/admin-eval-list" className="mx-1 underline">
+                            /admin-eval-list
+                          </Link>
+                          で「処理する」を実行してください。
+                        </div>
+                      )}
+                      {isSelectedPeriodCancelled && (
+                        <div className="text-xs text-destructive">評価期間がキャンセル済みのため編集できません。</div>
+                      )}
                     </div>
 
                     <Separator />
@@ -798,7 +844,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                             })
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger disabled={!canEditSelectedItem}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -818,7 +864,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                           onValueChange={(value) =>
                             setOverrideDraft((prev) => (prev ? { ...prev, stageAfter: value === "unset" ? "" : value } : prev))
                           }
-                          disabled={!canEdit || !requiresStageAfter || stageOptionsFromApi.length === 0}
+                          disabled={!canEditSelectedItem || !requiresStageAfter || stageOptionsFromApi.length === 0}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="反映後ステージ" />
@@ -852,7 +898,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                           onChange={(e) =>
                             setOverrideDraft((prev) => (prev ? { ...prev, levelAfter: e.target.value } : prev))
                           }
-                          disabled={!canEdit || !allowsLevelAfter}
+                          disabled={!canEditSelectedItem || !allowsLevelAfter}
                         />
                         {selectedItem.row.employmentType === "parttime" && (
                           <div className="text-xs text-muted-foreground">パートはレベル概念がないため未適用です</div>
@@ -880,7 +926,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                             setOverrideDraft((prev) => (prev ? { ...prev, reason: e.target.value } : prev))
                           }
                           placeholder="例: 組織改編に伴う役割変更のため、ルール外でステージ変更を実施"
-                          disabled={!canEdit}
+                          disabled={!canEditSelectedItem}
                         />
                         {overrideDraft.reason.trim() === "" && (
                           <div className="text-xs text-destructive">理由を入力してください</div>
@@ -896,14 +942,18 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                   </Button>
                   <div className="flex items-center gap-2">
                     {selectedItem.override && (
-                      <Button variant="outline" onClick={() => void handleClearOverride()} disabled={!canEdit || isSaving}>
+                      <Button
+                        variant="outline"
+                        onClick={() => void handleClearOverride()}
+                        disabled={!canEditSelectedItem || isSaving}
+                      >
                         手動確定を解除
                       </Button>
                     )}
                     <Button
                       onClick={() => void handleApplyOverride()}
                       disabled={
-                        !canEdit ||
+                        !canEditSelectedItem ||
                         isSaving ||
                         (requiresStageAfter && overrideDraft.stageAfter.trim() === "") ||
                         (allowsLevelAfter &&
