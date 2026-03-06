@@ -1,3 +1,0 @@
-2026-03-05 05:44:52,248 - root - INFO - setup_service_test_logging:73 - === Auth Service Test Session Started ===
-2026-03-05 05:44:52,248 - root - INFO - setup_service_test_logging:74 - Log file: backend/tests/logs/auth_service_test_20260305_054452.log
-2026-03-05 05:44:52,248 - root - INFO - setup_service_test_logging:75 - Testing business logic and repository interactions for auth service
