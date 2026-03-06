@@ -153,6 +153,23 @@ class ComprehensiveEvaluationFinalizeResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ComprehensiveEvaluationProcessUserRequest(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    user_id: UUID = Field(..., alias="userId")
+
+    model_config = {"populate_by_name": True}
+
+
+class ComprehensiveEvaluationProcessUserResponse(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    user_id: UUID = Field(..., alias="userId")
+    processing_status: ProcessingStatus = Field(..., alias="processingStatus")
+    updated_level: bool = Field(..., alias="updatedLevel")
+    updated_stage: bool = Field(..., alias="updatedStage")
+
+    model_config = {"populate_by_name": True}
+
+
 class ComprehensiveManualDecisionUpsertRequest(BaseModel):
     period_id: UUID = Field(..., alias="periodId")
     decision: ComprehensiveDecision

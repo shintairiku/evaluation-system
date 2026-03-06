@@ -1,4 +1,3 @@
-import logging
 import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -6,10 +5,6 @@ from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-
-logger = logging.getLogger(__name__)
-
 
 class ComprehensiveEvaluationRepository:
     def __init__(self, session: AsyncSession):
@@ -20,6 +15,7 @@ class ComprehensiveEvaluationRepository:
         *,
         org_id: str,
         period_id: UUID,
+        user_id: Optional[UUID],
         department_id: Optional[UUID],
         stage_id: Optional[UUID],
         employment_type: Optional[str],
@@ -59,6 +55,7 @@ class ComprehensiveEvaluationRepository:
                 LEFT JOIN departments d ON d.id = u.department_id
                 LEFT JOIN stages s ON s.id = u.stage_id
                 WHERE u.clerk_organization_id = :org_id
+                  AND (CAST(:user_id AS uuid) IS NULL OR u.id = CAST(:user_id AS uuid))
                   AND (CAST(:department_id AS uuid) IS NULL OR u.department_id = CAST(:department_id AS uuid))
                   AND (CAST(:stage_id AS uuid) IS NULL OR u.stage_id = CAST(:stage_id AS uuid))
                   AND (
@@ -186,12 +183,7 @@ class ComprehensiveEvaluationRepository:
                                 ),
                             0
                         )
-                    )::numeric AS core_value_raw_score,
-                    COUNT(*) FILTER (WHERE gf.goal_category IN ('業績目標', 'コンピテンシー'))::integer AS required_goal_count,
-                    COUNT(*) FILTER (
-                        WHERE gf.goal_category IN ('業績目標', 'コンピテンシー')
-                          AND gf.feedback_status = 'submitted'
-                    )::integer AS submitted_feedback_count
+                    )::numeric AS core_value_raw_score
                 FROM target_users tu
                 LEFT JOIN goal_feedback gf
                   ON gf.user_id = tu.user_id
@@ -212,8 +204,7 @@ class ComprehensiveEvaluationRepository:
                     a.department_name,
                     a.employment_type,
                     CASE
-                        WHEN a.required_goal_count > 0
-                         AND a.required_goal_count = a.submitted_feedback_count
+                        WHEN cps.user_id IS NOT NULL
                             THEN 'processed'
                         ELSE 'unprocessed'
                     END AS processing_status,
@@ -235,6 +226,10 @@ class ComprehensiveEvaluationRepository:
                     md.applied_by_user_id AS manual_applied_by_user_id,
                     md.applied_at AS manual_applied_at
                 FROM aggregated a
+                LEFT JOIN comprehensive_processing_statuses cps
+                  ON cps.organization_id = :org_id
+                 AND cps.period_id = :period_id
+                 AND cps.user_id = a.user_id
                 LEFT JOIN comprehensive_manual_decisions md
                   ON md.organization_id = :org_id
                  AND md.period_id = :period_id
@@ -277,6 +272,7 @@ class ComprehensiveEvaluationRepository:
         params = {
             "org_id": org_id,
             "period_id": period_id,
+            "user_id": user_id,
             "department_id": department_id,
             "stage_id": stage_id,
             "employment_type": employment_type,
@@ -558,6 +554,105 @@ class ComprehensiveEvaluationRepository:
         )
         row = result.fetchone()
         return dict(row._mapping) if row else None
+
+    async def upsert_processing_status(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        user_id: UUID,
+        processed_by_user_id: UUID,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        await self.session.execute(
+            text(
+                """
+                INSERT INTO comprehensive_processing_statuses (
+                    id,
+                    organization_id,
+                    period_id,
+                    user_id,
+                    processed_by_user_id,
+                    processed_at,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    :organization_id,
+                    :period_id,
+                    :user_id,
+                    :processed_by_user_id,
+                    :processed_at,
+                    :created_at,
+                    :updated_at
+                )
+                ON CONFLICT (organization_id, period_id, user_id)
+                DO UPDATE SET
+                    processed_by_user_id = EXCLUDED.processed_by_user_id,
+                    processed_at = EXCLUDED.processed_at,
+                    updated_at = EXCLUDED.updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "user_id": user_id,
+                "processed_by_user_id": processed_by_user_id,
+                "processed_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+
+    async def clear_processing_status(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        user_id: UUID,
+    ) -> bool:
+        result = await self.session.execute(
+            text(
+                """
+                DELETE FROM comprehensive_processing_statuses
+                WHERE organization_id = :organization_id
+                  AND period_id = :period_id
+                  AND user_id = :user_id
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "user_id": user_id,
+            },
+        )
+        return result.rowcount > 0
+
+    async def is_user_processed(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        user_id: UUID,
+    ) -> bool:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT 1
+                FROM comprehensive_processing_statuses
+                WHERE organization_id = :organization_id
+                  AND period_id = :period_id
+                  AND user_id = :user_id
+                LIMIT 1
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "user_id": user_id,
+            },
+        )
+        return result.scalar_one_or_none() is not None
 
     async def upsert_manual_decision(
         self,

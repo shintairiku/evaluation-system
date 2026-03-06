@@ -43,3 +43,36 @@ async def test_upsert_manual_decision_uses_safe_fallback_for_missing_double_chec
 
     _, params = session.execute.await_args.args
     assert params["double_checked_by"] == ""
+
+
+@pytest.mark.asyncio
+async def test_upsert_processing_status_records_actor():
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(return_value=None)
+    repo = ComprehensiveEvaluationRepository(session)
+    actor_id = uuid4()
+
+    await repo.upsert_processing_status(
+        org_id="org_test",
+        period_id=uuid4(),
+        user_id=uuid4(),
+        processed_by_user_id=actor_id,
+    )
+
+    _, params = session.execute.await_args.args
+    assert params["processed_by_user_id"] == actor_id
+
+
+@pytest.mark.asyncio
+async def test_clear_processing_status_returns_true_when_row_deleted():
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(return_value=SimpleNamespace(rowcount=1))
+    repo = ComprehensiveEvaluationRepository(session)
+
+    deleted = await repo.clear_processing_status(
+        org_id="org_test",
+        period_id=uuid4(),
+        user_id=uuid4(),
+    )
+
+    assert deleted is True

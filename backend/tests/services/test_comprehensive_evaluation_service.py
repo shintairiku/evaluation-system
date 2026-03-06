@@ -311,11 +311,11 @@ async def test_category_rank_uses_raw_score_not_weighted_contribution():
 
 
 @pytest.mark.asyncio
-async def test_upsert_manual_decision_rejects_non_completed_period():
+async def test_upsert_manual_decision_rejects_cancelled_period():
     service = ComprehensiveEvaluationService(AsyncMock())
     period_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="cancelled"))
 
     payload = ComprehensiveManualDecisionUpsertRequest(
         periodId=period_id,
@@ -324,7 +324,7 @@ async def test_upsert_manual_decision_rejects_non_completed_period():
         reason="manual adjustment",
     )
 
-    with pytest.raises(BadRequestError, match="only after finalization"):
+    with pytest.raises(BadRequestError, match="cancelled"):
         await service.upsert_manual_decision(
             context=make_context(role_name="eval_admin"),
             user_id=uuid4(),
@@ -333,16 +333,57 @@ async def test_upsert_manual_decision_rejects_non_completed_period():
 
 
 @pytest.mark.asyncio
-async def test_clear_manual_decision_rejects_non_completed_period():
+async def test_clear_manual_decision_rejects_cancelled_period():
     service = ComprehensiveEvaluationService(AsyncMock())
     period_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="cancelled"))
 
-    with pytest.raises(BadRequestError, match="only after finalization"):
+    with pytest.raises(BadRequestError, match="cancelled"):
         await service.clear_manual_decision(
             context=make_context(role_name="eval_admin"),
             user_id=uuid4(),
+            period_id=period_id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_upsert_manual_decision_rejects_unprocessed_user():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_id = uuid4()
+    user_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service.repo.is_user_processed = AsyncMock(return_value=False)
+
+    payload = ComprehensiveManualDecisionUpsertRequest(
+        periodId=period_id,
+        decision="昇格",
+        stageAfter="STAGE4",
+        reason="manual adjustment",
+    )
+
+    with pytest.raises(BadRequestError, match="must be processed"):
+        await service.upsert_manual_decision(
+            context=make_context(role_name="eval_admin"),
+            user_id=user_id,
+            payload=payload,
+        )
+
+
+@pytest.mark.asyncio
+async def test_clear_manual_decision_rejects_unprocessed_user():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_id = uuid4()
+    user_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service.repo.is_user_processed = AsyncMock(return_value=False)
+
+    with pytest.raises(BadRequestError, match="must be processed"):
+        await service.clear_manual_decision(
+            context=make_context(role_name="eval_admin"),
+            user_id=user_id,
             period_id=period_id,
         )
 
@@ -354,6 +395,7 @@ async def test_upsert_manual_decision_rejects_unknown_stage_name():
     user_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+    service.repo.is_user_processed = AsyncMock(return_value=True)
     service.repo.get_user_employment_profile = AsyncMock(
         return_value={
             "id": user_id,
@@ -389,6 +431,7 @@ async def test_upsert_manual_decision_applies_stage_and_level_when_completed():
     stage_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+    service.repo.is_user_processed = AsyncMock(return_value=True)
     service.repo.get_user_employment_profile = AsyncMock(
         return_value={
             "id": user_id,
@@ -411,6 +454,7 @@ async def test_upsert_manual_decision_applies_stage_and_level_when_completed():
         }
     )
     service.repo.insert_manual_decision_history = AsyncMock()
+    service.repo.upsert_processing_status = AsyncMock()
     service.user_repo.update_user_stage = AsyncMock(return_value=SimpleNamespace(id=user_id))
     service.user_repo.batch_update_user_levels = AsyncMock(return_value={user_id})
 
@@ -430,43 +474,19 @@ async def test_upsert_manual_decision_applies_stage_and_level_when_completed():
 
     service.user_repo.update_user_stage.assert_awaited_once_with(user_id, stage_id, "org_test")
     service.user_repo.batch_update_user_levels.assert_awaited_once_with("org_test", {user_id: 12})
+    service.repo.upsert_processing_status.assert_awaited_once()
     session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_finalize_period_updates_levels_and_marks_completed():
+async def test_finalize_period_marks_completed_without_bulk_level_updates():
     session = AsyncMock()
     service = ComprehensiveEvaluationService(session)
     period_id = uuid4()
-    employee_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
-    service.get_comprehensive_evaluation = AsyncMock(
-        return_value=SimpleNamespace(
-            rows=[
-                SimpleNamespace(
-                    user_id=employee_id,
-                    employment_type="employee",
-                    current_level=20,
-                    applied=SimpleNamespace(new_level=23),
-                ),
-                SimpleNamespace(
-                    user_id=uuid4(),
-                    employment_type="employee",
-                    current_level=15,
-                    applied=SimpleNamespace(new_level=15),
-                ),
-                SimpleNamespace(
-                    user_id=uuid4(),
-                    employment_type="parttime",
-                    current_level=None,
-                    applied=SimpleNamespace(new_level=30),
-                ),
-            ],
-            meta=SimpleNamespace(pages=1),
-        )
-    )
-    service.user_repo.batch_update_user_levels = AsyncMock(return_value={employee_id})
+    service.repo.list_rows = AsyncMock(return_value=([], 3))
+    service.user_repo.batch_update_user_levels = AsyncMock()
     service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
 
     result = await service.finalize_evaluation_period(
@@ -474,10 +494,7 @@ async def test_finalize_period_updates_levels_and_marks_completed():
         period_id=period_id,
     )
 
-    service.user_repo.batch_update_user_levels.assert_awaited_once_with(
-        "org_test",
-        {employee_id: 23},
-    )
+    service.user_repo.batch_update_user_levels.assert_not_awaited()
     service.period_repo.update_status.assert_awaited_once_with(
         period_id,
         EvaluationPeriodStatus.COMPLETED,
@@ -486,52 +503,8 @@ async def test_finalize_period_updates_levels_and_marks_completed():
     session.commit.assert_awaited_once()
     assert result.previous_status == "active"
     assert result.current_status == "completed"
-    assert result.updated_user_levels == 1
+    assert result.updated_user_levels == 0
     assert result.total_users == 3
-
-
-@pytest.mark.asyncio
-async def test_finalize_period_updates_stage_and_level_for_manual_applied_state():
-    session = AsyncMock()
-    service = ComprehensiveEvaluationService(session)
-    period_id = uuid4()
-    employee_id = uuid4()
-    next_stage_id = uuid4()
-
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
-    service.get_comprehensive_evaluation = AsyncMock(
-        return_value=SimpleNamespace(
-            rows=[
-                SimpleNamespace(
-                    user_id=employee_id,
-                    employment_type="employee",
-                    current_stage="STAGE4",
-                    current_level=20,
-                    applied=SimpleNamespace(new_stage="STAGE5", new_level=23),
-                ),
-            ],
-            meta=SimpleNamespace(pages=1),
-        )
-    )
-    service.stage_repo.get_all = AsyncMock(return_value=[SimpleNamespace(id=next_stage_id, name="STAGE5")])
-    service.user_repo.batch_update_user_levels = AsyncMock(return_value={employee_id})
-    service.user_repo.batch_update_user_stages = AsyncMock(return_value={employee_id})
-    service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
-
-    result = await service.finalize_evaluation_period(
-        context=make_context(role_name="eval_admin"),
-        period_id=period_id,
-    )
-
-    service.user_repo.batch_update_user_levels.assert_awaited_once_with(
-        "org_test",
-        {employee_id: 23},
-    )
-    service.user_repo.batch_update_user_stages.assert_awaited_once_with(
-        "org_test",
-        {employee_id: next_stage_id},
-    )
-    assert result.updated_user_levels == 1
 
 
 @pytest.mark.asyncio
@@ -539,23 +512,9 @@ async def test_finalize_period_allows_draft_status():
     session = AsyncMock()
     service = ComprehensiveEvaluationService(session)
     period_id = uuid4()
-    employee_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="draft"))
-    service.get_comprehensive_evaluation = AsyncMock(
-        return_value=SimpleNamespace(
-            rows=[
-                SimpleNamespace(
-                    user_id=employee_id,
-                    employment_type="employee",
-                    current_level=10,
-                    applied=SimpleNamespace(new_level=12),
-                ),
-            ],
-            meta=SimpleNamespace(pages=1),
-        )
-    )
-    service.user_repo.batch_update_user_levels = AsyncMock(return_value={employee_id})
+    service.repo.list_rows = AsyncMock(return_value=([], 1))
     service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
 
     result = await service.finalize_evaluation_period(
@@ -570,7 +529,7 @@ async def test_finalize_period_allows_draft_status():
     )
     assert result.previous_status == "draft"
     assert result.current_status == "completed"
-    assert result.updated_user_levels == 1
+    assert result.updated_user_levels == 0
 
 
 @pytest.mark.asyncio
@@ -580,10 +539,7 @@ async def test_finalize_period_is_idempotent_when_already_completed():
     period_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
-    service.get_comprehensive_evaluation = AsyncMock(
-        return_value=SimpleNamespace(rows=[], meta=SimpleNamespace(pages=1))
-    )
-    service.user_repo.batch_update_user_levels = AsyncMock(return_value=set())
+    service.repo.list_rows = AsyncMock(return_value=([], 0))
     service.period_repo.update_status = AsyncMock()
 
     result = await service.finalize_evaluation_period(
@@ -598,48 +554,137 @@ async def test_finalize_period_is_idempotent_when_already_completed():
 
 
 @pytest.mark.asyncio
-async def test_finalize_period_clamps_out_of_range_applied_levels():
+async def test_process_user_evaluation_applies_computed_level_and_marks_processed():
     session = AsyncMock()
     service = ComprehensiveEvaluationService(session)
     period_id = uuid4()
-    high_level_user_id = uuid4()
-    low_level_user_id = uuid4()
+    user_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
-    service.get_comprehensive_evaluation = AsyncMock(
-        return_value=SimpleNamespace(
-            rows=[
-                SimpleNamespace(
-                    user_id=high_level_user_id,
-                    employment_type="employee",
-                    current_level=29,
-                    applied=SimpleNamespace(new_level=35),
-                ),
-                SimpleNamespace(
-                    user_id=low_level_user_id,
-                    employment_type="employee",
-                    current_level=2,
-                    applied=SimpleNamespace(new_level=-3),
-                ),
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+    service.get_settings = AsyncMock(return_value=build_settings())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_id}:{user_id}",
+                    "user_id": user_id,
+                    "employee_code": "E001",
+                    "name": "Test User",
+                    "department_name": "Engineering",
+                    "employment_type": "employee",
+                    "processing_status": "unprocessed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 10,
+                    "performance_score": 4.40,
+                    "performance_raw_score": 4.40,
+                    "competency_score": 0.52,
+                    "competency_raw_score": 5.20,
+                    "core_value_score": None,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 20,
+                    "manual_decision": None,
+                }
             ],
-            meta=SimpleNamespace(pages=1),
+            1,
         )
     )
-    service.user_repo.batch_update_user_levels = AsyncMock(
-        return_value={high_level_user_id, low_level_user_id}
-    )
-    service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
+    service.user_repo.update_user_stage = AsyncMock()
+    service.user_repo.batch_update_user_levels = AsyncMock(return_value={user_id})
+    service.repo.upsert_processing_status = AsyncMock()
 
-    result = await service.finalize_evaluation_period(
+    result = await service.process_user_evaluation(
         context=make_context(role_name="eval_admin"),
         period_id=period_id,
+        user_id=user_id,
     )
 
     service.user_repo.batch_update_user_levels.assert_awaited_once_with(
         "org_test",
-        {
-            high_level_user_id: 30,
-            low_level_user_id: 1,
-        },
+        {user_id: 26},
     )
-    assert result.updated_user_levels == 2
+    service.user_repo.update_user_stage.assert_not_awaited()
+    service.repo.upsert_processing_status.assert_awaited_once_with(
+        org_id="org_test",
+        period_id=period_id,
+        user_id=user_id,
+        processed_by_user_id=UUID("00000000-0000-0000-0000-000000000001"),
+    )
+    assert result.processing_status == "processed"
+    assert result.updated_level is True
+    assert result.updated_stage is False
+
+
+@pytest.mark.asyncio
+async def test_process_user_evaluation_applies_manual_stage_and_clamped_level():
+    session = AsyncMock()
+    service = ComprehensiveEvaluationService(session)
+    period_id = uuid4()
+    user_id = uuid4()
+    next_stage_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+    service.get_settings = AsyncMock(return_value=build_settings())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_id}:{user_id}",
+                    "user_id": user_id,
+                    "employee_code": "E002",
+                    "name": "Manual User",
+                    "department_name": "Engineering",
+                    "employment_type": "employee",
+                    "processing_status": "unprocessed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 10,
+                    "performance_score": 4.40,
+                    "performance_raw_score": 4.40,
+                    "competency_score": 0.52,
+                    "competency_raw_score": 5.20,
+                    "core_value_score": None,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 29,
+                    "manual_decision": "昇格",
+                    "manual_stage_after": "STAGE5",
+                    "manual_level_after": 40,
+                    "manual_reason": "manual",
+                    "manual_double_checked_by": None,
+                    "manual_applied_by_user_id": UUID("00000000-0000-0000-0000-000000000001"),
+                    "manual_applied_at": "2026-03-03T00:00:00+00:00",
+                }
+            ],
+            1,
+        )
+    )
+    service.stage_repo.get_all = AsyncMock(return_value=[SimpleNamespace(id=next_stage_id, name="STAGE5")])
+    service.user_repo.update_user_stage = AsyncMock(return_value=SimpleNamespace(id=user_id))
+    service.user_repo.batch_update_user_levels = AsyncMock(return_value={user_id})
+    service.repo.upsert_processing_status = AsyncMock()
+
+    result = await service.process_user_evaluation(
+        context=make_context(role_name="eval_admin"),
+        period_id=period_id,
+        user_id=user_id,
+    )
+
+    service.user_repo.update_user_stage.assert_awaited_once_with(user_id, next_stage_id, "org_test")
+    service.user_repo.batch_update_user_levels.assert_awaited_once_with("org_test", {user_id: 30})
+    assert result.updated_stage is True
+    assert result.updated_level is True
+
+
+@pytest.mark.asyncio
+async def test_process_user_evaluation_rejects_cancelled_period():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="cancelled"))
+
+    with pytest.raises(BadRequestError, match="cancelled"):
+        await service.process_user_evaluation(
+            context=make_context(role_name="eval_admin"),
+            period_id=period_id,
+            user_id=uuid4(),
+        )

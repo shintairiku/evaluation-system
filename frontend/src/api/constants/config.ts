@@ -259,6 +259,7 @@ export const API_ENDPOINTS = {
     STAGE_OPTIONS: '/evaluation/comprehensive-evaluation/stage-options',
     SETTINGS: '/evaluation/comprehensive-evaluation/settings',
     FINALIZE: '/evaluation/comprehensive-evaluation/finalize',
+    PROCESS_USER: '/evaluation/comprehensive-evaluation/process-user',
     MANUAL_DECISION: (userId: string) => `/evaluation/comprehensive-evaluation/manual-decisions/${userId}`,
     MANUAL_HISTORY: '/evaluation/comprehensive-evaluation/manual-decisions/history',
   },

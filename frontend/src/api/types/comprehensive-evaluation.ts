@@ -134,6 +134,19 @@ export interface FinalizeComprehensiveEvaluationResponse {
   updatedUserLevels: number;
 }
 
+export interface ProcessComprehensiveEvaluationUserRequest {
+  periodId: UUID;
+  userId: UUID;
+}
+
+export interface ProcessComprehensiveEvaluationUserResponse {
+  periodId: UUID;
+  userId: UUID;
+  processingStatus: ComprehensiveProcessingStatus;
+  updatedLevel: boolean;
+  updatedStage: boolean;
+}
+
 export interface UpsertComprehensiveManualDecisionRequest {
   periodId: UUID;
   decision: ComprehensiveDecision;

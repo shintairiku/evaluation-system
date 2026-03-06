@@ -10,6 +10,8 @@ import type {
   FinalizeComprehensiveEvaluationResponse,
   GetComprehensiveEvaluationListParams,
   GetComprehensiveManualDecisionHistoryParams,
+  ProcessComprehensiveEvaluationUserRequest,
+  ProcessComprehensiveEvaluationUserResponse,
   UUID,
   UpsertComprehensiveManualDecisionRequest,
 } from '../types';
@@ -63,6 +65,15 @@ export const comprehensiveEvaluationApi = {
   ): Promise<ApiResponse<FinalizeComprehensiveEvaluationResponse>> => {
     return httpClient.post<FinalizeComprehensiveEvaluationResponse>(
       API_ENDPOINTS.COMPREHENSIVE_EVALUATION.FINALIZE,
+      payload,
+    );
+  },
+
+  processComprehensiveEvaluationUser: async (
+    payload: ProcessComprehensiveEvaluationUserRequest,
+  ): Promise<ApiResponse<ProcessComprehensiveEvaluationUserResponse>> => {
+    return httpClient.post<ProcessComprehensiveEvaluationUserResponse>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.PROCESS_USER,
       payload,
     );
   },

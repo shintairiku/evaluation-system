@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import logging
 from math import ceil
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +18,7 @@ from ..schemas.comprehensive_evaluation import (
     ComprehensiveEvaluationFinalizeResponse,
     ComprehensiveEvaluationListMeta,
     ComprehensiveEvaluationListResponse,
+    ComprehensiveEvaluationProcessUserResponse,
     ComprehensiveEvaluationRow,
     ComprehensiveEvaluationSettings,
     ComprehensiveManualDecisionHistoryEntry,
@@ -30,9 +30,6 @@ from ..schemas.comprehensive_evaluation import (
     PromotionRuleGroup,
 )
 from ..security.context import AuthContext
-
-
-logger = logging.getLogger(__name__)
 
 
 RANK_ORDER: List[EvaluationRank] = ["SS", "S", "A+", "A", "A-", "B", "C", "D"]
@@ -57,7 +54,6 @@ DEFAULT_LEVEL_DELTAS: Dict[EvaluationRank, int] = {
     "C": -5,
     "D": -8,
 }
-FINALIZE_PAGE_LIMIT = 200
 USER_LEVEL_MIN = 1
 USER_LEVEL_MAX = 30
 
@@ -92,6 +88,7 @@ class ComprehensiveEvaluationService:
         rows_data, total = await self.repo.list_rows(
             org_id=org_id,
             period_id=period_id,
+            user_id=None,
             department_id=department_id,
             stage_id=stage_id,
             employment_type=employment_type,
@@ -101,138 +98,14 @@ class ComprehensiveEvaluationService:
             limit=limit,
         )
 
-        rows: List[ComprehensiveEvaluationRow] = []
-        for item in rows_data:
-            performance_score = self._to_optional_float(item.get("performance_score"))
-            competency_score = self._to_optional_float(item.get("competency_score"))
-            core_value_score = self._to_optional_float(item.get("core_value_score"))
-            # Category final rank must be judged by the category's raw score (0-7 scale),
-            # not by weighted contribution used for total-score aggregation.
-            performance_rank_score = self._to_optional_float(item.get("performance_raw_score"))
-            competency_rank_score = self._to_optional_float(item.get("competency_raw_score"))
-            core_value_rank_score = self._to_optional_float(item.get("core_value_raw_score"))
-            performance_weight = self._to_optional_float(item.get("performance_weight_percent"))
-            competency_weight = self._to_optional_float(item.get("competency_weight_percent"))
-
-            if performance_rank_score is None:
-                performance_rank_score = performance_score
-            if competency_rank_score is None:
-                competency_rank_score = competency_score
-            if core_value_rank_score is None:
-                core_value_rank_score = core_value_score
-
-            performance_rank = self._rank_from_score(performance_rank_score, settings.overall_score_thresholds)
-            competency_rank = self._rank_from_score(competency_rank_score, settings.overall_score_thresholds)
-            core_value_rank = self._rank_from_score(core_value_rank_score, settings.overall_score_thresholds)
-
-            total_score = (
-                round(performance_score + competency_score, 2)
-                if performance_score is not None and competency_score is not None
-                else None
+        rows = [
+            self._build_row_from_repo_item(
+                item=item,
+                period_id=period_id,
+                settings=settings,
             )
-            overall_rank = self._rank_from_score(total_score, settings.overall_score_thresholds)
-
-            employment = item["employment_type"]
-            current_level = item.get("current_level")
-            current_stage = item.get("current_stage")
-
-            level_delta = None
-            if employment == "employee" and overall_rank is not None:
-                level_delta = int(settings.level_delta_by_overall_rank[overall_rank])
-
-            new_level = current_level + level_delta if current_level is not None and level_delta is not None else None
-            new_stage = current_stage
-
-            rule_context = {
-                "overallRank": overall_rank,
-                "competencyFinalRank": competency_rank,
-                "coreValueFinalRank": core_value_rank,
-            }
-
-            promotion_rule_hit = self._evaluate_promotion_groups(
-                settings.promotion.rule_groups,
-                rule_context,
-            )
-            demotion_rule_hit = self._evaluate_demotion_groups(
-                settings.demotion.rule_groups,
-                rule_context,
-            )
-
-            promotion_flag = (
-                employment == "employee"
-                and new_level is not None
-                and new_level >= 30
-                and promotion_rule_hit
-            )
-            demotion_flag = demotion_rule_hit
-
-            auto_decision = self._select_auto_decision(
-                promotion_flag=promotion_flag,
-                demotion_flag=demotion_flag,
-            )
-
-            auto_state = ComprehensiveEvaluationComputedState(
-                totalScore=total_score,
-                overallRank=overall_rank,
-                decision=auto_decision,
-                promotionFlag=promotion_flag,
-                demotionFlag=demotion_flag,
-                stageDelta=0,
-                levelDelta=level_delta,
-                newStage=new_stage,
-                newLevel=new_level,
-                isPromotionCandidate=promotion_flag,
-                isDemotionCandidate=demotion_flag,
-            )
-
-            manual_decision = None
-            if item.get("manual_decision"):
-                manual_decision = ComprehensiveManualDecisionResponse(
-                    periodId=period_id,
-                    decision=item["manual_decision"],
-                    stageAfter=item.get("manual_stage_after"),
-                    levelAfter=item.get("manual_level_after"),
-                    reason=item.get("manual_reason") or "",
-                    doubleCheckedBy=item.get("manual_double_checked_by"),
-                    appliedByUserId=item.get("manual_applied_by_user_id"),
-                    appliedAt=item.get("manual_applied_at"),
-                )
-
-            applied_state = self._apply_manual_decision(
-                auto_state=auto_state,
-                manual_decision=manual_decision,
-                current_stage=current_stage,
-                current_level=current_level,
-                employment_type=employment,
-            )
-
-            rows.append(
-                ComprehensiveEvaluationRow(
-                    id=item["id"],
-                    userId=item["user_id"],
-                    evaluationPeriodId=period_id,
-                    employeeCode=item["employee_code"],
-                    name=item["name"],
-                    departmentName=item.get("department_name"),
-                    employmentType=employment,
-                    processingStatus=item["processing_status"],
-                    performanceFinalRank=performance_rank,
-                    performanceWeightPercent=performance_weight,
-                    performanceScore=performance_score,
-                    competencyFinalRank=competency_rank,
-                    competencyWeightPercent=competency_weight,
-                    competencyScore=competency_score,
-                    coreValueFinalRank=core_value_rank,
-                    leaderInterviewCleared=None,
-                    divisionHeadPresentationCleared=None,
-                    ceoInterviewCleared=None,
-                    currentStage=current_stage,
-                    currentLevel=current_level,
-                    auto=auto_state,
-                    applied=applied_state,
-                    manualDecision=manual_decision,
-                )
-            )
+            for item in rows_data
+        ]
 
         meta = ComprehensiveEvaluationListMeta(
             total=total,
@@ -326,75 +199,20 @@ class ComprehensiveEvaluationService:
                 "Only draft, active, or completed evaluation periods can be finalized"
             )
 
-        rows = await self._collect_period_rows_for_finalization(context=context, period_id=period_id)
-        level_updates: Dict[UUID, int] = {}
-        requested_stage_names_by_user: Dict[UUID, str] = {}
-
-        for row in rows:
-            user_id = getattr(row, "user_id", None)
-            if user_id is None:
-                continue
-
-            applied_state = getattr(row, "applied", None)
-            current_stage_name = self._normalize_stage_name(getattr(row, "current_stage", None))
-            next_stage_name = self._normalize_stage_name(getattr(applied_state, "new_stage", None))
-
-            if next_stage_name and (
-                current_stage_name is None or next_stage_name.casefold() != current_stage_name.casefold()
-            ):
-                requested_stage_names_by_user[user_id] = next_stage_name
-
-            if getattr(row, "employment_type", None) != "employee":
-                continue
-
-            if getattr(applied_state, "new_level", None) is None:
-                continue
-
-            try:
-                proposed_level = int(applied_state.new_level)
-            except (TypeError, ValueError):
-                logger.warning(
-                    "Skipping invalid applied new level during finalization: user_id=%s level=%s",
-                    user_id,
-                    getattr(applied_state, "new_level", None),
-                )
-                continue
-
-            next_level = max(USER_LEVEL_MIN, min(USER_LEVEL_MAX, proposed_level))
-            if next_level != proposed_level:
-                logger.warning(
-                    "Clamped out-of-range applied level during finalization: user_id=%s proposed=%s clamped=%s",
-                    user_id,
-                    proposed_level,
-                    next_level,
-                )
-
-            current_level = getattr(row, "current_level", None)
-            if current_level is not None and current_level == next_level:
-                continue
-            level_updates[user_id] = next_level
-
-        stage_updates: Dict[UUID, UUID] = {}
-        if requested_stage_names_by_user:
-            stage_name_to_id, stage_name_folded_to_id = await self._get_stage_name_maps(org_id)
-            for user_id, stage_name in requested_stage_names_by_user.items():
-                stage_id = self._resolve_stage_id(
-                    stage_name=stage_name,
-                    stage_name_to_id=stage_name_to_id,
-                    stage_name_folded_to_id=stage_name_folded_to_id,
-                )
-                if stage_id is None:
-                    logger.warning(
-                        "Skipping unknown applied stage during finalization: user_id=%s stage_name=%s",
-                        user_id,
-                        stage_name,
-                    )
-                    continue
-                stage_updates[user_id] = stage_id
+        _, total_users = await self.repo.list_rows(
+            org_id=org_id,
+            period_id=period_id,
+            user_id=None,
+            department_id=None,
+            stage_id=None,
+            employment_type=None,
+            search=None,
+            processing_status=None,
+            page=1,
+            limit=1,
+        )
 
         try:
-            updated_level_user_ids = await self.user_repo.batch_update_user_levels(org_id, level_updates)
-            await self.user_repo.batch_update_user_stages(org_id, stage_updates)
             if previous_status != "completed":
                 await self.period_repo.update_status(period_id, EvaluationPeriodStatus.COMPLETED, org_id)
             await self.session.commit()
@@ -406,37 +224,96 @@ class ComprehensiveEvaluationService:
             periodId=period_id,
             previousStatus=previous_status,
             currentStatus="completed",
-            totalUsers=len(rows),
-            updatedUserLevels=len(updated_level_user_ids),
+            totalUsers=total_users,
+            updatedUserLevels=0,
         )
 
-    async def _collect_period_rows_for_finalization(
+    async def process_user_evaluation(
         self,
         *,
         context: AuthContext,
         period_id: UUID,
-    ) -> List[ComprehensiveEvaluationRow]:
-        page = 1
-        rows: List[ComprehensiveEvaluationRow] = []
+        user_id: UUID,
+    ) -> ComprehensiveEvaluationProcessUserResponse:
+        org_id = self._require_org(context)
+        actor_user_id = self._require_user_id(context)
+        self._require_write_role(context)
 
-        while True:
-            page_result = await self.get_comprehensive_evaluation(
-                context=context,
-                period_id=period_id,
-                department_id=None,
-                stage_id=None,
-                employment_type=None,
-                search=None,
-                processing_status=None,
-                page=page,
-                limit=FINALIZE_PAGE_LIMIT,
+        period = await self._ensure_period_exists(period_id, org_id)
+        self._ensure_period_allows_user_processing(period)
+
+        settings = await self.get_settings(context=context)
+        row_items, _ = await self.repo.list_rows(
+            org_id=org_id,
+            period_id=period_id,
+            user_id=user_id,
+            department_id=None,
+            stage_id=None,
+            employment_type=None,
+            search=None,
+            processing_status=None,
+            page=1,
+            limit=1,
+        )
+        if not row_items:
+            raise NotFoundError("Target user not found in this organization")
+
+        row = self._build_row_from_repo_item(
+            item=row_items[0],
+            period_id=period_id,
+            settings=settings,
+        )
+        applied_state = row.applied
+
+        updated_level = False
+        updated_stage = False
+
+        requested_stage_name = self._normalize_stage_name(applied_state.new_stage)
+        current_stage_name = self._normalize_stage_name(row.current_stage)
+        if requested_stage_name and (
+            current_stage_name is None or requested_stage_name.casefold() != current_stage_name.casefold()
+        ):
+            stage_name_to_id, stage_name_folded_to_id = await self._get_stage_name_maps(org_id)
+            stage_id = self._resolve_stage_id(
+                stage_name=requested_stage_name,
+                stage_name_to_id=stage_name_to_id,
+                stage_name_folded_to_id=stage_name_folded_to_id,
             )
-            rows.extend(page_result.rows)
-            if page >= page_result.meta.pages:
-                break
-            page += 1
+            if stage_id is None:
+                raise BadRequestError("applied stage is not registered in this organization")
+            updated = await self.user_repo.update_user_stage(user_id, stage_id, org_id)
+            updated_stage = updated is not None
 
-        return rows
+        if row.employment_type == "employee" and applied_state.new_level is not None:
+            try:
+                proposed_level = int(applied_state.new_level)
+            except (TypeError, ValueError):
+                raise BadRequestError("applied level is invalid") from None
+
+            next_level = max(USER_LEVEL_MIN, min(USER_LEVEL_MAX, proposed_level))
+            if row.current_level is None or row.current_level != next_level:
+                updated_users = await self.user_repo.batch_update_user_levels(org_id, {user_id: next_level})
+                updated_level = user_id in updated_users
+
+        try:
+            await self.repo.upsert_processing_status(
+                org_id=org_id,
+                period_id=period_id,
+                user_id=user_id,
+                processed_by_user_id=actor_user_id,
+            )
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
+
+        return ComprehensiveEvaluationProcessUserResponse(
+            periodId=period_id,
+            userId=user_id,
+            processingStatus="processed",
+            updatedLevel=updated_level,
+            updatedStage=updated_stage,
+        )
 
     async def upsert_manual_decision(
         self,
@@ -451,6 +328,13 @@ class ComprehensiveEvaluationService:
 
         period = await self._ensure_period_exists(payload.period_id, org_id)
         self._ensure_period_allows_manual_decision(period)
+        is_processed = await self.repo.is_user_processed(
+            org_id=org_id,
+            period_id=payload.period_id,
+            user_id=user_id,
+        )
+        if not is_processed:
+            raise BadRequestError("User evaluation must be processed before manual decision")
         user_profile = await self.repo.get_user_employment_profile(org_id=org_id, user_id=user_id)
         if not user_profile:
             raise NotFoundError("Target user not found in this organization")
@@ -508,6 +392,13 @@ class ComprehensiveEvaluationService:
                     if target_level is not None and target_level != current_level:
                         await self.user_repo.batch_update_user_levels(org_id, {user_id: int(target_level)})
 
+            await self.repo.upsert_processing_status(
+                org_id=org_id,
+                period_id=payload.period_id,
+                user_id=user_id,
+                processed_by_user_id=actor_user_id,
+            )
+
             await self.repo.insert_manual_decision_history(
                 org_id=org_id,
                 period_id=payload.period_id,
@@ -550,6 +441,13 @@ class ComprehensiveEvaluationService:
 
         period = await self._ensure_period_exists(period_id, org_id)
         self._ensure_period_allows_manual_decision(period)
+        is_processed = await self.repo.is_user_processed(
+            org_id=org_id,
+            period_id=period_id,
+            user_id=user_id,
+        )
+        if not is_processed:
+            raise BadRequestError("User evaluation must be processed before manual decision")
         user_profile = await self.repo.get_user_employment_profile(org_id=org_id, user_id=user_id)
         if not user_profile:
             raise NotFoundError("Target user not found in this organization")
@@ -635,6 +533,142 @@ class ComprehensiveEvaluationService:
             pages=max(1, ceil(total / limit)) if limit > 0 else 1,
         )
         return ComprehensiveManualDecisionHistoryResponse(items=items, meta=meta)
+
+    def _build_row_from_repo_item(
+        self,
+        *,
+        item: Dict[str, object],
+        period_id: UUID,
+        settings: ComprehensiveEvaluationSettings,
+    ) -> ComprehensiveEvaluationRow:
+        performance_score = self._to_optional_float(item.get("performance_score"))
+        competency_score = self._to_optional_float(item.get("competency_score"))
+        core_value_score = self._to_optional_float(item.get("core_value_score"))
+        # Category final rank must be judged by the category's raw score (0-7 scale),
+        # not by weighted contribution used for total-score aggregation.
+        performance_rank_score = self._to_optional_float(item.get("performance_raw_score"))
+        competency_rank_score = self._to_optional_float(item.get("competency_raw_score"))
+        core_value_rank_score = self._to_optional_float(item.get("core_value_raw_score"))
+        performance_weight = self._to_optional_float(item.get("performance_weight_percent"))
+        competency_weight = self._to_optional_float(item.get("competency_weight_percent"))
+
+        if performance_rank_score is None:
+            performance_rank_score = performance_score
+        if competency_rank_score is None:
+            competency_rank_score = competency_score
+        if core_value_rank_score is None:
+            core_value_rank_score = core_value_score
+
+        performance_rank = self._rank_from_score(performance_rank_score, settings.overall_score_thresholds)
+        competency_rank = self._rank_from_score(competency_rank_score, settings.overall_score_thresholds)
+        core_value_rank = self._rank_from_score(core_value_rank_score, settings.overall_score_thresholds)
+
+        total_score = (
+            round(performance_score + competency_score, 2)
+            if performance_score is not None and competency_score is not None
+            else None
+        )
+        overall_rank = self._rank_from_score(total_score, settings.overall_score_thresholds)
+
+        employment = item["employment_type"]
+        current_level = item.get("current_level")
+        current_stage = item.get("current_stage")
+
+        level_delta = None
+        if employment == "employee" and overall_rank is not None:
+            level_delta = int(settings.level_delta_by_overall_rank[overall_rank])
+
+        new_level = current_level + level_delta if current_level is not None and level_delta is not None else None
+        new_stage = current_stage
+
+        rule_context = {
+            "overallRank": overall_rank,
+            "competencyFinalRank": competency_rank,
+            "coreValueFinalRank": core_value_rank,
+        }
+
+        promotion_rule_hit = self._evaluate_promotion_groups(
+            settings.promotion.rule_groups,
+            rule_context,
+        )
+        demotion_rule_hit = self._evaluate_demotion_groups(
+            settings.demotion.rule_groups,
+            rule_context,
+        )
+
+        promotion_flag = (
+            employment == "employee"
+            and new_level is not None
+            and new_level >= 30
+            and promotion_rule_hit
+        )
+        demotion_flag = demotion_rule_hit
+
+        auto_decision = self._select_auto_decision(
+            promotion_flag=promotion_flag,
+            demotion_flag=demotion_flag,
+        )
+
+        auto_state = ComprehensiveEvaluationComputedState(
+            totalScore=total_score,
+            overallRank=overall_rank,
+            decision=auto_decision,
+            promotionFlag=promotion_flag,
+            demotionFlag=demotion_flag,
+            stageDelta=0,
+            levelDelta=level_delta,
+            newStage=new_stage,
+            newLevel=new_level,
+            isPromotionCandidate=promotion_flag,
+            isDemotionCandidate=demotion_flag,
+        )
+
+        manual_decision = None
+        if item.get("manual_decision"):
+            manual_decision = ComprehensiveManualDecisionResponse(
+                periodId=period_id,
+                decision=item["manual_decision"],
+                stageAfter=item.get("manual_stage_after"),
+                levelAfter=item.get("manual_level_after"),
+                reason=item.get("manual_reason") or "",
+                doubleCheckedBy=item.get("manual_double_checked_by"),
+                appliedByUserId=item.get("manual_applied_by_user_id"),
+                appliedAt=item.get("manual_applied_at"),
+            )
+
+        applied_state = self._apply_manual_decision(
+            auto_state=auto_state,
+            manual_decision=manual_decision,
+            current_stage=current_stage,
+            current_level=current_level,
+            employment_type=employment,
+        )
+
+        return ComprehensiveEvaluationRow(
+            id=item["id"],
+            userId=item["user_id"],
+            evaluationPeriodId=period_id,
+            employeeCode=item["employee_code"],
+            name=item["name"],
+            departmentName=item.get("department_name"),
+            employmentType=employment,
+            processingStatus=item["processing_status"],
+            performanceFinalRank=performance_rank,
+            performanceWeightPercent=performance_weight,
+            performanceScore=performance_score,
+            competencyFinalRank=competency_rank,
+            competencyWeightPercent=competency_weight,
+            competencyScore=competency_score,
+            coreValueFinalRank=core_value_rank,
+            leaderInterviewCleared=None,
+            divisionHeadPresentationCleared=None,
+            ceoInterviewCleared=None,
+            currentStage=current_stage,
+            currentLevel=current_level,
+            auto=auto_state,
+            applied=applied_state,
+            manualDecision=manual_decision,
+        )
 
     def _build_settings_from_rules(self, rule_data: Dict[str, List[Dict]]) -> ComprehensiveEvaluationSettings:
         overall_rules = sorted(
@@ -959,8 +993,11 @@ class ComprehensiveEvaluationService:
         status = self._get_period_status(period)
         if status == "cancelled":
             raise BadRequestError("Cannot modify manual decisions for cancelled evaluation periods")
-        if status != "completed":
-            raise BadRequestError("Manual decisions are available only after finalization")
+
+    def _ensure_period_allows_user_processing(self, period) -> None:
+        status = self._get_period_status(period)
+        if status == "cancelled":
+            raise BadRequestError("Cannot process evaluations for cancelled evaluation periods")
 
     def _get_period_status(self, period) -> str:
         status = getattr(period.status, "value", period.status)
