@@ -461,6 +461,14 @@ class SupervisorReviewService:
             if approved_goal:
                 await self._auto_create_self_assessment(approved_goal, org_id)
 
+                # Ensure core value evaluation exists for this user/period
+                try:
+                    from .core_value_service import CoreValueService
+                    cv_service = CoreValueService(self.session)
+                    await cv_service.ensure_evaluation_exists(approved_goal.period_id, approved_goal.user_id, org_id)
+                except Exception as e:
+                    logger.warning(f"Could not ensure core value evaluation exists for goal {review.goal_id}: {e}")
+
         elif review.action == "REJECTED":
             # Guard rail: handle SelfAssessment based on status for 差戻し
             existing_assessment = await self.self_assessment_repo.get_by_goal(review.goal_id, org_id)

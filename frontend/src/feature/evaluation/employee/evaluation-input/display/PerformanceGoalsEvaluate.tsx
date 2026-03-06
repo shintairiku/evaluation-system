@@ -21,7 +21,8 @@ import {
 } from "@/api/types/common";
 import { calculateWeightedRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSelfAssessmentAutoSave } from "../hooks/useSelfAssessmentAutoSave";
-import { SaveStatusIndicator, SupervisorFeedbackAlert } from "./components";
+import { SaveStatusIndicator } from "@/feature/evaluation/shared/SaveStatusIndicator";
+import { SupervisorFeedbackAlert } from "./components";
 
 interface PerformanceGoalsEvaluateProps {
   goalsWithAssessments: GoalWithAssessment[];

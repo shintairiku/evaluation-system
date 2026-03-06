@@ -10,6 +10,8 @@ from .goal import Goal
 from .self_assessment import SelfAssessment
 from .supervisor_review import SupervisorReview
 from .supervisor_feedback import SupervisorFeedback
+from .core_value import CoreValueDefinition, CoreValueEvaluation, CoreValueFeedback
+from .peer_review import PeerReviewAssignment, PeerReviewEvaluation
 from .comprehensive_evaluation import (
     ComprehensiveOverallRankRule,
     ComprehensiveDecisionRuleGroup,
@@ -57,4 +59,9 @@ __all__ = [
     "ViewerVisibilityUser",
     "ViewerVisibilityDepartment",
     "ViewerVisibilitySupervisorTeam",
+    "CoreValueDefinition",
+    "CoreValueEvaluation",
+    "CoreValueFeedback",
+    "PeerReviewAssignment",
+    "PeerReviewEvaluation",
 ]

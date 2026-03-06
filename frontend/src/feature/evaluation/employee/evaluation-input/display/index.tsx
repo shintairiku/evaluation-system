@@ -6,9 +6,9 @@ import CompetencyEvaluate from "./CompetencyEvaluate";
 import CoreValueEvaluate from "./CoreValueEvaluate";
 import SubmitButton from "../components/SubmitButton";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
-import { getCategorizedEvaluationPeriodsAction } from "@/api/server-actions/evaluation-periods";
 import { fetchAndCategorizeGoals } from "./utils";
-import type { EvaluationPeriod, GoalResponse, SelfAssessment, SupervisorFeedback } from "@/api/types";
+import type { EvaluationPeriod, GoalResponse, SelfAssessment, SupervisorFeedback, CoreValueDefinition, CoreValueEvaluation, CoreValueFeedback } from "@/api/types";
+import { getCoreValueDefinitionsAction, getMyEvaluationAction, getMyFeedbackAction } from "@/api/server-actions/core-values";
 
 /**
  * Combined type for display: Goal with its SelfAssessment and SupervisorFeedback
@@ -19,16 +19,28 @@ export interface GoalWithAssessment {
   supervisorFeedback: SupervisorFeedback | null;
 }
 
-export default function EmployeeEvaluationInputDisplay() {
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
-  const [currentPeriod, setCurrentPeriod] = useState<EvaluationPeriod | null>(null);
-  const [allPeriods, setAllPeriods] = useState<EvaluationPeriod[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface EmployeeEvaluationInputDisplayProps {
+  initialPeriods: EvaluationPeriod[];
+  initialPeriodId: string;
+}
+
+export default function EmployeeEvaluationInputDisplay({
+  initialPeriods,
+  initialPeriodId,
+}: EmployeeEvaluationInputDisplayProps) {
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>(initialPeriodId);
+  const currentPeriod = initialPeriods.find(p => p.status === 'active') || initialPeriods[0] || null;
+  const [allPeriods] = useState<EvaluationPeriod[]>(initialPeriods);
 
   // Data state for goals and self-assessments
   const [performanceGoals, setPerformanceGoals] = useState<GoalWithAssessment[]>([]);
   const [competencyGoals, setCompetencyGoals] = useState<GoalWithAssessment[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
+
+  // Core value state
+  const [coreValueDefinitions, setCoreValueDefinitions] = useState<CoreValueDefinition[]>([]);
+  const [coreValueEvaluation, setCoreValueEvaluation] = useState<CoreValueEvaluation | null>(null);
+  const [coreValueFeedback, setCoreValueFeedback] = useState<CoreValueFeedback | null>(null);
 
   /**
    * Fetch goals, self-assessments, and supervisor feedbacks for the selected period
@@ -38,42 +50,30 @@ export default function EmployeeEvaluationInputDisplay() {
 
     setIsLoadingData(true);
     try {
-      const { performance, competency } = await fetchAndCategorizeGoals(periodId);
-      setPerformanceGoals(performance);
-      setCompetencyGoals(competency);
+      const [goalsResult, definitionsResult, evaluationResult, feedbackResult] = await Promise.all([
+        fetchAndCategorizeGoals(periodId),
+        getCoreValueDefinitionsAction(),
+        getMyEvaluationAction(periodId),
+        getMyFeedbackAction(periodId),
+      ]);
+
+      setPerformanceGoals(goalsResult.performance);
+      setCompetencyGoals(goalsResult.competency);
+
+      if (definitionsResult.success && definitionsResult.data) {
+        setCoreValueDefinitions(definitionsResult.data);
+      }
+      if (evaluationResult.success) {
+        setCoreValueEvaluation(evaluationResult.data ?? null);
+      }
+      if (feedbackResult.success) {
+        setCoreValueFeedback(feedbackResult.data ?? null);
+      }
     } catch (error) {
       console.error('Failed to fetch goals and assessments:', error);
     } finally {
       setIsLoadingData(false);
     }
-  }, []);
-
-  // Fetch evaluation periods on mount
-  useEffect(() => {
-    const fetchPeriods = async () => {
-      try {
-        setIsLoading(true);
-        const result = await getCategorizedEvaluationPeriodsAction();
-
-        if (result.success && result.data) {
-          const periods = result.data.all || [];
-          setAllPeriods(periods);
-
-          // Set current period (find the one with status 'active' or first one)
-          const activePeriod = periods.find(p => p.status === 'active') || periods[0];
-          if (activePeriod) {
-            setCurrentPeriod(activePeriod);
-            setSelectedPeriodId(activePeriod.id);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch evaluation periods:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPeriods();
   }, []);
 
   // Fetch goals and assessments when period changes
@@ -104,9 +104,19 @@ export default function EmployeeEvaluationInputDisplay() {
     if (!selectedPeriodId) return;
 
     try {
-      const { performance, competency } = await fetchAndCategorizeGoals(selectedPeriodId);
-      setPerformanceGoals(performance);
-      setCompetencyGoals(competency);
+      const [goalsResult, evaluationResult, feedbackResult] = await Promise.all([
+        fetchAndCategorizeGoals(selectedPeriodId),
+        getMyEvaluationAction(selectedPeriodId),
+        getMyFeedbackAction(selectedPeriodId),
+      ]);
+      setPerformanceGoals(goalsResult.performance);
+      setCompetencyGoals(goalsResult.competency);
+      if (evaluationResult.success) {
+        setCoreValueEvaluation(evaluationResult.data ?? null);
+      }
+      if (feedbackResult.success) {
+        setCoreValueFeedback(feedbackResult.data ?? null);
+      }
     } catch (error) {
       console.error('Failed to refresh goals and assessments:', error);
     }
@@ -132,7 +142,7 @@ export default function EmployeeEvaluationInputDisplay() {
             selectedPeriodId={selectedPeriodId}
             currentPeriodId={currentPeriod?.id || null}
             onPeriodChange={handlePeriodChange}
-            isLoading={isLoading}
+            isLoading={false}
           />
         </div>
 
@@ -141,6 +151,8 @@ export default function EmployeeEvaluationInputDisplay() {
           <SubmitButton
             performanceGoals={performanceGoals}
             competencyGoals={competencyGoals}
+            coreValueEvaluation={coreValueEvaluation}
+            coreValueDefinitionCount={coreValueDefinitions.length}
             onSubmitSuccess={handleAssessmentUpdate}
             onRefreshData={handleSilentRefresh}
             isPeriodEditable={isPeriodEditable}
@@ -167,7 +179,12 @@ export default function EmployeeEvaluationInputDisplay() {
             isLoading={isLoadingData}
             isPeriodEditable={isPeriodEditable}
           />
-          <CoreValueEvaluate />
+          <CoreValueEvaluate
+            definitions={coreValueDefinitions}
+            evaluation={coreValueEvaluation}
+            feedback={coreValueFeedback}
+            isLoading={isLoadingData}
+          />
         </div>
       </div>
     </div>

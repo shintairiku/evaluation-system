@@ -42,6 +42,8 @@ export interface SupervisorFeedback extends SupervisorFeedbackBase {
   subordinateId: UUID;
   /** Numeric rating (0.0-7.0), auto-calculated */
   supervisorRating?: number;
+  /** Per-action ratings for competency goals (JSONB). NULL for performance goals. */
+  ratingData?: Record<string, Record<string, RatingCode>>;
   /** Feedback from supervisor requesting corrections (visible to subordinate) */
   returnComment?: string | null;
   /** Decision: PENDING or APPROVED */

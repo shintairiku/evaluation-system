@@ -10,19 +10,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Send, Loader2, CheckCircle2 } from "lucide-react";
+import { Send, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { submitSupervisorFeedbackAction } from "@/api/server-actions/supervisor-feedbacks";
+import { submitCoreValueFeedbackAction } from "@/api/server-actions/core-values";
 import { flushSupervisorFeedbackAutoSaves } from "../hooks/useSupervisorFeedbackAutoSave";
+import { flushCoreValueFeedbackAutoSaves } from "../hooks/useCoreValueFeedbackAutoSave";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
+import type { CoreValueFeedback } from "@/api/types";
 import type { PerformanceGoalSupervisorData } from "../display/PerformanceGoalsSupervisorEvaluation";
 import type { CompetencySupervisorData } from "../display/CompetencySupervisorEvaluation";
 
 interface SupervisorSubmitButtonProps {
   performanceGoals: PerformanceGoalSupervisorData[];
   competencyGoals: CompetencySupervisorData[];
+  coreValueFeedback?: CoreValueFeedback | null;
+  coreValueDefinitionsCount?: number;
+  coreValueScores?: Record<string, string> | null;
   onSubmitSuccess?: () => void;
   /** Called before opening dialog to refresh data for accurate validation */
   onRefreshData?: () => Promise<void>;
@@ -50,6 +56,9 @@ function canSubmitCompetencyFeedback(competency: CompetencySupervisorData): bool
 export default function SupervisorSubmitButton({
   performanceGoals,
   competencyGoals,
+  coreValueFeedback,
+  coreValueDefinitionsCount = 0,
+  coreValueScores,
   onSubmitSuccess,
   onRefreshData,
   disabled = false,
@@ -92,7 +101,10 @@ export default function SupervisorSubmitButton({
   const submittablePerformanceGoals = performanceGoals.filter(canSubmitPerformanceFeedback);
   const submittableCompetencyGoals = competencyGoals.filter(canSubmitCompetencyFeedback);
 
-  const hasSubmittableFeedbacks = submittablePerformanceGoals.length > 0 || submittableCompetencyGoals.length > 0;
+  // Check if core value feedback can be submitted
+  const canSubmitCoreValueFeedback = coreValueFeedback?.id && coreValueFeedback.status !== 'submitted';
+
+  const hasSubmittableFeedbacks = submittablePerformanceGoals.length > 0 || submittableCompetencyGoals.length > 0 || !!canSubmitCoreValueFeedback;
 
   // Deduplicate competency goals by feedbackId (multiple competencies share the same feedback)
   const uniqueCompetencyFeedbacks = useMemo(() => {
@@ -120,7 +132,19 @@ export default function SupervisorSubmitButton({
     })),
   ];
 
-  const canSubmit = feedbacksToSubmit.length > 0;
+  // Core value completeness check
+  const isCoreValueComplete = (() => {
+    if (!canSubmitCoreValueFeedback || coreValueDefinitionsCount === 0) return true;
+    const filledCount = Object.keys(coreValueScores ?? {}).length;
+    if (filledCount < coreValueDefinitionsCount) return false;
+    if (!coreValueFeedback?.comment?.trim()) return false;
+    return true;
+  })();
+
+  const hasIncomplete = !isCoreValueComplete;
+
+  const totalToSubmit = feedbacksToSubmit.length + (canSubmitCoreValueFeedback ? 1 : 0);
+  const canSubmit = totalToSubmit > 0 && !hasIncomplete;
 
   const handleCancel = () => {
     if (!isSubmitting) {
@@ -129,37 +153,45 @@ export default function SupervisorSubmitButton({
     }
   };
 
-  // Handle button click - flush auto-saves, refresh data, then open dialog
+  // Handle button click - flush auto-saves, refresh data, validate, then open dialog
   const handleButtonClick = async () => {
     setIsRefreshing(true);
     try {
-      await flushSupervisorFeedbackAutoSaves();
+      await Promise.all([
+        flushSupervisorFeedbackAutoSaves(),
+        flushCoreValueFeedbackAutoSaves(),
+      ]);
       if (onRefreshData) {
         await onRefreshData();
       }
     } finally {
       setIsRefreshing(false);
     }
+
     setIsOpen(true);
   };
 
   const handleSubmit = async () => {
-    if (feedbacksToSubmit.length === 0) return;
+    if (totalToSubmit === 0) return;
 
     announceToScreenReader('評価の提出処理を開始します', 'assertive');
     setIsSubmitting(true);
 
     try {
-      // Submit all feedbacks with APPROVED action
-      const results = await Promise.all(
-        feedbacksToSubmit.map((feedback) =>
+      // Submit all feedbacks with APPROVED action + core value feedback
+      const submitPromises = [
+        ...feedbacksToSubmit.map((feedback) =>
           submitSupervisorFeedbackAction(feedback.feedbackId, {
             action: 'APPROVED',
             supervisorRatingCode: feedback.supervisorRatingCode,
             supervisorComment: feedback.supervisorComment,
           })
-        )
-      );
+        ),
+        ...(canSubmitCoreValueFeedback && coreValueFeedback?.id
+          ? [submitCoreValueFeedbackAction(coreValueFeedback.id, { action: 'APPROVED' })]
+          : []),
+      ];
+      const results = await Promise.all(submitPromises);
 
       const failedCount = results.filter((r) => !r.success).length;
       const successCount = results.filter((r) => r.success).length;
@@ -223,7 +255,11 @@ export default function SupervisorSubmitButton({
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-blue-600" aria-hidden="true" />
+              {hasIncomplete ? (
+                <AlertCircle className="h-5 w-5 text-amber-600" aria-hidden="true" />
+              ) : (
+                <Send className="h-5 w-5 text-blue-600" aria-hidden="true" />
+              )}
               評価を提出しますか？
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -236,35 +272,55 @@ export default function SupervisorSubmitButton({
             role="region"
             aria-label="確認内容"
           >
-            <div
-              className="p-3 rounded-md border-l-4 bg-muted/50 border-blue-500"
-              role="region"
-              aria-label="提出情報"
-            >
-              <p className="text-sm font-medium text-foreground">
-                提出対象: {feedbacksToSubmit.length}件の評価
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                ※ 上長評価（評点・コメント）は任意です
-              </p>
-            </div>
-            <div
-              className="p-3 rounded-md border-l-4 bg-green-50 border-green-500"
-              role="region"
-              aria-label="補足情報"
-            >
-              <div className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-green-700">
-                    提出すると自己評価が承認されます
+            {hasIncomplete ? (
+              <div
+                className="p-3 rounded-md border-l-4 bg-amber-50 border-amber-500"
+                role="alert"
+                aria-live="polite"
+              >
+                <p className="text-sm font-medium text-amber-700">
+                  以下の項目が未入力です：
+                </p>
+                <ul className="list-disc list-inside text-sm text-amber-700 mt-2">
+                  <li>コアバリュー: 全項目の評価とコメントが必要です</li>
+                </ul>
+                <p className="text-sm mt-2 text-amber-700">
+                  すべての項目を入力してから提出してください。
+                </p>
+              </div>
+            ) : (
+              <>
+                <div
+                  className="p-3 rounded-md border-l-4 bg-muted/50 border-blue-500"
+                  role="region"
+                  aria-label="提出情報"
+                >
+                  <p className="text-sm font-medium text-foreground">
+                    提出対象: {totalToSubmit}件の評価
                   </p>
-                  <p className="text-sm mt-1 text-green-600">
-                    承認後は部下の自己評価が確定され、編集できなくなります。
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ※ コアバリュー評価は全項目必須です（業績目標・コンピテンシーの評点・コメントは任意）
                   </p>
                 </div>
-              </div>
-            </div>
+                <div
+                  className="p-3 rounded-md border-l-4 bg-green-50 border-green-500"
+                  role="region"
+                  aria-label="補足情報"
+                >
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-green-700">
+                        提出すると自己評価が承認されます
+                      </p>
+                      <p className="text-sm mt-1 text-green-600">
+                        承認後は部下の自己評価が確定され、編集できなくなります。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter className={isMobile ? 'flex-col-reverse gap-2 pt-4' : 'gap-3 pt-4'}>
             <Button

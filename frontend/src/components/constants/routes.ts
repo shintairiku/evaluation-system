@@ -32,10 +32,17 @@ export const groups = [
         permission: 'employee'
       },
       {
+        href: '/peer-review',
+        label: '同僚評価',
+        sublabel: 'Peer Review',
+        icon: 'users',
+        permission: 'employee'
+      },
+      {
         href: '/user-profiles',
         label: 'ユーザー管理',
         sublabel: 'User Profiles',
-        icon: 'users',
+        icon: 'user-cog',
         permission: 'authenticated'
       },
     ],
@@ -102,6 +109,13 @@ export const groups = [
         label: 'コンピテンシー管理',
         sublabel: 'Competency Management',
         icon: 'brain',
+        permission: 'admin'
+      },
+      {
+        href: '/peer-review-assignments',
+        label: '同僚評価進捗管理',
+        sublabel: 'Peer Review Assignments',
+        icon: 'users',
         permission: 'admin'
       },
     ],

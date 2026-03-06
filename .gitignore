@@ -48,6 +48,9 @@ yarn-error.log*
 # cursor
 .cursor
 
+# claude code
+.claude/worktrees/
+
 # personal notes
 .notes/
 
