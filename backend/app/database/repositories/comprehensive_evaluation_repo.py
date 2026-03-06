@@ -109,6 +109,8 @@ class ComprehensiveEvaluationRepository:
                     tu.user_id,
                     tu.employee_code,
                     tu.name,
+                    tu.department_id,
+                    tu.stage_id,
                     tu.department_name,
                     tu.employment_type,
                     tu.current_stage,
@@ -199,6 +201,8 @@ class ComprehensiveEvaluationRepository:
                     tu.user_id,
                     tu.employee_code,
                     tu.name,
+                    tu.department_id,
+                    tu.stage_id,
                     tu.department_name,
                     tu.employment_type,
                     tu.current_stage,
@@ -209,6 +213,8 @@ class ComprehensiveEvaluationRepository:
                     a.user_id,
                     a.employee_code,
                     a.name,
+                    a.department_id,
+                    a.stage_id,
                     a.department_name,
                     a.employment_type,
                     CASE
@@ -245,6 +251,8 @@ class ComprehensiveEvaluationRepository:
                 wm.user_id,
                 wm.employee_code,
                 wm.name,
+                wm.department_id,
+                wm.stage_id,
                 wm.department_name,
                 wm.employment_type,
                 wm.processing_status,
@@ -294,6 +302,792 @@ class ComprehensiveEvaluationRepository:
             record.pop("total_count", None)
 
         return records, total
+
+    async def list_rulesets(self, *, org_id: str) -> List[Dict[str, Any]]:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    id,
+                    name,
+                    settings_json,
+                    is_default_template,
+                    created_at,
+                    updated_at
+                FROM comprehensive_rulesets
+                WHERE organization_id = :organization_id
+                ORDER BY is_default_template DESC, lower(name) ASC, created_at ASC
+                """
+            ),
+            {"organization_id": org_id},
+        )
+        return [self._normalize_record(dict(row._mapping)) for row in result.fetchall()]
+
+    async def get_ruleset_by_id(self, *, org_id: str, ruleset_id: UUID) -> Optional[Dict[str, Any]]:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    id,
+                    name,
+                    settings_json,
+                    is_default_template,
+                    created_at,
+                    updated_at
+                FROM comprehensive_rulesets
+                WHERE organization_id = :organization_id
+                  AND id = :ruleset_id
+                """
+            ),
+            {"organization_id": org_id, "ruleset_id": ruleset_id},
+        )
+        row = result.fetchone()
+        return self._normalize_record(dict(row._mapping)) if row else None
+
+    async def get_ruleset_by_name(self, *, org_id: str, name: str) -> Optional[Dict[str, Any]]:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    id,
+                    name,
+                    settings_json,
+                    is_default_template,
+                    created_at,
+                    updated_at
+                FROM comprehensive_rulesets
+                WHERE organization_id = :organization_id
+                  AND name = :name
+                """
+            ),
+            {"organization_id": org_id, "name": name},
+        )
+        row = result.fetchone()
+        return self._normalize_record(dict(row._mapping)) if row else None
+
+    async def get_default_ruleset(self, *, org_id: str) -> Optional[Dict[str, Any]]:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    id,
+                    name,
+                    settings_json,
+                    is_default_template,
+                    created_at,
+                    updated_at
+                FROM comprehensive_rulesets
+                WHERE organization_id = :organization_id
+                  AND is_default_template = TRUE
+                LIMIT 1
+                """
+            ),
+            {"organization_id": org_id},
+        )
+        row = result.fetchone()
+        return self._normalize_record(dict(row._mapping)) if row else None
+
+    async def count_rulesets(self, *, org_id: str) -> int:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT COUNT(*) AS count
+                FROM comprehensive_rulesets
+                WHERE organization_id = :organization_id
+                """
+            ),
+            {"organization_id": org_id},
+        )
+        row = result.fetchone()
+        return int(row._mapping["count"]) if row else 0
+
+    async def create_ruleset(
+        self,
+        *,
+        org_id: str,
+        name: str,
+        settings_json: Dict[str, Any],
+        is_default_template: bool,
+    ) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        settings_payload = json.dumps(settings_json)
+
+        if is_default_template:
+            await self.session.execute(
+                text(
+                    """
+                    UPDATE comprehensive_rulesets
+                    SET is_default_template = FALSE,
+                        updated_at = :updated_at
+                    WHERE organization_id = :organization_id
+                      AND is_default_template = TRUE
+                    """
+                ),
+                {"organization_id": org_id, "updated_at": now},
+            )
+
+        result = await self.session.execute(
+            text(
+                """
+                INSERT INTO comprehensive_rulesets (
+                    id,
+                    organization_id,
+                    name,
+                    settings_json,
+                    is_default_template,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    :organization_id,
+                    :name,
+                    CAST(:settings_json AS jsonb),
+                    :is_default_template,
+                    :created_at,
+                    :updated_at
+                )
+                RETURNING
+                    id,
+                    name,
+                    settings_json,
+                    is_default_template,
+                    created_at,
+                    updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "name": name,
+                "settings_json": settings_payload,
+                "is_default_template": is_default_template,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        row = result.fetchone()
+        return self._normalize_record(dict(row._mapping))
+
+    async def update_ruleset(
+        self,
+        *,
+        org_id: str,
+        ruleset_id: UUID,
+        name: str,
+        settings_json: Dict[str, Any],
+        is_default_template: bool,
+    ) -> Optional[Dict[str, Any]]:
+        now = datetime.now(timezone.utc)
+        settings_payload = json.dumps(settings_json)
+
+        if is_default_template:
+            await self.session.execute(
+                text(
+                    """
+                    UPDATE comprehensive_rulesets
+                    SET is_default_template = FALSE,
+                        updated_at = :updated_at
+                    WHERE organization_id = :organization_id
+                      AND id <> :ruleset_id
+                      AND is_default_template = TRUE
+                    """
+                ),
+                {
+                    "organization_id": org_id,
+                    "ruleset_id": ruleset_id,
+                    "updated_at": now,
+                },
+            )
+
+        result = await self.session.execute(
+            text(
+                """
+                UPDATE comprehensive_rulesets
+                SET name = :name,
+                    settings_json = CAST(:settings_json AS jsonb),
+                    is_default_template = :is_default_template,
+                    updated_at = :updated_at
+                WHERE organization_id = :organization_id
+                  AND id = :ruleset_id
+                RETURNING
+                    id,
+                    name,
+                    settings_json,
+                    is_default_template,
+                    created_at,
+                    updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "ruleset_id": ruleset_id,
+                "name": name,
+                "settings_json": settings_payload,
+                "is_default_template": is_default_template,
+                "updated_at": now,
+            },
+        )
+        row = result.fetchone()
+        return self._normalize_record(dict(row._mapping)) if row else None
+
+    async def delete_ruleset(self, *, org_id: str, ruleset_id: UUID) -> bool:
+        result = await self.session.execute(
+            text(
+                """
+                DELETE FROM comprehensive_rulesets
+                WHERE organization_id = :organization_id
+                  AND id = :ruleset_id
+                """
+            ),
+            {"organization_id": org_id, "ruleset_id": ruleset_id},
+        )
+        return bool(result.rowcount)
+
+    async def list_period_assignments(self, *, org_id: str, period_id: UUID) -> List[Dict[str, Any]]:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    a.id,
+                    a.period_id,
+                    a.department_id,
+                    d.name AS department_name,
+                    a.stage_id,
+                    s.name AS stage_name,
+                    a.settings_json,
+                    a.source_ruleset_id,
+                    a.source_ruleset_name_snapshot,
+                    a.created_at,
+                    a.updated_at
+                FROM comprehensive_ruleset_assignments a
+                LEFT JOIN departments d
+                  ON d.id = a.department_id
+                LEFT JOIN stages s
+                  ON s.id = a.stage_id
+                WHERE a.organization_id = :organization_id
+                  AND a.period_id = :period_id
+                ORDER BY
+                    CASE
+                        WHEN a.department_id IS NULL AND a.stage_id IS NULL THEN 0
+                        WHEN a.department_id IS NOT NULL THEN 1
+                        ELSE 2
+                    END ASC,
+                    lower(COALESCE(d.name, s.name, '')) ASC,
+                    a.created_at ASC
+                """
+            ),
+            {"organization_id": org_id, "period_id": period_id},
+        )
+        return [self._normalize_record(dict(row._mapping)) for row in result.fetchall()]
+
+    async def get_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        department_id: Optional[UUID],
+        stage_id: Optional[UUID],
+    ) -> Optional[Dict[str, Any]]:
+        if department_id is not None and stage_id is not None:
+            raise ValueError("Only one scoped assignment target can be requested at a time")
+
+        if department_id is None and stage_id is None:
+            sql = text(
+                """
+                SELECT
+                    a.id,
+                    a.period_id,
+                    a.department_id,
+                    d.name AS department_name,
+                    a.stage_id,
+                    s.name AS stage_name,
+                    a.settings_json,
+                    a.source_ruleset_id,
+                    a.source_ruleset_name_snapshot,
+                    a.created_at,
+                    a.updated_at
+                FROM comprehensive_ruleset_assignments a
+                LEFT JOIN departments d
+                  ON d.id = a.department_id
+                LEFT JOIN stages s
+                  ON s.id = a.stage_id
+                WHERE a.organization_id = :organization_id
+                  AND a.period_id = :period_id
+                  AND a.department_id IS NULL
+                  AND a.stage_id IS NULL
+                LIMIT 1
+                """
+            )
+            params = {"organization_id": org_id, "period_id": period_id}
+        elif department_id is not None:
+            sql = text(
+                """
+                SELECT
+                    a.id,
+                    a.period_id,
+                    a.department_id,
+                    d.name AS department_name,
+                    a.stage_id,
+                    s.name AS stage_name,
+                    a.settings_json,
+                    a.source_ruleset_id,
+                    a.source_ruleset_name_snapshot,
+                    a.created_at,
+                    a.updated_at
+                FROM comprehensive_ruleset_assignments a
+                LEFT JOIN departments d
+                  ON d.id = a.department_id
+                LEFT JOIN stages s
+                  ON s.id = a.stage_id
+                WHERE a.organization_id = :organization_id
+                  AND a.period_id = :period_id
+                  AND a.department_id = :department_id
+                  AND a.stage_id IS NULL
+                LIMIT 1
+                """
+            )
+            params = {"organization_id": org_id, "period_id": period_id, "department_id": department_id}
+        else:
+            sql = text(
+                """
+                SELECT
+                    a.id,
+                    a.period_id,
+                    a.department_id,
+                    d.name AS department_name,
+                    a.stage_id,
+                    s.name AS stage_name,
+                    a.settings_json,
+                    a.source_ruleset_id,
+                    a.source_ruleset_name_snapshot,
+                    a.created_at,
+                    a.updated_at
+                FROM comprehensive_ruleset_assignments a
+                LEFT JOIN departments d
+                  ON d.id = a.department_id
+                LEFT JOIN stages s
+                  ON s.id = a.stage_id
+                WHERE a.organization_id = :organization_id
+                  AND a.period_id = :period_id
+                  AND a.department_id IS NULL
+                  AND a.stage_id = :stage_id
+                LIMIT 1
+                """
+            )
+            params = {"organization_id": org_id, "period_id": period_id, "stage_id": stage_id}
+
+        result = await self.session.execute(sql, params)
+        row = result.fetchone()
+        return self._normalize_record(dict(row._mapping)) if row else None
+
+    async def create_default_ruleset_if_missing(
+        self,
+        *,
+        org_id: str,
+        settings_json: Dict[str, Any],
+        name: str = "Default",
+    ) -> Dict[str, Any]:
+        existing_default = await self.get_default_ruleset(org_id=org_id)
+        if existing_default is not None:
+            return existing_default
+
+        existing_by_name = await self.get_ruleset_by_name(org_id=org_id, name=name)
+        if existing_by_name is not None:
+            updated = await self.update_ruleset(
+                org_id=org_id,
+                ruleset_id=existing_by_name["id"],
+                name=existing_by_name["name"],
+                settings_json=settings_json,
+                is_default_template=True,
+            )
+            return updated or existing_by_name
+
+        return await self.create_ruleset(
+            org_id=org_id,
+            name=name,
+            settings_json=settings_json,
+            is_default_template=True,
+        )
+
+    async def ensure_period_default_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        settings_json: Dict[str, Any],
+        source_ruleset_id: Optional[UUID],
+        source_ruleset_name_snapshot: Optional[str],
+    ) -> Dict[str, Any]:
+        existing = await self.get_assignment(
+            org_id=org_id,
+            period_id=period_id,
+            department_id=None,
+            stage_id=None,
+        )
+        if existing is not None:
+            return existing
+        return await self.upsert_default_assignment(
+            org_id=org_id,
+            period_id=period_id,
+            settings_json=settings_json,
+            source_ruleset_id=source_ruleset_id,
+            source_ruleset_name_snapshot=source_ruleset_name_snapshot,
+        )
+
+    async def upsert_default_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        settings_json: Dict[str, Any],
+        source_ruleset_id: Optional[UUID],
+        source_ruleset_name_snapshot: Optional[str],
+    ) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        settings_payload = json.dumps(settings_json)
+
+        update_result = await self.session.execute(
+            text(
+                """
+                UPDATE comprehensive_ruleset_assignments
+                SET settings_json = CAST(:settings_json AS jsonb),
+                    source_ruleset_id = :source_ruleset_id,
+                    source_ruleset_name_snapshot = :source_ruleset_name_snapshot,
+                    updated_at = :updated_at
+                WHERE organization_id = :organization_id
+                  AND period_id = :period_id
+                  AND department_id IS NULL
+                  AND stage_id IS NULL
+                RETURNING
+                    id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "settings_json": settings_payload,
+                "source_ruleset_id": source_ruleset_id,
+                "source_ruleset_name_snapshot": source_ruleset_name_snapshot,
+                "updated_at": now,
+            },
+        )
+        row = update_result.fetchone()
+        if row is not None:
+            return self._normalize_record(dict(row._mapping))
+
+        insert_result = await self.session.execute(
+            text(
+                """
+                INSERT INTO comprehensive_ruleset_assignments (
+                    id,
+                    organization_id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    :organization_id,
+                    :period_id,
+                    NULL,
+                    NULL,
+                    CAST(:settings_json AS jsonb),
+                    :source_ruleset_id,
+                    :source_ruleset_name_snapshot,
+                    :created_at,
+                    :updated_at
+                )
+                RETURNING
+                    id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "settings_json": settings_payload,
+                "source_ruleset_id": source_ruleset_id,
+                "source_ruleset_name_snapshot": source_ruleset_name_snapshot,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        row = insert_result.fetchone()
+        return self._normalize_record(dict(row._mapping))
+
+    async def upsert_department_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        department_id: UUID,
+        settings_json: Dict[str, Any],
+        source_ruleset_id: Optional[UUID],
+        source_ruleset_name_snapshot: Optional[str],
+    ) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        settings_payload = json.dumps(settings_json)
+
+        update_result = await self.session.execute(
+            text(
+                """
+                UPDATE comprehensive_ruleset_assignments
+                SET settings_json = CAST(:settings_json AS jsonb),
+                    source_ruleset_id = :source_ruleset_id,
+                    source_ruleset_name_snapshot = :source_ruleset_name_snapshot,
+                    updated_at = :updated_at
+                WHERE organization_id = :organization_id
+                  AND period_id = :period_id
+                  AND department_id = :department_id
+                  AND stage_id IS NULL
+                RETURNING
+                    id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "department_id": department_id,
+                "settings_json": settings_payload,
+                "source_ruleset_id": source_ruleset_id,
+                "source_ruleset_name_snapshot": source_ruleset_name_snapshot,
+                "updated_at": now,
+            },
+        )
+        row = update_result.fetchone()
+        if row is not None:
+            return self._normalize_record(dict(row._mapping))
+
+        insert_result = await self.session.execute(
+            text(
+                """
+                INSERT INTO comprehensive_ruleset_assignments (
+                    id,
+                    organization_id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    :organization_id,
+                    :period_id,
+                    :department_id,
+                    NULL,
+                    CAST(:settings_json AS jsonb),
+                    :source_ruleset_id,
+                    :source_ruleset_name_snapshot,
+                    :created_at,
+                    :updated_at
+                )
+                RETURNING
+                    id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "department_id": department_id,
+                "settings_json": settings_payload,
+                "source_ruleset_id": source_ruleset_id,
+                "source_ruleset_name_snapshot": source_ruleset_name_snapshot,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        row = insert_result.fetchone()
+        return self._normalize_record(dict(row._mapping))
+
+    async def upsert_stage_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        stage_id: UUID,
+        settings_json: Dict[str, Any],
+        source_ruleset_id: Optional[UUID],
+        source_ruleset_name_snapshot: Optional[str],
+    ) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        settings_payload = json.dumps(settings_json)
+
+        update_result = await self.session.execute(
+            text(
+                """
+                UPDATE comprehensive_ruleset_assignments
+                SET settings_json = CAST(:settings_json AS jsonb),
+                    source_ruleset_id = :source_ruleset_id,
+                    source_ruleset_name_snapshot = :source_ruleset_name_snapshot,
+                    updated_at = :updated_at
+                WHERE organization_id = :organization_id
+                  AND period_id = :period_id
+                  AND department_id IS NULL
+                  AND stage_id = :stage_id
+                RETURNING
+                    id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "stage_id": stage_id,
+                "settings_json": settings_payload,
+                "source_ruleset_id": source_ruleset_id,
+                "source_ruleset_name_snapshot": source_ruleset_name_snapshot,
+                "updated_at": now,
+            },
+        )
+        row = update_result.fetchone()
+        if row is not None:
+            return self._normalize_record(dict(row._mapping))
+
+        insert_result = await self.session.execute(
+            text(
+                """
+                INSERT INTO comprehensive_ruleset_assignments (
+                    id,
+                    organization_id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    gen_random_uuid(),
+                    :organization_id,
+                    :period_id,
+                    NULL,
+                    :stage_id,
+                    CAST(:settings_json AS jsonb),
+                    :source_ruleset_id,
+                    :source_ruleset_name_snapshot,
+                    :created_at,
+                    :updated_at
+                )
+                RETURNING
+                    id,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    settings_json,
+                    source_ruleset_id,
+                    source_ruleset_name_snapshot,
+                    created_at,
+                    updated_at
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "stage_id": stage_id,
+                "settings_json": settings_payload,
+                "source_ruleset_id": source_ruleset_id,
+                "source_ruleset_name_snapshot": source_ruleset_name_snapshot,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        row = insert_result.fetchone()
+        return self._normalize_record(dict(row._mapping))
+
+    async def delete_department_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        department_id: UUID,
+    ) -> bool:
+        result = await self.session.execute(
+            text(
+                """
+                DELETE FROM comprehensive_ruleset_assignments
+                WHERE organization_id = :organization_id
+                  AND period_id = :period_id
+                  AND department_id = :department_id
+                  AND stage_id IS NULL
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "department_id": department_id,
+            },
+        )
+        return bool(result.rowcount)
+
+    async def delete_stage_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        stage_id: UUID,
+    ) -> bool:
+        result = await self.session.execute(
+            text(
+                """
+                DELETE FROM comprehensive_ruleset_assignments
+                WHERE organization_id = :organization_id
+                  AND period_id = :period_id
+                  AND department_id IS NULL
+                  AND stage_id = :stage_id
+                """
+            ),
+            {
+                "organization_id": org_id,
+                "period_id": period_id,
+                "stage_id": stage_id,
+            },
+        )
+        return bool(result.rowcount)
 
     async def get_settings_rules(self, org_id: str) -> Dict[str, List[Dict[str, Any]]]:
         overall_result = await self.session.execute(
@@ -494,6 +1288,11 @@ class ComprehensiveEvaluationRepository:
         *,
         org_id: str,
         actor_user_id: UUID,
+        action: str,
+        period_id: Optional[UUID] = None,
+        department_id: Optional[UUID] = None,
+        stage_id: Optional[UUID] = None,
+        ruleset_id: Optional[UUID] = None,
         before_json: Optional[Dict[str, Any]],
         after_json: Optional[Dict[str, Any]],
     ) -> None:
@@ -507,6 +1306,11 @@ class ComprehensiveEvaluationRepository:
                     id,
                     organization_id,
                     actor_user_id,
+                    action,
+                    period_id,
+                    department_id,
+                    stage_id,
+                    ruleset_id,
                     before_json,
                     after_json,
                     changed_at
@@ -514,6 +1318,11 @@ class ComprehensiveEvaluationRepository:
                     gen_random_uuid(),
                     :organization_id,
                     :actor_user_id,
+                    :action,
+                    :period_id,
+                    :department_id,
+                    :stage_id,
+                    :ruleset_id,
                     CAST(:before_json AS jsonb),
                     CAST(:after_json AS jsonb),
                     :changed_at
@@ -523,6 +1332,11 @@ class ComprehensiveEvaluationRepository:
             {
                 "organization_id": org_id,
                 "actor_user_id": actor_user_id,
+                "action": action,
+                "period_id": period_id,
+                "department_id": department_id,
+                "stage_id": stage_id,
+                "ruleset_id": ruleset_id,
                 "before_json": before_payload,
                 "after_json": after_payload,
                 "changed_at": datetime.now(timezone.utc),
@@ -831,3 +1645,20 @@ class ComprehensiveEvaluationRepository:
             record.pop("total_count", None)
 
         return records, total
+
+    @staticmethod
+    def _normalize_record(record: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = dict(record)
+        if "settings_json" in normalized:
+            normalized["settings_json"] = ComprehensiveEvaluationRepository._normalize_json_document(
+                normalized.get("settings_json")
+            )
+        return normalized
+
+    @staticmethod
+    def _normalize_json_document(value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
