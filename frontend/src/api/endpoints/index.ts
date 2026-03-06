@@ -14,4 +14,6 @@ export * from './supervisor-feedbacks';
 export * from './admin-dashboard';
 export * from './supervisor-dashboard';
 export * from './employee-dashboard';
+export * from './core-values';
+export * from './peer-reviews';
 export * from './comprehensive-evaluation';

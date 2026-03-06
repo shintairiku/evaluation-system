@@ -244,6 +244,41 @@ export const API_ENDPOINTS = {
     RETURN: (id: string) => `/supervisor-feedbacks/${id}/return`,
   },
 
+  // Core Value endpoints
+  CORE_VALUES: {
+    DEFINITIONS: buildApiUrl('/core-values/definitions'),
+    DEFINITIONS_SEED: buildApiUrl('/core-values/definitions/seed'),
+    MY_EVALUATION: buildApiUrl('/core-values/evaluations/mine'),
+    UPDATE_EVALUATION: (id: string) => buildApiUrl(`/core-values/evaluations/${id}`),
+    SUBMIT_EVALUATION: (id: string) => buildApiUrl(`/core-values/evaluations/${id}/submit`),
+    REOPEN_EVALUATION: (id: string) => buildApiUrl(`/core-values/evaluations/${id}/reopen`),
+    SUBORDINATE_DATA: buildApiUrl('/core-values/subordinate'),
+    MY_FEEDBACK: buildApiUrl('/core-values/feedback/mine'),
+    UPDATE_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}`),
+    SUBMIT_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}/submit`),
+    RETURN_FEEDBACK: (id: string) => buildApiUrl(`/core-values/feedback/${id}/return`),
+    PENDING_FEEDBACK_COUNT: buildApiUrl('/core-values/feedback/pending-count'),
+  },
+
+  // Peer Review endpoints
+  PEER_REVIEWS: {
+    ASSIGNMENTS: buildApiUrl('/peer-reviews/assignments'),
+    ASSIGN_REVIEWERS: (periodId: string, revieweeId: string) =>
+      buildApiUrl(`/peer-reviews/assignments/${periodId}/reviewee/${revieweeId}`),
+    REMOVE_ASSIGNMENT: (assignmentId: string) =>
+      buildApiUrl(`/peer-reviews/assignments/${assignmentId}`),
+    MINE: buildApiUrl('/peer-reviews/mine'),
+    UPDATE_EVALUATION: (evalId: string) =>
+      buildApiUrl(`/peer-reviews/evaluations/${evalId}`),
+    SUBMIT_EVALUATION: (evalId: string) =>
+      buildApiUrl(`/peer-reviews/evaluations/${evalId}/submit`),
+    RESULTS_MINE: buildApiUrl('/peer-reviews/results/mine'),
+    RESULTS_USER: buildApiUrl('/peer-reviews/results/user'),
+    SUMMARY_USER: buildApiUrl('/peer-reviews/summary/user'),
+    PROGRESS: buildApiUrl('/peer-reviews/progress'),
+    DETAIL: buildApiUrl('/peer-reviews/detail'),
+  },
+
   // Permission management endpoints
   PERMISSIONS: {
     CATALOG: '/permissions/',

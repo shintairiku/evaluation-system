@@ -22,37 +22,35 @@ export interface SearchUsersParams extends PaginationParams {
   supervisor_id?: string;
 }
 
-export const getUsersAction = cache(
-  async (
-    params?: PaginationParams,
-  ): Promise<{
-    success: boolean;
-    data?: UserList;
-    error?: string;
-  }> => {
-    try {
-      const response = await usersApi.getUsers(params);
+export async function getUsersAction(
+  params?: PaginationParams,
+): Promise<{
+  success: boolean;
+  data?: UserList;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.getUsers(params);
 
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.error || 'Failed to fetch users',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get users action error:', error);
+    if (!response.success || !response.data) {
       return {
         success: false,
-        error: 'An unexpected error occurred while fetching users',
+        error: response.error || 'Failed to fetch users',
       };
     }
-  },
-);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get users action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching users',
+    };
+  }
+}
 
 export const getUsersPageAction = cache(
   async (
@@ -86,37 +84,35 @@ export const getUsersPageAction = cache(
   },
 );
 
-export const getUserByIdAction = cache(
-  async (
-    userId: UUID,
-  ): Promise<{
-    success: boolean;
-    data?: UserDetailResponse;
-    error?: string;
-  }> => {
-    try {
-      const response = await usersApi.getUserById(userId);
+export async function getUserByIdAction(
+  userId: UUID,
+): Promise<{
+  success: boolean;
+  data?: UserDetailResponse;
+  error?: string;
+}> {
+  try {
+    const response = await usersApi.getUserById(userId);
 
-      if (!response.success || !response.data) {
-        return {
-          success: false,
-          error: response.error || 'Failed to fetch user',
-        };
-      }
-
-      return {
-        success: true,
-        data: response.data,
-      };
-    } catch (error) {
-      console.error('Get user by ID action error:', error);
+    if (!response.success || !response.data) {
       return {
         success: false,
-        error: 'An unexpected error occurred while fetching user',
+        error: response.error || 'Failed to fetch user',
       };
     }
-  },
-);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Get user by ID action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching user',
+    };
+  }
+}
 
 export const getUsersByIdsAction = cache(
   async (

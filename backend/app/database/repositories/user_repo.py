@@ -499,7 +499,8 @@ class UserRepository(BaseRepository[User]):
             query = select(User).options(
                 joinedload(User.department),
                 joinedload(User.stage),
-                joinedload(User.roles)
+                joinedload(User.roles),
+                joinedload(User.supervisor_relations).joinedload(UserSupervisor.supervisor)
             ).filter(User.status == UserStatus.ACTIVE.value)
             
             # Apply organization filter (required)

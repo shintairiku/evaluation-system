@@ -17,12 +17,16 @@ import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
 import { flushSelfAssessmentAutoSaves } from "../hooks/useSelfAssessmentAutoSave";
-import type { CompetencyRatingData } from "@/api/types";
+import { flushCoreValueEvaluationAutoSaves } from "../hooks/useCoreValueEvaluationAutoSave";
+import { submitCoreValueEvaluationAction, reopenCoreValueEvaluationAction } from "@/api/server-actions/core-values";
+import type { CompetencyRatingData, CoreValueEvaluation } from "@/api/types";
 import type { GoalWithAssessment } from "../display/index";
 
 interface SubmitButtonProps {
   performanceGoals: GoalWithAssessment[];
   competencyGoals: GoalWithAssessment[];
+  coreValueEvaluation?: CoreValueEvaluation | null;
+  coreValueDefinitionCount?: number;
   onSubmitSuccess?: () => void;
   /** Called before opening dialog to refresh data for accurate validation */
   onRefreshData?: () => Promise<void>;
@@ -126,15 +130,13 @@ function isPerformanceAssessmentComplete(item: GoalWithAssessment): boolean {
 
 /**
  * Check if a competency goal assessment is complete.
- * Requires comment + at least one action rating.
+ * Requires comment + ALL action ratings for every competency.
  */
 function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
   const assessment = item.selfAssessment;
   if (!assessment) return false;
-  // Approved assessments are locked and complete
   if (assessment.status === 'approved') return true;
 
-  // Comment is required
   if (!assessment.selfComment?.trim()) return false;
 
   // Rating data is required
@@ -158,6 +160,8 @@ function isCompetencyAssessmentComplete(item: GoalWithAssessment): boolean {
 export default function SubmitButton({
   performanceGoals,
   competencyGoals,
+  coreValueEvaluation,
+  coreValueDefinitionCount = 0,
   onSubmitSuccess,
   onRefreshData,
   isPeriodEditable = true,
@@ -218,13 +222,29 @@ export default function SubmitButton({
     (item) => !isCompetencyAssessmentComplete(item)
   );
 
-  const hasIncomplete = incompletePerformance.length > 0 || incompleteCompetency.length > 0;
-  const hasEditableAssessments = editablePerformanceAssessments.length > 0 || editableCompetencyAssessments.length > 0;
+  // Core value evaluation completeness check
+  const isCoreValueComplete = (() => {
+    if (!coreValueEvaluation || coreValueDefinitionCount === 0) return true; // No core value to evaluate
+    if (coreValueEvaluation.status === 'approved') return true;
+    if (coreValueEvaluation.status === 'submitted') return true;
+    const scores = coreValueEvaluation.scores ?? {};
+    if (Object.keys(scores).length < coreValueDefinitionCount) return false;
+    if (!coreValueEvaluation.comment?.trim()) return false;
+    return true;
+  })();
+
+  const isCoreValueEditable = coreValueEvaluation && (coreValueEvaluation.status === 'draft' || coreValueEvaluation.status === 'submitted');
+  const isCoreValueDraft = coreValueEvaluation?.status === 'draft';
+  const isCoreValueSubmitted = coreValueEvaluation?.status === 'submitted';
+
+  const hasIncomplete = incompletePerformance.length > 0 || incompleteCompetency.length > 0 || (isCoreValueDraft && !isCoreValueComplete);
+  const hasEditableAssessments = editablePerformanceAssessments.length > 0 || editableCompetencyAssessments.length > 0 || !!isCoreValueEditable;
 
   // Check if all editable assessments are already submitted (no drafts left)
   const allAlreadySubmitted = hasEditableAssessments &&
     editablePerformanceAssessments.every((item) => item.selfAssessment?.status === 'submitted') &&
-    editableCompetencyAssessments.every((item) => item.selfAssessment?.status === 'submitted');
+    editableCompetencyAssessments.every((item) => item.selfAssessment?.status === 'submitted') &&
+    (!isCoreValueEditable || isCoreValueSubmitted);
 
   // Get IDs of assessments to submit (only draft ones need submission)
   const assessmentIdsToSubmit = [
@@ -236,6 +256,9 @@ export default function SubmitButton({
       .map((item) => item.selfAssessment!.id),
   ];
 
+  // Core value evaluation to submit
+  const coreValueIdToSubmit = isCoreValueDraft && isCoreValueComplete ? coreValueEvaluation?.id : undefined;
+
   // Get IDs of submitted assessments that can be reopened
   const assessmentIdsToReopen = [
     ...editablePerformanceAssessments
@@ -246,8 +269,12 @@ export default function SubmitButton({
       .map((item) => item.selfAssessment!.id),
   ];
 
-  const canSubmit = assessmentIdsToSubmit.length > 0 && !hasIncomplete;
-  const canReopen = assessmentIdsToReopen.length > 0;
+  // Core value evaluation to reopen
+  const coreValueIdToReopen = isCoreValueSubmitted ? coreValueEvaluation?.id : undefined;
+
+  const totalToSubmit = assessmentIdsToSubmit.length + (coreValueIdToSubmit ? 1 : 0);
+  const canSubmit = totalToSubmit > 0 && !hasIncomplete;
+  const canReopen = assessmentIdsToReopen.length > 0 || !!coreValueIdToReopen;
 
   const handleCancel = () => {
     if (!isSubmitting) {
@@ -262,7 +289,10 @@ export default function SubmitButton({
 
     setIsRefreshing(true);
     try {
-      await flushSelfAssessmentAutoSaves();
+      await Promise.all([
+        flushSelfAssessmentAutoSaves(),
+        flushCoreValueEvaluationAutoSaves(),
+      ]);
       if (onRefreshData) {
         await onRefreshData();
       }
@@ -278,16 +308,18 @@ export default function SubmitButton({
   };
 
   const handleSubmit = async () => {
-    if (assessmentIdsToSubmit.length === 0) return;
+    if (totalToSubmit === 0) return;
 
     announceToScreenReader('自己評価の提出処理を開始します', 'assertive');
     setIsSubmitting(true);
 
     try {
-      // Submit all assessments
-      const results = await Promise.all(
-        assessmentIdsToSubmit.map((id) => submitSelfAssessmentAction(id))
-      );
+      // Submit all assessments + core value evaluation
+      const submitPromises = [
+        ...assessmentIdsToSubmit.map((id) => submitSelfAssessmentAction(id)),
+        ...(coreValueIdToSubmit ? [submitCoreValueEvaluationAction(coreValueIdToSubmit)] : []),
+      ];
+      const results = await Promise.all(submitPromises);
 
       const failedCount = results.filter((r) => !r.success).length;
       const successCount = results.filter((r) => r.success).length;
@@ -320,16 +352,18 @@ export default function SubmitButton({
   };
 
   const handleReopen = async () => {
-    if (assessmentIdsToReopen.length === 0) return;
+    if (assessmentIdsToReopen.length === 0 && !coreValueIdToReopen) return;
 
     announceToScreenReader('自己評価の編集を再開します', 'assertive');
     setIsReopening(true);
 
     try {
-      // Reopen all submitted assessments
-      const results = await Promise.all(
-        assessmentIdsToReopen.map((id) => reopenSelfAssessmentAction(id))
-      );
+      // Reopen all submitted assessments + core value evaluation
+      const reopenPromises = [
+        ...assessmentIdsToReopen.map((id) => reopenSelfAssessmentAction(id)),
+        ...(coreValueIdToReopen ? [reopenCoreValueEvaluationAction(coreValueIdToReopen)] : []),
+      ];
+      const results = await Promise.all(reopenPromises);
 
       const failedCount = results.filter((r) => !r.success).length;
       const successCount = results.filter((r) => r.success).length;
@@ -369,7 +403,10 @@ export default function SubmitButton({
       messages.push(`業績目標: ${incompletePerformance.length}件が未入力`);
     }
     if (incompleteCompetency.length > 0) {
-      messages.push(`コンピテンシー: ${incompleteCompetency.length}件が未入力`);
+      messages.push(`コンピテンシー: ${incompleteCompetency.length}件が未入力（全項目の評価が必要です）`);
+    }
+    if (isCoreValueDraft && !isCoreValueComplete) {
+      messages.push('コアバリュー: 全項目の評価が必要です');
     }
 
     return messages;
@@ -470,7 +507,7 @@ export default function SubmitButton({
                   aria-label="提出情報"
                 >
                   <p className="text-sm font-medium text-foreground">
-                    提出対象: {assessmentIdsToSubmit.length}件の自己評価
+                    提出対象: {totalToSubmit}件の自己評価
                   </p>
                 </div>
                 <div

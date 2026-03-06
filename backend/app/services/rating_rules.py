@@ -35,10 +35,6 @@ def validate_rating_code_for_goal(
         return
 
     goal_category_text = _as_text(goal_category)
-    if goal_category_text == "コアバリュー":
-        raise ValidationError(
-            f"Core Value goals (コアバリュー) cannot have {actor_name} rating."
-        )
 
     if goal_category_text == "コンピテンシー" and rating_code_text == "D":
         raise ValidationError(

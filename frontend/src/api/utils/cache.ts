@@ -22,6 +22,9 @@ export const CACHE_TAGS = {
   EVALUATIONS: 'evaluations',
   ADMIN_DASHBOARD: 'admin-dashboard',
   VIEWER_VISIBILITY: 'viewer-visibility',
+  CORE_VALUE_DEFINITIONS: 'core-value-definitions',
+  CORE_VALUES: 'core-values',
+  PEER_REVIEWS: 'peer-reviews',
   COMPREHENSIVE_EVALUATION_LIST: 'comprehensive-evaluation-list',
   COMPREHENSIVE_EVALUATION_SETTINGS: 'comprehensive-evaluation-settings',
   COMPREHENSIVE_EVALUATION_HISTORY: 'comprehensive-evaluation-history',
@@ -103,6 +106,18 @@ export const CACHE_STRATEGIES = {
   [CACHE_TAGS.VIEWER_VISIBILITY]: {
     duration: CACHE_DURATIONS.DYNAMIC,
     tags: [CACHE_TAGS.VIEWER_VISIBILITY] as string[],
+  },
+  [CACHE_TAGS.CORE_VALUE_DEFINITIONS]: {
+    duration: CACHE_DURATIONS.STATIC,
+    tags: [CACHE_TAGS.CORE_VALUE_DEFINITIONS] as string[],
+  },
+  [CACHE_TAGS.CORE_VALUES]: {
+    duration: CACHE_DURATIONS.DYNAMIC,
+    tags: [CACHE_TAGS.CORE_VALUES] as string[],
+  },
+  [CACHE_TAGS.PEER_REVIEWS]: {
+    duration: CACHE_DURATIONS.DYNAMIC,
+    tags: [CACHE_TAGS.PEER_REVIEWS] as string[],
   },
   [CACHE_TAGS.COMPREHENSIVE_EVALUATION_LIST]: {
     duration: CACHE_DURATIONS.DYNAMIC,

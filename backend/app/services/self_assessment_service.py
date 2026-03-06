@@ -10,6 +10,7 @@ from ..database.repositories.user_repo import UserRepository
 from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.repositories.supervisor_feedback_repo import SupervisorFeedbackRepository
+from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.models.self_assessment import SelfAssessment as SelfAssessmentModel
 from ..schemas.self_assessment import (
     SelfAssessmentCreate, SelfAssessmentUpdate, SelfAssessment, SelfAssessmentDetail
@@ -44,6 +45,7 @@ class SelfAssessmentService:
         self.competency_repo = CompetencyRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.supervisor_feedback_repo = SupervisorFeedbackRepository(session)
+        self.competency_repo = CompetencyRepository(session)
         
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
@@ -250,7 +252,15 @@ class SelfAssessmentService:
             
             # Create assessment
             created_assessment = await self.self_assessment_repo.create_assessment(assessment_data, goal_id, org_id)
-            
+
+            # Ensure core value evaluation exists for this user/period
+            try:
+                from .core_value_service import CoreValueService
+                cv_service = CoreValueService(self.session)
+                await cv_service.ensure_evaluation_exists(goal.period_id, goal.user_id, org_id)
+            except Exception as e:
+                logger.warning(f"Could not ensure core value evaluation exists: {e}")
+
             # Commit transaction
             await self.session.commit()
             await self.session.refresh(created_assessment)
@@ -376,6 +386,21 @@ class SelfAssessmentService:
                 # Requires rating_data (per-action ratings) and self_comment
                 if not existing_assessment.rating_data:
                     raise ValidationError("Action ratings are required before submission")
+
+                # Validate ALL action ratings are present
+                user = await self.user_repo.get_user_by_id(existing_assessment.goal.user_id, org_id)
+                if user and user.stage_id:
+                    stage_competencies = await self.competency_repo.get_by_stage_id(user.stage_id, org_id)
+                    for comp in stage_competencies:
+                        comp_id_str = str(comp.id)
+                        comp_ratings = existing_assessment.rating_data.get(comp_id_str, {})
+                        action_texts = comp.description or {}
+                        for action_idx in action_texts.keys():
+                            if action_idx not in comp_ratings:
+                                raise ValidationError(
+                                    "All competency action ratings are required before submission"
+                                )
+
                 if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
                     raise ValidationError("Self-comment is required before submission")
                 await self._validate_competency_rating_data_completeness(
@@ -929,11 +954,38 @@ class SelfAssessmentService:
                 org_id=org_id
             )
 
-            # Add calculated boolean fields
+            # Get core value evaluation status for subordinates
+            try:
+                from ..database.repositories.core_value_evaluation_repo import CoreValueEvaluationRepository
+                cv_eval_repo = CoreValueEvaluationRepository(self.session)
+                cv_status_map = await cv_eval_repo.get_evaluation_status_by_users(
+                    user_ids=subordinate_ids,
+                    period_id=period_id,
+                    org_id=org_id
+                )
+            except Exception as e:
+                logger.warning(f"Could not fetch core value evaluation statuses: {e}")
+                cv_status_map = {}
+
+            # Add calculated boolean fields and core value status
             for status in status_list:
+                user_id_str = status['userId']
                 total = status['totalCount']
                 submitted = status['submittedCount']
                 approved = status['approvedCount']
+
+                # Include core value evaluation in counts
+                cv_info = cv_status_map.get(user_id_str)
+                if cv_info:
+                    total += 1
+                    status['totalCount'] = total
+                    if cv_info['status'] in ('submitted', 'approved'):
+                        submitted += 1
+                        status['submittedCount'] = submitted
+                    if cv_info['status'] == 'approved':
+                        approved += 1
+                        status['approvedCount'] = approved
+
                 status['allSubmitted'] = total > 0 and submitted == total
                 status['allApproved'] = total > 0 and approved == total
 

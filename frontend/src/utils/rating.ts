@@ -1,5 +1,7 @@
 import type { RatingCode, FinalRatingCode } from '@/api/types';
 import { RATING_CODE_VALUES } from '@/api/types/common';
+import type { CoreValueRatingCode } from '@/api/types/core-value';
+import { CORE_VALUE_RATING_VALUES } from '@/api/types/core-value';
 
 /**
  * Rating calculation utilities for the evaluation system.
@@ -108,4 +110,55 @@ export function calculateWeightedAverageRatingCode(
   const avg = calculateWeightedRatingAverage(items);
   if (avg === null) return '−';
   return scoreToFinalRating(avg);
+}
+
+/**
+ * Calculates the average score from a list of core value rating codes.
+ * Uses CORE_VALUE_RATING_VALUES (7-level scale: SS/S/A+/A/A-/B/C).
+ *
+ * @param ratings - Array of CoreValueRatingCode values
+ * @returns The average score, or null if no valid ratings
+ */
+export function calculateCoreValueRatingAverage(
+  ratings: CoreValueRatingCode[]
+): number | null {
+  if (ratings.length === 0) return null;
+
+  let sum = 0;
+  let count = 0;
+
+  for (const rating of ratings) {
+    const value = CORE_VALUE_RATING_VALUES[rating];
+    if (value !== undefined) {
+      sum += value;
+      count++;
+    }
+  }
+
+  if (count === 0) return null;
+  return sum / count;
+}
+
+/**
+ * Returns Tailwind CSS classes for a rating badge based on the rating code.
+ */
+export function getRatingColor(rating: string | null): string {
+  if (!rating) return 'bg-muted text-muted-foreground';
+  switch (rating) {
+    case 'SS':
+    case 'S':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'A+':
+    case 'A':
+      return 'bg-green-100 text-green-800 border-green-200';
+    case 'A-':
+      return 'bg-lime-100 text-lime-800 border-lime-200';
+    case 'B':
+      return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'C':
+    case 'D':
+      return 'bg-red-100 text-red-800 border-red-200';
+    default:
+      return 'bg-muted text-muted-foreground';
+  }
 }

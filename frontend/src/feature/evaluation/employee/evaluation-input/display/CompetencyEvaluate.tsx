@@ -15,7 +15,8 @@ import type { GoalWithAssessment } from "./index";
 import type { RatingCode, CompetencyRatingData } from "@/api/types";
 import { calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSelfAssessmentAutoSave } from "../hooks/useSelfAssessmentAutoSave";
-import { SaveStatusIndicator, SupervisorFeedbackAlert } from "./components";
+import { SaveStatusIndicator } from "@/feature/evaluation/shared/SaveStatusIndicator";
+import { SupervisorFeedbackAlert } from "./components";
 import { getGoalActionTexts } from "./competencyRequirements";
 
 interface CompetencyEvaluateProps {
@@ -184,6 +185,7 @@ function CompetencyGoalCard({
                     {/* Action Description */}
                     <div className={`text-sm mb-3 ${isFocusedAction ? 'text-gray-800 font-medium pl-3 border-l-2 border-green-500' : 'text-gray-600'}`}>
                       {actionText}
+                      {isEditable && !currentRating && <span className="text-red-500"> *</span>}
                     </div>
 
                     {/* Rating Buttons for this action */}
