@@ -18,6 +18,8 @@ from .comprehensive_evaluation import (
     ComprehensiveDecisionRule,
     ComprehensiveManualDecision,
     ComprehensiveManualDecisionHistory,
+    ComprehensiveRuleset,
+    ComprehensiveRulesetAssignment,
     ComprehensiveSettingsAuditLog,
 )
 from .viewer_visibility import (
@@ -51,6 +53,8 @@ __all__ = [
     "ComprehensiveDecisionRule",
     "ComprehensiveManualDecision",
     "ComprehensiveManualDecisionHistory",
+    "ComprehensiveRuleset",
+    "ComprehensiveRulesetAssignment",
     "ComprehensiveSettingsAuditLog",
     "PermissionModel",
     "RolePermissionModel",
