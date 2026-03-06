@@ -71,7 +71,7 @@ class EvaluationPeriodRepository(BaseRepository[EvaluationPeriod]):
         - draft: today < start_date
         - active: start_date <= today <= evaluation_deadline
         - completed: today > evaluation_deadline
-        - cancelled: never auto-changed
+        - cancelled/completed: never auto-changed
 
         This runs as a single SQL UPDATE and only touches rows whose status is outdated.
         Returns the number of rows updated.
@@ -88,7 +88,10 @@ class EvaluationPeriodRepository(BaseRepository[EvaluationPeriod]):
             stmt = (
                 update(EvaluationPeriod)
                 .where(EvaluationPeriod.organization_id == org_id)
-                .where(EvaluationPeriod.status != EvaluationPeriodStatus.CANCELLED.value)
+                .where(EvaluationPeriod.status.notin_([
+                    EvaluationPeriodStatus.CANCELLED.value,
+                    EvaluationPeriodStatus.COMPLETED.value,
+                ]))
                 .where(EvaluationPeriod.status != computed_status)
                 .values(status=computed_status, updated_at=datetime.utcnow())
             )

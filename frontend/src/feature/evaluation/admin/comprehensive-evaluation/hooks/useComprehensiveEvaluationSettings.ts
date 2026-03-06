@@ -1,320 +1,165 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
-  EVALUATION_RANKS,
+  getComprehensiveEvaluationSettingsAction,
+  updateComprehensiveEvaluationSettingsAction,
+} from "@/api/server-actions/comprehensive-evaluation";
+import type {
+  ComprehensiveEvaluationSettingsRequest,
+  ComprehensiveEvaluationSettingsResponse,
+} from "@/api/types";
+
+import {
   type ComprehensiveEvaluationSettings,
-  type DemotionRuleCondition,
   type DemotionRuleGroup,
-  type PromotionRuleCondition,
   type PromotionRuleGroup,
 } from "../settings";
 import { mockDefaultComprehensiveEvaluationSettings } from "../mock";
-import type { EvaluationRank } from "../types";
 
-const STORAGE_KEY_V2 = "comprehensive-evaluation:settings:v2";
-const STORAGE_KEY_V1 = "comprehensive-evaluation:settings:v1";
-
-function isEvaluationRank(value: unknown): value is EvaluationRank {
-  return typeof value === "string" && (EVALUATION_RANKS as string[]).includes(value);
-}
-
-const PROMOTION_RANK_FIELDS = new Set<PromotionRuleCondition["field"]>([
-  "overallRank",
-  "competencyFinalRank",
-  "coreValueFinalRank",
-]);
-
-function isPromotionRuleCondition(value: unknown): value is PromotionRuleCondition {
-  if (!value || typeof value !== "object") return false;
-  const condition = value as PromotionRuleCondition;
-
-  if (condition.type === "rank_at_least") {
-    return (
-      PROMOTION_RANK_FIELDS.has(condition.field) &&
-      isEvaluationRank((condition as PromotionRuleCondition & { minimumRank?: unknown }).minimumRank)
-    );
+function normalizePromotionGroups(
+  groups: ComprehensiveEvaluationSettingsResponse["promotion"]["ruleGroups"] | undefined,
+): PromotionRuleGroup[] {
+  if (!groups || groups.length === 0) {
+    return mockDefaultComprehensiveEvaluationSettings.promotion.ruleGroups;
   }
 
-  return false;
+  return groups.map((group, index) => ({
+    id: group.id || `promotion-group-${index + 1}`,
+    conditions: group.conditions.map((condition) => ({
+      type: "rank_at_least",
+      field: condition.field,
+      minimumRank: condition.minimumRank,
+    })),
+  }));
 }
 
-const DEMOTION_RANK_FIELDS = new Set<DemotionRuleCondition["field"]>([
-  "overallRank",
-  "competencyFinalRank",
-  "coreValueFinalRank",
-]);
-
-function isDemotionRuleCondition(value: unknown): value is DemotionRuleCondition {
-  if (!value || typeof value !== "object") return false;
-  const condition = value as DemotionRuleCondition;
-
-  if (condition.type === "rank_at_or_worse") {
-    return (
-      DEMOTION_RANK_FIELDS.has(condition.field) &&
-      isEvaluationRank((condition as DemotionRuleCondition & { thresholdRank?: unknown }).thresholdRank)
-    );
+function normalizeDemotionGroups(
+  groups: ComprehensiveEvaluationSettingsResponse["demotion"]["ruleGroups"] | undefined,
+): DemotionRuleGroup[] {
+  if (!groups || groups.length === 0) {
+    return mockDefaultComprehensiveEvaluationSettings.demotion.ruleGroups;
   }
 
-  return false;
+  return groups.map((group, index) => ({
+    id: group.id || `demotion-group-${index + 1}`,
+    conditions: group.conditions.map((condition) => ({
+      type: "rank_at_or_worse",
+      field: condition.field,
+      thresholdRank: condition.thresholdRank,
+    })),
+  }));
 }
 
-function parsePromotionRuleGroups(value: unknown): PromotionRuleGroup[] | null {
-  if (!Array.isArray(value)) return null;
-
-  const groups: PromotionRuleGroup[] = [];
-
-  value.forEach((item, index) => {
-    if (!item || typeof item !== "object") return;
-    const group = item as Partial<PromotionRuleGroup>;
-    const id = typeof group.id === "string" && group.id.trim() ? group.id : `promotion-group-${index + 1}`;
-    const rawConditions = Array.isArray(group.conditions) ? group.conditions : [];
-    const conditions = rawConditions.filter(isPromotionRuleCondition);
-    if (conditions.length === 0) return;
-    groups.push({ id, conditions });
-  });
-
-  return groups.length > 0 ? groups : null;
-}
-
-function parseDemotionRuleGroups(value: unknown): DemotionRuleGroup[] | null {
-  if (!Array.isArray(value)) return null;
-
-  const groups: DemotionRuleGroup[] = [];
-
-  value.forEach((item, index) => {
-    if (!item || typeof item !== "object") return;
-    const group = item as Partial<DemotionRuleGroup>;
-    const id = typeof group.id === "string" && group.id.trim() ? group.id : `demotion-group-${index + 1}`;
-    const rawConditions = Array.isArray(group.conditions) ? group.conditions : [];
-    const conditions = rawConditions.filter(isDemotionRuleCondition);
-    if (conditions.length === 0) return;
-    groups.push({ id, conditions });
-  });
-
-  return groups.length > 0 ? groups : null;
-}
-
-function parseStoredSettingsV2(value: string | null): ComprehensiveEvaluationSettings | null {
-  if (!value) return null;
-
-  try {
-    const parsed = JSON.parse(value) as Partial<ComprehensiveEvaluationSettings>;
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const promotion: Partial<ComprehensiveEvaluationSettings["promotion"]> = parsed.promotion ?? {};
-    const demotion: Partial<ComprehensiveEvaluationSettings["demotion"]> = parsed.demotion ?? {};
-    const overallScoreThresholds: Partial<ComprehensiveEvaluationSettings["overallScoreThresholds"]> =
-      parsed.overallScoreThresholds ?? {};
-    const levelDeltaByOverallRank: Partial<ComprehensiveEvaluationSettings["levelDeltaByOverallRank"]> =
-      parsed.levelDeltaByOverallRank ?? {};
-    const ruleGroups =
-      parsePromotionRuleGroups((promotion as { ruleGroups?: unknown }).ruleGroups) ??
-      mockDefaultComprehensiveEvaluationSettings.promotion.ruleGroups;
-    const demotionRuleGroups =
-      parseDemotionRuleGroups((demotion as { ruleGroups?: unknown }).ruleGroups) ??
-      (() => {
-        const legacyThresholdRank = (demotion as { yearlyThresholdRank?: unknown }).yearlyThresholdRank;
-        if (!isEvaluationRank(legacyThresholdRank)) return null;
-        return [
-          {
-            id: "demotion-group-migrated",
-            conditions: [{ type: "rank_at_or_worse", field: "overallRank", thresholdRank: legacyThresholdRank }],
-          },
-        ] satisfies DemotionRuleGroup[];
-      })() ??
-      mockDefaultComprehensiveEvaluationSettings.demotion.ruleGroups;
-
-    return {
-      promotion: {
-        ruleGroups,
-      },
-      demotion: {
-        ruleGroups: demotionRuleGroups,
-      },
-      overallScoreThresholds: {
-        SS: typeof overallScoreThresholds.SS === "number"
-          ? overallScoreThresholds.SS
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.SS,
-        S: typeof overallScoreThresholds.S === "number"
-          ? overallScoreThresholds.S
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.S,
-        'A+': typeof overallScoreThresholds['A+'] === "number"
-          ? overallScoreThresholds['A+']
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds['A+'],
-        A: typeof overallScoreThresholds.A === "number"
-          ? overallScoreThresholds.A
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.A,
-        'A-': typeof overallScoreThresholds['A-'] === "number"
-          ? overallScoreThresholds['A-']
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds['A-'],
-        B: typeof overallScoreThresholds.B === "number"
-          ? overallScoreThresholds.B
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.B,
-        C: typeof overallScoreThresholds.C === "number"
-          ? overallScoreThresholds.C
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.C,
-        D: typeof overallScoreThresholds.D === "number"
-          ? overallScoreThresholds.D
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.D,
-      },
-      levelDeltaByOverallRank: {
-        SS: typeof levelDeltaByOverallRank.SS === "number"
-          ? levelDeltaByOverallRank.SS
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.SS,
-        S: typeof levelDeltaByOverallRank.S === "number"
-          ? levelDeltaByOverallRank.S
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.S,
-        'A+': typeof levelDeltaByOverallRank['A+'] === "number"
-          ? levelDeltaByOverallRank['A+']
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank['A+'],
-        A: typeof levelDeltaByOverallRank.A === "number"
-          ? levelDeltaByOverallRank.A
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.A,
-        'A-': typeof levelDeltaByOverallRank['A-'] === "number"
-          ? levelDeltaByOverallRank['A-']
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank['A-'],
-        B: typeof levelDeltaByOverallRank.B === "number"
-          ? levelDeltaByOverallRank.B
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.B,
-        C: typeof levelDeltaByOverallRank.C === "number"
-          ? levelDeltaByOverallRank.C
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.C,
-        D: typeof levelDeltaByOverallRank.D === "number"
-          ? levelDeltaByOverallRank.D
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.D,
-      },
-    };
-  } catch {
-    return null;
-  }
-}
-
-function parseStoredSettingsV1(value: string | null): ComprehensiveEvaluationSettings | null {
-  if (!value) return null;
-
-  try {
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const promotion = (parsed.promotion ?? {}) as Record<string, unknown>;
-    const demotion = (parsed.demotion ?? {}) as Record<string, unknown>;
-    const overallScoreThresholds = (parsed.overallScoreThresholds ?? {}) as Record<string, unknown>;
-    const levelDeltaByOverallRank = (parsed.levelDeltaByOverallRank ?? {}) as Record<string, unknown>;
-
-    const overallMinimumRank = isEvaluationRank(promotion.overallMinimumRank)
-      ? (promotion.overallMinimumRank as EvaluationRank)
-      : "A+";
-    const competencyMinimumRank = isEvaluationRank(promotion.competencyMinimumRank)
-      ? (promotion.competencyMinimumRank as EvaluationRank)
-      : "A+";
-    const coreValueMinimumRank = isEvaluationRank(promotion.coreValueMinimumRank)
-      ? (promotion.coreValueMinimumRank as EvaluationRank)
-      : "A+";
-
-	    const migratedConditions: PromotionRuleCondition[] = [
-	      { type: "rank_at_least", field: "overallRank", minimumRank: overallMinimumRank },
-	      { type: "rank_at_least", field: "competencyFinalRank", minimumRank: competencyMinimumRank },
-	      { type: "rank_at_least", field: "coreValueFinalRank", minimumRank: coreValueMinimumRank },
-	    ];
-	    const defaultDemotionThresholdRank =
-	      mockDefaultComprehensiveEvaluationSettings.demotion.ruleGroups[0]?.conditions[0]?.thresholdRank ?? "D";
-	    const demotionThresholdRank = isEvaluationRank(demotion.yearlyThresholdRank)
-	      ? (demotion.yearlyThresholdRank as EvaluationRank)
-	      : defaultDemotionThresholdRank;
-
-	    return {
-	      promotion: {
-	        ruleGroups: [{ id: "promotion-group-migrated", conditions: migratedConditions }],
-	      },
-	      demotion: {
-	        ruleGroups: [
-	          {
-	            id: "demotion-group-migrated",
-	            conditions: [{ type: "rank_at_or_worse", field: "overallRank", thresholdRank: demotionThresholdRank }],
-	          },
-	        ],
-	      },
-	      overallScoreThresholds: {
-	        SS: typeof overallScoreThresholds.SS === "number"
-	          ? (overallScoreThresholds.SS as number)
-	          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.SS,
-        S: typeof overallScoreThresholds.S === "number"
-          ? (overallScoreThresholds.S as number)
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.S,
-        'A+': typeof overallScoreThresholds['A+'] === "number"
-          ? (overallScoreThresholds['A+'] as number)
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds['A+'],
-        A: typeof overallScoreThresholds.A === "number"
-          ? (overallScoreThresholds.A as number)
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.A,
-        'A-': typeof overallScoreThresholds['A-'] === "number"
-          ? (overallScoreThresholds['A-'] as number)
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds['A-'],
-        B: typeof overallScoreThresholds.B === "number"
-          ? (overallScoreThresholds.B as number)
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.B,
-        C: typeof overallScoreThresholds.C === "number"
-          ? (overallScoreThresholds.C as number)
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.C,
-        D: typeof overallScoreThresholds.D === "number"
-          ? (overallScoreThresholds.D as number)
-          : mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds.D,
-      },
-      levelDeltaByOverallRank: {
-        SS: typeof levelDeltaByOverallRank.SS === "number"
-          ? (levelDeltaByOverallRank.SS as number)
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.SS,
-        S: typeof levelDeltaByOverallRank.S === "number"
-          ? (levelDeltaByOverallRank.S as number)
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.S,
-        'A+': typeof levelDeltaByOverallRank['A+'] === "number"
-          ? (levelDeltaByOverallRank['A+'] as number)
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank['A+'],
-        A: typeof levelDeltaByOverallRank.A === "number"
-          ? (levelDeltaByOverallRank.A as number)
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.A,
-        'A-': typeof levelDeltaByOverallRank['A-'] === "number"
-          ? (levelDeltaByOverallRank['A-'] as number)
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank['A-'],
-        B: typeof levelDeltaByOverallRank.B === "number"
-          ? (levelDeltaByOverallRank.B as number)
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.B,
-        C: typeof levelDeltaByOverallRank.C === "number"
-          ? (levelDeltaByOverallRank.C as number)
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.C,
-        D: typeof levelDeltaByOverallRank.D === "number"
-          ? (levelDeltaByOverallRank.D as number)
-          : mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank.D,
-      },
-    };
-  } catch {
-    return null;
-  }
-}
-
-function getInitialSettings(): ComprehensiveEvaluationSettings {
-  if (typeof window === "undefined") {
+function fromApiSettings(
+  settings: ComprehensiveEvaluationSettingsResponse | undefined,
+): ComprehensiveEvaluationSettings {
+  if (!settings) {
     return mockDefaultComprehensiveEvaluationSettings;
   }
-  const storedV2 = window.localStorage.getItem(STORAGE_KEY_V2);
-  const parsedV2 = parseStoredSettingsV2(storedV2);
-  if (parsedV2) return parsedV2;
 
-  const storedV1 = window.localStorage.getItem(STORAGE_KEY_V1);
-  return parseStoredSettingsV1(storedV1) ?? mockDefaultComprehensiveEvaluationSettings;
+  return {
+    promotion: {
+      ruleGroups: normalizePromotionGroups(settings.promotion?.ruleGroups),
+    },
+    demotion: {
+      ruleGroups: normalizeDemotionGroups(settings.demotion?.ruleGroups),
+    },
+    overallScoreThresholds:
+      settings.overallScoreThresholds ?? mockDefaultComprehensiveEvaluationSettings.overallScoreThresholds,
+    levelDeltaByOverallRank:
+      settings.levelDeltaByOverallRank ?? mockDefaultComprehensiveEvaluationSettings.levelDeltaByOverallRank,
+  };
+}
+
+function toApiSettings(settings: ComprehensiveEvaluationSettings): ComprehensiveEvaluationSettingsRequest {
+  return {
+    promotion: {
+      ruleGroups: settings.promotion.ruleGroups.map((group) => ({
+        id: group.id,
+        conditions: group.conditions.map((condition) => ({
+          type: "rank_at_least",
+          field: condition.field,
+          minimumRank: condition.minimumRank,
+        })),
+      })),
+    },
+    demotion: {
+      ruleGroups: settings.demotion.ruleGroups.map((group) => ({
+        id: group.id,
+        conditions: group.conditions.map((condition) => ({
+          type: "rank_at_or_worse",
+          field: condition.field,
+          thresholdRank: condition.thresholdRank,
+        })),
+      })),
+    },
+    overallScoreThresholds: settings.overallScoreThresholds,
+    levelDeltaByOverallRank: settings.levelDeltaByOverallRank,
+  };
 }
 
 export function useComprehensiveEvaluationSettings() {
-  const [settings, setSettings] = useState<ComprehensiveEvaluationSettings>(() => getInitialSettings());
+  const [settings, setSettingsState] = useState<ComprehensiveEvaluationSettings>(
+    mockDefaultComprehensiveEvaluationSettings,
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reloadSettings = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    const result = await getComprehensiveEvaluationSettingsAction();
+    if (!result.success || !result.data) {
+      setSettingsState(mockDefaultComprehensiveEvaluationSettings);
+      setError(result.error ?? "設定の読み込みに失敗しました");
+      setIsLoading(false);
+      return;
+    }
+
+    setSettingsState(fromApiSettings(result.data));
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(settings));
-  }, [settings]);
+    void reloadSettings();
+  }, [reloadSettings]);
 
-  const resetSettings = () => setSettings(mockDefaultComprehensiveEvaluationSettings);
+  const saveSettings = useCallback(async (nextSettings: ComprehensiveEvaluationSettings) => {
+    setIsSaving(true);
+    setError(null);
 
-  return { settings, setSettings, resetSettings };
+    const result = await updateComprehensiveEvaluationSettingsAction(toApiSettings(nextSettings));
+    if (!result.success || !result.data) {
+      setError(result.error ?? "設定の保存に失敗しました");
+      setIsSaving(false);
+      return { success: false, error: result.error ?? "設定の保存に失敗しました" };
+    }
+
+    setSettingsState(fromApiSettings(result.data));
+    setIsSaving(false);
+    return { success: true as const };
+  }, []);
+
+  const setSettings = useCallback((nextSettings: ComprehensiveEvaluationSettings) => {
+    setSettingsState(nextSettings);
+  }, []);
+
+  const resetSettings = useCallback(() => {
+    setSettingsState(mockDefaultComprehensiveEvaluationSettings);
+  }, []);
+
+  return {
+    settings,
+    setSettings,
+    saveSettings,
+    resetSettings,
+    reloadSettings,
+    isLoading,
+    isSaving,
+    error,
+  };
 }

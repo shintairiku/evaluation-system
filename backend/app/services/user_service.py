@@ -133,9 +133,13 @@ class UserService:
             )
             
             # Enrich users with detailed data including supervisor/subordinates
+            can_view_level = current_user_context.has_role("eval_admin")
             enriched_users = []
             for user_model in users:
-                enriched_user = await self._enrich_detailed_user_data(user_model)
+                enriched_user = await self._enrich_detailed_user_data(
+                    user_model,
+                    include_level=can_view_level,
+                )
                 enriched_users.append(enriched_user)
             
             # Create paginated response
@@ -247,7 +251,11 @@ class UserService:
                     raise PermissionDeniedError(f"User {user_id} belongs to a different organization")
             
             # Enrich user data for detail response with supervisor/subordinates
-            enriched_user = await self._enrich_detailed_user_data(user)
+            can_view_level = current_user_context.has_role("eval_admin")
+            enriched_user = await self._enrich_detailed_user_data(
+                user,
+                include_level=can_view_level,
+            )
             user_detail_cache[cache_key] = enriched_user
             return enriched_user
             
@@ -388,7 +396,11 @@ class UserService:
                 raise NotFoundError("User was created successfully but could not be retrieved from database")
             
             # Enrich user data for detailed response
-            enriched_user = await self._enrich_detailed_user_data(fresh_user)
+            can_view_level = current_user_context.has_role("eval_admin")
+            enriched_user = await self._enrich_detailed_user_data(
+                fresh_user,
+                include_level=can_view_level,
+            )
             
             logger.info(f"User created successfully with relationships: {created_user.id}")
             return enriched_user
@@ -434,6 +446,10 @@ class UserService:
                 user_data.model_dump(), 
                 user_id
             )
+
+            level_requested = "level" in user_data.model_fields_set
+            if level_requested and not current_user_context.has_role("eval_admin"):
+                raise PermissionDeniedError("Only eval_admin can update user level")
             
             # Business validation
             await self._validate_user_update(user_data, existing_user, org_id)
@@ -516,7 +532,11 @@ class UserService:
             logger.info(f"User {user_id} refreshed from database")
             
             # Enrich user data for detailed response
-            enriched_user = await self._enrich_detailed_user_data(updated_user)
+            can_view_level = current_user_context.has_role("eval_admin")
+            enriched_user = await self._enrich_detailed_user_data(
+                updated_user,
+                include_level=can_view_level,
+            )
             
             # After commit, handle Clerk sync asynchronously
             try:
@@ -607,7 +627,11 @@ class UserService:
             await self.session.refresh(updated_user)
             
             # Enrich user data for detailed response
-            enriched_user = await self._enrich_detailed_user_data(updated_user)
+            can_view_level = current_user_context.has_role("eval_admin")
+            enriched_user = await self._enrich_detailed_user_data(
+                updated_user,
+                include_level=can_view_level,
+            )
             
             logger.info(f"User stage updated successfully: {user_id} -> stage {stage_update.stage_id}")
             return enriched_user
@@ -669,7 +693,11 @@ class UserService:
             self._invalidate_v2_user_caches(org_id)
 
             logger.info(f"User goal weight overrides updated for user {user_id} by {current_user_context.user_id}")
-            return await self._enrich_detailed_user_data(updated_user)
+            can_view_level = current_user_context.has_role("eval_admin")
+            return await self._enrich_detailed_user_data(
+                updated_user,
+                include_level=can_view_level,
+            )
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error updating goal weight overrides for user {user_id}: {str(e)}")
@@ -720,7 +748,11 @@ class UserService:
             self._invalidate_v2_user_caches(org_id)
 
             logger.info(f"User goal weight overrides cleared for user {user_id} by {current_user_context.user_id}")
-            return await self._enrich_detailed_user_data(updated_user)
+            can_view_level = current_user_context.has_role("eval_admin")
+            return await self._enrich_detailed_user_data(
+                updated_user,
+                include_level=can_view_level,
+            )
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error clearing goal weight overrides for user {user_id}: {str(e)}")
@@ -1261,7 +1293,11 @@ class UserService:
             roles=roles,
         )
 
-    async def _enrich_detailed_user_data(self, user: UserModel) -> UserDetailResponse:
+    async def _enrich_detailed_user_data(
+        self,
+        user: UserModel,
+        include_level: bool = False,
+    ) -> UserDetailResponse:
         """Enrich user data for UserDetailResponse with supervisor/subordinates using repository pattern"""
         # Get basic enriched user data first
         base_user = await self._enrich_user_data(user)
@@ -1286,7 +1322,8 @@ class UserService:
         user_detail_data.update({
             'supervisor': supervisor,
             'subordinates': subordinates if subordinates else None,
-            'goal_weight_budget': goal_weight_budget
+            'goal_weight_budget': goal_weight_budget,
+            'level': user.level if include_level else None,
         })
 
         return UserDetailResponse(**user_detail_data)

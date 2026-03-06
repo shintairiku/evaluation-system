@@ -4,11 +4,13 @@ import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { supervisorFeedbacksApi } from '../endpoints/supervisor-feedbacks';
 import { CACHE_TAGS } from '../utils/cache';
-import type { 
-  SupervisorFeedback, 
-  SupervisorFeedbackDetail, 
-  SupervisorFeedbackCreate, 
+import type {
+  SupervisorFeedback,
+  SupervisorFeedbackDetail,
+  SupervisorFeedbackCreate,
   SupervisorFeedbackUpdate,
+  SupervisorFeedbackSubmit,
+  SupervisorFeedbackReturn,
   SupervisorFeedbackList,
   PaginationParams,
   UUID,
@@ -23,7 +25,10 @@ export const getSupervisorFeedbacksAction = cache(
     periodId?: string;
     supervisorId?: string;
     subordinateId?: string;
+    selfOnly?: boolean;
     status?: string;
+    action?: string;
+    hasReturnComment?: boolean;
   }): Promise<{
     success: boolean;
     data?: SupervisorFeedbackList;
@@ -295,14 +300,20 @@ export const getSupervisorFeedbacksByAssessmentAction = cache(
 
 /**
  * Server action to submit a supervisor feedback with cache revalidation
+ * This validates the required fields based on action type:
+ * - APPROVED: requires supervisorRatingCode
+ * - REJECTED: requires supervisorComment
  */
-export async function submitSupervisorFeedbackAction(feedbackId: UUID): Promise<{
+export async function submitSupervisorFeedbackAction(
+  feedbackId: UUID,
+  submitData: SupervisorFeedbackSubmit,
+): Promise<{
   success: boolean;
   data?: SupervisorFeedback;
   error?: string;
 }> {
   try {
-    const response = await supervisorFeedbacksApi.submitSupervisorFeedback(feedbackId);
+    const response = await supervisorFeedbacksApi.submitSupervisorFeedback(feedbackId, submitData);
 
     if (!response.success || !response.data) {
       return {
@@ -355,6 +366,42 @@ export async function draftSupervisorFeedbackAction(feedbackId: UUID): Promise<{
     return {
       success: false,
       error: 'An unexpected error occurred while marking supervisor feedback as draft',
+    };
+  }
+}
+
+/**
+ * Server action to return supervisor feedback for correction (差し戻し)
+ */
+export async function returnSupervisorFeedbackAction(
+  feedbackId: UUID,
+  returnData: SupervisorFeedbackReturn,
+): Promise<{
+  success: boolean;
+  data?: SupervisorFeedback;
+  error?: string;
+}> {
+  try {
+    const response = await supervisorFeedbacksApi.returnSupervisorFeedback(feedbackId, returnData);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to return supervisor feedback',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.SUPERVISOR_FEEDBACKS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Return supervisor feedback action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while returning supervisor feedback',
     };
   }
 }

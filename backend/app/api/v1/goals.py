@@ -36,6 +36,11 @@ async def get_goals(
         alias="includeRejectionHistory",
         description="Include full rejection history chain (requires includeReviews=true)"
     ),
+    self_only: bool = Query(
+        False,
+        alias="selfOnly",
+        description="Return only current user's goals (ignore subordinates even for supervisors)"
+    ),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -59,7 +64,8 @@ async def get_goals(
             has_previous_goal_id=has_previous_goal_id,
             pagination=pagination,
             include_reviews=include_reviews,
-            include_rejection_history=include_rejection_history
+            include_rejection_history=include_rejection_history,
+            self_only=self_only
         )
         
         return result

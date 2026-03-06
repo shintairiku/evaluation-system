@@ -4,12 +4,14 @@ import { cache } from 'react';
 import { revalidateTag } from 'next/cache';
 import { selfAssessmentsApi } from '../endpoints/self-assessments';
 import { CACHE_TAGS } from '../utils/cache';
-import type { 
-  SelfAssessment, 
-  SelfAssessmentDetail, 
-  SelfAssessmentCreate, 
+import { SelfAssessmentStatus } from '../types';
+import type {
+  SelfAssessment,
+  SelfAssessmentDetail,
+  SelfAssessmentCreate,
   SelfAssessmentUpdate,
   SelfAssessmentList,
+  SubordinatesAssessmentStatusResponse,
   PaginationParams,
   UUID,
 } from '../types';
@@ -23,13 +25,29 @@ export const getSelfAssessmentsAction = cache(
     periodId?: string;
     userId?: string;
     status?: string;
+    selfOnly?: boolean;
+    /**
+     * Cache buster for React cache() memoization.
+     * Not sent to API; only used to force fresh server action execution.
+     */
+    cacheBuster?: string;
   }): Promise<{
     success: boolean;
     data?: SelfAssessmentList;
     error?: string;
   }> => {
     try {
-      const response = await selfAssessmentsApi.getSelfAssessments(params);
+      const response = await selfAssessmentsApi.getSelfAssessments(
+        params
+          ? {
+              pagination: params.pagination,
+              periodId: params.periodId,
+              userId: params.userId,
+              status: params.status,
+              selfOnly: params.selfOnly,
+            }
+          : undefined,
+      );
 
       if (!response.success || !response.data) {
         return {
@@ -88,18 +106,20 @@ export const getSelfAssessmentByIdAction = cache(
 );
 
 /**
- * Server action to create a new self-assessment with cache revalidation
+ * Server action to create a self-assessment with cache revalidation.
+ * Recovery path: usually auto-created by backend when goal is approved,
+ * but legacy data may have approved goals without assessments.
  */
 export async function createSelfAssessmentAction(
-  assessmentData: SelfAssessmentCreate,
   goalId: UUID,
+  createData: SelfAssessmentCreate = { status: SelfAssessmentStatus.DRAFT },
 ): Promise<{
   success: boolean;
   data?: SelfAssessment;
   error?: string;
 }> {
   try {
-    const response = await selfAssessmentsApi.createSelfAssessment(assessmentData, goalId);
+    const response = await selfAssessmentsApi.createSelfAssessment(goalId, createData);
 
     if (!response.success || !response.data) {
       return {
@@ -327,3 +347,72 @@ export async function submitSelfAssessmentAction(assessmentId: UUID): Promise<{
     };
   }
 }
+
+/**
+ * Server action to reopen a submitted self-assessment with cache revalidation
+ */
+export async function reopenSelfAssessmentAction(assessmentId: UUID): Promise<{
+  success: boolean;
+  data?: SelfAssessment;
+  error?: string;
+}> {
+  try {
+    const response = await selfAssessmentsApi.reopenSelfAssessment(assessmentId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to reopen self-assessment',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.SELF_ASSESSMENTS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Reopen self-assessment action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while reopening self-assessment',
+    };
+  }
+}
+
+/**
+ * Server action to get assessment submission status for all subordinates
+ * Optimized single query instead of N+1 queries
+ */
+export const getSubordinatesAssessmentStatusAction = cache(
+  async (
+    periodId: UUID,
+  ): Promise<{
+    success: boolean;
+    data?: SubordinatesAssessmentStatusResponse;
+    error?: string;
+  }> => {
+    try {
+      const response = await selfAssessmentsApi.getSubordinatesAssessmentStatus(periodId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch subordinates assessment status',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get subordinates assessment status action error:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred while fetching subordinates assessment status',
+      };
+    }
+  },
+);

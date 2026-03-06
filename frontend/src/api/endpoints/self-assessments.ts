@@ -6,6 +6,7 @@ import type {
   SelfAssessmentCreate,
   SelfAssessmentUpdate,
   SelfAssessmentList,
+  SubordinatesAssessmentStatusResponse,
   PaginationParams,
   ApiResponse,
   UUID,
@@ -19,6 +20,17 @@ const httpClient = getHttpClient();
  */
 export const selfAssessmentsApi = {
   /**
+   * Create a self-assessment for a specific goal (recovery path)
+   */
+  createSelfAssessment: async (
+    goalId: UUID,
+    data: SelfAssessmentCreate,
+  ): Promise<ApiResponse<SelfAssessment>> => {
+    const endpoint = `${API_ENDPOINTS.SELF_ASSESSMENTS.LIST}?goalId=${goalId}`;
+    return httpClient.post<SelfAssessment>(endpoint, data);
+  },
+
+  /**
    * Get self-assessments with optional filters and pagination
    */
   getSelfAssessments: async (params?: {
@@ -26,6 +38,7 @@ export const selfAssessmentsApi = {
     periodId?: UUID;
     userId?: UUID;
     status?: string;
+    selfOnly?: boolean;
   }): Promise<ApiResponse<SelfAssessmentList>> => {
     const queryParams = new URLSearchParams();
     if (params?.pagination?.page) queryParams.append('page', params.pagination.page.toString());
@@ -33,11 +46,12 @@ export const selfAssessmentsApi = {
     if (params?.periodId) queryParams.append('periodId', params.periodId);
     if (params?.userId) queryParams.append('userId', params.userId);
     if (params?.status) queryParams.append('status', params.status);
-    
-    const endpoint = queryParams.toString() 
+    if (params?.selfOnly) queryParams.append('selfOnly', 'true');
+
+    const endpoint = queryParams.toString()
       ? `${API_ENDPOINTS.SELF_ASSESSMENTS.LIST}?${queryParams.toString()}`
       : API_ENDPOINTS.SELF_ASSESSMENTS.LIST;
-    
+
     return httpClient.get<SelfAssessmentList>(endpoint);
   },
 
@@ -84,14 +98,6 @@ export const selfAssessmentsApi = {
   },
 
   /**
-   * Create a new self-assessment
-   */
-  createSelfAssessment: async (data: SelfAssessmentCreate, goalId: UUID): Promise<ApiResponse<SelfAssessment>> => {
-    const endpoint = `${API_ENDPOINTS.SELF_ASSESSMENTS.CREATE}?goalId=${goalId}`;
-    return httpClient.post<SelfAssessment>(endpoint, data);
-  },
-
-  /**
    * Update an existing self-assessment
    */
   updateSelfAssessment: async (assessmentId: UUID, data: SelfAssessmentUpdate): Promise<ApiResponse<SelfAssessment>> => {
@@ -106,9 +112,26 @@ export const selfAssessmentsApi = {
   },
 
   /**
+   * Reopen a submitted self-assessment to allow editing
+   */
+  reopenSelfAssessment: async (assessmentId: UUID): Promise<ApiResponse<SelfAssessment>> => {
+    return httpClient.post<SelfAssessment>(API_ENDPOINTS.SELF_ASSESSMENTS.REOPEN(assessmentId), {});
+  },
+
+  /**
    * Delete a self-assessment
    */
   deleteSelfAssessment: async (assessmentId: UUID): Promise<ApiResponse<void>> => {
     return httpClient.delete<void>(API_ENDPOINTS.SELF_ASSESSMENTS.DELETE(assessmentId));
+  },
+
+  /**
+   * Get assessment submission status for all subordinates (optimized single query)
+   * Used by supervisors to quickly see which subordinates have submitted their assessments
+   */
+  getSubordinatesAssessmentStatus: async (periodId: UUID): Promise<ApiResponse<SubordinatesAssessmentStatusResponse>> => {
+    return httpClient.get<SubordinatesAssessmentStatusResponse>(
+      `/self-assessments/subordinates-status?periodId=${periodId}`
+    );
   },
 };

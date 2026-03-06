@@ -208,13 +208,14 @@ export const API_ENDPOINTS = {
   SELF_ASSESSMENTS: {
     LIST: '/self-assessments/',
     BY_ID: (id: string) => `/self-assessments/${id}`,
-    CREATE: '/self-assessments/',
     UPDATE: (id: string) => `/self-assessments/${id}`,
     DELETE: (id: string) => `/self-assessments/${id}`,
     BY_USER: (userId: string) => `/self-assessments/user/${userId}`,
     BY_PERIOD: (periodId: string) => `/self-assessments/period/${periodId}`,
     BY_GOAL: (goalId: string) => `/self-assessments/goal/${goalId}`,
     SUBMIT: (id: string) => `/self-assessments/${id}/submit`,
+    REOPEN: (id: string) => `/self-assessments/${id}/reopen`,
+    HISTORY: (id: string) => `/self-assessments/${id}/history`,
   },
 
   // Supervisor Review endpoints
@@ -240,6 +241,7 @@ export const API_ENDPOINTS = {
     BY_ASSESSMENT: (assessmentId: string) => `/supervisor-feedbacks/assessment/${assessmentId}`,
     SUBMIT: (id: string) => `/supervisor-feedbacks/${id}/submit`,
     DRAFT: (id: string) => `/supervisor-feedbacks/${id}/draft`,
+    RETURN: (id: string) => `/supervisor-feedbacks/${id}/return`,
   },
 
   // Permission management endpoints
@@ -249,6 +251,17 @@ export const API_ENDPOINTS = {
     ROLE: (roleId: string) => `/roles/${roleId}/permissions`,
     ROLE_CLONE: (roleId: string) => `/roles/${roleId}/permissions:clone`,
     ROLE_BULK: '/roles/permissions:bulk',
+  },
+
+  // Comprehensive Evaluation endpoints
+  COMPREHENSIVE_EVALUATION: {
+    LIST: '/evaluation/comprehensive-evaluation',
+    STAGE_OPTIONS: '/evaluation/comprehensive-evaluation/stage-options',
+    SETTINGS: '/evaluation/comprehensive-evaluation/settings',
+    FINALIZE: '/evaluation/comprehensive-evaluation/finalize',
+    PROCESS_USER: '/evaluation/comprehensive-evaluation/process-user',
+    MANUAL_DECISION: (userId: string) => `/evaluation/comprehensive-evaluation/manual-decisions/${userId}`,
+    MANUAL_HISTORY: '/evaluation/comprehensive-evaluation/manual-decisions/history',
   },
 } as const;
 

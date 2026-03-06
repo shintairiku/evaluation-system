@@ -657,7 +657,63 @@ class UserRepository(BaseRepository[User]):
             logger.error(f"Error batch updating user statuses in org {org_id}: {e}")
             raise
 
-    
+    async def batch_update_user_levels(self, org_id: str, updates: Dict[UUID, int]) -> Set[UUID]:
+        """Batch update user levels using a single CASE statement."""
+        if not updates:
+            return set()
+
+        try:
+            update_ids = list(updates.keys())
+
+            level_case = case(
+                *[(User.id == user_id, level) for user_id, level in updates.items()],
+                else_=User.level,
+            )
+
+            stmt = (
+                update(User)
+                .where(User.clerk_organization_id == org_id)
+                .where(User.id.in_(update_ids))
+                .values(level=level_case, updated_at=func.now())
+                .returning(User.id)
+            )
+
+            result = await self.session.execute(stmt)
+            updated = set(result.scalars().all())
+            return updated
+        except SQLAlchemyError as e:
+            logger.error(f"Error batch updating user levels in org {org_id}: {e}")
+            raise
+
+    async def batch_update_user_stages(self, org_id: str, updates: Dict[UUID, UUID]) -> Set[UUID]:
+        """Batch update user stages using a single CASE statement."""
+        if not updates:
+            return set()
+
+        try:
+            update_ids = list(updates.keys())
+
+            stage_case = case(
+                *[(User.id == user_id, stage_id) for user_id, stage_id in updates.items()],
+                else_=User.stage_id,
+            )
+
+            stmt = (
+                update(User)
+                .where(User.clerk_organization_id == org_id)
+                .where(User.id.in_(update_ids))
+                .values(stage_id=stage_case, updated_at=func.now())
+                .returning(User.id)
+            )
+
+            result = await self.session.execute(stmt)
+            updated = set(result.scalars().all())
+            return updated
+        except SQLAlchemyError as e:
+            logger.error(f"Error batch updating user stages in org {org_id}: {e}")
+            raise
+
+
 
 
     async def update_user(self, user_id: UUID, user_data: UserUpdate, org_id: str) -> Optional[User]:
@@ -679,6 +735,8 @@ class UserRepository(BaseRepository[User]):
                 existing_user.job_title = user_data.job_title
             if user_data.department_id is not None:
                 existing_user.department_id = user_data.department_id
+            if "level" in user_data.model_fields_set:
+                existing_user.level = user_data.level
             # stage_id removed - use dedicated admin-only update_user_stage method
             if user_data.status is not None:
                 existing_user.status = user_data.status

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database.repositories.supervisor_review_repository import SupervisorReviewRepository
 from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
+from ..database.repositories.self_assessment_repo import SelfAssessmentRepository
 from ..services.goal_service import GoalService
 from ..services.user_service_v2 import UserServiceV2
 from ..database.models.goal import Goal as GoalModel
@@ -44,7 +45,8 @@ class SupervisorReviewService:
         self.repo = SupervisorReviewRepository(session)
         self.goal_repo = GoalRepository(session)
         self.user_repo = UserRepository(session)
-        
+        self.self_assessment_repo = SelfAssessmentRepository(session)
+
         # Initialize RBAC Helper with user repository for subordinate queries
         RBACHelper.initialize_with_repository(self.user_repo)
 
@@ -453,7 +455,28 @@ class SupervisorReviewService:
 
         if review.action == "APPROVED":
             await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.APPROVED, org_id, approved_by=current_user_context.user_id)
+
+            # Auto-create draft SelfAssessment for the approved goal
+            approved_goal = await self.goal_repo.get_goal_by_id(review.goal_id, org_id)
+            if approved_goal:
+                await self._auto_create_self_assessment(approved_goal, org_id)
+
         elif review.action == "REJECTED":
+            # Guard rail: handle SelfAssessment based on status for 差戻し
+            existing_assessment = await self.self_assessment_repo.get_by_goal(review.goal_id, org_id)
+            if existing_assessment:
+                from ..schemas.common import SelfAssessmentStatus
+                if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                    # Delete draft assessment to allow 差戻し
+                    await self.self_assessment_repo.delete_assessment(existing_assessment.id, org_id)
+                    logger.info(f"Deleted draft SelfAssessment {existing_assessment.id} for goal 差戻し: {review.goal_id}")
+                else:
+                    # Block 差戻し if assessment is submitted or approved
+                    raise BadRequestError(
+                        f"Cannot reject goal: self-assessment is already {existing_assessment.status}. "
+                        "差戻し is only allowed when self-assessment is still in draft status."
+                    )
+
             # Update rejected goal status
             await self.goal_repo.update_goal_status(review.goal_id, GoalStatus.REJECTED, org_id)
 
@@ -495,3 +518,43 @@ class SupervisorReviewService:
         except Exception as e:
             logger.error(f"Failed to create draft from rejected goal {rejected_goal_id}: {e}")
             # Don't raise - rejection should still succeed even if draft creation fails
+
+    async def _auto_create_self_assessment(self, goal, org_id: str) -> None:
+        """
+        Auto-create draft SelfAssessment when Goal is approved via supervisor review.
+
+        This implements the automatic creation trigger for the evaluation workflow:
+        Goal (approved) → SelfAssessment (draft) → [employee fills] → submitted → SupervisorFeedback
+
+        Args:
+            goal: The approved goal model
+            org_id: Organization ID for scoping
+        """
+        try:
+            # Check if assessment already exists for this goal
+            existing = await self.self_assessment_repo.get_by_goal(goal.id, org_id)
+            if existing:
+                logger.info(f"SelfAssessment already exists for goal {goal.id}, skipping auto-creation")
+                return
+
+            # Create draft self-assessment (empty - to be filled by employee)
+            from ..schemas.self_assessment import SelfAssessmentCreate
+            from ..schemas.common import SelfAssessmentStatus
+
+            assessment_create = SelfAssessmentCreate(
+                self_rating_code=None,  # Empty - to be filled by employee
+                self_comment=None,  # Empty - to be filled by employee
+                status=SelfAssessmentStatus.DRAFT
+            )
+
+            created_assessment = await self.self_assessment_repo.create_assessment(
+                assessment_data=assessment_create,
+                goal_id=goal.id,
+                org_id=org_id
+            )
+
+            logger.info(f"Auto-created draft SelfAssessment {created_assessment.id} for approved goal {goal.id}")
+
+        except Exception as e:
+            logger.error(f"Error auto-creating SelfAssessment for goal {goal.id}: {str(e)}")
+            # Don't re-raise - failure shouldn't block Goal approval

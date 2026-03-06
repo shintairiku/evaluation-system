@@ -1,12 +1,13 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List
+from typing import Optional, List, Any
 from uuid import UUID
 from cachetools import TTLCache
 
 from ..database.repositories.self_assessment_repo import SelfAssessmentRepository
 from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
+from ..database.repositories.competency_repo import CompetencyRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.repositories.supervisor_feedback_repo import SupervisorFeedbackRepository
 from ..database.models.self_assessment import SelfAssessment as SelfAssessmentModel
@@ -14,7 +15,7 @@ from ..schemas.self_assessment import (
     SelfAssessmentCreate, SelfAssessmentUpdate, SelfAssessment, SelfAssessmentDetail
 )
 from ..schemas.supervisor_feedback import SupervisorFeedbackCreate
-from ..schemas.common import PaginationParams, PaginatedResponse, SubmissionStatus
+from ..schemas.common import PaginationParams, PaginatedResponse, SelfAssessmentStatus
 from ..security.context import AuthContext
 from ..security.permissions import Permission
 from ..security.rbac_helper import RBACHelper
@@ -23,6 +24,7 @@ from ..security.decorators import require_permission
 from ..core.exceptions import (
     NotFoundError, PermissionDeniedError, BadRequestError, ValidationError
 )
+from .rating_rules import validate_rating_code_for_goal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,7 @@ class SelfAssessmentService:
         self.self_assessment_repo = SelfAssessmentRepository(session)
         self.goal_repo = GoalRepository(session)
         self.user_repo = UserRepository(session)
+        self.competency_repo = CompetencyRepository(session)
         self.evaluation_period_repo = EvaluationPeriodRepository(session)
         self.supervisor_feedback_repo = SupervisorFeedbackRepository(session)
         
@@ -51,26 +54,33 @@ class SelfAssessmentService:
         user_id: Optional[UUID] = None,
         period_id: Optional[UUID] = None,
         status: Optional[str] = None,
-        pagination: Optional[PaginationParams] = None
+        pagination: Optional[PaginationParams] = None,
+        self_only: bool = False
     ) -> PaginatedResponse[SelfAssessment]:
         """
         Get self-assessments based on current user's permissions and filters.
-        
+
         Access rules:
         - Employees: can only view their own assessments
         - Supervisors: can view their subordinates' assessments + their own
         - Admins: can view all assessments
+
+        Args:
+            self_only: If True, return only the current user's assessments (ignore subordinates)
         """
         org_id = current_user_context.organization_id
         if not org_id:
             raise PermissionDeniedError("Organization context required")
-        
+
         try:
             # Determine which users' assessments the current user can access
             accessible_user_ids = await self._get_accessible_assessment_user_ids(
-                current_user_context, user_id
+                current_user_context, user_id, self_only=self_only
             )
-            
+
+            if accessible_user_ids is not None and len(accessible_user_ids) == 0:
+                return PaginatedResponse(items=[], total=0, page=pagination.page if pagination else 1, limit=pagination.limit if pagination else 0, pages=0)
+
             # Search assessments with filters
             assessments = await self.self_assessment_repo.search_assessments(
                 org_id=org_id,
@@ -232,6 +242,8 @@ class SelfAssessmentService:
             )
             if not can_create:
                 raise PermissionDeniedError("You can only create self-assessments for your own goals")
+
+            await self._ensure_period_allows_score_changes(goal.period_id, org_id)
             
             # Business validation
             await self._validate_assessment_creation(goal, assessment_data, org_id)
@@ -281,10 +293,22 @@ class SelfAssessmentService:
             )
             if not can_update:
                 raise PermissionDeniedError("You can only update your own assessments")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
             
             # Business validation
             await self._validate_assessment_update(assessment_data, existing_assessment)
-            
+
+            if assessment_data.self_rating_code:
+                goal = await self.goal_repo.get_goal_by_id(existing_assessment.goal_id, org_id)
+                if goal:
+                    validate_rating_code_for_goal(
+                        goal_category=goal.goal_category,
+                        target_data=goal.target_data if hasattr(goal, 'target_data') else None,
+                        rating_code=assessment_data.self_rating_code.value if hasattr(assessment_data.self_rating_code, 'value') else assessment_data.self_rating_code,
+                        actor_name="self-assessment"
+                    )
+
             # Update assessment
             updated_assessment = await self.self_assessment_repo.update_assessment(assessment_id, assessment_data, org_id)
             if not updated_assessment:
@@ -330,15 +354,49 @@ class SelfAssessmentService:
             )
             if not can_submit:
                 raise PermissionDeniedError("You can only submit your own assessments")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
             
             # Business rule: can only submit draft assessments
-            if existing_assessment.status != SubmissionStatus.DRAFT.value:
-                raise BadRequestError("Can only submit draft assessments")
-            
-            # Validate required rating is provided for submission
-            if existing_assessment.self_rating is None:
-                raise ValidationError("Self-rating is required before submission")
-            
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise BadRequestError("Cannot submit an approved assessment")
+            if existing_assessment.status == SelfAssessmentStatus.SUBMITTED.value:
+                raise BadRequestError("Assessment is already submitted")
+
+            # Validate required fields for submission based on goal category
+            goal_category = existing_assessment.goal.goal_category
+
+            if goal_category == "業績目標":  # Performance goal
+                # Requires self_rating_code and self_comment
+                if existing_assessment.self_rating_code is None:
+                    raise ValidationError("Self-rating code is required before submission")
+                if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
+                    raise ValidationError("Self-comment is required before submission")
+            elif goal_category == "コンピテンシー":  # Competency goal
+                # Requires rating_data (per-action ratings) and self_comment
+                if not existing_assessment.rating_data:
+                    raise ValidationError("Action ratings are required before submission")
+                if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
+                    raise ValidationError("Self-comment is required before submission")
+                await self._validate_competency_rating_data_completeness(
+                    existing_assessment.goal,
+                    existing_assessment.rating_data,
+                    org_id
+                )
+            else:
+                # Other goal types (e.g., コアバリュー) - require at least self_comment
+                if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
+                    raise ValidationError("Self-comment is required before submission")
+
+            # Validate rating code for goal
+            if existing_assessment.self_rating_code:
+                validate_rating_code_for_goal(
+                    goal_category=existing_assessment.goal.goal_category,
+                    target_data=existing_assessment.goal.target_data if hasattr(existing_assessment.goal, 'target_data') else None,
+                    rating_code=existing_assessment.self_rating_code,
+                    actor_name="self-assessment"
+                )
+
             # Update status using dedicated method
             updated_assessment = await self.self_assessment_repo.submit_assessment(assessment_id, org_id)
             
@@ -358,6 +416,142 @@ class SelfAssessmentService:
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Error submitting assessment {assessment_id}: {str(e)}")
+            raise
+
+    @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
+    async def reopen_assessment(
+        self,
+        assessment_id: UUID,
+        current_user_context: AuthContext
+    ) -> SelfAssessment:
+        """
+        Reopen a submitted self-assessment by changing status back to draft.
+        This allows the employee to make corrections before re-submitting.
+        Only submitted (not approved) assessments can be reopened.
+        """
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        try:
+            # Check if assessment exists
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
+            if not existing_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
+
+            # Permission check - only assessment owner can reopen
+            can_reopen = await RBACHelper.can_access_resource(
+                auth_context=current_user_context,
+                resource_id=assessment_id,
+                resource_type=ResourceType.ASSESSMENT,
+                owner_user_id=existing_assessment.goal.user_id
+            )
+            if not can_reopen:
+                raise PermissionDeniedError("You can only reopen your own assessments")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
+
+            # Business rule: can only reopen submitted assessments (not draft or approved)
+            if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                raise BadRequestError("Assessment is already in draft status")
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise BadRequestError("Cannot reopen an approved assessment")
+
+            # Update status back to draft
+            updated_assessment = await self.self_assessment_repo.reopen_assessment(assessment_id, org_id)
+
+            # Commit transaction
+            await self.session.commit()
+
+            # Enrich response data
+            enriched_assessment = await self._enrich_assessment_data(updated_assessment)
+
+            logger.info(f"Self-assessment reopened: {assessment_id} by {current_user_context.user_id}")
+            return enriched_assessment
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error reopening assessment {assessment_id}: {str(e)}")
+            raise
+
+    async def approve_assessment(
+        self,
+        assessment_id: UUID,
+        org_id: str
+    ) -> SelfAssessment:
+        """
+        Approve a self-assessment (called by supervisor_feedback_service when supervisor approves).
+        This locks the assessment permanently.
+        """
+        try:
+            # Check if assessment exists
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
+            if not existing_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
+
+            # Business rule: can only approve submitted assessments
+            if existing_assessment.status != SelfAssessmentStatus.SUBMITTED.value:
+                raise BadRequestError("Can only approve submitted assessments")
+
+            # Guard against inconsistent locks:
+            # self-assessment can be approved only when linked supervisor feedback is approved.
+            linked_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment_id, org_id)
+            if not linked_feedback or str(getattr(linked_feedback, "action", "")).upper() != "APPROVED":
+                raise BadRequestError(
+                    "Cannot approve self-assessment before supervisor feedback is approved"
+                )
+
+            # Update status to approved using repo method
+            updated_assessment = await self.self_assessment_repo.approve_assessment(assessment_id, org_id)
+            if not updated_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found after approval")
+
+            # Enrich response data
+            enriched_assessment = await self._enrich_assessment_data(updated_assessment)
+
+            logger.info(f"Self-assessment approved: {assessment_id}")
+            return enriched_assessment
+
+        except Exception as e:
+            logger.error(f"Error approving assessment {assessment_id}: {str(e)}")
+            raise
+
+    async def revert_to_draft(
+        self,
+        assessment_id: UUID,
+        org_id: str
+    ) -> SelfAssessment:
+        """
+        Revert a submitted assessment to draft (called by supervisor_feedback_service when returning).
+        Internal method — no permission decorator (similar to approve_assessment).
+        """
+        try:
+            existing_assessment = await self.self_assessment_repo.get_by_id_with_details(assessment_id, org_id)
+            if not existing_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
+
+            if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+                raise BadRequestError("Cannot revert approved assessment to draft")
+
+            if existing_assessment.status == SelfAssessmentStatus.DRAFT.value:
+                logger.info(f"Self-assessment {assessment_id} is already in draft status")
+                return await self._enrich_assessment_data(existing_assessment)
+
+            updated_assessment = await self.self_assessment_repo.reopen_assessment(assessment_id, org_id)
+            if not updated_assessment:
+                raise NotFoundError(f"Self-assessment with ID {assessment_id} not found after revert")
+
+            enriched_assessment = await self._enrich_assessment_data(updated_assessment)
+
+            logger.info(f"Self-assessment reverted to draft: {assessment_id}")
+            return enriched_assessment
+
+        except Exception as e:
+            logger.error(f"Error reverting assessment {assessment_id} to draft: {str(e)}")
             raise
 
     @require_permission(Permission.ASSESSMENT_MANAGE_SELF)
@@ -386,9 +580,11 @@ class SelfAssessmentService:
             )
             if not can_delete:
                 raise PermissionDeniedError("You can only delete your own assessments")
+
+            await self._ensure_period_allows_score_changes(existing_assessment.period_id, org_id)
             
             # Business rule: can only delete draft assessments
-            if existing_assessment.status != SubmissionStatus.DRAFT.value:
+            if existing_assessment.status != SelfAssessmentStatus.DRAFT.value:
                 raise BadRequestError("Can only delete draft assessments")
             
             # Delete assessment
@@ -412,37 +608,166 @@ class SelfAssessmentService:
     async def _get_accessible_assessment_user_ids(
         self,
         current_user_context: AuthContext,
-        requested_user_id: Optional[UUID] = None
+        requested_user_id: Optional[UUID] = None,
+        self_only: bool = False
     ) -> Optional[List[UUID]]:
-        """Determine which users' assessments the current user can access."""
-        
+        """Determine which users' assessments the current user can access.
+
+        Args:
+            current_user_context: The authentication context
+            requested_user_id: Specific user ID to filter by (optional)
+            self_only: If True, return only the current user's ID (ignore subordinates)
+        """
+        # If self_only is True, return only the current user's ID
+        if self_only:
+            return [current_user_context.user_id] if current_user_context.user_id else []
+
         if current_user_context.has_permission(Permission.ASSESSMENT_READ_ALL):
             # Admin: can see all assessments
             if requested_user_id:
                 return [requested_user_id]
             return None  # All users
-        
+
         accessible_ids = []
-        
+
         # Add self if user has ASSESSMENT_READ_SELF permission
         if current_user_context.has_permission(Permission.ASSESSMENT_READ_SELF):
             accessible_ids.append(current_user_context.user_id)
-        
+
         if current_user_context.has_permission(Permission.ASSESSMENT_READ_SUBORDINATES):
             # Supervisor: can see subordinates' assessments
             subordinate_ids = await RBACHelper._get_subordinate_user_ids(
                 current_user_context.user_id, self.user_repo, current_user_context.organization_id
             )
             accessible_ids.extend(subordinate_ids)
-        
+
         # If specific user requested, check if accessible
         if requested_user_id:
             if requested_user_id not in accessible_ids:
                 raise PermissionDeniedError(f"You do not have permission to access assessments for user {requested_user_id}")
             return [requested_user_id]
-        
+
         return accessible_ids
 
+    @staticmethod
+    def _normalize_action_indexes(action_indexes: list[Any]) -> list[str]:
+        normalized = {
+            str(action_index).strip()
+            for action_index in action_indexes
+            if str(action_index).strip()
+        }
+
+        def sort_key(value: str) -> tuple[int, Any]:
+            if value.isdigit():
+                return (0, int(value))
+            return (1, value)
+
+        return sorted(normalized, key=sort_key)
+
+    @staticmethod
+    def _normalize_competency_rating_data(rating_data: Any) -> dict[str, dict[str, str]]:
+        if not isinstance(rating_data, dict):
+            return {}
+
+        normalized: dict[str, dict[str, str]] = {}
+        for competency_id, action_ratings in rating_data.items():
+            if not isinstance(action_ratings, dict):
+                continue
+
+            normalized_actions: dict[str, str] = {}
+            for action_index, rating in action_ratings.items():
+                rating_value = str(getattr(rating, "value", rating)).strip() if rating is not None else ""
+                if rating_value:
+                    normalized_actions[str(action_index)] = rating_value
+
+            if normalized_actions:
+                normalized[str(competency_id)] = normalized_actions
+
+        return normalized
+
+    def _extract_required_actions_from_goal_target_data(self, goal: Any) -> dict[str, list[str]]:
+        target_data = getattr(goal, "target_data", None)
+        if not isinstance(target_data, dict):
+            return {}
+
+        selected_ideal_actions = target_data.get("selected_ideal_actions") or {}
+        if not isinstance(selected_ideal_actions, dict):
+            return {}
+
+        required_actions: dict[str, list[str]] = {}
+        for competency_id, action_indexes in selected_ideal_actions.items():
+            if not isinstance(action_indexes, list):
+                continue
+
+            normalized_indexes = self._normalize_action_indexes(action_indexes)
+            if normalized_indexes:
+                required_actions[str(competency_id)] = normalized_indexes
+
+        return required_actions
+
+    async def _get_required_competency_actions_for_goal(
+        self,
+        goal: Any,
+        org_id: str
+    ) -> dict[str, list[str]]:
+        required_from_stage: dict[str, list[str]] = {}
+
+        try:
+            stage_id = await self.user_repo.get_user_stage_id(goal.user_id, org_id)
+            if stage_id:
+                stage_competencies = await self.competency_repo.get_by_stage_id(stage_id, org_id)
+                for competency in stage_competencies:
+                    description = competency.description
+                    if isinstance(description, dict):
+                        action_indexes = self._normalize_action_indexes(list(description.keys()))
+                    elif isinstance(description, list):
+                        action_indexes = self._normalize_action_indexes([
+                            str(index)
+                            for index, text in enumerate(description)
+                            if str(text).strip()
+                        ])
+                    else:
+                        action_indexes = []
+
+                    if action_indexes:
+                        required_from_stage[str(competency.id)] = action_indexes
+        except Exception as e:
+            logger.warning(
+                "Failed to resolve stage competency scope for goal %s: %s",
+                getattr(goal, "id", "unknown"),
+                e
+            )
+
+        if required_from_stage:
+            return required_from_stage
+
+        return self._extract_required_actions_from_goal_target_data(goal)
+
+    async def _validate_competency_rating_data_completeness(
+        self,
+        goal: Any,
+        rating_data: Any,
+        org_id: str
+    ) -> None:
+        normalized_ratings = self._normalize_competency_rating_data(rating_data)
+        if not normalized_ratings:
+            raise ValidationError("Action ratings are required before submission")
+
+        required_actions = await self._get_required_competency_actions_for_goal(goal, org_id)
+        if not required_actions:
+            return
+
+        missing_items = 0
+        for competency_id, action_indexes in required_actions.items():
+            competency_ratings = normalized_ratings.get(competency_id, {})
+            for action_index in action_indexes:
+                if not competency_ratings.get(action_index):
+                    missing_items += 1
+
+        if missing_items > 0:
+            raise ValidationError(
+                f"All competency actions must be rated before submission (missing {missing_items} item(s))"
+            )
 
     async def _validate_assessment_creation(self, goal, assessment_data: SelfAssessmentCreate, org_id: str):
         """Validate self-assessment creation business rules."""
@@ -459,11 +784,18 @@ class SelfAssessmentService:
 
     async def _validate_assessment_update(self, assessment_data: SelfAssessmentUpdate, existing_assessment: SelfAssessmentModel):
         """Validate self-assessment update business rules."""
-        # Validate rating requirements for submission
-        if (assessment_data.status == SubmissionStatus.SUBMITTED and 
-            assessment_data.self_rating is None and 
-            existing_assessment.self_rating is None):
-            raise ValidationError("Self-rating is required before submission")
+        # Cannot update approved assessments
+        if existing_assessment.status == SelfAssessmentStatus.APPROVED.value:
+            raise BadRequestError("Cannot update an approved assessment")
+
+    async def _ensure_period_allows_score_changes(self, period_id: UUID, org_id: str) -> None:
+        period = await self.evaluation_period_repo.get_by_id(period_id, org_id)
+        if not period:
+            raise NotFoundError(f"Evaluation period with ID {period_id} not found")
+
+        period_status = str(getattr(period.status, "value", period.status)).lower()
+        if period_status in ("completed", "cancelled"):
+            raise BadRequestError("Cannot modify scores in completed or cancelled evaluation periods")
 
     async def _enrich_assessment_data(self, assessment_model: SelfAssessmentModel) -> SelfAssessment:
         """Convert SelfAssessmentModel to SelfAssessment response schema with enriched data."""
@@ -472,14 +804,16 @@ class SelfAssessmentService:
             "id": assessment_model.id,
             "goal_id": assessment_model.goal_id,
             "period_id": assessment_model.period_id,
+            "self_rating_code": assessment_model.self_rating_code,
             "self_rating": assessment_model.self_rating if assessment_model.self_rating is not None else None,
             "self_comment": assessment_model.self_comment,
-            "status": SubmissionStatus(assessment_model.status),
+            "rating_data": assessment_model.rating_data,
+            "status": SelfAssessmentStatus(assessment_model.status),
             "submitted_at": assessment_model.submitted_at,
             "created_at": assessment_model.created_at,
             "updated_at": assessment_model.updated_at
         }
-        
+
         return SelfAssessment(**assessment_dict)
 
     async def _enrich_assessment_detail_data(self, assessment_model: SelfAssessmentModel, org_id: str) -> SelfAssessmentDetail:
@@ -492,8 +826,9 @@ class SelfAssessmentService:
         goal = await self.goal_repo.get_goal_by_id(assessment_model.goal_id, org_id)
         
         # Add detail fields
+        # Editable only when draft (submitted/approved are locked)
         detail_dict.update({
-            "is_editable": assessment_model.status == SubmissionStatus.DRAFT.value,
+            "is_editable": assessment_model.status == SelfAssessmentStatus.DRAFT.value,
             "is_overdue": False,  # Placeholder for future deadline check
             "days_until_deadline": None,  # Placeholder for future deadline calculation
             "goal_category": goal.goal_category if goal else None,
@@ -513,6 +848,10 @@ class SelfAssessmentService:
             # Check if feedback already exists (avoid duplicates)
             existing_feedback = await self.supervisor_feedback_repo.get_by_self_assessment(assessment.id, org_id)
             if existing_feedback:
+                # Clear return_comment if present (employee resubmitting after supervisor return)
+                if existing_feedback.return_comment:
+                    await self.supervisor_feedback_repo.clear_return_comment(assessment.id, org_id)
+                    logger.info(f"Cleared return_comment for feedback {existing_feedback.id} on resubmission")
                 logger.info(f"SupervisorFeedback already exists for assessment {assessment.id}, skipping auto-creation")
                 return
             
@@ -523,7 +862,7 @@ class SelfAssessmentService:
                 return
             
             # Get employee's current supervisor(s)
-            supervisors = await self.user_repo.get_supervisors(goal.user_id)
+            supervisors = await self.user_repo.get_user_supervisors(goal.user_id, org_id)
             if not supervisors:
                 logger.warning(f"Cannot auto-create feedback: No supervisors found for user {goal.user_id}")
                 return
@@ -531,24 +870,75 @@ class SelfAssessmentService:
             # Use the primary supervisor (first in list)
             primary_supervisor = supervisors[0]
             
-            # Create draft supervisor feedback
+            # Create incomplete supervisor feedback (no data entered yet)
+            from ..schemas.supervisor_review import SupervisorAction
+            from ..schemas.common import SubmissionStatus
+
             feedback_create = SupervisorFeedbackCreate(
                 self_assessment_id=assessment.id,
                 period_id=assessment.period_id,
-                rating=None,  # Will be set based on goal category rules
-                comment=None,  # Empty initially
-                status=SubmissionStatus.DRAFT  # Start as draft
+                supervisor_rating_code=None,  # Optional, set by supervisor
+                supervisor_comment=None,  # Empty initially
+                rating_data=None,  # For competency per-action ratings
+                action=SupervisorAction.PENDING,  # Not yet approved
+                status=SubmissionStatus.INCOMPLETE  # No data entered yet
             )
-            
-            # Create the feedback
+
+            # Create the feedback (subordinate_id is auto-set from goal)
             created_feedback = await self.supervisor_feedback_repo.create_feedback(
-                feedback_create, 
-                primary_supervisor.id
+                feedback_create,
+                supervisor_id=primary_supervisor.id,
+                org_id=org_id
             )
             
             logger.info(f"Auto-created SupervisorFeedback {created_feedback.id} for assessment {assessment.id} assigned to supervisor {primary_supervisor.id}")
-            
+
         except Exception as e:
             logger.error(f"Error auto-creating supervisor feedback for assessment {assessment.id}: {str(e)}")
             # Don't re-raise - we don't want auto-creation failure to block assessment submission
             # This follows the pattern from goal_service.py: "Do not rollback goal submission due to review auto-creation failure"
+
+    async def get_subordinates_assessment_status(
+        self,
+        period_id: UUID,
+        current_user_context: AuthContext
+    ) -> List[dict]:
+        """
+        Get assessment submission status for all subordinates of the current user.
+        Returns status in a single query instead of N+1 queries.
+
+        Returns list of dicts with userId, totalCount, submittedCount, allSubmitted, approvedCount, allApproved.
+        """
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        try:
+            # Get subordinate IDs for the current user
+            subordinate_ids = await RBACHelper._get_subordinate_user_ids(
+                current_user_context.user_id, self.user_repo, org_id
+            )
+
+            if not subordinate_ids:
+                return []
+
+            # Get assessment status for all subordinates in one query
+            status_list = await self.self_assessment_repo.get_assessment_status_by_users(
+                user_ids=subordinate_ids,
+                period_id=period_id,
+                org_id=org_id
+            )
+
+            # Add calculated boolean fields
+            for status in status_list:
+                total = status['totalCount']
+                submitted = status['submittedCount']
+                approved = status['approvedCount']
+                status['allSubmitted'] = total > 0 and submitted == total
+                status['allApproved'] = total > 0 and approved == total
+
+            return status_list
+
+        except Exception as e:
+            logger.error(f"Error getting subordinates assessment status: {e}")
+            raise

@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Plus, Search, Settings, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Search, Settings, ShieldX, Trash2, X } from "lucide-react";
 
-import RolePermissionGuard from "@/components/auth/RolePermissionGuard";
+import {
+  getComprehensiveEvaluationListAction,
+  processComprehensiveEvaluationUserAction,
+} from "@/api/server-actions/comprehensive-evaluation";
+import type { ComprehensiveEvaluationRowResponse } from "@/api/types";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useOptionalCurrentUserContext } from "@/context/CurrentUserContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,18 +20,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-import { mockComprehensiveEvaluationRows, mockDefaultComprehensiveEvaluationSettings, mockEvaluationPeriods } from "../mock";
-import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow } from "../logic";
-import { useComprehensiveEvaluationManualOverrides } from "../hooks/useComprehensiveEvaluationManualOverrides";
+import { mockDefaultComprehensiveEvaluationSettings } from "../mock";
 import { useComprehensiveEvaluationSettings } from "../hooks/useComprehensiveEvaluationSettings";
 import { EVALUATION_RANKS, type ComprehensiveEvaluationSettings, type DemotionRuleCondition, type PromotionRuleCondition } from "../settings";
-import type { ComprehensiveEvaluationRow, EmploymentType, EvaluationRank, ProcessingStatus } from "../types";
+import type { EmploymentType, EvaluationRank, ProcessingStatus } from "../types";
 
 function formatNumber(value: number, digits = 2): string {
   return value.toFixed(digits);
 }
 
 const INTERMEDIATE_NUMBER_INPUTS = new Set(["", "-", ".", "-."]);
+const COMPREHENSIVE_ROWS_PAGE_SIZE = 200;
 
 function parseNumericInput(value: string): number | null {
   const trimmed = value.trim();
@@ -41,11 +46,11 @@ function buildLevelDeltaInputs(settings: ComprehensiveEvaluationSettings): Recor
   }, {} as Record<EvaluationRank, string>);
 }
 
-function buildSearchText(row: ComprehensiveEvaluationRow): string {
+function buildSearchText(row: ComprehensiveEvaluationRowResponse): string {
   return [
     row.employeeCode,
     row.name,
-    row.departmentName,
+    row.departmentName ?? "",
     row.currentStage ?? "",
   ]
     .join(" ")
@@ -58,6 +63,14 @@ function getEmploymentTypeLabel(value: EmploymentType): string {
 
 function getEmploymentTypeBadgeVariant(value: EmploymentType) {
   return value === "employee" ? "outline" : "secondary";
+}
+
+function getEvaluationPeriodStatusLabel(status: string | undefined): string {
+  if (status === "draft") return "下書き";
+  if (status === "active") return "進行中";
+  if (status === "completed") return "評価期限後";
+  if (status === "cancelled") return "キャンセル";
+  return "-";
 }
 
 type PromotionConditionTarget = PromotionRuleCondition["field"];
@@ -103,39 +116,144 @@ function createDemotionCondition(
 }
 
 export default function ComprehensiveEvaluationPage() {
-  const { hasRole } = useUserRoles();
-  const isEvalAdmin = hasRole("admin"); // TODO: eval_adminに変更
+  const { hasRole, isLoading: isRoleLoading, error: roleError, currentUser } = useUserRoles();
+  const currentUserContext = useOptionalCurrentUserContext();
+  const canAccessComprehensiveEvaluation = hasRole("eval_admin");
+  const isEvalAdmin = hasRole("eval_admin");
+  const canAccessCandidates = isEvalAdmin;
   const canEditThresholds = isEvalAdmin;
 
   const personalInfoColumns = 5;
   const performanceColumns = 2;
   const competencyColumns = 2;
   const coreValueColumns = 1;
-  const overallColumns = 3;
+  const overallColumns = 4;
   const totalColumns =
     personalInfoColumns +
     performanceColumns +
     competencyColumns +
     coreValueColumns +
     overallColumns;
-  const { settings, setSettings } = useComprehensiveEvaluationSettings();
-  const { overridesByPeriodId } = useComprehensiveEvaluationManualOverrides();
+  const { settings, saveSettings, isLoading: isSettingsLoading } = useComprehensiveEvaluationSettings();
+  const [evaluationRows, setEvaluationRows] = useState<ComprehensiveEvaluationRowResponse[]>([]);
+  const [isRowsLoading, setIsRowsLoading] = useState<boolean>(false);
+  const [rowsError, setRowsError] = useState<string | null>(null);
+  const latestRowsRequestId = useRef(0);
 
-  const evaluationRows = mockComprehensiveEvaluationRows;
+  const evaluationPeriods = useMemo(
+    () =>
+      (currentUserContext?.periods?.all ?? []).map((period) => ({
+        id: period.id,
+        label: period.name,
+        status: period.status,
+      })),
+    [currentUserContext?.periods?.all],
+  );
+  const defaultPeriodId = currentUserContext?.currentPeriod?.id ?? evaluationPeriods[0]?.id ?? "all";
 
   const [settingsDialogOpen, setSettingsDialogOpen] = useState<boolean>(false);
   const [draftSettings, setDraftSettings] = useState<ComprehensiveEvaluationSettings>(settings);
-  const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(
-    mockEvaluationPeriods[0]?.id ?? "all"
-  );
+  const [evaluationPeriodId, setEvaluationPeriodId] = useState<string>(defaultPeriodId);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedStage, setSelectedStage] = useState<string>("all");
   const [selectedEmploymentType, setSelectedEmploymentType] = useState<EmploymentType | "all">("all");
   const [selectedProcessingStatus, setSelectedProcessingStatus] = useState<ProcessingStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isProcessingUserId, setIsProcessingUserId] = useState<string | null>(null);
+  const [processError, setProcessError] = useState<string | null>(null);
+  const [processSuccess, setProcessSuccess] = useState<string | null>(null);
   const [levelDeltaInputs, setLevelDeltaInputs] = useState<Record<EvaluationRank, string>>(() =>
     buildLevelDeltaInputs(settings)
   );
+
+  const selectedEvaluationPeriod = useMemo(
+    () => evaluationPeriods.find((period) => period.id === evaluationPeriodId) ?? null,
+    [evaluationPeriodId, evaluationPeriods],
+  );
+  const isSelectedPeriodCancelled = selectedEvaluationPeriod?.status === "cancelled";
+  const canProcessSelectedPeriod = Boolean(
+    selectedEvaluationPeriod && !isSelectedPeriodCancelled,
+  );
+
+  useEffect(() => {
+    if (evaluationPeriodId !== "all") return;
+    if (!defaultPeriodId || defaultPeriodId === "all") return;
+    setEvaluationPeriodId(defaultPeriodId);
+  }, [defaultPeriodId, evaluationPeriodId]);
+
+  const loadRows = useCallback(async () => {
+    const requestId = latestRowsRequestId.current + 1;
+    latestRowsRequestId.current = requestId;
+
+    if (!evaluationPeriodId || evaluationPeriodId === "all") {
+      setRowsError(null);
+      setIsRowsLoading(false);
+      setEvaluationRows([]);
+      return;
+    }
+
+    setIsRowsLoading(true);
+    setRowsError(null);
+
+    const firstPageResult = await getComprehensiveEvaluationListAction({
+      periodId: evaluationPeriodId,
+      page: 1,
+      limit: COMPREHENSIVE_ROWS_PAGE_SIZE,
+    });
+
+    if (requestId !== latestRowsRequestId.current) return;
+
+    if (!firstPageResult.success || !firstPageResult.data) {
+      setEvaluationRows([]);
+      setRowsError(firstPageResult.error ?? "総合評価データの取得に失敗しました");
+      setIsRowsLoading(false);
+      return;
+    }
+
+    let mergedRows = [...firstPageResult.data.rows];
+    const totalPages = firstPageResult.data.meta.pages;
+
+    if (totalPages > 1) {
+      const remainingPageResults = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, index) =>
+          getComprehensiveEvaluationListAction({
+            periodId: evaluationPeriodId,
+            page: index + 2,
+            limit: COMPREHENSIVE_ROWS_PAGE_SIZE,
+          })
+        )
+      );
+
+      if (requestId !== latestRowsRequestId.current) return;
+
+      const failedPageResult = remainingPageResults.find((result) => !result.success || !result.data);
+      if (failedPageResult) {
+        setEvaluationRows([]);
+        setRowsError(failedPageResult.error ?? "総合評価データの取得に失敗しました");
+        setIsRowsLoading(false);
+        return;
+      }
+
+      mergedRows = [
+        ...mergedRows,
+        ...remainingPageResults.flatMap((result) => result.data?.rows ?? []),
+      ];
+    }
+
+    if (requestId !== latestRowsRequestId.current) return;
+
+    setEvaluationRows(mergedRows);
+    setIsRowsLoading(false);
+  }, [evaluationPeriodId]);
+
+  useEffect(() => {
+    void loadRows();
+  }, [loadRows]);
+
+  useEffect(() => {
+    setDraftSettings(settings);
+    setLevelDeltaInputs(buildLevelDeltaInputs(settings));
+  }, [settings]);
 
   const handleSettingsDialogOpenChange = (nextOpen: boolean) => {
     setSettingsDialogOpen(nextOpen);
@@ -151,7 +269,9 @@ export default function ComprehensiveEvaluationPage() {
 
   const departments = useMemo(() => {
     const unique = new Set<string>();
-    evaluationRows.forEach((row) => unique.add(row.departmentName));
+    evaluationRows.forEach((row) => {
+      if (row.departmentName) unique.add(row.departmentName);
+    });
     return Array.from(unique).sort((a, b) => a.localeCompare(b, "ja"));
   }, [evaluationRows]);
 
@@ -187,7 +307,7 @@ export default function ComprehensiveEvaluationPage() {
   ]);
 
   const handleClearFilters = () => {
-    setEvaluationPeriodId(mockEvaluationPeriods[0]?.id ?? "all");
+    setEvaluationPeriodId(defaultPeriodId);
     setSelectedDepartment("all");
     setSelectedStage("all");
     setSelectedEmploymentType("all");
@@ -195,7 +315,27 @@ export default function ComprehensiveEvaluationPage() {
     setSearchQuery("");
   };
 
-  const handleSaveSettings = () => {
+  const handleProcessUser = async (row: ComprehensiveEvaluationRowResponse) => {
+    if (!isEvalAdmin || !canProcessSelectedPeriod) return;
+
+    setProcessError(null);
+    setProcessSuccess(null);
+    setIsProcessingUserId(row.userId);
+
+    const result = await processComprehensiveEvaluationUserAction(row.evaluationPeriodId, row.userId);
+
+    setIsProcessingUserId(null);
+
+    if (!result.success || !result.data) {
+      setProcessError(result.error ?? "ユーザー評価の処理に失敗しました");
+      return;
+    }
+
+    setProcessSuccess(`${row.name}（${row.employeeCode}）の評価を処理しました。`);
+    await loadRows();
+  };
+
+  const handleSaveSettings = async () => {
     const normalizedInputs: Record<EvaluationRank, string> = { ...levelDeltaInputs };
     const normalizedLevelDeltaByOverallRank = { ...draftSettings.levelDeltaByOverallRank };
 
@@ -216,8 +356,10 @@ export default function ComprehensiveEvaluationPage() {
 
     setLevelDeltaInputs(normalizedInputs);
     setDraftSettings(settingsToSave);
-    setSettings(settingsToSave);
+    const result = await saveSettings(settingsToSave);
+    if (!result.success) return;
     setSettingsDialogOpen(false);
+    await loadRows();
   };
 
   const addPromotionGroup = () => {
@@ -442,22 +584,50 @@ export default function ComprehensiveEvaluationPage() {
       (rank) => levelDeltaInputs[rank] !== String(draftSettings.levelDeltaByOverallRank[rank] ?? "")
     );
 
+  if (isRoleLoading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary" />
+        <span className="ml-2 text-sm text-muted-foreground">権限確認中...</span>
+      </div>
+    );
+  }
+
+  if (roleError || !currentUser) {
+    return (
+      <Alert variant="destructive">
+        <ShieldX className="h-4 w-4" />
+        <AlertDescription>{roleError || "ユーザー情報の取得に失敗しました"}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!canAccessComprehensiveEvaluation) {
+    return (
+      <Alert variant="destructive">
+        <ShieldX className="h-4 w-4" />
+        <AlertDescription>このページはeval_adminのみ閲覧できます</AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
-    <RolePermissionGuard
-      requiredHierarchyLevel={1}
-      deniedMessage="このページは管理者のみ閲覧できます"
-    >
-      <div className="container mx-auto space-y-6 p-6">
+    <div className="container mx-auto space-y-6 p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">総合評価</h1>
             <p className="text-sm text-muted-foreground">
-              添付スプレッドシート相当の総合評価テーブル（モック表示）。昇格フラグは「正社員の新レベルが30以上」の場合に点灯します（ステージは自動更新しません）。昇格フラグ点灯行は、昇格フラグ対応ページでステージ変更と反映後レベルを手動確定してください。
+              `eval_admin`が各ユーザーの評価を確認して個別に処理できます。処理時に総合評価に応じたレベル増減を反映し、ステータスを「処理済」に更新します。
             </p>
+            {isSelectedPeriodCancelled && (
+              <p className="text-sm text-destructive">
+                評価期間がキャンセル済みのため、ユーザー処理はできません。
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
-            {isEvalAdmin && (
+            {canAccessCandidates && (
               <Button asChild variant="outline">
                 <Link href="/admin-eval-list/candidates">昇格/降格フラグ対応</Link>
               </Button>
@@ -472,9 +642,9 @@ export default function ComprehensiveEvaluationPage() {
                 </DialogTrigger>
                 <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl">
                   <DialogHeader>
-                    <DialogTitle>判定ルール設定（モック）</DialogTitle>
+                    <DialogTitle>判定ルール設定</DialogTitle>
                     <DialogDescription>
-                      `eval_admin`のみ編集できます。変更は「保存」で反映され、ブラウザ内（localStorage）に保存されます。
+                      `eval_admin`のみ編集できます。変更は「保存」で反映され、バックエンドに保存されます。
                     </DialogDescription>
                   </DialogHeader>
 
@@ -770,10 +940,14 @@ export default function ComprehensiveEvaluationPage() {
 	                      <Button type="button" variant="outline" onClick={() => setSettingsDialogOpen(false)}>
 	                        キャンセル
 	                      </Button>
-	                      <Button type="button" onClick={handleSaveSettings} disabled={!hasUnsavedSettingsChanges}>
-	                        保存
-	                      </Button>
-	                    </div>
+                      <Button
+                        type="button"
+                        onClick={() => void handleSaveSettings()}
+                        disabled={!hasUnsavedSettingsChanges || isSettingsLoading}
+                      >
+                        保存
+                      </Button>
+                    </div>
 	                  </div>
                 </DialogContent>
               </Dialog>
@@ -787,13 +961,27 @@ export default function ComprehensiveEvaluationPage() {
               <SelectValue placeholder="評価期間" />
             </SelectTrigger>
             <SelectContent>
-              {mockEvaluationPeriods.map((period) => (
+              {evaluationPeriods.map((period) => (
                 <SelectItem key={period.id} value={period.id}>
                   {period.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+
+          {selectedEvaluationPeriod && (
+            <Badge
+              variant={
+                selectedEvaluationPeriod.status === "cancelled"
+                  ? "destructive"
+                  : selectedEvaluationPeriod.status === "completed"
+                    ? "secondary"
+                    : "outline"
+              }
+            >
+              {getEvaluationPeriodStatusLabel(selectedEvaluationPeriod.status)}
+            </Badge>
+          )}
 
           <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
             <SelectTrigger className="w-[180px]">
@@ -871,7 +1059,7 @@ export default function ComprehensiveEvaluationPage() {
             className="flex items-center gap-2"
             onClick={handleClearFilters}
             disabled={
-              evaluationPeriodId === (mockEvaluationPeriods[0]?.id ?? "all") &&
+              evaluationPeriodId === defaultPeriodId &&
               selectedDepartment === "all" &&
               selectedStage === "all" &&
               selectedEmploymentType === "all" &&
@@ -883,6 +1071,18 @@ export default function ComprehensiveEvaluationPage() {
             クリア
           </Button>
         </div>
+
+        {processSuccess && (
+          <Alert>
+            <AlertDescription>{processSuccess}</AlertDescription>
+          </Alert>
+        )}
+
+        {processError && (
+          <Alert variant="destructive">
+            <AlertDescription>{processError}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="rounded-lg border">
           <div className="relative overflow-x-auto">
@@ -923,10 +1123,23 @@ export default function ComprehensiveEvaluationPage() {
                   <TableHead className="whitespace-nowrap">合計（点）</TableHead>
                   <TableHead className="whitespace-nowrap">総合評価</TableHead>
                   <TableHead className="whitespace-nowrap">昇格/降格フラグ</TableHead>
+                  <TableHead className="whitespace-nowrap">処理状態</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRows.length === 0 ? (
+                {isRowsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={totalColumns} className="h-24 text-center text-sm text-muted-foreground">
+                      読み込み中...
+                    </TableCell>
+                  </TableRow>
+                ) : rowsError ? (
+                  <TableRow>
+                    <TableCell colSpan={totalColumns} className="h-24 text-center text-sm text-destructive">
+                      {rowsError}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={totalColumns} className="h-24 text-center text-sm text-muted-foreground">
                       表示できるデータがありません
@@ -934,15 +1147,14 @@ export default function ComprehensiveEvaluationPage() {
                   </TableRow>
                 ) : (
                   filteredRows.map((row) => {
-                    const base = computeComprehensiveEvaluationRow(row, settings);
-                    const override = overridesByPeriodId[row.evaluationPeriodId]?.[row.userId];
-                    const computed = applyComprehensiveEvaluationManualOverride(row, base, override);
+                    const computed = row.applied;
+                    const manualDecision = row.manualDecision;
 
                     return (
                       <TableRow key={row.id}>
                         <TableCell className="font-medium">{row.employeeCode}</TableCell>
                         <TableCell className="whitespace-nowrap">{row.name}</TableCell>
-                        <TableCell className="whitespace-nowrap">{row.departmentName}</TableCell>
+                        <TableCell className="whitespace-nowrap">{row.departmentName ?? "-"}</TableCell>
                         <TableCell className="whitespace-nowrap">
                           <Badge variant={getEmploymentTypeBadgeVariant(row.employmentType)}>
                             {getEmploymentTypeLabel(row.employmentType)}
@@ -973,7 +1185,28 @@ export default function ComprehensiveEvaluationPage() {
                                     ? "降格"
                                     : "-"}
                             </span>
-                            {override && <Badge variant="secondary">手動</Badge>}
+                            {manualDecision && <Badge variant="secondary">手動</Badge>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <Badge variant={row.processingStatus === "processed" ? "secondary" : "outline"}>
+                              {row.processingStatus === "processed" ? "処理済" : "未処理"}
+                            </Badge>
+                            {isEvalAdmin && canProcessSelectedPeriod && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => void handleProcessUser(row)}
+                                disabled={
+                                  row.processingStatus === "processed" ||
+                                  isProcessingUserId === row.userId
+                                }
+                              >
+                                {isProcessingUserId === row.userId ? "処理中..." : "処理する"}
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -985,6 +1218,5 @@ export default function ComprehensiveEvaluationPage() {
           </div>
         </div>
       </div>
-    </RolePermissionGuard>
   );
 }

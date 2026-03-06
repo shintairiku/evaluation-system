@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database.session import get_db_session
 from ...security.dependencies import get_auth_context
 from ...security.context import AuthContext
-from ...schemas.self_assessment import SelfAssessment, SelfAssessmentDetail, SelfAssessmentList, SelfAssessmentCreate, SelfAssessmentUpdate
+from ...schemas.self_assessment import (
+    SelfAssessment, SelfAssessmentDetail, SelfAssessmentList, SelfAssessmentCreate, SelfAssessmentUpdate,
+    SubordinatesAssessmentStatusResponse, SubordinateAssessmentStatus
+)
 from ...schemas.common import PaginationParams, BaseResponse
 from ...services.self_assessment_service import SelfAssessmentService
 from ...core.exceptions import NotFoundError, PermissionDeniedError, ConflictError, ValidationError, BadRequestError
@@ -20,20 +23,26 @@ async def get_self_assessments(
     pagination: PaginationParams = Depends(),
     period_id: Optional[UUID] = Query(None, alias="periodId", description="Filter by evaluation period ID"),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
-    status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
+    status: Optional[str] = Query(None, description="Filter by status (draft, submitted, approved)"),
+    self_only: bool = Query(
+        False,
+        alias="selfOnly",
+        description="Return only current user's assessments (ignore subordinates even for supervisors)"
+    ),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
     """Get self-assessments for the current user or filtered assessments for supervisors/admins."""
     try:
         service = SelfAssessmentService(session)
-        
+
         result = await service.get_assessments(
             current_user_context=context,
             user_id=user_id,
             period_id=period_id,
             status=status,
-            pagination=pagination
+            pagination=pagination,
+            self_only=self_only
         )
         
         return result
@@ -52,6 +61,51 @@ async def get_self_assessments(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching self-assessments: {str(e)}"
+        )
+
+
+@router.get("/subordinates-status", response_model=SubordinatesAssessmentStatusResponse)
+async def get_subordinates_assessment_status(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get assessment submission status for all subordinates of the current user.
+    Returns status counts in a single optimized query (avoids N+1 queries).
+    """
+    try:
+        service = SelfAssessmentService(session)
+
+        status_list = await service.get_subordinates_assessment_status(
+            period_id=period_id,
+            current_user_context=context
+        )
+
+        # Convert to response schema
+        items = [
+            SubordinateAssessmentStatus(
+                user_id=s['userId'],
+                total_count=s['totalCount'],
+                submitted_count=s['submittedCount'],
+                all_submitted=s['allSubmitted'],
+                approved_count=s['approvedCount'],
+                all_approved=s['allApproved']
+            )
+            for s in status_list
+        ]
+
+        return SubordinatesAssessmentStatusResponse(items=items)
+
+    except PermissionDeniedError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching subordinates assessment status: {str(e)}"
         )
 
 
@@ -102,7 +156,7 @@ async def get_self_assessments_by_period(
     period_id: UUID,
     pagination: PaginationParams = Depends(),
     user_id: Optional[UUID] = Query(None, alias="userId", description="Filter by user ID (supervisor/admin only)"),
-    status: Optional[str] = Query(None, description="Filter by status (draft, submitted)"),
+    status: Optional[str] = Query(None, description="Filter by status (draft, submitted, approved)"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session)
 ):
@@ -218,6 +272,34 @@ async def submit_self_assessment(
         raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error submitting self-assessment: {str(e)}")
+
+
+@router.post("/{assessment_id}/reopen", response_model=SelfAssessment)
+async def reopen_self_assessment(
+    assessment_id: UUID,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Reopen a submitted self-assessment to allow editing (assessment owner only)."""
+    try:
+        service = SelfAssessmentService(session)
+
+        # Reopen assessment using dedicated method
+        result = await service.reopen_assessment(assessment_id, context)
+
+        return result
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except BadRequestError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error reopening self-assessment: {str(e)}")
 
 
 @router.delete("/{assessment_id}", response_model=BaseResponse)
