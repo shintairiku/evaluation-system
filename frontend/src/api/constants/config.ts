@@ -292,7 +292,14 @@ export const API_ENDPOINTS = {
   COMPREHENSIVE_EVALUATION: {
     LIST: '/evaluation/comprehensive-evaluation',
     STAGE_OPTIONS: '/evaluation/comprehensive-evaluation/stage-options',
-    SETTINGS: '/evaluation/comprehensive-evaluation/settings',
+    SETTINGS_WORKSPACE: '/evaluation/comprehensive-evaluation/settings/workspace',
+    DEFAULT_ASSIGNMENT: '/evaluation/comprehensive-evaluation/settings/default-assignment',
+    DEPARTMENT_ASSIGNMENT: (departmentId: string) =>
+      `/evaluation/comprehensive-evaluation/settings/department-assignments/${departmentId}`,
+    STAGE_ASSIGNMENT: (stageId: string) =>
+      `/evaluation/comprehensive-evaluation/settings/stage-assignments/${stageId}`,
+    RULESETS: '/evaluation/comprehensive-evaluation/settings/rulesets',
+    RULESET: (rulesetId: string) => `/evaluation/comprehensive-evaluation/settings/rulesets/${rulesetId}`,
     FINALIZE: '/evaluation/comprehensive-evaluation/finalize',
     MANUAL_DECISION: (userId: string) => `/evaluation/comprehensive-evaluation/manual-decisions/${userId}`,
     MANUAL_HISTORY: '/evaluation/comprehensive-evaluation/manual-decisions/history',
