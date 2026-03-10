@@ -27,7 +27,7 @@ export interface ComprehensiveDemotionRuleGroup {
   conditions: ComprehensiveDemotionRuleCondition[];
 }
 
-export interface ComprehensiveEvaluationSettingsResponse {
+export interface ComprehensiveEvaluationSettingsPayload {
   promotion: {
     ruleGroups: ComprehensivePromotionRuleGroup[];
   };
@@ -38,7 +38,65 @@ export interface ComprehensiveEvaluationSettingsResponse {
   levelDeltaByOverallRank: Record<ComprehensiveEvaluationRank, number>;
 }
 
-export type ComprehensiveEvaluationSettingsRequest = ComprehensiveEvaluationSettingsResponse;
+export type ComprehensiveEvaluationSettingsResponse = ComprehensiveEvaluationSettingsPayload;
+export type ComprehensiveEvaluationSettingsRequest = ComprehensiveEvaluationSettingsPayload;
+
+export interface ComprehensiveRulesetTemplateResponse {
+  id: UUID;
+  name: string;
+  settings: ComprehensiveEvaluationSettingsPayload;
+  isDefaultTemplate: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ComprehensiveRulesetAssignmentResponse {
+  id?: UUID;
+  periodId: UUID;
+  departmentId: UUID | null;
+  departmentName?: string | null;
+  stageId: UUID | null;
+  stageName?: string | null;
+  settings: ComprehensiveEvaluationSettingsPayload;
+  sourceRulesetId: UUID | null;
+  sourceRulesetNameSnapshot: string | null;
+  inheritsDefault: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface ComprehensiveEvaluationSettingsWorkspaceResponse {
+  locked: boolean;
+  templates: ComprehensiveRulesetTemplateResponse[];
+  defaultAssignment: ComprehensiveRulesetAssignmentResponse;
+  departmentAssignments: ComprehensiveRulesetAssignmentResponse[];
+  stageAssignments: ComprehensiveRulesetAssignmentResponse[];
+}
+
+export interface GetComprehensiveEvaluationSettingsWorkspaceParams {
+  periodId: UUID;
+}
+
+export interface UpdateComprehensiveDefaultAssignmentRequest {
+  periodId: UUID;
+  settings: ComprehensiveEvaluationSettingsPayload;
+  sourceRulesetId?: UUID;
+}
+
+export interface UpdateComprehensiveDepartmentAssignmentRequest {
+  periodId: UUID;
+  inheritDefault?: boolean;
+  settings?: ComprehensiveEvaluationSettingsPayload;
+  sourceRulesetId?: UUID;
+}
+
+export type UpdateComprehensiveStageAssignmentRequest = UpdateComprehensiveDepartmentAssignmentRequest;
+
+export interface UpsertComprehensiveRulesetRequest {
+  name: string;
+  settings: ComprehensiveEvaluationSettingsPayload;
+  isDefaultTemplate?: boolean;
+}
 
 export interface ComprehensiveEvaluationComputedState {
   totalScore: number | null;
