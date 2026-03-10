@@ -18,6 +18,8 @@ from .comprehensive_evaluation import (
     ComprehensiveDecisionRule,
     ComprehensiveManualDecision,
     ComprehensiveManualDecisionHistory,
+    ComprehensiveRuleset,
+    ComprehensiveRulesetAssignment,
     ComprehensiveSettingsAuditLog,
     ComprehensiveProcessingStatus,
 )
@@ -52,6 +54,8 @@ __all__ = [
     "ComprehensiveDecisionRule",
     "ComprehensiveManualDecision",
     "ComprehensiveManualDecisionHistory",
+    "ComprehensiveRuleset",
+    "ComprehensiveRulesetAssignment",
     "ComprehensiveSettingsAuditLog",
     "ComprehensiveProcessingStatus",
     "PermissionModel",

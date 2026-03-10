@@ -61,6 +61,44 @@ class ComprehensiveEvaluationSettings(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ComprehensiveRulesetTemplate(BaseModel):
+    id: UUID
+    name: str
+    settings: ComprehensiveEvaluationSettings
+    is_default_template: bool = Field(..., alias="isDefaultTemplate")
+    created_at: datetime = Field(..., alias="createdAt")
+    updated_at: datetime = Field(..., alias="updatedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class ComprehensiveRulesetAssignment(BaseModel):
+    id: Optional[UUID] = None
+    period_id: UUID = Field(..., alias="periodId")
+    department_id: Optional[UUID] = Field(None, alias="departmentId")
+    department_name: Optional[str] = Field(None, alias="departmentName")
+    stage_id: Optional[UUID] = Field(None, alias="stageId")
+    stage_name: Optional[str] = Field(None, alias="stageName")
+    settings: ComprehensiveEvaluationSettings
+    source_ruleset_id: Optional[UUID] = Field(None, alias="sourceRulesetId")
+    source_ruleset_name_snapshot: Optional[str] = Field(None, alias="sourceRulesetNameSnapshot")
+    inherits_default: bool = Field(False, alias="inheritsDefault")
+    created_at: Optional[datetime] = Field(None, alias="createdAt")
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class ComprehensiveEvaluationSettingsWorkspace(BaseModel):
+    locked: bool
+    templates: List[ComprehensiveRulesetTemplate]
+    default_assignment: ComprehensiveRulesetAssignment = Field(..., alias="defaultAssignment")
+    department_assignments: List[ComprehensiveRulesetAssignment] = Field(default_factory=list, alias="departmentAssignments")
+    stage_assignments: List[ComprehensiveRulesetAssignment] = Field(default_factory=list, alias="stageAssignments")
+
+    model_config = {"populate_by_name": True}
+
+
 class ComprehensiveEvaluationComputedState(BaseModel):
     total_score: Optional[float] = Field(None, alias="totalScore")
     overall_rank: Optional[EvaluationRank] = Field(None, alias="overallRank")
@@ -149,6 +187,59 @@ class ComprehensiveEvaluationFinalizeResponse(BaseModel):
     current_status: EvaluationPeriodLifecycleStatus = Field(..., alias="currentStatus")
     total_users: int = Field(..., alias="totalUsers")
     updated_user_levels: int = Field(..., alias="updatedUserLevels")
+
+    model_config = {"populate_by_name": True}
+
+class ComprehensiveEvaluationProcessUserRequest(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    user_id: UUID = Field(..., alias="userId")
+
+    model_config = {"populate_by_name": True}
+
+
+class ComprehensiveDefaultAssignmentUpdateRequest(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    settings: ComprehensiveEvaluationSettings
+    source_ruleset_id: Optional[UUID] = Field(None, alias="sourceRulesetId")
+
+    model_config = {"populate_by_name": True}
+
+
+class ComprehensiveScopedAssignmentUpdateRequest(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    inherit_default: bool = Field(False, alias="inheritDefault")
+    settings: Optional[ComprehensiveEvaluationSettings] = None
+    source_ruleset_id: Optional[UUID] = Field(None, alias="sourceRulesetId")
+
+    @model_validator(mode="after")
+    def _validate_assignment_payload(self):
+        if not self.inherit_default and self.settings is None:
+            raise ValueError("settings is required when inheritDefault is false")
+        return self
+
+    model_config = {"populate_by_name": True}
+
+
+class ComprehensiveDepartmentAssignmentUpdateRequest(ComprehensiveScopedAssignmentUpdateRequest):
+    pass
+
+
+class ComprehensiveStageAssignmentUpdateRequest(ComprehensiveScopedAssignmentUpdateRequest):
+    pass
+
+
+class ComprehensiveRulesetUpsertRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+    settings: ComprehensiveEvaluationSettings
+    is_default_template: bool = Field(False, alias="isDefaultTemplate")
+
+
+class ComprehensiveEvaluationProcessUserResponse(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    user_id: UUID = Field(..., alias="userId")
+    processing_status: ProcessingStatus = Field(..., alias="processingStatus")
+    updated_level: bool = Field(..., alias="updatedLevel")
+    updated_stage: bool = Field(..., alias="updatedStage")
 
     model_config = {"populate_by_name": True}
 

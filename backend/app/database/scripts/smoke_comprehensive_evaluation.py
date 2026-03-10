@@ -3,9 +3,9 @@
 Comprehensive evaluation smoke flow.
 
 Runs a minimal end-to-end service workflow against the configured database:
-1) Read settings
+1) Read settings workspace
 2) Read list
-3) Update settings (idempotent update using current payload)
+3) Update period default assignment (idempotent update using current payload)
 4) Upsert manual decision
 5) Read history
 6) Clear manual decision
@@ -16,7 +16,10 @@ import asyncio
 from sqlalchemy import text
 
 from app.database.session import AsyncSessionLocal
-from app.schemas.comprehensive_evaluation import ComprehensiveManualDecisionUpsertRequest
+from app.schemas.comprehensive_evaluation import (
+    ComprehensiveDefaultAssignmentUpdateRequest,
+    ComprehensiveManualDecisionUpsertRequest,
+)
 from app.security.context import AuthContext, RoleInfo
 from app.services.comprehensive_evaluation_service import ComprehensiveEvaluationService
 
@@ -68,8 +71,14 @@ async def run_smoke() -> None:
 
         service = ComprehensiveEvaluationService(session)
 
-        settings = await service.get_settings(context=context)
-        print("smoke:get_settings:ok", len(settings.promotion.rule_groups), len(settings.demotion.rule_groups))
+        workspace = await service.get_settings_workspace(context=context, period_id=period_id)
+        settings = workspace.default_assignment.settings
+        print(
+            "smoke:get_settings_workspace:ok",
+            len(workspace.templates),
+            len(settings.promotion.rule_groups),
+            len(settings.demotion.rule_groups),
+        )
 
         listing = await service.get_comprehensive_evaluation(
             context=context,
@@ -84,8 +93,19 @@ async def run_smoke() -> None:
         )
         print("smoke:list:ok", listing.meta.total, len(listing.rows))
 
-        updated_settings = await service.update_settings(context=context, settings=settings)
-        print("smoke:update_settings:ok", len(updated_settings.promotion.rule_groups), len(updated_settings.demotion.rule_groups))
+        updated_assignment = await service.update_default_assignment(
+            context=context,
+            payload=ComprehensiveDefaultAssignmentUpdateRequest(
+                periodId=period_id,
+                settings=settings,
+                sourceRulesetId=workspace.default_assignment.source_ruleset_id,
+            ),
+        )
+        print(
+            "smoke:update_default_assignment:ok",
+            len(updated_assignment.settings.promotion.rule_groups),
+            len(updated_assignment.settings.demotion.rule_groups),
+        )
 
         manual_request = ComprehensiveManualDecisionUpsertRequest(
             periodId=period_id,

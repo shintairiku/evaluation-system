@@ -6,15 +6,21 @@ import { comprehensiveEvaluationApi } from '../endpoints/comprehensive-evaluatio
 import { CACHE_TAGS } from '../utils/cache';
 import type {
   ComprehensiveEvaluationListResponse,
-  ComprehensiveEvaluationSettingsRequest,
-  ComprehensiveEvaluationSettingsResponse,
+  ComprehensiveEvaluationSettingsWorkspaceResponse,
   ComprehensiveManualDecisionHistoryResponse,
   FinalizeComprehensiveEvaluationResponse,
+  GetComprehensiveEvaluationSettingsWorkspaceParams,
   GetComprehensiveEvaluationListParams,
   GetComprehensiveManualDecisionHistoryParams,
+  UpdateComprehensiveDepartmentAssignmentRequest,
+  UpdateComprehensiveDefaultAssignmentRequest,
+  UpdateComprehensiveStageAssignmentRequest,
   ProcessComprehensiveEvaluationUserResponse,
   UUID,
+  UpsertComprehensiveRulesetRequest,
   UpsertComprehensiveManualDecisionRequest,
+  ComprehensiveRulesetAssignmentResponse,
+  ComprehensiveRulesetTemplateResponse,
 } from '../types';
 
 export async function getComprehensiveEvaluationListAction(params: GetComprehensiveEvaluationListParams): Promise<{
@@ -73,18 +79,20 @@ export async function getComprehensiveEvaluationStageOptionsAction(): Promise<{
   }
 }
 
-export async function getComprehensiveEvaluationSettingsAction(): Promise<{
+export async function getComprehensiveEvaluationSettingsWorkspaceAction(
+  params: GetComprehensiveEvaluationSettingsWorkspaceParams,
+): Promise<{
   success: boolean;
-  data?: ComprehensiveEvaluationSettingsResponse;
+  data?: ComprehensiveEvaluationSettingsWorkspaceResponse;
   error?: string;
 }> {
   try {
-    const response = await comprehensiveEvaluationApi.getComprehensiveEvaluationSettings();
+    const response = await comprehensiveEvaluationApi.getComprehensiveEvaluationSettingsWorkspace(params);
 
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.errorMessage || 'Failed to fetch comprehensive evaluation settings',
+        error: response.errorMessage || 'Failed to fetch comprehensive evaluation settings workspace',
       };
     }
 
@@ -93,28 +101,28 @@ export async function getComprehensiveEvaluationSettingsAction(): Promise<{
       data: response.data,
     };
   } catch (error) {
-    console.error('getComprehensiveEvaluationSettingsAction error:', error);
+    console.error('getComprehensiveEvaluationSettingsWorkspaceAction error:', error);
     return {
       success: false,
-      error: 'An unexpected error occurred while fetching comprehensive evaluation settings',
+      error: 'An unexpected error occurred while fetching comprehensive evaluation settings workspace',
     };
   }
 }
 
-export async function updateComprehensiveEvaluationSettingsAction(
-  payload: ComprehensiveEvaluationSettingsRequest,
+export async function updateComprehensiveEvaluationDefaultAssignmentAction(
+  payload: UpdateComprehensiveDefaultAssignmentRequest,
 ): Promise<{
   success: boolean;
-  data?: ComprehensiveEvaluationSettingsResponse;
+  data?: ComprehensiveRulesetAssignmentResponse;
   error?: string;
 }> {
   try {
-    const response = await comprehensiveEvaluationApi.updateComprehensiveEvaluationSettings(payload);
+    const response = await comprehensiveEvaluationApi.updateComprehensiveEvaluationDefaultAssignment(payload);
 
     if (!response.success || !response.data) {
       return {
         success: false,
-        error: response.error || response.errorMessage || 'Failed to update comprehensive evaluation settings',
+        error: response.error || response.errorMessage || 'Failed to update default assignment',
       };
     }
 
@@ -126,10 +134,173 @@ export async function updateComprehensiveEvaluationSettingsAction(
       data: response.data,
     };
   } catch (error) {
-    console.error('updateComprehensiveEvaluationSettingsAction error:', error);
+    console.error('updateComprehensiveEvaluationDefaultAssignmentAction error:', error);
     return {
       success: false,
-      error: 'An unexpected error occurred while updating comprehensive evaluation settings',
+      error: 'An unexpected error occurred while updating default assignment',
+    };
+  }
+}
+
+export async function updateComprehensiveEvaluationDepartmentAssignmentAction(
+  departmentId: UUID,
+  payload: UpdateComprehensiveDepartmentAssignmentRequest,
+): Promise<{
+  success: boolean;
+  data?: ComprehensiveRulesetAssignmentResponse;
+  error?: string;
+}> {
+  try {
+    const response = await comprehensiveEvaluationApi.updateComprehensiveEvaluationDepartmentAssignment(departmentId, payload);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || response.errorMessage || 'Failed to update department assignment',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_LIST);
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_SETTINGS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('updateComprehensiveEvaluationDepartmentAssignmentAction error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating department assignment',
+    };
+  }
+}
+
+export async function updateComprehensiveEvaluationStageAssignmentAction(
+  stageId: UUID,
+  payload: UpdateComprehensiveStageAssignmentRequest,
+): Promise<{
+  success: boolean;
+  data?: ComprehensiveRulesetAssignmentResponse;
+  error?: string;
+}> {
+  try {
+    const response = await comprehensiveEvaluationApi.updateComprehensiveEvaluationStageAssignment(stageId, payload);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || response.errorMessage || 'Failed to update stage assignment',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_LIST);
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_SETTINGS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('updateComprehensiveEvaluationStageAssignmentAction error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating stage assignment',
+    };
+  }
+}
+
+export async function createComprehensiveEvaluationRulesetAction(
+  payload: UpsertComprehensiveRulesetRequest,
+): Promise<{
+  success: boolean;
+  data?: ComprehensiveRulesetTemplateResponse;
+  error?: string;
+}> {
+  try {
+    const response = await comprehensiveEvaluationApi.createComprehensiveEvaluationRuleset(payload);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || response.errorMessage || 'Failed to create ruleset',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_SETTINGS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('createComprehensiveEvaluationRulesetAction error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while creating ruleset',
+    };
+  }
+}
+
+export async function updateComprehensiveEvaluationRulesetAction(
+  rulesetId: UUID,
+  payload: UpsertComprehensiveRulesetRequest,
+): Promise<{
+  success: boolean;
+  data?: ComprehensiveRulesetTemplateResponse;
+  error?: string;
+}> {
+  try {
+    const response = await comprehensiveEvaluationApi.updateComprehensiveEvaluationRuleset(rulesetId, payload);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || response.errorMessage || 'Failed to update ruleset',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_SETTINGS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('updateComprehensiveEvaluationRulesetAction error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating ruleset',
+    };
+  }
+}
+
+export async function deleteComprehensiveEvaluationRulesetAction(
+  rulesetId: UUID,
+): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const response = await comprehensiveEvaluationApi.deleteComprehensiveEvaluationRuleset(rulesetId);
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error || response.errorMessage || 'Failed to delete ruleset',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.COMPREHENSIVE_EVALUATION_SETTINGS);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('deleteComprehensiveEvaluationRulesetAction error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while deleting ruleset',
     };
   }
 }
