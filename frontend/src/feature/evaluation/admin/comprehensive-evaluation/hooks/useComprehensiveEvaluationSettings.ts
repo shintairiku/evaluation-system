@@ -26,6 +26,7 @@ import {
   type DemotionRuleGroup,
   type PromotionRuleGroup,
 } from "../settings";
+import { normalizeTemplateName } from "../templateName";
 import { mockDefaultComprehensiveEvaluationSettings } from "../mock";
 
 export interface ComprehensiveRulesetTemplate {
@@ -140,10 +141,6 @@ export function toApiSettings(settings: ComprehensiveEvaluationSettings): Compre
     overallScoreThresholds: settings.overallScoreThresholds,
     levelDeltaByOverallRank: settings.levelDeltaByOverallRank,
   };
-}
-
-function normalizeTemplateName(name: string): string {
-  return name.trim().toLocaleLowerCase();
 }
 
 function fromApiAssignment(
