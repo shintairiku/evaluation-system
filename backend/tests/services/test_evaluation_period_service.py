@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -60,13 +61,56 @@ async def test_create_allows_duplicate_period_name_and_date_range():
     )
     service.evaluation_period_repo.create_evaluation_period = AsyncMock(return_value=created_period)
 
-    result = await service.create_evaluation_period(context, period_data)
+    with patch("app.services.evaluation_period_service.ComprehensiveEvaluationService") as mock_comprehensive_service:
+        comprehensive_instance = mock_comprehensive_service.return_value
+        comprehensive_instance.ensure_period_default_assignment_seeded = AsyncMock()
+
+        result = await service.create_evaluation_period(context, period_data)
 
     assert result.name == period_data.name
     service.evaluation_period_repo.create_evaluation_period.assert_awaited_once_with(period_data, org_id)
     assert service.evaluation_period_repo.check_name_exists.await_count == 0
     assert service.evaluation_period_repo.check_date_overlap.await_count == 0
+    comprehensive_instance.ensure_period_default_assignment_seeded.assert_awaited_once_with(
+        org_id=org_id,
+        period_id=created_period.id,
+    )
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_seeds_comprehensive_default_assignment():
+    session = AsyncMock(spec=AsyncSession)
+    service = EvaluationPeriodService(session)
+
+    org_id = "org_test"
+    context = _admin_context(org_id=org_id)
+    period_data = _period_create_payload()
+
+    created_period = SimpleNamespace(
+        id=uuid4(),
+        name=period_data.name,
+        period_type=period_data.period_type,
+        start_date=period_data.start_date,
+        end_date=period_data.end_date,
+        goal_submission_deadline=period_data.goal_submission_deadline,
+        evaluation_deadline=period_data.evaluation_deadline,
+        status=period_data.status,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    service.evaluation_period_repo.create_evaluation_period = AsyncMock(return_value=created_period)
+
+    with patch("app.services.evaluation_period_service.ComprehensiveEvaluationService") as mock_comprehensive_service:
+        comprehensive_instance = mock_comprehensive_service.return_value
+        comprehensive_instance.ensure_period_default_assignment_seeded = AsyncMock()
+
+        await service.create_evaluation_period(context, period_data)
+
+        comprehensive_instance.ensure_period_default_assignment_seeded.assert_awaited_once_with(
+            org_id=org_id,
+            period_id=created_period.id,
+        )
 
 
 @pytest.mark.asyncio
