@@ -308,3 +308,32 @@ class ComprehensiveProcessingStatus(Base):
         Index("idx_comprehensive_processing_statuses_org_period", "organization_id", "period_id"),
         Index("idx_comprehensive_processing_statuses_org_user", "organization_id", "user_id"),
     )
+
+
+class ComprehensiveProcessingStatus(Base):
+    __tablename__ = "comprehensive_processing_statuses"
+
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    organization_id = Column(String(50), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    processed_by_user_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    processed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "period_id",
+            "user_id",
+            name="uq_comprehensive_processing_statuses_org_period_user",
+        ),
+        Index("idx_comprehensive_processing_statuses_org_period", "organization_id", "period_id"),
+        Index("idx_comprehensive_processing_statuses_org_user", "organization_id", "user_id"),
+    )
