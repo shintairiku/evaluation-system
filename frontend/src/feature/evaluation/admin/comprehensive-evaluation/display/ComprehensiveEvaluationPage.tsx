@@ -111,14 +111,6 @@ function getEmploymentTypeBadgeVariant(value: EmploymentType) {
   return value === "employee" ? "outline" : "secondary";
 }
 
-function getEvaluationPeriodStatusLabel(status: string | undefined): string {
-  if (status === "draft") return "下書き";
-  if (status === "active") return "進行中";
-  if (status === "completed") return "評価期限後";
-  if (status === "cancelled") return "キャンセル";
-  return "-";
-}
-
 type PromotionConditionTarget = PromotionRuleCondition["field"];
 type DemotionConditionTarget = DemotionRuleCondition["field"];
 
@@ -963,7 +955,6 @@ export default function ComprehensiveEvaluationPage() {
       return;
     }
     if (!result.success) return;
-    setSettingsDialogOpen(false);
     await loadRows();
   };
 
@@ -1213,9 +1204,41 @@ export default function ComprehensiveEvaluationPage() {
     onCommit(parsed);
   };
 
+  const loadTemplateIntoRuleEditor = useCallback(
+    (templateId: string) => {
+      const template = workspace?.templates.find((item) => item.id === templateId);
+      if (!template) return;
+
+      setDraftSettings(template.settings);
+      setDraftSourceRulesetId(template.id);
+      setLevelDeltaInputs(buildLevelDeltaInputs(template.settings));
+
+      if (settingsTargetKind !== "default") {
+        setIsScopedOverrideDraftEnabled(true);
+      }
+    },
+    [settingsTargetKind, workspace?.templates],
+  );
+
   const handleSelectTemplateInLibrary = (templateId: string) => {
     setTemplatePickerId(templateId);
     setTemplateEditorId(templateId);
+    loadTemplateIntoRuleEditor(templateId);
+  };
+
+  const handleEnterTemplateManageMode = () => {
+    setTemplateActionMode("manage");
+
+    const nextTemplateId =
+      templateEditorId ||
+      draftSourceRulesetId ||
+      workspace?.templates[0]?.id ||
+      "";
+
+    if (!nextTemplateId) return;
+
+    setTemplateEditorId(nextTemplateId);
+    loadTemplateIntoRuleEditor(nextTemplateId);
   };
 
   const handleApplyTemplateToDraft = () => {
@@ -1726,9 +1749,7 @@ export default function ComprehensiveEvaluationPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setTemplateActionMode("manage")
-                                  }
+                                  onClick={handleEnterTemplateManageMode}
                                   className={cn(
                                     "rounded-xl px-4 py-2 text-sm font-medium transition",
                                     templateActionMode === "manage"
@@ -2024,9 +2045,7 @@ export default function ComprehensiveEvaluationPage() {
                               <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="space-y-1">
                                   <CardTitle className="text-base">
-                                    {settingsTargetKind === "default"
-                                      ? "期間デフォルトを編集"
-                                      : `${selectedScopedAssignmentName} を編集`}
+                                    判定ルールエディタ
                                   </CardTitle>
                                   <CardDescription>
                                     {settingsTargetKind === "default"
@@ -2063,10 +2082,9 @@ export default function ComprehensiveEvaluationPage() {
                                   )}
                                 </div>
                               </div>
-                            </CardHeader>
-                            <CardContent className="space-y-4 pt-6">
+
                               {settingsTargetKind !== "default" && (
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-2 pt-4">
                                   {currentSettingsAssignment.inheritsDefault &&
                                   !isScopedOverrideDraftEnabled ? (
                                     <Button
@@ -2094,7 +2112,8 @@ export default function ComprehensiveEvaluationPage() {
                                   )}
                                 </div>
                               )}
-
+                            </CardHeader>
+                            <CardContent className="space-y-4 pt-6">
                               {settingsTargetKind !== "default" &&
                                 !isSettingsLocked &&
                                 isSettingsEditorDisabled && (
@@ -2119,19 +2138,7 @@ export default function ComprehensiveEvaluationPage() {
                                   </AlertDescription>
                                 </Alert>
                               )}
-                            </CardContent>
-                          </Card>
 
-                          <Card className="gap-0 border border-slate-200 bg-white shadow-none">
-                            <CardHeader className="border-b border-slate-100 pb-4">
-                              <CardTitle className="text-base">
-                                判定ルールエディタ
-                              </CardTitle>
-                              <CardDescription>
-                                昇格条件、降格条件、総合評価ごとのレベル増減をまとめて編集します。
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent className="pt-6">
                               <div
                                 className={cn(
                                   "space-y-8 px-6 pb-6",
