@@ -288,7 +288,7 @@ function PerformanceGoalSupervisorCard({
           disabled={!isEditable}
         />
         <div className="flex justify-between items-center mt-1">
-          <p className="text-xs text-gray-400">メモ（部下には表示されません）</p>
+          <p className="text-xs text-gray-400">メモ（評価期間が終了するまで、メンバーには表示されません）</p>
           <p className="text-xs text-gray-400">{comment.length} / 5000</p>
         </div>
       </div>
