@@ -1,15 +1,16 @@
 
+export const homeLink = {
+  href: '/',
+  label: 'ホーム',
+  sublabel: 'Dashboard',
+  icon: 'home',
+  permission: 'authenticated'
+};
+
 export const groups = [
   {
-    title: '人事評価システム',
+    title: 'メンバー',
     links: [
-      {
-        href: '/',
-        label: 'ホーム',
-        sublabel: 'Dashboard',
-        icon: 'home',
-        permission: 'authenticated'
-      },
       {
         href: '/goal-input',
         label: '目標入力',
@@ -38,17 +39,10 @@ export const groups = [
         icon: 'users',
         permission: 'employee'
       },
-      {
-        href: '/user-profiles',
-        label: 'ユーザー管理',
-        sublabel: 'User Profiles',
-        icon: 'user-cog',
-        permission: 'authenticated'
-      },
     ],
   },
   {
-    title: '上司機能',
+    title: '上司',
     links: [
       {
         href: '/goal-review',
@@ -67,7 +61,33 @@ export const groups = [
     ],
   },
   {
-    title: '管理者機能',
+    title: '設定',
+    links: [
+      {
+        href: '/user-profiles',
+        label: 'ユーザー管理',
+        sublabel: 'User Profiles',
+        icon: 'user-cog',
+        permission: 'authenticated'
+      },
+      {
+        href: '/notifications',
+        label: '通知センター',
+        sublabel: 'Notifications',
+        icon: 'bell',
+        permission: 'authenticated'
+      },
+      {
+        href: '/settings',
+        label: 'システム設定',
+        sublabel: 'Settings',
+        icon: 'settings',
+        permission: 'authenticated'
+      },
+    ],
+  },
+  {
+    title: '管理者',
     links: [
       {
         href: '/org-management',
@@ -117,25 +137,6 @@ export const groups = [
         sublabel: 'Peer Review Assignments',
         icon: 'users',
         permission: 'admin'
-      },
-    ],
-  },
-  {
-    title: '設定・通知',
-    links: [
-      {
-        href: '/notifications',
-        label: '通知センター',
-        sublabel: 'Notifications',
-        icon: 'bell',
-        permission: 'authenticated'
-      },
-      {
-        href: '/settings',
-        label: 'システム設定',
-        sublabel: 'Settings',
-        icon: 'settings',
-        permission: 'authenticated'
       },
       {
         href: '/admin-settings',
