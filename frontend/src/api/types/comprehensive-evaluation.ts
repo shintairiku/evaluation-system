@@ -168,6 +168,24 @@ export interface ComprehensiveEvaluationListResponse {
   meta: ComprehensiveEvaluationListMeta;
 }
 
+export type ComprehensiveEvaluationExportColumn =
+  | 'employeeCode'
+  | 'name'
+  | 'departmentName'
+  | 'employmentType'
+  | 'currentStage'
+  | 'currentLevel'
+  | 'performanceFinalRank'
+  | 'performanceWeightPercent'
+  | 'competencyFinalRank'
+  | 'competencyWeightPercent'
+  | 'coreValueFinalRank'
+  | 'totalScore'
+  | 'overallRank'
+  | 'newLevel'
+  | 'promotionDemotionFlag'
+  | 'processingStatus';
+
 export interface GetComprehensiveEvaluationListParams {
   periodId: UUID;
   departmentId?: UUID;
@@ -178,6 +196,18 @@ export interface GetComprehensiveEvaluationListParams {
   candidateView?: boolean;
   page?: number;
   limit?: number;
+}
+
+export interface ExportComprehensiveEvaluationRequest {
+  periodId: UUID;
+  departmentId?: UUID;
+  stageId?: UUID;
+  departmentName?: string;
+  stageName?: string;
+  employmentType?: ComprehensiveEmploymentType;
+  search?: string;
+  processingStatus?: ComprehensiveProcessingStatus;
+  columns: ComprehensiveEvaluationExportColumn[];
 }
 
 export interface FinalizeComprehensiveEvaluationRequest {
