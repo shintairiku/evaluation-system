@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { groups } from '@/components/constants/routes';
+import { homeLink, groups } from '@/components/constants/routes';
 import clsx from 'clsx';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -115,6 +115,25 @@ export default function Sidebar() {
       
       <ScrollArea className="h-[calc(100%-80px)]">
         <nav className="p-2 space-y-4">
+          <div className="space-y-1">
+            <Link
+              href={homeLink.href}
+              prefetch={false}
+              className={clsx(
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200',
+                pathname === homeLink.href
+                  ? 'bg-white/20 text-white'
+                  : 'text-white/90 hover:bg-white/10 hover:text-white'
+              )}
+            >
+              <div className="flex-shrink-0">
+                {iconMap[homeLink.icon]}
+              </div>
+              <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+                <div className="font-medium truncate">{homeLink.label}</div>
+              </div>
+            </Link>
+          </div>
           {groups.map((group) => (
             <div key={group.title} className="space-y-2">
               <div className="px-2">
