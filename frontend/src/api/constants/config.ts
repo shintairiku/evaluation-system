@@ -291,6 +291,7 @@ export const API_ENDPOINTS = {
   // Comprehensive Evaluation endpoints
   COMPREHENSIVE_EVALUATION: {
     LIST: '/evaluation/comprehensive-evaluation',
+    EXPORT: '/evaluation/comprehensive-evaluation/export',
     STAGE_OPTIONS: '/evaluation/comprehensive-evaluation/stage-options',
     SETTINGS_WORKSPACE: '/evaluation/comprehensive-evaluation/settings/workspace',
     DEFAULT_ASSIGNMENT: '/evaluation/comprehensive-evaluation/settings/default-assignment',
