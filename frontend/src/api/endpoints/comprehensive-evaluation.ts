@@ -6,6 +6,7 @@ import type {
   ComprehensiveEvaluationSettingsWorkspaceResponse,
   ComprehensiveRulesetAssignmentResponse,
   ComprehensiveRulesetTemplateResponse,
+  ExportComprehensiveEvaluationRequest,
   ComprehensiveManualDecisionHistoryResponse,
   FinalizeComprehensiveEvaluationRequest,
   FinalizeComprehensiveEvaluationResponse,
@@ -48,6 +49,15 @@ export const comprehensiveEvaluationApi = {
 
     return httpClient.get<ComprehensiveEvaluationListResponse>(
       `${API_ENDPOINTS.COMPREHENSIVE_EVALUATION.LIST}?${queryParams.toString()}`,
+    );
+  },
+
+  exportComprehensiveEvaluationCsv: async (
+    payload: ExportComprehensiveEvaluationRequest,
+  ): Promise<ApiResponse<string>> => {
+    return httpClient.post<string>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.EXPORT,
+      payload,
     );
   },
 
