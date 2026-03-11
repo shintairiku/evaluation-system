@@ -19,11 +19,15 @@ const GoalReviewContext = createContext<GoalReviewContextType | undefined>(undef
 
 export interface GoalReviewProviderProps {
   children: ReactNode;
+  initialPendingCount?: number;
+  initialPeriodId?: string;
 }
 
-export function GoalReviewProvider({ children }: GoalReviewProviderProps) {
+export function GoalReviewProvider({ children, initialPendingCount, initialPeriodId }: GoalReviewProviderProps) {
   const currentUserContext = useOptionalCurrentUserContext();
-  const [pendingCount, setPendingCountState] = useState<number>(0);
+  const [pendingCount, setPendingCountState] = useState<number>(() => (
+    typeof initialPendingCount === 'number' ? initialPendingCount : 0
+  ));
 
   const setPendingCount = useCallback((count: number) => {
     if (count < 0) return; // Prevent negative values
@@ -38,7 +42,7 @@ export function GoalReviewProvider({ children }: GoalReviewProviderProps) {
     try {
       // ARCHITECTURAL MIGRATION: Use supervisor_review table instead of goals table
       // This aligns with the Goal Review page implementation using the same data source
-      const currentPeriodId = currentUserContext?.currentPeriod?.id;
+      const currentPeriodId = initialPeriodId ?? currentUserContext?.currentPeriod?.id;
       const result = await getPendingSupervisorReviewsAction({
         pagination: { limit: 1 },
         periodId: currentPeriodId ?? undefined,
@@ -50,12 +54,19 @@ export function GoalReviewProvider({ children }: GoalReviewProviderProps) {
       console.error('Error refreshing pending count:', error);
       // Don't reset count on error, keep previous value
     }
-  }, [currentUserContext?.currentPeriod?.id]);
+  }, [initialPeriodId, currentUserContext?.currentPeriod?.id]);
 
-  // Load pending count on provider initialization
+  // Sync with SSR-provided initial value
   useEffect(() => {
+    if (typeof initialPendingCount !== 'number') return;
+    setPendingCountState(initialPendingCount);
+  }, [initialPendingCount]);
+
+  // Load pending count on provider initialization (skip if SSR value was provided)
+  useEffect(() => {
+    if (typeof initialPendingCount === 'number') return;
     refreshPendingCount();
-  }, [refreshPendingCount]);
+  }, [initialPendingCount, refreshPendingCount]);
 
   const value: GoalReviewContextType = useMemo(() => ({
     pendingCount,

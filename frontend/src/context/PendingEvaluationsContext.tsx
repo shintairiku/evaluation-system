@@ -25,6 +25,8 @@ const PendingEvaluationsContext = createContext<PendingEvaluationsContextType | 
 export interface PendingEvaluationsProviderProps {
   children: ReactNode;
   initialPendingEvaluationsCount?: number;
+  initialPeriodId?: string;
+  initialUserId?: string;
 }
 
 /**
@@ -35,7 +37,7 @@ export interface PendingEvaluationsProviderProps {
  *
  * This follows the same pattern as DraftAssessmentsProvider.
  */
-export function PendingEvaluationsProvider({ children, initialPendingEvaluationsCount }: PendingEvaluationsProviderProps) {
+export function PendingEvaluationsProvider({ children, initialPendingEvaluationsCount, initialPeriodId, initialUserId }: PendingEvaluationsProviderProps) {
   const currentUserContext = useOptionalCurrentUserContext();
   const [pendingEvaluationsCount, setPendingEvaluationsCountState] = useState<number>(() => (
     typeof initialPendingEvaluationsCount === 'number' ? initialPendingEvaluationsCount : 0
@@ -58,8 +60,8 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
    */
   const refreshPendingEvaluationsCount = useCallback(async () => {
     try {
-      const currentUserId = currentUserContext?.user?.id;
-      const currentPeriodId = currentUserContext?.currentPeriod?.id;
+      const currentUserId = initialUserId ?? currentUserContext?.user?.id;
+      const currentPeriodId = initialPeriodId ?? currentUserContext?.currentPeriod?.id;
 
       if (!currentUserId || !currentPeriodId) {
         setPendingEvaluationsCountState(0);
@@ -91,7 +93,7 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
       console.error('Error refreshing pending evaluations count:', error);
       // Don't reset count on error, keep previous value
     }
-  }, [currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
+  }, [initialPeriodId, initialUserId, currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
 
   // Keep state in sync when the server provides an initial value
   useEffect(() => {

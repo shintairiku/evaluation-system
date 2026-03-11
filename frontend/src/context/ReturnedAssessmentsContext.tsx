@@ -26,6 +26,8 @@ const DraftAssessmentsContext = createContext<DraftAssessmentsContextType | unde
 export interface DraftAssessmentsProviderProps {
   children: ReactNode;
   initialDraftCount?: number;
+  initialPeriodId?: string;
+  initialUserId?: string;
 }
 
 /**
@@ -38,7 +40,7 @@ export interface DraftAssessmentsProviderProps {
  *
  * This follows the same pattern as GoalListProvider for rejected goals.
  */
-export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftAssessmentsProviderProps) {
+export function DraftAssessmentsProvider({ children, initialDraftCount, initialPeriodId, initialUserId }: DraftAssessmentsProviderProps) {
   const currentUserContext = useOptionalCurrentUserContext();
   const [draftCount, setDraftCountState] = useState<number>(() => (
     typeof initialDraftCount === 'number' ? initialDraftCount : 0
@@ -60,8 +62,8 @@ export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftA
    */
   const refreshDraftCount = useCallback(async () => {
     try {
-      const currentUserId = currentUserContext?.user?.id;
-      const currentPeriodId = currentUserContext?.currentPeriod?.id;
+      const currentUserId = initialUserId ?? currentUserContext?.user?.id;
+      const currentPeriodId = initialPeriodId ?? currentUserContext?.currentPeriod?.id;
 
       if (!currentUserId || !currentPeriodId) {
         setDraftCountState(0);
@@ -93,7 +95,7 @@ export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftA
       console.error('Error refreshing draft assessments count:', error);
       // Don't reset count on error, keep previous value
     }
-  }, [currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
+  }, [initialPeriodId, initialUserId, currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
 
   // Keep state in sync when the server provides an initial value
   useEffect(() => {
