@@ -8,6 +8,7 @@ import type {
   ComprehensiveEvaluationListResponse,
   ComprehensiveEvaluationSettingsWorkspaceResponse,
   ComprehensiveManualDecisionHistoryResponse,
+  ExportComprehensiveEvaluationRequest,
   FinalizeComprehensiveEvaluationResponse,
   GetComprehensiveEvaluationSettingsWorkspaceParams,
   GetComprehensiveEvaluationListParams,
@@ -47,6 +48,36 @@ export async function getComprehensiveEvaluationListAction(params: GetComprehens
     return {
       success: false,
       error: 'An unexpected error occurred while fetching comprehensive evaluation rows',
+    };
+  }
+}
+
+export async function exportComprehensiveEvaluationCsvAction(
+  payload: ExportComprehensiveEvaluationRequest,
+): Promise<{
+  success: boolean;
+  data?: string;
+  error?: string;
+}> {
+  try {
+    const response = await comprehensiveEvaluationApi.exportComprehensiveEvaluationCsv(payload);
+
+    if (!response.success || response.data === undefined) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to export comprehensive evaluation csv',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('exportComprehensiveEvaluationCsvAction error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while exporting comprehensive evaluation csv',
     };
   }
 }
