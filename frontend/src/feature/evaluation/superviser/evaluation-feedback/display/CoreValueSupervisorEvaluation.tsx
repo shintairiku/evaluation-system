@@ -191,7 +191,7 @@ export default function CoreValueSupervisorEvaluation({
                 saveStatus={saveStatus}
                 label="上長評価コメント"
                 placeholder="上長としてのフィードバックを記入してください..."
-                hintText="メモ（部下には表示されません）"
+                hintText="メモ（評価期間が終了するまで、メンバーには表示されません）"
                 saveStatusTheme="green"
                 focusRingColor="focus:ring-green-200"
                 showRequired
