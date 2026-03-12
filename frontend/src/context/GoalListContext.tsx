@@ -104,11 +104,10 @@ export function GoalListProvider({ children, initialRejectedGoalsCount, initialP
     setRejectedGoalsCountState(initialRejectedGoalsCount);
   }, [initialRejectedGoalsCount]);
 
-  // Load rejected goals count on provider initialization only when we don't already have a server-provided value.
+  // Load rejected goals count on provider initialization to ensure correctness after hydration
   useEffect(() => {
-    if (typeof initialRejectedGoalsCount === 'number') return;
     refreshRejectedGoalsCount();
-  }, [initialRejectedGoalsCount, refreshRejectedGoalsCount]);
+  }, [refreshRejectedGoalsCount]);
 
   const value: GoalListContextType = useMemo(() => ({
     rejectedGoalsCount,

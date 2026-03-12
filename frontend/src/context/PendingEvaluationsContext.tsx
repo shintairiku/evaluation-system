@@ -101,11 +101,10 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
     setPendingEvaluationsCountState(initialPendingEvaluationsCount);
   }, [initialPendingEvaluationsCount]);
 
-  // Load pending count on provider initialization only when we don't already have a server-provided value
+  // Load pending count on provider initialization to ensure correctness after hydration
   useEffect(() => {
-    if (typeof initialPendingEvaluationsCount === 'number') return;
     refreshPendingEvaluationsCount();
-  }, [initialPendingEvaluationsCount, refreshPendingEvaluationsCount]);
+  }, [refreshPendingEvaluationsCount]);
 
   const value: PendingEvaluationsContextType = useMemo(() => ({
     pendingEvaluationsCount,

@@ -62,11 +62,10 @@ export function GoalReviewProvider({ children, initialPendingCount, initialPerio
     setPendingCountState(initialPendingCount);
   }, [initialPendingCount]);
 
-  // Load pending count on provider initialization (skip if SSR value was provided)
+  // Load pending count on provider initialization to ensure correctness after hydration
   useEffect(() => {
-    if (typeof initialPendingCount === 'number') return;
     refreshPendingCount();
-  }, [initialPendingCount, refreshPendingCount]);
+  }, [refreshPendingCount]);
 
   const value: GoalReviewContextType = useMemo(() => ({
     pendingCount,
