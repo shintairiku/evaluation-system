@@ -147,6 +147,29 @@ describe('SidebarRefresher', () => {
     allMocks.forEach(m => expect(m).not.toHaveBeenCalled());
   });
 
+  it('debounces rapid visibility changes within 5 seconds', () => {
+    render(<SidebarRefresher />);
+
+    // First visibility change triggers refresh
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    allMocks.forEach(m => expect(m).toHaveBeenCalledTimes(1));
+
+    // Rapid second visibility change within 5s is debounced
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    allMocks.forEach(m => expect(m).toHaveBeenCalledTimes(1)); // Still 1
+
+    // After 5s debounce window, refresh fires again
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    allMocks.forEach(m => expect(m).toHaveBeenCalledTimes(2));
+  });
+
   it('cleans up interval and event listener on unmount', () => {
     const { unmount } = render(<SidebarRefresher />);
 

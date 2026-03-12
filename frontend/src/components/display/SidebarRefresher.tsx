@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGoalReviewContext } from '@/context/GoalReviewContext';
 import { useGoalListContext } from '@/context/GoalListContext';
 import { useDraftAssessmentsContext } from '@/context/ReturnedAssessmentsContext';
 import { usePendingEvaluationsContext } from '@/context/PendingEvaluationsContext';
 
 const AUTO_REFRESH_INTERVAL_MS = 30_000;
+const DEBOUNCE_MS = 5_000;
 
 /**
  * SidebarRefresher
@@ -19,13 +20,14 @@ const AUTO_REFRESH_INTERVAL_MS = 30_000;
  * so modals, forms, and other UI state remain unaffected.
  *
  * Smart refresh: skips when the tab is not visible or the user is actively typing,
- * and triggers an immediate refresh when the user returns to the tab.
+ * and triggers an immediate refresh when the user returns to the tab (debounced).
  */
 export default function SidebarRefresher() {
   const { refreshPendingCount } = useGoalReviewContext();
   const { refreshRejectedGoalsCount } = useGoalListContext();
   const { refreshDraftCount } = useDraftAssessmentsContext();
   const { refreshPendingEvaluationsCount } = usePendingEvaluationsContext();
+  const lastRefreshRef = useRef(-DEBOUNCE_MS);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -45,7 +47,13 @@ export default function SidebarRefresher() {
       return tag !== 'TEXTAREA' && tag !== 'INPUT' && !(el as HTMLElement).isContentEditable;
     };
 
-    const tick = () => { if (isSafeToRefresh()) refreshAll(); };
+    const tick = () => {
+      if (!isSafeToRefresh()) return;
+      const now = Date.now();
+      if (now - lastRefreshRef.current < DEBOUNCE_MS) return;
+      lastRefreshRef.current = now;
+      refreshAll();
+    };
     const intervalId = window.setInterval(tick, AUTO_REFRESH_INTERVAL_MS);
     const handleVisibilityChange = () => { if (document.visibilityState === 'visible') tick(); };
     document.addEventListener('visibilitychange', handleVisibilityChange);
