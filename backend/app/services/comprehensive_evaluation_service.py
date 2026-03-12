@@ -1483,8 +1483,6 @@ class ComprehensiveEvaluationService:
 
         promotion_flag = (
             employment == "employee"
-            and new_level is not None
-            and new_level >= 30
             and promotion_rule_hit
         )
         demotion_flag = demotion_rule_hit
