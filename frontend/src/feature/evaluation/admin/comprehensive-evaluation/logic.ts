@@ -131,12 +131,6 @@ function evaluateDemotionRuleGroups(
   return false;
 }
 
-function computePromotionFlag(row: ComprehensiveEvaluationRow, computedNewLevel: number | null): boolean {
-  if (row.employmentType !== 'employee') return false;
-  if (computedNewLevel === null) return false;
-  return computedNewLevel >= 30;
-}
-
 function computeDemotionFlag(overallRank: EvaluationRank | null): boolean {
   return overallRank === 'D';
 }
@@ -202,7 +196,7 @@ export function computeComprehensiveEvaluationRow(
 
   const newStage = computeNewStage(row.currentStage, stageDelta);
   const newLevel = row.currentLevel !== null && levelDelta !== null ? row.currentLevel + levelDelta : null;
-  const promotionFlag = isPromotionCandidate && computePromotionFlag(row, newLevel);
+  const promotionFlag = row.employmentType === 'employee' && isPromotionCandidate;
   const demotionFlag = isDemotionCandidate && computeDemotionFlag(overallRank);
   const decision: ComprehensiveEvaluationDecision =
     promotionFlag && !demotionFlag ? '昇格' : demotionFlag && !promotionFlag ? '降格' : '対象外';

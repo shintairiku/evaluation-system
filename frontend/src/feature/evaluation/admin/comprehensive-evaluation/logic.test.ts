@@ -48,6 +48,24 @@ describe("comprehensive evaluation logic", () => {
     expect(computed.decision).toBe("昇格");
   });
 
+  it("activates promotion flag even when the new level stays below 30", () => {
+    const row = buildRow({
+      performanceScore: 4.5,
+      competencyScore: 0.2, // total 4.7 => A+
+      competencyFinalRank: "A+",
+      coreValueFinalRank: null,
+      currentLevel: 10,
+    });
+
+    const computed = computeComprehensiveEvaluationRow(row, mockDefaultComprehensiveEvaluationSettings);
+
+    expect(computed.overallRank).toBe("A+");
+    expect(computed.newLevel).toBe(16);
+    expect(computed.isPromotionCandidate).toBe(true);
+    expect(computed.promotionFlag).toBe(true);
+    expect(computed.decision).toBe("昇格");
+  });
+
   it("evaluates demotion candidate from overall D", () => {
     const row = buildRow({
       performanceScore: 0.1,
