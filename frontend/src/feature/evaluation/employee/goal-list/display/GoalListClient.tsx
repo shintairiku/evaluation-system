@@ -22,9 +22,6 @@ export default function GoalListClient({ pageData }: GoalListClientProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Light-weight "near realtime" refresh so employees see updates (e.g., approvals/rejections) quickly.
-  // True realtime would require a push channel (SSE/WebSocket/Supabase Realtime).
-  const AUTO_REFRESH_INTERVAL_MS = 15_000;
 
   const currentUser = pageData.currentUserContext.user;
   const periods = pageData.periods?.all ?? [];
@@ -56,43 +53,6 @@ export default function GoalListClient({ pageData }: GoalListClientProps) {
     if (rejectedGoalsCount === pageData.rejectedGoalsCount) return;
     setRejectedGoalsCount(pageData.rejectedGoalsCount);
   }, [pageData.rejectedGoalsCount, rejectedGoalsCount, setRejectedGoalsCount]);
-
-  React.useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const isSafeToRefresh = () => {
-      if (document.visibilityState !== 'visible') return false;
-
-      const activeElement = document.activeElement as HTMLElement | null;
-      if (!activeElement) return true;
-
-      const tagName = activeElement.tagName;
-      if (tagName === 'TEXTAREA' || tagName === 'INPUT' || activeElement.isContentEditable) {
-        return false;
-      }
-
-      return true;
-    };
-
-    const tick = () => {
-      if (isSafeToRefresh()) {
-        router.refresh();
-      }
-    };
-
-    const intervalId = window.setInterval(tick, AUTO_REFRESH_INTERVAL_MS);
-
-    // When the tab becomes visible again, refresh once immediately.
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') tick();
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [router]);
 
   const handlePeriodChange = (periodId: string) => {
     const next = new URLSearchParams(searchParams.toString());
