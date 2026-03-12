@@ -69,7 +69,8 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
       }
 
       // Fetch supervisor feedback count + core value pending count in parallel
-      const [feedbacksResult, coreValueResult] = await Promise.all([
+      // Using Promise.allSettled so a failure in one doesn't discard the other's result
+      const [feedbacksResult, coreValueResult] = await Promise.allSettled([
         getSupervisorFeedbacksAction({
           periodId: currentPeriodId,
           supervisorId: currentUserId,
@@ -80,12 +81,14 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
         getCoreValuePendingFeedbackCountAction(currentPeriodId),
       ]);
 
-      const supervisorTotal = feedbacksResult.success && feedbacksResult.data
-        ? feedbacksResult.data.total
+      const supervisorTotal = feedbacksResult.status === 'fulfilled'
+        && feedbacksResult.value.success && feedbacksResult.value.data
+        ? feedbacksResult.value.data.total
         : 0;
 
-      const coreValueCount = coreValueResult.success && coreValueResult.data
-        ? coreValueResult.data.count
+      const coreValueCount = coreValueResult.status === 'fulfilled'
+        && coreValueResult.value.success && coreValueResult.value.data
+        ? coreValueResult.value.data.count
         : 0;
 
       setPendingEvaluationsCountState(supervisorTotal + coreValueCount);

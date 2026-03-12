@@ -71,7 +71,8 @@ export function DraftAssessmentsProvider({ children, initialDraftCount, initialP
       }
 
       // Fetch self-assessment draft count + core value evaluation in parallel
-      const [assessmentsResult, coreValueResult] = await Promise.all([
+      // Using Promise.allSettled so a failure in one doesn't discard the other's result
+      const [assessmentsResult, coreValueResult] = await Promise.allSettled([
         getSelfAssessmentsAction({
           periodId: currentPeriodId,
           status: 'draft',
@@ -81,12 +82,13 @@ export function DraftAssessmentsProvider({ children, initialDraftCount, initialP
         getMyEvaluationAction(currentPeriodId),
       ]);
 
-      const selfAssessmentTotal = assessmentsResult.success && assessmentsResult.data
-        ? assessmentsResult.data.total
+      const selfAssessmentTotal = assessmentsResult.status === 'fulfilled'
+        && assessmentsResult.value.success && assessmentsResult.value.data
+        ? assessmentsResult.value.data.total
         : 0;
 
-      const coreValueIsDraft = coreValueResult.success && coreValueResult.data
-        && coreValueResult.data.status === 'draft'
+      const coreValueIsDraft = coreValueResult.status === 'fulfilled'
+        && coreValueResult.value.success && coreValueResult.value.data?.status === 'draft'
         ? 1
         : 0;
 
