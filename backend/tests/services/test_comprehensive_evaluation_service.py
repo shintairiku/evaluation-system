@@ -427,6 +427,65 @@ async def test_category_rank_uses_raw_score_not_weighted_contribution():
 
 
 @pytest.mark.asyncio
+async def test_promotion_flag_uses_rule_hit_even_when_new_level_is_below_30():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    settings = build_settings()
+    period_id = uuid4()
+    user_id = uuid4()
+
+    service._get_period_settings_map = AsyncMock(return_value=(settings, {}, {}))
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_id}:{user_id}",
+                    "user_id": user_id,
+                    "department_id": None,
+                    "stage_id": uuid4(),
+                    "employee_code": "E001",
+                    "name": "Level Ten User",
+                    "department_name": "Engineering",
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 10,
+                    "performance_score": 4.5,
+                    "competency_score": 0.2,
+                    "core_value_score": None,
+                    "performance_raw_score": 4.5,
+                    "competency_raw_score": 4.7,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 10,
+                    "manual_decision": None,
+                }
+            ],
+            1,
+        )
+    )
+
+    result = await service.get_comprehensive_evaluation(
+        context=make_context(role_name="admin"),
+        period_id=period_id,
+        department_id=None,
+        stage_id=None,
+        employment_type=None,
+        search=None,
+        processing_status=None,
+        page=1,
+        limit=200,
+    )
+
+    row = result.rows[0]
+
+    assert row.auto.overall_rank == "A+"
+    assert row.auto.new_level == 16
+    assert row.auto.promotion_flag is True
+    assert row.auto.decision == "昇格"
+
+
+@pytest.mark.asyncio
 async def test_department_override_uses_department_specific_settings():
     service = ComprehensiveEvaluationService(AsyncMock())
     default_settings = build_settings()
