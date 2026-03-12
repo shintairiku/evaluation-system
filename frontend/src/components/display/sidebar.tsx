@@ -46,53 +46,25 @@ const iconMap: Record<string, React.ReactElement> = {
   'shield': <Shield size={20} />,
 };
 
+// Safely consume a context hook, returning 0 if the provider is not available
+function useSafeCount<T>(hook: () => T, getter: (ctx: T) => number): number {
+  try { return getter(hook()); } catch { return 0; }
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
 
-  // Get goal review context with graceful fallback
-  // This follows the project pattern of defensive programming for contexts
-  let pendingCount = 0;
-  try {
-    const context = useGoalReviewContext();
-    pendingCount = context.pendingCount;
-  } catch {
-    // Context not available (e.g., during SSR or outside provider)
-    // Use default value
-    pendingCount = 0;
-  }
+  const pendingCount = useSafeCount(useGoalReviewContext, c => c.pendingCount);
+  const rejectedGoalsCount = useSafeCount(useGoalListContext, c => c.rejectedGoalsCount);
+  const draftCount = useSafeCount(useDraftAssessmentsContext, c => c.draftCount);
+  const pendingEvaluationsCount = useSafeCount(usePendingEvaluationsContext, c => c.pendingEvaluationsCount);
 
-  // Get goal list context with graceful fallback
-  let rejectedGoalsCount = 0;
-  try {
-    const context = useGoalListContext();
-    rejectedGoalsCount = context.rejectedGoalsCount;
-  } catch {
-    // Context not available (e.g., during SSR or outside provider)
-    // Use default value
-    rejectedGoalsCount = 0;
-  }
-
-  // Get draft assessments context with graceful fallback
-  let draftCount = 0;
-  try {
-    const context = useDraftAssessmentsContext();
-    draftCount = context.draftCount;
-  } catch {
-    // Context not available (e.g., during SSR or outside provider)
-    // Use default value
-    draftCount = 0;
-  }
-
-  // Get pending evaluations context with graceful fallback
-  let pendingEvaluationsCount = 0;
-  try {
-    const context = usePendingEvaluationsContext();
-    pendingEvaluationsCount = context.pendingEvaluationsCount;
-  } catch {
-    // Context not available (e.g., during SSR or outside provider)
-    // Use default value
-    pendingEvaluationsCount = 0;
-  }
+  const badgeCounts: Record<string, number> = {
+    '/goal-review': pendingCount,
+    '/goal-list': rejectedGoalsCount,
+    '/evaluation-input': draftCount,
+    '/evaluation-feedback': pendingEvaluationsCount,
+  };
 
   // 権限フィルタリング（現在はダミー実装）
   const filterByPermission = (links: SidebarLink[]) => {
@@ -160,35 +132,11 @@ export default function Sidebar() {
                   >
                     <div className="flex-shrink-0 relative">
                       {iconMap[link.icon]}
-                      {/* Goal Review Pending Count - Only visible when sidebar is collapsed */}
-                      {link.href === '/goal-review' && pendingCount > 0 && (
+                      {/* Counter badge - collapsed view */}
+                      {badgeCounts[link.href] > 0 && (
                         <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
                           <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
-                            {pendingCount > 99 ? '99' : pendingCount}
-                          </Badge>
-                        </div>
-                      )}
-                      {/* Goal List Rejected Count - Only visible when sidebar is collapsed */}
-                      {link.href === '/goal-list' && rejectedGoalsCount > 0 && (
-                        <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
-                          <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
-                            {rejectedGoalsCount > 99 ? '99' : rejectedGoalsCount}
-                          </Badge>
-                        </div>
-                      )}
-                      {/* Draft Assessments Count - Only visible when sidebar is collapsed */}
-                      {link.href === '/evaluation-input' && draftCount > 0 && (
-                        <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
-                          <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
-                            {draftCount > 99 ? '99' : draftCount}
-                          </Badge>
-                        </div>
-                      )}
-                      {/* Pending Evaluations Count - Only visible when sidebar is collapsed */}
-                      {link.href === '/evaluation-feedback' && pendingEvaluationsCount > 0 && (
-                        <div className="absolute -top-1 -right-2 z-10 group-hover:opacity-0 transition-opacity duration-300">
-                          <Badge variant="destructive" className="text-xs min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white border border-white/20">
-                            {pendingEvaluationsCount > 99 ? '99' : pendingEvaluationsCount}
+                            {badgeCounts[link.href] > 99 ? '99' : badgeCounts[link.href]}
                           </Badge>
                         </div>
                       )}
@@ -198,31 +146,10 @@ export default function Sidebar() {
                     </div>
 
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100 flex items-center gap-2">
-                      {/* Goal Review Count - Expanded view */}
-                      {link.href === '/goal-review' && pendingCount > 0 && (
+                      {/* Counter badge - expanded view */}
+                      {badgeCounts[link.href] > 0 && (
                         <Badge variant="destructive" className="text-xs bg-red-500 text-white">
-                          {pendingCount > 99 ? '99+' : pendingCount}
-                        </Badge>
-                      )}
-
-                      {/* Goal List Rejected Count - Expanded view */}
-                      {link.href === '/goal-list' && rejectedGoalsCount > 0 && (
-                        <Badge variant="destructive" className="text-xs bg-red-500 text-white">
-                          {rejectedGoalsCount > 99 ? '99+' : rejectedGoalsCount}
-                        </Badge>
-                      )}
-
-                      {/* Draft Assessments Count - Expanded view */}
-                      {link.href === '/evaluation-input' && draftCount > 0 && (
-                        <Badge variant="destructive" className="text-xs bg-red-500 text-white">
-                          {draftCount > 99 ? '99+' : draftCount}
-                        </Badge>
-                      )}
-
-                      {/* Pending Evaluations Count - Expanded view */}
-                      {link.href === '/evaluation-feedback' && pendingEvaluationsCount > 0 && (
-                        <Badge variant="destructive" className="text-xs bg-red-500 text-white">
-                          {pendingEvaluationsCount > 99 ? '99+' : pendingEvaluationsCount}
+                          {badgeCounts[link.href] > 99 ? '99+' : badgeCounts[link.href]}
                         </Badge>
                       )}
 
@@ -231,7 +158,7 @@ export default function Sidebar() {
                           管理者
                         </Badge>
                       )}
-                      {link.permission === 'supervisor' && (link.href !== '/goal-review' || pendingCount === 0) && (link.href !== '/evaluation-feedback' || pendingEvaluationsCount === 0) && (
+                      {link.permission === 'supervisor' && !badgeCounts[link.href] && (
                         <Badge variant="outline" className="text-xs border-white/30 text-white">
                           上司
                         </Badge>
