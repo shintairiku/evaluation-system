@@ -1468,6 +1468,7 @@ class ComprehensiveEvaluationService:
 
         rule_context = {
             "overallRank": overall_rank,
+            "performanceFinalRank": performance_rank,
             "competencyFinalRank": competency_rank,
             "coreValueFinalRank": core_value_rank,
         }
@@ -1502,8 +1503,8 @@ class ComprehensiveEvaluationService:
             levelDelta=level_delta,
             newStage=new_stage,
             newLevel=new_level,
-            isPromotionCandidate=promotion_flag,
-            isDemotionCandidate=demotion_flag,
+            isPromotionCandidate=promotion_rule_hit,
+            isDemotionCandidate=demotion_rule_hit,
         )
 
         manual_decision = None
@@ -1729,19 +1730,14 @@ class ComprehensiveEvaluationService:
         values: Dict[str, Optional[EvaluationRank]],
     ) -> bool:
         for group in groups:
-            evaluated_count = 0
             all_passed = True
             for condition in group.conditions:
                 actual = values.get(condition.field)
-                if actual is None:
-                    continue
-
-                evaluated_count += 1
-                if not self._is_rank_at_least(actual, condition.minimum_rank):
+                if actual is None or not self._is_rank_at_least(actual, condition.minimum_rank):
                     all_passed = False
                     break
 
-            if evaluated_count > 0 and all_passed:
+            if all_passed:
                 return True
         return False
 
@@ -1751,19 +1747,14 @@ class ComprehensiveEvaluationService:
         values: Dict[str, Optional[EvaluationRank]],
     ) -> bool:
         for group in groups:
-            evaluated_count = 0
             all_passed = True
             for condition in group.conditions:
                 actual = values.get(condition.field)
-                if actual is None:
-                    continue
-
-                evaluated_count += 1
-                if not self._is_rank_at_or_worse(actual, condition.threshold_rank):
+                if actual is None or not self._is_rank_at_or_worse(actual, condition.threshold_rank):
                     all_passed = False
                     break
 
-            if evaluated_count > 0 and all_passed:
+            if all_passed:
                 return True
         return False
 
