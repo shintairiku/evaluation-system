@@ -103,11 +103,10 @@ export function DraftAssessmentsProvider({ children, initialDraftCount, initialP
     setDraftCountState(initialDraftCount);
   }, [initialDraftCount]);
 
-  // Load draft count on provider initialization only when we don't already have a server-provided value
+  // Load draft count on provider initialization to ensure correctness after hydration
   useEffect(() => {
-    if (typeof initialDraftCount === 'number') return;
     refreshDraftCount();
-  }, [initialDraftCount, refreshDraftCount]);
+  }, [refreshDraftCount]);
 
   const value: DraftAssessmentsContextType = useMemo(() => ({
     draftCount,

@@ -10,11 +10,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { getCurrentUserContextAction } from '@/api/server-actions/current-user-context';
 import { CurrentUserProvider } from '@/context/CurrentUserContext';
-import { getPendingSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
-import { getGoalsAction } from '@/api/server-actions/goals/queries';
-import { getSelfAssessmentsAction } from '@/api/server-actions/self-assessments';
-import { getMyEvaluationAction, getCoreValuePendingFeedbackCountAction } from '@/api/server-actions/core-values';
-import { getSupervisorFeedbacksAction } from '@/api/server-actions/supervisor-feedbacks';
+import { fetchSidebarCounts } from '@/lib/sidebar-counts';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,30 +29,8 @@ export default async function EvaluationLayout({
   const periodId = currentUserContext?.currentPeriod?.id;
   const userId = currentUserContext?.user?.id;
 
-  const [
-    pendingReviewsResult,
-    rejectedGoalsResult,
-    selfAssessmentsResult,
-    coreValueMyResult,
-    supervisorFeedbacksResult,
-    coreValuePendingResult,
-  ] = await Promise.allSettled([
-    getPendingSupervisorReviewsAction({ pagination: { limit: 1 }, periodId }),
-    getGoalsAction({ periodId, userId, status: 'draft', hasPreviousGoalId: true, limit: 1 }),
-    getSelfAssessmentsAction({ periodId, status: 'draft', selfOnly: true, pagination: { limit: 1 } }),
-    getMyEvaluationAction(periodId ?? ''),
-    getSupervisorFeedbacksAction({ periodId, supervisorId: userId, action: 'PENDING', hasReturnComment: false, pagination: { limit: 1 } }),
-    getCoreValuePendingFeedbackCountAction(periodId ?? ''),
-  ]);
-
-  const initialPendingCount = pendingReviewsResult.status === 'fulfilled' ? (pendingReviewsResult.value.data?.total ?? 0) : 0;
-  const initialRejectedGoalsCount = rejectedGoalsResult.status === 'fulfilled' ? (rejectedGoalsResult.value.data?.total ?? 0) : 0;
-  const selfAssessmentsCount = selfAssessmentsResult.status === 'fulfilled' ? (selfAssessmentsResult.value.data?.total ?? 0) : 0;
-  const coreValueIsDraft = coreValueMyResult.status === 'fulfilled' && coreValueMyResult.value.data?.status === 'draft' ? 1 : 0;
-  const initialDraftCount = selfAssessmentsCount + coreValueIsDraft;
-  const supervisorFeedbacksCount = supervisorFeedbacksResult.status === 'fulfilled' ? (supervisorFeedbacksResult.value.data?.total ?? 0) : 0;
-  const coreValuePendingCount = coreValuePendingResult.status === 'fulfilled' ? (coreValuePendingResult.value.data?.count ?? 0) : 0;
-  const initialPendingEvaluationsCount = supervisorFeedbacksCount + coreValuePendingCount;
+  const { initialPendingCount, initialRejectedGoalsCount, initialDraftCount, initialPendingEvaluationsCount } =
+    await fetchSidebarCounts(periodId, userId);
 
   return (
     <AuthSyncProvider>
