@@ -98,17 +98,41 @@ def make_context(*, role_name: str) -> AuthContext:
     )
 
 
-def test_promotion_groups_ignore_unknown_fields_but_require_evaluated_condition():
+def test_promotion_groups_fail_when_a_required_rank_is_unknown():
     service = ComprehensiveEvaluationService(AsyncMock())
     settings = build_settings()
 
-    # coreValueFinalRank is unknown (None), but other evaluated conditions pass.
     result = service._evaluate_promotion_groups(
         settings.promotion.rule_groups,
         {
             "overallRank": "A+",
+            "performanceFinalRank": "A+",
             "competencyFinalRank": "A+",
             "coreValueFinalRank": None,
+        },
+    )
+
+    assert result is False
+
+
+def test_promotion_groups_support_performance_final_rank():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    settings = build_settings()
+    settings.promotion.rule_groups[0].conditions = [
+        PromotionRuleCondition(
+            type="rank_at_least",
+            field="performanceFinalRank",
+            minimumRank="A+",
+        )
+    ]
+
+    result = service._evaluate_promotion_groups(
+        settings.promotion.rule_groups,
+        {
+            "overallRank": "B",
+            "performanceFinalRank": "A+",
+            "competencyFinalRank": "B",
+            "coreValueFinalRank": "B",
         },
     )
 
@@ -119,11 +143,11 @@ def test_demotion_groups_require_at_least_one_evaluated_condition():
     service = ComprehensiveEvaluationService(AsyncMock())
     settings = build_settings()
 
-    # No condition can be evaluated -> group must fail by spec.
     result = service._evaluate_demotion_groups(
         settings.demotion.rule_groups,
         {
             "overallRank": None,
+            "performanceFinalRank": None,
             "competencyFinalRank": None,
             "coreValueFinalRank": None,
         },
@@ -455,7 +479,7 @@ async def test_promotion_flag_uses_rule_hit_even_when_new_level_is_below_30():
                     "core_value_score": None,
                     "performance_raw_score": 4.5,
                     "competency_raw_score": 4.7,
-                    "core_value_raw_score": None,
+                    "core_value_raw_score": 4.7,
                     "current_stage": "STAGE4",
                     "current_level": 10,
                     "manual_decision": None,
