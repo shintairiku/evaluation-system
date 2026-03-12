@@ -2,16 +2,33 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import SidebarRefresher from '../SidebarRefresher';
 
-const mockRefresh = vi.fn();
+const mockRefreshPendingCount = vi.fn();
+const mockRefreshRejectedGoalsCount = vi.fn();
+const mockRefreshDraftCount = vi.fn();
+const mockRefreshPendingEvaluationsCount = vi.fn();
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: mockRefresh }),
+vi.mock('@/context/GoalReviewContext', () => ({
+  useGoalReviewContext: () => ({ refreshPendingCount: mockRefreshPendingCount }),
 }));
+
+vi.mock('@/context/GoalListContext', () => ({
+  useGoalListContext: () => ({ refreshRejectedGoalsCount: mockRefreshRejectedGoalsCount }),
+}));
+
+vi.mock('@/context/ReturnedAssessmentsContext', () => ({
+  useDraftAssessmentsContext: () => ({ refreshDraftCount: mockRefreshDraftCount }),
+}));
+
+vi.mock('@/context/PendingEvaluationsContext', () => ({
+  usePendingEvaluationsContext: () => ({ refreshPendingEvaluationsCount: mockRefreshPendingEvaluationsCount }),
+}));
+
+const allMocks = [mockRefreshPendingCount, mockRefreshRejectedGoalsCount, mockRefreshDraftCount, mockRefreshPendingEvaluationsCount];
 
 describe('SidebarRefresher', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockRefresh.mockClear();
+    allMocks.forEach(m => m.mockClear());
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       get: () => 'visible',
@@ -27,14 +44,14 @@ describe('SidebarRefresher', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('calls router.refresh() after 30 seconds when tab is visible', () => {
+  it('calls all 4 refresh functions after 30 seconds when tab is visible', () => {
     render(<SidebarRefresher />);
 
     act(() => {
       vi.advanceTimersByTime(30_000);
     });
 
-    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    allMocks.forEach(m => expect(m).toHaveBeenCalledTimes(1));
   });
 
   it('does not call refresh when tab is hidden', () => {
@@ -49,7 +66,7 @@ describe('SidebarRefresher', () => {
       vi.advanceTimersByTime(30_000);
     });
 
-    expect(mockRefresh).not.toHaveBeenCalled();
+    allMocks.forEach(m => expect(m).not.toHaveBeenCalled());
   });
 
   it('does not call refresh when user is focused on TEXTAREA', () => {
@@ -63,7 +80,7 @@ describe('SidebarRefresher', () => {
       vi.advanceTimersByTime(30_000);
     });
 
-    expect(mockRefresh).not.toHaveBeenCalled();
+    allMocks.forEach(m => expect(m).not.toHaveBeenCalled());
     document.body.removeChild(textarea);
   });
 
@@ -78,7 +95,7 @@ describe('SidebarRefresher', () => {
       vi.advanceTimersByTime(30_000);
     });
 
-    expect(mockRefresh).not.toHaveBeenCalled();
+    allMocks.forEach(m => expect(m).not.toHaveBeenCalled());
     document.body.removeChild(input);
   });
 
@@ -88,7 +105,6 @@ describe('SidebarRefresher', () => {
     const div = document.createElement('div');
     div.contentEditable = 'true';
     document.body.appendChild(div);
-    // jsdom doesn't fully support isContentEditable, so mock both activeElement and the property
     Object.defineProperty(div, 'isContentEditable', { configurable: true, get: () => true });
     Object.defineProperty(document, 'activeElement', { configurable: true, get: () => div });
 
@@ -96,7 +112,7 @@ describe('SidebarRefresher', () => {
       vi.advanceTimersByTime(30_000);
     });
 
-    expect(mockRefresh).not.toHaveBeenCalled();
+    allMocks.forEach(m => expect(m).not.toHaveBeenCalled());
     Object.defineProperty(document, 'activeElement', { configurable: true, get: () => document.body });
     document.body.removeChild(div);
   });
@@ -104,7 +120,6 @@ describe('SidebarRefresher', () => {
   it('triggers immediate refresh on visibility change to visible', () => {
     render(<SidebarRefresher />);
 
-    // Simulate tab becoming hidden then visible
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       get: () => 'visible',
@@ -114,7 +129,7 @@ describe('SidebarRefresher', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    allMocks.forEach(m => expect(m).toHaveBeenCalledTimes(1));
   });
 
   it('does not refresh on visibility change to hidden', () => {
@@ -129,7 +144,7 @@ describe('SidebarRefresher', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    expect(mockRefresh).not.toHaveBeenCalled();
+    allMocks.forEach(m => expect(m).not.toHaveBeenCalled());
   });
 
   it('cleans up interval and event listener on unmount', () => {
@@ -141,6 +156,6 @@ describe('SidebarRefresher', () => {
       vi.advanceTimersByTime(60_000);
     });
 
-    expect(mockRefresh).not.toHaveBeenCalled();
+    allMocks.forEach(m => expect(m).not.toHaveBeenCalled());
   });
 });
