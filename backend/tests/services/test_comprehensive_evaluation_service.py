@@ -9,6 +9,8 @@ from app.database.models.evaluation import EvaluationPeriodStatus
 from app.schemas.comprehensive_evaluation import (
     ComprehensiveDefaultAssignmentUpdateRequest,
     ComprehensiveEvaluationComputedState,
+    ComprehensiveEvaluationExportRequest,
+    ComprehensiveEvaluationRow,
     ComprehensiveEvaluationSettings,
     ComprehensiveManualDecisionUpsertRequest,
     ComprehensiveManualDecisionResponse,
@@ -252,6 +254,117 @@ async def test_get_comprehensive_evaluation_candidate_view_denies_admin():
             limit=200,
             candidate_view=True,
         )
+
+
+@pytest.mark.asyncio
+async def test_export_comprehensive_evaluation_csv_denies_admin():
+    service = ComprehensiveEvaluationService(AsyncMock())
+
+    with pytest.raises(PermissionDeniedError, match="eval_admin"):
+        await service.export_comprehensive_evaluation_csv(
+            context=make_context(role_name="admin"),
+            payload=ComprehensiveEvaluationExportRequest(
+                periodId=uuid4(),
+                columns=["employeeCode"],
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_export_comprehensive_evaluation_csv_formats_selected_columns():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_id = uuid4()
+    user_id = uuid4()
+
+    service.get_comprehensive_evaluation = AsyncMock(
+        return_value=SimpleNamespace(
+            rows=[
+                ComprehensiveEvaluationRow(
+                    id=f"{period_id}:{user_id}",
+                    userId=user_id,
+                    evaluationPeriodId=period_id,
+                    employeeCode="E001",
+                    name="Export User",
+                    departmentName="Engineering",
+                    employmentType="employee",
+                    processingStatus="processed",
+                    performanceFinalRank="A+",
+                    performanceWeightPercent=100,
+                    performanceScore=4.5,
+                    competencyFinalRank="A",
+                    competencyWeightPercent=30,
+                    competencyScore=0.42,
+                    coreValueFinalRank=None,
+                    leaderInterviewCleared=None,
+                    divisionHeadPresentationCleared=None,
+                    ceoInterviewCleared=None,
+                    currentStage="STAGE4",
+                    currentLevel=24,
+                    auto=ComprehensiveEvaluationComputedState(
+                        totalScore=4.92,
+                        overallRank="A+",
+                        decision="昇格",
+                        promotionFlag=True,
+                        demotionFlag=False,
+                        stageDelta=0,
+                        levelDelta=6,
+                        newStage="STAGE4",
+                        newLevel=30,
+                        isPromotionCandidate=True,
+                        isDemotionCandidate=False,
+                    ),
+                    applied=ComprehensiveEvaluationComputedState(
+                        totalScore=4.92,
+                        overallRank="A+",
+                        decision="昇格",
+                        promotionFlag=True,
+                        demotionFlag=False,
+                        stageDelta=1,
+                        levelDelta=6,
+                        newStage="STAGE5",
+                        newLevel=30,
+                        isPromotionCandidate=True,
+                        isDemotionCandidate=False,
+                    ),
+                    manualDecision=ComprehensiveManualDecisionResponse(
+                        periodId=period_id,
+                        decision="昇格",
+                        stageAfter="STAGE5",
+                        levelAfter=30,
+                        reason="manual adjustment",
+                        appliedByUserId=uuid4(),
+                        appliedAt="2026-03-01T00:00:00+00:00",
+                    ),
+                )
+            ],
+            meta=SimpleNamespace(total=1),
+        )
+    )
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+
+    csv_text = await service.export_comprehensive_evaluation_csv(
+        context=make_context(role_name="eval_admin"),
+        payload=ComprehensiveEvaluationExportRequest(
+            periodId=period_id,
+            departmentName="Engineering",
+            stageName="STAGE4",
+            columns=[
+                "employeeCode",
+                "employmentType",
+                "currentLevel",
+                "totalScore",
+                "newLevel",
+                "promotionDemotionFlag",
+                "processingStatus",
+            ],
+        ),
+    )
+
+    assert csv_text == (
+        "社員番号,雇用形態,現在レベル,合計（点）,反映後レベル,昇格/降格フラグ,処理状態\r\n"
+        "E001,正社員,24,4.92,30,昇格（手動）,処理済\r\n"
+    )
+    service.get_comprehensive_evaluation.assert_awaited_once()
 
 
 @pytest.mark.asyncio

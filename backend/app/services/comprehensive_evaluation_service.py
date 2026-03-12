@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import logging
 from math import ceil
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -19,6 +21,8 @@ from ..schemas.comprehensive_evaluation import (
     ComprehensiveDefaultAssignmentUpdateRequest,
     ComprehensiveDepartmentAssignmentUpdateRequest,
     ComprehensiveEvaluationComputedState,
+    ComprehensiveEvaluationExportColumn,
+    ComprehensiveEvaluationExportRequest,
     ComprehensiveEvaluationFinalizeResponse,
     ComprehensiveEvaluationListMeta,
     ComprehensiveEvaluationListResponse,
@@ -68,6 +72,24 @@ DEFAULT_LEVEL_DELTAS: Dict[EvaluationRank, int] = {
 }
 USER_LEVEL_MIN = 1
 USER_LEVEL_MAX = 30
+COMPREHENSIVE_EVALUATION_EXPORT_HEADERS: Dict[ComprehensiveEvaluationExportColumn, str] = {
+    "employeeCode": "社員番号",
+    "name": "氏名",
+    "departmentName": "部署",
+    "employmentType": "雇用形態",
+    "currentStage": "現在ステージ",
+    "currentLevel": "現在レベル",
+    "performanceFinalRank": "目標達成 最終評価",
+    "performanceWeightPercent": "目標達成 ウェイト（%）",
+    "competencyFinalRank": "コンピテンシー 最終評価",
+    "competencyWeightPercent": "コンピテンシー ウェイト（%）",
+    "coreValueFinalRank": "コアバリュー 最終評価",
+    "totalScore": "合計（点）",
+    "overallRank": "総合評価",
+    "newLevel": "反映後レベル",
+    "promotionDemotionFlag": "昇格/降格フラグ",
+    "processingStatus": "処理状態",
+}
 
 
 class ComprehensiveEvaluationService:
@@ -136,6 +158,53 @@ class ComprehensiveEvaluationService:
             pages=max(1, ceil(total / limit)) if limit > 0 else 1,
         )
         return ComprehensiveEvaluationListResponse(rows=rows, meta=meta)
+
+    async def export_comprehensive_evaluation_csv(
+        self,
+        *,
+        context: AuthContext,
+        payload: ComprehensiveEvaluationExportRequest,
+    ) -> str:
+        org_id = self._require_org(context)
+        self._require_write_role(context)
+        await self._ensure_period_exists(payload.period_id, org_id)
+
+        first_page = await self.get_comprehensive_evaluation(
+            context=context,
+            period_id=payload.period_id,
+            department_id=payload.department_id,
+            stage_id=payload.stage_id,
+            employment_type=payload.employment_type,
+            search=payload.search,
+            processing_status=payload.processing_status,
+            page=1,
+            limit=1,
+        )
+
+        rows = first_page.rows
+        total = first_page.meta.total
+
+        if total > 1:
+            all_rows = await self.get_comprehensive_evaluation(
+                context=context,
+                period_id=payload.period_id,
+                department_id=payload.department_id,
+                stage_id=payload.stage_id,
+                employment_type=payload.employment_type,
+                search=payload.search,
+                processing_status=payload.processing_status,
+                page=1,
+                limit=total,
+            )
+            rows = all_rows.rows
+
+        rows = self._filter_export_rows(
+            rows=rows,
+            department_name=payload.department_name,
+            stage_name=payload.stage_name,
+        )
+
+        return self._build_export_csv(rows=rows, columns=payload.columns)
 
     async def get_stage_options(self, *, context: AuthContext) -> List[str]:
         org_id = self._require_org(context)
@@ -1262,6 +1331,94 @@ class ComprehensiveEvaluationService:
             return settings_json
         return self._build_default_settings().model_dump(mode="json", by_alias=True)
 
+    def _filter_export_rows(
+        self,
+        *,
+        rows: Sequence[ComprehensiveEvaluationRow],
+        department_name: Optional[str],
+        stage_name: Optional[str],
+    ) -> List[ComprehensiveEvaluationRow]:
+        normalized_department_name = self._normalize_optional_filter_value(department_name)
+        normalized_stage_name = self._normalize_optional_filter_value(stage_name)
+
+        filtered_rows: List[ComprehensiveEvaluationRow] = []
+        for row in rows:
+            row_department_name = self._normalize_optional_filter_value(row.department_name)
+            row_stage_name = self._normalize_optional_filter_value(row.current_stage)
+
+            if (
+                normalized_department_name is not None
+                and row_department_name != normalized_department_name
+            ):
+                continue
+
+            if normalized_stage_name is not None and row_stage_name != normalized_stage_name:
+                continue
+
+            filtered_rows.append(row)
+
+        return filtered_rows
+
+    def _build_export_csv(
+        self,
+        *,
+        rows: Sequence[ComprehensiveEvaluationRow],
+        columns: Sequence[ComprehensiveEvaluationExportColumn],
+    ) -> str:
+        stream = io.StringIO(newline="")
+        writer = csv.writer(stream, lineterminator="\r\n")
+        writer.writerow([COMPREHENSIVE_EVALUATION_EXPORT_HEADERS[column] for column in columns])
+
+        for row in rows:
+            writer.writerow([self._get_export_cell_value(row=row, column=column) for column in columns])
+
+        return stream.getvalue()
+
+    def _get_export_cell_value(
+        self,
+        *,
+        row: ComprehensiveEvaluationRow,
+        column: ComprehensiveEvaluationExportColumn,
+    ) -> str:
+        if column == "employeeCode":
+            return row.employee_code
+        if column == "name":
+            return row.name
+        if column == "departmentName":
+            return row.department_name or "-"
+        if column == "employmentType":
+            return self._get_employment_type_label(row.employment_type)
+        if column == "currentStage":
+            return row.current_stage or "-"
+        if column == "currentLevel":
+            return self._format_nullable_integer(row.current_level)
+        if column == "performanceFinalRank":
+            return row.performance_final_rank or "-"
+        if column == "performanceWeightPercent":
+            return self._format_nullable_number(row.performance_weight_percent)
+        if column == "competencyFinalRank":
+            return row.competency_final_rank or "-"
+        if column == "competencyWeightPercent":
+            return self._format_nullable_number(row.competency_weight_percent)
+        if column == "coreValueFinalRank":
+            return row.core_value_final_rank or "-"
+        if column == "totalScore":
+            return self._format_nullable_number(row.applied.total_score, digits=2)
+        if column == "overallRank":
+            return row.applied.overall_rank or "-"
+        if column == "newLevel":
+            return self._format_nullable_integer(row.applied.new_level)
+        if column == "promotionDemotionFlag":
+            return self._get_promotion_demotion_flag_label(
+                promotion_flag=row.applied.promotion_flag,
+                demotion_flag=row.applied.demotion_flag,
+                has_manual_decision=row.manual_decision is not None,
+            )
+        if column == "processingStatus":
+            return self._get_processing_status_label(row.processing_status)
+
+        raise ValueError(f"Unsupported export column: {column}")
+
     def _build_row_from_repo_item(
         self,
         *,
@@ -1691,6 +1848,50 @@ class ComprehensiveEvaluationService:
             return "降格"
         return "対象外"
 
+    def _get_employment_type_label(self, employment_type: str) -> str:
+        return "正社員" if employment_type == "employee" else "パート"
+
+    def _get_processing_status_label(self, processing_status: str) -> str:
+        return "処理済" if processing_status == "processed" else "未処理"
+
+    def _get_promotion_demotion_flag_label(
+        self,
+        *,
+        promotion_flag: bool,
+        demotion_flag: bool,
+        has_manual_decision: bool,
+    ) -> str:
+        if promotion_flag and demotion_flag:
+            label = "昇格/降格"
+        elif promotion_flag:
+            label = "昇格"
+        elif demotion_flag:
+            label = "降格"
+        else:
+            label = "-"
+
+        if has_manual_decision:
+            return f"{label}（手動）"
+
+        return label
+
+    def _format_nullable_number(self, value: Optional[float], *, digits: Optional[int] = None) -> str:
+        if value is None:
+            return "-"
+
+        if digits is not None:
+            return f"{float(value):.{digits}f}"
+
+        numeric_value = float(value)
+        if numeric_value.is_integer():
+            return str(int(numeric_value))
+        return format(numeric_value, "g")
+
+    def _format_nullable_integer(self, value: Optional[int]) -> str:
+        if value is None:
+            return "-"
+        return str(int(value))
+
     def _rank_from_score(
         self,
         score: Optional[float],
@@ -1799,4 +2000,11 @@ class ComprehensiveEvaluationService:
         if stage_name is None:
             return None
         normalized = stage_name.strip()
+        return normalized if normalized else None
+
+    def _normalize_optional_filter_value(self, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        normalized = value.strip()
         return normalized if normalized else None

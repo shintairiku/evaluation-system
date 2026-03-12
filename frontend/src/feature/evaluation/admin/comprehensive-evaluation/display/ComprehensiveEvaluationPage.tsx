@@ -2,14 +2,27 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Search, Settings, ShieldX, Trash2, X } from "lucide-react";
+import {
+  Download,
+  Plus,
+  Search,
+  Settings,
+  ShieldX,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
+  exportComprehensiveEvaluationCsvAction,
   finalizeComprehensiveEvaluationPeriodAction,
   getComprehensiveEvaluationListAction,
   processComprehensiveEvaluationUserAction,
 } from "@/api/server-actions/comprehensive-evaluation";
-import type { ComprehensiveEvaluationRowResponse, UUID } from "@/api/types";
+import type {
+  ComprehensiveEvaluationExportColumn,
+  ComprehensiveEvaluationRowResponse,
+  UUID,
+} from "@/api/types";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useOptionalCurrentUserContext } from "@/context/CurrentUserContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,10 +39,12 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -50,6 +65,14 @@ import {
 import { cn } from "@/lib/utils";
 
 import { mockDefaultComprehensiveEvaluationSettings } from "../mock";
+import {
+  buildComprehensiveEvaluationCsvFilename,
+  COMPREHENSIVE_EVALUATION_EXPORT_COLUMNS,
+  DEFAULT_COMPREHENSIVE_EVALUATION_EXPORT_COLUMNS,
+  getComprehensiveEvaluationEmploymentTypeLabel,
+  getComprehensiveEvaluationFlagLabel,
+  getComprehensiveEvaluationProcessingStatusLabel,
+} from "../csvExport";
 import {
   toApiSettings,
   useComprehensiveEvaluationSettings,
@@ -108,7 +131,7 @@ function buildSearchText(row: ComprehensiveEvaluationRowResponse): string {
 }
 
 function getEmploymentTypeLabel(value: EmploymentType): string {
-  return value === "employee" ? "正社員" : "パート";
+  return getComprehensiveEvaluationEmploymentTypeLabel(value);
 }
 
 function getEmploymentTypeBadgeVariant(value: EmploymentType) {
@@ -279,8 +302,9 @@ export default function ComprehensiveEvaluationPage() {
     currentUser,
   } = useUserRoles();
   const currentUserContext = useOptionalCurrentUserContext();
-  const canAccessComprehensiveEvaluation = hasRole("eval_admin");
   const isEvalAdmin = hasRole("eval_admin");
+  const canAccessComprehensiveEvaluation =
+    hasRole("admin") || hasRole("eval_admin");
   const canAccessCandidates = isEvalAdmin;
   const canEditThresholds = isEvalAdmin;
 
@@ -359,13 +383,19 @@ export default function ComprehensiveEvaluationPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isFinalizeDialogOpen, setIsFinalizeDialogOpen] =
     useState<boolean>(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState<boolean>(false);
   const [isFinalizing, setIsFinalizing] = useState<boolean>(false);
+  const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [finalizeSuccess, setFinalizeSuccess] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [isProcessingUserId, setIsProcessingUserId] =
     useState<string | null>(null);
   const [processError, setProcessError] = useState<string | null>(null);
   const [processSuccess, setProcessSuccess] = useState<string | null>(null);
+  const [selectedExportColumns, setSelectedExportColumns] = useState<
+    ComprehensiveEvaluationExportColumn[]
+  >([...DEFAULT_COMPREHENSIVE_EVALUATION_EXPORT_COLUMNS]);
   const [levelDeltaInputs, setLevelDeltaInputs] = useState<
     Record<EvaluationRank, string>
   >(() => buildLevelDeltaInputs(mockDefaultComprehensiveEvaluationSettings));
@@ -826,6 +856,52 @@ export default function ComprehensiveEvaluationPage() {
     selectedProcessingStatus,
   ]);
 
+  const exportFilterSummaries = useMemo(() => {
+    const summaries = [
+      `対象期間: ${selectedEvaluationPeriod?.label ?? "-"}`,
+      `出力件数: ${filteredRows.length}件`,
+    ];
+
+    if (selectedDepartment !== "all") {
+      summaries.push(`部署: ${selectedDepartment}`);
+    }
+    if (selectedStage !== "all") {
+      summaries.push(`ステージ: ${selectedStage}`);
+    }
+    if (selectedEmploymentType !== "all") {
+      summaries.push(
+        `雇用形態: ${getEmploymentTypeLabel(selectedEmploymentType)}`,
+      );
+    }
+    if (selectedProcessingStatus !== "all") {
+      summaries.push(
+        `処理状態: ${getComprehensiveEvaluationProcessingStatusLabel(
+          selectedProcessingStatus,
+        )}`,
+      );
+    }
+    if (searchQuery.trim()) {
+      summaries.push(`検索: ${searchQuery.trim()}`);
+    }
+
+    return summaries;
+  }, [
+    filteredRows.length,
+    searchQuery,
+    selectedDepartment,
+    selectedEmploymentType,
+    selectedEvaluationPeriod?.label,
+    selectedProcessingStatus,
+    selectedStage,
+  ]);
+
+  const canDownloadCsv = Boolean(
+    selectedEvaluationPeriod &&
+      filteredRows.length > 0 &&
+      selectedExportColumns.length > 0 &&
+      !isExportingCsv,
+  );
+
   const handleClearFilters = () => {
     setEvaluationPeriodId(defaultPeriodId);
     setSelectedDepartment("all");
@@ -833,6 +909,78 @@ export default function ComprehensiveEvaluationPage() {
     setSelectedEmploymentType("all");
     setSelectedProcessingStatus("all");
     setSearchQuery("");
+  };
+
+  const handleExportDialogOpenChange = (nextOpen: boolean) => {
+    setIsExportDialogOpen(nextOpen);
+    if (nextOpen) {
+      setExportError(null);
+      return;
+    }
+    setExportError(null);
+    setSelectedExportColumns([...DEFAULT_COMPREHENSIVE_EVALUATION_EXPORT_COLUMNS]);
+  };
+
+  const handleToggleExportColumn = (
+    column: ComprehensiveEvaluationExportColumn,
+    checked: boolean,
+  ) => {
+    setSelectedExportColumns((prev) => {
+      if (checked) {
+        const next = new Set(prev);
+        next.add(column);
+        return COMPREHENSIVE_EVALUATION_EXPORT_COLUMNS
+          .map((option) => option.key)
+          .filter((key) => next.has(key));
+      }
+
+      return prev.filter((key) => key !== column);
+    });
+  };
+
+  const handleDownloadCsv = async () => {
+    if (!selectedEvaluationPeriod || !canDownloadCsv) return;
+
+    setExportError(null);
+    setIsExportingCsv(true);
+
+    const result = await exportComprehensiveEvaluationCsvAction({
+      periodId: selectedEvaluationPeriod.id,
+      departmentName:
+        selectedDepartment !== "all" ? selectedDepartment : undefined,
+      stageName: selectedStage !== "all" ? selectedStage : undefined,
+      employmentType:
+        selectedEmploymentType !== "all" ? selectedEmploymentType : undefined,
+      processingStatus:
+        selectedProcessingStatus !== "all"
+          ? selectedProcessingStatus
+          : undefined,
+      search: searchQuery.trim() || undefined,
+      columns: selectedExportColumns,
+    });
+
+    setIsExportingCsv(false);
+
+    if (!result.success || !result.data) {
+      setExportError(result.error ?? "CSVの出力に失敗しました");
+      return;
+    }
+
+    const filename = buildComprehensiveEvaluationCsvFilename(
+      selectedEvaluationPeriod.label,
+    );
+    const blob = new Blob([result.data], { type: "text/csv;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+
+    handleExportDialogOpenChange(false);
   };
 
   const handleFinalizePeriod = async () => {
@@ -1387,7 +1535,9 @@ export default function ComprehensiveEvaluationPage() {
     return (
       <Alert variant="destructive">
         <ShieldX className="h-4 w-4" />
-        <AlertDescription>このページはeval_adminのみ閲覧できます</AlertDescription>
+        <AlertDescription>
+          このページはadmin / eval_adminのみ閲覧できます
+        </AlertDescription>
       </Alert>
     );
   }
@@ -1408,6 +1558,127 @@ export default function ComprehensiveEvaluationPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {isEvalAdmin && (
+            <Dialog
+              open={isExportDialogOpen}
+              onOpenChange={handleExportDialogOpenChange}
+            >
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  disabled={!selectedEvaluationPeriod}
+                >
+                  <Download className="h-4 w-4" />
+                  CSV出力
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>CSV出力</DialogTitle>
+                  <DialogDescription>
+                    出力対象の列を選択して、現在の絞り込み結果をCSVでダウンロードします。
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">現在の出力条件</div>
+                    <div className="flex flex-wrap gap-2">
+                      {exportFilterSummaries.map((summary) => (
+                        <Badge key={summary} variant="outline">
+                          {summary}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {exportError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{exportError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium">CSVに含める列</div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setSelectedExportColumns([
+                              ...DEFAULT_COMPREHENSIVE_EVALUATION_EXPORT_COLUMNS,
+                            ])
+                          }
+                        >
+                          すべて選択
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedExportColumns([])}
+                        >
+                          すべて解除
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {COMPREHENSIVE_EVALUATION_EXPORT_COLUMNS.map((column) => {
+                        const checked = selectedExportColumns.includes(
+                          column.key,
+                        );
+                        const inputId = `export-column-${column.key}`;
+
+                        return (
+                          <label
+                            key={column.key}
+                            htmlFor={inputId}
+                            className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+                          >
+                            <Checkbox
+                              id={inputId}
+                              checked={checked}
+                              onCheckedChange={(value) =>
+                                handleToggleExportColumn(
+                                  column.key,
+                                  value === true,
+                                )
+                              }
+                            />
+                            <span>{column.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleExportDialogOpenChange(false)}
+                    disabled={isExportingCsv}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => void handleDownloadCsv()}
+                    disabled={!canDownloadCsv}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    {isExportingCsv ? "ダウンロード中..." : "ダウンロード"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           {isEvalAdmin && (
             <Dialog
               open={isFinalizeDialogOpen}
@@ -2875,15 +3146,7 @@ export default function ComprehensiveEvaluationPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <span>
-                            {computed.promotionFlag && computed.demotionFlag
-                              ? "昇格/降格"
-                              : computed.promotionFlag
-                                ? "昇格"
-                                : computed.demotionFlag
-                                  ? "降格"
-                                  : "-"}
-                          </span>
+                          <span>{getComprehensiveEvaluationFlagLabel(row)}</span>
                           {manualDecision && (
                             <Badge variant="secondary">手動</Badge>
                           )}
@@ -2898,9 +3161,9 @@ export default function ComprehensiveEvaluationPage() {
                                 : "outline"
                             }
                           >
-                            {row.processingStatus === "processed"
-                              ? "処理済"
-                              : "未処理"}
+                            {getComprehensiveEvaluationProcessingStatusLabel(
+                              row.processingStatus,
+                            )}
                           </Badge>
                           {isEvalAdmin && canProcessSelectedPeriod && (
                             <Button

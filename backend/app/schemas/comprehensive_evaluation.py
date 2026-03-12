@@ -12,6 +12,24 @@ ComprehensiveDecision = Literal["昇格", "降格", "対象外"]
 HistoryOperation = Literal["UPSERT", "CLEAR"]
 ConditionField = Literal["overallRank", "competencyFinalRank", "coreValueFinalRank"]
 EvaluationPeriodLifecycleStatus = Literal["draft", "active", "completed", "cancelled"]
+ComprehensiveEvaluationExportColumn = Literal[
+    "employeeCode",
+    "name",
+    "departmentName",
+    "employmentType",
+    "currentStage",
+    "currentLevel",
+    "performanceFinalRank",
+    "performanceWeightPercent",
+    "competencyFinalRank",
+    "competencyWeightPercent",
+    "coreValueFinalRank",
+    "totalScore",
+    "overallRank",
+    "newLevel",
+    "promotionDemotionFlag",
+    "processingStatus",
+]
 
 
 class PromotionRuleCondition(BaseModel):
@@ -173,6 +191,26 @@ class ComprehensiveEvaluationListMeta(BaseModel):
 class ComprehensiveEvaluationListResponse(BaseModel):
     rows: List[ComprehensiveEvaluationRow]
     meta: ComprehensiveEvaluationListMeta
+
+
+class ComprehensiveEvaluationExportRequest(BaseModel):
+    period_id: UUID = Field(..., alias="periodId")
+    department_id: Optional[UUID] = Field(None, alias="departmentId")
+    stage_id: Optional[UUID] = Field(None, alias="stageId")
+    department_name: Optional[str] = Field(None, alias="departmentName")
+    stage_name: Optional[str] = Field(None, alias="stageName")
+    employment_type: Optional[EmploymentType] = Field(None, alias="employmentType")
+    search: Optional[str] = None
+    processing_status: Optional[ProcessingStatus] = Field(None, alias="processingStatus")
+    columns: List[ComprehensiveEvaluationExportColumn] = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_columns(self):
+        if len(set(self.columns)) != len(self.columns):
+            raise ValueError("columns must not contain duplicates")
+        return self
+
+    model_config = {"populate_by_name": True}
 
 
 class ComprehensiveEvaluationFinalizeRequest(BaseModel):

@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.exceptions import BadRequestError, NotFoundError, PermissionDeniedError
@@ -10,6 +10,7 @@ from ...schemas.comprehensive_evaluation import (
     ComprehensiveEvaluationFinalizeRequest,
     ComprehensiveEvaluationFinalizeResponse,
     ComprehensiveEvaluationListResponse,
+    ComprehensiveEvaluationExportRequest,
     ComprehensiveEvaluationSettingsWorkspace,
     ComprehensiveEvaluationProcessUserRequest,
     ComprehensiveEvaluationProcessUserResponse,
@@ -78,6 +79,42 @@ async def get_comprehensive_evaluation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch comprehensive evaluation",
+        ) from exc
+
+
+@router.post("/export")
+async def export_comprehensive_evaluation_csv(
+    payload: ComprehensiveEvaluationExportRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = ComprehensiveEvaluationService(session)
+        csv_content = await service.export_comprehensive_evaluation_csv(
+            context=context,
+            payload=payload,
+        )
+        return Response(
+            content=f"\ufeff{csv_content}",
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="comprehensive-evaluation.csv"',
+            },
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to export comprehensive evaluation csv",
         ) from exc
 
 
