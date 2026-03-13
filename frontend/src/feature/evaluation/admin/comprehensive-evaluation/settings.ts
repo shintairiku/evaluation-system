@@ -30,7 +30,11 @@ export type ComprehensiveEvaluationDecision = '昇格' | '降格' | '対象外';
 export type PromotionRuleCondition =
   | {
       type: 'rank_at_least';
-      field: 'overallRank' | 'competencyFinalRank' | 'coreValueFinalRank';
+      field:
+        | 'overallRank'
+        | 'performanceFinalRank'
+        | 'competencyFinalRank'
+        | 'coreValueFinalRank';
       minimumRank: EvaluationRank;
     };
 
@@ -46,7 +50,11 @@ export interface PromotionRuleSettings {
 export type DemotionRuleCondition =
   | {
       type: 'rank_at_or_worse';
-      field: 'overallRank' | 'competencyFinalRank' | 'coreValueFinalRank';
+      field:
+        | 'overallRank'
+        | 'performanceFinalRank'
+        | 'competencyFinalRank'
+        | 'coreValueFinalRank';
       thresholdRank: EvaluationRank;
     };
 
