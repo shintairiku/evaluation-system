@@ -115,7 +115,7 @@ export default function PeriodCard({
                   size="sm"
                   onClick={() => void onChangeStatus(period, 'completed')}
                 >
-                  入力終了
+                  終了にする
                 </Button>
               )}
               {canCancel && (
@@ -153,7 +153,7 @@ export default function PeriodCard({
             </Button>
             <span
               className="flex-1"
-              title={!canDelete ? '削除できるのは「下書き」または「完了」の評価期間のみです' : undefined}
+              title={!canDelete ? '削除できるのは「下書き」または「終了」の評価期間のみです' : undefined}
             >
               <Button
                 variant="outline"

@@ -76,7 +76,7 @@ export default function DeleteConfirmationModal({
       case 'active':
         return '実施中の評価期間を削除しようとしています。この操作により、関連する目標や評価データがすべて失われます。';
       case 'completed':
-        return '完了済みの評価期間を削除しようとしています。この操作により、過去の評価記録が失われます。';
+        return '終了済みの評価期間を削除しようとしています。この操作により、過去の評価記録が失われます。';
       case 'draft':
         return '下書きの評価期間を削除しようとしています。';
       default:
@@ -156,7 +156,7 @@ export default function DeleteConfirmationModal({
                 <AlertDescription className="space-y-2">
                   {!canDelete && (
                     <p className="font-medium">
-                      この評価期間は削除できません（削除できるのは「下書き」または「完了」の評価期間のみです）。
+                      この評価期間は削除できません（削除できるのは「下書き」または「終了」の評価期間のみです）。
                     </p>
                   )}
                   <p className="font-medium">

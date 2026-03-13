@@ -76,7 +76,7 @@ export default function EvaluationPeriodListView({
         <section>
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-gray-700 mb-2">
-              完了 ({completedPeriods.length})
+              終了 ({completedPeriods.length})
             </h2>
             <Separator />
           </div>
