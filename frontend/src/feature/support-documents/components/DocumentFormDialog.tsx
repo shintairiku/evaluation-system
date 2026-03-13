@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -102,6 +103,9 @@ export default function DocumentFormDialog({
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'ドキュメントを編集' : '新しいドキュメントを追加'}</DialogTitle>
+          <DialogDescription>
+            {isEditing ? 'ドキュメントの情報を変更します。' : '外部リンクを追加します。'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
