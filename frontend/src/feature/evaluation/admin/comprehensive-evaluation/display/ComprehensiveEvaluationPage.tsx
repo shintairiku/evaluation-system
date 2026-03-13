@@ -226,7 +226,7 @@ function getSettingsErrorSummary(
     return {
       title: "この期間は編集できません",
       description:
-        "入力終了またはキャンセル済みの評価期間では、割当設定は変更できません。テンプレート管理のみ利用できます。",
+        "終了またはキャンセル済みの評価期間では、割当設定は変更できません。テンプレート管理のみ利用できます。",
     };
   }
 
@@ -1521,11 +1521,11 @@ export default function ComprehensiveEvaluationPage() {
             総合評価テーブルをAPIデータで表示します。昇格フラグは「正社員かつ昇格判別ルールを満たす」場合に点灯します（ステージは自動更新しません）。昇格フラグ点灯行は、昇格フラグ対応ページでステージ変更と反映後レベルを個別に判断してください。
           </p>
           <p className="text-sm text-muted-foreground">
-            評価期間のステータス変更は、評価期間管理画面から行ってください。入力終了後は、この画面での処理とスコア変更はできません。
+            評価期間のステータス変更は、評価期間管理画面から行ってください。終了後は、この画面での処理とスコア変更はできません。
           </p>
           {isSelectedPeriodCompleted && (
             <p className="text-sm text-muted-foreground">
-              この評価期間は入力終了済みのため、未処理ユーザーの「処理する」は実行できません。必要な個別判断は、既に処理済みのユーザーのみ別画面で継続してください。
+              この評価期間は終了済みのため、未処理ユーザーの「処理する」は実行できません。必要な個別判断は、既に処理済みのユーザーのみ別画面で継続してください。
             </p>
           )}
           {isSelectedPeriodCancelled && (
@@ -2795,7 +2795,13 @@ export default function ComprehensiveEvaluationPage() {
 
         {selectedEvaluationPeriod && (
           <Badge variant={isSelectedPeriodCompleted ? "secondary" : "outline"}>
-            {isSelectedPeriodCompleted ? "入力終了" : "入力受付中"}
+            {selectedEvaluationPeriod.status === "completed"
+              ? "終了"
+              : selectedEvaluationPeriod.status === "cancelled"
+                ? "キャンセル"
+                : selectedEvaluationPeriod.status === "draft"
+                  ? "下書き"
+                  : "実施中"}
           </Badge>
         )}
 

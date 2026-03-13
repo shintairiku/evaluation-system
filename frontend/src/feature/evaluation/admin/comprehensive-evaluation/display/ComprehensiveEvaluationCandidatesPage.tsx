@@ -68,7 +68,7 @@ function getDecisionBadgeVariant(decision: "昇格" | "降格" | "対象外") {
 function getEvaluationPeriodStatusLabel(status: string | undefined): string {
   if (status === "draft") return "下書き";
   if (status === "active") return "進行中";
-  if (status === "completed") return "入力終了";
+  if (status === "completed") return "終了";
   if (status === "cancelled") return "キャンセル";
   return "-";
 }
