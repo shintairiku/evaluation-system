@@ -2,6 +2,8 @@
 
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import type { SupportDocument } from '@/api/types';
 import DocumentCard from './DocumentCard';
 
@@ -36,11 +38,19 @@ export default function CategorySection({
         isOver ? 'bg-accent/50 ring-2 ring-primary/20' : ''
       }`}
     >
-      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-        {title}
-      </h2>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            {title}
+          </h2>
+          <Badge variant="secondary" className="text-[11px] px-1.5 py-0">
+            {documents.length}件
+          </Badge>
+        </div>
+        <Separator />
+      </div>
       <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {documents.map((doc) => (
             <DocumentCard
               key={doc.id}
@@ -51,9 +61,11 @@ export default function CategorySection({
             />
           ))}
           {documents.length === 0 && isAdmin && (
-            <p className="text-xs text-muted-foreground py-4">
-              ここにドラッグして移動
-            </p>
+            <div className="col-span-full rounded-lg border-2 border-dashed border-muted-foreground/25 py-6 text-center">
+              <p className="text-xs text-muted-foreground">
+                ここにドラッグして移動
+              </p>
+            </div>
           )}
         </div>
       </SortableContext>

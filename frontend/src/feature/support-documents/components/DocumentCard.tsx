@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ExternalLink, GripVertical, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { SupportDocument } from '@/api/types';
 
@@ -15,12 +16,37 @@ interface DocumentCardProps {
   onDelete?: (document: SupportDocument) => void;
 }
 
+function getDomain(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return '今日';
+  if (diffDays === 1) return '昨日';
+  if (diffDays < 7) return `${diffDays}日前`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}週間前`;
+  return date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 export default function DocumentCard({ document, isAdmin, onEdit, onDelete }: DocumentCardProps) {
   const [isMounted, setIsMounted] = useState(false);
+  const [faviconError, setFaviconError] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const domain = useMemo(() => getDomain(document.url), [document.url]);
 
   const {
     attributes,
@@ -44,15 +70,37 @@ export default function DocumentCard({ document, isAdmin, onEdit, onDelete }: Do
     <Card
       ref={setNodeRef}
       style={style}
-      className={`group hover:shadow-md transition-shadow ${isDragging ? 'opacity-50 shadow-lg z-10' : ''}`}
+      className={`group relative border-l-4 border-l-primary/60 hover:shadow-md hover:-translate-y-0.5 transition-all ${isDragging ? 'opacity-50 shadow-lg z-10' : ''}`}
     >
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
+        {/* Admin actions — absolute top-right */}
+        {isAdmin && (
+          <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onEdit?.(document)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:text-destructive"
+              onClick={() => onDelete?.(document)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+
+        <div className="flex items-start gap-3">
           {/* Drag handle — admin only */}
           {isAdmin && isMounted && (
             <button
               type="button"
-              className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground mt-0.5"
+              className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground mt-1"
               {...listeners}
               {...attributes}
             >
@@ -60,45 +108,48 @@ export default function DocumentCard({ document, isAdmin, onEdit, onDelete }: Do
             </button>
           )}
 
+          {/* Favicon */}
+          <div className="shrink-0 rounded-md bg-muted/50 p-1.5 mt-0.5">
+            {domain && !faviconError ? (
+              <img
+                src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+                alt=""
+                width={16}
+                height={16}
+                className="h-4 w-4"
+                onError={() => setFaviconError(true)}
+              />
+            ) : (
+              <ExternalLink className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+
+          {/* Content */}
           <a
             href={document.url ?? '#'}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 min-w-0"
           >
-            <div className="flex items-center gap-2">
-              <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
-              <h3 className="font-medium text-sm truncate group-hover:text-primary transition-colors">
-                {document.title}
-              </h3>
-            </div>
+            <h3 className="font-medium text-sm truncate group-hover:text-primary transition-colors pr-16">
+              {document.title}
+            </h3>
             {document.description && (
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2 ml-6">
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                 {document.description}
               </p>
             )}
-          </a>
-
-          {isAdmin && (
-            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => onEdit?.(document)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
-                onClick={() => onDelete?.(document)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+            <div className="flex items-center gap-2 mt-2">
+              {domain && (
+                <Badge variant="outline" className="text-[11px] font-normal px-1.5 py-0">
+                  {domain}
+                </Badge>
+              )}
+              <span className="text-[11px] text-muted-foreground">
+                {formatDate(document.createdAt)}
+              </span>
             </div>
-          )}
+          </a>
         </div>
       </CardContent>
     </Card>
