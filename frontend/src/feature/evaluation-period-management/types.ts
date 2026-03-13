@@ -2,7 +2,8 @@ import type {
   EvaluationPeriod,
   CategorizedEvaluationPeriods,
   GoalStatistics,
-  EvaluationPeriodFormData
+  EvaluationPeriodFormData,
+  EvaluationPeriodStatus
 } from '@/api/types/evaluation-period';
 
 /**
@@ -20,6 +21,7 @@ export interface EvaluationPeriodManagementViewProps {
   onViewChange: (view: ViewType) => void;
   onCreatePeriod: () => void;
   onEditPeriod: (period: EvaluationPeriod) => void;
+  onChangePeriodStatus: (period: EvaluationPeriod, status: EvaluationPeriodStatus) => Promise<void>;
   onDeletePeriod: (period: EvaluationPeriod) => void;
   onViewGoalStats: (period: EvaluationPeriod) => void;
   isLoading?: boolean;
@@ -35,6 +37,7 @@ export interface EvaluationPeriodManagementViewProps {
 export interface EvaluationPeriodListViewProps {
   categorizedPeriods: CategorizedEvaluationPeriods;
   onEditPeriod: (period: EvaluationPeriod) => void;
+  onChangePeriodStatus: (period: EvaluationPeriod, status: EvaluationPeriodStatus) => Promise<void>;
   onDeletePeriod: (period: EvaluationPeriod) => void;
   onViewGoalStats: (period: EvaluationPeriod) => void;
 }
@@ -50,6 +53,7 @@ export interface EvaluationPeriodCalendarViewProps {
 export interface PeriodCardProps {
   period: EvaluationPeriod;
   onEdit: (period: EvaluationPeriod) => void;
+  onChangeStatus: (period: EvaluationPeriod, status: EvaluationPeriodStatus) => Promise<void>;
   onDelete: (period: EvaluationPeriod) => void;
   onViewGoalStats: (period: EvaluationPeriod) => void;
 }
