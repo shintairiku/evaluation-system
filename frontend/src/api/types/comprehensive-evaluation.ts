@@ -7,13 +7,13 @@ export type ComprehensiveDecision = '昇格' | '降格' | '対象外';
 
 export interface ComprehensivePromotionRuleCondition {
   type: 'rank_at_least';
-  field: 'overallRank' | 'competencyFinalRank' | 'coreValueFinalRank';
+  field: 'overallRank' | 'performanceFinalRank' | 'competencyFinalRank' | 'coreValueFinalRank';
   minimumRank: ComprehensiveEvaluationRank;
 }
 
 export interface ComprehensiveDemotionRuleCondition {
   type: 'rank_at_or_worse';
-  field: 'overallRank' | 'competencyFinalRank' | 'coreValueFinalRank';
+  field: 'overallRank' | 'performanceFinalRank' | 'competencyFinalRank' | 'coreValueFinalRank';
   thresholdRank: ComprehensiveEvaluationRank;
 }
 
