@@ -53,6 +53,9 @@ export * from './core-value';
 // Peer Review types
 export * from './peer-review';
 
+// Support Document types
+export * from './support-document';
+
 // API Response wrapper type
 export interface ApiResponse<T = unknown> {
   success: boolean;

@@ -28,6 +28,7 @@ export const CACHE_TAGS = {
   COMPREHENSIVE_EVALUATION_LIST: 'comprehensive-evaluation-list',
   COMPREHENSIVE_EVALUATION_SETTINGS: 'comprehensive-evaluation-settings',
   COMPREHENSIVE_EVALUATION_HISTORY: 'comprehensive-evaluation-history',
+  SUPPORT_DOCUMENTS: 'support-documents',
 } as const;
 
 /**
@@ -130,6 +131,10 @@ export const CACHE_STRATEGIES = {
   [CACHE_TAGS.COMPREHENSIVE_EVALUATION_HISTORY]: {
     duration: CACHE_DURATIONS.DYNAMIC,
     tags: [CACHE_TAGS.COMPREHENSIVE_EVALUATION_HISTORY] as string[],
+  },
+  [CACHE_TAGS.SUPPORT_DOCUMENTS]: {
+    duration: CACHE_DURATIONS.SEMI_STATIC,
+    tags: [CACHE_TAGS.SUPPORT_DOCUMENTS] as string[],
   },
 } as const;
 

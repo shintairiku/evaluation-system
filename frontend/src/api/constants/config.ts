@@ -279,6 +279,14 @@ export const API_ENDPOINTS = {
     DETAIL: buildApiUrl('/peer-reviews/detail'),
   },
 
+  // Support Document endpoints
+  SUPPORT_DOCUMENTS: {
+    LIST: '/support-documents/',
+    CREATE: '/support-documents/',
+    UPDATE: (id: string) => `/support-documents/${id}`,
+    DELETE: (id: string) => `/support-documents/${id}`,
+  },
+
   // Permission management endpoints
   PERMISSIONS: {
     CATALOG: '/permissions/',

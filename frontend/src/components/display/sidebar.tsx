@@ -14,7 +14,7 @@ import { useDraftAssessmentsContext } from '@/context/ReturnedAssessmentsContext
 import { usePendingEvaluationsContext } from '@/context/PendingEvaluationsContext';
 import {
   Home, Target, ClipboardList, List, ListChecks, Users, CheckCircle, MessageSquare,
-  UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield, Calendar
+  UserCog, Building, TrendingUp, Brain, Bell, Settings, Shield, Calendar, Link2
 } from 'lucide-react';
 
 // Link interface to match the structure from routes.ts
@@ -44,6 +44,7 @@ const iconMap: Record<string, React.ReactElement> = {
   'bell': <Bell size={20} />,
   'settings': <Settings size={20} />,
   'shield': <Shield size={20} />,
+  'link': <Link2 size={20} />,
 };
 
 export default function Sidebar() {
