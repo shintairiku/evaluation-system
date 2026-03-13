@@ -25,18 +25,6 @@ function getDomain(url: string | null): string | null {
   }
 }
 
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return '今日';
-  if (diffDays === 1) return '昨日';
-  if (diffDays < 7) return `${diffDays}日前`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}週間前`;
-  return date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
-}
 
 export default function DocumentCard({ document, isAdmin, onEdit, onDelete }: DocumentCardProps) {
   const [isMounted, setIsMounted] = useState(false);
@@ -145,9 +133,6 @@ export default function DocumentCard({ document, isAdmin, onEdit, onDelete }: Do
                   {domain}
                 </Badge>
               )}
-              <span className="text-[11px] text-muted-foreground">
-                {formatDate(document.createdAt)}
-              </span>
             </div>
           </a>
         </div>
