@@ -68,7 +68,7 @@ function getDecisionBadgeVariant(decision: "昇格" | "降格" | "対象外") {
 function getEvaluationPeriodStatusLabel(status: string | undefined): string {
   if (status === "draft") return "下書き";
   if (status === "active") return "進行中";
-  if (status === "completed") return "評価期限後";
+  if (status === "completed") return "終了";
   if (status === "cancelled") return "キャンセル";
   return "-";
 }
@@ -464,16 +464,16 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">昇格/降格フラグ対応</h1>
             <p className="text-sm text-muted-foreground">
-              昇格フラグ（正社員かつ昇格判別ルールを満たす）または降格フラグ（降格判別ルールを満たす）が点灯した行を起点に、`eval_admin`が判定・反映後ステージ・反映後レベルを手動確定します。
+              昇格フラグ（正社員かつ昇格判別ルールを満たす）または降格フラグ（降格判別ルールを満たす）が点灯した行を起点に、`eval_admin`が判定・反映後ステージ・反映後レベルを個別に判断します。
             </p>
             {isSelectedPeriodCancelled && (
               <p className="text-sm text-destructive">
-                この評価期間はキャンセル済みのため、手動確定の編集はできません。
+                この評価期間はキャンセル済みのため、個別判断の編集はできません。
               </p>
             )}
             {!isSelectedPeriodCancelled && (
               <p className="text-sm text-muted-foreground">
-                「処理済」のユーザーのみ手動確定を編集できます。未処理ユーザーは
+                「処理済」のユーザーのみ個別判断を編集できます。未処理ユーザーは
                 <Link href="/admin-eval-list" className="mx-1 underline">
                   /admin-eval-list
                 </Link>
@@ -493,16 +493,16 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           <Badge variant="outline">フラグ点灯 {counts.flagged}</Badge>
           <Badge variant="outline">昇格フラグ {counts.promotionFlag}</Badge>
           <Badge variant="outline">降格フラグ {counts.demotionFlag}</Badge>
-          <Badge variant="outline">昇格確定 {counts.promotionConfirmed}</Badge>
-          <Badge variant="outline">降格確定 {counts.demotionConfirmed}</Badge>
+          <Badge variant="outline">昇格判断済み {counts.promotionConfirmed}</Badge>
+          <Badge variant="outline">降格判断済み {counts.demotionConfirmed}</Badge>
         </div>
 
         <div className="rounded-lg border bg-muted/20 p-4 text-sm">
           <div className="font-semibold">操作手順（eval_admin）</div>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
             <li>`/admin-eval-list` で対象ユーザーを「処理する」して処理済にする</li>
-            <li>この画面で「手動確定する」を押す</li>
-            <li>判定・反映後ステージ・理由を入力して確定する</li>
+            <li>この画面で「個別判断する」を押す</li>
+            <li>判定・反映後ステージ・理由を入力して保存する</li>
           </ol>
         </div>
 
@@ -577,8 +577,8 @@ export default function ComprehensiveEvaluationCandidatesPage() {
               <SelectItem value="flagged">フラグ点灯</SelectItem>
               <SelectItem value="promotion_flag">昇格フラグ</SelectItem>
               <SelectItem value="demotion_flag">降格フラグ</SelectItem>
-              <SelectItem value="promotion_confirmed">昇格確定</SelectItem>
-              <SelectItem value="demotion_confirmed">降格確定</SelectItem>
+              <SelectItem value="promotion_confirmed">昇格判断済み</SelectItem>
+              <SelectItem value="demotion_confirmed">降格判断済み</SelectItem>
             </SelectContent>
           </Select>
 
@@ -695,10 +695,10 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                               {override ? (
                                 <>
                                   <Badge variant={getDecisionBadgeVariant(override.decision)}>{override.decision}</Badge>
-                                  <Badge variant="secondary">確定済み</Badge>
+                                  <Badge variant="secondary">判断済み</Badge>
                                 </>
                               ) : (
-                                <Badge variant="outline">未確定</Badge>
+                                <Badge variant="outline">未判断</Badge>
                               )}
                               <Badge variant={isRowProcessed ? "secondary" : "outline"}>
                                 {isRowProcessed ? "処理済" : "未処理"}
@@ -713,7 +713,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                                 disabled={!canEditRow}
                                 title={!canEditRow ? editDisabledReason : undefined}
                               >
-                                {canEditRow ? "手動確定する" : "評価処理後に操作可能"}
+                                {canEditRow ? "個別判断する" : "評価処理後に操作可能"}
                               </Button>
                             )}
                             {!canEditRow && !isSelectedPeriodCancelled && (
@@ -742,9 +742,9 @@ export default function ComprehensiveEvaluationCandidatesPage() {
         <Dialog open={overrideRowId !== null} onOpenChange={(open) => !open && closeOverrideDialog()}>
           <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>手動確定（判定/反映後ステージ/反映後レベルを確定）</DialogTitle>
+              <DialogTitle>個別判断（判定/反映後ステージ/反映後レベルを設定）</DialogTitle>
               <DialogDescription>
-                ルールに該当しない場合でも、理由を記録して手動で確定できます。
+                ルールに該当しない場合でも、理由を記録して個別に判断できます。
               </DialogDescription>
             </DialogHeader>
 
@@ -778,7 +778,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                     <Separator />
 
                     <div className="space-y-2 rounded-md border p-3">
-                      <div className="text-sm font-semibold">手動確定プレビュー</div>
+                      <div className="text-sm font-semibold">個別判断プレビュー</div>
                       {(() => {
                         const localRequiresStageAfter = overrideDraft.decision !== "対象外";
 
@@ -947,7 +947,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         onClick={() => void handleClearOverride()}
                         disabled={!canEditSelectedItem || isSaving}
                       >
-                        手動確定を解除
+                        個別判断を解除
                       </Button>
                     )}
                     <Button
@@ -965,7 +965,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                         overrideDraft.reason.trim() === ""
                       }
                     >
-                      確定
+                      保存する
                     </Button>
                   </div>
                 </div>
