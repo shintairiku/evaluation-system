@@ -1107,7 +1107,7 @@ async def test_process_user_evaluation_applies_computed_level_and_marks_processe
     period_id = uuid4()
     user_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
     service._get_period_settings_map = AsyncMock(return_value=(build_settings(), {}, {}))
     service.repo.list_rows = AsyncMock(
         return_value=(
@@ -1170,7 +1170,7 @@ async def test_process_user_evaluation_applies_manual_stage_and_clamped_level():
     user_id = uuid4()
     next_stage_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
     service._get_period_settings_map = AsyncMock(return_value=(build_settings(), {}, {}))
     service.repo.list_rows = AsyncMock(
         return_value=(
