@@ -9,6 +9,7 @@ from ...schemas.support_document import (
     SupportDocumentUpdate,
     SupportDocumentResponse,
     SupportDocumentListResponse,
+    SupportDocumentReorderRequest,
 )
 from ...schemas.common import BaseResponse
 from ...services.support_document_service import SupportDocumentService
@@ -51,6 +52,26 @@ async def create_support_document(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValidationError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.put("/reorder", response_model=BaseResponse)
+async def reorder_support_documents(
+    data: SupportDocumentReorderRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Reorder support documents (admin only)."""
+    try:
+        service = SupportDocumentService(session)
+        updated = await service.reorder_documents(data, context)
+        return BaseResponse(message=f"Reordered {updated} documents")
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -177,6 +177,35 @@ class SupportDocumentRepository(BaseRepository[SupportDocument]):
             raise
 
     # ========================================
+    # REORDER OPERATIONS
+    # ========================================
+
+    async def bulk_reorder(
+        self,
+        org_id: str,
+        items: List[dict],
+    ) -> int:
+        """
+        Bulk update category and display_order for multiple documents.
+        Only updates org-scoped docs (not system-wide). Does not commit.
+        Returns count of updated documents.
+        """
+        try:
+            updated = 0
+            for item in items:
+                doc = await self.get_by_id(item["id"], org_id)
+                if not doc or doc.organization_id is None:
+                    continue
+                doc.category = item["category"]
+                doc.display_order = item["display_order"]
+                self.session.add(doc)
+                updated += 1
+            return updated
+        except SQLAlchemyError as e:
+            logger.error(f"Error bulk reordering support documents for org {org_id}: {e}")
+            raise
+
+    # ========================================
     # DELETE OPERATIONS
     # ========================================
 

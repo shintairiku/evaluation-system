@@ -9,6 +9,7 @@ from ..schemas.support_document import (
     SupportDocumentUpdate,
     SupportDocumentResponse,
     SupportDocumentListResponse,
+    SupportDocumentReorderRequest,
 )
 from ..security.context import AuthContext
 from ..core.exceptions import NotFoundError, PermissionDeniedError, ValidationError
@@ -140,6 +141,35 @@ class SupportDocumentService:
             return True
         except (NotFoundError, PermissionDeniedError):
             raise
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    async def reorder_documents(
+        self,
+        data: SupportDocumentReorderRequest,
+        current_user_context: AuthContext,
+    ) -> int:
+        """Reorder support documents (admin only). Returns count of updated docs."""
+        self._require_admin(current_user_context)
+
+        if not current_user_context.organization_id:
+            raise PermissionDeniedError("User has no organization assigned")
+
+        try:
+            items = [
+                {
+                    "id": item.id,
+                    "category": item.category,
+                    "display_order": item.display_order,
+                }
+                for item in data.items
+            ]
+            updated = await self.doc_repo.bulk_reorder(
+                current_user_context.organization_id, items
+            )
+            await self.session.commit()
+            return updated
         except Exception:
             await self.session.rollback()
             raise

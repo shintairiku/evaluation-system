@@ -47,3 +47,15 @@ class SupportDocumentResponse(BaseModel):
 class SupportDocumentListResponse(BaseModel):
     items: List[SupportDocumentResponse]
     categories: List[str]
+
+
+class SupportDocumentReorderItem(BaseModel):
+    id: UUID
+    category: str = Field(..., max_length=100)
+    display_order: int = Field(..., alias="displayOrder")
+
+    model_config = {"populate_by_name": True}
+
+
+class SupportDocumentReorderRequest(BaseModel):
+    items: List[SupportDocumentReorderItem]
