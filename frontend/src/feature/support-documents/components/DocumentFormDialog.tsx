@@ -35,7 +35,6 @@ export default function DocumentFormDialog({
   const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
   const [category, setCategory] = useState('general');
-  const [displayOrder, setDisplayOrder] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -44,13 +43,11 @@ export default function DocumentFormDialog({
       setDescription(document.description ?? '');
       setUrl(document.url ?? '');
       setCategory(document.category);
-      setDisplayOrder(document.displayOrder);
     } else {
       setTitle('');
       setDescription('');
       setUrl('');
       setCategory('general');
-      setDisplayOrder(0);
     }
   }, [document, open]);
 
@@ -64,7 +61,6 @@ export default function DocumentFormDialog({
           description: description || undefined,
           url: url || undefined,
           category,
-          displayOrder,
         };
         await onSubmit(data);
       } else {
@@ -73,7 +69,6 @@ export default function DocumentFormDialog({
           description: description || undefined,
           url,
           category,
-          displayOrder,
         };
         await onSubmit(data);
       }
@@ -126,34 +121,21 @@ export default function DocumentFormDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="category">カテゴリ</Label>
-              <Input
-                id="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="general"
-                list="category-suggestions"
-                maxLength={100}
-              />
-              <datalist id="category-suggestions">
-                {existingCategories.map((cat) => (
-                  <option key={cat} value={cat} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="displayOrder">表示順</Label>
-              <Input
-                id="displayOrder"
-                type="number"
-                value={displayOrder}
-                onChange={(e) => setDisplayOrder(Number(e.target.value))}
-                min={0}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="category">カテゴリ</Label>
+            <Input
+              id="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="general"
+              list="category-suggestions"
+              maxLength={100}
+            />
+            <datalist id="category-suggestions">
+              {existingCategories.map((cat) => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
           </div>
 
           <DialogFooter>

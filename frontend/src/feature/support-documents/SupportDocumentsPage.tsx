@@ -26,7 +26,7 @@ interface SupportDocumentsPageProps {
 
 export default function SupportDocumentsPage({ initialData }: SupportDocumentsPageProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<SupportDocument | null>(null);
@@ -88,7 +88,7 @@ export default function SupportDocumentsPage({ initialData }: SupportDocumentsPa
   const hasDocuments = initialData.items.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

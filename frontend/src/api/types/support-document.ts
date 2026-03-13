@@ -23,7 +23,6 @@ export interface SupportDocumentCreate {
   documentType?: 'link' | 'file';
   url?: string;
   category?: string;
-  displayOrder?: number;
 }
 
 export interface SupportDocumentUpdate {
