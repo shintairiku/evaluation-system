@@ -14,7 +14,6 @@ import {
 
 import {
   exportComprehensiveEvaluationCsvAction,
-  finalizeComprehensiveEvaluationPeriodAction,
   getComprehensiveEvaluationListAction,
   processComprehensiveEvaluationUserAction,
 } from "@/api/server-actions/comprehensive-evaluation";
@@ -227,7 +226,7 @@ function getSettingsErrorSummary(
     return {
       title: "この期間は編集できません",
       description:
-        "完了済みまたはキャンセル済みの評価期間では、割当設定は変更できません。テンプレート管理のみ利用できます。",
+        "入力終了またはキャンセル済みの評価期間では、割当設定は変更できません。テンプレート管理のみ利用できます。",
     };
   }
 
@@ -382,13 +381,8 @@ export default function ComprehensiveEvaluationPage() {
     ProcessingStatus | "all"
   >("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [isFinalizeDialogOpen, setIsFinalizeDialogOpen] =
-    useState<boolean>(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState<boolean>(false);
-  const [isFinalizing, setIsFinalizing] = useState<boolean>(false);
   const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
-  const [finalizeError, setFinalizeError] = useState<string | null>(null);
-  const [finalizeSuccess, setFinalizeSuccess] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [isProcessingUserId, setIsProcessingUserId] =
     useState<string | null>(null);
@@ -416,7 +410,9 @@ export default function ComprehensiveEvaluationPage() {
   );
   const isSelectedPeriodCancelled = selectedEvaluationPeriod?.status === "cancelled";
   const canProcessSelectedPeriod = Boolean(
-    selectedEvaluationPeriod && !isSelectedPeriodCancelled,
+    selectedEvaluationPeriod &&
+      !isSelectedPeriodCancelled &&
+      !isSelectedPeriodCompleted,
   );
 
   useEffect(() => {
@@ -984,33 +980,6 @@ export default function ComprehensiveEvaluationPage() {
     handleExportDialogOpenChange(false);
   };
 
-  const handleFinalizePeriod = async () => {
-    if (!isEvalAdmin || !selectedEvaluationPeriod || isSelectedPeriodCompleted)
-      return;
-
-    setFinalizeError(null);
-    setFinalizeSuccess(null);
-    setIsFinalizing(true);
-
-    const result = await finalizeComprehensiveEvaluationPeriodAction(
-      selectedEvaluationPeriod.id,
-    );
-
-    setIsFinalizing(false);
-
-    if (!result.success || !result.data) {
-      setFinalizeError(result.error ?? "評価期間の確定に失敗しました");
-      return;
-    }
-
-    setFinalizeSuccess(
-      `評価期間「${selectedEvaluationPeriod.label}」を確定しました。${result.data.updatedUserLevels}名のレベルを更新しました。`,
-    );
-    setIsFinalizeDialogOpen(false);
-    await loadRows();
-    currentUserContext?.refresh();
-  };
-
   const handleProcessUser = async (row: ComprehensiveEvaluationRowResponse) => {
     if (!isEvalAdmin || !canProcessSelectedPeriod) return;
 
@@ -1549,8 +1518,16 @@ export default function ComprehensiveEvaluationPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold">総合評価</h1>
           <p className="text-sm text-muted-foreground">
-            総合評価テーブルをAPIデータで表示します。昇格フラグは「正社員かつ昇格判別ルールを満たす」場合に点灯します（ステージは自動更新しません）。昇格フラグ点灯行は、昇格フラグ対応ページでステージ変更と反映後レベルを手動確定してください。
+            総合評価テーブルをAPIデータで表示します。昇格フラグは「正社員かつ昇格判別ルールを満たす」場合に点灯します（ステージは自動更新しません）。昇格フラグ点灯行は、昇格フラグ対応ページでステージ変更と反映後レベルを個別に判断してください。
           </p>
+          <p className="text-sm text-muted-foreground">
+            評価期間のステータス変更は、評価期間管理画面から行ってください。入力終了後は、この画面での処理とスコア変更はできません。
+          </p>
+          {isSelectedPeriodCompleted && (
+            <p className="text-sm text-muted-foreground">
+              この評価期間は入力終了済みのため、未処理ユーザーの「処理する」は実行できません。必要な個別判断は、既に処理済みのユーザーのみ別画面で継続してください。
+            </p>
+          )}
           {isSelectedPeriodCancelled && (
             <p className="text-sm text-destructive">
               評価期間がキャンセル済みのため、ユーザー処理はできません。
@@ -1681,61 +1658,11 @@ export default function ComprehensiveEvaluationPage() {
             </Dialog>
           )}
           {isEvalAdmin && (
-            <Dialog
-              open={isFinalizeDialogOpen}
-              onOpenChange={setIsFinalizeDialogOpen}
-            >
-              <DialogTrigger asChild>
-                <Button
-                  variant="destructive"
-                  disabled={
-                    !selectedEvaluationPeriod ||
-                    isSelectedPeriodCompleted ||
-                    isFinalizing
-                  }
-                >
-                  評価期間を確定
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>評価期間を確定しますか？</DialogTitle>
-                  <DialogDescription>
-                    確定後はこの評価期間のスコア編集ができなくなり、全ユーザーのレベルが「総合結果」に基づいて更新されます。
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-2 text-sm">
-                  <p>
-                    対象期間:{" "}
-                    <span className="font-medium">
-                      {selectedEvaluationPeriod?.label ?? "-"}
-                    </span>
-                  </p>
-                  <p className="text-muted-foreground">
-                    実行後は評価期間ステータスを <code>completed</code>{" "}
-                    に更新します。
-                  </p>
-                </div>
-                <div className="mt-4 flex items-center justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsFinalizeDialogOpen(false)}
-                    disabled={isFinalizing}
-                  >
-                    キャンセル
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => void handleFinalizePeriod()}
-                    disabled={isFinalizing}
-                  >
-                    {isFinalizing ? "確定中..." : "確定する"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button asChild variant="outline">
+              <Link href="/evaluation-period-management">
+                評価期間管理へ
+              </Link>
+            </Button>
           )}
           {canAccessCandidates && (
             <Button asChild variant="outline">
@@ -1976,7 +1903,7 @@ export default function ComprehensiveEvaluationPage() {
                                     </p>
                                   </div>
                                   <Badge variant="outline">
-                                    最後に画面下の「保存」で確定
+                                    最後に画面下の「保存」で反映
                                   </Badge>
                                 </div>
                               </div>
@@ -2070,7 +1997,7 @@ export default function ComprehensiveEvaluationPage() {
                                     「選択したテンプレートを現在の対象へ適用」を押す
                                     <br />
                                     3.
-                                    この画面の一番下にある「保存」を押して確定する
+                                    この画面の一番下にある「保存」を押して反映する
                                   </div>
 
                                   <Button
@@ -2868,7 +2795,7 @@ export default function ComprehensiveEvaluationPage() {
 
         {selectedEvaluationPeriod && (
           <Badge variant={isSelectedPeriodCompleted ? "secondary" : "outline"}>
-            {isSelectedPeriodCompleted ? "確定済み" : "未確定"}
+            {isSelectedPeriodCompleted ? "入力終了" : "入力受付中"}
           </Badge>
         )}
 
@@ -2973,18 +2900,6 @@ export default function ComprehensiveEvaluationPage() {
           クリア
         </Button>
       </div>
-
-      {finalizeSuccess && (
-        <Alert>
-          <AlertDescription>{finalizeSuccess}</AlertDescription>
-        </Alert>
-      )}
-
-      {finalizeError && (
-        <Alert variant="destructive">
-          <AlertDescription>{finalizeError}</AlertDescription>
-        </Alert>
-      )}
 
       {processSuccess && (
         <Alert>
