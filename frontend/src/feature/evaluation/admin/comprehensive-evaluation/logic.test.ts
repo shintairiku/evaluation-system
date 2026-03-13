@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyComprehensiveEvaluationManualOverride, computeComprehensiveEvaluationRow } from "./logic";
 import { mockDefaultComprehensiveEvaluationSettings } from "./mock";
+import type { ComprehensiveEvaluationSettings } from "./settings";
 import type { ComprehensiveEvaluationRow } from "./types";
 
 function buildRow(overrides: Partial<ComprehensiveEvaluationRow>): ComprehensiveEvaluationRow {
@@ -31,7 +32,7 @@ function buildRow(overrides: Partial<ComprehensiveEvaluationRow>): Comprehensive
 }
 
 describe("comprehensive evaluation logic", () => {
-  it("evaluates promotion candidate with unknown core value rank ignored", () => {
+  it("does not evaluate promotion candidate when a required rank is unknown", () => {
     const row = buildRow({
       performanceScore: 4.5,
       competencyScore: 0.2, // total 4.7 => A+
@@ -43,9 +44,9 @@ describe("comprehensive evaluation logic", () => {
     const computed = computeComprehensiveEvaluationRow(row, mockDefaultComprehensiveEvaluationSettings);
 
     expect(computed.overallRank).toBe("A+");
-    expect(computed.isPromotionCandidate).toBe(true);
-    expect(computed.promotionFlag).toBe(true);
-    expect(computed.decision).toBe("昇格");
+    expect(computed.isPromotionCandidate).toBe(false);
+    expect(computed.promotionFlag).toBe(false);
+    expect(computed.decision).toBe("対象外");
   });
 
   it("activates promotion flag even when the new level stays below 30", () => {
@@ -53,7 +54,7 @@ describe("comprehensive evaluation logic", () => {
       performanceScore: 4.5,
       competencyScore: 0.2, // total 4.7 => A+
       competencyFinalRank: "A+",
-      coreValueFinalRank: null,
+      coreValueFinalRank: "A+",
       currentLevel: 10,
     });
 
@@ -64,6 +65,30 @@ describe("comprehensive evaluation logic", () => {
     expect(computed.isPromotionCandidate).toBe(true);
     expect(computed.promotionFlag).toBe(true);
     expect(computed.decision).toBe("昇格");
+  });
+
+  it("supports performance final rank in promotion rules", () => {
+    const row = buildRow({
+      performanceFinalRank: "S",
+      competencyFinalRank: "B",
+      coreValueFinalRank: "B",
+    });
+    const settings: ComprehensiveEvaluationSettings = {
+      ...mockDefaultComprehensiveEvaluationSettings,
+      promotion: {
+        ruleGroups: [
+          {
+            id: "promotion-group-1",
+            conditions: [{ type: "rank_at_least", field: "performanceFinalRank", minimumRank: "A+" }],
+          },
+        ],
+      },
+    };
+
+    const computed = computeComprehensiveEvaluationRow(row, settings);
+
+    expect(computed.isPromotionCandidate).toBe(true);
+    expect(computed.promotionFlag).toBe(true);
   });
 
   it("evaluates demotion candidate from overall D", () => {
