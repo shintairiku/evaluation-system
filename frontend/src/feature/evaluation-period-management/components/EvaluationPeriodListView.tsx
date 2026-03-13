@@ -9,6 +9,7 @@ import type { EvaluationPeriodListViewProps } from '../types';
 export default function EvaluationPeriodListView({
   categorizedPeriods,
   onEditPeriod,
+  onChangePeriodStatus,
   onDeletePeriod,
   onViewGoalStats
 }: EvaluationPeriodListViewProps) {
@@ -37,6 +38,7 @@ export default function EvaluationPeriodListView({
                 key={period.id}
                 period={period}
                 onEdit={onEditPeriod}
+                onChangeStatus={onChangePeriodStatus}
                 onDelete={onDeletePeriod}
                 onViewGoalStats={onViewGoalStats}
               />
@@ -60,6 +62,7 @@ export default function EvaluationPeriodListView({
                 key={period.id}
                 period={period}
                 onEdit={onEditPeriod}
+                onChangeStatus={onChangePeriodStatus}
                 onDelete={onDeletePeriod}
                 onViewGoalStats={onViewGoalStats}
               />
@@ -83,6 +86,7 @@ export default function EvaluationPeriodListView({
                 key={period.id}
                 period={period}
                 onEdit={onEditPeriod}
+                onChangeStatus={onChangePeriodStatus}
                 onDelete={onDeletePeriod}
                 onViewGoalStats={onViewGoalStats}
               />
@@ -106,6 +110,7 @@ export default function EvaluationPeriodListView({
                 key={period.id}
                 period={period}
                 onEdit={onEditPeriod}
+                onChangeStatus={onChangePeriodStatus}
                 onDelete={onDeletePeriod}
                 onViewGoalStats={onViewGoalStats}
               />

@@ -19,6 +19,7 @@ import type { PeriodCardProps } from '../types';
 export default function PeriodCard({
   period,
   onEdit,
+  onChangeStatus,
   onDelete,
   onViewGoalStats
 }: PeriodCardProps) {
@@ -27,6 +28,9 @@ export default function PeriodCard({
   const daysRemaining = period.status === 'active' ? getDaysRemaining(period.end_date) : null;
   const periodTypeLabel = PERIOD_TYPE_LABELS[period.period_type] || period.period_type;
   const canDelete = period.status === 'draft' || period.status === 'completed';
+  const canStart = period.status === 'draft';
+  const canComplete = period.status === 'active';
+  const canCancel = period.status === 'active';
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -95,6 +99,38 @@ export default function PeriodCard({
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-2">
+          {(canStart || canComplete || canCancel) && (
+            <div className="grid grid-cols-2 gap-2">
+              {canStart && (
+                <Button
+                  size="sm"
+                  onClick={() => void onChangeStatus(period, 'active')}
+                  className="col-span-2"
+                >
+                  開始
+                </Button>
+              )}
+              {canComplete && (
+                <Button
+                  size="sm"
+                  onClick={() => void onChangeStatus(period, 'completed')}
+                >
+                  入力終了
+                </Button>
+              )}
+              {canCancel && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void onChangeStatus(period, 'cancelled')}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  キャンセル
+                </Button>
+              )}
+            </div>
+          )}
+
           <Button
             variant="outline"
             size="sm"
