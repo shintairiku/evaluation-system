@@ -146,6 +146,7 @@ const PROMOTION_CONDITION_TARGETS: Array<{
   label: string;
 }> = [
   { value: "overallRank", label: "総合評価が◯以上" },
+  { value: "performanceFinalRank", label: "業績目標最終評価が◯以上" },
   { value: "competencyFinalRank", label: "コンピテンシー最終評価が◯以上" },
   { value: "coreValueFinalRank", label: "コアバリュー最終評価が◯以上" },
 ];
