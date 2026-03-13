@@ -8,6 +8,7 @@ import EvaluationPeriodCalendarView from './components/EvaluationPeriodCalendarV
 import CreateEditPeriodModal from './components/CreateEditPeriodModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import GoalStatisticsSidePanel from './components/GoalStatisticsSidePanel';
+import StatusChangeConfirmationModal from './components/StatusChangeConfirmationModal';
 
 export default function EvaluationPeriodManagementView({
   periods,
@@ -24,6 +25,7 @@ export default function EvaluationPeriodManagementView({
   goalStats,
   onFormSubmit,
   onDeleteConfirm,
+  onStatusChangeConfirm,
   onCloseModal,
   onCloseSidePanel
 }: EvaluationPeriodManagementViewProps) {
@@ -77,6 +79,17 @@ export default function EvaluationPeriodManagementView({
           period={modalState.delete.period}
           onConfirm={onDeleteConfirm}
           isDeleting={isLoading}
+        />
+      )}
+
+      {modalState.statusChange.period && modalState.statusChange.nextStatus && (
+        <StatusChangeConfirmationModal
+          isOpen={modalState.statusChange.isOpen}
+          onClose={() => onCloseModal('statusChange')}
+          period={modalState.statusChange.period}
+          nextStatus={modalState.statusChange.nextStatus}
+          onConfirm={onStatusChangeConfirm}
+          isSubmitting={isLoading}
         />
       )}
 

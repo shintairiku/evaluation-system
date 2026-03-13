@@ -44,7 +44,8 @@ export default function EvaluationPeriodManagementContainer({
   // Modal states
   const [modalState, setModalState] = useState<ModalState>({
     createEdit: { isOpen: false },
-    delete: { isOpen: false }
+    delete: { isOpen: false },
+    statusChange: { isOpen: false }
   });
 
   // Side panel states
@@ -74,7 +75,7 @@ export default function EvaluationPeriodManagementContainer({
     }));
   }, []);
 
-  const handleChangePeriodStatus = useCallback(async (
+  const updatePeriodStatus = useCallback(async (
     period: EvaluationPeriod,
     status: EvaluationPeriodStatus
   ) => {
@@ -91,22 +92,59 @@ export default function EvaluationPeriodManagementContainer({
         status === 'active'
           ? '評価期間を開始しました'
           : status === 'completed'
-            ? '評価期間を完了にしました'
+            ? '評価期間を終了しました'
             : '評価期間をキャンセルしました';
 
       toast.success(successMessage);
       router.refresh();
+      return true;
     } catch {
       toast.error('評価期間のステータス更新中にエラーが発生しました');
+      return false;
     } finally {
       setIsLoading(false);
     }
   }, [router]);
 
+  const handleChangePeriodStatus = useCallback(async (
+    period: EvaluationPeriod,
+    status: EvaluationPeriodStatus
+  ) => {
+    if (status === 'completed' || status === 'cancelled') {
+      setModalState(prev => ({
+        ...prev,
+        statusChange: {
+          isOpen: true,
+          period,
+          nextStatus: status
+        }
+      }));
+      return;
+    }
+
+    await updatePeriodStatus(period, status);
+  }, [updatePeriodStatus]);
+
+  const handleStatusChangeConfirm = useCallback(async () => {
+    const period = modalState.statusChange.period;
+    const nextStatus = modalState.statusChange.nextStatus;
+
+    if (!period || !nextStatus) return;
+
+    const success = await updatePeriodStatus(period, nextStatus);
+
+    if (success) {
+      setModalState(prev => ({
+        ...prev,
+        statusChange: { isOpen: false }
+      }));
+    }
+  }, [modalState.statusChange.nextStatus, modalState.statusChange.period, updatePeriodStatus]);
+
   // Handle delete period confirmation
   const handleDeletePeriod = useCallback((period: EvaluationPeriod) => {
     if (period.status !== 'draft' && period.status !== 'completed') {
-      toast.error('削除できるのは「下書き」または「完了」の評価期間のみです');
+      toast.error('削除できるのは「下書き」または「終了」の評価期間のみです');
       return;
     }
 
@@ -232,6 +270,7 @@ export default function EvaluationPeriodManagementContainer({
       goalStats={goalStats}
       onFormSubmit={handleFormSubmit}
       onDeleteConfirm={handleDeleteConfirm}
+      onStatusChangeConfirm={handleStatusChangeConfirm}
       onCloseModal={handleCloseModal}
       onCloseSidePanel={handleCloseSidePanel}
     />
