@@ -100,6 +100,19 @@ class SupportDocumentRepository(BaseRepository[SupportDocument]):
             logger.error(f"Error fetching categories for org {org_id}: {e}")
             raise
 
+    async def get_next_display_order(self, org_id: str, category: str) -> int:
+        """Get the next display_order value for a given org + category."""
+        try:
+            query = select(func.coalesce(func.max(SupportDocument.display_order), -1)).where(
+                SupportDocument.organization_id == org_id,
+                SupportDocument.category == category,
+            )
+            result = await self.session.execute(query)
+            return (result.scalar() or 0) + 1
+        except SQLAlchemyError as e:
+            logger.error(f"Error getting next display order for org {org_id}, category {category}: {e}")
+            raise
+
     # ========================================
     # CREATE OPERATIONS
     # ========================================
@@ -112,8 +125,8 @@ class SupportDocumentRepository(BaseRepository[SupportDocument]):
         document_type: str,
         url: Optional[str],
         category: str,
-        display_order: int,
         created_by: UUID,
+        display_order: Optional[int] = None,
     ) -> SupportDocument:
         """Create a new support document. Does not commit."""
         try:

@@ -62,6 +62,11 @@ class SupportDocumentService:
             raise ValidationError("URL is required for link-type documents")
 
         try:
+            # Auto-increment display_order within org + category
+            next_order = await self.doc_repo.get_next_display_order(
+                current_user_context.organization_id, data.category
+            )
+
             doc = await self.doc_repo.create(
                 org_id=current_user_context.organization_id,
                 title=data.title,
@@ -69,8 +74,8 @@ class SupportDocumentService:
                 document_type=data.document_type,
                 url=data.url,
                 category=data.category,
-                display_order=data.display_order,
                 created_by=current_user_context.user_id,
+                display_order=next_order,
             )
 
             await self.session.commit()

@@ -10,7 +10,6 @@ class SupportDocumentCreate(BaseModel):
     document_type: str = Field(default="link", pattern="^(link|file)$", alias="documentType")
     url: Optional[str] = Field(None, max_length=2000)
     category: str = Field(default="general", max_length=100)
-    display_order: int = Field(default=0, alias="displayOrder")
 
     model_config = {"populate_by_name": True}
 
