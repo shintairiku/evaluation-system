@@ -10,7 +10,7 @@ EmploymentType = Literal["employee", "parttime"]
 ProcessingStatus = Literal["processed", "unprocessed"]
 ComprehensiveDecision = Literal["昇格", "降格", "対象外"]
 HistoryOperation = Literal["UPSERT", "CLEAR"]
-ConditionField = Literal["overallRank", "competencyFinalRank", "coreValueFinalRank"]
+ConditionField = Literal["overallRank", "performanceFinalRank", "competencyFinalRank", "coreValueFinalRank"]
 EvaluationPeriodLifecycleStatus = Literal["draft", "active", "completed", "cancelled"]
 ComprehensiveEvaluationExportColumn = Literal[
     "employeeCode",

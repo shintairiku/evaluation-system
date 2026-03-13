@@ -146,6 +146,7 @@ const PROMOTION_CONDITION_TARGETS: Array<{
   label: string;
 }> = [
   { value: "overallRank", label: "総合評価が◯以上" },
+  { value: "performanceFinalRank", label: "業績目標最終評価が◯以上" },
   { value: "competencyFinalRank", label: "コンピテンシー最終評価が◯以上" },
   { value: "coreValueFinalRank", label: "コアバリュー最終評価が◯以上" },
 ];
@@ -1548,7 +1549,7 @@ export default function ComprehensiveEvaluationPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold">総合評価</h1>
           <p className="text-sm text-muted-foreground">
-            総合評価テーブルをAPIデータで表示します。昇格フラグは「正社員の新レベルが30以上」の場合に点灯します（ステージは自動更新しません）。昇格フラグ点灯行は、昇格フラグ対応ページでステージ変更と反映後レベルを手動確定してください。
+            総合評価テーブルをAPIデータで表示します。昇格フラグは「正社員かつ昇格判別ルールを満たす」場合に点灯します（ステージは自動更新しません）。昇格フラグ点灯行は、昇格フラグ対応ページでステージ変更と反映後レベルを手動確定してください。
           </p>
           {isSelectedPeriodCancelled && (
             <p className="text-sm text-destructive">

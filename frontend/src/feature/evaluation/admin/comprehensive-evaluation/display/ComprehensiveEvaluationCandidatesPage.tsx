@@ -464,7 +464,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">昇格/降格フラグ対応</h1>
             <p className="text-sm text-muted-foreground">
-              昇格フラグ（正社員の新レベルが30以上）または降格フラグ（総合評価がD）が点灯した行を起点に、`eval_admin`が判定・反映後ステージ・反映後レベルを手動確定します。
+              昇格フラグ（正社員かつ昇格判別ルールを満たす）または降格フラグ（降格判別ルールを満たす）が点灯した行を起点に、`eval_admin`が判定・反映後ステージ・反映後レベルを手動確定します。
             </p>
             {isSelectedPeriodCancelled && (
               <p className="text-sm text-destructive">

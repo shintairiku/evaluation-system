@@ -98,17 +98,41 @@ def make_context(*, role_name: str) -> AuthContext:
     )
 
 
-def test_promotion_groups_ignore_unknown_fields_but_require_evaluated_condition():
+def test_promotion_groups_fail_when_a_required_rank_is_unknown():
     service = ComprehensiveEvaluationService(AsyncMock())
     settings = build_settings()
 
-    # coreValueFinalRank is unknown (None), but other evaluated conditions pass.
     result = service._evaluate_promotion_groups(
         settings.promotion.rule_groups,
         {
             "overallRank": "A+",
+            "performanceFinalRank": "A+",
             "competencyFinalRank": "A+",
             "coreValueFinalRank": None,
+        },
+    )
+
+    assert result is False
+
+
+def test_promotion_groups_support_performance_final_rank():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    settings = build_settings()
+    settings.promotion.rule_groups[0].conditions = [
+        PromotionRuleCondition(
+            type="rank_at_least",
+            field="performanceFinalRank",
+            minimumRank="A+",
+        )
+    ]
+
+    result = service._evaluate_promotion_groups(
+        settings.promotion.rule_groups,
+        {
+            "overallRank": "B",
+            "performanceFinalRank": "A+",
+            "competencyFinalRank": "B",
+            "coreValueFinalRank": "B",
         },
     )
 
@@ -119,11 +143,11 @@ def test_demotion_groups_require_at_least_one_evaluated_condition():
     service = ComprehensiveEvaluationService(AsyncMock())
     settings = build_settings()
 
-    # No condition can be evaluated -> group must fail by spec.
     result = service._evaluate_demotion_groups(
         settings.demotion.rule_groups,
         {
             "overallRank": None,
+            "performanceFinalRank": None,
             "competencyFinalRank": None,
             "coreValueFinalRank": None,
         },
@@ -424,6 +448,65 @@ async def test_category_rank_uses_raw_score_not_weighted_contribution():
     assert row.competency_final_rank == "A+"
     assert row.competency_score == pytest.approx(0.52)
     assert row.auto.total_score == pytest.approx(4.92)
+
+
+@pytest.mark.asyncio
+async def test_promotion_flag_uses_rule_hit_even_when_new_level_is_below_30():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    settings = build_settings()
+    period_id = uuid4()
+    user_id = uuid4()
+
+    service._get_period_settings_map = AsyncMock(return_value=(settings, {}, {}))
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_id}:{user_id}",
+                    "user_id": user_id,
+                    "department_id": None,
+                    "stage_id": uuid4(),
+                    "employee_code": "E001",
+                    "name": "Level Ten User",
+                    "department_name": "Engineering",
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 10,
+                    "performance_score": 4.5,
+                    "competency_score": 0.2,
+                    "core_value_score": None,
+                    "performance_raw_score": 4.5,
+                    "competency_raw_score": 4.7,
+                    "core_value_raw_score": 4.7,
+                    "current_stage": "STAGE4",
+                    "current_level": 10,
+                    "manual_decision": None,
+                }
+            ],
+            1,
+        )
+    )
+
+    result = await service.get_comprehensive_evaluation(
+        context=make_context(role_name="admin"),
+        period_id=period_id,
+        department_id=None,
+        stage_id=None,
+        employment_type=None,
+        search=None,
+        processing_status=None,
+        page=1,
+        limit=200,
+    )
+
+    row = result.rows[0]
+
+    assert row.auto.overall_rank == "A+"
+    assert row.auto.new_level == 16
+    assert row.auto.promotion_flag is True
+    assert row.auto.decision == "昇格"
 
 
 @pytest.mark.asyncio
