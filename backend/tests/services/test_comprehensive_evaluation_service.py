@@ -1029,10 +1029,9 @@ async def test_finalize_period_marks_completed_without_bulk_level_updates():
     period_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
-    service.get_comprehensive_evaluation = AsyncMock(
-        return_value=SimpleNamespace(rows=[], meta=SimpleNamespace(pages=1, total=3))
-    )
+    service.get_comprehensive_evaluation = AsyncMock()
     service.user_repo.batch_update_user_levels = AsyncMock()
+    service.user_repo.batch_update_user_stages = AsyncMock()
     service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
 
     result = await service.finalize_evaluation_period(
@@ -1040,7 +1039,9 @@ async def test_finalize_period_marks_completed_without_bulk_level_updates():
         period_id=period_id,
     )
 
+    service.get_comprehensive_evaluation.assert_not_awaited()
     service.user_repo.batch_update_user_levels.assert_not_awaited()
+    service.user_repo.batch_update_user_stages.assert_not_awaited()
     service.period_repo.update_status.assert_awaited_once_with(
         period_id,
         EvaluationPeriodStatus.COMPLETED,
@@ -1060,9 +1061,7 @@ async def test_finalize_period_allows_draft_status():
     period_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="draft"))
-    service.get_comprehensive_evaluation = AsyncMock(
-        return_value=SimpleNamespace(rows=[], meta=SimpleNamespace(pages=1, total=1))
-    )
+    service.get_comprehensive_evaluation = AsyncMock()
     service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
 
     result = await service.finalize_evaluation_period(
@@ -1087,9 +1086,7 @@ async def test_finalize_period_is_idempotent_when_already_completed():
     period_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
-    service.get_comprehensive_evaluation = AsyncMock(
-        return_value=SimpleNamespace(rows=[], meta=SimpleNamespace(pages=1, total=0))
-    )
+    service.get_comprehensive_evaluation = AsyncMock()
     service.period_repo.update_status = AsyncMock()
 
     result = await service.finalize_evaluation_period(
@@ -1226,13 +1223,14 @@ async def test_process_user_evaluation_applies_manual_stage_and_clamped_level():
 
 
 @pytest.mark.asyncio
-async def test_process_user_evaluation_rejects_cancelled_period():
+@pytest.mark.parametrize("period_status", ["completed", "cancelled"])
+async def test_process_user_evaluation_rejects_closed_period(period_status: str):
     service = ComprehensiveEvaluationService(AsyncMock())
     period_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="cancelled"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status=period_status))
 
-    with pytest.raises(BadRequestError, match="cancelled"):
+    with pytest.raises(BadRequestError, match="completed or cancelled"):
         await service.process_user_evaluation(
             context=make_context(role_name="eval_admin"),
             period_id=period_id,

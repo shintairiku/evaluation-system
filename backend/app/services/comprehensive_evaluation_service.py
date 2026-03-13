@@ -627,80 +627,7 @@ class ComprehensiveEvaluationService:
                 "Only draft, active, or completed evaluation periods can be finalized"
             )
 
-        first_page = await self.get_comprehensive_evaluation(
-            context=context,
-            period_id=period_id,
-            department_id=None,
-            stage_id=None,
-            employment_type=None,
-            search=None,
-            processing_status=None,
-            page=1,
-            limit=200,
-        )
-        rows = list(first_page.rows)
-        total_users = len(first_page.rows)
-
-        if getattr(first_page.meta, "pages", 1) > 1:
-            total_users = getattr(first_page.meta, "total", total_users)
-            for page in range(2, first_page.meta.pages + 1):
-                page_result = await self.get_comprehensive_evaluation(
-                    context=context,
-                    period_id=period_id,
-                    department_id=None,
-                    stage_id=None,
-                    employment_type=None,
-                    search=None,
-                    processing_status=None,
-                    page=page,
-                    limit=200,
-                )
-                rows.extend(page_result.rows)
-
-        level_updates: Dict[UUID, int] = {}
-        stage_updates: Dict[UUID, UUID] = {}
-        stage_name_to_id: Optional[Dict[str, UUID]] = None
-        stage_name_folded_to_id: Optional[Dict[str, UUID]] = None
-
-        for row in rows:
-            applied_state = row.applied
-
-            if row.employment_type == "employee" and applied_state.new_level is not None:
-                try:
-                    proposed_level = int(applied_state.new_level)
-                except (TypeError, ValueError):
-                    raise BadRequestError("applied level is invalid") from None
-
-                next_level = max(USER_LEVEL_MIN, min(USER_LEVEL_MAX, proposed_level))
-                if row.current_level is None or row.current_level != next_level:
-                    level_updates[row.user_id] = next_level
-
-            requested_stage_name = self._normalize_stage_name(
-                getattr(applied_state, "new_stage", None)
-            )
-            current_stage_name = self._normalize_stage_name(getattr(row, "current_stage", None))
-            if requested_stage_name and (
-                current_stage_name is None or requested_stage_name.casefold() != current_stage_name.casefold()
-            ):
-                if stage_name_to_id is None or stage_name_folded_to_id is None:
-                    stage_name_to_id, stage_name_folded_to_id = await self._get_stage_name_maps(org_id)
-                stage_id = self._resolve_stage_id(
-                    stage_name=requested_stage_name,
-                    stage_name_to_id=stage_name_to_id,
-                    stage_name_folded_to_id=stage_name_folded_to_id,
-                )
-                if stage_id is None:
-                    raise BadRequestError("applied stage is not registered in this organization")
-                stage_updates[row.user_id] = stage_id
-
-        updated_user_levels = 0
-
         try:
-            if level_updates:
-                updated_users = await self.user_repo.batch_update_user_levels(org_id, level_updates)
-                updated_user_levels = len(updated_users)
-            if stage_updates:
-                await self.user_repo.batch_update_user_stages(org_id, stage_updates)
             if previous_status != "completed":
                 await self.period_repo.update_status(period_id, EvaluationPeriodStatus.COMPLETED, org_id)
             await self.session.commit()
@@ -712,8 +639,8 @@ class ComprehensiveEvaluationService:
             periodId=period_id,
             previousStatus=previous_status,
             currentStatus="completed",
-            totalUsers=total_users,
-            updatedUserLevels=updated_user_levels,
+            totalUsers=0,
+            updatedUserLevels=0,
         )
 
     async def process_user_evaluation(
@@ -1919,8 +1846,8 @@ class ComprehensiveEvaluationService:
 
     def _ensure_period_allows_user_processing(self, period) -> None:
         status = self._get_period_status(period)
-        if status == "cancelled":
-            raise BadRequestError("Cannot process evaluations for cancelled evaluation periods")
+        if status in {"completed", "cancelled"}:
+            raise BadRequestError("Cannot process evaluations for completed or cancelled evaluation periods")
 
     def _get_period_status(self, period) -> str:
         status = getattr(period.status, "value", period.status)
