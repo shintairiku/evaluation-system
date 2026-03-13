@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { SupportDocument, SupportDocumentCreate, SupportDocumentUpdate } from '@/api/types';
 
 interface DocumentFormDialogProps {
@@ -34,22 +41,34 @@ export default function DocumentFormDialog({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
-  const [category, setCategory] = useState('general');
+  const [selectedCategory, setSelectedCategory] = useState('general');
+  const [customCategory, setCustomCategory] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isCustomCategory = selectedCategory === '__new__';
+  const category = isCustomCategory ? customCategory : selectedCategory;
 
   useEffect(() => {
     if (document) {
       setTitle(document.title);
       setDescription(document.description ?? '');
       setUrl(document.url ?? '');
-      setCategory(document.category);
+      // If the document's category exists in the list, select it; otherwise treat as custom
+      if (existingCategories.includes(document.category)) {
+        setSelectedCategory(document.category);
+        setCustomCategory('');
+      } else {
+        setSelectedCategory('__new__');
+        setCustomCategory(document.category);
+      }
     } else {
       setTitle('');
       setDescription('');
       setUrl('');
-      setCategory('general');
+      setSelectedCategory(existingCategories[0] || 'general');
+      setCustomCategory('');
     }
-  }, [document, open]);
+  }, [document, open, existingCategories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,27 +141,36 @@ export default function DocumentFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="category">カテゴリ</Label>
-            <Input
-              id="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="general"
-              list="category-suggestions"
-              maxLength={100}
-            />
-            <datalist id="category-suggestions">
-              {existingCategories.map((cat) => (
-                <option key={cat} value={cat} />
-              ))}
-            </datalist>
+            <Label>カテゴリ</Label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="カテゴリを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {existingCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+                <SelectItem value="__new__">+ 新しいカテゴリを作成</SelectItem>
+              </SelectContent>
+            </Select>
+            {isCustomCategory && (
+              <Input
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="新しいカテゴリ名を入力"
+                maxLength={100}
+                autoFocus
+              />
+            )}
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               キャンセル
             </Button>
-            <Button type="submit" disabled={isSubmitting || !title || !url}>
+            <Button type="submit" disabled={isSubmitting || !title || !url || (isCustomCategory && !customCategory)}>
               {isSubmitting ? '保存中...' : isEditing ? '更新' : '追加'}
             </Button>
           </DialogFooter>

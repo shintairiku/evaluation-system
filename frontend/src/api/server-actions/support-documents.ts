@@ -9,6 +9,7 @@ import type {
   SupportDocumentCreate,
   SupportDocumentUpdate,
   SupportDocumentListResponse,
+  SupportDocumentReorderItem,
   ApiResponse,
   UUID,
 } from '../types';
@@ -119,6 +120,33 @@ export async function deleteSupportDocumentAction(id: UUID): Promise<ApiResponse
     return {
       success: false,
       error: 'An unexpected error occurred while deleting support document',
+    };
+  }
+}
+
+export async function reorderSupportDocumentsAction(
+  items: SupportDocumentReorderItem[],
+): Promise<ApiResponse<void>> {
+  try {
+    const response = await supportDocumentsApi.reorderDocuments(items);
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to reorder support documents',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.SUPPORT_DOCUMENTS);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('Reorder support documents action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while reordering support documents',
     };
   }
 }

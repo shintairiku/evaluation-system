@@ -38,3 +38,9 @@ export interface SupportDocumentListResponse {
   items: SupportDocument[];
   categories: string[];
 }
+
+export interface SupportDocumentReorderItem {
+  id: string;
+  category: string;
+  displayOrder: number;
+}

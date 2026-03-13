@@ -285,6 +285,7 @@ export const API_ENDPOINTS = {
     CREATE: '/support-documents/',
     UPDATE: (id: string) => `/support-documents/${id}`,
     DELETE: (id: string) => `/support-documents/${id}`,
+    REORDER: '/support-documents/reorder',
   },
 
   // Permission management endpoints

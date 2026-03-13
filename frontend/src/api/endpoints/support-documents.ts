@@ -5,6 +5,7 @@ import type {
   SupportDocumentCreate,
   SupportDocumentUpdate,
   SupportDocumentListResponse,
+  SupportDocumentReorderItem,
   ApiResponse,
   UUID,
 } from '../types';
@@ -35,5 +36,9 @@ export const supportDocumentsApi = {
 
   deleteDocument: async (id: UUID): Promise<ApiResponse<void>> => {
     return httpClient.delete<void>(API_ENDPOINTS.SUPPORT_DOCUMENTS.DELETE(id));
+  },
+
+  reorderDocuments: async (items: SupportDocumentReorderItem[]): Promise<ApiResponse<void>> => {
+    return httpClient.put<void>(API_ENDPOINTS.SUPPORT_DOCUMENTS.REORDER, { items });
   },
 };

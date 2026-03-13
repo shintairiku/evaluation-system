@@ -1,6 +1,9 @@
 'use client';
 
-import { ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { ExternalLink, GripVertical, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { SupportDocument } from '@/api/types';
@@ -13,10 +16,50 @@ interface DocumentCardProps {
 }
 
 export default function DocumentCard({ document, isAdmin, onEdit, onDelete }: DocumentCardProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: document.id,
+    data: { document },
+    disabled: !isAdmin || !isMounted,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
-    <Card className="group hover:shadow-md transition-shadow">
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={`group hover:shadow-md transition-shadow ${isDragging ? 'opacity-50 shadow-lg z-10' : ''}`}
+    >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
+          {/* Drag handle — admin only */}
+          {isAdmin && isMounted && (
+            <button
+              type="button"
+              className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground mt-0.5"
+              {...listeners}
+              {...attributes}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
+
           <a
             href={document.url ?? '#'}
             target="_blank"
