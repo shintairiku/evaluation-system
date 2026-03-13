@@ -15,6 +15,7 @@ export default function EvaluationPeriodManagementView({
   onViewChange,
   onCreatePeriod,
   onEditPeriod,
+  onChangePeriodStatus,
   onDeletePeriod,
   onViewGoalStats,
   isLoading,
@@ -42,6 +43,7 @@ export default function EvaluationPeriodManagementView({
           <EvaluationPeriodListView
             categorizedPeriods={periods}
             onEditPeriod={onEditPeriod}
+            onChangePeriodStatus={onChangePeriodStatus}
             onDeletePeriod={onDeletePeriod}
             onViewGoalStats={onViewGoalStats}
           />

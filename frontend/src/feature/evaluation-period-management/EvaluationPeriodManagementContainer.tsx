@@ -7,7 +7,8 @@ import type {
   EvaluationPeriod,
   CategorizedEvaluationPeriods,
   EvaluationPeriodFormData,
-  GoalStatistics
+  GoalStatistics,
+  EvaluationPeriodStatus
 } from '@/api/types/evaluation-period';
 import type {
   EvaluationPeriodManagementContainerProps,
@@ -72,6 +73,35 @@ export default function EvaluationPeriodManagementContainer({
       createEdit: { isOpen: true, period }
     }));
   }, []);
+
+  const handleChangePeriodStatus = useCallback(async (
+    period: EvaluationPeriod,
+    status: EvaluationPeriodStatus
+  ) => {
+    setIsLoading(true);
+    try {
+      const result = await updateEvaluationPeriodAction(period.id, { status });
+
+      if (!result.success) {
+        toast.error(result.error || '評価期間のステータス更新に失敗しました');
+        return;
+      }
+
+      const successMessage =
+        status === 'active'
+          ? '評価期間を開始しました'
+          : status === 'completed'
+            ? '評価期間を完了にしました'
+            : '評価期間をキャンセルしました';
+
+      toast.success(successMessage);
+      router.refresh();
+    } catch {
+      toast.error('評価期間のステータス更新中にエラーが発生しました');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router]);
 
   // Handle delete period confirmation
   const handleDeletePeriod = useCallback((period: EvaluationPeriod) => {
@@ -193,6 +223,7 @@ export default function EvaluationPeriodManagementContainer({
       onViewChange={handleViewChange}
       onCreatePeriod={handleCreatePeriod}
       onEditPeriod={handleEditPeriod}
+      onChangePeriodStatus={handleChangePeriodStatus}
       onDeletePeriod={handleDeletePeriod}
       onViewGoalStats={handleViewGoalStats}
       isLoading={isLoading}
