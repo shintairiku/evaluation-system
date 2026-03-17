@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useTransition, useMemo } from 'react';
+import { useState, useCallback, useTransition, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { DndContext, DragEndEvent, DragOverlay, closestCenter } from '@dnd-kit/core';
@@ -43,6 +43,11 @@ export default function SupportDocumentsPage({ initialData }: SupportDocumentsPa
   const [editingDocument, setEditingDocument] = useState<SupportDocument | null>(null);
   const [documents, setDocuments] = useState(initialData.items);
   const [activeDoc, setActiveDoc] = useState<SupportDocument | null>(null);
+
+  // Sync local state when server data changes (after router.refresh)
+  useEffect(() => {
+    setDocuments(initialData.items);
+  }, [initialData.items]);
 
   // Group documents: system docs (org=null) and org docs, then by category
   const systemDocs = documents.filter((doc) => doc.organizationId === null);
