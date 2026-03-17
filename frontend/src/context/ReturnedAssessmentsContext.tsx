@@ -26,6 +26,8 @@ const DraftAssessmentsContext = createContext<DraftAssessmentsContextType | unde
 export interface DraftAssessmentsProviderProps {
   children: ReactNode;
   initialDraftCount?: number;
+  initialPeriodId?: string;
+  initialUserId?: string;
 }
 
 /**
@@ -38,7 +40,7 @@ export interface DraftAssessmentsProviderProps {
  *
  * This follows the same pattern as GoalListProvider for rejected goals.
  */
-export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftAssessmentsProviderProps) {
+export function DraftAssessmentsProvider({ children, initialDraftCount, initialPeriodId, initialUserId }: DraftAssessmentsProviderProps) {
   const currentUserContext = useOptionalCurrentUserContext();
   const [draftCount, setDraftCountState] = useState<number>(() => (
     typeof initialDraftCount === 'number' ? initialDraftCount : 0
@@ -60,8 +62,8 @@ export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftA
    */
   const refreshDraftCount = useCallback(async () => {
     try {
-      const currentUserId = currentUserContext?.user?.id;
-      const currentPeriodId = currentUserContext?.currentPeriod?.id;
+      const currentUserId = initialUserId ?? currentUserContext?.user?.id;
+      const currentPeriodId = initialPeriodId ?? currentUserContext?.currentPeriod?.id;
 
       if (!currentUserId || !currentPeriodId) {
         setDraftCountState(0);
@@ -69,7 +71,8 @@ export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftA
       }
 
       // Fetch self-assessment draft count + core value evaluation in parallel
-      const [assessmentsResult, coreValueResult] = await Promise.all([
+      // Using Promise.allSettled so a failure in one doesn't discard the other's result
+      const [assessmentsResult, coreValueResult] = await Promise.allSettled([
         getSelfAssessmentsAction({
           periodId: currentPeriodId,
           status: 'draft',
@@ -79,12 +82,13 @@ export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftA
         getMyEvaluationAction(currentPeriodId),
       ]);
 
-      const selfAssessmentTotal = assessmentsResult.success && assessmentsResult.data
-        ? assessmentsResult.data.total
+      const selfAssessmentTotal = assessmentsResult.status === 'fulfilled'
+        && assessmentsResult.value.success && assessmentsResult.value.data
+        ? assessmentsResult.value.data.total
         : 0;
 
-      const coreValueIsDraft = coreValueResult.success && coreValueResult.data
-        && coreValueResult.data.status === 'draft'
+      const coreValueIsDraft = coreValueResult.status === 'fulfilled'
+        && coreValueResult.value.success && coreValueResult.value.data?.status === 'draft'
         ? 1
         : 0;
 
@@ -93,7 +97,7 @@ export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftA
       console.error('Error refreshing draft assessments count:', error);
       // Don't reset count on error, keep previous value
     }
-  }, [currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
+  }, [initialPeriodId, initialUserId, currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
 
   // Keep state in sync when the server provides an initial value
   useEffect(() => {
@@ -101,11 +105,10 @@ export function DraftAssessmentsProvider({ children, initialDraftCount }: DraftA
     setDraftCountState(initialDraftCount);
   }, [initialDraftCount]);
 
-  // Load draft count on provider initialization only when we don't already have a server-provided value
+  // Load draft count on provider initialization to ensure correctness after hydration
   useEffect(() => {
-    if (typeof initialDraftCount === 'number') return;
     refreshDraftCount();
-  }, [initialDraftCount, refreshDraftCount]);
+  }, [refreshDraftCount]);
 
   const value: DraftAssessmentsContextType = useMemo(() => ({
     draftCount,

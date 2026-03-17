@@ -32,6 +32,8 @@ const GoalListContext = createContext<GoalListContextType | undefined>(undefined
 export interface GoalListProviderProps {
   children: ReactNode;
   initialRejectedGoalsCount?: number;
+  initialPeriodId?: string;
+  initialUserId?: string;
 }
 
 /**
@@ -44,7 +46,7 @@ export interface GoalListProviderProps {
  *
  * @param props - Provider props
  */
-export function GoalListProvider({ children, initialRejectedGoalsCount }: GoalListProviderProps) {
+export function GoalListProvider({ children, initialRejectedGoalsCount, initialPeriodId, initialUserId }: GoalListProviderProps) {
   const currentUserContext = useOptionalCurrentUserContext();
   const [rejectedGoalsCount, setRejectedGoalsCountState] = useState<number>(() => (
     typeof initialRejectedGoalsCount === 'number' ? initialRejectedGoalsCount : 0
@@ -67,8 +69,8 @@ export function GoalListProvider({ children, initialRejectedGoalsCount }: GoalLi
    */
   const refreshRejectedGoalsCount = useCallback(async () => {
     try {
-      const currentUserId = currentUserContext?.user?.id;
-      const currentPeriodId = currentUserContext?.currentPeriod?.id;
+      const currentUserId = initialUserId ?? currentUserContext?.user?.id;
+      const currentPeriodId = initialPeriodId ?? currentUserContext?.currentPeriod?.id;
 
       if (!currentUserId || !currentPeriodId) {
         setRejectedGoalsCountState(0);
@@ -94,7 +96,7 @@ export function GoalListProvider({ children, initialRejectedGoalsCount }: GoalLi
       console.error('Error refreshing rejected goals count:', error);
       // Don't reset count on error, keep previous value
     }
-  }, [currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
+  }, [initialPeriodId, initialUserId, currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
 
   // Keep state in sync when the server provides an initial value (e.g., from a layout loader).
   useEffect(() => {
@@ -102,11 +104,10 @@ export function GoalListProvider({ children, initialRejectedGoalsCount }: GoalLi
     setRejectedGoalsCountState(initialRejectedGoalsCount);
   }, [initialRejectedGoalsCount]);
 
-  // Load rejected goals count on provider initialization only when we don't already have a server-provided value.
+  // Load rejected goals count on provider initialization to ensure correctness after hydration
   useEffect(() => {
-    if (typeof initialRejectedGoalsCount === 'number') return;
     refreshRejectedGoalsCount();
-  }, [initialRejectedGoalsCount, refreshRejectedGoalsCount]);
+  }, [refreshRejectedGoalsCount]);
 
   const value: GoalListContextType = useMemo(() => ({
     rejectedGoalsCount,

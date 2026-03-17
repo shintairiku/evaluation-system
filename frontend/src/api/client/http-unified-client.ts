@@ -497,6 +497,16 @@ class UnifiedHttpClient {
                           (data as { message?: string; error?: string })?.error || 
                           `HTTP ${response.status}: ${response.statusText}`;
       
+      // Handle 401 Unauthorized silently (expected during SSR refresh with expired token)
+      if (response.status === 401) {
+        return {
+          success: false,
+          errorMessage,
+          error: errorMessage,
+          data: data as T,
+        };
+      }
+
       // Handle 403 Forbidden as expected authorization error (not a system error)
       if (response.status === 403) {
         // Role-based access control rejection - this is normal business logic
