@@ -14,12 +14,15 @@ from app.api.v1.support_documents import (
     create_support_document,
     update_support_document,
     delete_support_document,
+    reorder_support_documents,
 )
 from app.schemas.support_document import (
     SupportDocumentCreate,
     SupportDocumentUpdate,
     SupportDocumentResponse,
     SupportDocumentListResponse,
+    SupportDocumentReorderRequest,
+    SupportDocumentReorderItem,
 )
 from app.security.context import AuthContext, RoleInfo
 from app.core.exceptions import NotFoundError, PermissionDeniedError, ValidationError
@@ -222,6 +225,69 @@ class TestUpdateSupportDocument:
                 document_id=uuid4(), data=data, context=admin_context, session=AsyncMock()
             )
         assert exc_info.value.status_code == 403
+
+
+class TestReorderSupportDocuments:
+
+    @pytest.mark.asyncio
+    async def test_success(self, admin_context, monkeypatch):
+        mock_service = AsyncMock()
+        mock_service.reorder_documents = AsyncMock(return_value=3)
+        monkeypatch.setattr(
+            "app.api.v1.support_documents.SupportDocumentService",
+            lambda session: mock_service,
+        )
+
+        data = SupportDocumentReorderRequest(items=[
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=0),
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=1),
+            SupportDocumentReorderItem(id=uuid4(), category="hr", display_order=0),
+        ])
+        result = await reorder_support_documents(
+            data=data, context=admin_context, session=AsyncMock()
+        )
+        assert result.message == "Reordered 3 documents"
+        mock_service.reorder_documents.assert_called_once_with(data, admin_context)
+
+    @pytest.mark.asyncio
+    async def test_permission_denied(self, admin_context, monkeypatch):
+        mock_service = AsyncMock()
+        mock_service.reorder_documents = AsyncMock(
+            side_effect=PermissionDeniedError("Admin only")
+        )
+        monkeypatch.setattr(
+            "app.api.v1.support_documents.SupportDocumentService",
+            lambda session: mock_service,
+        )
+
+        data = SupportDocumentReorderRequest(items=[
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=0),
+        ])
+        with pytest.raises(HTTPException) as exc_info:
+            await reorder_support_documents(
+                data=data, context=admin_context, session=AsyncMock()
+            )
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_internal_error(self, admin_context, monkeypatch):
+        mock_service = AsyncMock()
+        mock_service.reorder_documents = AsyncMock(
+            side_effect=Exception("DB error")
+        )
+        monkeypatch.setattr(
+            "app.api.v1.support_documents.SupportDocumentService",
+            lambda session: mock_service,
+        )
+
+        data = SupportDocumentReorderRequest(items=[
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=0),
+        ])
+        with pytest.raises(HTTPException) as exc_info:
+            await reorder_support_documents(
+                data=data, context=admin_context, session=AsyncMock()
+            )
+        assert exc_info.value.status_code == 500
 
 
 class TestDeleteSupportDocument:

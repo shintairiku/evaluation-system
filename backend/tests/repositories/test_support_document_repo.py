@@ -235,3 +235,55 @@ class TestSupportDocumentRepository:
 
         deleted = await repo.delete_doc(uuid4(), "org_test")
         assert deleted is False
+
+    # ---- bulk_reorder ----
+
+    @pytest.mark.asyncio
+    async def test_bulk_reorder_updates_docs(self, repo, mock_session):
+        doc1 = make_doc(org_id="org_test", category="general", display_order=0)
+        doc2 = make_doc(org_id="org_test", category="general", display_order=1)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.side_effect = [doc1, doc2]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        items = [
+            {"id": doc1.id, "category": "hr", "display_order": 1},
+            {"id": doc2.id, "category": "hr", "display_order": 0},
+        ]
+        updated = await repo.bulk_reorder("org_test", items)
+
+        assert updated == 2
+        assert doc1.category == "hr"
+        assert doc1.display_order == 1
+        assert doc2.category == "hr"
+        assert doc2.display_order == 0
+
+    @pytest.mark.asyncio
+    async def test_bulk_reorder_skips_system_docs(self, repo, mock_session):
+        system_doc = make_doc(org_id=None, category="general", display_order=0)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = system_doc
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        items = [{"id": system_doc.id, "category": "hr", "display_order": 0}]
+        updated = await repo.bulk_reorder("org_test", items)
+
+        assert updated == 0
+
+    @pytest.mark.asyncio
+    async def test_bulk_reorder_skips_not_found(self, repo, mock_session):
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = None
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        items = [{"id": uuid4(), "category": "general", "display_order": 0}]
+        updated = await repo.bulk_reorder("org_test", items)
+
+        assert updated == 0
+
+    @pytest.mark.asyncio
+    async def test_bulk_reorder_empty_list(self, repo, mock_session):
+        updated = await repo.bulk_reorder("org_test", [])
+        assert updated == 0

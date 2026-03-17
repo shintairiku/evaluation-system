@@ -100,7 +100,7 @@ export default function DocumentCard({ document, isAdmin, onEdit, onDelete }: Do
           <div className="shrink-0 rounded-md bg-muted/50 p-1.5 mt-0.5">
             {domain && !faviconError ? (
               <img
-                src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+                src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`}
                 alt=""
                 width={16}
                 height={16}

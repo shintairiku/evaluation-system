@@ -12,6 +12,8 @@ from app.schemas.support_document import (
     SupportDocumentCreate,
     SupportDocumentUpdate,
     SupportDocumentResponse,
+    SupportDocumentReorderRequest,
+    SupportDocumentReorderItem,
 )
 from app.security.context import AuthContext, RoleInfo
 from app.core.exceptions import NotFoundError, PermissionDeniedError, ValidationError
@@ -222,3 +224,51 @@ class TestSupportDocumentService:
         ctx = make_employee_context()
         with pytest.raises(PermissionDeniedError):
             await service.delete_document(uuid4(), ctx)
+
+    # ---- reorder_documents ----
+
+    @pytest.mark.asyncio
+    async def test_reorder_documents_admin(self, service, mock_session):
+        ctx = make_admin_context()
+        service.doc_repo.bulk_reorder = AsyncMock(return_value=2)
+
+        data = SupportDocumentReorderRequest(items=[
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=0),
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=1),
+        ])
+        result = await service.reorder_documents(data, ctx)
+
+        assert result == 2
+        service.doc_repo.bulk_reorder.assert_called_once()
+        mock_session.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reorder_documents_non_admin_raises(self, service):
+        ctx = make_employee_context()
+        data = SupportDocumentReorderRequest(items=[
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=0),
+        ])
+        with pytest.raises(PermissionDeniedError):
+            await service.reorder_documents(data, ctx)
+
+    @pytest.mark.asyncio
+    async def test_reorder_documents_no_org_raises(self, service):
+        ctx = make_admin_context()
+        ctx.organization_id = None
+        data = SupportDocumentReorderRequest(items=[
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=0),
+        ])
+        with pytest.raises(PermissionDeniedError):
+            await service.reorder_documents(data, ctx)
+
+    @pytest.mark.asyncio
+    async def test_reorder_documents_rollback_on_error(self, service, mock_session):
+        ctx = make_admin_context()
+        service.doc_repo.bulk_reorder = AsyncMock(side_effect=Exception("DB error"))
+
+        data = SupportDocumentReorderRequest(items=[
+            SupportDocumentReorderItem(id=uuid4(), category="general", display_order=0),
+        ])
+        with pytest.raises(Exception):
+            await service.reorder_documents(data, ctx)
+        mock_session.rollback.assert_called_once()

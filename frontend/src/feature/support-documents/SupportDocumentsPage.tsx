@@ -136,6 +136,8 @@ export default function SupportDocumentsPage({ initialData }: SupportDocumentsPa
       const draggedDoc = documents.find((d) => d.id === draggedDocId);
       if (!draggedDoc || draggedDoc.organizationId === null) return;
 
+      const preDragDocs = [...documents];
+
       // Determine target category
       let targetCategory: string;
       let targetDocId: string | null = null;
@@ -206,12 +208,12 @@ export default function SupportDocumentsPage({ initialData }: SupportDocumentsPa
       const result = await reorderSupportDocumentsAction(reorderItems);
       if (!result.success) {
         toast.error(result.errorMessage || '並び替えに失敗しました');
-        setDocuments(initialData.items); // revert
+        setDocuments(preDragDocs); // revert to pre-drag state
         return;
       }
       startTransition(() => router.refresh());
     },
-    [documents, initialData.items, router],
+    [documents, router],
   );
 
   const hasDocuments = documents.length > 0;
