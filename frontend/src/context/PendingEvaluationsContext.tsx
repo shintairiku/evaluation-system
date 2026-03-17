@@ -25,6 +25,8 @@ const PendingEvaluationsContext = createContext<PendingEvaluationsContextType | 
 export interface PendingEvaluationsProviderProps {
   children: ReactNode;
   initialPendingEvaluationsCount?: number;
+  initialPeriodId?: string;
+  initialUserId?: string;
 }
 
 /**
@@ -35,7 +37,7 @@ export interface PendingEvaluationsProviderProps {
  *
  * This follows the same pattern as DraftAssessmentsProvider.
  */
-export function PendingEvaluationsProvider({ children, initialPendingEvaluationsCount }: PendingEvaluationsProviderProps) {
+export function PendingEvaluationsProvider({ children, initialPendingEvaluationsCount, initialPeriodId, initialUserId }: PendingEvaluationsProviderProps) {
   const currentUserContext = useOptionalCurrentUserContext();
   const [pendingEvaluationsCount, setPendingEvaluationsCountState] = useState<number>(() => (
     typeof initialPendingEvaluationsCount === 'number' ? initialPendingEvaluationsCount : 0
@@ -58,8 +60,8 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
    */
   const refreshPendingEvaluationsCount = useCallback(async () => {
     try {
-      const currentUserId = currentUserContext?.user?.id;
-      const currentPeriodId = currentUserContext?.currentPeriod?.id;
+      const currentUserId = initialUserId ?? currentUserContext?.user?.id;
+      const currentPeriodId = initialPeriodId ?? currentUserContext?.currentPeriod?.id;
 
       if (!currentUserId || !currentPeriodId) {
         setPendingEvaluationsCountState(0);
@@ -67,7 +69,8 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
       }
 
       // Fetch supervisor feedback count + core value pending count in parallel
-      const [feedbacksResult, coreValueResult] = await Promise.all([
+      // Using Promise.allSettled so a failure in one doesn't discard the other's result
+      const [feedbacksResult, coreValueResult] = await Promise.allSettled([
         getSupervisorFeedbacksAction({
           periodId: currentPeriodId,
           supervisorId: currentUserId,
@@ -78,12 +81,14 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
         getCoreValuePendingFeedbackCountAction(currentPeriodId),
       ]);
 
-      const supervisorTotal = feedbacksResult.success && feedbacksResult.data
-        ? feedbacksResult.data.total
+      const supervisorTotal = feedbacksResult.status === 'fulfilled'
+        && feedbacksResult.value.success && feedbacksResult.value.data
+        ? feedbacksResult.value.data.total
         : 0;
 
-      const coreValueCount = coreValueResult.success && coreValueResult.data
-        ? coreValueResult.data.count
+      const coreValueCount = coreValueResult.status === 'fulfilled'
+        && coreValueResult.value.success && coreValueResult.value.data
+        ? coreValueResult.value.data.count
         : 0;
 
       setPendingEvaluationsCountState(supervisorTotal + coreValueCount);
@@ -91,7 +96,7 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
       console.error('Error refreshing pending evaluations count:', error);
       // Don't reset count on error, keep previous value
     }
-  }, [currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
+  }, [initialPeriodId, initialUserId, currentUserContext?.currentPeriod?.id, currentUserContext?.user?.id]);
 
   // Keep state in sync when the server provides an initial value
   useEffect(() => {
@@ -99,11 +104,10 @@ export function PendingEvaluationsProvider({ children, initialPendingEvaluations
     setPendingEvaluationsCountState(initialPendingEvaluationsCount);
   }, [initialPendingEvaluationsCount]);
 
-  // Load pending count on provider initialization only when we don't already have a server-provided value
+  // Load pending count on provider initialization to ensure correctness after hydration
   useEffect(() => {
-    if (typeof initialPendingEvaluationsCount === 'number') return;
     refreshPendingEvaluationsCount();
-  }, [initialPendingEvaluationsCount, refreshPendingEvaluationsCount]);
+  }, [refreshPendingEvaluationsCount]);
 
   const value: PendingEvaluationsContextType = useMemo(() => ({
     pendingEvaluationsCount,
