@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import type { UserDetailResponse } from '@/api/types';
+import { useState, useEffect, useCallback } from 'react';
+import type { UserDetailResponse, UserListPageMeta } from '@/api/types';
 import { useViewMode } from '../hooks/useViewMode';
 import ViewModeSelector from '../components/ViewModeSelector';
 import UserSearch from '../components/UserSearch';
@@ -13,9 +13,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface UserManagementWithSearchProps {
   initialUsers: UserDetailResponse[];
+  initialMeta?: UserListPageMeta;
 }
 
-export default function UserManagementWithSearch({ initialUsers }: UserManagementWithSearchProps) {
+export default function UserManagementWithSearch({ initialUsers, initialMeta }: UserManagementWithSearchProps) {
   // Initialize with initialUsers directly to avoid race condition
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [, setTotalUsers] = useState<number>(initialUsers.length);
@@ -27,6 +28,11 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
   const [orgIsFiltered, setOrgIsFiltered] = useState<boolean>(false);
   // Track edit mode for organization view
   const [isOrganizationEditMode, setIsOrganizationEditMode] = useState<boolean>(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(initialMeta?.page ?? 1);
+  const [totalItems, setTotalItems] = useState<number>(initialMeta?.total ?? initialUsers.length);
+  const itemsPerPage = initialMeta?.limit ?? 50;
 
   const { viewMode, setViewMode } = useViewMode('table');
 
@@ -67,6 +73,11 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
     // Cache the last unfiltered dataset so hierarchy editing keeps full context even after filters
     if (!isFiltered) {
       setAllUsers(searchUsers);
+      // Restore real total from initialMeta when returning to unfiltered state
+      setTotalItems(initialMeta?.total ?? searchUsers.length);
+      setCurrentPage(1);
+    } else {
+      setTotalItems(total);
     }
     if (viewMode === 'organization') {
       // Apply security restriction only in edit mode for non-admin users
@@ -95,16 +106,56 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
     }
   };
 
+  // Handle page change from PaginationControls
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+
   const renderCurrentView = () => {
     switch (viewMode) {
       case 'table':
-        return <UserTableView users={users} allUsers={allUsers} onUserUpdate={handleUserUpdate} />;
+        return (
+          <UserTableView
+            users={users}
+            allUsers={allUsers}
+            onUserUpdate={handleUserUpdate}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+          />
+        );
       case 'gallery':
-        return <UserGalleryView users={users} allUsers={allUsers} onUserUpdate={handleUserUpdate} />;
+        return (
+          <UserGalleryView
+            users={users}
+            allUsers={allUsers}
+            onUserUpdate={handleUserUpdate}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+          />
+        );
       case 'organization':
         return <OrganizationViewWithOrgChart users={orgUsers} onUserUpdate={handleUserUpdate} isFiltered={orgIsFiltered} onEditModeChange={handleEditModeChange} />;
       default:
-        return <UserTableView users={users} allUsers={allUsers} onUserUpdate={handleUserUpdate} />;
+        return (
+          <UserTableView
+            users={users}
+            allUsers={allUsers}
+            onUserUpdate={handleUserUpdate}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+          />
+        );
     }
   };
 
@@ -125,10 +176,11 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
       <ViewModeSelector viewMode={viewMode} onViewModeChange={setViewMode} />
 
       {/* 検索・フィルター - Global search and filters for all views */}
-      <UserSearch 
+      <UserSearch
         onSearchResults={handleSearchResults}
         initialUsers={initialUsers}
         useOrgChartDataset={viewMode === 'organization'}
+        page={currentPage}
       />
 
       {/* 結果表示 */}
@@ -136,7 +188,7 @@ export default function UserManagementWithSearch({ initialUsers }: UserManagemen
         {/* Results summary - Hide count for organization view as it has its own detailed header */}
         {users.length > 0 && viewMode !== 'organization' && (
           <div className="text-sm text-muted-foreground px-1">
-            {users.length}件のユーザー
+            {totalItems}件のユーザー
           </div>
         )}
 

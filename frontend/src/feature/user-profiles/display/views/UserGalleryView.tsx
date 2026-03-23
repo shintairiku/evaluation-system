@@ -15,14 +15,20 @@ import type { UserDetailResponse } from '@/api/types';
 import UserEditViewModal from '../../components/UserEditViewModal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MESSAGES } from '@/components/constants/messages';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 
 interface UserGalleryViewProps {
   users: UserDetailResponse[];
   allUsers: UserDetailResponse[];
   onUserUpdate?: (updatedUser: UserDetailResponse) => void;
+  currentPage?: number;
+  totalPages?: number;
+  totalItems?: number;
+  itemsPerPage?: number;
+  onPageChange?: (page: number) => void;
 }
 
-export default function UserGalleryView({ users, allUsers, onUserUpdate }: UserGalleryViewProps) {
+export default function UserGalleryView({ users, allUsers, onUserUpdate, currentPage, totalPages, totalItems, itemsPerPage, onPageChange }: UserGalleryViewProps) {
   const [selectedUser, setSelectedUser] = useState<UserDetailResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const getStatusBadge = (status: string) => {
@@ -61,6 +67,7 @@ export default function UserGalleryView({ users, allUsers, onUserUpdate }: UserG
   }
 
   return (
+    <>
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {users.map((user) => (
         <Card key={user.id} className="group hover:shadow-md transition-shadow">
@@ -156,5 +163,17 @@ export default function UserGalleryView({ users, allUsers, onUserUpdate }: UserG
         onUserUpdate={onUserUpdate}
       />
     </div>
+
+    {/* Pagination */}
+    {currentPage != null && totalPages != null && totalItems != null && itemsPerPage != null && onPageChange && (
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onPageChange={onPageChange}
+      />
+    )}
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getPendingSupervisorReviewsAction } from '@/api/server-actions/supervisor-reviews';
-import { getUsersAction } from '@/api/server-actions/users';
+import { getAllUsersAction } from '@/api/server-actions/users';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getGoalsAction } from '@/api/server-actions/goals';
 import type { GoalResponse, UserDetailResponse, EvaluationPeriod, SupervisorReview } from '@/api/types';
@@ -115,7 +115,7 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
           pagination: { limit: 100 },
           periodId: targetPeriodId,
         }),
-        getUsersAction()
+        getAllUsersAction()
       ]);
 
       let reviews: SupervisorReview[] = [];
@@ -125,8 +125,8 @@ export function useGoalReviewData(params?: UseGoalReviewDataParams): UseGoalRevi
         reviews = reviewsResult.data.items;
       }
 
-      if (usersResult.success && usersResult.data?.items) {
-        users = usersResult.data.items;
+      if (usersResult.success && usersResult.data) {
+        users = usersResult.data;
       }
 
       // Extract unique subordinate IDs from reviews to fetch their goals

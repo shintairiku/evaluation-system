@@ -6,8 +6,9 @@ import { AdminUsersGoalsFilters } from '../components/AdminUsersGoalsFilters';
 import { AdminUsersGoalsTable } from '../components/AdminUsersGoalsTable';
 import { useAdminUsersGoalsData } from '../hooks/useAdminUsersGoalsData';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 
 /**
  * Props for AdminUsersGoalsPage component
@@ -151,67 +152,14 @@ export default function AdminUsersGoalsPage({ selectedPeriodId }: AdminUsersGoal
       )}
 
       {/* Pagination Controls */}
-      {!isLoading && !error && totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            表示: {(currentPage - 1) * itemsPerPage + 1}-
-            {Math.min(currentPage * itemsPerPage, filteredUserSummaries.length)} /{' '}
-            {filteredUserSummaries.length}名
-          </p>
-
-          <div className="flex items-center gap-2">
-            {/* Previous button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              前へ
-            </Button>
-
-            {/* Page numbers */}
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                // Show pages around current page
-                let pageNum: number;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-
-                return (
-                  <Button
-                    key={pageNum}
-                    variant={currentPage === pageNum ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => handlePageChange(pageNum)}
-                    className="w-9 h-9"
-                  >
-                    {pageNum}
-                  </Button>
-                );
-              })}
-            </div>
-
-            {/* Next button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              次へ
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+      {!isLoading && !error && (
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredUserSummaries.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+        />
       )}
     </div>
   );
