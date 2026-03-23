@@ -11,7 +11,7 @@ export default async function UserProfilesPage({ searchParams }: UserProfilesPag
   const resolvedSearchParams = await searchParams;
 
   const page = parseInt(resolvedSearchParams.page || '1', 10);
-  const limit = parseInt(resolvedSearchParams.limit || '50', 10);
+  const limit = parseInt(resolvedSearchParams.limit || '100', 10);
 
   return <UserProfilesRoute page={page} limit={limit} />;
 }
