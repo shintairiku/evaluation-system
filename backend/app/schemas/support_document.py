@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 
 
@@ -10,6 +10,13 @@ class SupportDocumentCreate(BaseModel):
     document_type: str = Field(default="link", pattern="^(link|file)$", alias="documentType")
     url: Optional[str] = Field(None, max_length=2000)
     category: str = Field(default="general", max_length=100)
+
+    @field_validator('url')
+    @classmethod
+    def validate_url_scheme(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith(('http://', 'https://')):
+            raise ValueError('URLはhttp://またはhttps://で始まる必要があります')
+        return v
 
     model_config = {"populate_by_name": True}
 
@@ -21,6 +28,13 @@ class SupportDocumentUpdate(BaseModel):
     category: Optional[str] = Field(None, max_length=100)
     display_order: Optional[int] = Field(None, alias="displayOrder")
     is_active: Optional[bool] = Field(None, alias="isActive")
+
+    @field_validator('url')
+    @classmethod
+    def validate_url_scheme(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith(('http://', 'https://')):
+            raise ValueError('URLはhttp://またはhttps://で始まる必要があります')
+        return v
 
     model_config = {"populate_by_name": True}
 

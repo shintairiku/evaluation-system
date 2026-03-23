@@ -70,7 +70,7 @@ export default function SupportDocumentsPage({ initialData }: SupportDocumentsPa
     async (data: SupportDocumentCreate | SupportDocumentUpdate) => {
       const result = await createSupportDocumentAction(data as SupportDocumentCreate);
       if (!result.success) {
-        toast.error(result.errorMessage || 'ドキュメントの追加に失敗しました');
+        toast.error(result.error || 'ドキュメントの追加に失敗しました');
         return;
       }
       toast.success('ドキュメントを追加しました');
@@ -84,7 +84,7 @@ export default function SupportDocumentsPage({ initialData }: SupportDocumentsPa
       if (!editingDocument) return;
       const result = await updateSupportDocumentAction(editingDocument.id, data as SupportDocumentUpdate);
       if (!result.success) {
-        toast.error(result.errorMessage || 'ドキュメントの更新に失敗しました');
+        toast.error(result.error || 'ドキュメントの更新に失敗しました');
         return;
       }
       toast.success('ドキュメントを更新しました');
@@ -98,7 +98,7 @@ export default function SupportDocumentsPage({ initialData }: SupportDocumentsPa
       if (!confirm(`「${doc.title}」を削除しますか？`)) return;
       const result = await deleteSupportDocumentAction(doc.id);
       if (!result.success) {
-        toast.error(result.errorMessage || 'ドキュメントの削除に失敗しました');
+        toast.error(result.error || 'ドキュメントの削除に失敗しました');
         return;
       }
       toast.success('ドキュメントを削除しました');
@@ -207,7 +207,7 @@ export default function SupportDocumentsPage({ initialData }: SupportDocumentsPa
       // Persist
       const result = await reorderSupportDocumentsAction(reorderItems);
       if (!result.success) {
-        toast.error(result.errorMessage || '並び替えに失敗しました');
+        toast.error(result.error || '並び替えに失敗しました');
         setDocuments(preDragDocs); // revert to pre-drag state
         return;
       }
