@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getAssignmentsAction, assignReviewersAction } from '@/api/server-actions/peer-reviews';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
-import { getUsersAction } from '@/api/server-actions/users';
+import { getAllUsersAction } from '@/api/server-actions/users';
 import { getDepartmentsAction } from '@/api/server-actions/departments';
 import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
 import type {
@@ -154,7 +154,7 @@ export function usePeerReviewAssignmentsData(
         // Full reload: fetch periods, users, departments from server
         const [periodsResult, usersResult, departmentsResult] = await Promise.all([
           getCategorizedEvaluationPeriodsAction(),
-          getUsersAction({ include: 'department,stage,supervisor', withCount: false }),
+          getAllUsersAction({ include: 'department,stage,supervisor' }),
           getDepartmentsAction(),
         ]);
 
@@ -173,7 +173,7 @@ export function usePeerReviewAssignmentsData(
         setCurrentPeriod(resolvedCurrentPeriod);
 
         loadedUsers =
-          usersResult.success && usersResult.data?.items ? usersResult.data.items : [];
+          usersResult.success && usersResult.data ? usersResult.data : [];
         setUsers(loadedUsers);
 
         if (departmentsResult.success && Array.isArray(departmentsResult.data)) {

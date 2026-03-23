@@ -32,14 +32,20 @@ import type { UserDetailResponse } from '@/api/types';
 import UserEditViewModal from '../../components/UserEditViewModal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MESSAGES } from '@/components/constants/messages';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 
 interface UserTableViewProps {
   users: UserDetailResponse[];
   allUsers: UserDetailResponse[];
   onUserUpdate?: (updatedUser: UserDetailResponse) => void;
+  currentPage?: number;
+  totalPages?: number;
+  totalItems?: number;
+  itemsPerPage?: number;
+  onPageChange?: (page: number) => void;
 }
 
-export default function UserTableView({ users, allUsers, onUserUpdate }: UserTableViewProps) {
+export default function UserTableView({ users, allUsers, onUserUpdate, currentPage, totalPages, totalItems, itemsPerPage, onPageChange }: UserTableViewProps) {
   const [selectedUser, setSelectedUser] = useState<UserDetailResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -238,6 +244,17 @@ export default function UserTableView({ users, allUsers, onUserUpdate }: UserTab
           </Table>
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {currentPage != null && totalPages != null && totalItems != null && itemsPerPage != null && onPageChange && (
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={onPageChange}
+        />
+      )}
 
       {/* ユーザー編集モーダル */}
       <UserEditViewModal

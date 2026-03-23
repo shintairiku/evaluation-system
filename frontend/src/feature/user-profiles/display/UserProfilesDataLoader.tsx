@@ -35,7 +35,7 @@ export default async function UserProfilesDataLoader({
 
   return (
     <ProfileOptionsProvider initialOptions={initialOptions}>
-      <UserManagementWithSearch initialUsers={result.data!.users} />
+      <UserManagementWithSearch initialUsers={result.data!.users} initialMeta={result.data!.meta} />
     </ProfileOptionsProvider>
   );
 }

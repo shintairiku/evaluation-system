@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getAdminGoalsAction } from '@/api/server-actions/goals';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
-import { getUsersAction } from '@/api/server-actions/users';
+import { getAllUsersAction } from '@/api/server-actions/users';
 import { getDepartmentsAction } from '@/api/server-actions/departments';
 import { useOptionalCurrentUserContext } from '@/context/CurrentUserContext';
 import type {
@@ -151,9 +151,8 @@ export function useAdminUsersGoalsData(
     try {
       setIsLoading(true);
       setError(null);
-      const usersPromise = getUsersAction({
+      const usersPromise = getAllUsersAction({
         include: 'department,stage,supervisor',
-        withCount: false,
       });
       const departmentsPromise = getDepartmentsAction();
       const hasContextPeriods = currentUserContext?.periods?.all && currentUserContext.periods.all.length > 0;
@@ -279,8 +278,8 @@ export function useAdminUsersGoalsData(
         goalsPromise,
       ]);
 
-      if (usersResult.success && usersResult.data?.items) {
-        setUsers(usersResult.data.items);
+      if (usersResult.success && usersResult.data) {
+        setUsers(usersResult.data);
       }
 
       if (
