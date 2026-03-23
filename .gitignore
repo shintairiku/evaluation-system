@@ -20,6 +20,7 @@ node_modules/
 
 # python
 __pycache__/
+backend/backend/
 
 # Python virtual environments
 venv/
