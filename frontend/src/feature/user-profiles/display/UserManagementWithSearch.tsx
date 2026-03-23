@@ -39,15 +39,21 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
   const [currentPage, setCurrentPage] = useState<number>(initialMeta?.page ?? 1);
   const [totalItems, setTotalItems] = useState<number>(initialMeta?.total ?? initialUsers.length);
 
-  // Client-side: slice users for the current page
+  // Client-side: slice users for the current page.
+  // Server-side: clamp to ITEMS_PER_PAGE (initial load may return up to 100 items).
   const displayedUsers = useMemo(() => {
-    if (!useClientPagination) return users;
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return users.slice(start, start + ITEMS_PER_PAGE);
+    if (useClientPagination) {
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      return users.slice(start, start + ITEMS_PER_PAGE);
+    }
+    return users.slice(0, ITEMS_PER_PAGE);
   }, [users, currentPage, useClientPagination]);
 
-  // Compute totals: client-side uses users.length, server-side uses totalItems from server
-  const effectiveTotalItems = useClientPagination ? users.length : totalItems;
+  // Compute totals: client-side uses users.length when unfiltered,
+  // falls back to server totalItems when filtered (search may return partial results).
+  const effectiveTotalItems = (useClientPagination && totalItems <= users.length)
+    ? users.length
+    : totalItems;
   const totalPages = Math.ceil(effectiveTotalItems / ITEMS_PER_PAGE);
 
   const { viewMode, setViewMode } = useViewMode('table');
