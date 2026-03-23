@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { UserDetailResponse, UserListPageMeta } from '@/api/types';
 import { useViewMode } from '../hooks/useViewMode';
 import ViewModeSelector from '../components/ViewModeSelector';
@@ -16,7 +16,13 @@ interface UserManagementWithSearchProps {
   initialMeta?: UserListPageMeta;
 }
 
+const ITEMS_PER_PAGE = 50;
+
 export default function UserManagementWithSearch({ initialUsers, initialMeta }: UserManagementWithSearchProps) {
+  // Client-side pagination when all users fit in a single API page (≤100),
+  // server-side pagination when there are more pages to fetch (>100).
+  const useClientPagination = (initialMeta?.pages ?? 1) <= 1;
+
   // Initialize with initialUsers directly to avoid race condition
   const [users, setUsers] = useState<UserDetailResponse[]>(initialUsers);
   const [, setTotalUsers] = useState<number>(initialUsers.length);
@@ -32,7 +38,17 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(initialMeta?.page ?? 1);
   const [totalItems, setTotalItems] = useState<number>(initialMeta?.total ?? initialUsers.length);
-  const itemsPerPage = initialMeta?.limit ?? 50;
+
+  // Client-side: slice users for the current page
+  const displayedUsers = useMemo(() => {
+    if (!useClientPagination) return users;
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return users.slice(start, start + ITEMS_PER_PAGE);
+  }, [users, currentPage, useClientPagination]);
+
+  // Compute totals: client-side uses users.length, server-side uses totalItems from server
+  const effectiveTotalItems = useClientPagination ? users.length : totalItems;
+  const totalPages = Math.ceil(effectiveTotalItems / ITEMS_PER_PAGE);
 
   const { viewMode, setViewMode } = useViewMode('table');
 
@@ -73,7 +89,6 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
     // Cache the last unfiltered dataset so hierarchy editing keeps full context even after filters
     if (!isFiltered) {
       setAllUsers(searchUsers);
-      // Restore real total from initialMeta when returning to unfiltered state
       setTotalItems(initialMeta?.total ?? searchUsers.length);
       setCurrentPage(1);
     } else {
@@ -111,33 +126,31 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
     setCurrentPage(page);
   }, []);
 
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-
   const renderCurrentView = () => {
     switch (viewMode) {
       case 'table':
         return (
           <UserTableView
-            users={users}
+            users={displayedUsers}
             allUsers={allUsers}
             onUserUpdate={handleUserUpdate}
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
+            totalItems={effectiveTotalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
             onPageChange={handlePageChange}
           />
         );
       case 'gallery':
         return (
           <UserGalleryView
-            users={users}
+            users={displayedUsers}
             allUsers={allUsers}
             onUserUpdate={handleUserUpdate}
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
+            totalItems={effectiveTotalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
             onPageChange={handlePageChange}
           />
         );
@@ -146,13 +159,13 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
       default:
         return (
           <UserTableView
-            users={users}
+            users={displayedUsers}
             allUsers={allUsers}
             onUserUpdate={handleUserUpdate}
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
+            totalItems={effectiveTotalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
             onPageChange={handlePageChange}
           />
         );
@@ -180,7 +193,7 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
         onSearchResults={handleSearchResults}
         initialUsers={initialUsers}
         useOrgChartDataset={viewMode === 'organization'}
-        page={currentPage}
+        page={useClientPagination ? undefined : currentPage}
       />
 
       {/* 結果表示 */}
@@ -188,7 +201,7 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
         {/* Results summary - Hide count for organization view as it has its own detailed header */}
         {users.length > 0 && viewMode !== 'organization' && (
           <div className="text-sm text-muted-foreground px-1">
-            {totalItems}件のユーザー
+            {effectiveTotalItems}件のユーザー
           </div>
         )}
 

@@ -10,8 +10,8 @@ interface UserProfilesDataLoaderProps {
 }
 
 export default async function UserProfilesDataLoader({ 
-  page = 1, 
-  limit = 50 
+  page = 1,
+  limit = 100
 }: UserProfilesDataLoaderProps) {
   const result = await getUserDirectoryBasePageDataAction({ page, limit });
 
