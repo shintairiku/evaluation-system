@@ -162,29 +162,65 @@ class ComprehensiveEvaluationRepository:
                             0
                         )
                     )::numeric AS competency_raw_score,
-                    SUM((gf.supervisor_rating * gf.weight) / 100.0)
-                        FILTER (
-                            WHERE gf.goal_category = 'コアバリュー'
-                              AND gf.feedback_status = 'submitted'
-                              AND gf.supervisor_rating IS NOT NULL
-                        )::numeric AS core_value_score,
+                    NULL::numeric AS core_value_score,
                     (
-                        SUM(gf.supervisor_rating * gf.weight)
-                            FILTER (
-                                WHERE gf.goal_category = 'コアバリュー'
-                                  AND gf.feedback_status = 'submitted'
-                                  AND gf.supervisor_rating IS NOT NULL
-                            )
-                        /
-                        NULLIF(
-                            SUM(gf.weight)
-                                FILTER (
-                                    WHERE gf.goal_category = 'コアバリュー'
-                                      AND gf.feedback_status = 'submitted'
-                                      AND gf.supervisor_rating IS NOT NULL
-                                ),
-                            0
-                        )
+                        SELECT AVG(source_avg) FROM (
+                            -- Self evaluation
+                            SELECT AVG(
+                                CASE j.value
+                                    WHEN 'SS' THEN 7.0 WHEN 'S' THEN 6.0
+                                    WHEN 'A+' THEN 5.0 WHEN 'A' THEN 4.0
+                                    WHEN 'A-' THEN 3.0 WHEN 'B' THEN 2.0
+                                    WHEN 'C' THEN 1.0
+                                END
+                            ) AS source_avg
+                            FROM core_value_evaluations cve_self
+                            CROSS JOIN jsonb_each_text(cve_self.scores) AS j(key, value)
+                            WHERE cve_self.period_id = :period_id
+                              AND cve_self.user_id = tu.user_id
+                              AND cve_self.status IN ('submitted', 'approved')
+
+                            UNION ALL
+
+                            -- Supervisor evaluation
+                            SELECT AVG(
+                                CASE j.value
+                                    WHEN 'SS' THEN 7.0 WHEN 'S' THEN 6.0
+                                    WHEN 'A+' THEN 5.0 WHEN 'A' THEN 4.0
+                                    WHEN 'A-' THEN 3.0 WHEN 'B' THEN 2.0
+                                    WHEN 'C' THEN 1.0
+                                END
+                            ) AS source_avg
+                            FROM core_value_evaluations cve_sup
+                            JOIN core_value_feedback cvf
+                              ON cvf.core_value_evaluation_id = cve_sup.id
+                              AND cvf.status = 'submitted'
+                              AND cvf.action = 'APPROVED'
+                            CROSS JOIN jsonb_each_text(cvf.scores) AS j(key, value)
+                            WHERE cve_sup.period_id = :period_id
+                              AND cve_sup.user_id = tu.user_id
+
+                            UNION ALL
+
+                            -- Peer evaluations (each peer = separate row)
+                            SELECT AVG(
+                                CASE j.value
+                                    WHEN 'SS' THEN 7.0 WHEN 'S' THEN 6.0
+                                    WHEN 'A+' THEN 5.0 WHEN 'A' THEN 4.0
+                                    WHEN 'A-' THEN 3.0 WHEN 'B' THEN 2.0
+                                    WHEN 'C' THEN 1.0
+                                END
+                            ) AS source_avg
+                            FROM peer_review_assignments pra
+                            JOIN peer_review_evaluations pre
+                              ON pre.assignment_id = pra.id
+                              AND pre.status = 'submitted'
+                            CROSS JOIN jsonb_each_text(pre.scores) AS j(key, value)
+                            WHERE pra.period_id = :period_id
+                              AND pra.reviewee_id = tu.user_id
+                            GROUP BY pre.id
+                        ) sources
+                        HAVING COUNT(source_avg) = 4
                     )::numeric AS core_value_raw_score
                 FROM target_users tu
                 LEFT JOIN goal_feedback gf
