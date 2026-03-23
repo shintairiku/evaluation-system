@@ -13,6 +13,7 @@ import {
 import { useState, useCallback } from "react";
 import type { GoalWithAssessment } from "./index";
 import type { RatingCode, CompetencyRatingData } from "@/api/types";
+import { COMPETENCY_RATING_CODES } from "@/api/types/common";
 import { calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSelfAssessmentAutoSave } from "../hooks/useSelfAssessmentAutoSave";
 import { SaveStatusIndicator } from "@/feature/evaluation/shared/SaveStatusIndicator";
@@ -25,10 +26,7 @@ interface CompetencyEvaluateProps {
   isPeriodEditable?: boolean;
 }
 
-/**
- * Competency rating codes (5-level scale for input)
- */
-const COMPETENCY_RATING_CODES: RatingCode[] = ['SS', 'S', 'A', 'B', 'C'];
+// COMPETENCY_RATING_CODES imported from @/api/types/common (7-level: SS, S, A+, A, A-, B, C)
 
 /**
  * Individual competency goal card with auto-save

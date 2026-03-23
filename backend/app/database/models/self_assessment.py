@@ -43,7 +43,7 @@ class SelfAssessment(Base):
 
         # Rating code validation
         CheckConstraint(
-            "self_rating_code IS NULL OR self_rating_code IN ('SS', 'S', 'A', 'B', 'C', 'D')",
+            "self_rating_code IS NULL OR self_rating_code IN ('SS', 'S', 'A+', 'A', 'A-', 'B', 'C', 'D')",
             name='chk_self_rating_code'
         ),
 
@@ -77,7 +77,7 @@ class SelfAssessment(Base):
     def validate_self_rating_code(self, key, code):
         """Validate self_rating_code is one of allowed values"""
         if code is not None:
-            valid_codes = ['SS', 'S', 'A', 'B', 'C', 'D']
+            valid_codes = ['SS', 'S', 'A+', 'A', 'A-', 'B', 'C', 'D']
             if code not in valid_codes:
                 raise ValueError(f"Invalid self_rating_code: {code}. Must be one of: {valid_codes}")
         return code

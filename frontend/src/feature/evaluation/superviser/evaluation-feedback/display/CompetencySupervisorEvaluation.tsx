@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, CompetencyRatingData, SupervisorFeedbackStatus } from "@/api/types";
-import { QUALITATIVE_RATING_CODES } from "@/api/types/common";
+import { COMPETENCY_RATING_CODES } from "@/api/types/common";
 import { calculateAverageRatingCode, calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
 import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
@@ -264,7 +264,7 @@ function CompetencyItemCard({
 
               {/* Rating Selector */}
               <div className="flex items-center gap-3 flex-wrap">
-                {QUALITATIVE_RATING_CODES.map((rating) => {
+                {COMPETENCY_RATING_CODES.map((rating) => {
                   const isSelected = item.rating === rating;
                   return (
                     <div
