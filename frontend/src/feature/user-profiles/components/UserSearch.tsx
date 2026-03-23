@@ -52,7 +52,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-export default function UserSearch({ onSearchResults, initialUsers = [], useOrgChartDataset = false, page }: UserSearchProps) {
+function UserSearch({ onSearchResults, initialUsers = [], useOrgChartDataset = false, page }: UserSearchProps) {
   // ——————————————————————————————————————————————————————————
   // Helpers
   // ——————————————————————————————————————————————————————————
@@ -417,3 +417,5 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
     </div>
   );
 }
+
+export default React.memo(UserSearch);

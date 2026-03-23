@@ -88,7 +88,8 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
   };
 
   // Callback to handle search results from UserSearch component
-  const handleSearchResults = (searchUsers: UserDetailResponse[], total: number, isFilteredArg?: boolean) => {
+  // Memoized to prevent unnecessary UserSearch re-renders on page changes
+  const handleSearchResults = useCallback((searchUsers: UserDetailResponse[], total: number, isFilteredArg?: boolean) => {
     setError(null);
     const isFiltered = Boolean(isFilteredArg);
 
@@ -125,7 +126,7 @@ export default function UserManagementWithSearch({ initialUsers, initialMeta }: 
       setTotalUsers(total);
       setIsFiltered(isFiltered);
     }
-  };
+  }, [viewMode, isOrganizationEditMode, initialUsers, initialMeta]);
 
   // Handle page change from PaginationControls
   const handlePageChange = useCallback((page: number) => {
