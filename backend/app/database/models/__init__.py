@@ -12,6 +12,7 @@ from .supervisor_review import SupervisorReview
 from .supervisor_feedback import SupervisorFeedback
 from .core_value import CoreValueDefinition, CoreValueEvaluation, CoreValueFeedback
 from .peer_review import PeerReviewAssignment, PeerReviewEvaluation
+from .support_document import SupportDocument
 from .comprehensive_evaluation import (
     ComprehensiveOverallRankRule,
     ComprehensiveDecisionRuleGroup,
@@ -68,4 +69,5 @@ __all__ = [
     "CoreValueFeedback",
     "PeerReviewAssignment",
     "PeerReviewEvaluation",
+    "SupportDocument",
 ]

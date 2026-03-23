@@ -71,6 +71,7 @@ next-env.d.ts
 
 # logs
 backend/tests/logs
+backend/backend/tests/logs
 
 # VS Code settings (personal configurations)
 .vscode/
