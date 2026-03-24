@@ -265,6 +265,8 @@ export const API_ENDPOINTS = {
     ASSIGNMENTS: buildApiUrl('/peer-reviews/assignments'),
     ASSIGN_REVIEWERS: (periodId: string, revieweeId: string) =>
       buildApiUrl(`/peer-reviews/assignments/${periodId}/reviewee/${revieweeId}`),
+    BULK_ASSIGN_REVIEWERS: (periodId: string) =>
+      buildApiUrl(`/peer-reviews/assignments/bulk/${periodId}`),
     REMOVE_ASSIGNMENT: (assignmentId: string) =>
       buildApiUrl(`/peer-reviews/assignments/${assignmentId}`),
     MINE: buildApiUrl('/peer-reviews/mine'),

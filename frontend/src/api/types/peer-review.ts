@@ -17,6 +17,23 @@ export interface PeerReviewAssignReviewersRequest {
   reviewerIds: string[];
 }
 
+export interface BulkAssignReviewersItem {
+  revieweeId: string;
+  reviewerIds: string[];
+}
+
+export interface BulkAssignReviewersResult {
+  revieweeId: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface BulkAssignReviewersResponse {
+  results: BulkAssignReviewersResult[];
+  successCount: number;
+  failureCount: number;
+}
+
 export interface PeerReviewAssignment {
   id: string;
   periodId: string;

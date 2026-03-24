@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { getAssignmentsAction, assignReviewersAction } from '@/api/server-actions/peer-reviews';
+import { getAssignmentsAction, bulkAssignReviewersAction } from '@/api/server-actions/peer-reviews';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getAllUsersAction } from '@/api/server-actions/users';
 import { getDepartmentsAction } from '@/api/server-actions/departments';
@@ -9,6 +9,7 @@ import type {
   UserDetailResponse,
   Department,
   PeerReviewAssignmentsByReviewee,
+  BulkAssignReviewersResponse,
 } from '@/api/types';
 
 /**
@@ -61,7 +62,7 @@ export interface UsePeerReviewAssignmentsDataReturn {
   setSelectedDepartmentId: (id: string) => void;
   setCurrentPage: (page: number) => void;
   setReviewerForRow: (revieweeId: string, slot: 1 | 2, reviewerId: string | null) => void;
-  saveAllChanges: () => Promise<boolean>;
+  saveAllChanges: () => Promise<BulkAssignReviewersResponse | null>;
   isRandomAssigned: boolean;
   toggleRandomAssign: () => number;
   refetch: () => Promise<void>;
@@ -386,56 +387,68 @@ export function usePeerReviewAssignmentsData(
   }, [users, isRandomAssigned, randomAssignedIds]);
 
   /**
-   * Save all dirty rows.
+   * Save all dirty rows via a single bulk API call.
    */
-  const saveAllChanges = useCallback(async (): Promise<boolean> => {
-    if (!resolvedPeriodId) return false;
+  const saveAllChanges = useCallback(async (): Promise<BulkAssignReviewersResponse | null> => {
+    if (!resolvedPeriodId) return null;
 
     const dirtyRows = rows.filter(r => r.isDirty);
-    if (dirtyRows.length === 0) return true;
+    if (dirtyRows.length === 0) return null;
+
+    // Pre-validate: ensure all dirty rows have both reviewers
+    const validationErrors: string[] = [];
+    const items = dirtyRows
+      .filter(row => {
+        const { reviewer1Id, reviewer2Id } = row.local;
+        if (!reviewer1Id && !reviewer2Id) return false; // skip removal rows
+        if (!reviewer1Id || !reviewer2Id) {
+          validationErrors.push(`${row.user.name}: 2名の評価者を選択してください`);
+          return false;
+        }
+        return true;
+      })
+      .map(row => ({
+        revieweeId: row.user.id,
+        reviewerIds: [row.local.reviewer1Id!, row.local.reviewer2Id!],
+      }));
+
+    if (validationErrors.length > 0) {
+      setSaveError(validationErrors.join('\n'));
+      return null;
+    }
+
+    if (items.length === 0) return null;
 
     setIsSaving(true);
     setSaveError(null);
 
-    const errors: string[] = [];
+    const result = await bulkAssignReviewersAction(resolvedPeriodId, items);
 
-    for (const row of dirtyRows) {
-      const { reviewer1Id, reviewer2Id } = row.local;
-
-      // Skip rows with incomplete assignments (both must be set or both null)
-      if (!reviewer1Id && !reviewer2Id) {
-        // TODO: handle removal case if needed
-        continue;
-      }
-
-      if (!reviewer1Id || !reviewer2Id) {
-        errors.push(`${row.user.name}: 2名の評価者を選択してください`);
-        continue;
-      }
-
-      const result = await assignReviewersAction(resolvedPeriodId, row.user.id, {
-        reviewerIds: [reviewer1Id, reviewer2Id],
-      });
-
-      if (!result.success) {
-        errors.push(`${row.user.name}: ${result.error || '保存に失敗しました'}`);
-      }
-    }
-
-    if (errors.length > 0) {
-      setSaveError(errors.join('\n'));
-      // Reload to sync with server state (full reload)
+    if (!result.success || !result.data) {
+      setSaveError(result.error || '保存に失敗しました');
       await loadData(false);
       setIsSaving(false);
-      return false;
+      return null;
+    }
+
+    const response = result.data;
+
+    if (response.failureCount > 0) {
+      const errorMessages = response.results
+        .filter(r => !r.success && r.error)
+        .map(r => {
+          const user = users.find(u => u.id === r.revieweeId);
+          return `${user?.name ?? r.revieweeId}: ${r.error}`;
+        });
+      setSaveError(errorMessages.join('\n'));
     }
 
     // Reload to sync with server state
-    await loadData();
+    await loadData(false);
     setRandomAssignedIds(new Set());
     setIsSaving(false);
-    return true;
-  }, [resolvedPeriodId, rows, loadData]);
+    return response;
+  }, [resolvedPeriodId, rows, users, loadData]);
 
   // Load on mount — skip static data if SSR provided it
   useEffect(() => {

@@ -115,23 +115,23 @@ class UnifiedHttpClient {
    * Caches the result to avoid repeated JWT parsing, but ensures cache freshness
    */
   private async getOrgSlug(): Promise<string | null> {
-    // Server-side requests must not share org slug across requests (multi-tenant safety)
-    if (isServer) {
-      return this.fetchOrgSlug();
-    }
-
-    // Client-side can memoize per session for perf
-    if (this.orgSlug) {
+    // Client-side: return persisted slug if available
+    if (!isServer && this.orgSlug) {
       return this.orgSlug;
     }
 
+    // Both server and client: share in-flight promise to avoid concurrent fetches
+    // (e.g. 6 parallel sidebar calls share 1 Clerk auth() call)
     if (this.orgSlugPromise) {
       return this.orgSlugPromise;
     }
 
     this.orgSlugPromise = (async () => {
       const slug = await this.fetchOrgSlug();
-      this.orgSlug = slug;
+      if (!isServer) {
+        // Client-side: persist across calls for session
+        this.orgSlug = slug;
+      }
       this.orgSlugPromise = null;
       return slug;
     })();
