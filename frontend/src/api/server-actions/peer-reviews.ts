@@ -14,6 +14,8 @@ import type {
   CoreValueSummaryResponse,
   EvaluationProgressEntry,
   EvaluationDetailResponse,
+  BulkAssignReviewersItem,
+  BulkAssignReviewersResponse,
 } from '../types';
 
 // ---- Admin - Assignments ----
@@ -84,6 +86,42 @@ export async function assignReviewersAction(
     return {
       success: false,
       error: 'An unexpected error occurred while assigning reviewers',
+    };
+  }
+}
+
+/**
+ * Server action to bulk assign reviewers to multiple reviewees (admin)
+ */
+export async function bulkAssignReviewersAction(
+  periodId: string,
+  items: BulkAssignReviewersItem[],
+): Promise<{
+  success: boolean;
+  data?: BulkAssignReviewersResponse;
+  error?: string;
+}> {
+  try {
+    const response = await peerReviewsApi.bulkAssignReviewers(periodId, items);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to bulk assign reviewers',
+      };
+    }
+
+    revalidateTag(CACHE_TAGS.PEER_REVIEWS);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Bulk assign reviewers action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while bulk assigning reviewers',
     };
   }
 }

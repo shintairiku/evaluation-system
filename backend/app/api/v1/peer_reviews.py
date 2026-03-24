@@ -17,6 +17,8 @@ from ...schemas.peer_review import (
     CoreValueSummaryResponse,
     EvaluationProgressEntry,
     EvaluationDetailResponse,
+    BulkAssignReviewersItem,
+    BulkAssignReviewersResponse,
 )
 from ...schemas.common import BaseResponse
 from ...services.peer_review_service import PeerReviewService
@@ -65,6 +67,25 @@ async def assign_reviewers(
         raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error assigning reviewers: {str(e)}")
+
+
+@router.put("/assignments/bulk/{period_id}", response_model=BulkAssignReviewersResponse)
+async def bulk_assign_reviewers(
+    period_id: UUID,
+    items: List[BulkAssignReviewersItem],
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Bulk assign reviewers to multiple reviewees in a single transaction."""
+    try:
+        service = PeerReviewService(session)
+        return await service.bulk_assign_reviewers(context, period_id, items)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error in bulk assign reviewers: {str(e)}")
 
 
 @router.delete("/assignments/{assignment_id}", response_model=BaseResponse)

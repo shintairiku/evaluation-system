@@ -25,6 +25,9 @@ from ..schemas.peer_review import (
     CoreValueItemScore,
     EvaluationSourceComment,
     EvaluationDetailResponse,
+    BulkAssignReviewersItem,
+    BulkAssignReviewersResult,
+    BulkAssignReviewersResponse,
 )
 from ..schemas.core_value import CoreValueRatingCode
 from ..core.rating_utils import (
@@ -160,6 +163,120 @@ class PeerReviewService:
             await self.session.rollback()
             logger.error(f"Error assigning reviewers for reviewee {reviewee_id}: {e}")
             raise
+
+    @require_any_permission([Permission.GOAL_READ_ALL])
+    async def bulk_assign_reviewers(
+        self,
+        current_user_context: AuthContext,
+        period_id: UUID,
+        items: List[BulkAssignReviewersItem],
+    ) -> BulkAssignReviewersResponse:
+        """Bulk assign reviewers to multiple reviewees in a single transaction."""
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        if len(items) > 200:
+            raise ValidationError("Cannot process more than 200 assignments at once")
+
+        results: List[BulkAssignReviewersResult] = []
+
+        # Pre-validate: check for duplicate reviewee_ids
+        seen_reviewee_ids: set[UUID] = set()
+        for item in items:
+            if item.reviewee_id in seen_reviewee_ids:
+                results.append(BulkAssignReviewersResult(
+                    reviewee_id=item.reviewee_id,
+                    success=False,
+                    error="Duplicate reviewee in request",
+                ))
+                continue
+            seen_reviewee_ids.add(item.reviewee_id)
+
+            # Validate exactly 2 reviewers
+            if len(item.reviewer_ids) != 2:
+                results.append(BulkAssignReviewersResult(
+                    reviewee_id=item.reviewee_id,
+                    success=False,
+                    error="Exactly 2 reviewers must be assigned",
+                ))
+                continue
+
+            # No duplicate reviewers
+            if len(set(item.reviewer_ids)) != len(item.reviewer_ids):
+                results.append(BulkAssignReviewersResult(
+                    reviewee_id=item.reviewee_id,
+                    success=False,
+                    error="Duplicate reviewer IDs are not allowed",
+                ))
+                continue
+
+            # No self-assign
+            if item.reviewee_id in item.reviewer_ids:
+                results.append(BulkAssignReviewersResult(
+                    reviewee_id=item.reviewee_id,
+                    success=False,
+                    error="A user cannot review themselves",
+                ))
+                continue
+
+            # Validation passed — mark as pending (None placeholder)
+            results.append(None)  # type: ignore[arg-type]
+
+        # Process valid items in a single transaction
+        try:
+            for i, item in enumerate(items):
+                if results[i] is not None:
+                    # Already has a validation error, skip
+                    continue
+
+                await self.assignment_repo.delete_assignments_for_reviewee(
+                    period_id, item.reviewee_id, org_id
+                )
+
+                for reviewer_id in item.reviewer_ids:
+                    assignment = await self.assignment_repo.create_assignment(
+                        period_id=period_id,
+                        reviewee_id=item.reviewee_id,
+                        reviewer_id=reviewer_id,
+                        assigned_by=current_user_context.user_id,
+                        org_id=org_id,
+                    )
+                    await self.evaluation_repo.create_evaluation(
+                        assignment_id=assignment.id,
+                        period_id=period_id,
+                        reviewee_id=item.reviewee_id,
+                        reviewer_id=reviewer_id,
+                        org_id=org_id,
+                    )
+
+                results[i] = BulkAssignReviewersResult(
+                    reviewee_id=item.reviewee_id,
+                    success=True,
+                )
+
+            await self.session.commit()
+
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error in bulk assign reviewers for period {period_id}: {e}")
+            # Mark all pending items as failed
+            for i in range(len(results)):
+                if results[i] is None:
+                    results[i] = BulkAssignReviewersResult(
+                        reviewee_id=items[i].reviewee_id,
+                        success=False,
+                        error="Transaction failed",
+                    )
+
+        success_count = sum(1 for r in results if r and r.success)
+        failure_count = len(results) - success_count
+
+        return BulkAssignReviewersResponse(
+            results=[r for r in results if r is not None],
+            success_count=success_count,
+            failure_count=failure_count,
+        )
 
     @require_any_permission([Permission.GOAL_READ_ALL])
     async def remove_assignment(

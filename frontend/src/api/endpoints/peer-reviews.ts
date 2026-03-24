@@ -10,6 +10,8 @@ import type {
   CoreValueSummaryResponse,
   EvaluationProgressEntry,
   EvaluationDetailResponse,
+  BulkAssignReviewersItem,
+  BulkAssignReviewersResponse,
   ApiResponse,
 } from '../types';
 
@@ -37,6 +39,16 @@ export const peerReviewsApi = {
     return httpClient.put<PeerReviewAssignment[]>(
       API_ENDPOINTS.PEER_REVIEWS.ASSIGN_REVIEWERS(periodId, revieweeId),
       data,
+    );
+  },
+
+  bulkAssignReviewers: async (
+    periodId: string,
+    items: BulkAssignReviewersItem[],
+  ): Promise<ApiResponse<BulkAssignReviewersResponse>> => {
+    return httpClient.put<BulkAssignReviewersResponse>(
+      API_ENDPOINTS.PEER_REVIEWS.BULK_ASSIGN_REVIEWERS(periodId),
+      items,
     );
   },
 
