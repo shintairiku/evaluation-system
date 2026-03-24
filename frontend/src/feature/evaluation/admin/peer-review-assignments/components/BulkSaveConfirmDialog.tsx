@@ -216,7 +216,7 @@ export function BulkSaveConfirmDialog({
                   {result.results.some(r => !r.success) && (
                     <div className="max-h-[30vh] overflow-y-auto rounded-md border">
                       <table className="w-full text-sm">
-                        <thead className="bg-muted/50 sticky top-0">
+                        <thead className="bg-muted sticky top-0">
                           <tr>
                             <th className="text-left px-3 py-2 font-medium">被評価者</th>
                             <th className="text-left px-3 py-2 font-medium">エラー</th>
