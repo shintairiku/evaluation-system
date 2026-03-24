@@ -54,7 +54,7 @@ class SupervisorFeedback(Base):
 
         # Rating code validation
         CheckConstraint(
-            "supervisor_rating_code IS NULL OR supervisor_rating_code IN ('SS', 'S', 'A', 'B', 'C', 'D')",
+            "supervisor_rating_code IS NULL OR supervisor_rating_code IN ('SS', 'S', 'A+', 'A', 'A-', 'B', 'C', 'D')",
             name='chk_supervisor_rating_code'
         ),
 
@@ -104,7 +104,7 @@ class SupervisorFeedback(Base):
     def validate_supervisor_rating_code(self, key, code):
         """Validate supervisor_rating_code is one of allowed values"""
         if code is not None:
-            valid_codes = ['SS', 'S', 'A', 'B', 'C', 'D']
+            valid_codes = ['SS', 'S', 'A+', 'A', 'A-', 'B', 'C', 'D']
             if code not in valid_codes:
                 raise ValueError(f"Invalid supervisor_rating_code: {code}. Must be one of: {valid_codes}")
         return code

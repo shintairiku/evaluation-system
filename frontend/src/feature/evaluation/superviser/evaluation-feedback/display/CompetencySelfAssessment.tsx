@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { GoalResponse, SelfAssessment as APISelfAssessment, RatingCode, CompetencyRatingData } from "@/api/types";
-import { QUALITATIVE_RATING_CODES } from "@/api/types/common";
+import { COMPETENCY_RATING_CODES } from "@/api/types/common";
 import { calculateAverageRatingCode } from "@/utils/rating";
 
 // Display data structure for competency action item
@@ -334,7 +334,7 @@ export default function CompetencySelfAssessment({
 
                               {/* Rating Display - Read only with visual feedback */}
                               <div className="flex items-center gap-3 flex-wrap">
-                                {QUALITATIVE_RATING_CODES.map((rating) => {
+                                {COMPETENCY_RATING_CODES.map((rating) => {
                                   const isSelected = item.rating === rating;
                                   return (
                                     <div

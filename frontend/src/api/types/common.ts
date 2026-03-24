@@ -16,11 +16,11 @@ export enum SelfAssessmentStatus {
 }
 
 /**
- * Individual goal rating codes (User Input Scale - 6 levels)
+ * Individual goal rating codes (User Input Scale - 8 levels)
  * Used when user evaluates each individual goal
  * @see .kiro/specs/self-assessment/domain-model.md Section 4.2
  */
-export type RatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
+export type RatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C' | 'D';
 
 /**
  * Final calculated rating codes (System Output Scale - 8 levels)
@@ -42,12 +42,14 @@ export type QualitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C';
 export type QuantitativeRatingCode = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
 
 /**
- * Individual rating code to numeric value mapping (6-level scale)
+ * Individual rating code to numeric value mapping (8-level scale)
  */
 export const RATING_CODE_VALUES: Record<RatingCode, number> = {
   SS: 7.0,
   S: 6.0,
+  'A+': 5.0,
   A: 4.0,
+  'A-': 3.0,
   B: 2.0,
   C: 1.0,
   D: 0.0,
@@ -68,12 +70,14 @@ export const FINAL_RATING_CODE_VALUES: Record<FinalRatingCode, number> = {
 };
 
 /**
- * Rating code display labels (Japanese) - 6-level scale
+ * Rating code display labels (Japanese) - 8-level scale
  */
 export const RATING_CODE_LABELS: Record<RatingCode, string> = {
   SS: 'SS - 卓越',
   S: 'S - 優秀',
+  'A+': 'A+ - 非常に良い',
   A: 'A - 良好',
+  'A-': 'A- - やや良好',
   B: 'B - 標準',
   C: 'C - 要改善',
   D: 'D - 不十分',
@@ -104,6 +108,13 @@ export const QUALITATIVE_RATING_CODES: QualitativeRatingCode[] = ['SS', 'S', 'A'
  * Includes all grades including 'D'
  */
 export const QUANTITATIVE_RATING_CODES: QuantitativeRatingCode[] = ['SS', 'S', 'A', 'B', 'C', 'D'];
+
+/**
+ * Rating codes for competency goals (コンピテンシー)
+ * 7-level scale: SS, S, A+, A, A-, B, C (no D)
+ */
+export type CompetencyRatingCode = 'SS' | 'S' | 'A+' | 'A' | 'A-' | 'B' | 'C';
+export const COMPETENCY_RATING_CODES: CompetencyRatingCode[] = ['SS', 'S', 'A+', 'A', 'A-', 'B', 'C'];
 
 /**
  * Supervisor feedback action enum

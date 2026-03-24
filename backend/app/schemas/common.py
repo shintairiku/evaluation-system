@@ -22,28 +22,32 @@ class SelfAssessmentStatus(str, Enum):
     APPROVED = "approved"
 
 
-# Individual goal rating codes (up to 6-level input scale)
+# Individual goal rating codes (up to 8-level input scale)
 class RatingCode(str, Enum):
     """
     Individual goal rating codes.
-    DB stores all 6 values; service layer validates per goal type:
+    DB stores all 8 values; service layer validates per goal type:
       - 定量目標: SS, S, A, B, C, D (6 levels)
       - 定性目標: SS, S, A, B, C (5 levels, no D)
-      - コンピテンシー: SS, S, A, B, C (5 levels, no D)
+      - コンピテンシー: SS, S, A+, A, A-, B, C (7 levels)
     """
-    SS = "SS"   # 7.0
-    S = "S"     # 6.0
-    A = "A"     # 4.0
-    B = "B"     # 2.0
-    C = "C"     # 1.0
-    D = "D"     # 0.0 (定量目標 only)
+    SS = "SS"       # 7.0
+    S = "S"         # 6.0
+    A_PLUS = "A+"   # 5.0 (コンピテンシー only)
+    A = "A"         # 4.0
+    A_MINUS = "A-"  # 3.0 (コンピテンシー only)
+    B = "B"         # 2.0
+    C = "C"         # 1.0
+    D = "D"         # 0.0 (定量目標 only)
 
 
 # Rating code to numeric value mapping
 RATING_CODE_VALUES: dict[RatingCode, float] = {
     RatingCode.SS: 7.0,
     RatingCode.S: 6.0,
+    RatingCode.A_PLUS: 5.0,
     RatingCode.A: 4.0,
+    RatingCode.A_MINUS: 3.0,
     RatingCode.B: 2.0,
     RatingCode.C: 1.0,
     RatingCode.D: 0.0,
