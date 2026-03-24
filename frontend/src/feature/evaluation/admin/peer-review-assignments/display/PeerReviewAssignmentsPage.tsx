@@ -6,6 +6,7 @@ import { usePeerReviewAssignmentsData } from '../hooks/usePeerReviewAssignmentsD
 import { useEvaluationProgressData } from '../hooks/useEvaluationProgressData';
 import { ReviewerSelector } from '../components/ReviewerSelector';
 import { AssignmentStatusBadge } from '../components/AssignmentStatusBadge';
+import { BulkSaveConfirmDialog } from '../components/BulkSaveConfirmDialog';
 import { ProgressTable } from '../components/ProgressTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,7 +61,9 @@ export default function PeerReviewAssignmentsPage({
   const [internalSelectedPeriodId, setInternalSelectedPeriodId] = useState<string>(
     initialActivePeriod?.id || ''
   );
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const {
+    rows,
     paginatedRows,
     filteredRows,
     isLoading,
@@ -114,14 +117,11 @@ export default function PeerReviewAssignmentsPage({
     }
   };
 
-  const handleSaveAll = async () => {
-    const success = await saveAllChanges();
-    if (success) {
-      toast.success('評価者の割当を保存しました。');
-    } else {
-      toast.error('一部の割当の保存に失敗しました。詳細を確認してください。');
-    }
+  const handleSaveAll = () => {
+    setShowConfirmDialog(true);
   };
+
+  const dirtyRows = rows.filter(r => r.isDirty);
 
   const activeSelectorPeriodId =
     internalSelectedPeriodId || resolvedPeriodId || allPeriods[0]?.id || '';
@@ -437,6 +437,15 @@ export default function PeerReviewAssignmentsPage({
           />
         </TabsContent>
       </Tabs>
+
+      <BulkSaveConfirmDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        dirtyRows={dirtyRows}
+        users={users}
+        onConfirm={saveAllChanges}
+        onComplete={refetch}
+      />
     </div>
   );
 }

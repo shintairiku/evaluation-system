@@ -29,6 +29,36 @@ class PeerReviewAssignReviewersRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class BulkAssignReviewersItem(BaseModel):
+    """A single reviewee-reviewers pair for bulk assignment."""
+    reviewee_id: UUID = Field(..., alias="revieweeId")
+    reviewer_ids: List[UUID] = Field(
+        ...,
+        alias="reviewerIds",
+        description="List of exactly 2 reviewer user IDs"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class BulkAssignReviewersResult(BaseModel):
+    """Result of a single bulk assignment item."""
+    reviewee_id: UUID = Field(..., alias="revieweeId")
+    success: bool
+    error: Optional[str] = None
+
+    model_config = {"populate_by_name": True}
+
+
+class BulkAssignReviewersResponse(BaseModel):
+    """Response schema for bulk assignment."""
+    results: List[BulkAssignReviewersResult]
+    success_count: int = Field(..., alias="successCount")
+    failure_count: int = Field(0, alias="failureCount")
+
+    model_config = {"populate_by_name": True}
+
+
 class PeerReviewAssignmentResponse(BaseModel):
     """Response schema for a single peer review assignment."""
     id: UUID
