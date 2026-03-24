@@ -10,8 +10,8 @@ interface UserProfilesDataLoaderProps {
 }
 
 export default async function UserProfilesDataLoader({ 
-  page = 1, 
-  limit = 50 
+  page = 1,
+  limit = 100
 }: UserProfilesDataLoaderProps) {
   const result = await getUserDirectoryBasePageDataAction({ page, limit });
 
@@ -35,7 +35,7 @@ export default async function UserProfilesDataLoader({
 
   return (
     <ProfileOptionsProvider initialOptions={initialOptions}>
-      <UserManagementWithSearch initialUsers={result.data!.users} />
+      <UserManagementWithSearch initialUsers={result.data!.users} initialMeta={result.data!.meta} />
     </ProfileOptionsProvider>
   );
 }

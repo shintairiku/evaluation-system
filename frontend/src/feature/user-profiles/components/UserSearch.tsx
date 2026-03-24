@@ -15,6 +15,8 @@ interface UserSearchProps {
   initialUsers?: UserDetailResponse[];
   // When true, search uses org-chart dataset (readonly) for Organization Chart view
   useOrgChartDataset?: boolean;
+  // Controlled page prop from parent for server-side pagination
+  page?: number;
 }
 
 interface SearchState {
@@ -50,7 +52,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-export default function UserSearch({ onSearchResults, initialUsers = [], useOrgChartDataset = false }: UserSearchProps) {
+function UserSearch({ onSearchResults, initialUsers = [], useOrgChartDataset = false, page }: UserSearchProps) {
   // ——————————————————————————————————————————————————————————
   // Helpers
   // ——————————————————————————————————————————————————————————
@@ -88,6 +90,13 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
   // Refs to avoid callback dependency issues
   const onSearchResultsRef = useRef(onSearchResults);
   onSearchResultsRef.current = onSearchResults;
+
+  // Sync page from parent prop
+  useEffect(() => {
+    if (page !== undefined && page !== searchParams.page) {
+      setSearchParams(prev => ({ ...prev, page }));
+    }
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Increased debounce delay to reduce API calls
   const debouncedQuery = useDebounce<string>(searchParams.query || '', 800);
@@ -197,8 +206,10 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
     const hasMinimumSearchQuery = (debouncedQuery || '').trim().length >= 2; // Minimum 2 characters
     const hasFilters = hasActiveFilters(searchParams);
 
-    if (hasMinimumSearchQuery || hasFilters) {
-      setWasFiltered(true);
+    const isPageChange = (searchParams.page ?? 1) > 1;
+
+    if (hasMinimumSearchQuery || hasFilters || isPageChange) {
+      setWasFiltered(hasMinimumSearchQuery || hasFilters || isPageChange);
       const nextRequestId = requestSeqRef.current + 1;
       requestSeqRef.current = nextRequestId;
       latestActiveRequestIdRef.current = nextRequestId;
@@ -216,14 +227,14 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
         searchAction(formData);
       });
     } else if ((debouncedQuery || '').trim().length === 0 && !hasFilters) {
-      // Clear search - show initial users
+      // Clear search - show initial users (page 1, no filters)
       setWasFiltered(false);
       latestActiveRequestIdRef.current = null;
       onSearchResultsRef.current(initialUsers, initialUsers.length, false);
     }
     // If query is 1 character, do nothing (wait for more characters)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status]);
+  }, [debouncedQuery, searchParams.department_id, searchParams.stage_id, searchParams.role_id, searchParams.status, searchParams.page]);
 
   // Update parent with search results when search state changes
   useEffect(() => {
@@ -406,3 +417,5 @@ export default function UserSearch({ onSearchResults, initialUsers = [], useOrgC
     </div>
   );
 }
+
+export default React.memo(UserSearch);

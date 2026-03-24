@@ -33,7 +33,7 @@ const STATUS_DISPLAY_MAP: Record<EvaluationPeriodStatus, StatusDisplay> = {
     color: 'green'
   },
   'completed': {
-    label: '完了',
+    label: '終了',
     description: '終了済み',
     variant: 'outline',
     color: 'gray'

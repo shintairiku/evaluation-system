@@ -279,6 +279,15 @@ export const API_ENDPOINTS = {
     DETAIL: buildApiUrl('/peer-reviews/detail'),
   },
 
+  // Support Document endpoints
+  SUPPORT_DOCUMENTS: {
+    LIST: '/support-documents/',
+    CREATE: '/support-documents/',
+    UPDATE: (id: string) => `/support-documents/${id}`,
+    DELETE: (id: string) => `/support-documents/${id}`,
+    REORDER: '/support-documents/reorder',
+  },
+
   // Permission management endpoints
   PERMISSIONS: {
     CATALOG: '/permissions/',
@@ -291,8 +300,16 @@ export const API_ENDPOINTS = {
   // Comprehensive Evaluation endpoints
   COMPREHENSIVE_EVALUATION: {
     LIST: '/evaluation/comprehensive-evaluation',
+    EXPORT: '/evaluation/comprehensive-evaluation/export',
     STAGE_OPTIONS: '/evaluation/comprehensive-evaluation/stage-options',
-    SETTINGS: '/evaluation/comprehensive-evaluation/settings',
+    SETTINGS_WORKSPACE: '/evaluation/comprehensive-evaluation/settings/workspace',
+    DEFAULT_ASSIGNMENT: '/evaluation/comprehensive-evaluation/settings/default-assignment',
+    DEPARTMENT_ASSIGNMENT: (departmentId: string) =>
+      `/evaluation/comprehensive-evaluation/settings/department-assignments/${departmentId}`,
+    STAGE_ASSIGNMENT: (stageId: string) =>
+      `/evaluation/comprehensive-evaluation/settings/stage-assignments/${stageId}`,
+    RULESETS: '/evaluation/comprehensive-evaluation/settings/rulesets',
+    RULESET: (rulesetId: string) => `/evaluation/comprehensive-evaluation/settings/rulesets/${rulesetId}`,
     FINALIZE: '/evaluation/comprehensive-evaluation/finalize',
     PROCESS_USER: '/evaluation/comprehensive-evaluation/process-user',
     MANUAL_DECISION: (userId: string) => `/evaluation/comprehensive-evaluation/manual-decisions/${userId}`,

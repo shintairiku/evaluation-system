@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Target, Users, ListChecks } from 'lucide-react';
 import { getAdminGoalsAction } from '@/api/server-actions/goals';
-import { getUsersAction } from '@/api/server-actions/users';
+import { getAllUsersAction } from '@/api/server-actions/users';
 import type { GoalResponse, UserDetailResponse } from '@/api/types';
 
 interface AdminUserGoalsDetailPageProps {
@@ -50,7 +50,7 @@ export default function AdminUserGoalsDetailPage({
 
         // Load user info and goals in parallel
         const [usersResult, goalsResult] = await Promise.all([
-          getUsersAction(),
+          getAllUsersAction(),
           getAdminGoalsAction({
             userId,
             periodId,
@@ -59,8 +59,8 @@ export default function AdminUserGoalsDetailPage({
         ]);
 
         // Set user data
-        if (usersResult.success && usersResult.data?.items) {
-          const foundUser = usersResult.data.items.find(u => u.id === userId);
+        if (usersResult.success && usersResult.data) {
+          const foundUser = usersResult.data.find((u: UserDetailResponse) => u.id === userId);
           if (foundUser) {
             setUser(foundUser);
           } else {

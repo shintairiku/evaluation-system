@@ -5,7 +5,7 @@
 
 | バージョン | 日付 | 変更者 | 変更内容 |
 |---|---|---|---|
-| v1.6 | 2026-02-26 | AI（Codex） | 評価期間確定（`completed`化）とレベル一括反映フローを追加。`eval_admin`のみ実行、確定後スコア編集ロック。 |
+| v1.6 | 2026-02-26 | AI（Codex） | 評価期間終了（`completed`化）フローを追加。`eval_admin`のみ実行、終了後スコア編集ロック。 |
 | v1.5 | 2026-02-20 | AI（Codex） | M2+M3+M4を反映。総合評価API/設定永続化/手動確定履歴、`users.level`・`eval_admin`ロール、Frontend API接続完了を追記。 |
 | v1.4 | 2026-02-18 | AI（Codex） | `self_assessments` / `supervisor_feedback` の実装反映、モック列のDB可否を確定、総合評価データ取得の最終方針（単一集計API）を追記 |
 
@@ -31,7 +31,7 @@
 | 総合評価専用Read API | ✅ 完了 | `GET /evaluation/comprehensive-evaluation`（単一CTE + ページング） |
 | 判定基準CRUD（総合評価） | ✅ 完了 | `GET/PUT /evaluation/comprehensive-evaluation/settings` |
 | 特例反映（手動確定）API + 監査ログ | ✅ 完了 | `PUT/DELETE /manual-decisions/{user_id}`, `GET /manual-decisions/history` |
-| 評価期間確定 + レベル一括反映 | ✅ 完了 | `POST /evaluation/comprehensive-evaluation/finalize`（`eval_admin`限定、確認モーダル運用） |
+| 評価期間終了（`completed`化のみ） | ✅ 完了 | `POST /evaluation/comprehensive-evaluation/finalize`（`eval_admin`限定、確認モーダル運用） |
 | `users.level` | ✅ 完了 | nullable + range check（1〜30） |
 | `eval_admin` ロール | ✅ 完了 | 組織単位seed + write権限 |
 

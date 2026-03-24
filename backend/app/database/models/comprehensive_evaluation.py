@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -177,18 +178,106 @@ class ComprehensiveManualDecisionHistory(Base):
     )
 
 
+class ComprehensiveRuleset(Base):
+    __tablename__ = "comprehensive_rulesets"
+
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    organization_id = Column(String(50), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    name = Column(Text, nullable=False)
+    settings_json = Column(JSONB, nullable=False)
+    is_default_template = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="uq_comprehensive_rulesets_org_name"),
+        Index("idx_comprehensive_rulesets_org_name", "organization_id", "name"),
+    )
+
+
+class ComprehensiveRulesetAssignment(Base):
+    __tablename__ = "comprehensive_ruleset_assignments"
+
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    organization_id = Column(String(50), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=False)
+    department_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("departments.id", ondelete="CASCADE"), nullable=True)
+    stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id", ondelete="CASCADE"), nullable=True)
+    settings_json = Column(JSONB, nullable=False)
+    source_ruleset_id = Column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("comprehensive_rulesets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    source_ruleset_name_snapshot = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(CASE WHEN department_id IS NULL THEN 0 ELSE 1 END) + "
+            "(CASE WHEN stage_id IS NULL THEN 0 ELSE 1 END) <= 1",
+            name="chk_comprehensive_ruleset_assignments_single_target",
+        ),
+        Index("idx_comprehensive_ruleset_assignments_org_period", "organization_id", "period_id"),
+        Index(
+            "idx_comprehensive_ruleset_assignments_org_period_department",
+            "organization_id",
+            "period_id",
+            "department_id",
+        ),
+        Index(
+            "idx_comprehensive_ruleset_assignments_org_period_stage",
+            "organization_id",
+            "period_id",
+            "stage_id",
+        ),
+    )
+
+
 class ComprehensiveSettingsAuditLog(Base):
     __tablename__ = "comprehensive_settings_audit_log"
 
     id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True)
     organization_id = Column(String(50), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     actor_user_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    action = Column(Text, nullable=False, default="legacy")
+    period_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("evaluation_periods.id", ondelete="CASCADE"), nullable=True)
+    department_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("departments.id", ondelete="CASCADE"), nullable=True)
+    stage_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("stages.id", ondelete="CASCADE"), nullable=True)
+    ruleset_id = Column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("comprehensive_rulesets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     before_json = Column(JSONB, nullable=True)
     after_json = Column(JSONB, nullable=True)
     changed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     __table_args__ = (
         Index("idx_comprehensive_settings_audit_log_org_changed", "organization_id", "changed_at"),
+        Index(
+            "idx_comprehensive_settings_audit_log_org_period_changed",
+            "organization_id",
+            "period_id",
+            "changed_at",
+        ),
+        Index(
+            "idx_comprehensive_settings_audit_log_org_ruleset_changed",
+            "organization_id",
+            "ruleset_id",
+            "changed_at",
+        ),
     )
 
 

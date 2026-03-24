@@ -3,16 +3,23 @@ import { API_ENDPOINTS } from '../constants/config';
 import type {
   ApiResponse,
   ComprehensiveEvaluationListResponse,
-  ComprehensiveEvaluationSettingsRequest,
-  ComprehensiveEvaluationSettingsResponse,
+  ComprehensiveEvaluationSettingsWorkspaceResponse,
+  ComprehensiveRulesetAssignmentResponse,
+  ComprehensiveRulesetTemplateResponse,
+  ExportComprehensiveEvaluationRequest,
   ComprehensiveManualDecisionHistoryResponse,
   FinalizeComprehensiveEvaluationRequest,
   FinalizeComprehensiveEvaluationResponse,
+  GetComprehensiveEvaluationSettingsWorkspaceParams,
   GetComprehensiveEvaluationListParams,
   GetComprehensiveManualDecisionHistoryParams,
+  UpdateComprehensiveDepartmentAssignmentRequest,
+  UpdateComprehensiveDefaultAssignmentRequest,
+  UpdateComprehensiveStageAssignmentRequest,
   ProcessComprehensiveEvaluationUserRequest,
   ProcessComprehensiveEvaluationUserResponse,
   UUID,
+  UpsertComprehensiveRulesetRequest,
   UpsertComprehensiveManualDecisionRequest,
 } from '../types';
 
@@ -45,19 +52,74 @@ export const comprehensiveEvaluationApi = {
     );
   },
 
-  getComprehensiveEvaluationSettings: async (): Promise<ApiResponse<ComprehensiveEvaluationSettingsResponse>> => {
-    return httpClient.get<ComprehensiveEvaluationSettingsResponse>(
-      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.SETTINGS,
+  exportComprehensiveEvaluationCsv: async (
+    payload: ExportComprehensiveEvaluationRequest,
+  ): Promise<ApiResponse<string>> => {
+    return httpClient.post<string>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.EXPORT,
+      payload,
     );
   },
 
-  updateComprehensiveEvaluationSettings: async (
-    payload: ComprehensiveEvaluationSettingsRequest,
-  ): Promise<ApiResponse<ComprehensiveEvaluationSettingsResponse>> => {
-    return httpClient.put<ComprehensiveEvaluationSettingsResponse>(
-      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.SETTINGS,
+  getComprehensiveEvaluationSettingsWorkspace: async (
+    params: GetComprehensiveEvaluationSettingsWorkspaceParams,
+  ): Promise<ApiResponse<ComprehensiveEvaluationSettingsWorkspaceResponse>> => {
+    const queryParams = new URLSearchParams({ periodId: params.periodId });
+    return httpClient.get<ComprehensiveEvaluationSettingsWorkspaceResponse>(
+      `${API_ENDPOINTS.COMPREHENSIVE_EVALUATION.SETTINGS_WORKSPACE}?${queryParams.toString()}`,
+    );
+  },
+
+  updateComprehensiveEvaluationDefaultAssignment: async (
+    payload: UpdateComprehensiveDefaultAssignmentRequest,
+  ): Promise<ApiResponse<ComprehensiveRulesetAssignmentResponse>> => {
+    return httpClient.put<ComprehensiveRulesetAssignmentResponse>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.DEFAULT_ASSIGNMENT,
       payload,
     );
+  },
+
+  updateComprehensiveEvaluationDepartmentAssignment: async (
+    departmentId: UUID,
+    payload: UpdateComprehensiveDepartmentAssignmentRequest,
+  ): Promise<ApiResponse<ComprehensiveRulesetAssignmentResponse>> => {
+    return httpClient.put<ComprehensiveRulesetAssignmentResponse>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.DEPARTMENT_ASSIGNMENT(departmentId),
+      payload,
+    );
+  },
+
+  updateComprehensiveEvaluationStageAssignment: async (
+    stageId: UUID,
+    payload: UpdateComprehensiveStageAssignmentRequest,
+  ): Promise<ApiResponse<ComprehensiveRulesetAssignmentResponse>> => {
+    return httpClient.put<ComprehensiveRulesetAssignmentResponse>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.STAGE_ASSIGNMENT(stageId),
+      payload,
+    );
+  },
+
+  createComprehensiveEvaluationRuleset: async (
+    payload: UpsertComprehensiveRulesetRequest,
+  ): Promise<ApiResponse<ComprehensiveRulesetTemplateResponse>> => {
+    return httpClient.post<ComprehensiveRulesetTemplateResponse>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.RULESETS,
+      payload,
+    );
+  },
+
+  updateComprehensiveEvaluationRuleset: async (
+    rulesetId: UUID,
+    payload: UpsertComprehensiveRulesetRequest,
+  ): Promise<ApiResponse<ComprehensiveRulesetTemplateResponse>> => {
+    return httpClient.put<ComprehensiveRulesetTemplateResponse>(
+      API_ENDPOINTS.COMPREHENSIVE_EVALUATION.RULESET(rulesetId),
+      payload,
+    );
+  },
+
+  deleteComprehensiveEvaluationRuleset: async (rulesetId: UUID): Promise<ApiResponse<unknown>> => {
+    return httpClient.delete<unknown>(API_ENDPOINTS.COMPREHENSIVE_EVALUATION.RULESET(rulesetId));
   },
 
   finalizeComprehensiveEvaluationPeriod: async (

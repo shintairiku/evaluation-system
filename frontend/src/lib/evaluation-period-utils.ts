@@ -101,7 +101,7 @@ export const getStatusLabel = (status: EvaluationPeriodStatus): string => {
     case 'active':
       return '実施中';
     case 'completed':
-      return '完了';
+      return '終了';
     case 'cancelled':
       return 'キャンセル';
     default:

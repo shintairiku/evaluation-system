@@ -2,7 +2,8 @@ import type {
   EvaluationPeriod,
   CategorizedEvaluationPeriods,
   GoalStatistics,
-  EvaluationPeriodFormData
+  EvaluationPeriodFormData,
+  EvaluationPeriodStatus
 } from '@/api/types/evaluation-period';
 
 /**
@@ -20,6 +21,7 @@ export interface EvaluationPeriodManagementViewProps {
   onViewChange: (view: ViewType) => void;
   onCreatePeriod: () => void;
   onEditPeriod: (period: EvaluationPeriod) => void;
+  onChangePeriodStatus: (period: EvaluationPeriod, status: EvaluationPeriodStatus) => Promise<void>;
   onDeletePeriod: (period: EvaluationPeriod) => void;
   onViewGoalStats: (period: EvaluationPeriod) => void;
   isLoading?: boolean;
@@ -28,6 +30,7 @@ export interface EvaluationPeriodManagementViewProps {
   goalStats?: GoalStatistics;
   onFormSubmit: (data: EvaluationPeriodFormData) => Promise<void>;
   onDeleteConfirm: () => Promise<void>;
+  onStatusChangeConfirm: () => Promise<void>;
   onCloseModal: (modalType: keyof ModalState) => void;
   onCloseSidePanel: (panelType: keyof SidePanelState) => void;
 }
@@ -35,6 +38,7 @@ export interface EvaluationPeriodManagementViewProps {
 export interface EvaluationPeriodListViewProps {
   categorizedPeriods: CategorizedEvaluationPeriods;
   onEditPeriod: (period: EvaluationPeriod) => void;
+  onChangePeriodStatus: (period: EvaluationPeriod, status: EvaluationPeriodStatus) => Promise<void>;
   onDeletePeriod: (period: EvaluationPeriod) => void;
   onViewGoalStats: (period: EvaluationPeriod) => void;
 }
@@ -50,6 +54,7 @@ export interface EvaluationPeriodCalendarViewProps {
 export interface PeriodCardProps {
   period: EvaluationPeriod;
   onEdit: (period: EvaluationPeriod) => void;
+  onChangeStatus: (period: EvaluationPeriod, status: EvaluationPeriodStatus) => Promise<void>;
   onDelete: (period: EvaluationPeriod) => void;
   onViewGoalStats: (period: EvaluationPeriod) => void;
 }
@@ -68,6 +73,15 @@ export interface DeleteConfirmationModalProps {
   period: EvaluationPeriod;
   onConfirm: () => Promise<void>;
   isDeleting?: boolean;
+}
+
+export interface StatusChangeConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  period: EvaluationPeriod;
+  nextStatus: EvaluationPeriodStatus;
+  onConfirm: () => Promise<void>;
+  isSubmitting?: boolean;
 }
 
 export interface GoalStatisticsSidePanelProps {
@@ -98,6 +112,11 @@ export type ModalState = {
   delete: {
     isOpen: boolean;
     period?: EvaluationPeriod;
+  };
+  statusChange: {
+    isOpen: boolean;
+    period?: EvaluationPeriod;
+    nextStatus?: EvaluationPeriodStatus;
   };
 };
 

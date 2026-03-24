@@ -5,7 +5,7 @@
 
 | バージョン | 日付 | 変更者 | 変更内容 |
 |---|---|---|---|
-| v2.0 | 2026-02-26 | AI（Codex） | 評価期間確定フローを追加。`eval_admin`のみ確定可能、確認モーダル経由で`completed`化し、確定時に全ユーザーのレベルを総合結果で一括更新。 |
+| v2.0 | 2026-02-26 | AI（Codex） | 評価期間終了フローを追加。`eval_admin`のみ実行可能、確認モーダル経由で`completed`化し、終了後はスコア編集を停止。 |
 | v1.9 | 2026-02-20 | AI（Codex） | M2+M3+M4実装を反映。モック/localStorage依存を撤去し、総合評価API・設定API・手動確定API接続後の状態へ更新。 |
 | v1.8 | 2026-02-18 | AI（Codex） | `self_assessments` / `supervisor_feedback` の実装完了を反映。モック列のDB可否とM2移行手順（単一集計API）を確定。 |
 
@@ -26,7 +26,7 @@
 - `/admin-eval-list/candidates`（昇格/降格対応）: 同一覧APIで表示し、手動確定はAPI永続化
 - 判定ルール設定: `GET/PUT /evaluation/comprehensive-evaluation/settings` に接続
 - 手動確定: `PUT/DELETE /evaluation/comprehensive-evaluation/manual-decisions/{user_id}` に接続
-- 評価期間確定: `POST /evaluation/comprehensive-evaluation/finalize` に接続（確認モーダル経由）
+- 評価期間終了: `POST /evaluation/comprehensive-evaluation/finalize` に接続（確認モーダル経由）
 
 ### 2.2 バックエンド
 
@@ -60,10 +60,10 @@
 - 総合評価テーブル: `/admin-eval-list`
   - 閲覧: `admin` / `eval_admin`
   - 編集: `eval_admin`
-  - 評価期間確定（`completed`化 + レベル一括反映）: `eval_admin` のみ
+  - 評価期間終了（`completed`化のみ）: `eval_admin` のみ
 - 昇格/降格対応: `/admin-eval-list/candidates`
   - 閲覧: `admin` / `eval_admin`
-  - 編集: `eval_admin`（期間`completed`後は編集不可）
+  - 編集: `eval_admin`（期間`completed`後に個別判断を継続）
 
 ---
 
@@ -97,7 +97,7 @@ localStorage依存は廃止済み:
 
 - 判定ルール設定: DB永続化（`eval_admin`のみ更新）
 - 手動確定: DB永続化 + 監査ログ（理由/ダブルチェック者必須）
-- 評価期間確定: 確認モーダルで最終確認後に実行し、実行後はスコア編集を停止
+- 評価期間終了: 確認モーダルで最終確認後に実行し、実行後はスコア編集を停止
 
 ---
 

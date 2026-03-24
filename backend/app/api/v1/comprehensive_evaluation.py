@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.exceptions import BadRequestError, NotFoundError, PermissionDeniedError
@@ -10,12 +10,19 @@ from ...schemas.comprehensive_evaluation import (
     ComprehensiveEvaluationFinalizeRequest,
     ComprehensiveEvaluationFinalizeResponse,
     ComprehensiveEvaluationListResponse,
+    ComprehensiveEvaluationExportRequest,
+    ComprehensiveEvaluationSettingsWorkspace,
     ComprehensiveEvaluationProcessUserRequest,
     ComprehensiveEvaluationProcessUserResponse,
-    ComprehensiveEvaluationSettings,
     ComprehensiveManualDecisionHistoryResponse,
     ComprehensiveManualDecisionResponse,
     ComprehensiveManualDecisionUpsertRequest,
+    ComprehensiveDefaultAssignmentUpdateRequest,
+    ComprehensiveDepartmentAssignmentUpdateRequest,
+    ComprehensiveRulesetAssignment,
+    ComprehensiveStageAssignmentUpdateRequest,
+    ComprehensiveRulesetTemplate,
+    ComprehensiveRulesetUpsertRequest,
 )
 from ...security import AuthContext, get_auth_context
 from ...services.comprehensive_evaluation_service import ComprehensiveEvaluationService
@@ -75,6 +82,42 @@ async def get_comprehensive_evaluation(
         ) from exc
 
 
+@router.post("/export")
+async def export_comprehensive_evaluation_csv(
+    payload: ComprehensiveEvaluationExportRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = ComprehensiveEvaluationService(session)
+        csv_content = await service.export_comprehensive_evaluation_csv(
+            context=context,
+            payload=payload,
+        )
+        return Response(
+            content=f"\ufeff{csv_content}",
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="comprehensive-evaluation.csv"',
+            },
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to export comprehensive evaluation csv",
+        ) from exc
+
+
 @router.get("/stage-options", response_model=List[str])
 async def get_comprehensive_evaluation_stage_options(
     context: AuthContext = Depends(get_auth_context),
@@ -96,16 +139,19 @@ async def get_comprehensive_evaluation_stage_options(
         ) from exc
 
 
-@router.get("/settings", response_model=ComprehensiveEvaluationSettings)
-async def get_comprehensive_evaluation_settings(
+@router.get("/settings/workspace", response_model=ComprehensiveEvaluationSettingsWorkspace)
+async def get_comprehensive_evaluation_settings_workspace(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session),
 ):
     try:
         service = ComprehensiveEvaluationService(session)
-        return await service.get_settings(context=context)
+        return await service.get_settings_workspace(context=context, period_id=period_id)
     except PermissionDeniedError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BadRequestError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except HTTPException:
@@ -113,21 +159,23 @@ async def get_comprehensive_evaluation_settings(
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch comprehensive evaluation settings",
+            detail="Failed to fetch comprehensive evaluation settings workspace",
         ) from exc
 
 
-@router.put("/settings", response_model=ComprehensiveEvaluationSettings)
-async def update_comprehensive_evaluation_settings(
-    payload: ComprehensiveEvaluationSettings,
+@router.put("/settings/default-assignment", response_model=ComprehensiveRulesetAssignment)
+async def update_comprehensive_evaluation_default_assignment(
+    payload: ComprehensiveDefaultAssignmentUpdateRequest,
     context: AuthContext = Depends(get_auth_context),
     session: AsyncSession = Depends(get_db_session),
 ):
     try:
         service = ComprehensiveEvaluationService(session)
-        return await service.update_settings(context=context, settings=payload)
+        return await service.update_default_assignment(context=context, payload=payload)
     except PermissionDeniedError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BadRequestError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except HTTPException:
@@ -135,7 +183,147 @@ async def update_comprehensive_evaluation_settings(
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update comprehensive evaluation settings",
+            detail="Failed to update default assignment",
+        ) from exc
+
+
+@router.put("/settings/department-assignments/{department_id}", response_model=ComprehensiveRulesetAssignment)
+async def update_comprehensive_evaluation_department_assignment(
+    department_id: UUID,
+    payload: ComprehensiveDepartmentAssignmentUpdateRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = ComprehensiveEvaluationService(session)
+        return await service.update_department_assignment(
+            context=context,
+            department_id=department_id,
+            payload=payload,
+        )
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update department assignment",
+        ) from exc
+
+
+@router.put("/settings/stage-assignments/{stage_id}", response_model=ComprehensiveRulesetAssignment)
+async def update_comprehensive_evaluation_stage_assignment(
+    stage_id: UUID,
+    payload: ComprehensiveStageAssignmentUpdateRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = ComprehensiveEvaluationService(session)
+        return await service.update_stage_assignment(
+            context=context,
+            stage_id=stage_id,
+            payload=payload,
+        )
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update stage assignment",
+        ) from exc
+
+
+@router.post("/settings/rulesets", response_model=ComprehensiveRulesetTemplate, status_code=status.HTTP_201_CREATED)
+async def create_comprehensive_evaluation_ruleset(
+    payload: ComprehensiveRulesetUpsertRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = ComprehensiveEvaluationService(session)
+        return await service.create_ruleset(context=context, payload=payload)
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create ruleset",
+        ) from exc
+
+
+@router.put("/settings/rulesets/{ruleset_id}", response_model=ComprehensiveRulesetTemplate)
+async def update_comprehensive_evaluation_ruleset(
+    ruleset_id: UUID,
+    payload: ComprehensiveRulesetUpsertRequest,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = ComprehensiveEvaluationService(session)
+        return await service.update_ruleset(context=context, ruleset_id=ruleset_id, payload=payload)
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update ruleset",
+        ) from exc
+
+
+@router.delete("/settings/rulesets/{ruleset_id}")
+async def delete_comprehensive_evaluation_ruleset(
+    ruleset_id: UUID,
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    try:
+        service = ComprehensiveEvaluationService(session)
+        await service.delete_ruleset(context=context, ruleset_id=ruleset_id)
+        return {"success": True}
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete ruleset",
         ) from exc
 
 

@@ -29,8 +29,8 @@ export function useComprehensiveEvaluationManualOverrides() {
       setIsSaving(false);
 
       if (!result.success) {
-        setError(result.error ?? "手動確定の保存に失敗しました");
-        return { success: false, error: result.error ?? "手動確定の保存に失敗しました" };
+        setError(result.error ?? "個別判断の保存に失敗しました");
+        return { success: false, error: result.error ?? "個別判断の保存に失敗しました" };
       }
 
       return { success: true as const };
@@ -47,8 +47,8 @@ export function useComprehensiveEvaluationManualOverrides() {
     setIsSaving(false);
 
     if (!result.success) {
-      setError(result.error ?? "手動確定の解除に失敗しました");
-      return { success: false, error: result.error ?? "手動確定の解除に失敗しました" };
+      setError(result.error ?? "個別判断の解除に失敗しました");
+      return { success: false, error: result.error ?? "個別判断の解除に失敗しました" };
     }
 
     return { success: true as const };

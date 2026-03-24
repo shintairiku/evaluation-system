@@ -84,6 +84,13 @@ export const groups = [
         icon: 'settings',
         permission: 'authenticated'
       },
+      {
+        href: '/support-documents',
+        label: 'リンク集',
+        sublabel: 'Links',
+        icon: 'link',
+        permission: 'authenticated'
+      },
     ],
   },
   {

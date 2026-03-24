@@ -20,6 +20,7 @@ node_modules/
 
 # python
 __pycache__/
+backend/backend/
 
 # Python virtual environments
 venv/
@@ -70,6 +71,7 @@ next-env.d.ts
 
 # logs
 backend/tests/logs
+backend/backend/tests/logs
 
 # VS Code settings (personal configurations)
 .vscode/

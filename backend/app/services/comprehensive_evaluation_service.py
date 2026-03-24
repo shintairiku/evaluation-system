@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import csv
+import io
+import logging
 from math import ceil
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,27 +12,40 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.exceptions import BadRequestError, NotFoundError, PermissionDeniedError
 from ..database.models.evaluation import EvaluationPeriodStatus
 from ..database.repositories.comprehensive_evaluation_repo import ComprehensiveEvaluationRepository
+from ..database.repositories.department_repo import DepartmentRepository
 from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepository
 from ..database.repositories.stage_repo import StageRepository
 from ..database.repositories.user_repo import UserRepository
 from ..schemas.comprehensive_evaluation import (
     ComprehensiveDecision,
+    ComprehensiveDefaultAssignmentUpdateRequest,
+    ComprehensiveDepartmentAssignmentUpdateRequest,
     ComprehensiveEvaluationComputedState,
+    ComprehensiveEvaluationExportColumn,
+    ComprehensiveEvaluationExportRequest,
     ComprehensiveEvaluationFinalizeResponse,
     ComprehensiveEvaluationListMeta,
     ComprehensiveEvaluationListResponse,
     ComprehensiveEvaluationProcessUserResponse,
     ComprehensiveEvaluationRow,
     ComprehensiveEvaluationSettings,
+    ComprehensiveEvaluationSettingsWorkspace,
     ComprehensiveManualDecisionHistoryEntry,
     ComprehensiveManualDecisionHistoryResponse,
     ComprehensiveManualDecisionResponse,
     ComprehensiveManualDecisionUpsertRequest,
+    ComprehensiveRulesetAssignment,
+    ComprehensiveStageAssignmentUpdateRequest,
+    ComprehensiveRulesetTemplate,
+    ComprehensiveRulesetUpsertRequest,
     DemotionRuleGroup,
     EvaluationRank,
     PromotionRuleGroup,
 )
 from ..security.context import AuthContext
+
+
+logger = logging.getLogger(__name__)
 
 
 RANK_ORDER: List[EvaluationRank] = ["SS", "S", "A+", "A", "A-", "B", "C", "D"]
@@ -56,12 +72,31 @@ DEFAULT_LEVEL_DELTAS: Dict[EvaluationRank, int] = {
 }
 USER_LEVEL_MIN = 1
 USER_LEVEL_MAX = 30
+COMPREHENSIVE_EVALUATION_EXPORT_HEADERS: Dict[ComprehensiveEvaluationExportColumn, str] = {
+    "employeeCode": "社員番号",
+    "name": "氏名",
+    "departmentName": "部署",
+    "employmentType": "雇用形態",
+    "currentStage": "現在ステージ",
+    "currentLevel": "現在レベル",
+    "performanceFinalRank": "目標達成 最終評価",
+    "performanceWeightPercent": "目標達成 ウェイト（%）",
+    "competencyFinalRank": "コンピテンシー 最終評価",
+    "competencyWeightPercent": "コンピテンシー ウェイト（%）",
+    "coreValueFinalRank": "コアバリュー 最終評価",
+    "totalScore": "合計（点）",
+    "overallRank": "総合評価",
+    "newLevel": "反映後レベル",
+    "promotionDemotionFlag": "昇格/降格フラグ",
+    "processingStatus": "処理状態",
+}
 
 
 class ComprehensiveEvaluationService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = ComprehensiveEvaluationRepository(session)
+        self.department_repo = DepartmentRepository(session)
         self.period_repo = EvaluationPeriodRepository(session)
         self.stage_repo = StageRepository(session)
         self.user_repo = UserRepository(session)
@@ -84,7 +119,10 @@ class ComprehensiveEvaluationService:
         self._require_list_read_role(context=context, candidate_view=candidate_view)
         await self._ensure_period_exists(period_id, org_id)
 
-        settings = await self.get_settings(context=context)
+        default_settings, settings_by_department, settings_by_stage = await self._get_period_settings_map(
+            org_id=org_id,
+            period_id=period_id,
+        )
         rows_data, total = await self.repo.list_rows(
             org_id=org_id,
             period_id=period_id,
@@ -102,7 +140,13 @@ class ComprehensiveEvaluationService:
             self._build_row_from_repo_item(
                 item=item,
                 period_id=period_id,
-                settings=settings,
+                settings=self._resolve_settings_for_assignment_target(
+                    department_id=item.get("department_id"),
+                    stage_id=item.get("stage_id"),
+                    default_settings=default_settings,
+                    settings_by_department=settings_by_department,
+                    settings_by_stage=settings_by_stage,
+                ),
             )
             for item in rows_data
         ]
@@ -114,6 +158,53 @@ class ComprehensiveEvaluationService:
             pages=max(1, ceil(total / limit)) if limit > 0 else 1,
         )
         return ComprehensiveEvaluationListResponse(rows=rows, meta=meta)
+
+    async def export_comprehensive_evaluation_csv(
+        self,
+        *,
+        context: AuthContext,
+        payload: ComprehensiveEvaluationExportRequest,
+    ) -> str:
+        org_id = self._require_org(context)
+        self._require_write_role(context)
+        await self._ensure_period_exists(payload.period_id, org_id)
+
+        first_page = await self.get_comprehensive_evaluation(
+            context=context,
+            period_id=payload.period_id,
+            department_id=payload.department_id,
+            stage_id=payload.stage_id,
+            employment_type=payload.employment_type,
+            search=payload.search,
+            processing_status=payload.processing_status,
+            page=1,
+            limit=1,
+        )
+
+        rows = first_page.rows
+        total = first_page.meta.total
+
+        if total > 1:
+            all_rows = await self.get_comprehensive_evaluation(
+                context=context,
+                period_id=payload.period_id,
+                department_id=payload.department_id,
+                stage_id=payload.stage_id,
+                employment_type=payload.employment_type,
+                search=payload.search,
+                processing_status=payload.processing_status,
+                page=1,
+                limit=total,
+            )
+            rows = all_rows.rows
+
+        rows = self._filter_export_rows(
+            rows=rows,
+            department_name=payload.department_name,
+            stage_name=payload.stage_name,
+        )
+
+        return self._build_export_csv(rows=rows, columns=payload.columns)
 
     async def get_stage_options(self, *, context: AuthContext) -> List[str]:
         org_id = self._require_org(context)
@@ -131,53 +222,390 @@ class ComprehensiveEvaluationService:
 
         return stage_names
 
-    async def get_settings(self, *, context: AuthContext) -> ComprehensiveEvaluationSettings:
-        org_id = self._require_org(context)
-        self._require_read_role(context)
-
-        rule_data = await self.repo.get_settings_rules(org_id)
-        settings = self._build_settings_from_rules(rule_data)
-        self._validate_settings(settings)
-        return settings
-
-    async def update_settings(
+    async def get_settings_workspace(
         self,
         *,
         context: AuthContext,
-        settings: ComprehensiveEvaluationSettings,
-    ) -> ComprehensiveEvaluationSettings:
+        period_id: UUID,
+    ) -> ComprehensiveEvaluationSettingsWorkspace:
+        org_id = self._require_org(context)
+        self._require_read_role(context)
+
+        period = await self._ensure_period_exists(period_id, org_id)
+        templates_raw = await self.repo.list_rulesets(org_id=org_id)
+        assignment_rows = await self.repo.list_period_assignments(org_id=org_id, period_id=period_id)
+
+        default_assignment_record = next(
+            (
+                row
+                for row in assignment_rows
+                if row.get("department_id") is None and row.get("stage_id") is None
+            ),
+            None,
+        )
+        if default_assignment_record is None:
+            default_assignment = await self._build_fallback_default_assignment(
+                org_id=org_id,
+                period_id=period_id,
+                templates_raw=templates_raw,
+            )
+        else:
+            default_assignment = self._build_assignment_response(default_assignment_record)
+
+        templates = [self._build_ruleset_response(item) for item in templates_raw]
+        department_assignments = [
+            self._build_assignment_response(item)
+            for item in assignment_rows
+            if item.get("department_id") is not None
+        ]
+        stage_assignments = [
+            self._build_assignment_response(item)
+            for item in assignment_rows
+            if item.get("stage_id") is not None
+        ]
+
+        return ComprehensiveEvaluationSettingsWorkspace(
+            locked=self._is_settings_locked(period),
+            templates=templates,
+            defaultAssignment=default_assignment,
+            departmentAssignments=department_assignments,
+            stageAssignments=stage_assignments,
+        )
+
+    async def update_default_assignment(
+        self,
+        *,
+        context: AuthContext,
+        payload: ComprehensiveDefaultAssignmentUpdateRequest,
+    ) -> ComprehensiveRulesetAssignment:
         org_id = self._require_org(context)
         actor_user_id = self._require_user_id(context)
         self._require_write_role(context)
 
-        self._validate_settings(settings)
+        period = await self._ensure_period_exists(payload.period_id, org_id)
+        self._ensure_period_allows_settings_mutation(period)
+        self._validate_settings(payload.settings)
 
-        before_settings = await self.get_settings(context=context)
-        before_json = before_settings.model_dump(mode="json", by_alias=True)
-
-        overall_rules = self._build_overall_rules_payload(settings)
-        promotion_groups = self._build_group_payload(settings.promotion.rule_groups, decision_type="promotion")
-        demotion_groups = self._build_group_payload(settings.demotion.rule_groups, decision_type="demotion")
+        source_ruleset = await self._resolve_source_ruleset(
+            org_id=org_id,
+            source_ruleset_id=payload.source_ruleset_id,
+        )
+        before_assignment = await self._get_default_assignment_for_audit(
+            org_id=org_id,
+            period_id=payload.period_id,
+        )
 
         try:
-            await self.repo.replace_settings(
+            persisted = await self.repo.upsert_default_assignment(
                 org_id=org_id,
-                overall_rules=overall_rules,
-                promotion_groups=promotion_groups,
-                demotion_groups=demotion_groups,
+                period_id=payload.period_id,
+                settings_json=payload.settings.model_dump(mode="json", by_alias=True),
+                source_ruleset_id=source_ruleset["id"] if source_ruleset else None,
+                source_ruleset_name_snapshot=source_ruleset["name"] if source_ruleset else None,
             )
+            persisted_response = self._build_assignment_response(persisted)
             await self.repo.insert_settings_audit(
                 org_id=org_id,
                 actor_user_id=actor_user_id,
-                before_json=before_json,
-                after_json=settings.model_dump(mode="json", by_alias=True),
+                action="default_assignment_update",
+                period_id=payload.period_id,
+                ruleset_id=source_ruleset["id"] if source_ruleset else None,
+                before_json=before_assignment.settings.model_dump(mode="json", by_alias=True),
+                after_json=persisted_response.settings.model_dump(mode="json", by_alias=True),
             )
             await self.session.commit()
         except Exception:
             await self.session.rollback()
             raise
 
-        return await self.get_settings(context=context)
+        return persisted_response
+
+    async def update_department_assignment(
+        self,
+        *,
+        context: AuthContext,
+        department_id: UUID,
+        payload: ComprehensiveDepartmentAssignmentUpdateRequest,
+    ) -> ComprehensiveRulesetAssignment:
+        org_id = self._require_org(context)
+        actor_user_id = self._require_user_id(context)
+        self._require_write_role(context)
+
+        period = await self._ensure_period_exists(payload.period_id, org_id)
+        self._ensure_period_allows_settings_mutation(period)
+
+        department = await self.department_repo.get_by_id(department_id, org_id)
+        if department is None:
+            raise NotFoundError("Department not found")
+
+        source_ruleset = await self._resolve_source_ruleset(
+            org_id=org_id,
+            source_ruleset_id=payload.source_ruleset_id,
+        )
+        before_assignment = await self._get_department_assignment_for_audit(
+            org_id=org_id,
+            period_id=payload.period_id,
+            department_id=department_id,
+            department_name=department.name,
+        )
+
+        try:
+            if payload.inherit_default:
+                await self.repo.delete_department_assignment(
+                    org_id=org_id,
+                    period_id=payload.period_id,
+                    department_id=department_id,
+                )
+                after_assignment = await self._build_inherited_department_assignment(
+                    org_id=org_id,
+                    period_id=payload.period_id,
+                    department_id=department_id,
+                    department_name=department.name,
+                )
+                action = "department_assignment_clear"
+                audit_ruleset_id = None
+            else:
+                assert payload.settings is not None
+                self._validate_settings(payload.settings)
+                persisted = await self.repo.upsert_department_assignment(
+                    org_id=org_id,
+                    period_id=payload.period_id,
+                    department_id=department_id,
+                    settings_json=payload.settings.model_dump(mode="json", by_alias=True),
+                    source_ruleset_id=source_ruleset["id"] if source_ruleset else None,
+                    source_ruleset_name_snapshot=source_ruleset["name"] if source_ruleset else None,
+                )
+                after_assignment = self._build_assignment_response(
+                    {**persisted, "department_name": department.name}
+                )
+                action = "department_assignment_update"
+                audit_ruleset_id = source_ruleset["id"] if source_ruleset else None
+
+            await self.repo.insert_settings_audit(
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action=action,
+                period_id=payload.period_id,
+                department_id=department_id,
+                ruleset_id=audit_ruleset_id,
+                before_json=before_assignment.settings.model_dump(mode="json", by_alias=True),
+                after_json=after_assignment.settings.model_dump(mode="json", by_alias=True),
+            )
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
+
+        return after_assignment
+
+    async def update_stage_assignment(
+        self,
+        *,
+        context: AuthContext,
+        stage_id: UUID,
+        payload: ComprehensiveStageAssignmentUpdateRequest,
+    ) -> ComprehensiveRulesetAssignment:
+        org_id = self._require_org(context)
+        actor_user_id = self._require_user_id(context)
+        self._require_write_role(context)
+
+        period = await self._ensure_period_exists(payload.period_id, org_id)
+        self._ensure_period_allows_settings_mutation(period)
+
+        stage = await self.stage_repo.get_by_id(stage_id, org_id)
+        if stage is None:
+            raise NotFoundError("Stage not found")
+
+        source_ruleset = await self._resolve_source_ruleset(
+            org_id=org_id,
+            source_ruleset_id=payload.source_ruleset_id,
+        )
+        before_assignment = await self._get_stage_assignment_for_audit(
+            org_id=org_id,
+            period_id=payload.period_id,
+            stage_id=stage_id,
+            stage_name=stage.name,
+        )
+
+        try:
+            if payload.inherit_default:
+                await self.repo.delete_stage_assignment(
+                    org_id=org_id,
+                    period_id=payload.period_id,
+                    stage_id=stage_id,
+                )
+                after_assignment = await self._build_inherited_stage_assignment(
+                    org_id=org_id,
+                    period_id=payload.period_id,
+                    stage_id=stage_id,
+                    stage_name=stage.name,
+                )
+                action = "stage_assignment_clear"
+                audit_ruleset_id = None
+            else:
+                assert payload.settings is not None
+                self._validate_settings(payload.settings)
+                persisted = await self.repo.upsert_stage_assignment(
+                    org_id=org_id,
+                    period_id=payload.period_id,
+                    stage_id=stage_id,
+                    settings_json=payload.settings.model_dump(mode="json", by_alias=True),
+                    source_ruleset_id=source_ruleset["id"] if source_ruleset else None,
+                    source_ruleset_name_snapshot=source_ruleset["name"] if source_ruleset else None,
+                )
+                after_assignment = self._build_assignment_response(
+                    {**persisted, "stage_name": stage.name}
+                )
+                action = "stage_assignment_update"
+                audit_ruleset_id = source_ruleset["id"] if source_ruleset else None
+
+            await self.repo.insert_settings_audit(
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action=action,
+                period_id=payload.period_id,
+                stage_id=stage_id,
+                ruleset_id=audit_ruleset_id,
+                before_json=before_assignment.settings.model_dump(mode="json", by_alias=True),
+                after_json=after_assignment.settings.model_dump(mode="json", by_alias=True),
+            )
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
+
+        return after_assignment
+
+    async def create_ruleset(
+        self,
+        *,
+        context: AuthContext,
+        payload: ComprehensiveRulesetUpsertRequest,
+    ) -> ComprehensiveRulesetTemplate:
+        org_id = self._require_org(context)
+        actor_user_id = self._require_user_id(context)
+        self._require_write_role(context)
+
+        name = payload.name.strip()
+        if not name:
+            raise BadRequestError("name is required")
+        self._validate_settings(payload.settings)
+
+        existing = await self.repo.get_ruleset_by_name(org_id=org_id, name=name)
+        if existing is not None:
+            raise BadRequestError("Ruleset name already exists")
+
+        is_first_ruleset = await self.repo.count_rulesets(org_id=org_id) == 0
+        should_be_default = payload.is_default_template or is_first_ruleset
+
+        try:
+            created = await self.repo.create_ruleset(
+                org_id=org_id,
+                name=name,
+                settings_json=payload.settings.model_dump(mode="json", by_alias=True),
+                is_default_template=should_be_default,
+            )
+            response = self._build_ruleset_response(created)
+            await self.repo.insert_settings_audit(
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="ruleset_create",
+                ruleset_id=response.id,
+                before_json=None,
+                after_json=response.settings.model_dump(mode="json", by_alias=True),
+            )
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
+
+        return response
+
+    async def update_ruleset(
+        self,
+        *,
+        context: AuthContext,
+        ruleset_id: UUID,
+        payload: ComprehensiveRulesetUpsertRequest,
+    ) -> ComprehensiveRulesetTemplate:
+        org_id = self._require_org(context)
+        actor_user_id = self._require_user_id(context)
+        self._require_write_role(context)
+
+        existing = await self.repo.get_ruleset_by_id(org_id=org_id, ruleset_id=ruleset_id)
+        if existing is None:
+            raise NotFoundError("Ruleset not found")
+
+        name = payload.name.strip()
+        if not name:
+            raise BadRequestError("name is required")
+        self._validate_settings(payload.settings)
+
+        duplicate = await self.repo.get_ruleset_by_name(org_id=org_id, name=name)
+        if duplicate is not None and duplicate["id"] != ruleset_id:
+            raise BadRequestError("Ruleset name already exists")
+
+        if existing.get("is_default_template") and not payload.is_default_template:
+            raise BadRequestError("Default ruleset cannot be unset directly")
+
+        try:
+            updated = await self.repo.update_ruleset(
+                org_id=org_id,
+                ruleset_id=ruleset_id,
+                name=name,
+                settings_json=payload.settings.model_dump(mode="json", by_alias=True),
+                is_default_template=payload.is_default_template or bool(existing.get("is_default_template")),
+            )
+            if updated is None:
+                raise NotFoundError("Ruleset not found")
+            response = self._build_ruleset_response(updated)
+            await self.repo.insert_settings_audit(
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="ruleset_update",
+                ruleset_id=ruleset_id,
+                before_json=self._settings_json_from_record(existing),
+                after_json=response.settings.model_dump(mode="json", by_alias=True),
+            )
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
+
+        return response
+
+    async def delete_ruleset(
+        self,
+        *,
+        context: AuthContext,
+        ruleset_id: UUID,
+    ) -> None:
+        org_id = self._require_org(context)
+        actor_user_id = self._require_user_id(context)
+        self._require_write_role(context)
+
+        existing = await self.repo.get_ruleset_by_id(org_id=org_id, ruleset_id=ruleset_id)
+        if existing is None:
+            raise NotFoundError("Ruleset not found")
+        if existing.get("is_default_template"):
+            raise BadRequestError("Default ruleset cannot be deleted")
+
+        try:
+            deleted = await self.repo.delete_ruleset(org_id=org_id, ruleset_id=ruleset_id)
+            if not deleted:
+                raise NotFoundError("Ruleset not found")
+            await self.repo.insert_settings_audit(
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="ruleset_delete",
+                ruleset_id=ruleset_id,
+                before_json=self._settings_json_from_record(existing),
+                after_json=None,
+            )
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
 
     async def finalize_evaluation_period(
         self,
@@ -199,19 +627,6 @@ class ComprehensiveEvaluationService:
                 "Only draft, active, or completed evaluation periods can be finalized"
             )
 
-        _, total_users = await self.repo.list_rows(
-            org_id=org_id,
-            period_id=period_id,
-            user_id=None,
-            department_id=None,
-            stage_id=None,
-            employment_type=None,
-            search=None,
-            processing_status=None,
-            page=1,
-            limit=1,
-        )
-
         try:
             if previous_status != "completed":
                 await self.period_repo.update_status(period_id, EvaluationPeriodStatus.COMPLETED, org_id)
@@ -224,7 +639,7 @@ class ComprehensiveEvaluationService:
             periodId=period_id,
             previousStatus=previous_status,
             currentStatus="completed",
-            totalUsers=total_users,
+            totalUsers=0,
             updatedUserLevels=0,
         )
 
@@ -242,7 +657,10 @@ class ComprehensiveEvaluationService:
         period = await self._ensure_period_exists(period_id, org_id)
         self._ensure_period_allows_user_processing(period)
 
-        settings = await self.get_settings(context=context)
+        default_settings, settings_by_department, settings_by_stage = await self._get_period_settings_map(
+            org_id=org_id,
+            period_id=period_id,
+        )
         row_items, _ = await self.repo.list_rows(
             org_id=org_id,
             period_id=period_id,
@@ -261,7 +679,13 @@ class ComprehensiveEvaluationService:
         row = self._build_row_from_repo_item(
             item=row_items[0],
             period_id=period_id,
-            settings=settings,
+            settings=self._resolve_settings_for_assignment_target(
+                department_id=row_items[0].get("department_id"),
+                stage_id=row_items[0].get("stage_id"),
+                default_settings=default_settings,
+                settings_by_department=settings_by_department,
+                settings_by_stage=settings_by_stage,
+            ),
         )
         applied_state = row.applied
 
@@ -534,6 +958,394 @@ class ComprehensiveEvaluationService:
         )
         return ComprehensiveManualDecisionHistoryResponse(items=items, meta=meta)
 
+    async def ensure_period_default_assignment_seeded(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+    ) -> None:
+        default_ruleset = await self.repo.get_default_ruleset(org_id=org_id)
+        if default_ruleset is None:
+            default_settings = self._build_default_settings()
+            default_ruleset = await self.repo.create_default_ruleset_if_missing(
+                org_id=org_id,
+                settings_json=default_settings.model_dump(mode="json", by_alias=True),
+            )
+
+        await self.repo.ensure_period_default_assignment(
+            org_id=org_id,
+            period_id=period_id,
+            settings_json=self._settings_json_from_record(default_ruleset),
+            source_ruleset_id=default_ruleset.get("id"),
+            source_ruleset_name_snapshot=default_ruleset.get("name"),
+        )
+
+    async def _get_period_settings_map(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+    ) -> Tuple[
+        ComprehensiveEvaluationSettings,
+        Dict[UUID, ComprehensiveEvaluationSettings],
+        Dict[UUID, ComprehensiveEvaluationSettings],
+    ]:
+        assignment_rows = await self.repo.list_period_assignments(org_id=org_id, period_id=period_id)
+        default_record = next(
+            (
+                row
+                for row in assignment_rows
+                if row.get("department_id") is None and row.get("stage_id") is None
+            ),
+            None,
+        )
+
+        if default_record is None:
+            default_assignment = await self._build_fallback_default_assignment(
+                org_id=org_id,
+                period_id=period_id,
+            )
+            default_settings = default_assignment.settings
+        else:
+            default_settings = self._build_settings_from_json(default_record.get("settings_json"))
+
+        settings_by_department: Dict[UUID, ComprehensiveEvaluationSettings] = {}
+        settings_by_stage: Dict[UUID, ComprehensiveEvaluationSettings] = {}
+        for row in assignment_rows:
+            department_id = row.get("department_id")
+            stage_id = row.get("stage_id")
+            if department_id is not None:
+                settings_by_department[department_id] = self._build_settings_from_json(row.get("settings_json"))
+                continue
+            if stage_id is not None:
+                settings_by_stage[stage_id] = self._build_settings_from_json(row.get("settings_json"))
+
+        return default_settings, settings_by_department, settings_by_stage
+
+    def _resolve_settings_for_assignment_target(
+        self,
+        *,
+        department_id: Optional[UUID],
+        stage_id: Optional[UUID],
+        default_settings: ComprehensiveEvaluationSettings,
+        settings_by_department: Dict[UUID, ComprehensiveEvaluationSettings],
+        settings_by_stage: Dict[UUID, ComprehensiveEvaluationSettings],
+    ) -> ComprehensiveEvaluationSettings:
+        # Department overrides are the most specific target.
+        if department_id is not None and department_id in settings_by_department:
+            return settings_by_department[department_id]
+        if stage_id is not None and stage_id in settings_by_stage:
+            return settings_by_stage[stage_id]
+        return default_settings
+
+    async def _build_fallback_default_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        templates_raw: Optional[List[Dict[str, Any]]] = None,
+    ) -> ComprehensiveRulesetAssignment:
+        templates = templates_raw if templates_raw is not None else await self.repo.list_rulesets(org_id=org_id)
+        default_template = next((item for item in templates if item.get("is_default_template")), None)
+
+        if default_template is not None:
+            settings = self._build_settings_from_json(default_template.get("settings_json"))
+            source_ruleset_id = default_template.get("id")
+            source_ruleset_name = default_template.get("name")
+        else:
+            settings = self._build_default_settings()
+            source_ruleset_id = None
+            source_ruleset_name = None
+
+        return ComprehensiveRulesetAssignment(
+            periodId=period_id,
+            settings=settings,
+            sourceRulesetId=source_ruleset_id,
+            sourceRulesetNameSnapshot=source_ruleset_name,
+            inheritsDefault=False,
+        )
+
+    def _build_ruleset_response(self, record: Dict[str, Any]) -> ComprehensiveRulesetTemplate:
+        return ComprehensiveRulesetTemplate(
+            id=record["id"],
+            name=record["name"],
+            settings=self._build_settings_from_json(record.get("settings_json")),
+            isDefaultTemplate=bool(record.get("is_default_template")),
+            createdAt=record["created_at"],
+            updatedAt=record["updated_at"],
+        )
+
+    def _build_assignment_response(self, record: Dict[str, Any]) -> ComprehensiveRulesetAssignment:
+        return ComprehensiveRulesetAssignment(
+            id=record.get("id"),
+            periodId=record["period_id"],
+            departmentId=record.get("department_id"),
+            departmentName=record.get("department_name"),
+            stageId=record.get("stage_id"),
+            stageName=record.get("stage_name"),
+            settings=self._build_settings_from_json(record.get("settings_json")),
+            sourceRulesetId=record.get("source_ruleset_id"),
+            sourceRulesetNameSnapshot=record.get("source_ruleset_name_snapshot"),
+            inheritsDefault=False,
+            createdAt=record.get("created_at"),
+            updatedAt=record.get("updated_at"),
+        )
+
+    async def _resolve_source_ruleset(
+        self,
+        *,
+        org_id: str,
+        source_ruleset_id: Optional[UUID],
+    ) -> Optional[Dict[str, Any]]:
+        if source_ruleset_id is None:
+            return None
+
+        ruleset = await self.repo.get_ruleset_by_id(org_id=org_id, ruleset_id=source_ruleset_id)
+        if ruleset is None:
+            raise NotFoundError("Ruleset not found")
+        return ruleset
+
+    async def _get_default_assignment_for_audit(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+    ) -> ComprehensiveRulesetAssignment:
+        assignment = await self.repo.get_assignment(
+            org_id=org_id,
+            period_id=period_id,
+            department_id=None,
+            stage_id=None,
+        )
+        if assignment is not None:
+            return self._build_assignment_response(assignment)
+        return await self._build_fallback_default_assignment(org_id=org_id, period_id=period_id)
+
+    async def _get_department_assignment_for_audit(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        department_id: UUID,
+        department_name: str,
+    ) -> ComprehensiveRulesetAssignment:
+        assignment = await self.repo.get_assignment(
+            org_id=org_id,
+            period_id=period_id,
+            department_id=department_id,
+            stage_id=None,
+        )
+        if assignment is not None:
+            return self._build_assignment_response({**assignment, "department_name": department_name})
+        return await self._build_inherited_department_assignment(
+            org_id=org_id,
+            period_id=period_id,
+            department_id=department_id,
+            department_name=department_name,
+        )
+
+    async def _build_inherited_department_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        department_id: UUID,
+        department_name: str,
+    ) -> ComprehensiveRulesetAssignment:
+        default_assignment = await self._get_default_assignment_for_audit(
+            org_id=org_id,
+            period_id=period_id,
+        )
+        return ComprehensiveRulesetAssignment(
+            periodId=period_id,
+            departmentId=department_id,
+            departmentName=department_name,
+            settings=default_assignment.settings,
+            sourceRulesetId=default_assignment.source_ruleset_id,
+            sourceRulesetNameSnapshot=default_assignment.source_ruleset_name_snapshot,
+            inheritsDefault=True,
+        )
+
+    async def _get_stage_assignment_for_audit(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        stage_id: UUID,
+        stage_name: str,
+    ) -> ComprehensiveRulesetAssignment:
+        assignment = await self.repo.get_assignment(
+            org_id=org_id,
+            period_id=period_id,
+            department_id=None,
+            stage_id=stage_id,
+        )
+        if assignment is not None:
+            return self._build_assignment_response({**assignment, "stage_name": stage_name})
+        return await self._build_inherited_stage_assignment(
+            org_id=org_id,
+            period_id=period_id,
+            stage_id=stage_id,
+            stage_name=stage_name,
+        )
+
+    async def _build_inherited_stage_assignment(
+        self,
+        *,
+        org_id: str,
+        period_id: UUID,
+        stage_id: UUID,
+        stage_name: str,
+    ) -> ComprehensiveRulesetAssignment:
+        default_assignment = await self._get_default_assignment_for_audit(
+            org_id=org_id,
+            period_id=period_id,
+        )
+        return ComprehensiveRulesetAssignment(
+            periodId=period_id,
+            stageId=stage_id,
+            stageName=stage_name,
+            settings=default_assignment.settings,
+            sourceRulesetId=default_assignment.source_ruleset_id,
+            sourceRulesetNameSnapshot=default_assignment.source_ruleset_name_snapshot,
+            inheritsDefault=True,
+        )
+
+    def _build_settings_from_json(self, settings_json: Optional[Dict[str, Any]]) -> ComprehensiveEvaluationSettings:
+        if not settings_json:
+            return self._build_default_settings()
+
+        try:
+            settings = ComprehensiveEvaluationSettings.model_validate(settings_json)
+        except Exception as exc:
+            logger.warning("Failed to parse comprehensive settings JSON, using defaults: %s", exc)
+            settings = self._build_default_settings()
+
+        self._validate_settings(settings)
+        return settings
+
+    def _build_default_settings(self) -> ComprehensiveEvaluationSettings:
+        return ComprehensiveEvaluationSettings(
+            promotion={
+                "ruleGroups": [
+                    {
+                        "id": "promotion-default",
+                        "conditions": [
+                            {"type": "rank_at_least", "field": "overallRank", "minimumRank": "A+"},
+                            {"type": "rank_at_least", "field": "competencyFinalRank", "minimumRank": "A+"},
+                            {"type": "rank_at_least", "field": "coreValueFinalRank", "minimumRank": "A+"},
+                        ],
+                    }
+                ]
+            },
+            demotion={
+                "ruleGroups": [
+                    {
+                        "id": "demotion-default",
+                        "conditions": [
+                            {"type": "rank_at_or_worse", "field": "overallRank", "thresholdRank": "D"},
+                        ],
+                    }
+                ]
+            },
+            overallScoreThresholds=dict(DEFAULT_THRESHOLDS),
+            levelDeltaByOverallRank=dict(DEFAULT_LEVEL_DELTAS),
+        )
+
+    def _settings_json_from_record(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        settings_json = record.get("settings_json")
+        if settings_json:
+            return settings_json
+        return self._build_default_settings().model_dump(mode="json", by_alias=True)
+
+    def _filter_export_rows(
+        self,
+        *,
+        rows: Sequence[ComprehensiveEvaluationRow],
+        department_name: Optional[str],
+        stage_name: Optional[str],
+    ) -> List[ComprehensiveEvaluationRow]:
+        normalized_department_name = self._normalize_optional_filter_value(department_name)
+        normalized_stage_name = self._normalize_optional_filter_value(stage_name)
+
+        filtered_rows: List[ComprehensiveEvaluationRow] = []
+        for row in rows:
+            row_department_name = self._normalize_optional_filter_value(row.department_name)
+            row_stage_name = self._normalize_optional_filter_value(row.current_stage)
+
+            if (
+                normalized_department_name is not None
+                and row_department_name != normalized_department_name
+            ):
+                continue
+
+            if normalized_stage_name is not None and row_stage_name != normalized_stage_name:
+                continue
+
+            filtered_rows.append(row)
+
+        return filtered_rows
+
+    def _build_export_csv(
+        self,
+        *,
+        rows: Sequence[ComprehensiveEvaluationRow],
+        columns: Sequence[ComprehensiveEvaluationExportColumn],
+    ) -> str:
+        stream = io.StringIO(newline="")
+        writer = csv.writer(stream, lineterminator="\r\n")
+        writer.writerow([COMPREHENSIVE_EVALUATION_EXPORT_HEADERS[column] for column in columns])
+
+        for row in rows:
+            writer.writerow([self._get_export_cell_value(row=row, column=column) for column in columns])
+
+        return stream.getvalue()
+
+    def _get_export_cell_value(
+        self,
+        *,
+        row: ComprehensiveEvaluationRow,
+        column: ComprehensiveEvaluationExportColumn,
+    ) -> str:
+        if column == "employeeCode":
+            return row.employee_code
+        if column == "name":
+            return row.name
+        if column == "departmentName":
+            return row.department_name or "-"
+        if column == "employmentType":
+            return self._get_employment_type_label(row.employment_type)
+        if column == "currentStage":
+            return row.current_stage or "-"
+        if column == "currentLevel":
+            return self._format_nullable_integer(row.current_level)
+        if column == "performanceFinalRank":
+            return row.performance_final_rank or "-"
+        if column == "performanceWeightPercent":
+            return self._format_nullable_number(row.performance_weight_percent)
+        if column == "competencyFinalRank":
+            return row.competency_final_rank or "-"
+        if column == "competencyWeightPercent":
+            return self._format_nullable_number(row.competency_weight_percent)
+        if column == "coreValueFinalRank":
+            return row.core_value_final_rank or "-"
+        if column == "totalScore":
+            return self._format_nullable_number(row.applied.total_score, digits=2)
+        if column == "overallRank":
+            return row.applied.overall_rank or "-"
+        if column == "newLevel":
+            return self._format_nullable_integer(row.applied.new_level)
+        if column == "promotionDemotionFlag":
+            return self._get_promotion_demotion_flag_label(
+                promotion_flag=row.applied.promotion_flag,
+                demotion_flag=row.applied.demotion_flag,
+                has_manual_decision=row.manual_decision is not None,
+            )
+        if column == "processingStatus":
+            return self._get_processing_status_label(row.processing_status)
+
+        raise ValueError(f"Unsupported export column: {column}")
+
     def _build_row_from_repo_item(
         self,
         *,
@@ -583,6 +1395,7 @@ class ComprehensiveEvaluationService:
 
         rule_context = {
             "overallRank": overall_rank,
+            "performanceFinalRank": performance_rank,
             "competencyFinalRank": competency_rank,
             "coreValueFinalRank": core_value_rank,
         }
@@ -598,8 +1411,6 @@ class ComprehensiveEvaluationService:
 
         promotion_flag = (
             employment == "employee"
-            and new_level is not None
-            and new_level >= 30
             and promotion_rule_hit
         )
         demotion_flag = demotion_rule_hit
@@ -619,8 +1430,8 @@ class ComprehensiveEvaluationService:
             levelDelta=level_delta,
             newStage=new_stage,
             newLevel=new_level,
-            isPromotionCandidate=promotion_flag,
-            isDemotionCandidate=demotion_flag,
+            isPromotionCandidate=promotion_rule_hit,
+            isDemotionCandidate=demotion_rule_hit,
         )
 
         manual_decision = None
@@ -669,7 +1480,6 @@ class ComprehensiveEvaluationService:
             applied=applied_state,
             manualDecision=manual_decision,
         )
-
     def _build_settings_from_rules(self, rule_data: Dict[str, List[Dict]]) -> ComprehensiveEvaluationSettings:
         overall_rules = sorted(
             rule_data.get("overall_rules", []),
@@ -847,19 +1657,14 @@ class ComprehensiveEvaluationService:
         values: Dict[str, Optional[EvaluationRank]],
     ) -> bool:
         for group in groups:
-            evaluated_count = 0
             all_passed = True
             for condition in group.conditions:
                 actual = values.get(condition.field)
-                if actual is None:
-                    continue
-
-                evaluated_count += 1
-                if not self._is_rank_at_least(actual, condition.minimum_rank):
+                if actual is None or not self._is_rank_at_least(actual, condition.minimum_rank):
                     all_passed = False
                     break
 
-            if evaluated_count > 0 and all_passed:
+            if all_passed:
                 return True
         return False
 
@@ -869,19 +1674,14 @@ class ComprehensiveEvaluationService:
         values: Dict[str, Optional[EvaluationRank]],
     ) -> bool:
         for group in groups:
-            evaluated_count = 0
             all_passed = True
             for condition in group.conditions:
                 actual = values.get(condition.field)
-                if actual is None:
-                    continue
-
-                evaluated_count += 1
-                if not self._is_rank_at_or_worse(actual, condition.threshold_rank):
+                if actual is None or not self._is_rank_at_or_worse(actual, condition.threshold_rank):
                     all_passed = False
                     break
 
-            if evaluated_count > 0 and all_passed:
+            if all_passed:
                 return True
         return False
 
@@ -964,6 +1764,50 @@ class ComprehensiveEvaluationService:
             return "降格"
         return "対象外"
 
+    def _get_employment_type_label(self, employment_type: str) -> str:
+        return "正社員" if employment_type == "employee" else "パート"
+
+    def _get_processing_status_label(self, processing_status: str) -> str:
+        return "処理済" if processing_status == "processed" else "未処理"
+
+    def _get_promotion_demotion_flag_label(
+        self,
+        *,
+        promotion_flag: bool,
+        demotion_flag: bool,
+        has_manual_decision: bool,
+    ) -> str:
+        if promotion_flag and demotion_flag:
+            label = "昇格/降格"
+        elif promotion_flag:
+            label = "昇格"
+        elif demotion_flag:
+            label = "降格"
+        else:
+            label = "-"
+
+        if has_manual_decision:
+            return f"{label}（手動）"
+
+        return label
+
+    def _format_nullable_number(self, value: Optional[float], *, digits: Optional[int] = None) -> str:
+        if value is None:
+            return "-"
+
+        if digits is not None:
+            return f"{float(value):.{digits}f}"
+
+        numeric_value = float(value)
+        if numeric_value.is_integer():
+            return str(int(numeric_value))
+        return format(numeric_value, "g")
+
+    def _format_nullable_integer(self, value: Optional[int]) -> str:
+        if value is None:
+            return "-"
+        return str(int(value))
+
     def _rank_from_score(
         self,
         score: Optional[float],
@@ -989,19 +1833,28 @@ class ComprehensiveEvaluationService:
             raise NotFoundError("Evaluation period not found")
         return period
 
+    def _ensure_period_allows_settings_mutation(self, period) -> None:
+        if self._is_settings_locked(period):
+            raise BadRequestError("Cannot modify settings for completed or cancelled evaluation periods")
+
     def _ensure_period_allows_manual_decision(self, period) -> None:
         status = self._get_period_status(period)
         if status == "cancelled":
             raise BadRequestError("Cannot modify manual decisions for cancelled evaluation periods")
+        if status != "completed":
+            raise BadRequestError("Manual decisions are allowed only after finalization")
 
     def _ensure_period_allows_user_processing(self, period) -> None:
         status = self._get_period_status(period)
-        if status == "cancelled":
-            raise BadRequestError("Cannot process evaluations for cancelled evaluation periods")
+        if status in {"completed", "cancelled"}:
+            raise BadRequestError("Cannot process evaluations for completed or cancelled evaluation periods")
 
     def _get_period_status(self, period) -> str:
         status = getattr(period.status, "value", period.status)
         return str(status).lower()
+
+    def _is_settings_locked(self, period) -> bool:
+        return self._get_period_status(period) in {"completed", "cancelled"}
 
     def _require_read_role(self, context: AuthContext) -> None:
         if not context.has_any_role(["admin", "eval_admin"]):
@@ -1063,4 +1916,11 @@ class ComprehensiveEvaluationService:
         if stage_name is None:
             return None
         normalized = stage_name.strip()
+        return normalized if normalized else None
+
+    def _normalize_optional_filter_value(self, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        normalized = value.strip()
         return normalized if normalized else None

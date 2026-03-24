@@ -7,13 +7,13 @@ export type ComprehensiveDecision = '昇格' | '降格' | '対象外';
 
 export interface ComprehensivePromotionRuleCondition {
   type: 'rank_at_least';
-  field: 'overallRank' | 'competencyFinalRank' | 'coreValueFinalRank';
+  field: 'overallRank' | 'performanceFinalRank' | 'competencyFinalRank' | 'coreValueFinalRank';
   minimumRank: ComprehensiveEvaluationRank;
 }
 
 export interface ComprehensiveDemotionRuleCondition {
   type: 'rank_at_or_worse';
-  field: 'overallRank' | 'competencyFinalRank' | 'coreValueFinalRank';
+  field: 'overallRank' | 'performanceFinalRank' | 'competencyFinalRank' | 'coreValueFinalRank';
   thresholdRank: ComprehensiveEvaluationRank;
 }
 
@@ -27,7 +27,7 @@ export interface ComprehensiveDemotionRuleGroup {
   conditions: ComprehensiveDemotionRuleCondition[];
 }
 
-export interface ComprehensiveEvaluationSettingsResponse {
+export interface ComprehensiveEvaluationSettingsPayload {
   promotion: {
     ruleGroups: ComprehensivePromotionRuleGroup[];
   };
@@ -38,7 +38,65 @@ export interface ComprehensiveEvaluationSettingsResponse {
   levelDeltaByOverallRank: Record<ComprehensiveEvaluationRank, number>;
 }
 
-export type ComprehensiveEvaluationSettingsRequest = ComprehensiveEvaluationSettingsResponse;
+export type ComprehensiveEvaluationSettingsResponse = ComprehensiveEvaluationSettingsPayload;
+export type ComprehensiveEvaluationSettingsRequest = ComprehensiveEvaluationSettingsPayload;
+
+export interface ComprehensiveRulesetTemplateResponse {
+  id: UUID;
+  name: string;
+  settings: ComprehensiveEvaluationSettingsPayload;
+  isDefaultTemplate: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ComprehensiveRulesetAssignmentResponse {
+  id?: UUID;
+  periodId: UUID;
+  departmentId: UUID | null;
+  departmentName?: string | null;
+  stageId: UUID | null;
+  stageName?: string | null;
+  settings: ComprehensiveEvaluationSettingsPayload;
+  sourceRulesetId: UUID | null;
+  sourceRulesetNameSnapshot: string | null;
+  inheritsDefault: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface ComprehensiveEvaluationSettingsWorkspaceResponse {
+  locked: boolean;
+  templates: ComprehensiveRulesetTemplateResponse[];
+  defaultAssignment: ComprehensiveRulesetAssignmentResponse;
+  departmentAssignments: ComprehensiveRulesetAssignmentResponse[];
+  stageAssignments: ComprehensiveRulesetAssignmentResponse[];
+}
+
+export interface GetComprehensiveEvaluationSettingsWorkspaceParams {
+  periodId: UUID;
+}
+
+export interface UpdateComprehensiveDefaultAssignmentRequest {
+  periodId: UUID;
+  settings: ComprehensiveEvaluationSettingsPayload;
+  sourceRulesetId?: UUID;
+}
+
+export interface UpdateComprehensiveDepartmentAssignmentRequest {
+  periodId: UUID;
+  inheritDefault?: boolean;
+  settings?: ComprehensiveEvaluationSettingsPayload;
+  sourceRulesetId?: UUID;
+}
+
+export type UpdateComprehensiveStageAssignmentRequest = UpdateComprehensiveDepartmentAssignmentRequest;
+
+export interface UpsertComprehensiveRulesetRequest {
+  name: string;
+  settings: ComprehensiveEvaluationSettingsPayload;
+  isDefaultTemplate?: boolean;
+}
 
 export interface ComprehensiveEvaluationComputedState {
   totalScore: number | null;
@@ -110,6 +168,24 @@ export interface ComprehensiveEvaluationListResponse {
   meta: ComprehensiveEvaluationListMeta;
 }
 
+export type ComprehensiveEvaluationExportColumn =
+  | 'employeeCode'
+  | 'name'
+  | 'departmentName'
+  | 'employmentType'
+  | 'currentStage'
+  | 'currentLevel'
+  | 'performanceFinalRank'
+  | 'performanceWeightPercent'
+  | 'competencyFinalRank'
+  | 'competencyWeightPercent'
+  | 'coreValueFinalRank'
+  | 'totalScore'
+  | 'overallRank'
+  | 'newLevel'
+  | 'promotionDemotionFlag'
+  | 'processingStatus';
+
 export interface GetComprehensiveEvaluationListParams {
   periodId: UUID;
   departmentId?: UUID;
@@ -120,6 +196,18 @@ export interface GetComprehensiveEvaluationListParams {
   candidateView?: boolean;
   page?: number;
   limit?: number;
+}
+
+export interface ExportComprehensiveEvaluationRequest {
+  periodId: UUID;
+  departmentId?: UUID;
+  stageId?: UUID;
+  departmentName?: string;
+  stageName?: string;
+  employmentType?: ComprehensiveEmploymentType;
+  search?: string;
+  processingStatus?: ComprehensiveProcessingStatus;
+  columns: ComprehensiveEvaluationExportColumn[];
 }
 
 export interface FinalizeComprehensiveEvaluationRequest {

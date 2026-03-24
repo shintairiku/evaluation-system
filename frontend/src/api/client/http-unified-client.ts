@@ -525,6 +525,15 @@ class UnifiedHttpClient {
         `API request failed: ${response.url}`
       );
       logError(appError, 'HTTP Client - API Error');
+
+      if (response.status >= 400 && response.status < 500) {
+        return {
+          success: false,
+          errorMessage,
+          error: errorMessage,
+          data: data as T,
+        };
+      }
       
       return {
         success: false,

@@ -7,10 +7,14 @@ import pytest
 from app.core.exceptions import BadRequestError, PermissionDeniedError
 from app.database.models.evaluation import EvaluationPeriodStatus
 from app.schemas.comprehensive_evaluation import (
+    ComprehensiveDefaultAssignmentUpdateRequest,
     ComprehensiveEvaluationComputedState,
+    ComprehensiveEvaluationExportRequest,
+    ComprehensiveEvaluationRow,
     ComprehensiveEvaluationSettings,
     ComprehensiveManualDecisionUpsertRequest,
     ComprehensiveManualDecisionResponse,
+    ComprehensiveStageAssignmentUpdateRequest,
     DemotionRuleCondition,
     DemotionRuleGroup,
     DemotionRuleSettings,
@@ -94,17 +98,41 @@ def make_context(*, role_name: str) -> AuthContext:
     )
 
 
-def test_promotion_groups_ignore_unknown_fields_but_require_evaluated_condition():
+def test_promotion_groups_fail_when_a_required_rank_is_unknown():
     service = ComprehensiveEvaluationService(AsyncMock())
     settings = build_settings()
 
-    # coreValueFinalRank is unknown (None), but other evaluated conditions pass.
     result = service._evaluate_promotion_groups(
         settings.promotion.rule_groups,
         {
             "overallRank": "A+",
+            "performanceFinalRank": "A+",
             "competencyFinalRank": "A+",
             "coreValueFinalRank": None,
+        },
+    )
+
+    assert result is False
+
+
+def test_promotion_groups_support_performance_final_rank():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    settings = build_settings()
+    settings.promotion.rule_groups[0].conditions = [
+        PromotionRuleCondition(
+            type="rank_at_least",
+            field="performanceFinalRank",
+            minimumRank="A+",
+        )
+    ]
+
+    result = service._evaluate_promotion_groups(
+        settings.promotion.rule_groups,
+        {
+            "overallRank": "B",
+            "performanceFinalRank": "A+",
+            "competencyFinalRank": "B",
+            "coreValueFinalRank": "B",
         },
     )
 
@@ -115,11 +143,11 @@ def test_demotion_groups_require_at_least_one_evaluated_condition():
     service = ComprehensiveEvaluationService(AsyncMock())
     settings = build_settings()
 
-    # No condition can be evaluated -> group must fail by spec.
     result = service._evaluate_demotion_groups(
         settings.demotion.rule_groups,
         {
             "overallRank": None,
+            "performanceFinalRank": None,
             "competencyFinalRank": None,
             "coreValueFinalRank": None,
         },
@@ -253,13 +281,124 @@ async def test_get_comprehensive_evaluation_candidate_view_denies_admin():
 
 
 @pytest.mark.asyncio
+async def test_export_comprehensive_evaluation_csv_denies_admin():
+    service = ComprehensiveEvaluationService(AsyncMock())
+
+    with pytest.raises(PermissionDeniedError, match="eval_admin"):
+        await service.export_comprehensive_evaluation_csv(
+            context=make_context(role_name="admin"),
+            payload=ComprehensiveEvaluationExportRequest(
+                periodId=uuid4(),
+                columns=["employeeCode"],
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_export_comprehensive_evaluation_csv_formats_selected_columns():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_id = uuid4()
+    user_id = uuid4()
+
+    service.get_comprehensive_evaluation = AsyncMock(
+        return_value=SimpleNamespace(
+            rows=[
+                ComprehensiveEvaluationRow(
+                    id=f"{period_id}:{user_id}",
+                    userId=user_id,
+                    evaluationPeriodId=period_id,
+                    employeeCode="E001",
+                    name="Export User",
+                    departmentName="Engineering",
+                    employmentType="employee",
+                    processingStatus="processed",
+                    performanceFinalRank="A+",
+                    performanceWeightPercent=100,
+                    performanceScore=4.5,
+                    competencyFinalRank="A",
+                    competencyWeightPercent=30,
+                    competencyScore=0.42,
+                    coreValueFinalRank=None,
+                    leaderInterviewCleared=None,
+                    divisionHeadPresentationCleared=None,
+                    ceoInterviewCleared=None,
+                    currentStage="STAGE4",
+                    currentLevel=24,
+                    auto=ComprehensiveEvaluationComputedState(
+                        totalScore=4.92,
+                        overallRank="A+",
+                        decision="昇格",
+                        promotionFlag=True,
+                        demotionFlag=False,
+                        stageDelta=0,
+                        levelDelta=6,
+                        newStage="STAGE4",
+                        newLevel=30,
+                        isPromotionCandidate=True,
+                        isDemotionCandidate=False,
+                    ),
+                    applied=ComprehensiveEvaluationComputedState(
+                        totalScore=4.92,
+                        overallRank="A+",
+                        decision="昇格",
+                        promotionFlag=True,
+                        demotionFlag=False,
+                        stageDelta=1,
+                        levelDelta=6,
+                        newStage="STAGE5",
+                        newLevel=30,
+                        isPromotionCandidate=True,
+                        isDemotionCandidate=False,
+                    ),
+                    manualDecision=ComprehensiveManualDecisionResponse(
+                        periodId=period_id,
+                        decision="昇格",
+                        stageAfter="STAGE5",
+                        levelAfter=30,
+                        reason="manual adjustment",
+                        appliedByUserId=uuid4(),
+                        appliedAt="2026-03-01T00:00:00+00:00",
+                    ),
+                )
+            ],
+            meta=SimpleNamespace(total=1),
+        )
+    )
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+
+    csv_text = await service.export_comprehensive_evaluation_csv(
+        context=make_context(role_name="eval_admin"),
+        payload=ComprehensiveEvaluationExportRequest(
+            periodId=period_id,
+            departmentName="Engineering",
+            stageName="STAGE4",
+            columns=[
+                "employeeCode",
+                "employmentType",
+                "currentLevel",
+                "totalScore",
+                "newLevel",
+                "promotionDemotionFlag",
+                "processingStatus",
+            ],
+        ),
+    )
+
+    assert csv_text == (
+        "社員番号,雇用形態,現在レベル,合計（点）,反映後レベル,昇格/降格フラグ,処理状態\r\n"
+        "E001,正社員,24,4.92,30,昇格（手動）,処理済\r\n"
+    )
+    service.get_comprehensive_evaluation.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_category_rank_uses_raw_score_not_weighted_contribution():
     service = ComprehensiveEvaluationService(AsyncMock())
     settings = build_settings()
     period_id = uuid4()
     user_id = uuid4()
 
-    service.get_settings = AsyncMock(return_value=settings)
+    service._get_period_settings_map = AsyncMock(return_value=(settings, {}, {}))
     service.period_repo.get_by_id = AsyncMock(return_value=object())
     service.repo.list_rows = AsyncMock(
         return_value=(
@@ -267,6 +406,7 @@ async def test_category_rank_uses_raw_score_not_weighted_contribution():
                 {
                     "id": f"{period_id}:{user_id}",
                     "user_id": user_id,
+                    "department_id": None,
                     "employee_code": "E001",
                     "name": "Test User",
                     "department_name": "Engineering",
@@ -308,6 +448,410 @@ async def test_category_rank_uses_raw_score_not_weighted_contribution():
     assert row.competency_final_rank == "A+"
     assert row.competency_score == pytest.approx(0.52)
     assert row.auto.total_score == pytest.approx(4.92)
+
+
+@pytest.mark.asyncio
+async def test_promotion_flag_uses_rule_hit_even_when_new_level_is_below_30():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    settings = build_settings()
+    period_id = uuid4()
+    user_id = uuid4()
+
+    service._get_period_settings_map = AsyncMock(return_value=(settings, {}, {}))
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_id}:{user_id}",
+                    "user_id": user_id,
+                    "department_id": None,
+                    "stage_id": uuid4(),
+                    "employee_code": "E001",
+                    "name": "Level Ten User",
+                    "department_name": "Engineering",
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 10,
+                    "performance_score": 4.5,
+                    "competency_score": 0.2,
+                    "core_value_score": None,
+                    "performance_raw_score": 4.5,
+                    "competency_raw_score": 4.7,
+                    "core_value_raw_score": 4.7,
+                    "current_stage": "STAGE4",
+                    "current_level": 10,
+                    "manual_decision": None,
+                }
+            ],
+            1,
+        )
+    )
+
+    result = await service.get_comprehensive_evaluation(
+        context=make_context(role_name="admin"),
+        period_id=period_id,
+        department_id=None,
+        stage_id=None,
+        employment_type=None,
+        search=None,
+        processing_status=None,
+        page=1,
+        limit=200,
+    )
+
+    row = result.rows[0]
+
+    assert row.auto.overall_rank == "A+"
+    assert row.auto.new_level == 16
+    assert row.auto.promotion_flag is True
+    assert row.auto.decision == "昇格"
+
+
+@pytest.mark.asyncio
+async def test_department_override_uses_department_specific_settings():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    default_settings = build_settings()
+    override_settings = build_settings()
+    period_id = uuid4()
+    override_department_id = uuid4()
+    user_a = uuid4()
+    user_b = uuid4()
+
+    override_settings.level_delta_by_overall_rank["A+"] = 42
+
+    service._get_period_settings_map = AsyncMock(
+        return_value=(default_settings, {override_department_id: override_settings}, {})
+    )
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_id}:{user_a}",
+                    "user_id": user_a,
+                    "department_id": override_department_id,
+                    "stage_id": uuid4(),
+                    "employee_code": "E001",
+                    "name": "Override User",
+                    "department_name": "Engineering",
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 0,
+                    "performance_score": 4.92,
+                    "performance_raw_score": 4.92,
+                    "competency_score": 0.0,
+                    "competency_raw_score": 0.0,
+                    "core_value_score": None,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 20,
+                    "manual_decision": None,
+                },
+                {
+                    "id": f"{period_id}:{user_b}",
+                    "user_id": user_b,
+                    "department_id": uuid4(),
+                    "stage_id": uuid4(),
+                    "employee_code": "E002",
+                    "name": "Default User",
+                    "department_name": "Sales",
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 0,
+                    "performance_score": 4.92,
+                    "performance_raw_score": 4.92,
+                    "competency_score": 0.0,
+                    "competency_raw_score": 0.0,
+                    "core_value_score": None,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 20,
+                    "manual_decision": None,
+                },
+            ],
+            2,
+        )
+    )
+
+    result = await service.get_comprehensive_evaluation(
+        context=make_context(role_name="admin"),
+        period_id=period_id,
+        department_id=None,
+        stage_id=None,
+        employment_type=None,
+        search=None,
+        processing_status=None,
+        page=1,
+        limit=200,
+    )
+
+    assert result.rows[0].auto.new_level == 62
+    assert result.rows[1].auto.new_level == 26
+
+
+@pytest.mark.asyncio
+async def test_same_department_can_use_different_settings_across_periods():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_a = uuid4()
+    period_b = uuid4()
+    department_id = uuid4()
+    user_id = uuid4()
+    default_settings = build_settings()
+    period_b_settings = build_settings()
+    period_b_settings.level_delta_by_overall_rank["A+"] = 15
+
+    service._get_period_settings_map = AsyncMock(
+        side_effect=[
+            (default_settings, {department_id: default_settings}, {}),
+            (default_settings, {department_id: period_b_settings}, {}),
+        ]
+    )
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_a}:{user_id}",
+                    "user_id": user_id,
+                    "department_id": department_id,
+                    "stage_id": uuid4(),
+                    "employee_code": "E001",
+                    "name": "Period User",
+                    "department_name": "Engineering",
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 0,
+                    "performance_score": 4.92,
+                    "performance_raw_score": 4.92,
+                    "competency_score": 0.0,
+                    "competency_raw_score": 0.0,
+                    "core_value_score": None,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 20,
+                    "manual_decision": None,
+                }
+            ],
+            1,
+        )
+    )
+
+    first = await service.get_comprehensive_evaluation(
+        context=make_context(role_name="admin"),
+        period_id=period_a,
+        department_id=None,
+        stage_id=None,
+        employment_type=None,
+        search=None,
+        processing_status=None,
+        page=1,
+        limit=200,
+    )
+    second = await service.get_comprehensive_evaluation(
+        context=make_context(role_name="admin"),
+        period_id=period_b,
+        department_id=None,
+        stage_id=None,
+        employment_type=None,
+        search=None,
+        processing_status=None,
+        page=1,
+        limit=200,
+    )
+
+    assert first.rows[0].auto.new_level == 26
+    assert second.rows[0].auto.new_level == 35
+
+
+@pytest.mark.asyncio
+async def test_stage_override_uses_stage_specific_settings():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    default_settings = build_settings()
+    override_settings = build_settings()
+    period_id = uuid4()
+    override_stage_id = uuid4()
+    user_a = uuid4()
+    user_b = uuid4()
+
+    override_settings.level_delta_by_overall_rank["A+"] = 18
+
+    service._get_period_settings_map = AsyncMock(
+        return_value=(default_settings, {}, {override_stage_id: override_settings})
+    )
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_id}:{user_a}",
+                    "user_id": user_a,
+                    "department_id": None,
+                    "stage_id": override_stage_id,
+                    "employee_code": "E010",
+                    "name": "Stage Override User",
+                    "department_name": None,
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 0,
+                    "performance_score": 4.92,
+                    "performance_raw_score": 4.92,
+                    "competency_score": 0.0,
+                    "competency_raw_score": 0.0,
+                    "core_value_score": None,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 20,
+                    "manual_decision": None,
+                },
+                {
+                    "id": f"{period_id}:{user_b}",
+                    "user_id": user_b,
+                    "department_id": None,
+                    "stage_id": uuid4(),
+                    "employee_code": "E011",
+                    "name": "Stage Default User",
+                    "department_name": None,
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 0,
+                    "performance_score": 4.92,
+                    "performance_raw_score": 4.92,
+                    "competency_score": 0.0,
+                    "competency_raw_score": 0.0,
+                    "core_value_score": None,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 20,
+                    "manual_decision": None,
+                },
+            ],
+            2,
+        )
+    )
+
+    result = await service.get_comprehensive_evaluation(
+        context=make_context(role_name="admin"),
+        period_id=period_id,
+        department_id=None,
+        stage_id=None,
+        employment_type=None,
+        search=None,
+        processing_status=None,
+        page=1,
+        limit=200,
+    )
+
+    assert result.rows[0].auto.new_level == 38
+    assert result.rows[1].auto.new_level == 26
+
+
+@pytest.mark.asyncio
+async def test_department_override_takes_precedence_over_stage_override():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    default_settings = build_settings()
+    stage_settings = build_settings()
+    department_settings = build_settings()
+    period_id = uuid4()
+    stage_id = uuid4()
+    department_id = uuid4()
+    user_id = uuid4()
+
+    stage_settings.level_delta_by_overall_rank["A+"] = 14
+    department_settings.level_delta_by_overall_rank["A+"] = 21
+
+    service._get_period_settings_map = AsyncMock(
+        return_value=(
+            default_settings,
+            {department_id: department_settings},
+            {stage_id: stage_settings},
+        )
+    )
+    service.period_repo.get_by_id = AsyncMock(return_value=object())
+    service.repo.list_rows = AsyncMock(
+        return_value=(
+            [
+                {
+                    "id": f"{period_id}:{user_id}",
+                    "user_id": user_id,
+                    "department_id": department_id,
+                    "stage_id": stage_id,
+                    "employee_code": "E012",
+                    "name": "Priority User",
+                    "department_name": "Engineering",
+                    "employment_type": "employee",
+                    "processing_status": "processed",
+                    "performance_weight_percent": 100,
+                    "competency_weight_percent": 0,
+                    "performance_score": 4.92,
+                    "performance_raw_score": 4.92,
+                    "competency_score": 0.0,
+                    "competency_raw_score": 0.0,
+                    "core_value_score": None,
+                    "core_value_raw_score": None,
+                    "current_stage": "STAGE4",
+                    "current_level": 20,
+                    "manual_decision": None,
+                }
+            ],
+            1,
+        )
+    )
+
+    result = await service.get_comprehensive_evaluation(
+        context=make_context(role_name="admin"),
+        period_id=period_id,
+        department_id=None,
+        stage_id=None,
+        employment_type=None,
+        search=None,
+        processing_status=None,
+        page=1,
+        limit=200,
+    )
+
+    assert result.rows[0].auto.new_level == 41
+
+
+@pytest.mark.asyncio
+async def test_update_default_assignment_rejects_completed_period():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+
+    with pytest.raises(BadRequestError, match="completed or cancelled"):
+        await service.update_default_assignment(
+            context=make_context(role_name="eval_admin"),
+            payload=ComprehensiveDefaultAssignmentUpdateRequest(
+                periodId=period_id,
+                settings=build_settings(),
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_update_stage_assignment_rejects_completed_period():
+    service = ComprehensiveEvaluationService(AsyncMock())
+    period_id = uuid4()
+
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
+
+    with pytest.raises(BadRequestError, match="completed or cancelled"):
+        await service.update_stage_assignment(
+            context=make_context(role_name="eval_admin"),
+            stage_id=uuid4(),
+            payload=ComprehensiveStageAssignmentUpdateRequest(
+                periodId=period_id,
+                settings=build_settings(),
+            ),
+        )
 
 
 @pytest.mark.asyncio
@@ -353,7 +897,7 @@ async def test_upsert_manual_decision_rejects_unprocessed_user():
     period_id = uuid4()
     user_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
     service.repo.is_user_processed = AsyncMock(return_value=False)
 
     payload = ComprehensiveManualDecisionUpsertRequest(
@@ -377,7 +921,7 @@ async def test_clear_manual_decision_rejects_unprocessed_user():
     period_id = uuid4()
     user_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
     service.repo.is_user_processed = AsyncMock(return_value=False)
 
     with pytest.raises(BadRequestError, match="must be processed"):
@@ -485,8 +1029,9 @@ async def test_finalize_period_marks_completed_without_bulk_level_updates():
     period_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
-    service.repo.list_rows = AsyncMock(return_value=([], 3))
+    service.get_comprehensive_evaluation = AsyncMock()
     service.user_repo.batch_update_user_levels = AsyncMock()
+    service.user_repo.batch_update_user_stages = AsyncMock()
     service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
 
     result = await service.finalize_evaluation_period(
@@ -494,7 +1039,9 @@ async def test_finalize_period_marks_completed_without_bulk_level_updates():
         period_id=period_id,
     )
 
+    service.get_comprehensive_evaluation.assert_not_awaited()
     service.user_repo.batch_update_user_levels.assert_not_awaited()
+    service.user_repo.batch_update_user_stages.assert_not_awaited()
     service.period_repo.update_status.assert_awaited_once_with(
         period_id,
         EvaluationPeriodStatus.COMPLETED,
@@ -504,7 +1051,7 @@ async def test_finalize_period_marks_completed_without_bulk_level_updates():
     assert result.previous_status == "active"
     assert result.current_status == "completed"
     assert result.updated_user_levels == 0
-    assert result.total_users == 3
+    assert result.total_users == 0
 
 
 @pytest.mark.asyncio
@@ -514,7 +1061,7 @@ async def test_finalize_period_allows_draft_status():
     period_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="draft"))
-    service.repo.list_rows = AsyncMock(return_value=([], 1))
+    service.get_comprehensive_evaluation = AsyncMock()
     service.period_repo.update_status = AsyncMock(return_value=SimpleNamespace(status="completed"))
 
     result = await service.finalize_evaluation_period(
@@ -539,7 +1086,7 @@ async def test_finalize_period_is_idempotent_when_already_completed():
     period_id = uuid4()
 
     service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
-    service.repo.list_rows = AsyncMock(return_value=([], 0))
+    service.get_comprehensive_evaluation = AsyncMock()
     service.period_repo.update_status = AsyncMock()
 
     result = await service.finalize_evaluation_period(
@@ -560,8 +1107,8 @@ async def test_process_user_evaluation_applies_computed_level_and_marks_processe
     period_id = uuid4()
     user_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
-    service.get_settings = AsyncMock(return_value=build_settings())
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service._get_period_settings_map = AsyncMock(return_value=(build_settings(), {}, {}))
     service.repo.list_rows = AsyncMock(
         return_value=(
             [
@@ -623,8 +1170,8 @@ async def test_process_user_evaluation_applies_manual_stage_and_clamped_level():
     user_id = uuid4()
     next_stage_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="completed"))
-    service.get_settings = AsyncMock(return_value=build_settings())
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="active"))
+    service._get_period_settings_map = AsyncMock(return_value=(build_settings(), {}, {}))
     service.repo.list_rows = AsyncMock(
         return_value=(
             [
@@ -676,13 +1223,14 @@ async def test_process_user_evaluation_applies_manual_stage_and_clamped_level():
 
 
 @pytest.mark.asyncio
-async def test_process_user_evaluation_rejects_cancelled_period():
+@pytest.mark.parametrize("period_status", ["completed", "cancelled"])
+async def test_process_user_evaluation_rejects_closed_period(period_status: str):
     service = ComprehensiveEvaluationService(AsyncMock())
     period_id = uuid4()
 
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status="cancelled"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(status=period_status))
 
-    with pytest.raises(BadRequestError, match="cancelled"):
+    with pytest.raises(BadRequestError, match="completed or cancelled"):
         await service.process_user_evaluation(
             context=make_context(role_name="eval_admin"),
             period_id=period_id,

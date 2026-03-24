@@ -9,6 +9,7 @@ from ..database.repositories.evaluation_period_repo import EvaluationPeriodRepos
 from ..database.repositories.goal_repo import GoalRepository
 from ..database.repositories.user_repo import UserRepository
 from ..database.models.evaluation import EvaluationPeriod as EvaluationPeriodModel, EvaluationPeriodStatus
+from ..services.comprehensive_evaluation_service import ComprehensiveEvaluationService
 from ..schemas.evaluation import (
     EvaluationPeriodCreate, EvaluationPeriodUpdate, EvaluationPeriod,
     EvaluationPeriodDetail, EvaluationPeriodList
@@ -54,6 +55,11 @@ class EvaluationPeriodService:
             await self._validate_period_creation(period_data, org_id)
             
             period_model = await self.evaluation_period_repo.create_evaluation_period(period_data, org_id)
+            comprehensive_service = ComprehensiveEvaluationService(self.session)
+            await comprehensive_service.ensure_period_default_assignment_seeded(
+                org_id=org_id,
+                period_id=period_model.id,
+            )
             await self.session.commit()
             
             logger.info(f"Created evaluation period: {period_model.id} by user: {current_user_context.user_id}")

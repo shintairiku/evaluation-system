@@ -17,7 +17,7 @@ export async function getUserDirectoryBasePageDataAction(
     const usersPageResult = await getUsersPageAction({
       page,
       limit,
-      withCount: false,
+      withCount: true,
       include: params?.include ?? 'department,stage,roles',
     });
 

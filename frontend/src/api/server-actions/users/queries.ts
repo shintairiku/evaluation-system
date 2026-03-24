@@ -22,6 +22,66 @@ export interface SearchUsersParams extends PaginationParams {
   supervisor_id?: string;
 }
 
+/**
+ * Fetch ALL users by paginating through all pages concurrently.
+ * Uses the same concurrent fetching pattern as admin goals (useAdminUsersGoalsData).
+ */
+export async function getAllUsersAction(
+  params?: { include?: string },
+): Promise<{
+  success: boolean;
+  data?: UserDetailResponse[];
+  error?: string;
+}> {
+  try {
+    const firstPageResult = await usersApi.getUsersPage({
+      page: 1,
+      limit: 100,
+      withCount: true,
+      include: params?.include,
+    });
+
+    if (!firstPageResult.success || !firstPageResult.data) {
+      return {
+        success: false,
+        error: firstPageResult.error || 'Failed to fetch users',
+      };
+    }
+
+    const allUsers: UserDetailResponse[] = [...firstPageResult.data.users];
+    const totalPages = firstPageResult.data.meta?.pages ?? 1;
+
+    if (totalPages > 1) {
+      const pagePromises = Array.from({ length: totalPages - 1 }, (_, i) =>
+        usersApi.getUsersPage({
+          page: i + 2,
+          limit: 100,
+          withCount: false,
+          include: params?.include,
+        }),
+      );
+
+      const results = await Promise.allSettled(pagePromises);
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.success && result.value.data?.users) {
+          allUsers.push(...result.value.data.users);
+        } else {
+          console.error(`Failed to load users page ${index + 2}`);
+        }
+      });
+    }
+
+    return { success: true, data: allUsers };
+  } catch (error) {
+    console.error('Get all users action error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching all users',
+    };
+  }
+}
+
 export async function getUsersAction(
   params?: PaginationParams,
 ): Promise<{
