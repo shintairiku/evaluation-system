@@ -34,7 +34,7 @@ export function useGoalAutoSave({
   const isProcessingQueueRef = useRef(false);
   const goalDataRef = useRef(goalData);
   const debounceTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
-  const lastSeenGoalDataRef = useRef<Map<string, string>>(new Map());
+  // lastSeenGoalDataRef removed — was causing stale dedup that blocked retries and persisted across HMR/sessions
   const saveQueueRef = useRef<Array<{ goalId: string; goalType: 'performance' | 'competency' }>>([]);
   const saveQueueKeySetRef = useRef<Set<string>>(new Set());
 
@@ -45,18 +45,28 @@ export function useGoalAutoSave({
     getChangedGoals,
   } = goalTracking;
 
+  const prevAutoSaveReadyRef = useRef(false);
+
   useEffect(() => {
     goalDataRef.current = goalData;
   }, [goalData]);
 
+  // When auto-save is disabled, reset the session flag so next activation triggers cleanup
   useEffect(() => {
+    if (!isAutoSaveReady) {
+      prevAutoSaveReadyRef.current = false;
+    }
+  }, [isAutoSaveReady]);
+
+  useEffect(() => {
+    // Reset on mount (handles HMR/Fast Refresh which runs cleanup then re-mounts)
+    isUnmountedRef.current = false;
     return () => {
       isUnmountedRef.current = true;
       for (const timer of debounceTimersRef.current.values()) {
         clearTimeout(timer);
       }
       debounceTimersRef.current.clear();
-      lastSeenGoalDataRef.current.clear();
       saveQueueRef.current = [];
       saveQueueKeySetRef.current.clear();
     };
@@ -64,6 +74,16 @@ export function useGoalAutoSave({
 
   const getTrackingKey = useCallback((goalType: 'performance' | 'competency', goalId: string) => {
     return `${goalType}:${goalId}`;
+  }, []);
+
+  // Timeout wrapper to prevent hung promises from permanently blocking the save queue
+  const withTimeout = useCallback(<T,>(promise: Promise<T>, ms: number): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Auto-save timeout')), ms)
+      ),
+    ]);
   }, []);
 
   
@@ -226,7 +246,7 @@ export function useGoalAutoSave({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleCompetencyGoalAutoSave = useCallback(async (goalId: string, currentData: any, periodId: string): Promise<boolean> => {
-    console.log('🔧 handleCompetencyGoalAutoSave called with currentData:', currentData);
+    if (process.env.NODE_ENV !== 'production') console.debug('🔧 handleCompetencyGoalAutoSave called with currentData:', currentData);
     // Check if this is a new competency goal (temporary ID starts with timestamp)
     const isNewGoal = goalId.match(/^\d+$/); // Temporary IDs are numeric timestamps
     
@@ -243,7 +263,7 @@ export function useGoalAutoSave({
         selectedIdealActions: currentData.selectedIdealActions && Object.keys(currentData.selectedIdealActions).length > 0 ? currentData.selectedIdealActions : null,
       };
       
-      console.log(`🚀 Auto-save: Creating competency goal with data:`, JSON.stringify(createData, null, 2));
+      if (process.env.NODE_ENV !== 'production') console.debug(`🚀 Auto-save: Creating competency goal with data:`, JSON.stringify(createData, null, 2));
       const result = await createGoalAction(createData);
       
       if (result && result.success && result.data) {
@@ -337,11 +357,26 @@ export function useGoalAutoSave({
         if (!isGoalDirty(next.goalId)) continue;
         if (!isGoalReadyForSave(next.goalType, currentData)) continue;
 
-        if (next.goalType === 'performance') {
-          await handlePerformanceGoalAutoSave(next.goalId, currentData, selectedPeriod.id);
-        } else {
-          await handleCompetencyGoalAutoSave(next.goalId, currentData, selectedPeriod.id);
+        let success = false;
+        try {
+          if (next.goalType === 'performance') {
+            success = await withTimeout(
+              handlePerformanceGoalAutoSave(next.goalId, currentData, selectedPeriod.id),
+              15000
+            );
+          } else {
+            success = await withTimeout(
+              handleCompetencyGoalAutoSave(next.goalId, currentData, selectedPeriod.id),
+              15000
+            );
+          }
+        } catch (error) {
+          // Timeout or unexpected error — allow retry on next change
+          if (process.env.NODE_ENV !== 'production') console.error('❌ Auto-save timeout/error:', error);
+          toast.error('自動保存がタイムアウトしました。再度お試しください。', { duration: 3000 });
         }
+
+        // No lastSeen cleanup needed — dedup removed
       }
     } finally {
       isProcessingQueueRef.current = false;
@@ -363,6 +398,7 @@ export function useGoalAutoSave({
     isGoalReadyForSave,
     isLoadingExistingGoals,
     selectedPeriod?.id,
+    withTimeout,
   ]);
 
   const enqueueGoalSave = useCallback((goalId: string, goalType: 'performance' | 'competency') => {
@@ -378,6 +414,18 @@ export function useGoalAutoSave({
     if (!selectedPeriod?.id) return;
     if (isLoadingExistingGoals) return;
     if (!isAutoSaveReady) return;
+
+    // Reset stale refs when a new auto-save session starts
+    if (isAutoSaveReady && !prevAutoSaveReadyRef.current) {
+      for (const timer of debounceTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      debounceTimersRef.current.clear();
+      saveQueueRef.current = [];
+      saveQueueKeySetRef.current.clear();
+      isProcessingQueueRef.current = false;
+      prevAutoSaveReadyRef.current = true;
+    }
 
     const changedGoals = getChangedGoals();
     const activeKeys = new Set<string>();
@@ -396,22 +444,13 @@ export function useGoalAutoSave({
         continue;
       }
 
-      const serialized = JSON.stringify(currentData);
-      const lastSeen = lastSeenGoalDataRef.current.get(key);
-      if (lastSeen === serialized) {
-        continue;
-      }
-      lastSeenGoalDataRef.current.set(key, serialized);
-
       const existingTimer = debounceTimersRef.current.get(key);
       if (existingTimer) {
         clearTimeout(existingTimer);
       }
 
       debounceTimersRef.current.set(key, setTimeout(() => {
-        if (isUnmountedRef.current) {
-          return;
-        }
+        if (isUnmountedRef.current) return;
         enqueueGoalSave(goalId, goalType);
       }, 1000));
     }
@@ -421,7 +460,6 @@ export function useGoalAutoSave({
       if (!activeKeys.has(key)) {
         clearTimeout(timer);
         debounceTimersRef.current.delete(key);
-        lastSeenGoalDataRef.current.delete(key);
       }
     }
   }, [

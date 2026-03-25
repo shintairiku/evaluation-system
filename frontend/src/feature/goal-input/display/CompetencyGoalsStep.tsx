@@ -64,6 +64,10 @@ export function CompetencyGoalsStep({
     if (currentGoal?.id) {
       tempGoalIdRef.current = currentGoal.id;
       draftGoalRef.current = currentGoal;
+    } else {
+      // Reset when no goals exist (e.g., after deletion and re-entry)
+      tempGoalIdRef.current = null;
+      draftGoalRef.current = null;
     }
   }, [currentGoal]);
 
@@ -210,9 +214,12 @@ export function CompetencyGoalsStep({
               <GoalStatusBadge status={readOnlyGoal.status} />
             </div>
 
-            {roSelectedCompetencies.length > 0 && (
+            {roSelectedCompetencyIds.length > 0 && (
               <div className="mb-4">
                 <Label className="text-xs text-muted-foreground">選択されたコンピテンシー</Label>
+                {isLoadingCompetencies ? (
+                  <p className="text-sm text-muted-foreground mt-1">コンピテンシーを読み込み中...</p>
+                ) : roSelectedCompetencies.length > 0 ? (
                 <div className="bg-gray-100 p-3 rounded-md text-sm mt-1 space-y-2">
                   {roSelectedCompetencies.map(competency => {
                     const actionKeys = roSelectedIdealActions[competency.id] || [];
@@ -230,6 +237,9 @@ export function CompetencyGoalsStep({
                     );
                   })}
                 </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-1">コンピテンシーの詳細を表示できませんでした。</p>
+                )}
               </div>
             )}
 
