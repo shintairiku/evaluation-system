@@ -261,7 +261,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
 
   const canProceed = () => {
     const budgetsSatisfied = typeStatuses.every(status => status.state === 'success');
-    const hasGoals = currentGoals.length > 0;
+    const hasGoals = currentGoals.length > 0 || (readOnlyGoals?.length ?? 0) > 0;
     const requiredFieldsSatisfied = currentGoals.every(goal => (
       goal.title.trim() !== ''
       && goal.specificGoal.trim() !== ''

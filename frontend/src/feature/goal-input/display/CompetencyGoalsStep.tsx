@@ -12,7 +12,7 @@ import { Competency } from '@/api/types/competency';
 import { CompetencyAccordion } from '@/components/competency/CompetencyAccordion';
 import { getCompetenciesAction } from '@/api/server-actions/competencies';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
-import type { StageWeightBudget, ReadOnlyCompetencyGoal } from '../types';
+import { canProceedCompetency, type StageWeightBudget, type ReadOnlyCompetencyGoal } from '../types';
 import type { UseGoalTrackingReturn } from '@/hooks/useGoalTracking';
 
 interface CompetencyGoal {
@@ -34,8 +34,6 @@ interface CompetencyGoalsStepProps {
   userStageId?: string;
   isAutoSaving?: boolean;
 }
-
-const isTemporaryGoalId = (goalId: string) => /^\d+$/.test(goalId);
 
 export function CompetencyGoalsStep({
   goals,
@@ -186,13 +184,7 @@ export function CompetencyGoalsStep({
     updateGoal({ actionPlan: value });
   };
 
-  const canProceed = () => {
-    const hasActionPlan = actionPlan.trim() !== '';
-    const hasTemporaryId = currentGoal?.id ? isTemporaryGoalId(currentGoal.id) : true;
-    const hasUnsavedChanges = currentGoal?.id ? (goalTracking?.isGoalDirty(currentGoal.id) ?? false) : false;
-    const autoSaveInFlight = !!isAutoSaving;
-    return hasActionPlan && !hasTemporaryId && !hasUnsavedChanges && !autoSaveInFlight;
-  };
+  const canProceed = () => canProceedCompetency(actionPlan, currentGoal?.id, goalTracking, !!isAutoSaving);
 
   // Show read-only competency goal when it already exists as submitted/approved
   if (readOnlyGoal) {

@@ -19,7 +19,7 @@ import { usePeriodSelection } from '@/hooks/usePeriodSelection';
 import { useGoalAutoSave } from '@/hooks/useGoalAutoSave';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import type { StageWeightBudget } from '../types';
-import { DEFAULT_STAGE_WEIGHT_BUDGET, getDefaultAchievementCriteria } from '../types';
+import { DEFAULT_STAGE_WEIGHT_BUDGET, getDefaultAchievementCriteria, computeEffectiveBudgets } from '../types';
 import type { EvaluationPeriod } from '@/api/types';
 
 const steps = [
@@ -78,19 +78,10 @@ export default function GoalInputPage() {
       : DEFAULT_STAGE_WEIGHT_BUDGET;
 
   // Compute effective budgets that account for read-only goal weights
-  const effectiveBudgets = useMemo((): StageWeightBudget => {
-    if (!readOnlyGoals) return stageBudgets;
-    const roQuantWeight = readOnlyGoals.performanceGoals
-      .filter(g => g.type === 'quantitative').reduce((sum, g) => sum + g.weight, 0);
-    const roQualWeight = readOnlyGoals.performanceGoals
-      .filter(g => g.type === 'qualitative').reduce((sum, g) => sum + g.weight, 0);
-    return {
-      quantitative: Math.max(0, stageBudgets.quantitative - roQuantWeight),
-      qualitative: Math.max(0, stageBudgets.qualitative - roQualWeight),
-      competency: readOnlyGoals.competencyGoals.length > 0 ? 0 : stageBudgets.competency,
-      stageName: stageBudgets.stageName,
-    };
-  }, [stageBudgets, readOnlyGoals]);
+  const effectiveBudgets = useMemo(
+    () => computeEffectiveBudgets(stageBudgets, readOnlyGoals),
+    [stageBudgets, readOnlyGoals]
+  );
 
   // Load existing goals into form when they're fetched - ensure it runs only once per period/goals set
   useEffect(() => {
