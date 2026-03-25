@@ -7,11 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, ChevronLeft } from 'lucide-react';
+import { AlertCircle, ChevronLeft, Lock } from 'lucide-react';
 import { Competency } from '@/api/types/competency';
 import { CompetencyAccordion } from '@/components/competency/CompetencyAccordion';
 import { getCompetenciesAction } from '@/api/server-actions/competencies';
-import type { StageWeightBudget } from '../types';
+import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
+import type { StageWeightBudget, ReadOnlyCompetencyGoal } from '../types';
 import type { UseGoalTrackingReturn } from '@/hooks/useGoalTracking';
 
 interface CompetencyGoal {
@@ -29,8 +30,12 @@ interface CompetencyGoalsStepProps {
   onPrevious: () => void;
   periodId?: string;
   stageBudgets: StageWeightBudget;
+  readOnlyGoal?: ReadOnlyCompetencyGoal | null;
   userStageId?: string;
+  isAutoSaving?: boolean;
 }
+
+const isTemporaryGoalId = (goalId: string) => /^\d+$/.test(goalId);
 
 export function CompetencyGoalsStep({
   goals,
@@ -39,14 +44,16 @@ export function CompetencyGoalsStep({
   onNext,
   onPrevious,
   stageBudgets,
-  userStageId
+  readOnlyGoal,
+  userStageId,
+  isAutoSaving,
 }: CompetencyGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoal = goals[0];
   const selectedCompetencyIds = currentGoal?.competencyIds || [];
   const selectedIdealActions = currentGoal?.selectedIdealActions || {};
   const actionPlan = currentGoal?.actionPlan || '';
-  
+
   const [competencies, setCompetencies] = useState<Competency[]>([]);
   const [isLoadingCompetencies, setIsLoadingCompetencies] = useState(true);
   const [competencyError, setCompetencyError] = useState<string | null>(null);
@@ -68,14 +75,14 @@ export function CompetencyGoalsStep({
       try {
         setIsLoadingCompetencies(true);
         setCompetencyError(null);
-        
+
         // Filter competencies by user's stage
         // For admin users, explicitly pass stageId to avoid seeing all stages
         const result = await getCompetenciesAction({
           limit: 100,
           stageId: userStageId
         });
-        
+
         if (result.success && result.data?.items) {
           setCompetencies(result.data.items);
         } else {
@@ -130,7 +137,7 @@ export function CompetencyGoalsStep({
   const handleCompetencySelect = (competencyId: string, checked: boolean) => {
     let newSelectedIds: string[];
     const newSelectedActions = { ...selectedIdealActions };
-    
+
     if (checked) {
       newSelectedIds = [...selectedCompetencyIds, competencyId];
     } else {
@@ -180,8 +187,84 @@ export function CompetencyGoalsStep({
   };
 
   const canProceed = () => {
-    return actionPlan.trim() !== '';
+    const hasActionPlan = actionPlan.trim() !== '';
+    const hasTemporaryId = currentGoal?.id ? isTemporaryGoalId(currentGoal.id) : true;
+    const hasUnsavedChanges = currentGoal?.id ? (goalTracking?.isGoalDirty(currentGoal.id) ?? false) : false;
+    const autoSaveInFlight = !!isAutoSaving;
+    return hasActionPlan && !hasTemporaryId && !hasUnsavedChanges && !autoSaveInFlight;
   };
+
+  // Show read-only competency goal when it already exists as submitted/approved
+  if (readOnlyGoal) {
+    const roSelectedCompetencyIds = readOnlyGoal.competencyIds || [];
+    const roSelectedIdealActions = readOnlyGoal.selectedIdealActions || {};
+    const roSelectedCompetencies = roSelectedCompetencyIds
+      .map(id => competencies.find(c => c.id === id))
+      .filter(Boolean) as Competency[];
+
+    return (
+      <div className="space-y-6">
+        <Alert className="border-blue-200 bg-blue-50">
+          <Lock className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-900">コンピテンシー目標は{readOnlyGoal.status === 'approved' ? '承認' : '提出'}済みです</AlertTitle>
+          <AlertDescription className="text-blue-800">
+            この期間のコンピテンシー目標は既に{readOnlyGoal.status === 'approved' ? '承認' : '提出'}されています。変更はできません。
+          </AlertDescription>
+        </Alert>
+
+        <Card className="opacity-75 border-gray-300 bg-gray-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <GoalStatusBadge status={readOnlyGoal.status} />
+            </div>
+
+            {roSelectedCompetencies.length > 0 && (
+              <div className="mb-4">
+                <Label className="text-xs text-muted-foreground">選択されたコンピテンシー</Label>
+                <div className="bg-gray-100 p-3 rounded-md text-sm mt-1 space-y-2">
+                  {roSelectedCompetencies.map(competency => {
+                    const actionKeys = roSelectedIdealActions[competency.id] || [];
+                    return (
+                      <div key={competency.id}>
+                        <div className="font-medium">{competency.name}</div>
+                        {actionKeys.length > 0 && (
+                          <div className="ml-4 text-muted-foreground">
+                            {actionKeys.map(key => (
+                              <div key={key}>- {competency.description?.[key] ?? key}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {readOnlyGoal.actionPlan && (
+              <div>
+                <Label className="text-xs text-muted-foreground">アクションプラン</Label>
+                <div className="bg-gray-100 p-3 rounded-md text-sm whitespace-pre-wrap mt-1">
+                  {readOnlyGoal.actionPlan}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Separator />
+        <div className="grid grid-cols-3 gap-4">
+          <Button onClick={onPrevious} variant="outline" className="col-span-1">
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            前に戻る
+          </Button>
+          <Button onClick={onNext} className="col-span-2">
+            次へ進む
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if ((stageBudgets?.competency ?? 0) === 0) {
     return (
@@ -220,14 +303,14 @@ export function CompetencyGoalsStep({
       <Card>
         <CardContent className="pt-6">
           <div className="text-sm text-muted-foreground">
-            ステージ配分: コンピテンシー {stageBudgets.competency ?? 0}% 
+            ステージ配分: コンピテンシー {stageBudgets.competency ?? 0}%
           </div>
         </CardContent>
       </Card>
 
       <div className="space-y-3">
         <Label className="text-base font-medium">コンピテンシーの選択 (任意)</Label>
-        
+
         {isLoadingCompetencies ? (
           <div className="flex items-center justify-center py-8">
             <div className="text-center">
@@ -267,7 +350,7 @@ export function CompetencyGoalsStep({
               {selectedCompetencyIds.map(competencyId => {
                 const competency = competencies.find(c => c.id === competencyId);
                 const selectedActionKeys = selectedIdealActions[competencyId] || [];
-                
+
                 return (
                   <div key={competencyId} className="text-sm space-y-1">
                     <div className="font-medium text-blue-900">

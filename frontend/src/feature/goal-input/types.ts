@@ -35,3 +35,28 @@ export const getDefaultAchievementCriteria = (type: PerformanceGoalType) => {
     ? DEFAULT_ACHIEVEMENT_CRITERIA_QUALITATIVE
     : DEFAULT_ACHIEVEMENT_CRITERIA_QUANTITATIVE;
 };
+
+// Read-only goal types for displaying submitted/approved goals alongside editable ones
+export interface ReadOnlyPerformanceGoal {
+  id: string;
+  status: 'submitted' | 'approved';
+  type: 'quantitative' | 'qualitative';
+  title: string;
+  specificGoal: string;
+  achievementCriteria: string;
+  method: string;
+  weight: number;
+}
+
+export interface ReadOnlyCompetencyGoal {
+  id: string;
+  status: 'submitted' | 'approved';
+  competencyIds?: string[] | null;
+  selectedIdealActions?: Record<string, string[]> | null;
+  actionPlan: string;
+}
+
+export interface ReadOnlyGoals {
+  performanceGoals: ReadOnlyPerformanceGoal[];
+  competencyGoals: ReadOnlyCompetencyGoal[];
+}

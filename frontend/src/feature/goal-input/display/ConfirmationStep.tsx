@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,9 +12,10 @@ import { toast } from 'sonner';
 import { submitGoalAction, getGoalsAction } from '@/api/server-actions/goals';
 import { getCompetenciesAction } from '@/api/server-actions/competencies';
 import { Competency } from '@/api/types/competency';
+import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import type { UserStatus } from '@/api/types';
 import { getGoalSubmissionRestriction } from '@/utils/goal-submission';
-import type { StageWeightBudget } from '../types';
+import type { StageWeightBudget, ReadOnlyGoals } from '../types';
 
 interface PerformanceGoal {
   id: string;
@@ -35,6 +37,7 @@ interface CompetencyGoal {
 interface ConfirmationStepProps {
   performanceGoals: PerformanceGoal[];
   competencyGoals: CompetencyGoal[];
+  readOnlyGoals?: ReadOnlyGoals | null;
   periodId?: string;
   currentUserId?: string;
   currentUserStatus?: UserStatus;
@@ -44,7 +47,8 @@ interface ConfirmationStepProps {
 }
 
 export function ConfirmationStep(props: ConfirmationStepProps) {
-  const { performanceGoals, competencyGoals, periodId, currentUserId, currentUserStatus, onPrevious, userStageId } = props;
+  const { performanceGoals, competencyGoals, readOnlyGoals, periodId, currentUserId, currentUserStatus, onPrevious, userStageId } = props;
+  const router = useRouter();
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [competencies, setCompetencies] = useState<Competency[]>([]);
@@ -87,7 +91,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
       isActive = false;
     };
   }, [userStageId]);
-  
+
   const handleSubmit = () => {
     startTransition(async () => {
       if (submissionRestriction) {
@@ -101,52 +105,50 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
         toast.error('評価期間が選択されていません。');
         return;
       }
-      
+
       try {
-        // Goals should already be auto-saved, directly proceed to submission
-        // Get all goals for the period to check their current status
-        const goalsResult = await getGoalsAction({
+        // Fetch ALL goals (including submitted/approved) for weight validation
+        const allGoalsResult = await getGoalsAction({
           periodId,
           userId: currentUserId,
-          status: ['draft', 'rejected'] // Only fetch goals that can be submitted
+          status: ['draft', 'submitted', 'approved', 'rejected']
         });
-        
-        const goals = goalsResult.success ? goalsResult.data?.items || [] : [];
 
-        if (goals.length === 0) {
+        const allGoals = allGoalsResult.success ? allGoalsResult.data?.items || [] : [];
+
+        // Only submit draft/rejected goals
+        const submittableGoals = allGoals.filter(g => g.status === 'draft' || g.status === 'rejected');
+
+        if (submittableGoals.length === 0) {
           toast.error('提出する目標が見つかりません。');
           return;
         }
 
-        // Validate performance goals total 100% before submission
-        const performanceGoals = goals.filter(g => g.goalCategory === '業績目標');
-        const totalWeight = performanceGoals.reduce((sum, goal) => sum + goal.weight, 0);
+        // Validate TOTAL weight across ALL performance goals (submitted + draft) = 100%
+        const allPerformanceGoals = allGoals.filter(g => g.goalCategory === '業績目標');
+        const totalWeight = allPerformanceGoals.reduce((sum, goal) => sum + goal.weight, 0);
 
         if (totalWeight !== 100) {
           toast.error(`業績目標の合計ウェイトは100%である必要があります。現在の合計: ${totalWeight}%`);
           return;
         }
+
         let allSubmitted = true;
         const submitErrors: string[] = [];
 
-        // Submit each goal individually (changes status to 'submitted')
-        for (const goal of goals) {
-          // Only attempt to submit if goal is in draft or rejected status
-          if (goal.status === 'draft' || goal.status === 'rejected') {
-            const result = await submitGoalAction(goal.id, 'submitted');
-            if (!result.success) {
-              allSubmitted = false;
-              submitErrors.push(`${goal.goalCategory}目標の提出に失敗: ${result.error}`);
-            }
-          } else {
-            // Goal is already submitted or in another status, skip it with info
-            console.info(`Goal ${goal.id} (${goal.goalCategory}) is already in ${goal.status} status, skipping submission`);
+        // Submit only draft/rejected goals
+        for (const goal of submittableGoals) {
+          const result = await submitGoalAction(goal.id, 'submitted');
+          if (!result.success) {
+            allSubmitted = false;
+            submitErrors.push(`${goal.goalCategory}目標の提出に失敗: ${result.error}`);
           }
         }
 
         setShowSubmitDialog(false);
         if (allSubmitted) {
           toast.success('目標が正常に提出されました。承認をお待ちください。');
+          router.push('/goal-list');
         } else {
           toast.error(submitErrors.join(', ') || '提出に失敗しました。やり直してください。');
         }
@@ -157,13 +159,17 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
     });
   };
 
-  const performanceTotal = performanceGoals.reduce((sum, goal) => sum + goal.weight, 0);
-  
+  const readOnlyPerfWeight = readOnlyGoals?.performanceGoals?.reduce((sum, g) => sum + g.weight, 0) ?? 0;
+  const editablePerfWeight = performanceGoals.reduce((sum, goal) => sum + goal.weight, 0);
+  const performanceTotal = readOnlyPerfWeight + editablePerfWeight;
+
   const competencyGoal = competencyGoals[0];
   const selectedCompetencyIds = competencyGoal?.competencyIds ?? [];
   const selectedCompetencies = selectedCompetencyIds
     .map(id => competencies.find(comp => comp.id === id))
     .filter(Boolean) as Competency[];
+
+  const hasReadOnlyGoals = readOnlyGoals && (readOnlyGoals.performanceGoals.length > 0 || readOnlyGoals.competencyGoals.length > 0);
 
   return (
     <div className="space-y-6">
@@ -178,10 +184,36 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* Read-only performance goals */}
+            {readOnlyGoals?.performanceGoals?.map((goal) => (
+              <div key={goal.id} className="border rounded-lg p-4 bg-gray-100 border-gray-300">
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="font-medium text-gray-600">{goal.title}</h4>
+                  <div className="flex gap-2">
+                    <GoalStatusBadge status={goal.status} />
+                    <Badge variant="outline">
+                      {goal.type === 'quantitative' ? '定量的' : '定性的'}
+                    </Badge>
+                    <Badge variant="secondary">{goal.weight}%</Badge>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-500 space-y-1">
+                  <p><strong>具体的目標:</strong> {goal.specificGoal}</p>
+                  <p><strong>達成基準:</strong> <span className="whitespace-pre-wrap">{goal.achievementCriteria}</span></p>
+                  <p><strong>実行方法:</strong> {goal.method}</p>
+                </div>
+              </div>
+            ))}
+            {/* Editable (new) performance goals */}
             {performanceGoals.map((goal) => (
               <div key={goal.id} className="border rounded-lg p-4 bg-gray-50">
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-medium">{goal.title}</h4>
+                  <div className="flex items-center gap-2">
+                    {hasReadOnlyGoals && (
+                      <Badge variant="outline" className="border-blue-500 text-blue-700">新規</Badge>
+                    )}
+                    <h4 className="font-medium">{goal.title}</h4>
+                  </div>
                   <div className="flex gap-2">
                     <Badge variant="outline">
                       {goal.type === 'quantitative' ? '定量的' : '定性的'}
@@ -209,8 +241,27 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Read-only competency goal */}
+          {readOnlyGoals?.competencyGoals?.[0] && (
+            <div className="border rounded-lg p-4 bg-gray-100 border-gray-300 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <GoalStatusBadge status={readOnlyGoals.competencyGoals[0].status} />
+              </div>
+              {readOnlyGoals.competencyGoals[0].actionPlan && (
+                <div className="text-sm text-gray-500">
+                  <p><strong>アクションプラン:</strong></p>
+                  <p className="whitespace-pre-line">{readOnlyGoals.competencyGoals[0].actionPlan}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Editable competency goal */}
           {competencyGoal && competencyGoal.actionPlan ? (
             <div className="space-y-4">
+              {hasReadOnlyGoals && readOnlyGoals?.competencyGoals?.length === 0 && (
+                <Badge variant="outline" className="border-blue-500 text-blue-700 mb-2">新規</Badge>
+              )}
               {/* Selected Competencies */}
               {selectedCompetencyIds.length > 0 && (
                 <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
@@ -221,11 +272,11 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
                     <div className="space-y-3">
                       {selectedCompetencies.map(competency => {
                         const selectedActions = competencyGoal.selectedIdealActions?.[competency.id] || [];
-                        
+
                         return (
                           <div key={competency.id} className="border rounded-lg p-3 bg-white">
                             <div className="font-medium text-gray-900 mb-2">{competency.name}</div>
-                            
+
                             {selectedActions.length > 0 && (
                               <div className="ml-4">
                                 <div className="text-sm font-medium text-gray-700 mb-2">選択された理想的行動:</div>
@@ -255,7 +306,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
                   )}
                 </div>
               )}
-              
+
               {/* Action Plan */}
               <div className="border rounded-lg p-4 bg-muted/50">
                 <h4 className="font-medium mb-2">アクションプラン</h4>
@@ -264,11 +315,11 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
                 </p>
               </div>
             </div>
-          ) : (
+          ) : !readOnlyGoals?.competencyGoals?.[0] ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>コンピテンシー目標が設定されていません</p>
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
