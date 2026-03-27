@@ -114,6 +114,13 @@ export default function GoalEditDisplay() {
     loadCompetencies();
   }, [isPerformanceGoal, userStageId]);
 
+  // Helper to build save payload from competency form data
+  const buildCompetencySavePayload = useCallback((data: typeof competencyFormData) => ({
+    competencyIds: data.competencyIds.length > 0 ? data.competencyIds : null,
+    selectedIdealActions: Object.keys(data.selectedIdealActions).length > 0 ? data.selectedIdealActions : null,
+    actionPlan: data.actionPlan,
+  }), []);
+
   // Get current form data based on goal type
   const getFormData = useCallback((): GoalUpdateRequest => {
     if (isPerformanceGoal) {
@@ -122,15 +129,9 @@ export default function GoalEditDisplay() {
         performanceGoalType: goal?.performanceGoalType || 'quantitative'
       };
     } else {
-      return {
-        competencyIds: competencyFormData.competencyIds.length > 0
-          ? competencyFormData.competencyIds : null,
-        selectedIdealActions: Object.keys(competencyFormData.selectedIdealActions).length > 0
-          ? competencyFormData.selectedIdealActions : null,
-        actionPlan: competencyFormData.actionPlan,
-      };
+      return buildCompetencySavePayload(competencyFormData);
     }
-  }, [isPerformanceGoal, performanceFormData, competencyFormData, goal?.performanceGoalType]);
+  }, [isPerformanceGoal, performanceFormData, competencyFormData, goal?.performanceGoalType, buildCompetencySavePayload]);
 
   // Set form data from auto-save
   const setFormData = useCallback((data: Partial<GoalUpdateRequest>) => {
@@ -164,19 +165,8 @@ export default function GoalEditDisplay() {
   const handleActionPlanChange = useCallback((value: string) => {
     const newData = { ...competencyFormData, actionPlan: value };
     setCompetencyFormData(newData);
-    debouncedSave({
-      competencyIds: newData.competencyIds.length > 0 ? newData.competencyIds : null,
-      selectedIdealActions: Object.keys(newData.selectedIdealActions).length > 0 ? newData.selectedIdealActions : null,
-      actionPlan: newData.actionPlan,
-    });
-  }, [competencyFormData, debouncedSave]);
-
-  // Helper to build save payload from competency form data
-  const buildCompetencySavePayload = useCallback((data: typeof competencyFormData) => ({
-    competencyIds: data.competencyIds.length > 0 ? data.competencyIds : null,
-    selectedIdealActions: Object.keys(data.selectedIdealActions).length > 0 ? data.selectedIdealActions : null,
-    actionPlan: data.actionPlan,
-  }), []);
+    debouncedSave(buildCompetencySavePayload(newData));
+  }, [competencyFormData, debouncedSave, buildCompetencySavePayload]);
 
   // Competency selection handler
   const handleCompetencySelect = useCallback((competencyId: string, checked: boolean) => {

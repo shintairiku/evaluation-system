@@ -83,6 +83,7 @@ export function useGoalAutoSave({
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pendingSaveRef = useRef<GoalUpdateRequest | null>(null);
+  const isSavingRef = useRef(false);
 
   /**
    * Check if form data has changed since last save
@@ -107,11 +108,12 @@ export function useGoalAutoSave({
       return; // Don't save if unchanged
     }
 
-    if (saveStatus === 'saving') {
+    if (isSavingRef.current) {
       pendingSaveRef.current = formData; // Queue instead of dropping
       return;
     }
 
+    isSavingRef.current = true;
     setSaveStatus('saving');
 
     try {
@@ -123,13 +125,6 @@ export function useGoalAutoSave({
 
         // Clear status after timeout
         setTimeout(() => setSaveStatus('idle'), statusClearTimeout);
-
-        // Process pending save if exists
-        const pending = pendingSaveRef.current;
-        if (pending) {
-          pendingSaveRef.current = null;
-          setTimeout(() => save(pending), 0);
-        }
       } else {
         setSaveStatus('error');
         console.error('Auto-save failed:', result.error);
@@ -137,8 +132,17 @@ export function useGoalAutoSave({
     } catch (error) {
       setSaveStatus('error');
       console.error('Auto-save error:', error);
+    } finally {
+      isSavingRef.current = false;
+
+      // Process pending save if exists
+      const pending = pendingSaveRef.current;
+      if (pending) {
+        pendingSaveRef.current = null;
+        setTimeout(() => save(pending), 0);
+      }
     }
-  }, [goalId, hasFormDataChanged, saveStatus, statusClearTimeout]);
+  }, [goalId, hasFormDataChanged, statusClearTimeout]);
 
   /**
    * Debounced save function - use for onChange events
