@@ -18,10 +18,14 @@ import { PendingEvaluationsProvider } from '@/context/PendingEvaluationsContext'
 import { fetchSidebarCounts } from '@/lib/sidebar-counts';
 
 async function SignedInContent() {
-  const { userId } = await auth();
-  
+  const { userId, orgId } = await auth();
+
   if (!userId) {
     redirect("/sign-in");
+  }
+
+  if (!orgId) {
+    redirect('/org');
   }
 
   // Check if user exists in database
