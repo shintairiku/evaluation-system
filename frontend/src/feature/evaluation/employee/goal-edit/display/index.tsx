@@ -5,13 +5,17 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
 import { AlertCircle, ArrowLeft, Loader2, Send } from 'lucide-react';
 import { SupervisorFeedbackBanner } from '../components/SupervisorFeedbackBanner';
 import { useGoalEdit } from '../hooks/useGoalEdit';
 import { useGoalAutoSave } from '../hooks/useGoalAutoSave';
 import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
+import { CompetencyAccordion } from '@/components/competency/CompetencyAccordion';
 import { useCurrentUserContext } from '@/context/CurrentUserContext';
 import { getGoalSubmissionRestriction } from '@/utils/goal-submission';
+import { getCompetenciesAction } from '@/api/server-actions/competencies';
+import type { Competency } from '@/api/types/competency';
 import type { UUID, GoalUpdateRequest } from '@/api/types';
 
 /**
@@ -54,8 +58,14 @@ export default function GoalEditDisplay() {
 
   // Form state for competency goals
   const [competencyFormData, setCompetencyFormData] = useState({
+    competencyIds: [] as string[],
+    selectedIdealActions: {} as Record<string, string[]>,
     actionPlan: '',
   });
+
+  // Competency loading state
+  const [competencies, setCompetencies] = useState<Competency[]>([]);
+  const [isLoadingCompetencies, setIsLoadingCompetencies] = useState(true);
 
   // Load goal data into form when goal is loaded
   useEffect(() => {
@@ -71,6 +81,8 @@ export default function GoalEditDisplay() {
       });
     } else if (goal.goalCategory === 'コンピテンシー') {
       setCompetencyFormData({
+        competencyIds: goal.competencyIds || [],
+        selectedIdealActions: goal.selectedIdealActions || {},
         actionPlan: goal.actionPlan || '',
       });
     }
@@ -78,6 +90,29 @@ export default function GoalEditDisplay() {
 
   // Determine if current goal is performance goal
   const isPerformanceGoal = goal?.goalCategory === '業績目標';
+
+  // Load competencies from server for competency goals
+  const userStageId = currentUserContext.user?.stage?.id;
+  useEffect(() => {
+    if (isPerformanceGoal) return;
+    if (!userStageId) return;
+
+    const loadCompetencies = async () => {
+      try {
+        setIsLoadingCompetencies(true);
+        const result = await getCompetenciesAction({ limit: 100, stageId: userStageId });
+        if (result.success && result.data?.items) {
+          setCompetencies(result.data.items);
+        }
+      } catch (error) {
+        console.error('Error loading competencies:', error);
+      } finally {
+        setIsLoadingCompetencies(false);
+      }
+    };
+
+    loadCompetencies();
+  }, [isPerformanceGoal, userStageId]);
 
   // Get current form data based on goal type
   const getFormData = useCallback((): GoalUpdateRequest => {
@@ -87,7 +122,13 @@ export default function GoalEditDisplay() {
         performanceGoalType: goal?.performanceGoalType || 'quantitative'
       };
     } else {
-      return competencyFormData;
+      return {
+        competencyIds: competencyFormData.competencyIds.length > 0
+          ? competencyFormData.competencyIds : null,
+        selectedIdealActions: Object.keys(competencyFormData.selectedIdealActions).length > 0
+          ? competencyFormData.selectedIdealActions : null,
+        actionPlan: competencyFormData.actionPlan,
+      };
     }
   }, [isPerformanceGoal, performanceFormData, competencyFormData, goal?.performanceGoalType]);
 
@@ -96,7 +137,12 @@ export default function GoalEditDisplay() {
     if (isPerformanceGoal) {
       setPerformanceFormData(prev => ({ ...prev, ...data }));
     } else {
-      setCompetencyFormData(prev => ({ ...prev, ...data }));
+      setCompetencyFormData(prev => ({
+        ...prev,
+        ...('competencyIds' in data ? { competencyIds: data.competencyIds || [] } : {}),
+        ...('selectedIdealActions' in data ? { selectedIdealActions: data.selectedIdealActions || {} } : {}),
+        ...('actionPlan' in data ? { actionPlan: data.actionPlan || '' } : {}),
+      }));
     }
   }, [isPerformanceGoal]);
 
@@ -114,12 +160,57 @@ export default function GoalEditDisplay() {
     debouncedSave({ ...newData, performanceGoalType: goal?.performanceGoalType || 'quantitative' });
   }, [performanceFormData, debouncedSave, goal?.performanceGoalType]);
 
-  // Helper function for competency goal field changes
-  const handleCompetencyFieldChange = useCallback((field: keyof typeof competencyFormData, value: string) => {
-    const newData = { ...competencyFormData, [field]: value };
+  // Helper function for competency action plan changes
+  const handleActionPlanChange = useCallback((value: string) => {
+    const newData = { ...competencyFormData, actionPlan: value };
     setCompetencyFormData(newData);
-    debouncedSave(newData);
+    debouncedSave({
+      competencyIds: newData.competencyIds.length > 0 ? newData.competencyIds : null,
+      selectedIdealActions: Object.keys(newData.selectedIdealActions).length > 0 ? newData.selectedIdealActions : null,
+      actionPlan: newData.actionPlan,
+    });
   }, [competencyFormData, debouncedSave]);
+
+  // Helper to build save payload from competency form data
+  const buildCompetencySavePayload = useCallback((data: typeof competencyFormData) => ({
+    competencyIds: data.competencyIds.length > 0 ? data.competencyIds : null,
+    selectedIdealActions: Object.keys(data.selectedIdealActions).length > 0 ? data.selectedIdealActions : null,
+    actionPlan: data.actionPlan,
+  }), []);
+
+  // Competency selection handler
+  const handleCompetencySelect = useCallback((competencyId: string, checked: boolean) => {
+    const newIds = checked
+      ? [...competencyFormData.competencyIds, competencyId]
+      : competencyFormData.competencyIds.filter(id => id !== competencyId);
+    const newActions = { ...competencyFormData.selectedIdealActions };
+    if (!checked) delete newActions[competencyId];
+
+    const updated = { ...competencyFormData, competencyIds: newIds, selectedIdealActions: newActions };
+    setCompetencyFormData(updated);
+    debouncedSave(buildCompetencySavePayload(updated));
+  }, [competencyFormData, debouncedSave, buildCompetencySavePayload]);
+
+  // Ideal action selection handler
+  const handleIdealActionSelect = useCallback((competencyId: string, actionKey: string, checked: boolean) => {
+    if (!competencyFormData.competencyIds.includes(competencyId)) return;
+
+    const currentActions = competencyFormData.selectedIdealActions[competencyId] || [];
+    const newActions = checked
+      ? [...currentActions, actionKey]
+      : currentActions.filter(key => key !== actionKey);
+
+    const newSelectedActions = { ...competencyFormData.selectedIdealActions };
+    if (newActions.length === 0) {
+      delete newSelectedActions[competencyId];
+    } else {
+      newSelectedActions[competencyId] = newActions;
+    }
+
+    const updated = { ...competencyFormData, selectedIdealActions: newSelectedActions };
+    setCompetencyFormData(updated);
+    debouncedSave(buildCompetencySavePayload(updated));
+  }, [competencyFormData, debouncedSave, buildCompetencySavePayload]);
 
   // Handle submit for review
   const handleSubmit = async () => {
@@ -281,20 +372,82 @@ export default function GoalEditDisplay() {
 
           {/* Competency Goal Form */}
           {!isPerformanceGoal && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                行動計画 <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={competencyFormData.actionPlan}
-                onChange={(e) => handleCompetencyFieldChange('actionPlan', e.target.value)}
-                onBlur={() => autoSave(getFormData())}
-                className="w-full p-2 border rounded-md min-h-[200px]"
-                placeholder="行動計画を入力"
-              />
-              <p className="text-sm text-muted-foreground mt-2">
-                ※ 選択したコンピテンシーと理想的な行動は編集できません。変更が必要な場合は新しい目標を作成してください。
-              </p>
+            <div className="space-y-6">
+              {/* Competency Selection */}
+              <div className="space-y-3">
+                <Label className="text-base font-medium">コンピテンシーの選択 (任意)</Label>
+
+                {isLoadingCompetencies ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">コンピテンシーを読み込み中...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <CompetencyAccordion
+                    competencies={competencies}
+                    selectedCompetencyIds={competencyFormData.competencyIds}
+                    selectedIdealActions={competencyFormData.selectedIdealActions}
+                    onCompetencySelect={handleCompetencySelect}
+                    onIdealActionSelect={handleIdealActionSelect}
+                    showSelection={true}
+                    showEditButtons={false}
+                    editMode={false}
+                  />
+                )}
+              </div>
+
+              {/* Selection Summary */}
+              {competencyFormData.competencyIds.length > 0 && (
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardHeader>
+                    <CardTitle className="text-base text-blue-900">選択中のコンピテンシー</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {competencyFormData.competencyIds.map(competencyId => {
+                        const competency = competencies.find(c => c.id === competencyId);
+                        const selectedActionKeys = competencyFormData.selectedIdealActions[competencyId] || [];
+
+                        return (
+                          <div key={competencyId} className="text-sm space-y-1">
+                            <div className="font-medium text-blue-900">
+                              {competency?.name}: {selectedActionKeys.length}個選択
+                            </div>
+                            {selectedActionKeys.length > 0 && (
+                              <div className="ml-4 space-y-1">
+                                {selectedActionKeys.map(actionKey => {
+                                  const actionText = competency?.description?.[actionKey];
+                                  return actionText ? (
+                                    <div key={actionKey} className="text-blue-700">
+                                      - {actionText}
+                                    </div>
+                                  ) : null;
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Action Plan */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  行動計画 <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={competencyFormData.actionPlan}
+                  onChange={(e) => handleActionPlanChange(e.target.value)}
+                  onBlur={() => autoSave(getFormData())}
+                  className="w-full p-2 border rounded-md min-h-[200px]"
+                  placeholder="行動計画を入力"
+                />
+              </div>
             </div>
           )}
         </CardContent>
