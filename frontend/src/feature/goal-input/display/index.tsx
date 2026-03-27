@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 
 // Lightweight debug logger that is no-op in production
@@ -19,8 +19,7 @@ import { usePeriodSelection } from '@/hooks/usePeriodSelection';
 import { useGoalAutoSave } from '@/hooks/useGoalAutoSave';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import type { StageWeightBudget } from '../types';
-import { DEFAULT_STAGE_WEIGHT_BUDGET, getDefaultAchievementCriteria } from '../types';
-// useLoading removed - using simpler approach
+import { DEFAULT_STAGE_WEIGHT_BUDGET, getDefaultAchievementCriteria, computeEffectiveBudgets } from '../types';
 import type { EvaluationPeriod } from '@/api/types';
 
 const steps = [
@@ -33,9 +32,7 @@ export default function GoalInputPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const loadedGoalsKeyRef = useRef<string | null>(null);
   const autoSaveActivationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Note: goalLoading removed as we're using simpler approach
-  
+
   // Goal data management
   const {
     goalData,
@@ -46,7 +43,7 @@ export default function GoalInputPage() {
     replaceGoalWithServerData,
     goalTracking,
   } = useGoalData();
-  
+
   const { currentUser, isLoading: isUserLoading } = useUserRoles();
 
   // Period selection and goal loading
@@ -57,6 +54,7 @@ export default function GoalInputPage() {
     isGoalFetching,
     hasBlockingGoals,
     blockingMessage,
+    readOnlyGoals,
     loadedGoals,
     handlePeriodSelected,
     activateAutoSave,
@@ -78,6 +76,12 @@ export default function GoalInputPage() {
           stageName: currentUser.stage.name,
         }
       : DEFAULT_STAGE_WEIGHT_BUDGET;
+
+  // Compute effective budgets that account for read-only goal weights
+  const effectiveBudgets = useMemo(
+    () => computeEffectiveBudgets(stageBudgets, readOnlyGoals),
+    [stageBudgets, readOnlyGoals]
+  );
 
   // Load existing goals into form when they're fetched - ensure it runs only once per period/goals set
   useEffect(() => {
@@ -125,25 +129,25 @@ export default function GoalInputPage() {
       return;
     }
 
-    // Only when there is no server data and the current form is empty, create an initial goal row
     const noServerGoals = !loadedGoals || (loadedGoals.performanceGoals.length === 0 && loadedGoals.competencyGoals.length === 0);
     const formIsEmpty = goalData.performanceGoals.length === 0;
-    if (noServerGoals && formIsEmpty) {
+    const needsNewPerformanceGoals = effectiveBudgets.quantitative > 0 || effectiveBudgets.qualitative > 0;
+
+    if (noServerGoals && formIsEmpty && needsNewPerformanceGoals) {
+      const preferredType = effectiveBudgets.quantitative > 0 ? 'quantitative' as const : 'qualitative' as const;
       const initialGoal = {
         id: Date.now().toString(),
-        type: 'quantitative' as const,
+        type: preferredType,
         title: '',
         specificGoal: '',
-        achievementCriteria: getDefaultAchievementCriteria('quantitative'),
+        achievementCriteria: getDefaultAchievementCriteria(preferredType),
         method: '',
-        weight: 50,
+        weight: Math.min(50, effectiveBudgets[preferredType]),
       };
       updatePerformanceGoals([initialGoal]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingExistingGoals, isGoalFetching, loadedGoals]);
-  // Note: loadGoalsFromServer and activateAutoSave removed from deps to prevent infinite re-renders
-  // These functions are stable within the scope of this effect
+  }, [isLoadingExistingGoals, isGoalFetching, loadedGoals, readOnlyGoals]);
 
   // Auto-save functionality - will only be active when period is selected
   const { isAutoSaving } = useGoalAutoSave({
@@ -153,7 +157,7 @@ export default function GoalInputPage() {
     isAutoSaveReady,
     goalTracking,
     onGoalReplaceWithServerData: replaceGoalWithServerData,
-    stageBudgets,
+    stageBudgets: effectiveBudgets,
   });
 
   // Wrapper for period selection that includes data loading
@@ -183,7 +187,8 @@ export default function GoalInputPage() {
             goalTracking={goalTracking}
             periodId={selectedPeriod?.id}
             onNext={handleNext}
-            stageBudgets={stageBudgets}
+            stageBudgets={effectiveBudgets}
+            readOnlyGoals={readOnlyGoals?.performanceGoals ?? []}
             isAutoSaving={isAutoSaving}
           />
         );
@@ -196,8 +201,10 @@ export default function GoalInputPage() {
             periodId={selectedPeriod?.id}
             onNext={handleNext}
             onPrevious={handlePrevious}
-            stageBudgets={stageBudgets}
+            stageBudgets={effectiveBudgets}
+            readOnlyGoal={readOnlyGoals?.competencyGoals[0] ?? null}
             userStageId={currentUser?.stage?.id}
+            isAutoSaving={isAutoSaving}
           />
         );
       case 3:
@@ -205,6 +212,7 @@ export default function GoalInputPage() {
           <ConfirmationStep
             performanceGoals={goalData.performanceGoals}
             competencyGoals={goalData.competencyGoals}
+            readOnlyGoals={readOnlyGoals}
             periodId={selectedPeriod?.id}
             currentUserId={currentUser?.id}
             currentUserStatus={currentUser?.status}
@@ -284,7 +292,7 @@ export default function GoalInputPage() {
         </div>
       </div>
 
-      {/* TASK-04: Show blocking alert when submitted/approved goals exist */}
+      {/* Show blocking alert when ALL submitted/approved goals exist */}
       {hasBlockingGoals && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
