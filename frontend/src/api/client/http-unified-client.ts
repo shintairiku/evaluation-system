@@ -551,7 +551,8 @@ class UnifiedHttpClient {
 
   private async makeHttpRequest(
     endpoint: string,
-    config: RequestConfig = {}
+    config: RequestConfig = {},
+    resolvedOrgSlug?: string | null
   ): Promise<{ response?: Response; error?: unknown; isTimeout?: boolean; duration: number }> {
     const { method = 'GET', headers: customHeaders, body } = config;
     const startTime = Date.now();
@@ -566,8 +567,8 @@ class UnifiedHttpClient {
     }, API_CONFIG.TIMEOUT);
     
     try {
-      // Get organization slug
-      const orgSlug = await this.getOrgSlug();
+      // Use pre-resolved org slug if available, otherwise fetch
+      const orgSlug = resolvedOrgSlug !== undefined ? resolvedOrgSlug : await this.getOrgSlug();
 
       // Construct URL based on organization context
       let url: string;
@@ -643,12 +644,14 @@ class UnifiedHttpClient {
     let isTimeoutError = false;
     let totalDuration = 0;
 
-    // Fail fast: org-scoped APIs require an org slug (derived from the auth token).
-    // Without it, calling the unscoped endpoint will always 404 because the backend
-    // only exposes business routes under /api/org/{org_slug}/...
+    // Resolve org slug ONCE and reuse across retries to avoid race conditions.
+    // The singleton HTTP client's getOrgSlug() invalidates its promise cache after
+    // each resolution (orgSlugPromise = null), so concurrent calls can get
+    // inconsistent results if resolved independently.
+    let resolvedOrgSlug: string | null = null;
     if (this.shouldApplyOrgScoping(endpoint)) {
-      const orgSlug = await this.getOrgSlug();
-      if (!orgSlug) {
+      resolvedOrgSlug = await this.getOrgSlug();
+      if (!resolvedOrgSlug) {
         return {
           success: false,
           errorMessage: 'Authentication required: organization context is missing',
@@ -656,10 +659,10 @@ class UnifiedHttpClient {
         };
       }
     }
-    
+
     // Retry logic with exponential backoff
     for (let attempt = 1; attempt <= API_CONFIG.RETRY_ATTEMPTS; attempt++) {
-      const { response, error, isTimeout, duration } = await this.makeHttpRequest(endpoint, config);
+      const { response, error, isTimeout, duration } = await this.makeHttpRequest(endpoint, config, resolvedOrgSlug);
       totalDuration += duration;
       
       if (response) {
