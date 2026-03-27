@@ -82,6 +82,8 @@ export function useGoalAutoSave({
   const [lastSavedData, setLastSavedData] = useState<GoalUpdateRequest | null>(null);
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingSaveRef = useRef<GoalUpdateRequest | null>(null);
+  const isSavingRef = useRef(false);
 
   /**
    * Check if form data has changed since last save
@@ -106,10 +108,12 @@ export function useGoalAutoSave({
       return; // Don't save if unchanged
     }
 
-    if (saveStatus === 'saving') {
-      return; // Prevent concurrent saves
+    if (isSavingRef.current) {
+      pendingSaveRef.current = formData; // Queue instead of dropping
+      return;
     }
 
+    isSavingRef.current = true;
     setSaveStatus('saving');
 
     try {
@@ -128,8 +132,17 @@ export function useGoalAutoSave({
     } catch (error) {
       setSaveStatus('error');
       console.error('Auto-save error:', error);
+    } finally {
+      isSavingRef.current = false;
+
+      // Process pending save if exists
+      const pending = pendingSaveRef.current;
+      if (pending) {
+        pendingSaveRef.current = null;
+        setTimeout(() => save(pending), 0);
+      }
     }
-  }, [goalId, hasFormDataChanged, saveStatus, statusClearTimeout]);
+  }, [goalId, hasFormDataChanged, statusClearTimeout]);
 
   /**
    * Debounced save function - use for onChange events
@@ -174,7 +187,9 @@ export function useGoalAutoSave({
               setLastSavedData(performanceData);
             } else if (goal.goalCategory === 'コンピテンシー') {
               const competencyData = {
-                actionPlan: goal.actionPlan
+                competencyIds: goal.competencyIds || [],
+                selectedIdealActions: goal.selectedIdealActions || {},
+                actionPlan: goal.actionPlan || '',
               };
               setFormData(competencyData);
               setLastSavedData(competencyData);
@@ -225,6 +240,7 @@ export function useGoalAutoSave({
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      pendingSaveRef.current = null;
     };
   }, []);
 

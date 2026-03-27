@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,9 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, AlertCircle, TrendingUp, BarChart3, Zap } from 'lucide-react';
-import { getDefaultAchievementCriteria, type StageWeightBudget } from '../types';
+import { Separator } from '@/components/ui/separator';
+import { Plus, Trash2, AlertCircle, TrendingUp, BarChart3, Zap, Lock } from 'lucide-react';
+import { getDefaultAchievementCriteria, type StageWeightBudget, type ReadOnlyPerformanceGoal } from '../types';
 import { deleteGoalAction } from '@/api/server-actions/goals';
+import { GoalStatusBadge } from '@/components/evaluation/GoalStatusBadge';
 import type { UseGoalTrackingReturn } from '@/hooks/useGoalTracking';
 
 interface PerformanceGoal {
@@ -32,12 +34,13 @@ interface PerformanceGoalsStepProps {
   onNext: () => void;
   periodId?: string;
   stageBudgets: StageWeightBudget;
+  readOnlyGoals?: ReadOnlyPerformanceGoal[];
   isAutoSaving?: boolean;
 }
 
 type GoalType = 'quantitative' | 'qualitative';
 
-const goalTypeMeta: Record<GoalType, { label: string; icon: JSX.Element; helper: string }> = {
+const goalTypeMeta: Record<GoalType, { label: string; icon: React.ReactNode; helper: string }> = {
   quantitative: {
     label: '定量',
     icon: <BarChart3 className="h-4 w-4" />,
@@ -56,7 +59,7 @@ const formatPercent = (value: number) => {
   return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
 };
 
-export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, stageBudgets, isAutoSaving }: PerformanceGoalsStepProps) {
+export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNext, stageBudgets, readOnlyGoals, isAutoSaving }: PerformanceGoalsStepProps) {
   // Derive values directly from props to avoid local-state divergence
   const currentGoals = goals;
   const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
@@ -258,7 +261,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
 
   const canProceed = () => {
     const budgetsSatisfied = typeStatuses.every(status => status.state === 'success');
-    const hasGoals = currentGoals.length > 0;
+    const hasGoals = currentGoals.length > 0 || (readOnlyGoals?.length ?? 0) > 0;
     const requiredFieldsSatisfied = currentGoals.every(goal => (
       goal.title.trim() !== ''
       && goal.specificGoal.trim() !== ''
@@ -336,6 +339,57 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
         </CardContent>
       </Card>
 
+      {/* 提出済み・承認済みの目標（read-only） */}
+      {readOnlyGoals && readOnlyGoals.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4" />
+            <span>提出済み・承認済みの目標（変更不可）</span>
+          </div>
+          {readOnlyGoals.map((goal, index) => (
+            <Card key={goal.id} className="relative opacity-75 border-gray-300 bg-gray-50">
+              <CardContent>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full">
+                      <span className="text-sm font-semibold text-gray-600">{index + 1}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <GoalStatusBadge status={goal.status} />
+                    <Badge variant="outline">
+                      {goal.type === 'quantitative' ? '定量的' : '定性的'}
+                    </Badge>
+                    <Badge variant="secondary">{goal.weight}%</Badge>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">目標タイトル</Label>
+                    <div className="bg-gray-100 p-3 rounded-md text-sm">{goal.title || '—'}</div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">具体的な目標</Label>
+                      <div className="bg-gray-100 p-3 rounded-md text-sm">{goal.specificGoal || '—'}</div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">達成基準</Label>
+                      <div className="bg-gray-100 p-3 rounded-md text-sm whitespace-pre-wrap">{goal.achievementCriteria || '—'}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">実行方法・アプローチ</Label>
+                    <div className="bg-gray-100 p-3 rounded-md text-sm">{goal.method || '—'}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          <Separator />
+        </div>
+      )}
+
       {/* 目標一覧 */}
       <div className="space-y-4">
         {currentGoals.map((goal, index) => (
@@ -345,7 +399,7 @@ export function PerformanceGoalsStep({ goals, onGoalsChange, goalTracking, onNex
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-                    <span className="text-sm font-semibold text-blue-800">{index + 1}</span>
+                    <span className="text-sm font-semibold text-blue-800">{(readOnlyGoals?.length ?? 0) + index + 1}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
