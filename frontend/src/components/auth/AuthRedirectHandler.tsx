@@ -39,8 +39,7 @@ export default function AuthRedirectHandler() {
           return;
         }
 
-        // ✅ Redirect existing users to home page (regardless of status)
-        router.push('/');
+        // User exists and is valid — no redirect needed (already on home page)
       } catch (error) {
         console.error('AuthRedirectHandler: Error checking user status:', error);
         router.push('/setup');
