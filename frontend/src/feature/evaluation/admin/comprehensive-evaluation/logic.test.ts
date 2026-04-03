@@ -17,10 +17,10 @@ function buildRow(overrides: Partial<ComprehensiveEvaluationRow>): Comprehensive
     processingStatus: "processed",
     performanceFinalRank: "A+",
     performanceWeightPercent: 100,
-    performanceScore: 4.5,
+    performanceScore: 64.0,
     competencyFinalRank: "A+",
     competencyWeightPercent: 10,
-    competencyScore: 0.0,
+    competencyScore: 5.0,
     coreValueFinalRank: null,
     leaderInterviewCleared: null,
     divisionHeadPresentationCleared: null,
@@ -32,10 +32,11 @@ function buildRow(overrides: Partial<ComprehensiveEvaluationRow>): Comprehensive
 }
 
 describe("comprehensive evaluation logic", () => {
+  // totalScore from A+/A+ = 5*10/11 + 5*1/11 = 5.0 → A+
+
   it("does not evaluate promotion candidate when a required rank is unknown", () => {
     const row = buildRow({
-      performanceScore: 4.5,
-      competencyScore: 0.2, // total 4.7 => A+
+      performanceFinalRank: "A+",
       competencyFinalRank: "A+",
       coreValueFinalRank: null,
       currentLevel: 25,
@@ -43,16 +44,17 @@ describe("comprehensive evaluation logic", () => {
 
     const computed = computeComprehensiveEvaluationRow(row, mockDefaultComprehensiveEvaluationSettings);
 
+    // A+/A+ → 5*10/11 + 5*1/11 = 5.0 → A+
+    expect(computed.totalScore).toBe(5.0);
     expect(computed.overallRank).toBe("A+");
-    expect(computed.isPromotionCandidate).toBe(false);
+    expect(computed.isPromotionCandidate).toBe(false); // coreValueFinalRank is null
     expect(computed.promotionFlag).toBe(false);
     expect(computed.decision).toBe("対象外");
   });
 
   it("activates promotion flag even when the new level stays below 30", () => {
     const row = buildRow({
-      performanceScore: 4.5,
-      competencyScore: 0.2, // total 4.7 => A+
+      performanceFinalRank: "A+",
       competencyFinalRank: "A+",
       coreValueFinalRank: "A+",
       currentLevel: 10,
@@ -60,6 +62,7 @@ describe("comprehensive evaluation logic", () => {
 
     const computed = computeComprehensiveEvaluationRow(row, mockDefaultComprehensiveEvaluationSettings);
 
+    // A+/A+ → 5.0 → A+, level delta for A+ = +6
     expect(computed.overallRank).toBe("A+");
     expect(computed.newLevel).toBe(16);
     expect(computed.isPromotionCandidate).toBe(true);
@@ -93,14 +96,15 @@ describe("comprehensive evaluation logic", () => {
 
   it("evaluates demotion candidate from overall D", () => {
     const row = buildRow({
-      performanceScore: 0.1,
-      competencyScore: 0.0, // total 0.1 => D
+      performanceFinalRank: "D",
       competencyFinalRank: "D",
       currentLevel: 20,
     });
 
     const computed = computeComprehensiveEvaluationRow(row, mockDefaultComprehensiveEvaluationSettings);
 
+    // D/D → 0*10/11 + 0*1/11 = 0.0 → D (boundary rule Q < 0.1)
+    expect(computed.totalScore).toBe(0);
     expect(computed.overallRank).toBe("D");
     expect(computed.isDemotionCandidate).toBe(true);
     expect(computed.demotionFlag).toBe(true);
@@ -109,8 +113,8 @@ describe("comprehensive evaluation logic", () => {
 
   it("does not apply manual stage/level values when manual decision is 対象外", () => {
     const row = buildRow({
-      performanceScore: 4.5,
-      competencyScore: 0.2,
+      performanceFinalRank: "A+",
+      competencyFinalRank: "A+",
       currentStage: "STAGE4",
       currentLevel: 25,
     });
@@ -131,8 +135,8 @@ describe("comprehensive evaluation logic", () => {
 
   it("defaults manual level to current level when level is omitted", () => {
     const row = buildRow({
-      performanceScore: 4.5,
-      competencyScore: 0.2,
+      performanceFinalRank: "A+",
+      competencyFinalRank: "A+",
       currentStage: "STAGE4",
       currentLevel: 25,
     });
@@ -148,5 +152,55 @@ describe("comprehensive evaluation logic", () => {
     expect(applied.newStage).toBe("STAGE5");
     expect(applied.newLevel).toBe(25);
     expect(applied.levelDelta).toBe(0);
+  });
+
+  // Spec validation tests
+  it("spec test: S/S/S → total=6.0, overall=S, promotion (社員00001)", () => {
+    const row = buildRow({
+      performanceFinalRank: "S",
+      competencyFinalRank: "S",
+      coreValueFinalRank: "S",
+      currentLevel: 24,
+    });
+
+    const computed = computeComprehensiveEvaluationRow(row, mockDefaultComprehensiveEvaluationSettings);
+
+    // S(6)*10/11 + S(6)*1/11 = 6.0 → S
+    expect(computed.totalScore).toBe(6.0);
+    expect(computed.overallRank).toBe("S");
+    expect(computed.promotionFlag).toBe(true);
+    expect(computed.levelDelta).toBe(8);
+    expect(computed.newLevel).toBe(32);
+  });
+
+  it("spec test: D/S/S → total=0.55, overall=D, no promotion (社員00002)", () => {
+    const row = buildRow({
+      performanceFinalRank: "D",
+      competencyFinalRank: "S",
+      coreValueFinalRank: "S",
+      currentLevel: 25,
+    });
+
+    const computed = computeComprehensiveEvaluationRow(row, mockDefaultComprehensiveEvaluationSettings);
+
+    // D(0)*10/11 + S(6)*1/11 = 0.5454 → round 0.55 → D
+    expect(computed.totalScore).toBe(0.55);
+    expect(computed.overallRank).toBe("D");
+    expect(computed.promotionFlag).toBe(false);
+    expect(computed.levelDelta).toBe(-8);
+    expect(computed.newLevel).toBe(17);
+  });
+
+  it("SS/SS → total=7.0, overall=SS", () => {
+    const row = buildRow({
+      performanceFinalRank: "SS",
+      competencyFinalRank: "SS",
+      coreValueFinalRank: "SS",
+    });
+
+    const computed = computeComprehensiveEvaluationRow(row, mockDefaultComprehensiveEvaluationSettings);
+
+    expect(computed.totalScore).toBe(7.0);
+    expect(computed.overallRank).toBe("SS");
   });
 });
