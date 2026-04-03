@@ -1,10 +1,13 @@
 import { SignedIn, SignedOut, SignInButton, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 
+const isStaging = process.env.NEXT_PUBLIC_STAGING === "true";
+
 export default function Header() {
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-4 bg-primary shadow-md h-[45px]">
-      <div>
+    <div className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-4 shadow-md h-[45px] ${isStaging ? "bg-red-600" : "bg-primary"}`}>
+      <div className="flex items-center gap-2">
         <p className="text-xl font-bold text-white">Zinzineer</p>
+        {isStaging && <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded">テスト環境</span>}
       </div>
       <div className="flex items-center">
         <SignedOut>
