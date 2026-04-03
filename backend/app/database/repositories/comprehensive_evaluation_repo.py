@@ -158,24 +158,12 @@ class ComprehensiveEvaluationRepository:
                               AND gf.feedback_status = 'submitted'
                               AND gf.supervisor_rating IS NOT NULL
                         )::numeric AS competency_score,
-                    (
-                        SUM(gf.supervisor_rating * gf.weight)
-                            FILTER (
-                                WHERE gf.goal_category = 'コンピテンシー'
-                                  AND gf.feedback_status = 'submitted'
-                                  AND gf.supervisor_rating IS NOT NULL
-                            )
-                        /
-                        NULLIF(
-                            SUM(gf.weight)
-                                FILTER (
-                                    WHERE gf.goal_category = 'コンピテンシー'
-                                      AND gf.feedback_status = 'submitted'
-                                      AND gf.supervisor_rating IS NOT NULL
-                                ),
-                            0
-                        )
-                    )::numeric AS competency_raw_score,
+                    AVG(gf.supervisor_rating)
+                        FILTER (
+                            WHERE gf.goal_category = 'コンピテンシー'
+                              AND gf.feedback_status = 'submitted'
+                              AND gf.supervisor_rating IS NOT NULL
+                        )::numeric AS competency_raw_score,
                     NULL::numeric AS core_value_score,
                     (
                         SELECT AVG(source_avg) FROM (
