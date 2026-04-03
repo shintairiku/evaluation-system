@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.exceptions import BadRequestError, NotFoundError, PermissionDeniedError
+from ..core.rating_utils import RATING_CODE_TO_NUMERIC
 from ..database.models.evaluation import EvaluationPeriodStatus
 from ..database.repositories.comprehensive_evaluation_repo import ComprehensiveEvaluationRepository
 from ..database.repositories.department_repo import DepartmentRepository
@@ -69,6 +70,17 @@ DEFAULT_LEVEL_DELTAS: Dict[EvaluationRank, int] = {
     "B": 1,
     "C": -5,
     "D": -8,
+}
+# MBO final rating thresholds on 0-100 scale (spec section 4-3)
+MBO_THRESHOLDS: Dict[EvaluationRank, float] = {
+    "SS": 86.0,
+    "S": 70.0,
+    "A+": 64.0,
+    "A": 56.0,
+    "A-": 50.0,
+    "B": 34.0,
+    "C": 20.0,
+    "D": 0.0,
 }
 USER_LEVEL_MIN = 1
 USER_LEVEL_MAX = 30
@@ -1353,34 +1365,41 @@ class ComprehensiveEvaluationService:
         period_id: UUID,
         settings: ComprehensiveEvaluationSettings,
     ) -> ComprehensiveEvaluationRow:
-        performance_score = self._to_optional_float(item.get("performance_score"))
-        competency_score = self._to_optional_float(item.get("competency_score"))
-        core_value_score = self._to_optional_float(item.get("core_value_score"))
-        # Category final rank must be judged by the category's raw score (0-7 scale),
-        # not by weighted contribution used for total-score aggregation.
-        performance_rank_score = self._to_optional_float(item.get("performance_raw_score"))
-        competency_rank_score = self._to_optional_float(item.get("competency_raw_score"))
-        core_value_rank_score = self._to_optional_float(item.get("core_value_raw_score"))
         performance_weight = self._to_optional_float(item.get("performance_weight_percent"))
         competency_weight = self._to_optional_float(item.get("competency_weight_percent"))
 
-        if performance_rank_score is None:
-            performance_rank_score = performance_score
-        if competency_rank_score is None:
-            competency_rank_score = competency_score
-        if core_value_rank_score is None:
-            core_value_rank_score = core_value_score
+        # --- MBO: 0-100 scale → MBO-specific thresholds → letter grade (spec section 4-3) ---
+        mbo_total_100 = self._to_optional_float(item.get("mbo_total_100"))
+        if mbo_total_100 is not None and mbo_total_100 < 20.0:
+            performance_rank: Optional[EvaluationRank] = "D"  # Boundary rule B (spec section 8, rule 8B)
+        else:
+            performance_rank = self._rank_from_score(mbo_total_100, MBO_THRESHOLDS)
 
-        performance_rank = self._rank_from_score(performance_rank_score, settings.overall_score_thresholds)
+        # --- Competency: 0-7 raw score → existing thresholds (spec section 5-4) ---
+        competency_rank_score = self._to_optional_float(item.get("competency_raw_score"))
+        if competency_rank_score is None:
+            competency_rank_score = self._to_optional_float(item.get("competency_score"))
         competency_rank = self._rank_from_score(competency_rank_score, settings.overall_score_thresholds)
+
+        # --- Core Value: 0-7 raw score → same thresholds (spec section 6-4) ---
+        core_value_rank_score = self._to_optional_float(item.get("core_value_raw_score"))
+        if core_value_rank_score is None:
+            core_value_rank_score = self._to_optional_float(item.get("core_value_score"))
         core_value_rank = self._rank_from_score(core_value_rank_score, settings.overall_score_thresholds)
 
-        total_score = (
-            round(performance_score + competency_score, 2)
-            if performance_score is not None and competency_score is not None
-            else None
-        )
-        overall_rank = self._rank_from_score(total_score, settings.overall_score_thresholds)
+        # --- Overall: letter grades → 0-7 numeric → 10/11 + 1/11 normalization (spec section 3-2) ---
+        if performance_rank is not None and competency_rank is not None:
+            perf_numeric = RATING_CODE_TO_NUMERIC[performance_rank]
+            comp_numeric = RATING_CODE_TO_NUMERIC[competency_rank]
+            q = perf_numeric * (10.0 / 11.0) + comp_numeric * (1.0 / 11.0)
+            total_score: Optional[float] = round(q, 2)
+            if q < 0.1:
+                overall_rank: Optional[EvaluationRank] = "D"  # Boundary rule A (spec section 8, rule 8A)
+            else:
+                overall_rank = self._rank_from_score(total_score, settings.overall_score_thresholds)
+        else:
+            total_score = None
+            overall_rank = None
 
         employment = item["employment_type"]
         current_level = item.get("current_level")
@@ -1466,10 +1485,10 @@ class ComprehensiveEvaluationService:
             processingStatus=item["processing_status"],
             performanceFinalRank=performance_rank,
             performanceWeightPercent=performance_weight,
-            performanceScore=performance_score,
+            performanceScore=mbo_total_100,
             competencyFinalRank=competency_rank,
             competencyWeightPercent=competency_weight,
-            competencyScore=competency_score,
+            competencyScore=competency_rank_score,
             coreValueFinalRank=core_value_rank,
             leaderInterviewCleared=None,
             divisionHeadPresentationCleared=None,
