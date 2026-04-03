@@ -9,9 +9,19 @@ import {
 import type { ComprehensiveEvaluationManualOverride } from './manualOverride';
 import type { ComprehensiveEvaluationRow, EvaluationRank } from './types';
 
-export function computeTotalScore(performanceScore: number | null, competencyScore: number | null): number | null {
-  if (performanceScore === null || competencyScore === null) return null;
-  return Number((performanceScore + competencyScore).toFixed(2));
+// Letter grade → 0-7 numeric score (spec section 2-1)
+const RANK_TO_NUMERIC: Record<EvaluationRank, number> = {
+  SS: 7, S: 6, 'A+': 5, A: 4, 'A-': 3, B: 2, C: 1, D: 0,
+};
+
+export function computeTotalScore(
+  performanceFinalRank: EvaluationRank | null,
+  competencyFinalRank: EvaluationRank | null,
+): number | null {
+  if (performanceFinalRank === null || competencyFinalRank === null) return null;
+  const q = RANK_TO_NUMERIC[performanceFinalRank] * (10 / 11)
+          + RANK_TO_NUMERIC[competencyFinalRank] * (1 / 11);
+  return Number(q.toFixed(2));
 }
 
 export function getOverallEvaluationRank(
@@ -176,9 +186,13 @@ export function computeComprehensiveEvaluationRow(
   row: ComprehensiveEvaluationRow,
   settings: ComprehensiveEvaluationSettings
 ): ComprehensiveEvaluationComputedRow {
-  const totalScore = computeTotalScore(row.performanceScore, row.competencyScore);
+  const totalScore = computeTotalScore(row.performanceFinalRank, row.competencyFinalRank);
   const baseOverallRank =
-    totalScore !== null ? getOverallEvaluationRank(totalScore, settings.overallScoreThresholds) : null;
+    totalScore !== null
+      ? totalScore < 0.1
+        ? ('D' as EvaluationRank)
+        : getOverallEvaluationRank(totalScore, settings.overallScoreThresholds)
+      : null;
   const overallRank = baseOverallRank;
 
   const isPromotionCandidate = evaluatePromotionRuleGroups(row, overallRank, settings);

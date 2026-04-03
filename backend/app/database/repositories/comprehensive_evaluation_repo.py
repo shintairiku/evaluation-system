@@ -138,50 +138,35 @@ class ComprehensiveEvaluationRepository:
                             0
                         )
                     )::numeric AS performance_raw_score,
+                    SUM(
+                        (gf.weight / 5.0) *
+                        CASE gf.supervisor_rating_code
+                            WHEN 'SS' THEN 5.0 WHEN 'S' THEN 4.0
+                            WHEN 'A'  THEN 3.0 WHEN 'B' THEN 2.0
+                            WHEN 'C'  THEN 1.0 WHEN 'D' THEN 0.0
+                            ELSE 0.0
+                        END
+                    )
+                        FILTER (
+                            WHERE gf.goal_category = '業績目標'
+                              AND gf.feedback_status = 'submitted'
+                              AND gf.supervisor_rating_code IS NOT NULL
+                        )::numeric AS mbo_total_100,
                     SUM((gf.supervisor_rating * gf.weight) / 100.0)
                         FILTER (
                             WHERE gf.goal_category = 'コンピテンシー'
                               AND gf.feedback_status = 'submitted'
                               AND gf.supervisor_rating IS NOT NULL
                         )::numeric AS competency_score,
-                    (
-                        SUM(gf.supervisor_rating * gf.weight)
-                            FILTER (
-                                WHERE gf.goal_category = 'コンピテンシー'
-                                  AND gf.feedback_status = 'submitted'
-                                  AND gf.supervisor_rating IS NOT NULL
-                            )
-                        /
-                        NULLIF(
-                            SUM(gf.weight)
-                                FILTER (
-                                    WHERE gf.goal_category = 'コンピテンシー'
-                                      AND gf.feedback_status = 'submitted'
-                                      AND gf.supervisor_rating IS NOT NULL
-                                ),
-                            0
-                        )
-                    )::numeric AS competency_raw_score,
+                    AVG(gf.supervisor_rating)
+                        FILTER (
+                            WHERE gf.goal_category = 'コンピテンシー'
+                              AND gf.feedback_status = 'submitted'
+                              AND gf.supervisor_rating IS NOT NULL
+                        )::numeric AS competency_raw_score,
                     NULL::numeric AS core_value_score,
                     (
                         SELECT AVG(source_avg) FROM (
-                            -- Self evaluation
-                            SELECT AVG(
-                                CASE j.value
-                                    WHEN 'SS' THEN 7.0 WHEN 'S' THEN 6.0
-                                    WHEN 'A+' THEN 5.0 WHEN 'A' THEN 4.0
-                                    WHEN 'A-' THEN 3.0 WHEN 'B' THEN 2.0
-                                    WHEN 'C' THEN 1.0
-                                END
-                            ) AS source_avg
-                            FROM core_value_evaluations cve_self
-                            CROSS JOIN jsonb_each_text(cve_self.scores) AS j(key, value)
-                            WHERE cve_self.period_id = :period_id
-                              AND cve_self.user_id = tu.user_id
-                              AND cve_self.status IN ('submitted', 'approved')
-
-                            UNION ALL
-
                             -- Supervisor evaluation
                             SELECT AVG(
                                 CASE j.value
@@ -220,7 +205,7 @@ class ComprehensiveEvaluationRepository:
                               AND pra.reviewee_id = tu.user_id
                             GROUP BY pre.id
                         ) sources
-                        HAVING COUNT(source_avg) = 4
+                        HAVING COUNT(source_avg) = 3
                     )::numeric AS core_value_raw_score
                 FROM target_users tu
                 LEFT JOIN goal_feedback gf
@@ -254,6 +239,7 @@ class ComprehensiveEvaluationRepository:
                     ROUND(a.competency_weight_percent, 2)::numeric AS competency_weight_percent,
                     ROUND(a.performance_score, 2)::numeric AS performance_score,
                     ROUND(a.performance_raw_score, 2)::numeric AS performance_raw_score,
+                    ROUND(a.mbo_total_100, 2)::numeric AS mbo_total_100,
                     ROUND(a.competency_score, 2)::numeric AS competency_score,
                     ROUND(a.competency_raw_score, 2)::numeric AS competency_raw_score,
                     ROUND(a.core_value_score, 2)::numeric AS core_value_score,
@@ -291,6 +277,7 @@ class ComprehensiveEvaluationRepository:
                 wm.competency_weight_percent,
                 wm.performance_score,
                 wm.performance_raw_score,
+                wm.mbo_total_100,
                 wm.competency_score,
                 wm.competency_raw_score,
                 wm.core_value_score,
