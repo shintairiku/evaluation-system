@@ -12,9 +12,10 @@ from typing import Optional
 from ..schemas.core_value import CORE_VALUE_RATING_VALUES
 
 # String-keyed lookup from the canonical CORE_VALUE_RATING_VALUES
+# D=0.0 added for overall normalization (D not in core value scale but needed for comprehensive evaluation)
 RATING_CODE_TO_NUMERIC: dict[str, float] = {
     code.value: val for code, val in CORE_VALUE_RATING_VALUES.items()
-}
+} | {"D": 0.0}
 
 
 def score_to_final_rating(score: float) -> str:
