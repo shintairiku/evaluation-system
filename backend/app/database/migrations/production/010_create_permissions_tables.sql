@@ -161,6 +161,7 @@ JOIN permissions p ON p.code IN (
     'evaluation:review',
     'competency:read:self',
     'assessment:read:subordinates',
+    'assessment:read:self',
     'assessment:manage:self',
     'report:access',
     'stage:read:all',
