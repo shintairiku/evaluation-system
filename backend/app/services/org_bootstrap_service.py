@@ -130,6 +130,7 @@ class OrgBootstrapService:
                 PermissionEnum.EVALUATION_READ,
                 PermissionEnum.EVALUATION_REVIEW,
                 PermissionEnum.ASSESSMENT_READ_SUBORDINATES,
+                PermissionEnum.ASSESSMENT_READ_SELF,
             ]
         )
 
