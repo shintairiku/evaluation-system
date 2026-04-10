@@ -129,7 +129,7 @@ export default function PerformanceGoalsSelfAssessment({
           >
             {/* Goal Header */}
             <div className="flex items-center gap-3 mb-2">
-              <div className="text-xl font-bold text-blue-800 flex-1 break-words overflow-hidden">{evalItem.specificGoal}</div>
+              <div className="text-xl font-bold text-blue-800 flex-1 break-words overflow-hidden whitespace-pre-wrap">{evalItem.specificGoal}</div>
               <Badge className="bg-blue-600 text-white text-sm px-3 py-1">
                 ウエイト {evalItem.weight}%
               </Badge>
@@ -192,7 +192,7 @@ export default function PerformanceGoalsSelfAssessment({
               <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                 自己評価コメント
               </Label>
-              <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 h-[100px] overflow-y-auto">
+              <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 h-[200px] overflow-y-auto whitespace-pre-wrap">
                 {evalItem.comment || <span className="text-gray-400">コメントなし</span>}
               </div>
               <div className="flex justify-start items-center mt-1">
