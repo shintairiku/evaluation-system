@@ -283,7 +283,7 @@ function PerformanceGoalSupervisorCard({
           onChange={(e) => handleCommentChange(e.target.value)}
           onBlur={handleCommentBlur}
           placeholder="上長としてのフィードバックを記入してください..."
-          className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 min-h-[100px]"
+          className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 h-[200px]"
           maxLength={5000}
           disabled={!isEditable}
         />

@@ -51,7 +51,7 @@ export function CoreValueCommentSection({
         onChange={(e) => onCommentChange(e.target.value)}
         onBlur={onCommentBlur}
         placeholder={placeholder}
-        className={`mt-1 text-sm rounded-md border-gray-300 focus:ring-2 ${focusRingColor} min-h-[100px]`}
+        className={`mt-1 text-sm rounded-md border-gray-300 focus:ring-2 ${focusRingColor} h-[200px]`}
         maxLength={maxLength}
         disabled={!isEditable}
       />
