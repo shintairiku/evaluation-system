@@ -198,7 +198,7 @@ function PerformanceGoalSupervisorCard({
     <div className="bg-green-50 border border-green-200 rounded-2xl shadow-sm px-6 py-5 space-y-5">
       {/* Goal Header */}
       <div className="flex items-center gap-3 mb-2">
-        <div className="text-xl font-bold text-green-800 flex-1 break-words overflow-hidden">{goal.specificGoal}</div>
+        <div className="text-xl font-bold text-green-800 flex-1 break-words overflow-hidden whitespace-pre-wrap">{goal.specificGoal}</div>
         <Badge className="bg-green-600 text-white text-sm px-3 py-1">
           ウエイト {goal.weight}%
         </Badge>

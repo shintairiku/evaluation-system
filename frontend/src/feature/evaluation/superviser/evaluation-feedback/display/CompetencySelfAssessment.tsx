@@ -330,7 +330,7 @@ export default function CompetencySelfAssessment({
                         {competency.items.map((item) => (
                           <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[90px]">
                             <div className="flex flex-col gap-2">
-                              <p className="text-sm text-gray-700 break-words overflow-hidden">{item.description}</p>
+                              <p className="text-sm text-gray-700 break-words overflow-hidden whitespace-pre-wrap">{item.description}</p>
 
                               {/* Rating Display - Read only with visual feedback */}
                               <div className="flex items-center gap-3 flex-wrap">
@@ -369,7 +369,7 @@ export default function CompetencySelfAssessment({
                     <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                       自己評価コメント
                     </Label>
-                    <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 h-[100px] overflow-y-auto">
+                    <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 max-h-[200px] overflow-y-auto whitespace-pre-wrap">
                       {competencies[0]?.comment || <span className="text-gray-400">コメントなし</span>}
                     </div>
                     <div className="flex justify-start items-center mt-1">
