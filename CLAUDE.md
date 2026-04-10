@@ -43,6 +43,7 @@ uvicorn app.main:app --reload
   - `/app/database` - Database models and repositories
   - `/app/services` - Business logic
 - `/docs` - Documentation files
+  - `人事評価システム_ロジック仕様書_202603.md` - **Comprehensive evaluation logic specification**. This is the authoritative reference for all evaluation calculation rules: score mappings, rating scales, MBO/competency/core-value formulas, comprehensive evaluation logic, D-rule (forced demotion), level increase/decrease rules, and part-time employee handling. Always consult this document before modifying any evaluation calculation logic.
 
 ## Key Conventions
 - Use TypeScript for frontend code

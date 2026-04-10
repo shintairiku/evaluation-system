@@ -260,7 +260,7 @@ function CompetencyItemCard({
         {items.map((item) => (
           <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200 min-h-[90px]">
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-gray-700 break-words overflow-hidden">{item.description}</p>
+              <p className="text-sm text-gray-700 break-words overflow-hidden whitespace-pre-wrap">{item.description}</p>
 
               {/* Rating Selector */}
               <div className="flex items-center gap-3 flex-wrap">
@@ -372,7 +372,7 @@ function CompetencyGoalGroup({
           onChange={(e) => handleCommentChange(e.target.value)}
           onBlur={handleCommentBlur}
           placeholder="上長としてのフィードバックを記入してください..."
-          className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 min-h-[100px]"
+          className="mt-1 text-sm rounded-md border-gray-300 focus:ring-2 focus:ring-green-200 h-[200px]"
           maxLength={5000}
           disabled={!isEditable}
         />
