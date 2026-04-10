@@ -133,7 +133,7 @@ export default function CoreValueSelfAssessment({
                 <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                   自己評価コメント
                 </Label>
-                <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 max-h-[200px] overflow-y-auto whitespace-pre-wrap">
+                <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 h-[200px] overflow-y-auto whitespace-pre-wrap">
                   {comment.trim() || <span className="text-gray-400">コメントなし</span>}
                 </div>
                 <div className="flex justify-start items-center mt-1">
