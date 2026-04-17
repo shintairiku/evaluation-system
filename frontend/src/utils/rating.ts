@@ -140,6 +140,66 @@ export function calculateCoreValueRatingAverage(
 }
 
 /**
+ * MBO score table for performance goals (業績目標). Spec section 4-2.
+ * Different from RATING_CODE_VALUES: MBO uses a 5-point scale (SS=5, D=0),
+ * while the general 8-level scale uses 0-7 (SS=7, D=0).
+ */
+const MBO_SCORE: Partial<Record<RatingCode, number>> = {
+  SS: 5,
+  S: 4,
+  A: 3,
+  B: 2,
+  C: 1,
+  D: 0,
+};
+
+/**
+ * MBO final rating thresholds on 0-100 scale. Spec section 4-3.
+ * Ordered high-to-low for sequential lookup.
+ */
+const MBO_THRESHOLDS: ReadonlyArray<readonly [FinalRatingCode, number]> = [
+  ['SS', 86],
+  ['S', 70],
+  ['A+', 64],
+  ['A', 56],
+  ['A-', 50],
+  ['B', 34],
+  ['C', 20],
+  ['D', 0],
+];
+
+/**
+ * Calculates the MBO overall rating for performance goals (業績目標).
+ * Mirrors the backend SQL formula (spec sections 4-2, 4-3, 4-4):
+ *   total = Σ (weight/5) × MBO_SCORE[rating]
+ *   threshold: SS≥86, S≥70, A+≥64, A≥56, A-≥50, B≥34, C≥20, D<20
+ *
+ * @param items - Array of { rating, weight } objects
+ * @returns The FinalRatingCode string, or '−' if no valid ratings
+ */
+export function calculateMboOverallRating(
+  items: Array<{ rating?: RatingCode | null; weight: number }>
+): string {
+  let total = 0;
+  let hasValid = false;
+
+  for (const item of items) {
+    if (!item.rating || item.weight <= 0) continue;
+    const score = MBO_SCORE[item.rating];
+    if (score === undefined) continue;
+    total += (item.weight / 5) * score;
+    hasValid = true;
+  }
+
+  if (!hasValid) return '−';
+
+  for (const [rank, min] of MBO_THRESHOLDS) {
+    if (total >= min) return rank;
+  }
+  return 'D';
+}
+
+/**
  * Returns Tailwind CSS classes for a rating badge based on the rating code.
  */
 export function getRatingColor(rating: string | null): string {
