@@ -19,7 +19,7 @@ import {
   QUANTITATIVE_RATING_CODES,
   QUALITATIVE_RATING_CODES,
 } from "@/api/types/common";
-import { calculateWeightedRatingAverage, scoreToFinalRating } from "@/utils/rating";
+import { calculateMboOverallRating } from "@/utils/rating";
 import { useSelfAssessmentAutoSave } from "../hooks/useSelfAssessmentAutoSave";
 import { SaveStatusIndicator } from "@/feature/evaluation/shared/SaveStatusIndicator";
 import { SupervisorFeedbackAlert } from "./components";
@@ -220,10 +220,8 @@ export default function PerformanceGoalsEvaluate({
       weight: item.goal.weight || 0,
     }));
 
-    const avg = calculateWeightedRatingAverage(items);
-    if (avg === null) return null;
-
-    return scoreToFinalRating(avg);
+    const result = calculateMboOverallRating(items);
+    return result === '−' ? null : result;
   };
 
   const overallRating = calculateOverallRating();

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, SupervisorFeedbackStatus } from "@/api/types";
 import { QUANTITATIVE_RATING_CODES, QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
-import { scoreToFinalRating } from "@/utils/rating";
+import { calculateMboOverallRating } from "@/utils/rating";
 import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
 
 // Display data structure for supervisor evaluation
@@ -74,27 +74,9 @@ export function transformPerformanceGoalsForSupervisor(
 }
 
 export function calculateSupervisorOverallRating(goals: PerformanceGoalSupervisorData[]): string {
-  let totalWeight = 0;
-  let weightedSum = 0;
-
-  for (const goal of goals) {
-    const weight = goal.weight || 0;
-    if (weight <= 0) continue;
-
-    let score: number | undefined;
-    if (goal.supervisorRatingCode) {
-      score = RATING_CODE_VALUES[goal.supervisorRatingCode];
-    } else if (typeof goal.supervisorRating === "number" && Number.isFinite(goal.supervisorRating)) {
-      score = goal.supervisorRating;
-    }
-
-    if (typeof score !== "number") continue;
-    weightedSum += score * weight;
-    totalWeight += weight;
-  }
-
-  if (totalWeight === 0) return "−";
-  return scoreToFinalRating(weightedSum / totalWeight);
+  return calculateMboOverallRating(
+    goals.map(goal => ({ rating: goal.supervisorRatingCode, weight: goal.weight }))
+  );
 }
 
 /**
