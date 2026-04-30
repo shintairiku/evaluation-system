@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { EvaluationPeriodSelector } from '@/components/evaluation/EvaluationPeriodSelector';
 import { getCategorizedEvaluationPeriodsAction } from '@/api/server-actions/evaluation-periods';
 import { getMyReviewsAction } from '@/api/server-actions/peer-reviews';
@@ -67,6 +68,9 @@ export default function PeerReviewPage() {
         setEvaluations(reviewsResult.data);
       } else {
         setEvaluations([]);
+        toast.error('同僚評価の読み込みに失敗しました', {
+          description: reviewsResult.error ?? '権限または接続を確認してください。',
+        });
       }
 
       if (definitionsResult.success && definitionsResult.data) {
@@ -75,6 +79,9 @@ export default function PeerReviewPage() {
     } catch (error) {
       console.error('Failed to fetch peer reviews:', error);
       setEvaluations([]);
+      toast.error('同僚評価の読み込みに失敗しました', {
+        description: '予期せぬエラーが発生しました。',
+      });
     } finally {
       setIsLoadingData(false);
     }
@@ -109,12 +116,19 @@ export default function PeerReviewPage() {
       ]);
       if (reviewsResult.success && reviewsResult.data) {
         setEvaluations(reviewsResult.data);
+      } else {
+        toast.error('同僚評価の更新に失敗しました', {
+          description: reviewsResult.error ?? '権限または接続を確認してください。',
+        });
       }
       if (definitionsResult.success && definitionsResult.data) {
         setDefinitions(definitionsResult.data);
       }
     } catch (error) {
       console.error('Failed to refresh peer reviews:', error);
+      toast.error('同僚評価の更新に失敗しました', {
+        description: '予期せぬエラーが発生しました。',
+      });
     }
   }, [selectedPeriodId]);
 
