@@ -389,46 +389,43 @@ export default function CompetencyEvaluate({
 
   const hasCompetencyGoals = goalsWithAssessments.length > 0;
 
-  // Calculate overall rating based on all competency goals
+  // Calculate overall rating using the 2-step average defined in spec
+  // section 5-7:
+  //   Step 1: average action ratings within each competency
+  //   Step 2: simple average of competency scores per goal
+  // Flat-averaging all actions would favor competencies with more actions.
   const calculateOverallRating = (): string | null => {
     if (goalsWithAssessments.length === 0) return null;
 
-    // Check if all goals have comments (ratings can be partial)
     const allHaveComments = goalsWithAssessments.every((item) =>
       item.selfAssessment?.selfComment?.trim()
     );
     if (!allHaveComments) return null;
 
-    // Calculate weighted average across all goals
-    let totalWeightedScore = 0;
-    let totalWeight = 0;
-
+    const goalScores: number[] = [];
     goalsWithAssessments.forEach((item) => {
-      const weight = item.goal.weight || 0;
       const goalRatingData = item.selfAssessment?.ratingData as CompetencyRatingData;
       if (!goalRatingData) return;
 
-      // Collect all filled ratings across all competencies
-      const allRatings: RatingCode[] = [];
       const compIds = item.goal.allStageCompetencyIds || item.goal.competencyIds || [];
+      const competencyAverages: number[] = [];
       compIds.forEach((compId) => {
         const actionRatings = goalRatingData[compId];
         if (!actionRatings) return;
-        Object.values(actionRatings).forEach((rating) => {
-          if (rating) allRatings.push(rating as RatingCode);
-        });
+        const ratings = Object.values(actionRatings).filter(Boolean) as RatingCode[];
+        const avg = calculateRatingAverage(ratings);
+        if (avg !== null) competencyAverages.push(avg);
       });
 
-      const goalAvg = calculateRatingAverage(allRatings);
-      if (goalAvg !== null) {
-        totalWeightedScore += goalAvg * weight;
-        totalWeight += weight;
+      if (competencyAverages.length > 0) {
+        const sum = competencyAverages.reduce((a, b) => a + b, 0);
+        goalScores.push(sum / competencyAverages.length);
       }
     });
 
-    if (totalWeight === 0) return null;
+    if (goalScores.length === 0) return null;
 
-    const avgScore = totalWeightedScore / totalWeight;
+    const avgScore = goalScores.reduce((a, b) => a + b, 0) / goalScores.length;
     return scoreToFinalRating(avgScore);
   };
 
