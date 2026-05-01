@@ -120,52 +120,46 @@ export function transformCompetencyGoalsForSupervisor(
 }
 
 export function calculateCompetencySupervisorOverallRating(competencies: CompetencySupervisorData[]): string {
-  const goals = new Map<string, { weight: number; goalScore?: number; ratings: RatingCode[] }>();
+  // 2-step average per spec section 5-7:
+  //   Step 1: average action ratings within each competency
+  //   Step 2: simple average of competency scores per goal
+  // Flat-averaging all actions would favor competencies with more actions.
+  const goals = new Map<string, { goalScore?: number; competencyAverages: number[] }>();
 
   for (const competency of competencies) {
-    const existing = goals.get(competency.goalId);
-    if (!existing) {
+    if (!goals.has(competency.goalId)) {
       goals.set(competency.goalId, {
-        weight: competency.goalWeight || 0,
         goalScore:
           typeof competency.goalSupervisorRating === "number" && Number.isFinite(competency.goalSupervisorRating)
             ? competency.goalSupervisorRating
             : undefined,
-        ratings: [],
+        competencyAverages: [],
       });
-    } else if (existing.goalScore === undefined) {
-      if (
-        typeof competency.goalSupervisorRating === "number" &&
-        Number.isFinite(competency.goalSupervisorRating)
-      ) {
-        existing.goalScore = competency.goalSupervisorRating;
-      }
     }
+    const goal = goals.get(competency.goalId)!;
 
-    const goal = goals.get(competency.goalId);
-    if (!goal) continue;
     const actionRatings = competency.ratingData[competency.competencyId];
     if (!actionRatings) continue;
-    Object.values(actionRatings).forEach((rating) => {
-      if (rating) {
-        goal.ratings.push(rating as RatingCode);
-      }
-    });
+    const ratings = Object.values(actionRatings).filter(Boolean) as RatingCode[];
+    const competencyAverage = calculateRatingAverage(ratings);
+    if (competencyAverage !== null) {
+      goal.competencyAverages.push(competencyAverage);
+    }
   }
 
-  let totalWeight = 0;
-  let weightedSum = 0;
+  const goalScores: number[] = [];
   for (const goal of goals.values()) {
-    if (!goal.weight || goal.weight <= 0) continue;
-    const liveAverage = calculateRatingAverage(goal.ratings);
-    const goalScore = liveAverage ?? goal.goalScore;
-    if (goalScore === null || goalScore === undefined) continue;
-    weightedSum += goalScore * goal.weight;
-    totalWeight += goal.weight;
+    if (goal.competencyAverages.length > 0) {
+      const sum = goal.competencyAverages.reduce((a, b) => a + b, 0);
+      goalScores.push(sum / goal.competencyAverages.length);
+    } else if (typeof goal.goalScore === "number") {
+      goalScores.push(goal.goalScore);
+    }
   }
 
-  if (totalWeight === 0) return "−";
-  return scoreToFinalRating(weightedSum / totalWeight);
+  if (goalScores.length === 0) return "−";
+  const finalScore = goalScores.reduce((a, b) => a + b, 0) / goalScores.length;
+  return scoreToFinalRating(finalScore);
 }
 
 /**

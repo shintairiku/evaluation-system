@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { GoalResponse, SelfAssessment as APISelfAssessment, RatingCode, CompetencyRatingData } from "@/api/types";
 import { COMPETENCY_RATING_CODES } from "@/api/types/common";
-import { calculateAverageRatingCode } from "@/utils/rating";
+import { calculateAverageRatingCode, calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
 
 // Display data structure for competency action item
 export interface CompetencyActionDisplayItem {
@@ -97,12 +97,21 @@ export function transformCompetencyGoalsForDisplay(
   return result;
 }
 
-// Calculate overall competency rating
+// Calculate overall competency rating using the 2-step average defined in
+// spec section 5-7:
+//   Step 1: average action ratings within each competency
+//   Step 2: simple average of competency scores
+// Flat-averaging all actions would favor competencies with more actions.
 export function calculateCompetencyOverallRating(competencies: CompetencyDisplayData[]): string {
-  const allRatings = competencies.flatMap(c =>
-    c.items.map(i => i.rating).filter(Boolean) as RatingCode[]
-  );
-  return calculateAverageRatingCode(allRatings);
+  const competencyAverages: number[] = [];
+  for (const competency of competencies) {
+    const ratings = competency.items.map(i => i.rating).filter(Boolean) as RatingCode[];
+    const avg = calculateRatingAverage(ratings);
+    if (avg !== null) competencyAverages.push(avg);
+  }
+  if (competencyAverages.length === 0) return "−";
+  const finalScore = competencyAverages.reduce((a, b) => a + b, 0) / competencyAverages.length;
+  return scoreToFinalRating(finalScore);
 }
 
 export default function CompetencySelfAssessment({
