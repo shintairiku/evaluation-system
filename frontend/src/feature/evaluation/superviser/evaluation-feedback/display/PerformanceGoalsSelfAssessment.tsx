@@ -6,7 +6,7 @@ import { TrendingUp, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import type { GoalResponse, SelfAssessment as APISelfAssessment, RatingCode } from "@/api/types";
-import { calculateWeightedAverageRatingCode } from "@/utils/rating";
+import { calculateMboOverallRating } from "@/utils/rating";
 
 // Display data structure for a performance goal with its self-assessment
 export interface PerformanceGoalDisplayData {
@@ -51,9 +51,9 @@ export function transformPerformanceGoalsForDisplay(
     });
 }
 
-// Calculate overall rating based on weighted average (8-level scale)
+// Calculate overall rating using the MBO formula (spec sections 4-2, 4-3, 4-4)
 export function calculatePerformanceOverallRating(goals: PerformanceGoalDisplayData[]): string {
-  return calculateWeightedAverageRatingCode(
+  return calculateMboOverallRating(
     goals.map(goal => ({ rating: goal.ratingCode, weight: goal.weight }))
   );
 }

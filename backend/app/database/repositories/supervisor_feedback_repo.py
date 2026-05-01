@@ -756,21 +756,53 @@ class SupervisorFeedbackRepository(BaseRepository[SupervisorFeedback]):
         rating_data: Optional[dict]
     ) -> Optional[Decimal]:
         """
-        Derive numeric supervisor_rating from competency rating_data.
-        Uses simple average across all rated actions.
+        Derive numeric supervisor_rating from competency rating_data using
+        the 2-step average defined in spec section 5-7:
+          Step 1: average action ratings within each competency.
+          Step 2: simple (unweighted) average of competency scores.
+        Flat-averaging all action ratings together would unfairly favor
+        competencies that have more actions (spec lines 437-438, 446).
         """
-        rating_codes = self._extract_rating_codes_from_rating_data(rating_data)
-        if not rating_codes:
+        if not isinstance(rating_data, dict) or not rating_data:
             return None
 
-        total = Decimal("0")
-        for rating_code in rating_codes:
-            total += await self.score_mapping_repo.get_numeric_value_for_rating_code(
-                organization_id=organization_id,
-                rating_code=rating_code
-            )
+        competency_scores: List[Decimal] = []
+        for ratings_by_action in rating_data.values():
+            if not isinstance(ratings_by_action, dict) or not ratings_by_action:
+                continue
 
-        average = total / Decimal(len(rating_codes))
+            action_codes: List[RatingCode] = []
+            for raw_code in ratings_by_action.values():
+                if raw_code is None:
+                    continue
+                if isinstance(raw_code, RatingCode):
+                    action_codes.append(raw_code)
+                    continue
+                if not isinstance(raw_code, str):
+                    continue
+                normalized = raw_code.strip().upper()
+                if not normalized:
+                    continue
+                try:
+                    action_codes.append(RatingCode(normalized))
+                except ValueError:
+                    logger.warning("Skipping invalid rating code in supervisor rating_data: %s", raw_code)
+
+            if not action_codes:
+                continue
+
+            total = Decimal("0")
+            for rating_code in action_codes:
+                total += await self.score_mapping_repo.get_numeric_value_for_rating_code(
+                    organization_id=organization_id,
+                    rating_code=rating_code
+                )
+            competency_scores.append(total / Decimal(len(action_codes)))
+
+        if not competency_scores:
+            return None
+
+        average = sum(competency_scores, Decimal("0")) / Decimal(len(competency_scores))
         return average.quantize(Decimal("0.01"))
 
     async def _validate_self_assessment_exists(self, self_assessment_id: UUID, org_id: str) -> SelfAssessment:

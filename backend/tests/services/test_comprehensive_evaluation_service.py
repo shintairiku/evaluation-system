@@ -414,10 +414,12 @@ async def test_category_rank_uses_raw_score_not_weighted_contribution():
                     "processing_status": "processed",
                     "performance_weight_percent": 100,
                     "competency_weight_percent": 10,
-                    # Weighted contribution scores (for total)
+                    # Legacy weighted contribution scores (kept for backward compat)
                     "performance_score": 4.40,
                     "competency_score": 0.52,
                     "core_value_score": None,
+                    # MBO total on 0-100 scale (spec section 4-4)
+                    "mbo_total_100": 70.0,
                     # Raw category scores (for category final ranks)
                     "performance_raw_score": 4.40,
                     "competency_raw_score": 5.20,
@@ -446,8 +448,12 @@ async def test_category_rank_uses_raw_score_not_weighted_contribution():
     row = result.rows[0]
     # Regression: competency rank must be based on raw 5.20 (=> A+), not weighted 0.52 (=> D).
     assert row.competency_final_rank == "A+"
-    assert row.competency_score == pytest.approx(0.52)
-    assert row.auto.total_score == pytest.approx(4.92)
+    # competencyScore now holds the raw 0-7 score (not weighted contribution)
+    assert row.competency_score == pytest.approx(5.20)
+    # MBO rank from mbo_total_100=70 → "S", comp rank "A+"
+    # total = S(6)*10/11 + A+(5)*1/11 = 5.909... → round 5.91
+    assert row.performance_final_rank == "S"
+    assert row.auto.total_score == pytest.approx(5.91)
 
 
 @pytest.mark.asyncio
@@ -477,6 +483,7 @@ async def test_promotion_flag_uses_rule_hit_even_when_new_level_is_below_30():
                     "performance_score": 4.5,
                     "competency_score": 0.2,
                     "core_value_score": None,
+                    "mbo_total_100": 64.0,
                     "performance_raw_score": 4.5,
                     "competency_raw_score": 4.7,
                     "core_value_raw_score": 4.7,
@@ -503,7 +510,10 @@ async def test_promotion_flag_uses_rule_hit_even_when_new_level_is_below_30():
 
     row = result.rows[0]
 
+    # mbo_total_100=64 → A+, comp_raw=4.7 → A+, cv_raw=4.7 → A+
+    # total = A+(5)*10/11 + A+(5)*1/11 = 5.0 → A+, level delta +6
     assert row.auto.overall_rank == "A+"
+    assert row.auto.total_score == pytest.approx(5.0)
     assert row.auto.new_level == 16
     assert row.auto.promotion_flag is True
     assert row.auto.decision == "昇格"
@@ -542,6 +552,7 @@ async def test_department_override_uses_department_specific_settings():
                     "competency_weight_percent": 0,
                     "performance_score": 4.92,
                     "performance_raw_score": 4.92,
+                    "mbo_total_100": 64.0,
                     "competency_score": 0.0,
                     "competency_raw_score": 0.0,
                     "core_value_score": None,
@@ -564,6 +575,7 @@ async def test_department_override_uses_department_specific_settings():
                     "competency_weight_percent": 0,
                     "performance_score": 4.92,
                     "performance_raw_score": 4.92,
+                    "mbo_total_100": 64.0,
                     "competency_score": 0.0,
                     "competency_raw_score": 0.0,
                     "core_value_score": None,
@@ -628,6 +640,7 @@ async def test_same_department_can_use_different_settings_across_periods():
                     "competency_weight_percent": 0,
                     "performance_score": 4.92,
                     "performance_raw_score": 4.92,
+                    "mbo_total_100": 64.0,
                     "competency_score": 0.0,
                     "competency_raw_score": 0.0,
                     "core_value_score": None,
@@ -701,6 +714,7 @@ async def test_stage_override_uses_stage_specific_settings():
                     "competency_weight_percent": 0,
                     "performance_score": 4.92,
                     "performance_raw_score": 4.92,
+                    "mbo_total_100": 64.0,
                     "competency_score": 0.0,
                     "competency_raw_score": 0.0,
                     "core_value_score": None,
@@ -723,6 +737,7 @@ async def test_stage_override_uses_stage_specific_settings():
                     "competency_weight_percent": 0,
                     "performance_score": 4.92,
                     "performance_raw_score": 4.92,
+                    "mbo_total_100": 64.0,
                     "competency_score": 0.0,
                     "competency_raw_score": 0.0,
                     "core_value_score": None,
@@ -791,6 +806,7 @@ async def test_department_override_takes_precedence_over_stage_override():
                     "competency_weight_percent": 0,
                     "performance_score": 4.92,
                     "performance_raw_score": 4.92,
+                    "mbo_total_100": 64.0,
                     "competency_score": 0.0,
                     "competency_raw_score": 0.0,
                     "core_value_score": None,
@@ -1124,6 +1140,7 @@ async def test_process_user_evaluation_applies_computed_level_and_marks_processe
                     "competency_weight_percent": 10,
                     "performance_score": 4.40,
                     "performance_raw_score": 4.40,
+                    "mbo_total_100": 70.0,
                     "competency_score": 0.52,
                     "competency_raw_score": 5.20,
                     "core_value_score": None,
@@ -1146,9 +1163,11 @@ async def test_process_user_evaluation_applies_computed_level_and_marks_processe
         user_id=user_id,
     )
 
+    # mbo_total_100=70 → S, comp_raw=5.20 → A+
+    # total = S(6)*10/11 + A+(5)*1/11 = 5.91 → S, level delta S=+8, 20+8=28
     service.user_repo.batch_update_user_levels.assert_awaited_once_with(
         "org_test",
-        {user_id: 26},
+        {user_id: 28},
     )
     service.user_repo.update_user_stage.assert_not_awaited()
     service.repo.upsert_processing_status.assert_awaited_once_with(
@@ -1187,6 +1206,7 @@ async def test_process_user_evaluation_applies_manual_stage_and_clamped_level():
                     "competency_weight_percent": 10,
                     "performance_score": 4.40,
                     "performance_raw_score": 4.40,
+                    "mbo_total_100": 70.0,
                     "competency_score": 0.52,
                     "competency_raw_score": 5.20,
                     "core_value_score": None,
