@@ -157,7 +157,8 @@ export function calculateCompetencySupervisorOverallRating(competencies: Compete
   let weightedSum = 0;
   for (const goal of goals.values()) {
     if (!goal.weight || goal.weight <= 0) continue;
-    const goalScore = goal.goalScore ?? calculateRatingAverage(goal.ratings);
+    const liveAverage = calculateRatingAverage(goal.ratings);
+    const goalScore = liveAverage ?? goal.goalScore;
     if (goalScore === null || goalScore === undefined) continue;
     weightedSum += goalScore * goal.weight;
     totalWeight += goal.weight;
@@ -293,8 +294,10 @@ function CompetencyItemCard({
  */
 function CompetencyGoalGroup({
   competencies,
+  onRatingDataChange,
 }: {
   competencies: CompetencySupervisorData[];
+  onRatingDataChange?: (goalId: string, allRatingData: CompetencyRatingData) => void;
 }) {
   const firstCompetency = competencies[0];
   const [comment, setComment] = useState<string>(firstCompetency?.supervisorComment || "");
@@ -331,8 +334,11 @@ function CompetencyGoalGroup({
       [competencyId]: currentCompetencyRatings,
     };
     setAllRatingData(newRatingData);
+    if (firstCompetency?.goalId) {
+      onRatingDataChange?.(firstCompetency.goalId, newRatingData);
+    }
     debouncedSave({ supervisorComment: comment, ratingData: newRatingData });
-  }, [allRatingData, comment, debouncedSave]);
+  }, [allRatingData, comment, debouncedSave, firstCompetency?.goalId, onRatingDataChange]);
 
   // Handle comment change (debounced)
   const handleCommentChange = useCallback((newComment: string) => {
@@ -394,9 +400,29 @@ export default function CompetencySupervisorEvaluation({
   isLoading = false,
 }: CompetencySupervisorEvaluationProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [localCompetencies, setLocalCompetencies] = useState<CompetencySupervisorData[]>(competencies || []);
 
-  const displayCompetencies = competencies || [];
-  const displayOverallRating = overallRating || (displayCompetencies.length > 0 ? calculateCompetencySupervisorOverallRating(displayCompetencies) : '−');
+  useEffect(() => {
+    setLocalCompetencies(competencies || []);
+  }, [competencies]);
+
+  const handleRatingDataChange = useCallback(
+    (goalId: string, allRatingData: CompetencyRatingData) => {
+      setLocalCompetencies((prev) =>
+        prev.map((c) =>
+          c.goalId === goalId
+            ? { ...c, ratingData: { [c.competencyId]: allRatingData[c.competencyId] || {} } }
+            : c
+        )
+      );
+    },
+    []
+  );
+
+  const displayCompetencies = localCompetencies;
+  const displayOverallRating = displayCompetencies.length > 0
+    ? calculateCompetencySupervisorOverallRating(displayCompetencies)
+    : (overallRating || '−');
 
   return (
     <Card className="shadow-xl border-0 bg-white">
@@ -583,6 +609,7 @@ export default function CompetencySupervisorEvaluation({
             <CompetencyGoalGroup
               key={goalId}
               competencies={competencies}
+              onRatingDataChange={handleRatingDataChange}
             />
           ));
         })()}
