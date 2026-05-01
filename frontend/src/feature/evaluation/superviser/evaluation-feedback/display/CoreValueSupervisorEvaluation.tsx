@@ -102,7 +102,6 @@ export default function CoreValueSupervisorEvaluation({
   };
 
   const overallRating = calculateOverallRating();
-  const isSubmitted = feedback?.status === "submitted";
 
   return (
     <Card className="shadow-xl border-0 bg-white">
@@ -126,8 +125,8 @@ export default function CoreValueSupervisorEvaluation({
                 {/* Overall Rating Display */}
                 <div className="flex items-center gap-2 px-3 py-1 rounded-md border border-gray-200 bg-white">
                   <span className="text-xs text-gray-500">総合評価</span>
-                  <div className={`text-xl font-bold ${isSubmitted && overallRating !== "−" ? "text-green-700" : "text-gray-300"}`}>
-                    {isSubmitted ? overallRating : "−"}
+                  <div className={`text-xl font-bold ${overallRating !== "−" ? "text-green-700" : "text-gray-300"}`}>
+                    {overallRating}
                   </div>
                 </div>
 
