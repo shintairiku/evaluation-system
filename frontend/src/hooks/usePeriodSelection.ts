@@ -97,8 +97,12 @@ export function usePeriodSelection(currentUserId?: string): UsePeriodSelectionRe
         if (process.env.NODE_ENV !== 'production') console.debug(`📊 Found ${goals.length} existing goals for period`);
 
         // Separate goals by status
+        // Rejected goals are replaced by new draft goals linked via previousGoalId — the backend
+        // creates the replacement automatically at rejection time. We only edit drafts here;
+        // rejected goals (with or without replacement) are not loaded into the editable form.
+        // Feedback for rejected goals is shown elsewhere (/goal-list, /goal-edit/[id]).
         const blockingGoals = goals.filter(g => g.status === 'submitted' || g.status === 'approved');
-        const editableGoals = goals.filter(g => g.status === 'draft' || g.status === 'rejected');
+        const editableGoals = goals.filter(g => g.status === 'draft');
 
         if (blockingGoals.length > 0) {
           // Convert blocking goals to read-only format (inline, not reusing convertServerGoalToFrontend since ReadOnly types need status)
