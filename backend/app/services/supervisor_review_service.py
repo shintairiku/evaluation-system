@@ -498,12 +498,27 @@ class SupervisorReviewService:
         """
         Create a new draft goal as a copy of the rejected goal.
         This allows the employee to resubmit with modifications while preserving history.
+
+        Idempotent: if a replacement draft already exists (same previous_goal_id), no-op.
+        Errors are swallowed so that rejection still succeeds even if replacement creation fails.
         """
         try:
             # Get the rejected goal
             rejected_goal = await self.goal_repo.get_goal_by_id(rejected_goal_id, org_id)
             if not rejected_goal:
                 logger.error(f"Cannot create draft from rejected goal: goal {rejected_goal_id} not found")
+                return
+
+            # Idempotency guard: avoid duplicating replacement on retry / double-submit.
+            # Mirrors the pattern in goal_service.reject_goal.
+            existing_replacement = await self.goal_repo.get_replacement_draft_by_previous_goal_id(
+                rejected_goal_id, org_id
+            )
+            if existing_replacement:
+                logger.info(
+                    f"Replacement draft already exists for rejected goal {rejected_goal_id} "
+                    f"(replacement_id={existing_replacement.id}); skipping create."
+                )
                 return
 
             # Create new goal with same data but draft status and reference to previous goal
@@ -524,7 +539,16 @@ class SupervisorReviewService:
             )
 
         except Exception as e:
-            logger.error(f"Failed to create draft from rejected goal {rejected_goal_id}: {e}")
+            # Include user_id, category and weight to help diagnose orphan-rejected incidents
+            # (e.g. employee_code=1000 case where #3/#4 were left without replacement).
+            ctx_user = getattr(rejected_goal, "user_id", None) if "rejected_goal" in locals() else None
+            ctx_category = getattr(rejected_goal, "goal_category", None) if "rejected_goal" in locals() else None
+            ctx_weight = getattr(rejected_goal, "weight", None) if "rejected_goal" in locals() else None
+            logger.error(
+                f"Failed to create draft from rejected goal {rejected_goal_id} "
+                f"(user_id={ctx_user}, category={ctx_category}, weight={ctx_weight}): {e}",
+                exc_info=True,
+            )
             # Don't raise - rejection should still succeed even if draft creation fails
 
     async def _auto_create_self_assessment(self, goal, org_id: str) -> None:
