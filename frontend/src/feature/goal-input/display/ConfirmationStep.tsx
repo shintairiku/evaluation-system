@@ -139,7 +139,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
         let allSubmitted = true;
         const submitErrors: string[] = [];
 
-        // Submit only draft/rejected goals
+        // Submit all collected draft goals
         for (const goal of submittableGoals) {
           const result = await submitGoalAction(goal.id, 'submitted');
           if (!result.success) {
