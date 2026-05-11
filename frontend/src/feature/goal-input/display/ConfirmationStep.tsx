@@ -116,16 +116,19 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
 
         const allGoals = allGoalsResult.success ? allGoalsResult.data?.items || [] : [];
 
-        // Only submit draft/rejected goals
-        const submittableGoals = allGoals.filter(g => g.status === 'draft' || g.status === 'rejected');
+        // Only submit draft goals. Rejected goals are historical records replaced by
+        // their linked draft (via previousGoalId) — re-submitting them would duplicate
+        // supervisor_review entries and is no longer part of the rejection flow.
+        const submittableGoals = allGoals.filter(g => g.status === 'draft');
 
         if (submittableGoals.length === 0) {
           toast.error('提出する目標が見つかりません。');
           return;
         }
 
-        // Validate TOTAL weight across ALL performance goals (submitted + draft) = 100%
-        const allPerformanceGoals = allGoals.filter(g => g.goalCategory === '業績目標');
+        // Validate TOTAL weight across non-rejected performance goals (draft + submitted + approved) = 100%.
+        // Rejected goals are excluded to match the backend rule in goal_repo.get_weight_totals_by_category.
+        const allPerformanceGoals = allGoals.filter(g => g.goalCategory === '業績目標' && g.status !== 'rejected');
         const totalWeight = allPerformanceGoals.reduce((sum, goal) => sum + goal.weight, 0);
 
         if (totalWeight !== 100) {
@@ -136,7 +139,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
         let allSubmitted = true;
         const submitErrors: string[] = [];
 
-        // Submit only draft/rejected goals
+        // Submit all collected draft goals
         for (const goal of submittableGoals) {
           const result = await submitGoalAction(goal.id, 'submitted');
           if (!result.success) {
