@@ -18,7 +18,6 @@ const isAdminRoute = createRouteMatcher([
   '/stage-management(.*)',
   '/competency-management(.*)',
   '/admin-goal-list(.*)',
-  '/admin-eval-list(.*)',
   '/peer-review-assignments(.*)',
 ]);
 

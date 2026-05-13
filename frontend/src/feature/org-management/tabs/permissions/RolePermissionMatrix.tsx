@@ -102,7 +102,10 @@ const PERMISSION_GROUP_LABELS: Record<string, string> = {
 };
 
 const PERMISSION_CODE_COLUMN_WIDTH = 220;
-const PERMISSION_DESCRIPTION_COLUMN_OFFSET = PERMISSION_CODE_COLUMN_WIDTH;
+// Subtract a few pixels to force overlap with the previous sticky column,
+// preventing sub-pixel rendering gaps where scrolled content can leak through
+// (especially during horizontal scroll on retina/high-DPI displays).
+const PERMISSION_DESCRIPTION_COLUMN_OFFSET = PERMISSION_CODE_COLUMN_WIDTH - 4;
 
 function inferPermissionGroup(code: string | undefined, provided?: string): string {
   if (provided && provided.trim().length > 0) {
@@ -1064,15 +1067,15 @@ export function RolePermissionMatrix({
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-6">
-                        <div className="relative isolate overflow-x-auto pb-6">
-                          <Table className="w-full min-w-full lg:min-w-[960px]" aria-label={`${group.permission_group} の権限テーブル`}>
+                        <div className="relative isolate overflow-x-auto pb-6 -mx-6 px-6">
+                          <Table className="w-full min-w-max" aria-label={`${group.permission_group} の権限テーブル`}>
                             <TableHeader>
                               <TableRow className="bg-background">
-                                <TableHead className="sticky left-0 z-20 w-[220px] whitespace-nowrap border-r-2 border-border bg-background text-left shadow-[4px_0_6px_rgba(0,0,0,0.12)]">
+                                <TableHead className="sticky left-0 z-20 w-[220px] min-w-[220px] max-w-[220px] whitespace-nowrap border-r-2 border-border bg-background text-left shadow-[4px_0_6px_rgba(0,0,0,0.12)]">
                                   権限コード
                                 </TableHead>
                                 <TableHead
-                                  className="sticky z-20 w-[320px] whitespace-nowrap border-r-2 border-border bg-background text-left shadow-[4px_0_6px_rgba(0,0,0,0.12)]"
+                                  className="sticky z-20 w-[320px] min-w-[320px] max-w-[320px] whitespace-nowrap border-r-2 border-border bg-background text-left shadow-[4px_0_6px_rgba(0,0,0,0.12)]"
                                   style={{ left: PERMISSION_DESCRIPTION_COLUMN_OFFSET }}
                                 >
                                   説明
@@ -1095,11 +1098,11 @@ export function RolePermissionMatrix({
                                     <TableHead
                                       key={role.id}
                                       className={cn(
-                                        'min-w-[160px] whitespace-nowrap border-l border-border text-center align-middle transition-colors',
+                                        'whitespace-nowrap border-l border-border px-3 text-center align-middle transition-colors',
                                         isFocused ? 'bg-primary/5' : 'bg-background',
                                       )}
                                     >
-                                      <div className="flex min-w-[140px] flex-col items-center gap-1 rounded-lg border border-dashed border-border/60 px-2 py-2 text-xs font-medium uppercase tracking-wide">
+                                      <div className="flex flex-col items-center gap-1 rounded-lg border border-dashed border-border/60 px-2 py-2 text-xs font-medium uppercase tracking-wide">
                                         <span className="text-sm font-semibold leading-tight">{role.name}</span>
                                         <span className="text-[11px] text-muted-foreground">このグループ {assignedCount} 件</span>
                                         <span className="text-[11px] text-muted-foreground">
@@ -1134,13 +1137,13 @@ export function RolePermissionMatrix({
                                   >
                                     <TableCell
                                       className={cn(
-                                        'sticky left-0 z-10 border-r-2 border-border align-top shadow-[4px_0_6px_rgba(0,0,0,0.12)] transition-all',
+                                        'sticky left-0 z-10 w-[220px] min-w-[220px] max-w-[220px] border-r-2 border-border align-top shadow-[4px_0_6px_rgba(0,0,0,0.12)] transition-all',
                                         rowIsDirty ? 'bg-blue-50 group-hover/permission-row:bg-blue-100' : 'bg-white group-hover/permission-row:bg-gray-50',
                                         cellPadding,
                                       )}
                                     >
                                       <div className="flex flex-col gap-1">
-                                        <span className={cn('font-medium leading-5', codeText)}>{permission.code}</span>
+                                        <span className={cn('font-medium leading-5 break-all', codeText)}>{permission.code}</span>
                                         <div className="flex flex-wrap items-center gap-2">
                                           <Badge variant="outline" className="w-fit text-[10px] tracking-wider">
                                             {permission.permission_group}
@@ -1155,7 +1158,7 @@ export function RolePermissionMatrix({
                                     </TableCell>
                                     <TableCell
                                       className={cn(
-                                        'sticky z-10 border-r-2 border-border align-top text-muted-foreground shadow-[4px_0_6px_rgba(0,0,0,0.12)] transition-all',
+                                        'sticky z-10 w-[320px] min-w-[320px] max-w-[320px] border-r-2 border-border align-top text-muted-foreground shadow-[4px_0_6px_rgba(0,0,0,0.12)] transition-all',
                                         rowIsDirty ? 'bg-blue-50 group-hover/permission-row:bg-blue-100' : 'bg-white group-hover/permission-row:bg-gray-50',
                                         cellPadding,
                                         descriptionText,
