@@ -124,6 +124,8 @@ export interface SupervisorFeedbackSubmit {
   supervisorRatingCode?: RatingCode;
   /** Optional comment */
   supervisorComment?: string;
+  /** Per-action ratings for competency goals (JSONB). Backend already accepts this. */
+  ratingData?: Record<string, Record<string, RatingCode>>;
 }
 
 /**

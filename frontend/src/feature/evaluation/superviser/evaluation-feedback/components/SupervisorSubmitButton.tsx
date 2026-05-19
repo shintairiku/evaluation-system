@@ -14,12 +14,12 @@ import { Send, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { submitSupervisorFeedbackAction } from "@/api/server-actions/supervisor-feedbacks";
 import { submitCoreValueFeedbackAction } from "@/api/server-actions/core-values";
-import { flushSupervisorFeedbackAutoSaves } from "../hooks/useSupervisorFeedbackAutoSave";
+import { flushSupervisorFeedbackAutoSaves, getSupervisorFeedbackSnapshot } from "../hooks/useSupervisorFeedbackAutoSave";
 import { flushCoreValueFeedbackAutoSaves } from "../hooks/useCoreValueFeedbackAutoSave";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
-import type { CoreValueFeedback } from "@/api/types";
+import type { CoreValueFeedback, CompetencyRatingData, RatingCode } from "@/api/types";
 import type { PerformanceGoalSupervisorData } from "../display/PerformanceGoalsSupervisorEvaluation";
 import type { CompetencySupervisorData } from "../display/CompetencySupervisorEvaluation";
 
@@ -30,8 +30,6 @@ interface SupervisorSubmitButtonProps {
   coreValueDefinitionsCount?: number;
   coreValueScores?: Record<string, string> | null;
   onSubmitSuccess?: () => void;
-  /** Called before opening dialog to refresh data for accurate validation */
-  onRefreshData?: () => Promise<void>;
   disabled?: boolean;
 }
 
@@ -53,6 +51,44 @@ function canSubmitCompetencyFeedback(competency: CompetencySupervisorData): bool
   return !!competency.feedbackId && competency.feedbackStatus !== 'submitted';
 }
 
+/** A single feedback's resolved submit payload fields. */
+export interface ResolvedSubmitFields {
+  supervisorRatingCode?: RatingCode;
+  supervisorComment?: string;
+  ratingData?: CompetencyRatingData;
+}
+
+/**
+ * Resolve the values to submit for ONE feedback, applying WYSIWYS:
+ * - If a live snapshot exists (card mounted), it is the source of truth —
+ *   including `null` rating (intentional deselect), which maps to `undefined`
+ *   because the submit API has no explicit "clear" (backend keeps the existing
+ *   value when rating_code is omitted — pre-existing, flagged follow-up).
+ * - Otherwise fall back to the server-derived prop values.
+ *
+ * Pure + exported for unit testing (project pattern: test the function).
+ */
+export function resolveSupervisorSubmitFields(
+  snapshot: { supervisorRatingCode?: RatingCode | null; supervisorComment?: string; ratingData?: CompetencyRatingData } | undefined,
+  prop: { supervisorRatingCode?: RatingCode | null; supervisorComment?: string },
+  isCompetency: boolean,
+): ResolvedSubmitFields {
+  if (isCompetency) {
+    // Competency rating lives in ratingData (per action), never a single code.
+    return {
+      supervisorRatingCode: undefined,
+      supervisorComment: snapshot ? snapshot.supervisorComment : prop.supervisorComment,
+      ratingData: snapshot ? snapshot.ratingData : undefined,
+    };
+  }
+  const ratingCode = snapshot ? snapshot.supervisorRatingCode : prop.supervisorRatingCode;
+  return {
+    supervisorRatingCode: ratingCode ?? undefined,
+    supervisorComment: snapshot ? snapshot.supervisorComment : prop.supervisorComment,
+    ratingData: undefined,
+  };
+}
+
 export default function SupervisorSubmitButton({
   performanceGoals,
   competencyGoals,
@@ -60,7 +96,6 @@ export default function SupervisorSubmitButton({
   coreValueDefinitionsCount = 0,
   coreValueScores,
   onSubmitSuccess,
-  onRefreshData,
   disabled = false,
 }: SupervisorSubmitButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -116,19 +151,27 @@ export default function SupervisorSubmitButton({
     });
   }, [submittableCompetencyGoals]);
 
-  // All feedbacks with feedbackId can be submitted (rating/comment are optional)
+  // WYSIWYS: read EXACTLY what the user currently sees from the live snapshot
+  // registry (backed by a synchronously-updated ref in each mounted card),
+  // falling back to the server-derived prop only when no card is mounted.
+  // This eliminates the stale-prop bug where a fast 最終提出 click (before the
+  // 2s debounced auto-save persisted) submitted the previous rating.
   const feedbacksToSubmit = [
     ...submittablePerformanceGoals.map(g => ({
       feedbackId: g.feedbackId!,
-      supervisorRatingCode: g.supervisorRatingCode, // Optional
-      supervisorComment: g.supervisorComment, // Optional
+      ...resolveSupervisorSubmitFields(
+        getSupervisorFeedbackSnapshot(g.feedbackId!),
+        { supervisorRatingCode: g.supervisorRatingCode, supervisorComment: g.supervisorComment },
+        false,
+      ),
     })),
     ...uniqueCompetencyFeedbacks.map(c => ({
       feedbackId: c.feedbackId!,
-      // For competency, we don't have a single rating code
-      // The rating is stored in ratingData per action
-      supervisorRatingCode: undefined,
-      supervisorComment: c.supervisorComment, // Optional
+      ...resolveSupervisorSubmitFields(
+        getSupervisorFeedbackSnapshot(c.feedbackId!),
+        { supervisorComment: c.supervisorComment },
+        true,
+      ),
     })),
   ];
 
@@ -153,7 +196,12 @@ export default function SupervisorSubmitButton({
     }
   };
 
-  // Handle button click - flush auto-saves, refresh data, validate, then open dialog
+  // Handle button click - flush pending auto-saves, then open dialog.
+  // NOTE: we intentionally do NOT refresh from the server here. Refreshing
+  // re-derived the cards from the (possibly not-yet-persisted) backend and
+  // visually reverted the user's rating before submit. The submit now reads
+  // the live local snapshot (WYSIWYS), so a pre-dialog refresh is unnecessary
+  // and harmful. The post-submit refresh still happens via onSubmitSuccess.
   const handleButtonClick = async () => {
     setIsRefreshing(true);
     try {
@@ -161,9 +209,6 @@ export default function SupervisorSubmitButton({
         flushSupervisorFeedbackAutoSaves(),
         flushCoreValueFeedbackAutoSaves(),
       ]);
-      if (onRefreshData) {
-        await onRefreshData();
-      }
     } finally {
       setIsRefreshing(false);
     }
@@ -185,6 +230,7 @@ export default function SupervisorSubmitButton({
             action: 'APPROVED',
             supervisorRatingCode: feedback.supervisorRatingCode,
             supervisorComment: feedback.supervisorComment,
+            ratingData: feedback.ratingData,
           })
         ),
         ...(canSubmitCoreValueFeedback && coreValueFeedback?.id
