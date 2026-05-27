@@ -360,7 +360,6 @@ export default function EvaluationFeedbackDisplay() {
             coreValueDefinitionsCount={coreValueDefinitions.length}
             coreValueScores={coreValueFeedback?.scores}
             onSubmitSuccess={silentRefreshData}
-            onRefreshData={silentRefreshData}
             disabled={!canEvaluate}
           />
         </div>

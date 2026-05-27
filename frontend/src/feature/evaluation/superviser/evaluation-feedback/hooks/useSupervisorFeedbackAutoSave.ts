@@ -37,6 +37,13 @@ interface UseSupervisorFeedbackAutoSaveOptions {
   statusClearTimeout?: number;
   /** Callback when save succeeds - use to refresh parent data */
   onSaveSuccess?: () => void;
+  /**
+   * Stable getter that returns the card's CURRENT local data (rating/comment/ratingData).
+   * Registered in a global registry so the submit button can read exactly what the
+   * user sees, instead of relying on the (potentially stale) server-derived prop.
+   * Must be stable (e.g. useCallback with [] reading a ref) to keep registration cheap.
+   */
+  getSnapshot?: () => SupervisorFeedbackSaveData;
 }
 
 /**
@@ -58,6 +65,27 @@ interface UseSupervisorFeedbackAutoSaveReturn {
 }
 
 const supervisorFeedbackSaveFlushers = new Set<() => Promise<void>>();
+
+/**
+ * Registry of "current local data" getters, keyed by feedbackId.
+ *
+ * The submit button reads from here so it sends EXACTLY what the user sees
+ * (WYSIWYS), instead of the server-derived prop which can be stale while the
+ * 2s debounced auto-save is still pending. A card registers its stable getter
+ * (backed by a synchronously-updated ref) on mount and removes it on unmount.
+ */
+const supervisorFeedbackSnapshotGetters = new Map<string, () => SupervisorFeedbackSaveData>();
+
+/**
+ * Returns the current local (unsaved-or-saved) data for a feedback, as the user
+ * currently sees it on screen. Returns undefined when no card is mounted for that
+ * feedbackId (caller should fall back to the prop in that case).
+ */
+export function getSupervisorFeedbackSnapshot(
+  feedbackId: string
+): SupervisorFeedbackSaveData | undefined {
+  return supervisorFeedbackSnapshotGetters.get(feedbackId)?.();
+}
 
 export async function flushSupervisorFeedbackAutoSaves(): Promise<void> {
   const results = await Promise.allSettled(
@@ -92,7 +120,8 @@ export function useSupervisorFeedbackAutoSave({
   initialStatus,
   debounceDelay = 2000,
   statusClearTimeout = 3000,
-  onSaveSuccess
+  onSaveSuccess,
+  getSnapshot
 }: UseSupervisorFeedbackAutoSaveOptions): UseSupervisorFeedbackAutoSaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const initialData: SupervisorFeedbackSaveData = {
@@ -311,6 +340,20 @@ export function useSupervisorFeedbackAutoSave({
       supervisorFeedbackSaveFlushers.delete(flushPendingSave);
     };
   }, [flushPendingSave]);
+
+  /**
+   * Register/unregister the current-local-data getter so the submit button can
+   * read exactly what the user sees (WYSIWYS), not the stale server prop.
+   * `getSnapshot` is expected to be stable (useCallback [] reading a ref), so
+   * this effect only re-runs when feedbackId changes.
+   */
+  useEffect(() => {
+    if (!feedbackId || !getSnapshot) return;
+    supervisorFeedbackSnapshotGetters.set(feedbackId, getSnapshot);
+    return () => {
+      supervisorFeedbackSnapshotGetters.delete(feedbackId);
+    };
+  }, [feedbackId, getSnapshot]);
 
   /**
    * Cleanup timers on unmount + best-effort save of queued data

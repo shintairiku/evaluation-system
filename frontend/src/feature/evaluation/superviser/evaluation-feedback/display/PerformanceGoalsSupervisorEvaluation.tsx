@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, SupervisorFeedbackStatus } from "@/api/types";
 import { QUANTITATIVE_RATING_CODES, QUALITATIVE_RATING_CODES, RATING_CODE_VALUES } from "@/api/types/common";
 import { calculateMboOverallRating } from "@/utils/rating";
-import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
+import { useSupervisorFeedbackAutoSave, type SaveStatus, type SupervisorFeedbackSaveData } from "../hooks/useSupervisorFeedbackAutoSave";
 
 // Display data structure for supervisor evaluation
 export interface PerformanceGoalSupervisorData {
@@ -123,9 +123,26 @@ function PerformanceGoalSupervisorCard({
   );
   const [comment, setComment] = useState<string>(goal.supervisorComment || "");
 
+  // Synchronously-updated mirror of the displayed local state. The submit button
+  // reads this (via the snapshot registry) so it sends EXACTLY what the user sees,
+  // regardless of the 2s debounced auto-save still being pending (WYSIWYS).
+  const currentDataRef = useRef<SupervisorFeedbackSaveData>({
+    supervisorRatingCode: goal.supervisorRatingCode,
+    supervisorComment: goal.supervisorComment || "",
+  });
+  // Stable getter (empty deps) — reads the ref at call time, no passive-effect window.
+  const getSnapshot = useCallback(() => currentDataRef.current, []);
+
   useEffect(() => {
     setRatingCode(goal.supervisorRatingCode);
     setComment(goal.supervisorComment || "");
+    // Keep snapshot consistent with displayed state on every prop sync
+    // (initial load, post-submit refresh, subordinate switch, feedbackId
+    // undefined→uuid transition which does NOT remount this card).
+    currentDataRef.current = {
+      supervisorRatingCode: goal.supervisorRatingCode,
+      supervisorComment: goal.supervisorComment || "",
+    };
   }, [goal.id, goal.supervisorRatingCode, goal.supervisorComment]);
 
   // Auto-save hook
@@ -134,6 +151,7 @@ function PerformanceGoalSupervisorCard({
     initialRatingCode: goal.supervisorRatingCode,
     initialComment: goal.supervisorComment,
     initialStatus: goal.feedbackStatus,
+    getSnapshot,
   });
 
   // Determine goal type
@@ -146,6 +164,12 @@ function PerformanceGoalSupervisorCard({
     // If clicking the same rating, deselect it (send explicit null to clear in DB)
     const isDeselecting = ratingCode === newRating;
     const updatedRating: RatingCode | null = isDeselecting ? null : newRating;
+    // Update the snapshot SYNCHRONOUSLY (before any await/debounce) so a fast
+    // 最終提出 click reads the value the user just selected.
+    currentDataRef.current = {
+      supervisorRatingCode: updatedRating,
+      supervisorComment: comment,
+    };
     setRatingCode(updatedRating);
     onGoalChange(goal.id, {
       supervisorRatingCode: updatedRating ?? undefined,
@@ -161,6 +185,10 @@ function PerformanceGoalSupervisorCard({
   // Handle comment change (debounced)
   const handleCommentChange = useCallback((newComment: string) => {
     if (!isEditable) return;
+    currentDataRef.current = {
+      supervisorRatingCode: ratingCode,
+      supervisorComment: newComment,
+    };
     setComment(newComment);
     onGoalChange(goal.id, {
       supervisorRatingCode: ratingCode ?? undefined,

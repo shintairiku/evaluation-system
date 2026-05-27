@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Target, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import {
 import type { GoalResponse, SelfAssessment, SupervisorFeedback, RatingCode, CompetencyRatingData, SupervisorFeedbackStatus } from "@/api/types";
 import { COMPETENCY_RATING_CODES } from "@/api/types/common";
 import { calculateAverageRatingCode, calculateRatingAverage, scoreToFinalRating } from "@/utils/rating";
-import { useSupervisorFeedbackAutoSave, type SaveStatus } from "../hooks/useSupervisorFeedbackAutoSave";
+import { useSupervisorFeedbackAutoSave, type SaveStatus, type SupervisorFeedbackSaveData } from "../hooks/useSupervisorFeedbackAutoSave";
 
 // Display data structure for competency action item
 export interface CompetencyActionSupervisorItem {
@@ -304,12 +304,22 @@ function CompetencyGoalGroup({
     return merged;
   });
 
+  // Synchronously-updated mirror of the displayed local state (comment + aggregated
+  // ratingData). The submit button reads this via the snapshot registry so it sends
+  // EXACTLY what the user sees, regardless of the pending 2s debounced auto-save.
+  const currentDataRef = useRef<SupervisorFeedbackSaveData>({
+    supervisorComment: firstCompetency?.supervisorComment || "",
+    ratingData: allRatingData,
+  });
+  const getSnapshot = useCallback(() => currentDataRef.current, []);
+
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } = useSupervisorFeedbackAutoSave({
     feedbackId: firstCompetency?.feedbackId,
     initialComment: firstCompetency?.supervisorComment,
     initialRatingData: allRatingData,
     initialStatus: firstCompetency?.feedbackStatus,
+    getSnapshot,
   });
 
   // Handle rating change for any competency in the group (supports toggle/deselect)
@@ -327,6 +337,8 @@ function CompetencyGoalGroup({
       ...allRatingData,
       [competencyId]: currentCompetencyRatings,
     };
+    // Update snapshot SYNCHRONOUSLY before debounce so a fast 最終提出 reads it.
+    currentDataRef.current = { supervisorComment: comment, ratingData: newRatingData };
     setAllRatingData(newRatingData);
     if (firstCompetency?.goalId) {
       onRatingDataChange?.(firstCompetency.goalId, newRatingData);
@@ -337,6 +349,7 @@ function CompetencyGoalGroup({
   // Handle comment change (debounced)
   const handleCommentChange = useCallback((newComment: string) => {
     if (!isEditable) return;
+    currentDataRef.current = { supervisorComment: newComment, ratingData: allRatingData };
     setComment(newComment);
     debouncedSave({ supervisorComment: newComment, ratingData: allRatingData });
   }, [allRatingData, debouncedSave, isEditable]);
