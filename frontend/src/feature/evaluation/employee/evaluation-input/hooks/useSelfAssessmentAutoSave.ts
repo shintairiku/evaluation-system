@@ -167,6 +167,14 @@ export function useSelfAssessmentAutoSave({
 
     if (inFlightSaveRef.current) {
       await inFlightSaveRef.current;
+      // Fall through: if the previous loop exited before picking up our
+      // pendingSaveRef (check-then-act race window), we still need to start
+      // a fresh loop below. The guard right after handles the common case.
+    }
+
+    // After awaiting any in-flight loop: only start a new loop if there is
+    // actually pending data AND nothing else has started a loop in between.
+    if (!pendingSaveRef.current || inFlightSaveRef.current) {
       return;
     }
 
