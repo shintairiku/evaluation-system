@@ -18,13 +18,15 @@ import { getSelfAssessmentsAction } from "@/api/server-actions/self-assessments"
 import { getSupervisorFeedbacksAction } from "@/api/server-actions/supervisor-feedbacks";
 import { getMyPeerReviewDetailAction } from "@/api/server-actions/peer-reviews";
 import type { EvaluationPeriod, EvaluationDetailResponse } from "@/api/types";
+import type { PerformanceGoalDisplayData } from "@/feature/evaluation/superviser/evaluation-feedback/display/PerformanceGoalsSelfAssessment";
 import type { PerformanceGoalSupervisorData } from "@/feature/evaluation/superviser/evaluation-feedback/display/PerformanceGoalsSupervisorEvaluation";
+import type { CompetencyDisplayData } from "@/feature/evaluation/superviser/evaluation-feedback/display/CompetencySelfAssessment";
 import type { CompetencySupervisorData } from "@/feature/evaluation/superviser/evaluation-feedback/display/CompetencySupervisorEvaluation";
 import {
   fetchMyEvaluationData,
   pickDefaultFinalizedPeriod,
-  mapSupervisorPerformanceToDisplay,
-  mapSupervisorCompetencyToDisplay,
+  mergePerformanceItems,
+  mergeCompetencyItems,
 } from "../utils";
 
 const mockGetGoals = vi.mocked(getGoalsAction);
@@ -152,10 +154,20 @@ describe("pickDefaultFinalizedPeriod", () => {
   });
 });
 
-describe("mapSupervisorPerformanceToDisplay", () => {
-  function buildSupervisorGoal(
-    overrides: Partial<PerformanceGoalSupervisorData> = {},
-  ): PerformanceGoalSupervisorData {
+describe("mergePerformanceItems", () => {
+  const self: PerformanceGoalDisplayData[] = [
+    {
+      id: "goal-1",
+      type: "quantitative",
+      weight: 60,
+      specificGoal: "売上目標",
+      achievementCriteria: "達成基準",
+      methods: "手段",
+      ratingCode: "A",
+      comment: "自己コメント",
+    },
+  ];
+  function sup(overrides: Partial<PerformanceGoalSupervisorData> = {}): PerformanceGoalSupervisorData {
     return {
       id: "row-1",
       goalId: "goal-1",
@@ -166,40 +178,60 @@ describe("mapSupervisorPerformanceToDisplay", () => {
       specificGoal: "売上目標",
       achievementCriteria: "達成基準",
       methods: "手段",
-      supervisorRatingCode: "A",
-      supervisorRating: 75,
+      supervisorRatingCode: "S",
+      supervisorRating: 80,
       supervisorComment: "上長コメント",
       ...overrides,
     };
   }
 
-  it("maps supervisor rating/comment into the display shape keyed by goalId", () => {
-    const [mapped] = mapSupervisorPerformanceToDisplay([buildSupervisorGoal()]);
-    expect(mapped).toEqual({
-      id: "goal-1",
+  it("joins self and supervisor by goalId, carrying both ratings and comments", () => {
+    const [item] = mergePerformanceItems(self, [sup()]);
+    expect(item).toEqual({
+      goalId: "goal-1",
       type: "quantitative",
       weight: 60,
       specificGoal: "売上目標",
       achievementCriteria: "達成基準",
       methods: "手段",
-      ratingCode: "A",
-      comment: "上長コメント",
+      selfRating: "A",
+      selfComment: "自己コメント",
+      supervisorRating: "S",
+      supervisorComment: "上長コメント",
     });
   });
 
+  it("leaves supervisor fields empty when there is no matching supervisor goal", () => {
+    const [item] = mergePerformanceItems(self, []);
+    expect(item.supervisorRating).toBeUndefined();
+    expect(item.supervisorComment).toBe("");
+    expect(item.selfRating).toBe("A");
+  });
+
   it("coerces a null supervisor rating to undefined", () => {
-    const [mapped] = mapSupervisorPerformanceToDisplay([
-      buildSupervisorGoal({ supervisorRatingCode: null }),
-    ]);
-    expect(mapped.ratingCode).toBeUndefined();
+    const [item] = mergePerformanceItems(self, [sup({ supervisorRatingCode: null })]);
+    expect(item.supervisorRating).toBeUndefined();
   });
 });
 
-describe("mapSupervisorCompetencyToDisplay", () => {
-  function buildSupervisorCompetency(
-    overrides: Partial<CompetencySupervisorData> = {},
-  ): CompetencySupervisorData {
-    return {
+describe("mergeCompetencyItems", () => {
+  const self: CompetencyDisplayData[] = [
+    {
+      competencyId: "comp-1",
+      goalId: "goal-1",
+      name: "チームワーク",
+      items: [
+        { id: "comp-1-0", description: "行動1", rating: "A" },
+        { id: "comp-1-1", description: "行動2", rating: undefined },
+      ],
+      comment: "自己コメント",
+      competencyRating: "A",
+      isLastInGoal: true,
+      isFocused: true,
+    },
+  ];
+  const sup: CompetencySupervisorData[] = [
+    {
       competencyId: "comp-1",
       goalId: "goal-1",
       goalWeight: 100,
@@ -208,32 +240,36 @@ describe("mapSupervisorCompetencyToDisplay", () => {
       feedbackId: "feedback-1",
       name: "チームワーク",
       items: [
-        { id: "comp-1-0", actionIndex: "0", description: "行動1", rating: "A" },
-        { id: "comp-1-1", actionIndex: "1", description: "行動2", rating: undefined },
+        { id: "comp-1-0", actionIndex: "0", description: "行動1", rating: "S" },
+        { id: "comp-1-1", actionIndex: "1", description: "行動2", rating: "A+" },
       ],
       supervisorComment: "上長コメント",
-      competencyRating: "A",
-      ratingData: { "comp-1": { "0": "A" } },
+      competencyRating: "S",
+      ratingData: { "comp-1": { "0": "S", "1": "A+" } },
       isLastInGoal: true,
-      isFocused: false,
-      ...overrides,
-    };
-  }
+      isFocused: true,
+    },
+  ];
 
-  it("maps items to {id, description, rating} (dropping actionIndex) and uses the supervisor comment", () => {
-    const [mapped] = mapSupervisorCompetencyToDisplay([buildSupervisorCompetency()]);
-    expect(mapped).toEqual({
+  it("joins per-action self/supervisor ratings (by id) and goal-level comments", () => {
+    const [item] = mergeCompetencyItems(self, sup);
+    expect(item).toEqual({
       competencyId: "comp-1",
       goalId: "goal-1",
       name: "チームワーク",
-      items: [
-        { id: "comp-1-0", description: "行動1", rating: "A" },
-        { id: "comp-1-1", description: "行動2", rating: undefined },
+      isFocused: true,
+      actions: [
+        { id: "comp-1-0", description: "行動1", selfRating: "A", supervisorRating: "S" },
+        { id: "comp-1-1", description: "行動2", selfRating: undefined, supervisorRating: "A+" },
       ],
-      comment: "上長コメント",
-      competencyRating: "A",
-      isLastInGoal: true,
-      isFocused: false,
+      selfComment: "自己コメント",
+      supervisorComment: "上長コメント",
     });
+  });
+
+  it("leaves supervisor side empty when there is no matching supervisor competency", () => {
+    const [item] = mergeCompetencyItems(self, []);
+    expect(item.supervisorComment).toBe("");
+    expect(item.actions.every((a) => a.supervisorRating === undefined)).toBe(true);
   });
 });

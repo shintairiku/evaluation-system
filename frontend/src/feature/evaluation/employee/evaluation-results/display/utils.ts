@@ -8,6 +8,7 @@ import type {
   SupervisorFeedback,
   EvaluationDetailResponse,
   EvaluationPeriod,
+  RatingCode,
 } from "@/api/types";
 // Type-only imports (erased at build) — keep this module server-safe.
 import type { PerformanceGoalDisplayData } from "@/feature/evaluation/superviser/evaluation-feedback/display/PerformanceGoalsSelfAssessment";
@@ -80,44 +81,89 @@ export function pickDefaultFinalizedPeriod(
   );
 }
 
-/**
- * Maps supervisor performance-goal data into the self-assessment display shape so
- * the same (read-only) PerformanceGoalsSelfAssessment card can render the 上長 column.
- */
-export function mapSupervisorPerformanceToDisplay(
-  data: PerformanceGoalSupervisorData[],
-): PerformanceGoalDisplayData[] {
-  return data.map((g) => ({
-    id: g.goalId,
-    type: g.type,
-    weight: g.weight,
-    specificGoal: g.specificGoal,
-    achievementCriteria: g.achievementCriteria,
-    methods: g.methods,
-    ratingCode: g.supervisorRatingCode ?? undefined,
-    comment: g.supervisorComment,
-  }));
+// ---- Unified (self + supervisor) display shapes ----
+
+/** One performance goal with both self and supervisor ratings/comments. */
+export interface UnifiedPerformanceItem {
+  goalId: string;
+  type: "quantitative" | "qualitative";
+  weight: number;
+  specificGoal: string;
+  achievementCriteria: string;
+  methods: string;
+  selfRating?: RatingCode;
+  selfComment: string;
+  supervisorRating?: RatingCode;
+  supervisorComment: string;
+}
+
+/** One competency with per-action self/supervisor ratings + goal-level comments. */
+export interface UnifiedCompetencyItem {
+  competencyId: string;
+  goalId: string;
+  name: string;
+  isFocused: boolean;
+  actions: Array<{
+    id: string;
+    description: string;
+    selfRating?: RatingCode;
+    supervisorRating?: RatingCode;
+  }>;
+  selfComment: string;
+  supervisorComment: string;
 }
 
 /**
- * Maps supervisor competency data into the self-assessment display shape so the same
- * (read-only) CompetencySelfAssessment card can render the 上長 column.
+ * Joins self-assessment and supervisor performance goals (by goalId) into a single
+ * per-goal item carrying both sides. Goal details come from the self side.
  */
-export function mapSupervisorCompetencyToDisplay(
-  data: CompetencySupervisorData[],
-): CompetencyDisplayData[] {
-  return data.map((c) => ({
-    competencyId: c.competencyId,
-    goalId: c.goalId,
-    name: c.name,
-    items: c.items.map((it) => ({
-      id: it.id,
-      description: it.description,
-      rating: it.rating,
-    })),
-    comment: c.supervisorComment,
-    competencyRating: c.competencyRating,
-    isLastInGoal: c.isLastInGoal,
-    isFocused: c.isFocused,
-  }));
+export function mergePerformanceItems(
+  self: PerformanceGoalDisplayData[],
+  supervisor: PerformanceGoalSupervisorData[],
+): UnifiedPerformanceItem[] {
+  const supMap = new Map(supervisor.map((g) => [g.goalId, g]));
+  return self.map((g) => {
+    const sv = supMap.get(g.id);
+    return {
+      goalId: g.id,
+      type: g.type,
+      weight: g.weight,
+      specificGoal: g.specificGoal,
+      achievementCriteria: g.achievementCriteria,
+      methods: g.methods,
+      selfRating: g.ratingCode,
+      selfComment: g.comment,
+      supervisorRating: sv?.supervisorRatingCode ?? undefined,
+      supervisorComment: sv?.supervisorComment ?? "",
+    };
+  });
+}
+
+/**
+ * Joins self and supervisor competency data (by competencyId, actions by id) into a
+ * single per-competency item carrying both ratings per action and both comments.
+ */
+export function mergeCompetencyItems(
+  self: CompetencyDisplayData[],
+  supervisor: CompetencySupervisorData[],
+): UnifiedCompetencyItem[] {
+  const supMap = new Map(supervisor.map((c) => [c.competencyId, c]));
+  return self.map((c) => {
+    const sv = supMap.get(c.competencyId);
+    const supActions = new Map((sv?.items ?? []).map((it) => [it.id, it.rating]));
+    return {
+      competencyId: c.competencyId,
+      goalId: c.goalId,
+      name: c.name,
+      isFocused: c.isFocused,
+      actions: c.items.map((it) => ({
+        id: it.id,
+        description: it.description,
+        selfRating: it.rating,
+        supervisorRating: supActions.get(it.id),
+      })),
+      selfComment: c.comment,
+      supervisorComment: sv?.supervisorComment ?? "",
+    };
+  });
 }

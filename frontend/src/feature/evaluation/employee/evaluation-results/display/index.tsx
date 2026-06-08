@@ -6,7 +6,7 @@ import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { CoreValueScoreGrid } from "@/feature/evaluation/admin/peer-review-assignments/components/CoreValueScoreGrid";
 import { OverallRatingSummary } from "@/feature/evaluation/admin/peer-review-assignments/components/OverallRatingSummary";
 import { EvaluationCommentsSection } from "@/feature/evaluation/admin/peer-review-assignments/components/EvaluationCommentsSection";
-import PerformanceGoalsSelfAssessment, {
+import {
   transformPerformanceGoalsForDisplay,
   calculatePerformanceOverallRating,
 } from "@/feature/evaluation/superviser/evaluation-feedback/display/PerformanceGoalsSelfAssessment";
@@ -14,7 +14,7 @@ import {
   transformPerformanceGoalsForSupervisor,
   calculateSupervisorOverallRating,
 } from "@/feature/evaluation/superviser/evaluation-feedback/display/PerformanceGoalsSupervisorEvaluation";
-import CompetencySelfAssessment, {
+import {
   transformCompetencyGoalsForDisplay,
   calculateCompetencyOverallRating,
 } from "@/feature/evaluation/superviser/evaluation-feedback/display/CompetencySelfAssessment";
@@ -25,9 +25,13 @@ import {
 import type { EvaluationPeriod, UserDetailResponse } from "@/api/types";
 import { AlertCircle, Loader2, Heart } from "lucide-react";
 import {
+  UnifiedPerformanceSection,
+  UnifiedCompetencySection,
+} from "./UnifiedEvaluationSections";
+import {
   fetchMyEvaluationData,
-  mapSupervisorPerformanceToDisplay,
-  mapSupervisorCompetencyToDisplay,
+  mergePerformanceItems,
+  mergeCompetencyItems,
   type MyEvaluationRawData,
 } from "./utils";
 
@@ -127,14 +131,14 @@ export default function EvaluationResultsDisplay({
     [data.goals, data.selfAssessments, data.supervisorFeedbacks],
   );
 
-  // Mapped into the read-only display shape (cards only)
-  const supervisorPerformanceDisplay = useMemo(
-    () => mapSupervisorPerformanceToDisplay(supervisorPerformance),
-    [supervisorPerformance],
+  // Unified per-item display data (self + supervisor merged)
+  const unifiedPerformance = useMemo(
+    () => mergePerformanceItems(performanceGoals, supervisorPerformance),
+    [performanceGoals, supervisorPerformance],
   );
-  const supervisorCompetencyDisplay = useMemo(
-    () => mapSupervisorCompetencyToDisplay(supervisorCompetency),
-    [supervisorCompetency],
+  const unifiedCompetency = useMemo(
+    () => mergeCompetencyItems(competencyData, supervisorCompetency),
+    [competencyData, supervisorCompetency],
   );
 
   // Overall ratings — identical functions to evaluation-feedback:
@@ -212,42 +216,19 @@ export default function EvaluationResultsDisplay({
           </div>
         ) : (
           <>
-            {/* Column Headers */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <h2 className="text-lg font-bold text-blue-700">自己評価</h2>
-              <h2 className="text-lg font-bold text-green-700">上長評価</h2>
-            </div>
+            {/* Performance Goals (unified self + supervisor) */}
+            <UnifiedPerformanceSection
+              items={unifiedPerformance}
+              selfOverall={performanceOverallRating}
+              supervisorOverall={supervisorPerformanceOverallRating}
+            />
 
-            {/* Performance Goals Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
-              <PerformanceGoalsSelfAssessment
-                goals={performanceGoals}
-                overallRating={performanceOverallRating}
-              />
-              <PerformanceGoalsSelfAssessment
-                goals={supervisorPerformanceDisplay}
-                overallRating={supervisorPerformanceOverallRating}
-                subtitle="上長評価（参照のみ）"
-                ratingLabel="上長評価"
-                commentLabel="上長評価コメント"
-                commentHint="上長による評価コメント"
-              />
-            </div>
-
-            {/* Competency Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
-              <CompetencySelfAssessment
-                competencies={competencyData}
-                overallRating={competencyOverallRating}
-              />
-              <CompetencySelfAssessment
-                competencies={supervisorCompetencyDisplay}
-                overallRating={supervisorCompetencyOverallRating}
-                subtitle="上長評価（参照のみ）"
-                commentLabel="上長評価コメント"
-                commentHint="上長による評価コメント"
-              />
-            </div>
+            {/* Competency (unified self + supervisor) */}
+            <UnifiedCompetencySection
+              items={unifiedCompetency}
+              selfOverall={competencyOverallRating}
+              supervisorOverall={supervisorCompetencyOverallRating}
+            />
 
             {/* Core Value Section */}
             <div className="space-y-4">
