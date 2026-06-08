@@ -10,12 +10,18 @@ import PerformanceGoalsSelfAssessment, {
   transformPerformanceGoalsForDisplay,
   calculatePerformanceOverallRating,
 } from "@/feature/evaluation/superviser/evaluation-feedback/display/PerformanceGoalsSelfAssessment";
-import { transformPerformanceGoalsForSupervisor } from "@/feature/evaluation/superviser/evaluation-feedback/display/PerformanceGoalsSupervisorEvaluation";
+import {
+  transformPerformanceGoalsForSupervisor,
+  calculateSupervisorOverallRating,
+} from "@/feature/evaluation/superviser/evaluation-feedback/display/PerformanceGoalsSupervisorEvaluation";
 import CompetencySelfAssessment, {
   transformCompetencyGoalsForDisplay,
   calculateCompetencyOverallRating,
 } from "@/feature/evaluation/superviser/evaluation-feedback/display/CompetencySelfAssessment";
-import { transformCompetencyGoalsForSupervisor } from "@/feature/evaluation/superviser/evaluation-feedback/display/CompetencySupervisorEvaluation";
+import {
+  transformCompetencyGoalsForSupervisor,
+  calculateCompetencySupervisorOverallRating,
+} from "@/feature/evaluation/superviser/evaluation-feedback/display/CompetencySupervisorEvaluation";
 import type { EvaluationPeriod, UserDetailResponse } from "@/api/types";
 import { AlertCircle, Loader2, Heart } from "lucide-react";
 import {
@@ -100,31 +106,39 @@ export default function EvaluationResultsDisplay({
     [data.goals, data.selfAssessments],
   );
 
-  // Supervisor feedback mapped into the read-only display shape
-  const supervisorPerformanceDisplay = useMemo(
+  // Supervisor feedback — keep the raw transform results so the overall ratings
+  // use the EXACT same functions as the evaluation-feedback page.
+  const supervisorPerformance = useMemo(
     () =>
-      mapSupervisorPerformanceToDisplay(
-        transformPerformanceGoalsForSupervisor(
-          data.goals,
-          data.selfAssessments,
-          data.supervisorFeedbacks,
-        ),
+      transformPerformanceGoalsForSupervisor(
+        data.goals,
+        data.selfAssessments,
+        data.supervisorFeedbacks,
       ),
     [data.goals, data.selfAssessments, data.supervisorFeedbacks],
   );
-  const supervisorCompetencyDisplay = useMemo(
+  const supervisorCompetency = useMemo(
     () =>
-      mapSupervisorCompetencyToDisplay(
-        transformCompetencyGoalsForSupervisor(
-          data.goals,
-          data.selfAssessments,
-          data.supervisorFeedbacks,
-        ),
+      transformCompetencyGoalsForSupervisor(
+        data.goals,
+        data.selfAssessments,
+        data.supervisorFeedbacks,
       ),
     [data.goals, data.selfAssessments, data.supervisorFeedbacks],
   );
 
-  // Overall ratings (same MBO/competency formulas for both columns)
+  // Mapped into the read-only display shape (cards only)
+  const supervisorPerformanceDisplay = useMemo(
+    () => mapSupervisorPerformanceToDisplay(supervisorPerformance),
+    [supervisorPerformance],
+  );
+  const supervisorCompetencyDisplay = useMemo(
+    () => mapSupervisorCompetencyToDisplay(supervisorCompetency),
+    [supervisorCompetency],
+  );
+
+  // Overall ratings — identical functions to evaluation-feedback:
+  // self uses the *Display calculators, supervisor uses the *Supervisor calculators.
   const performanceOverallRating = useMemo(
     () =>
       performanceGoals.length > 0
@@ -139,17 +153,17 @@ export default function EvaluationResultsDisplay({
   );
   const supervisorPerformanceOverallRating = useMemo(
     () =>
-      supervisorPerformanceDisplay.length > 0
-        ? calculatePerformanceOverallRating(supervisorPerformanceDisplay)
+      supervisorPerformance.length > 0
+        ? calculateSupervisorOverallRating(supervisorPerformance)
         : "−",
-    [supervisorPerformanceDisplay],
+    [supervisorPerformance],
   );
   const supervisorCompetencyOverallRating = useMemo(
     () =>
-      supervisorCompetencyDisplay.length > 0
-        ? calculateCompetencyOverallRating(supervisorCompetencyDisplay)
+      supervisorCompetency.length > 0
+        ? calculateCompetencySupervisorOverallRating(supervisorCompetency)
         : "−",
-    [supervisorCompetencyDisplay],
+    [supervisorCompetency],
   );
 
   const coreValueDetail = data.coreValueDetail;
