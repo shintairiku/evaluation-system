@@ -216,6 +216,24 @@ async def get_my_results(
         raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching results: {str(e)}")
 
 
+@router.get("/results/mine/detail", response_model=EvaluationDetailResponse)
+async def get_my_results_detail(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get my own core value evaluation detail: scores grid + comments (peers anonymized, self-only)."""
+    try:
+        service = PeerReviewService(session)
+        return await service.get_my_evaluation_detail(context, period_id)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching results detail: {str(e)}")
+
+
 @router.get("/results/user", response_model=PeerReviewAveragedScores)
 async def get_user_results(
     period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),

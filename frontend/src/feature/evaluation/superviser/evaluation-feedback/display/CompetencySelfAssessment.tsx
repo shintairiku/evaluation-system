@@ -37,6 +37,12 @@ interface CompetencySelfAssessmentProps {
   competencies?: CompetencyDisplayData[];
   overallRating?: string;
   isLoading?: boolean;
+  /** Subtitle under the card title. Defaults to self-assessment wording. */
+  subtitle?: string;
+  /** Label above the comment box. Defaults to "自己評価コメント". */
+  commentLabel?: string;
+  /** Hint shown under the comment box. Defaults to self-assessment wording. */
+  commentHint?: string;
 }
 
 // Helper function to transform API data to display format
@@ -118,6 +124,9 @@ export default function CompetencySelfAssessment({
   competencies,
   overallRating,
   isLoading = false,
+  subtitle = "自己評価（参照のみ）",
+  commentLabel = "自己評価コメント",
+  commentHint = "部下による自己評価コメント",
 }: CompetencySelfAssessmentProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -136,7 +145,7 @@ export default function CompetencySelfAssessment({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-lg font-bold tracking-tight">コンピテンシー評価</CardTitle>
-                <p className="text-xs text-gray-500 mt-1">自己評価（参照のみ）</p>
+                <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -376,13 +385,13 @@ export default function CompetencySelfAssessment({
                   {/* Comment Section - Read only, outside the cards */}
                   <div className="mt-6">
                     <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                      自己評価コメント
+                      {commentLabel}
                     </Label>
                     <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 h-[200px] overflow-y-auto whitespace-pre-wrap">
                       {competencies[0]?.comment || <span className="text-gray-400">コメントなし</span>}
                     </div>
                     <div className="flex justify-start items-center mt-1">
-                      <p className="text-xs text-gray-400">部下による自己評価コメント</p>
+                      <p className="text-xs text-gray-400">{commentHint}</p>
                     </div>
                   </div>
                 </div>

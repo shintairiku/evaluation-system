@@ -99,6 +99,14 @@ export const peerReviewsApi = {
     );
   },
 
+  getMyResultsDetail: async (
+    periodId: string,
+  ): Promise<ApiResponse<EvaluationDetailResponse>> => {
+    return httpClient.get<EvaluationDetailResponse>(
+      `${API_ENDPOINTS.PEER_REVIEWS.RESULTS_MINE_DETAIL}?periodId=${periodId}`,
+    );
+  },
+
   getUserResults: async (
     periodId: string,
     userId: string,

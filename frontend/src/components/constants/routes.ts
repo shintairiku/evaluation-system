@@ -39,6 +39,13 @@ export const groups = [
         icon: 'users',
         permission: 'employee'
       },
+      {
+        href: '/evaluation-results',
+        label: '評価結果一覧',
+        sublabel: 'Evaluation Results',
+        icon: 'list-checks',
+        permission: 'employee'
+      },
     ],
   },
   {

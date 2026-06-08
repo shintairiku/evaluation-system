@@ -671,6 +671,39 @@ class PeerReviewService:
         if not org_id:
             raise PermissionDeniedError("Organization context required")
 
+        return await self._build_evaluation_detail(org_id, period_id, user_id, anonymize_peers=False)
+
+    @require_any_permission([Permission.ASSESSMENT_READ_SELF, Permission.ASSESSMENT_READ_ALL])
+    async def get_my_evaluation_detail(
+        self,
+        current_user_context: AuthContext,
+        period_id: UUID,
+    ) -> EvaluationDetailResponse:
+        """Get the current user's own core value evaluation detail (self-only, peers anonymized).
+
+        Mirrors get_evaluation_detail but is scoped to the caller and never exposes
+        peer reviewer identity in the comment labels.
+        """
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        return await self._build_evaluation_detail(
+            org_id, period_id, current_user_context.user_id, anonymize_peers=True
+        )
+
+    async def _build_evaluation_detail(
+        self,
+        org_id: str,
+        period_id: UUID,
+        user_id: UUID,
+        anonymize_peers: bool,
+    ) -> EvaluationDetailResponse:
+        """Build the core value scores grid + comments for a user.
+
+        When anonymize_peers is True, peer comment labels never include the
+        reviewer name (used for the reviewee's own results view).
+        """
         # 1. User info
         user = await self.user_repo.get_user_by_id_with_details(user_id, org_id)
         if not user:
@@ -771,16 +804,18 @@ class PeerReviewService:
             comment=self_comment,
         ))
 
-        # Peer 1 comment
+        # Peer 1 comment (reviewer name hidden when anonymized)
+        peer1_label = "同僚評価①" if anonymize_peers else f"{peer1_name or '未割当'}（同僚評価①）"
         comments.append(EvaluationSourceComment(
-            source_label=f"{peer1_name or '未割当'}（同僚評価①）",
+            source_label=peer1_label,
             source_type="peer1",
             comment=peer1_eval.comment if peer1_eval else None,
         ))
 
-        # Peer 2 comment
+        # Peer 2 comment (reviewer name hidden when anonymized)
+        peer2_label = "同僚評価②" if anonymize_peers else f"{peer2_name or '未割当'}（同僚評価②）"
         comments.append(EvaluationSourceComment(
-            source_label=f"{peer2_name or '未割当'}（同僚評価②）",
+            source_label=peer2_label,
             source_type="peer2",
             comment=peer2_eval.comment if peer2_eval else None,
         ))
