@@ -700,6 +700,7 @@ class PeerReviewService:
             period_id,
             current_user_context.user_id,
             anonymize_peers=True,
+            period=period,
         )
 
     async def _build_evaluation_detail(
@@ -708,19 +709,22 @@ class PeerReviewService:
         period_id: UUID,
         user_id: UUID,
         anonymize_peers: bool,
+        period=None,
     ) -> EvaluationDetailResponse:
         """Build the core value scores grid + comments for a user.
 
         When anonymize_peers is True, peer comment labels never include the
-        reviewer name (used for the reviewee's own results view).
+        reviewer name (used for the reviewee's own results view). ``period`` may be
+        passed by callers that already loaded it (avoids a duplicate query).
         """
         # 1. User info
         user = await self.user_repo.get_user_by_id_with_details(user_id, org_id)
         if not user:
             raise NotFoundError(f"User not found: {user_id}")
 
-        # 2. Period info
-        period = await self.period_repo.get_by_id(period_id, org_id)
+        # 2. Period info (reuse a caller-provided period to avoid a duplicate fetch)
+        if period is None:
+            period = await self.period_repo.get_by_id(period_id, org_id)
         period_name = period.name if period else None
 
         # 3. Core value definitions (ordered)
