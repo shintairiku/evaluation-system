@@ -152,7 +152,10 @@ export default function ComprehensiveEvaluationCandidatesPage() {
     [evaluationPeriodId, evaluationPeriods],
   );
   const isSelectedPeriodCancelled = selectedEvaluationPeriod?.status === "cancelled";
-  const canEdit = canEditRole && !isSelectedPeriodCancelled;
+  const isSelectedPeriodCompleted = selectedEvaluationPeriod?.status === "completed";
+  // 個別判断はバックエンド仕様により評価期間の「終了（確定）」後のみ許可される。
+  // 未確定の期間で操作させると保存時に400エラーになるため、確定済みのときだけ編集を許可する。
+  const canEdit = canEditRole && !isSelectedPeriodCancelled && isSelectedPeriodCompleted;
 
   useEffect(() => {
     if (evaluationPeriodId !== "all") return;
@@ -471,7 +474,13 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                 この評価期間はキャンセル済みのため、個別判断の編集はできません。
               </p>
             )}
-            {!isSelectedPeriodCancelled && (
+            {!isSelectedPeriodCancelled && !isSelectedPeriodCompleted && (
+              <p className="text-sm text-destructive">
+                この評価期間はまだ「終了（確定）」されていません。個別判断は評価期間を終了した後にのみ行えます。
+                評価期間管理画面で対象期間を「終了」にしてから操作してください。
+              </p>
+            )}
+            {!isSelectedPeriodCancelled && isSelectedPeriodCompleted && (
               <p className="text-sm text-muted-foreground">
                 「処理済」のユーザーのみ個別判断を編集できます。未処理ユーザーは
                 <Link href="/admin-eval-list" className="mx-1 underline">
@@ -501,6 +510,7 @@ export default function ComprehensiveEvaluationCandidatesPage() {
           <div className="font-semibold">操作手順（eval_admin）</div>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
             <li>`/admin-eval-list` で対象ユーザーを「処理する」して処理済にする</li>
+            <li>評価期間管理画面で評価期間を「終了（確定）」にする</li>
             <li>この画面で「個別判断する」を押す</li>
             <li>判定・反映後ステージ・理由を入力して保存する</li>
           </ol>
@@ -673,7 +683,9 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                     const canEditRow = canEdit && isRowProcessed;
                     const editDisabledReason = isSelectedPeriodCancelled
                       ? "評価期間がキャンセル済みのため編集できません"
-                      : "評価スコアが未処理のため編集できません";
+                      : !isSelectedPeriodCompleted
+                        ? "評価期間が未確定のため編集できません（先に評価期間を終了してください）"
+                        : "評価スコアが未処理のため編集できません";
 
                     return (
                       <TableRow key={row.id}>
@@ -718,7 +730,9 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                             )}
                             {!canEditRow && !isSelectedPeriodCancelled && (
                               <div className="text-xs text-muted-foreground">
-                                `/admin-eval-list` で先に「処理する」を実行してください
+                                {!isSelectedPeriodCompleted
+                                  ? "評価期間管理画面で評価期間を「終了（確定）」にしてください"
+                                  : "`/admin-eval-list` で先に「処理する」を実行してください"}
                               </div>
                             )}
                           </div>
@@ -761,7 +775,12 @@ export default function ComprehensiveEvaluationCandidatesPage() {
                       <div className="text-sm text-muted-foreground">
                         {selectedItem.row.departmentName ?? "-"} / {selectedItem.row.currentStage ?? "-"}
                       </div>
-                      {!isSelectedItemProcessed && !isSelectedPeriodCancelled && (
+                      {!isSelectedPeriodCancelled && !isSelectedPeriodCompleted && (
+                        <div className="text-xs text-destructive">
+                          評価期間が未確定のため編集できません。評価期間管理画面で対象期間を「終了（確定）」にしてください。
+                        </div>
+                      )}
+                      {!isSelectedItemProcessed && !isSelectedPeriodCancelled && isSelectedPeriodCompleted && (
                         <div className="text-xs text-muted-foreground">
                           このユーザーは評価スコアが未処理のため編集できません。先に
                           <Link href="/admin-eval-list" className="mx-1 underline">
