@@ -168,6 +168,14 @@ export interface ComprehensiveEvaluationListResponse {
   meta: ComprehensiveEvaluationListMeta;
 }
 
+/**
+ * Self-view of the comprehensive evaluation: only the overall rank (総合評価).
+ * No promotion/demotion or level/stage data is exposed to the employee.
+ */
+export interface MyComprehensiveEvaluation {
+  overallRank: ComprehensiveEvaluationRank | null;
+}
+
 export type ComprehensiveEvaluationExportColumn =
   | 'employeeCode'
   | 'name'

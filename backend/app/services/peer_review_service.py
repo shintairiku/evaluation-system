@@ -671,13 +671,60 @@ class PeerReviewService:
         if not org_id:
             raise PermissionDeniedError("Organization context required")
 
+        return await self._build_evaluation_detail(org_id, period_id, user_id, anonymize_peers=False)
+
+    @require_any_permission([Permission.ASSESSMENT_READ_SELF, Permission.ASSESSMENT_READ_ALL])
+    async def get_my_evaluation_detail(
+        self,
+        current_user_context: AuthContext,
+        period_id: UUID,
+    ) -> EvaluationDetailResponse:
+        """Get the current user's own core value evaluation detail (self-only, peers anonymized).
+
+        Mirrors get_evaluation_detail but is scoped to the caller and never exposes
+        peer reviewer identity in the comment labels. Results are only available once
+        the evaluation period is finalized (completed).
+        """
+        org_id = current_user_context.organization_id
+        if not org_id:
+            raise PermissionDeniedError("Organization context required")
+
+        # Defense-in-depth: results are only visible after the period is finalized.
+        period = await self.period_repo.get_by_id(period_id, org_id)
+        status = str(getattr(period.status, "value", period.status)).lower() if period else None
+        if status != "completed":
+            raise PermissionDeniedError("Evaluation results are available after the period is finalized")
+
+        return await self._build_evaluation_detail(
+            org_id,
+            period_id,
+            current_user_context.user_id,
+            anonymize_peers=True,
+            period=period,
+        )
+
+    async def _build_evaluation_detail(
+        self,
+        org_id: str,
+        period_id: UUID,
+        user_id: UUID,
+        anonymize_peers: bool,
+        period=None,
+    ) -> EvaluationDetailResponse:
+        """Build the core value scores grid + comments for a user.
+
+        When anonymize_peers is True, peer comment labels never include the
+        reviewer name (used for the reviewee's own results view). ``period`` may be
+        passed by callers that already loaded it (avoids a duplicate query).
+        """
         # 1. User info
         user = await self.user_repo.get_user_by_id_with_details(user_id, org_id)
         if not user:
             raise NotFoundError(f"User not found: {user_id}")
 
-        # 2. Period info
-        period = await self.period_repo.get_by_id(period_id, org_id)
+        # 2. Period info (reuse a caller-provided period to avoid a duplicate fetch)
+        if period is None:
+            period = await self.period_repo.get_by_id(period_id, org_id)
         period_name = period.name if period else None
 
         # 3. Core value definitions (ordered)
@@ -734,9 +781,12 @@ class PeerReviewService:
             if supervisor_feedback and supervisor_feedback.status == "submitted" and supervisor_feedback.scores:
                 sup_rating = supervisor_feedback.scores.get(def_id_str)
 
-            # Calculate average from available ratings
+            # 平均 = average of the 3 others (同僚①+同僚②+上長), excluding self.
+            # Canonical core value rule (matches the comprehensive core_value_raw_score,
+            # which uses supervisor + 2 peers only).
+            average_sources = [p1_rating, p2_rating, sup_rating]
             numeric_values = []
-            for r in [self_rating, p1_rating, p2_rating, sup_rating]:
+            for r in average_sources:
                 if r is not None:
                     num = RATING_CODE_TO_NUMERIC.get(r)
                     if num is not None:
@@ -771,16 +821,18 @@ class PeerReviewService:
             comment=self_comment,
         ))
 
-        # Peer 1 comment
+        # Peer 1 comment (reviewer name hidden when anonymized)
+        peer1_label = "同僚評価①" if anonymize_peers else f"{peer1_name or '未割当'}（同僚評価①）"
         comments.append(EvaluationSourceComment(
-            source_label=f"{peer1_name or '未割当'}（同僚評価①）",
+            source_label=peer1_label,
             source_type="peer1",
             comment=peer1_eval.comment if peer1_eval else None,
         ))
 
-        # Peer 2 comment
+        # Peer 2 comment (reviewer name hidden when anonymized)
+        peer2_label = "同僚評価②" if anonymize_peers else f"{peer2_name or '未割当'}（同僚評価②）"
         comments.append(EvaluationSourceComment(
-            source_label=f"{peer2_name or '未割当'}（同僚評価②）",
+            source_label=peer2_label,
             source_type="peer2",
             comment=peer2_eval.comment if peer2_eval else None,
         ))
@@ -807,11 +859,10 @@ class PeerReviewService:
         sup_submitted = supervisor_feedback is not None and supervisor_feedback.status == "submitted"
         all_submitted = self_submitted and peer1_submitted and peer2_submitted and sup_submitted
 
-        # 11. Calculate overall average across 4 sources
+        # 11. Calculate 総合平均 from the 3 others (同僚①+同僚②+上長), excluding self.
+        # self_avg is still computed below for the self column display.
         source_scores: list[float] = []
         self_avg = calculate_source_average(cv_eval.scores) if cv_eval and cv_eval.status in ("submitted", "approved") and cv_eval.scores else None
-        if self_avg is not None:
-            source_scores.append(self_avg)
         p1_avg = calculate_source_average(peer1_eval.scores) if peer1_eval and peer1_eval.scores else None
         if p1_avg is not None:
             source_scores.append(p1_avg)

@@ -6,6 +6,7 @@ import { comprehensiveEvaluationApi } from '../endpoints/comprehensive-evaluatio
 import { CACHE_TAGS } from '../utils/cache';
 import type {
   ComprehensiveEvaluationListResponse,
+  MyComprehensiveEvaluation,
   ComprehensiveEvaluationSettingsWorkspaceResponse,
   ComprehensiveManualDecisionHistoryResponse,
   ExportComprehensiveEvaluationRequest,
@@ -48,6 +49,34 @@ export async function getComprehensiveEvaluationListAction(params: GetComprehens
     return {
       success: false,
       error: 'An unexpected error occurred while fetching comprehensive evaluation rows',
+    };
+  }
+}
+
+export async function getMyComprehensiveEvaluationAction(periodId: string): Promise<{
+  success: boolean;
+  data?: MyComprehensiveEvaluation;
+  error?: string;
+}> {
+  try {
+    const response = await comprehensiveEvaluationApi.getMyComprehensiveEvaluation(periodId);
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.errorMessage || 'Failed to fetch comprehensive evaluation',
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('getMyComprehensiveEvaluationAction error:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while fetching comprehensive evaluation',
     };
   }
 }

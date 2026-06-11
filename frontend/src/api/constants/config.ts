@@ -275,6 +275,7 @@ export const API_ENDPOINTS = {
     SUBMIT_EVALUATION: (evalId: string) =>
       buildApiUrl(`/peer-reviews/evaluations/${evalId}/submit`),
     RESULTS_MINE: buildApiUrl('/peer-reviews/results/mine'),
+    RESULTS_MINE_DETAIL: buildApiUrl('/peer-reviews/results/mine/detail'),
     RESULTS_USER: buildApiUrl('/peer-reviews/results/user'),
     SUMMARY_USER: buildApiUrl('/peer-reviews/summary/user'),
     PROGRESS: buildApiUrl('/peer-reviews/progress'),
@@ -302,6 +303,7 @@ export const API_ENDPOINTS = {
   // Comprehensive Evaluation endpoints
   COMPREHENSIVE_EVALUATION: {
     LIST: '/evaluation/comprehensive-evaluation',
+    MINE: '/evaluation/comprehensive-evaluation/mine',
     EXPORT: '/evaluation/comprehensive-evaluation/export',
     STAGE_OPTIONS: '/evaluation/comprehensive-evaluation/stage-options',
     SETTINGS_WORKSPACE: '/evaluation/comprehensive-evaluation/settings/workspace',

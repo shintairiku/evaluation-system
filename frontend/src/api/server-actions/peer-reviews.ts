@@ -340,6 +340,42 @@ export const getUserPeerReviewResultsAction = cache(
   },
 );
 
+/**
+ * Server action to get my own core value evaluation detail
+ * (scores grid + comments; peers anonymized, self-only)
+ */
+export const getMyPeerReviewDetailAction = cache(
+  async (
+    periodId: string,
+  ): Promise<{
+    success: boolean;
+    data?: EvaluationDetailResponse;
+    error?: string;
+  }> => {
+    try {
+      const response = await peerReviewsApi.getMyResultsDetail(periodId);
+
+      if (!response.success || !response.data) {
+        return {
+          success: false,
+          error: response.errorMessage || 'Failed to fetch peer review detail',
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Get my peer review detail action error:', error);
+      return {
+        success: false,
+        error: 'An unexpected error occurred while fetching peer review detail',
+      };
+    }
+  },
+);
+
 // ---- Admin - 評価進捗 ----
 
 /**

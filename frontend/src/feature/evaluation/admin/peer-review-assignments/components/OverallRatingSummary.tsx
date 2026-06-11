@@ -7,6 +7,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RatingBadge } from '@/components/evaluation/RatingBadge';
+import { AverageNoteTooltip } from './CoreValueScoreGrid';
 
 interface OverallRatingSummaryProps {
   selfAvgRating: string | null;
@@ -35,7 +36,12 @@ export function OverallRatingSummary({
             <TableHead className="w-[80px] text-center">同僚①</TableHead>
             <TableHead className="w-[80px] text-center">同僚②</TableHead>
             <TableHead className="w-[80px] text-center">上長</TableHead>
-            <TableHead className="w-[80px] text-center">総合平均</TableHead>
+            <TableHead className="w-[100px] text-center">
+              <span className="inline-flex items-center gap-1">
+                総合平均
+                <AverageNoteTooltip />
+              </span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

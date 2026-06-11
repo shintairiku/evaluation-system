@@ -17,6 +17,7 @@ from ...schemas.comprehensive_evaluation import (
     ComprehensiveManualDecisionHistoryResponse,
     ComprehensiveManualDecisionResponse,
     ComprehensiveManualDecisionUpsertRequest,
+    MyComprehensiveEvaluationResponse,
     ComprehensiveDefaultAssignmentUpdateRequest,
     ComprehensiveDepartmentAssignmentUpdateRequest,
     ComprehensiveRulesetAssignment,
@@ -73,6 +74,32 @@ async def get_comprehensive_evaluation(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except BadRequestError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch comprehensive evaluation",
+        ) from exc
+
+
+@router.get("/mine", response_model=MyComprehensiveEvaluationResponse)
+async def get_my_comprehensive_evaluation(
+    period_id: UUID = Query(..., alias="periodId", description="Evaluation period ID"),
+    context: AuthContext = Depends(get_auth_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Self-only: the caller's own 総合評価 (overall rank). No promotion/level data."""
+    try:
+        service = ComprehensiveEvaluationService(session)
+        return await service.get_my_comprehensive_evaluation(
+            context=context,
+            period_id=period_id,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionDeniedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except HTTPException:
         raise
     except Exception as exc:

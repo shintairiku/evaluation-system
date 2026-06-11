@@ -35,6 +35,7 @@ from ..schemas.comprehensive_evaluation import (
     ComprehensiveManualDecisionHistoryResponse,
     ComprehensiveManualDecisionResponse,
     ComprehensiveManualDecisionUpsertRequest,
+    MyComprehensiveEvaluationResponse,
     ComprehensiveRulesetAssignment,
     ComprehensiveStageAssignmentUpdateRequest,
     ComprehensiveRulesetTemplate,
@@ -170,6 +171,62 @@ class ComprehensiveEvaluationService:
             pages=max(1, ceil(total / limit)) if limit > 0 else 1,
         )
         return ComprehensiveEvaluationListResponse(rows=rows, meta=meta)
+
+    async def get_my_comprehensive_evaluation(
+        self,
+        *,
+        context: AuthContext,
+        period_id: UUID,
+    ) -> MyComprehensiveEvaluationResponse:
+        """Self-only: the caller's own comprehensive overall rank (総合評価).
+
+        Reuses the exact admin computation (repo.list_rows + _build_row_from_repo_item
+        with the period's real settings) but is scoped to context.user_id and returns
+        only the overall rank (no promotion/level data).
+
+        Results are only available once the period is finalized (completed); for any
+        other status the rank is withheld (returns None) so the employee cannot see a
+        pre-finalization grade that a manual decision could still change.
+        """
+        org_id = self._require_org(context)
+        user_id = self._require_user_id(context)
+        period = await self._ensure_period_exists(period_id, org_id)
+
+        if self._get_period_status(period) != "completed":
+            return MyComprehensiveEvaluationResponse(overall_rank=None)
+
+        default_settings, settings_by_department, settings_by_stage = await self._get_period_settings_map(
+            org_id=org_id,
+            period_id=period_id,
+        )
+        rows_data, _total = await self.repo.list_rows(
+            org_id=org_id,
+            period_id=period_id,
+            user_id=user_id,
+            department_id=None,
+            stage_id=None,
+            employment_type=None,
+            search=None,
+            processing_status=None,
+            page=1,
+            limit=1,
+        )
+        if not rows_data:
+            return MyComprehensiveEvaluationResponse(overall_rank=None)
+
+        item = rows_data[0]
+        row = self._build_row_from_repo_item(
+            item=item,
+            period_id=period_id,
+            settings=self._resolve_settings_for_assignment_target(
+                department_id=item.get("department_id"),
+                stage_id=item.get("stage_id"),
+                default_settings=default_settings,
+                settings_by_department=settings_by_department,
+                settings_by_stage=settings_by_stage,
+            ),
+        )
+        return MyComprehensiveEvaluationResponse(overall_rank=row.applied.overall_rank)
 
     async def export_comprehensive_evaluation_csv(
         self,
