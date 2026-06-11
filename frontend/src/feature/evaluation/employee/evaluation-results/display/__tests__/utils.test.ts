@@ -258,6 +258,8 @@ describe("mergeCompetencyItems", () => {
       goalId: "goal-1",
       name: "チームワーク",
       isFocused: true,
+      selfRating: "A",
+      supervisorRating: "S",
       actions: [
         { id: "comp-1-0", description: "行動1", selfRating: "A", supervisorRating: "S" },
         { id: "comp-1-1", description: "行動2", selfRating: undefined, supervisorRating: "A+" },

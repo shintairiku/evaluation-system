@@ -303,6 +303,7 @@ export const API_ENDPOINTS = {
   // Comprehensive Evaluation endpoints
   COMPREHENSIVE_EVALUATION: {
     LIST: '/evaluation/comprehensive-evaluation',
+    MINE: '/evaluation/comprehensive-evaluation/mine',
     EXPORT: '/evaluation/comprehensive-evaluation/export',
     STAGE_OPTIONS: '/evaluation/comprehensive-evaluation/stage-options',
     SETTINGS_WORKSPACE: '/evaluation/comprehensive-evaluation/settings/workspace',

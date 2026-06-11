@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../constants/config';
 import type {
   ApiResponse,
   ComprehensiveEvaluationListResponse,
+  MyComprehensiveEvaluation,
   ComprehensiveEvaluationSettingsWorkspaceResponse,
   ComprehensiveRulesetAssignmentResponse,
   ComprehensiveRulesetTemplateResponse,
@@ -29,6 +30,14 @@ export const comprehensiveEvaluationApi = {
   getComprehensiveEvaluationStageOptions: async (): Promise<ApiResponse<string[]>> => {
     return httpClient.get<string[]>(
       API_ENDPOINTS.COMPREHENSIVE_EVALUATION.STAGE_OPTIONS,
+    );
+  },
+
+  getMyComprehensiveEvaluation: async (
+    periodId: string,
+  ): Promise<ApiResponse<MyComprehensiveEvaluation>> => {
+    return httpClient.get<MyComprehensiveEvaluation>(
+      `${API_ENDPOINTS.COMPREHENSIVE_EVALUATION.MINE}?periodId=${periodId}`,
     );
   },
 

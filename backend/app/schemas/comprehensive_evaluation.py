@@ -181,6 +181,18 @@ class ComprehensiveEvaluationRow(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class MyComprehensiveEvaluationResponse(BaseModel):
+    """Minimal self-view of the comprehensive evaluation: only the overall rank.
+
+    Intentionally excludes promotion/demotion, level/stage changes and candidate
+    flags — employees only see their own 総合評価 (the grade).
+    """
+
+    overall_rank: Optional[EvaluationRank] = Field(None, alias="overallRank")
+
+    model_config = {"populate_by_name": True}
+
+
 class ComprehensiveEvaluationListMeta(BaseModel):
     total: int
     page: int

@@ -119,3 +119,41 @@ async def test_get_my_evaluation_detail_anonymizes_peers_and_is_self_scoped():
     labels = {c.source_type: c.source_label for c in peer_comments}
     assert labels["peer1"] == "同僚評価①"
     assert labels["peer2"] == "同僚評価②"
+
+
+@pytest.mark.asyncio
+async def test_get_my_evaluation_detail_average_excludes_self():
+    """平均/総合平均 use the 3 others (peers + supervisor), excluding self."""
+    me = uuid4()
+    peer1_id = uuid4()
+    peer2_id = uuid4()
+    def_id = uuid4()
+    context = _employee_context(user_id=me)
+    service = _make_service()
+
+    user = SimpleNamespace(id=me, name="自分", department=None, job_title=None, supervisor_relations=[])
+    definition = SimpleNamespace(id=def_id, name="チームワーク")
+
+    # self=SS(7); the 3 others all C(1). Exclude self → avg 1.0 → C. Include self → 2.5 → B.
+    feedback = SimpleNamespace(status="submitted", scores={str(def_id): "C"}, comment="")
+    cv_eval = SimpleNamespace(status="submitted", scores={str(def_id): "SS"}, comment="", feedback=feedback)
+    peer1_eval = SimpleNamespace(reviewer_id=peer1_id, scores={str(def_id): "C"}, comment="")
+    peer2_eval = SimpleNamespace(reviewer_id=peer2_id, scores={str(def_id): "C"}, comment="")
+    assignment1 = SimpleNamespace(reviewer_id=peer1_id, reviewer=SimpleNamespace(name="x"), created_at=datetime(2026, 1, 1))
+    assignment2 = SimpleNamespace(reviewer_id=peer2_id, reviewer=SimpleNamespace(name="y"), created_at=datetime(2026, 1, 2))
+
+    service.user_repo.get_user_by_id_with_details = AsyncMock(return_value=user)
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(name="P"))
+    service.cv_definition_repo.get_definitions = AsyncMock(return_value=[definition])
+    service.cv_evaluation_repo.get_evaluation = AsyncMock(return_value=cv_eval)
+    service.evaluation_repo.get_submitted_evaluations_for_reviewee = AsyncMock(return_value=[peer1_eval, peer2_eval])
+    service.assignment_repo.get_assignments_for_reviewee = AsyncMock(return_value=[assignment1, assignment2])
+
+    result = await service.get_my_evaluation_detail(context, uuid4())
+
+    # Per-row 平均 excludes self → C (not B)
+    assert result.core_values[0].average_rating == "C"
+    # 総合平均 excludes self → C
+    assert result.overall_rating == "C"
+    # Self column is still shown for reference (SS)
+    assert result.self_avg_rating == "SS"

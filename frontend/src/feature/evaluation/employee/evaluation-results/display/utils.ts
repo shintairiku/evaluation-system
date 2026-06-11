@@ -103,6 +103,9 @@ export interface UnifiedCompetencyItem {
   goalId: string;
   name: string;
   isFocused: boolean;
+  /** Aggregate rating for this 大項目 (average of its action ratings). */
+  selfRating?: string;
+  supervisorRating?: string;
   actions: Array<{
     id: string;
     description: string;
@@ -156,6 +159,8 @@ export function mergeCompetencyItems(
       goalId: c.goalId,
       name: c.name,
       isFocused: c.isFocused,
+      selfRating: c.competencyRating,
+      supervisorRating: sv?.competencyRating,
       actions: c.items.map((it) => ({
         id: it.id,
         description: it.description,

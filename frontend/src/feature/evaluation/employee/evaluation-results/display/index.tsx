@@ -3,9 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
 import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
-import { CoreValueScoreGrid } from "@/feature/evaluation/admin/peer-review-assignments/components/CoreValueScoreGrid";
-import { OverallRatingSummary } from "@/feature/evaluation/admin/peer-review-assignments/components/OverallRatingSummary";
-import { EvaluationCommentsSection } from "@/feature/evaluation/admin/peer-review-assignments/components/EvaluationCommentsSection";
+import { getRatingColor } from "@/utils/rating";
 import {
   transformPerformanceGoalsForDisplay,
   calculatePerformanceOverallRating,
@@ -23,10 +21,11 @@ import {
   calculateCompetencySupervisorOverallRating,
 } from "@/feature/evaluation/superviser/evaluation-feedback/display/CompetencySupervisorEvaluation";
 import type { EvaluationPeriod, UserDetailResponse } from "@/api/types";
-import { AlertCircle, Loader2, Heart } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import {
   UnifiedPerformanceSection,
   UnifiedCompetencySection,
+  CoreValueSection,
 } from "./UnifiedEvaluationSections";
 import {
   fetchMyEvaluationData,
@@ -34,6 +33,8 @@ import {
   mergeCompetencyItems,
   type MyEvaluationRawData,
 } from "./utils";
+import { getMyComprehensiveEvaluationAction } from "@/api/server-actions/comprehensive-evaluation";
+import type { ComprehensiveEvaluationRank } from "@/api/types";
 
 const EMPTY_DATA: MyEvaluationRawData = {
   goals: [],
@@ -47,6 +48,7 @@ interface EvaluationResultsDisplayProps {
   initialPeriods: EvaluationPeriod[];
   initialPeriodId: string;
   initialData: MyEvaluationRawData | null;
+  initialComprehensiveRank: ComprehensiveEvaluationRank | null;
 }
 
 export default function EvaluationResultsDisplay({
@@ -54,10 +56,17 @@ export default function EvaluationResultsDisplay({
   initialPeriods,
   initialPeriodId,
   initialData,
+  initialComprehensiveRank,
 }: EvaluationResultsDisplayProps) {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>(initialPeriodId);
   const [data, setData] = useState<MyEvaluationRawData>(initialData ?? EMPTY_DATA);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Comprehensive rank is fetched independently so its heavier query never blocks
+  // the main sections.
+  const [comprehensiveRank, setComprehensiveRank] =
+    useState<ComprehensiveEvaluationRank | null>(initialComprehensiveRank);
+  const [comprehensiveLoading, setComprehensiveLoading] = useState(false);
 
   const currentUser = initialUser;
   const allPeriods = initialPeriods;
@@ -77,25 +86,33 @@ export default function EvaluationResultsDisplay({
   const isPeriodFinalized = selectedPeriod?.status === "completed";
 
   const handlePeriodChange = useCallback(
-    async (periodId: string) => {
+    (periodId: string) => {
       setSelectedPeriodId(periodId);
 
       const period = allPeriods.find((p) => p.id === periodId);
       if (!currentUser?.id || period?.status !== "completed") {
         setData(EMPTY_DATA);
+        setComprehensiveRank(null);
         return;
       }
+      const userId = currentUser.id;
 
-      try {
-        setIsLoading(true);
-        const result = await fetchMyEvaluationData(periodId, currentUser.id);
-        setData(result);
-      } catch (error) {
-        console.error("Error fetching evaluation results:", error);
-        setData(EMPTY_DATA);
-      } finally {
-        setIsLoading(false);
-      }
+      // Main sections — drives the page spinner.
+      setIsLoading(true);
+      fetchMyEvaluationData(periodId, userId)
+        .then(setData)
+        .catch((error) => {
+          console.error("Error fetching evaluation results:", error);
+          setData(EMPTY_DATA);
+        })
+        .finally(() => setIsLoading(false));
+
+      // Comprehensive rank — independent, so it never blocks the sections above.
+      setComprehensiveLoading(true);
+      getMyComprehensiveEvaluationAction(periodId)
+        .then((r) => setComprehensiveRank(r.success && r.data ? r.data.overallRank : null))
+        .catch(() => setComprehensiveRank(null))
+        .finally(() => setComprehensiveLoading(false));
     },
     [allPeriods, currentUser?.id],
   );
@@ -216,6 +233,29 @@ export default function EvaluationResultsDisplay({
           </div>
         ) : (
           <>
+            {/* Overall comprehensive evaluation (総合評価) — grade only */}
+            <div className="rounded-2xl border bg-gradient-to-r from-slate-50 to-white p-6 flex items-center justify-between shadow-sm">
+              <div>
+                <h2 className="text-lg font-bold">総合評価</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  この評価期間の総合評価です
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {comprehensiveLoading ? (
+                  <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+                ) : (
+                  <div
+                    className={`flex items-center justify-center min-w-[3rem] px-4 py-1.5 rounded-xl border text-2xl font-bold tabular-nums ${getRatingColor(
+                      comprehensiveRank,
+                    )}`}
+                  >
+                    {comprehensiveRank ?? "−"}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Performance Goals (unified self + supervisor) */}
             <UnifiedPerformanceSection
               items={unifiedPerformance}
@@ -230,32 +270,8 @@ export default function EvaluationResultsDisplay({
               supervisorOverall={supervisorCompetencyOverallRating}
             />
 
-            {/* Core Value Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-full bg-rose-100 text-rose-700">
-                  <Heart className="w-5 h-5" />
-                </div>
-                <h2 className="text-lg font-bold">コアバリュー評価</h2>
-              </div>
-              {coreValueDetail ? (
-                <div className="space-y-6">
-                  <CoreValueScoreGrid coreValues={coreValueDetail.coreValues} />
-                  <OverallRatingSummary
-                    selfAvgRating={coreValueDetail.selfAvgRating}
-                    peer1AvgRating={coreValueDetail.peer1AvgRating}
-                    peer2AvgRating={coreValueDetail.peer2AvgRating}
-                    supervisorAvgRating={coreValueDetail.supervisorAvgRating}
-                    overallRating={coreValueDetail.overallRating}
-                  />
-                  <EvaluationCommentsSection comments={coreValueDetail.comments} />
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                  <p>コアバリュー評価がありません</p>
-                </div>
-              )}
-            </div>
+            {/* Core Value Section (single card) */}
+            <CoreValueSection detail={coreValueDetail} />
           </>
         )}
       </div>

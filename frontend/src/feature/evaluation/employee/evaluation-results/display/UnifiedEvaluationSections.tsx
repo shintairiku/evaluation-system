@@ -3,9 +3,16 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { TrendingUp, Target, Loader2 } from "lucide-react";
+import { TrendingUp, Target, Heart, Loader2 } from "lucide-react";
 import { RatingBadge } from "@/components/evaluation/RatingBadge";
+import { CoreValueScoreGrid } from "@/feature/evaluation/admin/peer-review-assignments/components/CoreValueScoreGrid";
+import { OverallRatingSummary } from "@/feature/evaluation/admin/peer-review-assignments/components/OverallRatingSummary";
+import { EvaluationCommentsSection } from "@/feature/evaluation/admin/peer-review-assignments/components/EvaluationCommentsSection";
+import type { EvaluationDetailResponse } from "@/api/types";
 import type { UnifiedPerformanceItem, UnifiedCompetencyItem } from "./utils";
+
+/** Annotation explaining the core value average excludes self (3-person average). */
+const CORE_VALUE_AVERAGE_NOTE = "※自分を除く3人（同僚①・同僚②・上長）の平均です";
 
 /** Section header showing the title and both overall ratings (自己 / 上長). */
 function SectionHeader({
@@ -223,15 +230,25 @@ export function UnifiedCompetencySection({
                   key={comp.competencyId}
                   className="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm px-6 py-5 space-y-4"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="text-lg font-bold text-slate-800 break-words">
-                      {comp.name}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="text-lg font-bold text-slate-800 break-words">
+                        {comp.name}
+                      </div>
+                      {comp.isFocused && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200 shrink-0">
+                          注力
+                        </span>
+                      )}
                     </div>
-                    {comp.isFocused && (
-                      <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200 shrink-0">
-                        注力
-                      </span>
-                    )}
+                    {/* 大項目 aggregate result (self / supervisor) */}
+                    <div className="shrink-0 flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1">
+                      <span className="text-xs text-gray-500">結果</span>
+                      <DualRating
+                        selfRating={comp.selfRating}
+                        supervisorRating={comp.supervisorRating}
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -260,6 +277,61 @@ export function UnifiedCompetencySection({
               />
             </div>
           ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function CoreValueSection({
+  detail,
+  isLoading = false,
+}: {
+  detail: EvaluationDetailResponse | null;
+  isLoading?: boolean;
+}) {
+  return (
+    <Card className="shadow-xl border-0 bg-white">
+      <CardHeader className="pb-3">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-full bg-rose-100 text-rose-700">
+            <Heart className="w-6 h-6" />
+          </div>
+          <div className="flex-1 flex items-center justify-between">
+            <CardTitle className="text-lg font-bold tracking-tight">コアバリュー評価</CardTitle>
+            {detail && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-md border border-rose-200 bg-rose-50">
+                <span className="text-xs text-rose-600">総合平均</span>
+                <span className="text-lg font-bold text-rose-700">
+                  {detail.overallRating ?? "−"}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-2">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !detail ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>コアバリュー評価がありません</p>
+          </div>
+        ) : (
+          <>
+            <CoreValueScoreGrid coreValues={detail.coreValues} />
+            <p className="text-xs text-muted-foreground">{CORE_VALUE_AVERAGE_NOTE}</p>
+            <OverallRatingSummary
+              selfAvgRating={detail.selfAvgRating}
+              peer1AvgRating={detail.peer1AvgRating}
+              peer2AvgRating={detail.peer2AvgRating}
+              supervisorAvgRating={detail.supervisorAvgRating}
+              overallRating={detail.overallRating}
+            />
+            <EvaluationCommentsSection comments={detail.comments} />
+          </>
         )}
       </CardContent>
     </Card>
