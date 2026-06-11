@@ -183,10 +183,17 @@ class ComprehensiveEvaluationService:
         Reuses the exact admin computation (repo.list_rows + _build_row_from_repo_item
         with the period's real settings) but is scoped to context.user_id and returns
         only the overall rank (no promotion/level data).
+
+        Results are only available once the period is finalized (completed); for any
+        other status the rank is withheld (returns None) so the employee cannot see a
+        pre-finalization grade that a manual decision could still change.
         """
         org_id = self._require_org(context)
         user_id = self._require_user_id(context)
-        await self._ensure_period_exists(period_id, org_id)
+        period = await self._ensure_period_exists(period_id, org_id)
+
+        if self._get_period_status(period) != "completed":
+            return MyComprehensiveEvaluationResponse(overall_rank=None)
 
         default_settings, settings_by_department, settings_by_stage = await self._get_period_settings_map(
             org_id=org_id,

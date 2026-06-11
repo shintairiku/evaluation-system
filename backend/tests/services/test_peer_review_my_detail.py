@@ -17,6 +17,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import PermissionDeniedError
 from app.security.context import AuthContext, RoleInfo
 from app.security.permissions import Permission
 from app.services.peer_review_service import PeerReviewService
@@ -87,7 +88,7 @@ async def test_get_my_evaluation_detail_anonymizes_peers_and_is_self_scoped():
     )
 
     service.user_repo.get_user_by_id_with_details = AsyncMock(return_value=user)
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(name="2026上期"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(name="2026上期", status="completed"))
     service.cv_definition_repo.get_definitions = AsyncMock(return_value=[definition])
     service.cv_evaluation_repo.get_evaluation = AsyncMock(return_value=cv_eval)
     service.evaluation_repo.get_submitted_evaluations_for_reviewee = AsyncMock(
@@ -143,7 +144,7 @@ async def test_get_my_evaluation_detail_average_excludes_self():
     assignment2 = SimpleNamespace(reviewer_id=peer2_id, reviewer=SimpleNamespace(name="y"), created_at=datetime(2026, 1, 2))
 
     service.user_repo.get_user_by_id_with_details = AsyncMock(return_value=user)
-    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(name="P"))
+    service.period_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(name="P", status="completed"))
     service.cv_definition_repo.get_definitions = AsyncMock(return_value=[definition])
     service.cv_evaluation_repo.get_evaluation = AsyncMock(return_value=cv_eval)
     service.evaluation_repo.get_submitted_evaluations_for_reviewee = AsyncMock(return_value=[peer1_eval, peer2_eval])
@@ -157,3 +158,18 @@ async def test_get_my_evaluation_detail_average_excludes_self():
     assert result.overall_rating == "C"
     # Self column is still shown for reference (SS)
     assert result.self_avg_rating == "SS"
+
+
+@pytest.mark.asyncio
+async def test_get_my_evaluation_detail_blocked_before_finalization():
+    """Detail is withheld (403) until the evaluation period is finalized (completed)."""
+    me = uuid4()
+    context = _employee_context(user_id=me)
+    service = _make_service()
+    # Period is still active → must be blocked before building anything.
+    service.period_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(name="進行中", status="active")
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        await service.get_my_evaluation_detail(context, uuid4())

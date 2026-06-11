@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { EvaluationPeriodSelector } from "@/components/evaluation/EvaluationPeriodSelector";
 import { EmployeeInfoCard } from "@/components/evaluation/EmployeeInfoCard";
 import { getRatingColor } from "@/utils/rating";
@@ -71,6 +71,11 @@ export default function EvaluationResultsDisplay({
   const currentUser = initialUser;
   const allPeriods = initialPeriods;
 
+  // Latest-request-wins guard: rapid period switches can resolve out of order
+  // (responses are several seconds). Only the most recently requested period
+  // is allowed to commit its results.
+  const latestRequestRef = useRef<string>(initialPeriodId);
+
   // The active (進行中) period, used only to flag "current" in the selector.
   const currentPeriodId = useMemo(
     () => allPeriods.find((p) => p.status === "active")?.id ?? null,
@@ -88,6 +93,7 @@ export default function EvaluationResultsDisplay({
   const handlePeriodChange = useCallback(
     (periodId: string) => {
       setSelectedPeriodId(periodId);
+      latestRequestRef.current = periodId;
 
       const period = allPeriods.find((p) => p.id === periodId);
       if (!currentUser?.id || period?.status !== "completed") {
@@ -96,23 +102,38 @@ export default function EvaluationResultsDisplay({
         return;
       }
       const userId = currentUser.id;
+      // Only commit a response if this period is still the latest requested.
+      const isStale = () => latestRequestRef.current !== periodId;
 
       // Main sections — drives the page spinner.
       setIsLoading(true);
       fetchMyEvaluationData(periodId, userId)
-        .then(setData)
+        .then((result) => {
+          if (isStale()) return;
+          setData(result);
+        })
         .catch((error) => {
+          if (isStale()) return;
           console.error("Error fetching evaluation results:", error);
           setData(EMPTY_DATA);
         })
-        .finally(() => setIsLoading(false));
+        .finally(() => {
+          if (!isStale()) setIsLoading(false);
+        });
 
       // Comprehensive rank — independent, so it never blocks the sections above.
       setComprehensiveLoading(true);
       getMyComprehensiveEvaluationAction(periodId)
-        .then((r) => setComprehensiveRank(r.success && r.data ? r.data.overallRank : null))
-        .catch(() => setComprehensiveRank(null))
-        .finally(() => setComprehensiveLoading(false));
+        .then((r) => {
+          if (isStale()) return;
+          setComprehensiveRank(r.success && r.data ? r.data.overallRank : null);
+        })
+        .catch(() => {
+          if (!isStale()) setComprehensiveRank(null);
+        })
+        .finally(() => {
+          if (!isStale()) setComprehensiveLoading(false);
+        });
     },
     [allPeriods, currentUser?.id],
   );
@@ -158,32 +179,23 @@ export default function EvaluationResultsDisplay({
     [competencyData, supervisorCompetency],
   );
 
-  // Overall ratings — identical functions to evaluation-feedback:
-  // self uses the *Display calculators, supervisor uses the *Supervisor calculators.
+  // Overall ratings — identical functions to evaluation-feedback (self uses the
+  // *Display calculators, supervisor uses the *Supervisor calculators). All of
+  // these already return "−" for empty input.
   const performanceOverallRating = useMemo(
-    () =>
-      performanceGoals.length > 0
-        ? calculatePerformanceOverallRating(performanceGoals)
-        : "−",
+    () => calculatePerformanceOverallRating(performanceGoals),
     [performanceGoals],
   );
   const competencyOverallRating = useMemo(
-    () =>
-      competencyData.length > 0 ? calculateCompetencyOverallRating(competencyData) : "−",
+    () => calculateCompetencyOverallRating(competencyData),
     [competencyData],
   );
   const supervisorPerformanceOverallRating = useMemo(
-    () =>
-      supervisorPerformance.length > 0
-        ? calculateSupervisorOverallRating(supervisorPerformance)
-        : "−",
+    () => calculateSupervisorOverallRating(supervisorPerformance),
     [supervisorPerformance],
   );
   const supervisorCompetencyOverallRating = useMemo(
-    () =>
-      supervisorCompetency.length > 0
-        ? calculateCompetencySupervisorOverallRating(supervisorCompetency)
-        : "−",
+    () => calculateCompetencySupervisorOverallRating(supervisorCompetency),
     [supervisorCompetency],
   );
 

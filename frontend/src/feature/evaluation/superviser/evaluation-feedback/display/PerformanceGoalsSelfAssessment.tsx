@@ -24,14 +24,6 @@ interface PerformanceGoalsSelfAssessmentProps {
   goals?: PerformanceGoalDisplayData[];
   overallRating?: string;
   isLoading?: boolean;
-  /** Subtitle under the card title. Defaults to self-assessment wording. */
-  subtitle?: string;
-  /** Label above the rating value. Defaults to "自己評価". */
-  ratingLabel?: string;
-  /** Label above the comment box. Defaults to "自己評価コメント". */
-  commentLabel?: string;
-  /** Hint shown under the comment box. Defaults to self-assessment wording. */
-  commentHint?: string;
 }
 
 // Helper function to transform API data to display format
@@ -70,10 +62,6 @@ export default function PerformanceGoalsSelfAssessment({
   goals,
   overallRating,
   isLoading = false,
-  subtitle = "自己評価（参照のみ）",
-  ratingLabel = "自己評価",
-  commentLabel = "自己評価コメント",
-  commentHint = "部下による自己評価コメント",
 }: PerformanceGoalsSelfAssessmentProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -92,7 +80,7 @@ export default function PerformanceGoalsSelfAssessment({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-lg font-bold tracking-tight">業績目標評価</CardTitle>
-                <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
+                <p className="text-xs text-gray-500 mt-1">自己評価（参照のみ）</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -189,7 +177,7 @@ export default function PerformanceGoalsSelfAssessment({
               {/* 自己評価 Section - Display only */}
               <div>
                 <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                  {ratingLabel}
+                  自己評価
                 </Label>
                 <div className="flex items-center gap-2">
                   <div className="text-base font-bold text-blue-700">
@@ -202,13 +190,13 @@ export default function PerformanceGoalsSelfAssessment({
             {/* Comment Section - Read only */}
             <div className="mt-5">
               <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-                {commentLabel}
+                自己評価コメント
               </Label>
               <div className="mt-1 text-sm text-gray-700 bg-white rounded-md border border-gray-300 p-3 h-[200px] overflow-y-auto whitespace-pre-wrap">
                 {evalItem.comment || <span className="text-gray-400">コメントなし</span>}
               </div>
               <div className="flex justify-start items-center mt-1">
-                <p className="text-xs text-gray-400">{commentHint}</p>
+                <p className="text-xs text-gray-400">部下による自己評価コメント</p>
               </div>
             </div>
           </div>

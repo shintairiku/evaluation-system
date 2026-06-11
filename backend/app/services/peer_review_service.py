@@ -682,18 +682,24 @@ class PeerReviewService:
         """Get the current user's own core value evaluation detail (self-only, peers anonymized).
 
         Mirrors get_evaluation_detail but is scoped to the caller and never exposes
-        peer reviewer identity in the comment labels.
+        peer reviewer identity in the comment labels. Results are only available once
+        the evaluation period is finalized (completed).
         """
         org_id = current_user_context.organization_id
         if not org_id:
             raise PermissionDeniedError("Organization context required")
+
+        # Defense-in-depth: results are only visible after the period is finalized.
+        period = await self.period_repo.get_by_id(period_id, org_id)
+        status = str(getattr(period.status, "value", period.status)).lower() if period else None
+        if status != "completed":
+            raise PermissionDeniedError("Evaluation results are available after the period is finalized")
 
         return await self._build_evaluation_detail(
             org_id,
             period_id,
             current_user_context.user_id,
             anonymize_peers=True,
-            average_excludes_self=True,
         )
 
     async def _build_evaluation_detail(
@@ -702,7 +708,6 @@ class PeerReviewService:
         period_id: UUID,
         user_id: UUID,
         anonymize_peers: bool,
-        average_excludes_self: bool = False,
     ) -> EvaluationDetailResponse:
         """Build the core value scores grid + comments for a user.
 
@@ -772,14 +777,10 @@ class PeerReviewService:
             if supervisor_feedback and supervisor_feedback.status == "submitted" and supervisor_feedback.scores:
                 sup_rating = supervisor_feedback.scores.get(def_id_str)
 
-            # Calculate average from available ratings.
-            # When average_excludes_self is set (reviewee's own view), the 平均 is
-            # the average of the 3 others (同僚①+同僚②+上長), excluding self.
-            average_sources = (
-                [p1_rating, p2_rating, sup_rating]
-                if average_excludes_self
-                else [self_rating, p1_rating, p2_rating, sup_rating]
-            )
+            # 平均 = average of the 3 others (同僚①+同僚②+上長), excluding self.
+            # Canonical core value rule (matches the comprehensive core_value_raw_score,
+            # which uses supervisor + 2 peers only).
+            average_sources = [p1_rating, p2_rating, sup_rating]
             numeric_values = []
             for r in average_sources:
                 if r is not None:
@@ -854,13 +855,10 @@ class PeerReviewService:
         sup_submitted = supervisor_feedback is not None and supervisor_feedback.status == "submitted"
         all_submitted = self_submitted and peer1_submitted and peer2_submitted and sup_submitted
 
-        # 11. Calculate overall average (総合平均). Self is excluded from the overall
-        # when average_excludes_self is set (reviewee's own view → 3-person average),
-        # but self_avg is still computed for the self column display below.
+        # 11. Calculate 総合平均 from the 3 others (同僚①+同僚②+上長), excluding self.
+        # self_avg is still computed below for the self column display.
         source_scores: list[float] = []
         self_avg = calculate_source_average(cv_eval.scores) if cv_eval and cv_eval.status in ("submitted", "approved") and cv_eval.scores else None
-        if self_avg is not None and not average_excludes_self:
-            source_scores.append(self_avg)
         p1_avg = calculate_source_average(peer1_eval.scores) if peer1_eval and peer1_eval.scores else None
         if p1_avg is not None:
             source_scores.append(p1_avg)

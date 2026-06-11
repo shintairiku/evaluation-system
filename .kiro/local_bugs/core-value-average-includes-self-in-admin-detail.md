@@ -1,7 +1,10 @@
 # Bug: コアバリュー 平均/総合平均 inclui o self no modal admin 評価詳細 (deveria ser 3者)
 
 ## Status
-Open
+Fixed — `_build_evaluation_detail` now always uses the 3-person average (excludes
+self) for both the employee 評価結果一覧 page and the admin 評価詳細 modal; the
+`average_excludes_self` flag was removed and the admin modal shows the
+「※自分を除く3人の平均です」 note. GitHub issue #530.
 
 ## Severity
 Low (apenas visual — não afeta nenhum cálculo/decisão)
