@@ -112,10 +112,6 @@ export function EvaluationDetailSheet({
 
               <CoreValueScoreGrid coreValues={detail.coreValues} />
 
-              <p className="text-xs text-muted-foreground">
-                ※平均・総合平均は自分を除く3人（同僚①・同僚②・上長）の平均です
-              </p>
-
               <OverallRatingSummary
                 selfAvgRating={detail.selfAvgRating}
                 peer1AvgRating={detail.peer1AvgRating}

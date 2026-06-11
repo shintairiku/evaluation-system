@@ -11,9 +11,6 @@ import { EvaluationCommentsSection } from "@/feature/evaluation/admin/peer-revie
 import type { EvaluationDetailResponse } from "@/api/types";
 import type { UnifiedPerformanceItem, UnifiedCompetencyItem } from "./utils";
 
-/** Annotation explaining the core value average excludes self (3-person average). */
-const CORE_VALUE_AVERAGE_NOTE = "※自分を除く3人（同僚①・同僚②・上長）の平均です";
-
 /** Section header showing the title and both overall ratings (自己 / 上長). */
 function SectionHeader({
   icon,
@@ -322,7 +319,6 @@ export function CoreValueSection({
         ) : (
           <>
             <CoreValueScoreGrid coreValues={detail.coreValues} />
-            <p className="text-xs text-muted-foreground">{CORE_VALUE_AVERAGE_NOTE}</p>
             <OverallRatingSummary
               selfAvgRating={detail.selfAvgRating}
               peer1AvgRating={detail.peer1AvgRating}
