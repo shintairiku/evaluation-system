@@ -99,7 +99,10 @@ class Goal(Base):
             
         elif category == "コンピテンシー":  # Competency Goal
             required_fields = ["action_plan"]
-            optional_fields = ["competency_ids", "selected_ideal_actions"]
+            # competency_snapshot: server-set frozen copy of the stage's competencies
+            # (ids/names/ideal_action_texts) captured at approval, so historical results
+            # render correctly even after the user's stage changes.
+            optional_fields = ["competency_ids", "selected_ideal_actions", "competency_snapshot"]
             self._validate_competency_goal_schema(target_data, required_fields, optional_fields)
             
         elif category == "コアバリュー":  # Core Value Goal

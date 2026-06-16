@@ -850,6 +850,10 @@ class GoalService:
             # Commit transaction
             await self.session.commit()
 
+            # Freeze the stage's competency context into the goal at approval, so the
+            # competency display/validation survives a later stage change.
+            await self._snapshot_competency_context(updated_goal, org_id)
+
             # Auto-create draft SelfAssessment for the approved goal
             # This triggers the self-assessment workflow for evaluation
             try:
@@ -1730,13 +1734,19 @@ class GoalService:
             except Exception as e:
                 logger.warning(f"Failed to resolve ideal action texts for goal {goal_model.id}: {str(e)}")
 
-        # Add ALL stage competencies for evaluation scope
-        if (
-            goal_model.goal_category == "コンピテンシー"
-            and stage_competency_data is not None
-        ):
-            user_id_str = str(goal_model.user_id)
-            stage_data = stage_competency_data.get(user_id_str)
+        # Add ALL stage competencies for evaluation scope.
+        # Prefer the frozen competency_snapshot (captured at approval) so historical
+        # results survive a later stage change; fall back to the live stage data
+        # (used while a goal is still being set up / not yet approved).
+        if goal_model.goal_category == "コンピテンシー":
+            snapshot = None
+            if isinstance(goal_model.target_data, dict):
+                snapshot = goal_model.target_data.get("competency_snapshot")
+            stage_data = snapshot or (
+                stage_competency_data.get(str(goal_model.user_id))
+                if stage_competency_data is not None
+                else None
+            )
             if stage_data:
                 goal_dict["all_stage_competency_ids"] = stage_data["competency_ids"]
                 goal_dict["all_stage_competency_names"] = stage_data["competency_names"]
@@ -1848,6 +1858,42 @@ class GoalService:
                 "Goal submission will continue, but manual review creation may be needed."
             )
             # Don't raise exception to avoid breaking goal submission flow
+
+    async def _snapshot_competency_context(self, goal: GoalModel, org_id: str) -> None:
+        """Freeze the stage's competency context into the competency goal at approval.
+
+        Captures the stage's competencies (ids + names + ideal_action_texts) into
+        goal.target_data["competency_snapshot"]. The display/validation read from this
+        snapshot, so historical results survive a later change of the user's stage.
+        Idempotent (skips if already present) and never blocks approval on failure.
+        """
+        try:
+            if goal.goal_category != "コンピテンシー":
+                return
+            target = goal.target_data if isinstance(goal.target_data, dict) else {}
+            if target.get("competency_snapshot"):
+                return  # already snapshotted
+
+            stage_id = await self.user_repo.get_user_stage_id(goal.user_id, org_id)
+            if not stage_id:
+                return
+            comps = await self.competency_repo.get_by_stage_id(stage_id, org_id)
+            if not comps:
+                return
+
+            snapshot = {
+                "competency_ids": [str(c.id) for c in comps],
+                "competency_names": {str(c.id): c.name for c in comps},
+                "ideal_action_texts": {str(c.id): (c.description or {}) for c in comps},
+                "stage_id": str(stage_id),
+            }
+            # Reassign (triggers @validates; competency_snapshot is in the allowlist)
+            goal.target_data = {**target, "competency_snapshot": snapshot}
+            await self.session.commit()
+            logger.info(f"Captured competency_snapshot for goal {goal.id} (stage {stage_id})")
+        except Exception as e:
+            logger.error(f"Failed to snapshot competency context for goal {goal.id}: {e}")
+            await self.session.rollback()
 
     async def _auto_create_self_assessment(self, goal: GoalModel, org_id: str) -> None:
         """
