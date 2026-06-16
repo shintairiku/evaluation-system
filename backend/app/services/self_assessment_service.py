@@ -387,22 +387,13 @@ class SelfAssessmentService:
                 if not existing_assessment.rating_data:
                     raise ValidationError("Action ratings are required before submission")
 
-                # Validate ALL action ratings are present
-                user = await self.user_repo.get_user_by_id(existing_assessment.goal.user_id, org_id)
-                if user and user.stage_id:
-                    stage_competencies = await self.competency_repo.get_by_stage_id(user.stage_id, org_id)
-                    for comp in stage_competencies:
-                        comp_id_str = str(comp.id)
-                        comp_ratings = existing_assessment.rating_data.get(comp_id_str, {})
-                        action_texts = comp.description or {}
-                        for action_idx in action_texts.keys():
-                            if action_idx not in comp_ratings:
-                                raise ValidationError(
-                                    "All competency action ratings are required before submission"
-                                )
-
                 if not existing_assessment.self_comment or not existing_assessment.self_comment.strip():
                     raise ValidationError("Self-comment is required before submission")
+
+                # Validate ALL action ratings are present. The required set is resolved
+                # from the goal's competency_snapshot when present (captured at approval),
+                # so a later stage change does not block submission of ratings made
+                # against the original stage; falls back to the live stage otherwise.
                 await self._validate_competency_rating_data_completeness(
                     existing_assessment.goal,
                     existing_assessment.rating_data,
@@ -735,6 +726,26 @@ class SelfAssessmentService:
         goal: Any,
         org_id: str
     ) -> dict[str, list[str]]:
+        # Prefer the frozen competency_snapshot (captured at goal approval) so a later
+        # stage change does not invalidate ratings made under the original stage.
+        target_data = getattr(goal, "target_data", None)
+        snapshot = target_data.get("competency_snapshot") if isinstance(target_data, dict) else None
+        if snapshot and isinstance(snapshot.get("ideal_action_texts"), dict):
+            required_from_snapshot: dict[str, list[str]] = {}
+            for comp_id, actions in snapshot["ideal_action_texts"].items():
+                if isinstance(actions, dict):
+                    action_indexes = self._normalize_action_indexes(list(actions.keys()))
+                elif isinstance(actions, list):
+                    action_indexes = self._normalize_action_indexes([
+                        str(index) for index, text in enumerate(actions) if str(text).strip()
+                    ])
+                else:
+                    action_indexes = []
+                if action_indexes:
+                    required_from_snapshot[str(comp_id)] = action_indexes
+            if required_from_snapshot:
+                return required_from_snapshot
+
         required_from_stage: dict[str, list[str]] = {}
 
         try:
