@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-import { resolveSupervisorSubmitFields, isCoreValueFeedbackComplete } from "./SupervisorSubmitButton";
+import { resolveSupervisorSubmitFields, isCoreValueFeedbackComplete, resolveCoreValueLiveData } from "./SupervisorSubmitButton";
 import {
   useSupervisorFeedbackAutoSave,
   getSupervisorFeedbackSnapshot,
 } from "../hooks/useSupervisorFeedbackAutoSave";
+import { useCoreValueFeedbackAutoSave } from "../hooks/useCoreValueFeedbackAutoSave";
 
 /**
  * These tests lock in the WYSIWYS fix for the supervisor-submit-stale-rating bug:
@@ -115,6 +116,44 @@ describe("isCoreValueFeedbackComplete (core value gate)", () => {
     expect(isCoreValueFeedbackComplete(scores(9), "あ", 9)).toBe(true);
     // The stale server-derived prop from initial load — would falsely block the submit
     expect(isCoreValueFeedbackComplete({}, "", 9)).toBe(false);
+  });
+});
+
+/**
+ * resolveCoreValueLiveData feeds BOTH the completeness gate and the submit payload, so
+ * the submit persists exactly what the user sees (independent of the debounced flush).
+ * This closes the rare silent-comment-loss path and matches perf/competency, which also
+ * submit their live snapshot.
+ */
+describe("resolveCoreValueLiveData (live snapshot for gate + submit)", () => {
+  it("uses the live snapshot when a card is mounted, ignoring the stale prop", () => {
+    const live: { scores: Record<string, string>; comment: string } = {
+      scores: { d0: "A" },
+      comment: "live",
+    };
+    renderHook(() =>
+      useCoreValueFeedbackAutoSave({ feedbackId: "cv-1", getSnapshot: () => live }),
+    );
+
+    // The prop is stale/empty, but the resolver must return the live on-screen data.
+    expect(resolveCoreValueLiveData("cv-1", {}, "")).toEqual({ scores: { d0: "A" }, comment: "live" });
+
+    live.comment = "updated";
+    expect(resolveCoreValueLiveData("cv-1", {}, "").comment).toBe("updated");
+  });
+
+  it("falls back to the prop when no card is mounted", () => {
+    expect(resolveCoreValueLiveData("cv-unmounted", { d0: "A" }, "from server")).toEqual({
+      scores: { d0: "A" },
+      comment: "from server",
+    });
+  });
+
+  it("normalizes null prop scores/comment to undefined (omitted from submit payload)", () => {
+    expect(resolveCoreValueLiveData(undefined, null, null)).toEqual({
+      scores: undefined,
+      comment: undefined,
+    });
   });
 });
 
