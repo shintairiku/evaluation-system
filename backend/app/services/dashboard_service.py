@@ -5,7 +5,7 @@ Provides business logic for admin, supervisor, and employee dashboards.
 
 import logging
 from datetime import date, datetime, timezone
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Set
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
@@ -424,7 +424,14 @@ class DashboardService:
         )
 
     async def _get_subordinates_list(self, supervisor_id: UUID, org_id: str) -> SubordinatesListData:
-        """Get detailed list of subordinates with their status"""
+        """Get detailed list of subordinates with their status.
+
+        Batched to avoid an N+1: the previous version issued ~4 queries PER
+        subordinate (department, goals, self-assessment, feedback), so a supervisor
+        with N subordinates cost ~4N+1 round-trips. Now each set is fetched ONCE with
+        IN(subordinate_ids) — mirroring _get_team_progress / _get_supervisor_pending_tasks
+        — and the per-subordinate status is computed in memory by _build_subordinates_list.
+        """
         subordinates = await self.user_repo.get_subordinates(supervisor_id, org_id)
 
         if not subordinates:
@@ -434,64 +441,100 @@ class DashboardService:
                 needs_attention_count=0
             )
 
+        subordinate_ids = [sub.id for sub in subordinates]
+
         # Get current period
         active_periods = await self.evaluation_period_repo.get_by_status(
             EvaluationPeriodStatus.ACTIVE, org_id
         )
         current_period = active_periods[0] if active_periods else None
 
+        # Department name map (all org departments are few; fetched once, not per subordinate)
+        departments = await self.department_repo.get_all(org_id)
+        dept_name_by_id: Dict[UUID, str] = {dept.id: dept.name for dept in departments}
+
+        # Per-period data, batched with IN(subordinate_ids) instead of per-subordinate queries
+        goals_by_user: Dict[UUID, List[Goal]] = {}
+        self_completed_ids: Set[UUID] = set()
+        feedback_by_user: Dict[UUID, SupervisorFeedback] = {}
+
+        if current_period:
+            goals_result = await self.session.execute(
+                select(Goal).where(
+                    and_(Goal.user_id.in_(subordinate_ids), Goal.period_id == current_period.id)
+                )
+            )
+            for goal in goals_result.scalars().all():
+                goals_by_user.setdefault(goal.user_id, []).append(goal)
+
+            assessment_result = await self.session.execute(
+                select(SelfAssessment.user_id).where(
+                    and_(
+                        SelfAssessment.user_id.in_(subordinate_ids),
+                        SelfAssessment.period_id == current_period.id,
+                        SelfAssessment.status == "submitted",
+                    )
+                )
+            )
+            self_completed_ids = set(assessment_result.scalars().all())
+
+            feedback_result = await self.session.execute(
+                select(SupervisorFeedback).where(
+                    and_(
+                        SupervisorFeedback.supervisor_id == supervisor_id,
+                        SupervisorFeedback.employee_id.in_(subordinate_ids),
+                        SupervisorFeedback.period_id == current_period.id,
+                    )
+                )
+            )
+            for feedback in feedback_result.scalars().all():
+                feedback_by_user[feedback.employee_id] = feedback
+
+        return self._build_subordinates_list(
+            subordinates=subordinates,
+            has_current_period=current_period is not None,
+            dept_name_by_id=dept_name_by_id,
+            goals_by_user=goals_by_user,
+            self_completed_ids=self_completed_ids,
+            feedback_by_user=feedback_by_user,
+        )
+
+    @staticmethod
+    def _build_subordinates_list(
+        *,
+        subordinates: List[User],
+        has_current_period: bool,
+        dept_name_by_id: Dict[UUID, str],
+        goals_by_user: Dict[UUID, List[Goal]],
+        self_completed_ids: Set[UUID],
+        feedback_by_user: Dict[UUID, SupervisorFeedback],
+    ) -> SubordinatesListData:
+        """Compute the subordinates list from already-fetched (batched) data.
+
+        Pure (no DB / no I/O) and behaviour-equivalent to the previous per-subordinate
+        logic — extracted so it can be unit-tested without mocking the DB session.
+        """
         subordinate_infos: List[SubordinateInfo] = []
         needs_attention_count = 0
 
         for subordinate in subordinates:
-            # Get department name
-            department_name = None
-            if subordinate.department_id:
-                department = await self.department_repo.get_by_id(subordinate.department_id, org_id)
-                if department:
-                    department_name = department.name
+            department_name = (
+                dept_name_by_id.get(subordinate.department_id)
+                if subordinate.department_id
+                else None
+            )
 
-            # Get goal status for current period
-            has_pending_goals = False
-            goals_count = 0
-            goals_approved_count = 0
+            goals = goals_by_user.get(subordinate.id, []) if has_current_period else []
+            goals_count = len(goals)
+            goals_approved_count = sum(1 for g in goals if g.status == "approved")
+            has_pending_goals = any(g.status == "submitted" for g in goals)
 
-            if current_period:
-                goals_query = select(Goal).where(
-                    and_(Goal.user_id == subordinate.id, Goal.period_id == current_period.id)
-                )
-                goals_result = await self.session.execute(goals_query)
-                goals = list(goals_result.scalars().all())
-                goals_count = len(goals)
-                goals_approved_count = sum(1 for g in goals if g.status == "approved")
-                has_pending_goals = any(g.status == "submitted" for g in goals)
+            self_assessment_completed = has_current_period and subordinate.id in self_completed_ids
 
-            # Get self-assessment status
-            self_assessment_completed = False
-            if current_period:
-                assessment_query = select(SelfAssessment).where(
-                    and_(
-                        SelfAssessment.user_id == subordinate.id,
-                        SelfAssessment.period_id == current_period.id,
-                        SelfAssessment.status == "submitted"
-                    )
-                )
-                assessment_result = await self.session.execute(assessment_query)
-                self_assessment_completed = assessment_result.scalar_one_or_none() is not None
-
-            # Get feedback status
             has_pending_feedback = False
             feedback_provided = False
-            if current_period and self_assessment_completed:
-                feedback_query = select(SupervisorFeedback).where(
-                    and_(
-                        SupervisorFeedback.supervisor_id == supervisor_id,
-                        SupervisorFeedback.employee_id == subordinate.id,
-                        SupervisorFeedback.period_id == current_period.id
-                    )
-                )
-                feedback_result = await self.session.execute(feedback_query)
-                feedback = feedback_result.scalar_one_or_none()
+            if has_current_period and self_assessment_completed:
+                feedback = feedback_by_user.get(subordinate.id)
                 if feedback:
                     feedback_provided = feedback.status == "submitted"
                 else:
@@ -514,9 +557,6 @@ class DashboardService:
                 status = SubordinateStatus.ON_TRACK
                 priority = TaskPriority.LOW
 
-            # Get last activity (most recent updated_at from goals or assessments)
-            last_activity = subordinate.updated_at
-
             subordinate_infos.append(SubordinateInfo(
                 user_id=subordinate.id,
                 name=subordinate.name,
@@ -530,7 +570,7 @@ class DashboardService:
                 goals_approved_count=goals_approved_count,
                 self_assessment_completed=self_assessment_completed,
                 feedback_provided=feedback_provided,
-                last_activity=last_activity
+                last_activity=subordinate.updated_at
             ))
 
         # Sort by priority and status
