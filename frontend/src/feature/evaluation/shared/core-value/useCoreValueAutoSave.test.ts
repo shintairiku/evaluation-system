@@ -154,3 +154,69 @@ describe("useCoreValueAutoSave — save() race condition", () => {
     expect(saveAction).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Snapshot registry: lets the submit button read EXACTLY what the user sees (WYSIWYS)
+ * instead of the stale server-derived prop. Mirrors the supervisor-feedback registry.
+ * This is the mechanism behind the コアバリュー「未入力」-on-submit fix.
+ */
+describe("useCoreValueAutoSave — snapshot registry", () => {
+  const noopSave = () => Promise.resolve({ success: true });
+  const draftEditable = (s: string | undefined) => s === "draft";
+
+  it("registers a stable getter and reads the CURRENT ref value (mutation reflects, no re-render)", () => {
+    const set = createAutoSaveFlusherSet();
+    const live: { scores: Record<string, string>; comment: string } = { scores: { a: "A" }, comment: "hi" };
+
+    renderHook(() =>
+      useCoreValueAutoSave({
+        entityId: "fb-1",
+        initialStatus: "draft",
+        saveAction: noopSave,
+        isEditableCheck: draftEditable,
+        flusherSet: set.flushers,
+        snapshotRegistry: set.snapshotGetters,
+        getSnapshot: () => live,
+      }),
+    );
+
+    expect(set.getSnapshot("fb-1")).toEqual({ scores: { a: "A" }, comment: "hi" });
+
+    live.scores = { a: "A", b: "S" };
+    live.comment = "changed";
+    expect(set.getSnapshot("fb-1")).toEqual({ scores: { a: "A", b: "S" }, comment: "changed" });
+  });
+
+  it("cleans up the getter on unmount (falls back to prop afterwards)", () => {
+    const set = createAutoSaveFlusherSet();
+    const { unmount } = renderHook(() =>
+      useCoreValueAutoSave({
+        entityId: "fb-2",
+        initialStatus: "draft",
+        saveAction: noopSave,
+        isEditableCheck: draftEditable,
+        flusherSet: set.flushers,
+        snapshotRegistry: set.snapshotGetters,
+        getSnapshot: () => ({ scores: {}, comment: "" }),
+      }),
+    );
+
+    expect(set.getSnapshot("fb-2")).toBeDefined();
+    unmount();
+    expect(set.getSnapshot("fb-2")).toBeUndefined();
+  });
+
+  it("is opt-in: without getSnapshot the registry stays empty (self-eval/peer-review unaffected)", () => {
+    const set = createAutoSaveFlusherSet();
+    renderHook(() =>
+      useCoreValueAutoSave({
+        entityId: "fb-3",
+        initialStatus: "draft",
+        saveAction: noopSave,
+        isEditableCheck: draftEditable,
+        flusherSet: set.flushers,
+      }),
+    );
+    expect(set.getSnapshot("fb-3")).toBeUndefined();
+  });
+});
