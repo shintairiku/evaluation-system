@@ -68,6 +68,25 @@ export function isCoreValueFeedbackComplete(
   return true;
 }
 
+/**
+ * Resolve the core value feedback's LIVE on-screen { scores, comment }: the snapshot
+ * when a card is mounted (WYSIWYS), else the server-derived prop. Used by BOTH the
+ * completeness gate AND the submit payload, so the submit persists exactly what the
+ * user sees — independent of whether the debounced auto-save/flush succeeded. Mirrors
+ * how performance/competency submit via resolveSupervisorSubmitFields.
+ */
+export function resolveCoreValueLiveData(
+  feedbackId: string | undefined,
+  propScores: Record<string, string> | null | undefined,
+  propComment: string | null | undefined,
+): { scores?: Record<string, string>; comment?: string } {
+  const snapshot = feedbackId ? getCoreValueFeedbackSnapshot(feedbackId) : undefined;
+  return {
+    scores: snapshot ? snapshot.scores : (propScores ?? undefined),
+    comment: snapshot ? snapshot.comment : (propComment ?? undefined),
+  };
+}
+
 /** A single feedback's resolved submit payload fields. */
 export interface ResolvedSubmitFields {
   supervisorRatingCode?: RatingCode;
@@ -199,11 +218,11 @@ export default function SupervisorSubmitButton({
   // competency use getSupervisorFeedbackSnapshot.
   const isCoreValueComplete = (() => {
     if (!canSubmitCoreValueFeedback || coreValueDefinitionsCount === 0) return true;
-    const snapshot = coreValueFeedback?.id
-      ? getCoreValueFeedbackSnapshot(coreValueFeedback.id)
-      : undefined;
-    const scores = snapshot ? snapshot.scores : coreValueScores;
-    const comment = snapshot ? snapshot.comment : coreValueFeedback?.comment;
+    const { scores, comment } = resolveCoreValueLiveData(
+      coreValueFeedback?.id,
+      coreValueScores,
+      coreValueFeedback?.comment,
+    );
     return isCoreValueFeedbackComplete(scores, comment, coreValueDefinitionsCount);
   })();
 
@@ -257,7 +276,13 @@ export default function SupervisorSubmitButton({
           })
         ),
         ...(canSubmitCoreValueFeedback && coreValueFeedback?.id
-          ? [submitCoreValueFeedbackAction(coreValueFeedback.id, { action: 'APPROVED' })]
+          ? [submitCoreValueFeedbackAction(coreValueFeedback.id, {
+              action: 'APPROVED',
+              // Carry the LIVE on-screen data so the submit persists exactly what the
+              // user sees, even if the debounced auto-save/flush hadn't landed. Mirrors
+              // how performance/competency submit their resolved snapshot fields.
+              ...resolveCoreValueLiveData(coreValueFeedback.id, coreValueScores, coreValueFeedback.comment),
+            })]
           : []),
       ];
       const results = await Promise.all(submitPromises);
