@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { submitSupervisorFeedbackAction } from "@/api/server-actions/supervisor-feedbacks";
 import { submitCoreValueFeedbackAction } from "@/api/server-actions/core-values";
 import { flushSupervisorFeedbackAutoSaves, getSupervisorFeedbackSnapshot } from "../hooks/useSupervisorFeedbackAutoSave";
-import { flushCoreValueFeedbackAutoSaves } from "../hooks/useCoreValueFeedbackAutoSave";
+import { flushCoreValueFeedbackAutoSaves, getCoreValueFeedbackSnapshot } from "../hooks/useCoreValueFeedbackAutoSave";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { useResponsiveBreakpoint } from "@/hooks/useResponsiveBreakpoint";
 import { generateAccessibilityId, announceToScreenReader } from "@/utils/accessibility";
@@ -49,6 +49,23 @@ function canSubmitPerformanceFeedback(goal: PerformanceGoalSupervisorData): bool
 function canSubmitCompetencyFeedback(competency: CompetencySupervisorData): boolean {
   // Need feedbackId and not already submitted - ratings/comment are optional
   return !!competency.feedbackId && competency.feedbackStatus !== 'submitted';
+}
+
+/**
+ * Whether the core value feedback is complete enough to submit: every active
+ * definition scored AND a non-empty comment. Pure + exported so it can be unit
+ * tested and reused. Callers should pass the LIVE on-screen values (snapshot),
+ * falling back to the server-derived prop only when no card is mounted.
+ */
+export function isCoreValueFeedbackComplete(
+  scores: Record<string, string> | null | undefined,
+  comment: string | null | undefined,
+  definitionsCount: number,
+): boolean {
+  if (definitionsCount === 0) return true;
+  if (Object.keys(scores ?? {}).length < definitionsCount) return false;
+  if (!comment?.trim()) return false;
+  return true;
 }
 
 /** A single feedback's resolved submit payload fields. */
@@ -175,13 +192,19 @@ export default function SupervisorSubmitButton({
     })),
   ];
 
-  // Core value completeness check
+  // Core value completeness check. Reads the LIVE on-screen values (WYSIWYS snapshot)
+  // so a fast 最終提出 click — before the 2s debounced auto-save propagates back to the
+  // parent's coreValueFeedback prop — is not falsely blocked as "未入力". Falls back to
+  // the server-derived prop only when no card is mounted. Mirrors how performance/
+  // competency use getSupervisorFeedbackSnapshot.
   const isCoreValueComplete = (() => {
     if (!canSubmitCoreValueFeedback || coreValueDefinitionsCount === 0) return true;
-    const filledCount = Object.keys(coreValueScores ?? {}).length;
-    if (filledCount < coreValueDefinitionsCount) return false;
-    if (!coreValueFeedback?.comment?.trim()) return false;
-    return true;
+    const snapshot = coreValueFeedback?.id
+      ? getCoreValueFeedbackSnapshot(coreValueFeedback.id)
+      : undefined;
+    const scores = snapshot ? snapshot.scores : coreValueScores;
+    const comment = snapshot ? snapshot.comment : coreValueFeedback?.comment;
+    return isCoreValueFeedbackComplete(scores, comment, coreValueDefinitionsCount);
   })();
 
   const hasIncomplete = !isCoreValueComplete;

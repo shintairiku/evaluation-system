@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Users, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,11 +34,24 @@ export default function CoreValueSupervisorEvaluation({
   );
   const [comment, setComment] = useState<string>(feedback?.comment ?? "");
 
+  // Live snapshot of what's on screen, kept in a ref and updated synchronously in the
+  // handlers below. The submit button reads this (via getCoreValueFeedbackSnapshot) so
+  // its completeness check is WYSIWYS, not the parent's stale server-derived prop.
+  const liveDataRef = useRef<{ scores: Record<string, string>; comment: string }>({
+    scores: feedback?.scores ?? {},
+    comment: feedback?.comment ?? "",
+  });
+
   // Sync local state when feedback prop changes (e.g. after initial load or subordinate switch)
   useEffect(() => {
-    setScores(feedback?.scores ?? {});
-    setComment(feedback?.comment ?? "");
+    const next = { scores: feedback?.scores ?? {}, comment: feedback?.comment ?? "" };
+    setScores(next.scores);
+    setComment(next.comment);
+    liveDataRef.current = next;
   }, [feedback]);
+
+  // Stable getter for the snapshot registry ([] deps reading a ref).
+  const getSnapshot = useCallback(() => liveDataRef.current, []);
 
   // Auto-save hook
   const { saveStatus, debouncedSave, save, isEditable } =
@@ -47,6 +60,7 @@ export default function CoreValueSupervisorEvaluation({
       initialScores: feedback?.scores,
       initialComment: feedback?.comment,
       initialStatus: feedback?.status,
+      getSnapshot,
     });
 
   // Handle rating change (toggle - click again to deselect)
@@ -61,6 +75,7 @@ export default function CoreValueSupervisorEvaluation({
         newScores[definitionId] = rating;
       }
       setScores(newScores);
+      liveDataRef.current = { ...liveDataRef.current, scores: newScores };
       debouncedSave({ scores: newScores, comment });
     },
     [scores, comment, debouncedSave, isEditable]
@@ -71,6 +86,7 @@ export default function CoreValueSupervisorEvaluation({
     (newComment: string) => {
       if (!isEditable) return;
       setComment(newComment);
+      liveDataRef.current = { ...liveDataRef.current, comment: newComment };
       debouncedSave({ scores, comment: newComment });
     },
     [scores, debouncedSave, isEditable]

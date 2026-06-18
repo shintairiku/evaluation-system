@@ -1,11 +1,19 @@
 import { updateCoreValueFeedbackAction } from '@/api/server-actions/core-values';
-import { useCoreValueAutoSave, coreValueFeedbackFlushers } from '@/feature/evaluation/shared/core-value/useCoreValueAutoSave';
+import { useCoreValueAutoSave, coreValueFeedbackFlushers, type CoreValueSaveData } from '@/feature/evaluation/shared/core-value/useCoreValueAutoSave';
 import type { CoreValueFeedbackStatus } from '@/api/types';
 
 export type { SaveStatus } from '@/feature/evaluation/shared/types';
 export type { CoreValueSaveData as CoreValueFeedbackSaveData } from '@/feature/evaluation/shared/core-value/useCoreValueAutoSave';
 
 export const flushCoreValueFeedbackAutoSaves = coreValueFeedbackFlushers.flushAll;
+
+/**
+ * Current local (on-screen) core value feedback data for a feedbackId, or undefined
+ * when no card is mounted (caller falls back to the server-derived prop). Lets the
+ * submit button's completeness check read WYSIWYS instead of the stale prop.
+ * Mirrors getSupervisorFeedbackSnapshot.
+ */
+export const getCoreValueFeedbackSnapshot = coreValueFeedbackFlushers.getSnapshot;
 
 /**
  * Auto-save hook for core value feedback scores and comment.
@@ -19,6 +27,8 @@ export function useCoreValueFeedbackAutoSave(options: {
   debounceDelay?: number;
   statusClearTimeout?: number;
   onSaveSuccess?: () => void;
+  /** Stable getter for the card's live { scores, comment } (WYSIWYS submit). */
+  getSnapshot?: () => CoreValueSaveData;
 }) {
   return useCoreValueAutoSave({
     entityId: options.feedbackId,
@@ -31,5 +41,7 @@ export function useCoreValueFeedbackAutoSave(options: {
     saveAction: updateCoreValueFeedbackAction,
     isEditableCheck: (status) => status !== 'submitted',
     flusherSet: coreValueFeedbackFlushers.flushers,
+    getSnapshot: options.getSnapshot,
+    snapshotRegistry: coreValueFeedbackFlushers.snapshotGetters,
   });
 }
