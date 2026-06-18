@@ -25,14 +25,29 @@ type EditableCheck = (status: string | undefined) => boolean;
 /**
  * Creates a flusher set for a specific domain (evaluation or feedback).
  * Each domain needs its own flusher set so submit buttons can flush the correct saves.
+ *
+ * Also vends a per-domain snapshot registry: a Map keyed by entityId of getters
+ * returning the card's CURRENT local data. The submit button reads from it so its
+ * completeness check reflects EXACTLY what the user sees (WYSIWYS), instead of the
+ * server-derived prop which can be stale while the 2s debounced auto-save is pending.
+ * Mirrors the supervisor-feedback snapshot mechanism (getSupervisorFeedbackSnapshot).
  */
 export function createAutoSaveFlusherSet() {
   const flushers = new Set<() => Promise<void>>();
+  const snapshotGetters = new Map<string, () => CoreValueSaveData>();
   return {
     flushers,
     flushAll: async () => {
       await Promise.allSettled(Array.from(flushers, (fn) => fn()));
     },
+    snapshotGetters,
+    /**
+     * Current local (unsaved-or-saved) data for an entity, as shown on screen.
+     * Returns undefined when no card is mounted for that entityId (caller should
+     * fall back to the server-derived prop in that case).
+     */
+    getSnapshot: (entityId: string): CoreValueSaveData | undefined =>
+      snapshotGetters.get(entityId)?.(),
   };
 }
 
@@ -51,6 +66,16 @@ interface UseCoreValueAutoSaveOptions {
   saveAction: SaveAction;
   isEditableCheck: EditableCheck;
   flusherSet: Set<() => Promise<void>>;
+  /**
+   * Stable getter returning the card's CURRENT local data ({ scores, comment }).
+   * Registered in `snapshotRegistry` so the submit button can read exactly what the
+   * user sees (WYSIWYS) instead of the stale server-derived prop. Must be stable
+   * (e.g. useCallback with [] reading a ref) to keep registration cheap. Optional —
+   * only the supervisor-feedback card opts in; other consumers leave it undefined.
+   */
+  getSnapshot?: () => CoreValueSaveData;
+  /** Per-domain snapshot registry (from createAutoSaveFlusherSet). Required when getSnapshot is set. */
+  snapshotRegistry?: Map<string, () => CoreValueSaveData>;
 }
 
 interface UseCoreValueAutoSaveReturn {
@@ -77,6 +102,8 @@ export function useCoreValueAutoSave({
   saveAction,
   isEditableCheck,
   flusherSet,
+  getSnapshot,
+  snapshotRegistry,
 }: UseCoreValueAutoSaveOptions): UseCoreValueAutoSaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const initialData: CoreValueSaveData = {
@@ -261,6 +288,18 @@ export function useCoreValueAutoSave({
       flusherSet.delete(flushPendingSave);
     };
   }, [flushPendingSave, flusherSet]);
+
+  // Register/unregister the current-local-data getter so the submit button can read
+  // exactly what the user sees (WYSIWYS), not the stale server prop. Opt-in: no-op
+  // unless both entityId and a stable getSnapshot are provided. Mirrors the
+  // supervisor-feedback snapshot registry.
+  useEffect(() => {
+    if (!entityId || !getSnapshot || !snapshotRegistry) return;
+    snapshotRegistry.set(entityId, getSnapshot);
+    return () => {
+      snapshotRegistry.delete(entityId);
+    };
+  }, [entityId, getSnapshot, snapshotRegistry]);
 
   // Cleanup timers on unmount + best-effort save of queued data
   useEffect(() => {

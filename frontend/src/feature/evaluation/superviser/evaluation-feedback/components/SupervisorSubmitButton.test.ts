@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-import { resolveSupervisorSubmitFields } from "./SupervisorSubmitButton";
+import { resolveSupervisorSubmitFields, isCoreValueFeedbackComplete, resolveCoreValueLiveData } from "./SupervisorSubmitButton";
 import {
   useSupervisorFeedbackAutoSave,
   getSupervisorFeedbackSnapshot,
 } from "../hooks/useSupervisorFeedbackAutoSave";
+import { useCoreValueFeedbackAutoSave } from "../hooks/useCoreValueFeedbackAutoSave";
 
 /**
  * These tests lock in the WYSIWYS fix for the supervisor-submit-stale-rating bug:
@@ -79,6 +80,80 @@ describe("resolveSupervisorSubmitFields (competency)", () => {
     expect(result.supervisorRatingCode).toBeUndefined();
     expect(result.supervisorComment).toBe("server comment");
     expect(result.ratingData).toBeUndefined();
+  });
+});
+
+/**
+ * Core value completeness gate. The bug: a fully-filled core value evaluation was
+ * falsely reported as 未入力 at submit because the gate read the parent's stale
+ * server-derived prop instead of the live on-screen values. The submit now feeds this
+ * helper the WYSIWYS snapshot (falling back to the prop only when no card is mounted).
+ */
+describe("isCoreValueFeedbackComplete (core value gate)", () => {
+  const scores = (n: number): Record<string, string> =>
+    Object.fromEntries(Array.from({ length: n }, (_, i) => [`d${i}`, "A"]));
+
+  it("true when every definition is scored AND a comment is present", () => {
+    expect(isCoreValueFeedbackComplete(scores(9), "ok", 9)).toBe(true);
+  });
+
+  it("false when a score is missing", () => {
+    expect(isCoreValueFeedbackComplete(scores(8), "ok", 9)).toBe(false);
+  });
+
+  it("false when comment is empty / whitespace / null", () => {
+    expect(isCoreValueFeedbackComplete(scores(9), "", 9)).toBe(false);
+    expect(isCoreValueFeedbackComplete(scores(9), "   ", 9)).toBe(false);
+    expect(isCoreValueFeedbackComplete(scores(9), null, 9)).toBe(false);
+  });
+
+  it("true when there are no definitions to fill", () => {
+    expect(isCoreValueFeedbackComplete({}, "", 0)).toBe(true);
+  });
+
+  it("THE BUG: live snapshot is complete while the stale prop is empty", () => {
+    // What the user sees (live snapshot) — all filled
+    expect(isCoreValueFeedbackComplete(scores(9), "あ", 9)).toBe(true);
+    // The stale server-derived prop from initial load — would falsely block the submit
+    expect(isCoreValueFeedbackComplete({}, "", 9)).toBe(false);
+  });
+});
+
+/**
+ * resolveCoreValueLiveData feeds BOTH the completeness gate and the submit payload, so
+ * the submit persists exactly what the user sees (independent of the debounced flush).
+ * This closes the rare silent-comment-loss path and matches perf/competency, which also
+ * submit their live snapshot.
+ */
+describe("resolveCoreValueLiveData (live snapshot for gate + submit)", () => {
+  it("uses the live snapshot when a card is mounted, ignoring the stale prop", () => {
+    const live: { scores: Record<string, string>; comment: string } = {
+      scores: { d0: "A" },
+      comment: "live",
+    };
+    renderHook(() =>
+      useCoreValueFeedbackAutoSave({ feedbackId: "cv-1", getSnapshot: () => live }),
+    );
+
+    // The prop is stale/empty, but the resolver must return the live on-screen data.
+    expect(resolveCoreValueLiveData("cv-1", {}, "")).toEqual({ scores: { d0: "A" }, comment: "live" });
+
+    live.comment = "updated";
+    expect(resolveCoreValueLiveData("cv-1", {}, "").comment).toBe("updated");
+  });
+
+  it("falls back to the prop when no card is mounted", () => {
+    expect(resolveCoreValueLiveData("cv-unmounted", { d0: "A" }, "from server")).toEqual({
+      scores: { d0: "A" },
+      comment: "from server",
+    });
+  });
+
+  it("normalizes null prop scores/comment to undefined (omitted from submit payload)", () => {
+    expect(resolveCoreValueLiveData(undefined, null, null)).toEqual({
+      scores: undefined,
+      comment: undefined,
+    });
   });
 });
 
